@@ -1,0 +1,351 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
+import {
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
+  spinCountdown, spinRotation, spinShades, spinTicks, spinTiers,
+} from '../lib/dailySpin'
+import {
+  SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,
+  announceSpinChange, withSpinLock, resetSpinDevice,
+} from '../lib/spinDevice'
+import { useI18n, errMsg } from '../lib/i18n.jsx'
+import { sfx } from '../lib/sfx'
+import './DailySpin.css'
+
+const C = 200            // disc centre in viewBox units
+const FACE = 186         // sector radius, inside the bezel band
+const LABEL = 120        // radius of the prize numbers
+const round = n => Math.round(n * 100) / 100
+const point = (angle, radius) => {
+  const rad = angle * Math.PI / 180
+  return [round(C + radius * Math.sin(rad)), round(C - radius * Math.cos(rad))]
+}
+const sectorPath = (index, count, radius = FACE) => {
+  const step = 360 / count
+  const [sx, sy] = point((index - .5) * step, radius)
+  const [ex, ey] = point((index + .5) * step, radius)
+  return `M${C} ${C} L${sx} ${sy} A${radius} ${radius} 0 0 1 ${ex} ${ey} Z`
+}
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
+  timeZone: SPIN_TIME_ZONE, hour: '2-digit', minute: '2-digit',
+}).format(new Date(iso))
+
+/* Sector order and the twelve-o'clock alignment come from the server's array.
+   Fills are the site's flat surfaces, one tone per prize tier: the brighter the
+   slice, the rarer and bigger the reward. The centre is only a pin, no logo. */
+function Wheel({ rewards, rotation, duration, spinning, won, label }) {
+  const count = rewards.length
+  const step = 360 / count
+  const tiers = spinTiers(rewards)
+  const shades = spinShades(rewards)
+  return (
+    <div className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}`}
+      role="img" aria-label={label}>
+      <svg className="spin-wheel-disc" viewBox="0 0 400 400" aria-hidden="true"
+        style={{ transform: `rotate(${rotation}deg)`, transitionDuration: `${duration}ms` }}>
+        {/* flat bezel band + hairlines: gives the disc an edge without a gradient */}
+        <circle cx={C} cy={C} r="193" className="spin-wheel-bezel" />
+        <circle cx={C} cy={C} r="198.5" className="spin-wheel-edge" />
+        {rewards.map((reward, i) => (
+          <path key={i} className={`spin-sector ${tiers[reward]} ${shades[i]}${won === i ? ' is-won' : ''}`}
+            d={sectorPath(i, count)} />
+        ))}
+        {/* separators on top of the fills: 16 thin slices stay readable */}
+        {rewards.map((_, i) => {
+          const [x1, y1] = point((i - .5) * step, 26)
+          const [x2, y2] = point((i - .5) * step, FACE)
+          return <line key={i} className="spin-wheel-spoke" x1={x1} y1={y1} x2={x2} y2={y2} />
+        })}
+        {rewards.map((reward, i) => {
+          const [x, y] = point(i * step, LABEL)
+          // Turn the lower half upright so no prize number hangs upside down.
+          const flip = i * step > 90 && i * step < 270 ? 180 : 0
+          return <text key={i} className={`spin-wheel-number ${tiers[reward]} ${shades[i]}${won === i ? ' is-won' : ''}`}
+            x={x} y={y} transform={`rotate(${i * step + flip} ${x} ${y})`}
+            textAnchor="middle" dominantBaseline="central">
+            <tspan className="spin-wheel-plus">+</tspan>{reward}
+          </text>
+        })}
+        {won !== null && <path className="spin-wheel-marker" d={sectorPath(won, count)} />}
+        <circle cx={C} cy={C} r={FACE} className="spin-wheel-rim" />
+        <circle cx={C} cy={C} r="26" className="spin-wheel-pin" />
+        <circle cx={C} cy={C} r="8" className="spin-wheel-pin-dot" />
+      </svg>
+      <span className="spin-wheel-pointer" aria-hidden="true">
+        <svg width="24" height="30" viewBox="0 0 24 30">
+          <path d="M12 27 2.6 5.4Q1 2 4.6 2h14.8Q23 2 21.4 5.4Z" />
+        </svg>
+      </span>
+    </div>
+  )
+}
+
+/* Two spare spins shown as a bar, not only as a number: at a glance you can see
+   whether today is still open. */
+function Pips({ remaining, limit }) {
+  return <span className="spin-pips" aria-hidden="true">
+    {Array.from({ length: limit }, (_, i) => <i key={i} className={i < remaining ? 'on' : ''} />)}
+  </span>
+}
+
+export default function DailySpin({ userId, credits, purchased, bonus, onBalance, onVote }) {
+  const { t } = useI18n()
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  // Lỗi thuộc về token thiết bị: hiện thêm nút tự cấp lại (xem spinDevice.js).
+  const [deviceBroken, setDeviceBroken] = useState(false)
+  const [phase, setPhase] = useState('idle')
+  const [result, setResult] = useState(null)
+  const [pending, setPending] = useState(() => !!readPendingSpin(userId))
+  const [rotation, setRotation] = useState(0)
+  // Con so duoc giu yen khi dia quay dang chay (giao dich da xong nhung khong
+  // spoils ket qua). Giu ca ba gia tri: tong, vote da mua, bonus.
+  const [held, setHeld] = useState({ credits, purchased, bonus })
+  const [activeRequest, setActiveRequest] = useState(null)
+  const [duration, setDuration] = useState(0)
+  const [clock, setClock] = useState(() => performance.now())
+  const [deadline, setDeadline] = useState(null)
+  const busy = useRef(false)
+  const mounted = useRef(false)
+  const readVersion = useRef(0)
+  const finishTimer = useRef(null)
+  const stopTicks = useRef(null)
+  const angle = useRef(0)   // góc hiện tại, đọc được ngoài render (updater có thể chạy 2 lần)
+
+  const applyStatus = useCallback(next => {
+    if (next?.user_id !== userId) throw new Error('err.spinAccountChanged')
+    /* Mốc giờ để tự nạp lại lúc nửa đêm của server: `server_now` có thể thiếu
+       (gate cũ) hoặc hỏng (payload lạ) — lấy giờ máy khách làm mốc, và nếu vẫn
+       không ra con số thì GIỮ hẹn cũ chứ đừng set NaN: NaN giết luôn cái timer
+       ở dưới và in chữ rác lên ô đếm ngược. */
+    const ref = Number.isFinite(+new Date(next.server_now)) ? +new Date(next.server_now) : Date.now()
+    const left = +new Date(next.reset_at) - ref
+    if (Number.isFinite(left)) setDeadline(performance.now() + Math.max(0, left))
+    setClock(performance.now())
+    setStatus(next)
+    onBalance(next)
+  }, [userId, onBalance])
+
+  const load = useCallback(async () => {
+    if (busy.current) return
+    const version = ++readVersion.current
+    try {
+      const next = await fetchDailySpinStatus()
+      if (!mounted.current || readVersion.current !== version || busy.current) return
+      applyStatus(next)
+      setError('')
+      setDeviceBroken(false)
+      setPending(!!readPendingSpin(userId))
+    } catch (e) {
+      if (mounted.current && readVersion.current === version) {
+        setError(errMsg(t, e))
+        setDeviceBroken(['err.spinDevice', 'err.spinStorage'].includes(e?.message))
+      }
+    } finally {
+      if (mounted.current && readVersion.current === version) setLoading(false)
+    }
+  }, [userId, t, applyStatus])
+
+  useEffect(() => {
+    mounted.current = true
+    // Defer the initial fetch until the effect setup/StrictMode cleanup settles.
+    queueMicrotask(() => { if (mounted.current) load() })
+    const refresh = () => { if (!document.hidden) load() }
+    const storage = e => { if (e.key === SPIN_SYNC_KEY) refresh() }
+    window.addEventListener('focus', refresh)
+    window.addEventListener('storage', storage)
+    document.addEventListener('visibilitychange', refresh)
+    const tick = setInterval(() => setClock(performance.now()), 1000)
+    const poll = setInterval(refresh, 60_000)
+    return () => {
+      mounted.current = false
+      clearTimeout(finishTimer.current)
+      stopTicks.current?.(); stopTicks.current = null
+      clearInterval(tick); clearInterval(poll)
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('storage', storage)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [load])
+
+  useEffect(() => {
+    if (deadline === null) return
+    const id = setTimeout(() => load(), Math.max(500, deadline - performance.now() + 100))
+    return () => clearTimeout(id)
+  }, [deadline, load]) // server midnight, also refreshed on focus / every minute
+
+  const spin = async () => {
+    if (busy.current || !status || (!status.remaining && !pending)) return
+    busy.current = true
+    ++readVersion.current // a stale status read must not overwrite the committed result
+    setLoading(false); setPhase('requesting'); setError(''); setResult(null)
+    setHeld({ credits, purchased, bonus }); setActiveRequest(null)
+    sfx.spinGo()
+    let requestId
+    try {
+      requestId = await withSpinLock(`ccl.spin.pending.${userId}`, () => getPendingSpin(userId))
+      setPending(true); setActiveRequest(requestId)
+      const data = await performDailySpin(requestId, userId)
+      clearPendingSpin(userId, requestId)
+      announceSpinChange()
+      // The parent guards user_id too: late responses after sign-out must never
+      // update a different account's balance. The credit is already committed.
+      if (!mounted.current) { onBalance(data.status); return }
+      applyStatus(data.status)
+      setPending(!!readPendingSpin(userId))
+      const ms = reducedMotion() || data.replayed ? 0 : 4500
+      setDuration(ms)
+      const next = spinRotation(angle.current, data.spin.segment, data.status.rewards.length)
+      const travel = next - angle.current
+      angle.current = next
+      setRotation(next)
+      setPhase('spinning')
+      // Tiếng tách bám đúng đường cong CSS: xếp lịch một lần, không dùng timer.
+      stopTicks.current?.()
+      stopTicks.current = ms ? sfx.spinTicks(spinTicks(travel, data.status.rewards.length, ms)) : null
+      const top = Math.max(...data.status.rewards)
+      finishTimer.current = setTimeout(() => {
+        if (!mounted.current) return
+        stopTicks.current = null
+        setResult(data.spin); setPhase('idle'); busy.current = false
+        sfx.spinWin(data.spin.reward >= top)
+        load() // reconcile other tabs, or midnight passed during the animation
+      }, ms ? ms + 80 : 0)
+    } catch (e) {
+      // Known SQL rejections rolled back, so there is nothing to recover. Keep
+      // the same ID for network/unknown errors: it may have committed already.
+      if (e?.code === 'P0001' || [
+        'err.spinDeviceLimit', 'err.spinAccountLimit', 'err.spinAccountChanged',
+        'err.spinDevice', 'err.spinRequest', 'err.signin', 'err.spinSetup',
+        // Edge từ chối trước khi chạm database: không có ledger để retry.
+        'err.spinEdgeFp', 'err.spinEdgeIp', 'err.spinCaptcha', 'err.spinFingerprint',
+      ].includes(e?.message)) clearPendingSpin(userId, requestId)
+      busy.current = false
+      stopTicks.current?.(); stopTicks.current = null
+      if (!mounted.current) return
+      setPhase('idle'); setError(errMsg(t, e)); setPending(!!readPendingSpin(userId))
+      setDeviceBroken(['err.spinDevice', 'err.spinStorage'].includes(e?.message))
+      sfx.error()
+      load()
+    }
+  }
+
+  const rewards = status?.rewards || SPIN_REWARDS
+  const remaining = status?.remaining ?? 0
+  const limit = status?.limit || DAILY_SPIN_LIMIT
+  const active = phase !== 'idle'
+  // The transaction is already committed, but do not spoil the result while
+  // the wheel is still moving. Leaving the page never loses the real credit.
+  const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
+  // Dang quay thi giu nguyen con so (giao dich da xong nhung khong spoils ket
+  // qua); dung lai thi lay theo status server vua tai. Backend cu chi tra tong
+  // credits, khong co purchased/bonus: hien 0 cho on dinh bo cuc.
+  const shown = active ? held : {
+    credits: status?.credits ?? credits ?? 0,
+    purchased: status?.purchased ?? purchased ?? 0,
+    bonus: status?.bonus ?? bonus ?? 0,
+  }
+  const won = result ? result.segment : null
+  const buttonLabel = phase === 'requesting' ? 'spin.requesting'
+    : phase === 'spinning' ? 'spin.spinning'
+    : loading ? 'spin.loading' : pending ? 'spin.recover'
+    : status && !remaining ? 'spin.finished' : 'spin.action'
+
+  return (
+    <section className="daily-spin" aria-label={t('spin.playLabel')}>
+      <header className="spin-head">
+        <div className="spin-head-text">
+          <h2>{t('spin.playLabel')}</h2>
+          <p>
+            {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
+          </p>
+        </div>
+        <div className="spin-reset" title={t('spin.ruleReset')}>
+          <span>{t('spin.resetIn')}</span>
+          <b>{status ? spinCountdown(deadline - clock) : '--:--:--'}</b>
+        </div>
+      </header>
+
+      <div className="spin-stage">
+        <div className="spin-dial">
+          <Wheel rewards={rewards} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
+            won={won} label={t('spin.wheelLabel', {
+              n: rewards.length,
+              odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),
+            })} />
+
+          <div className="spin-cta" aria-busy={active || loading}>
+            <button type="button" className="btn btn-primary spin-button" onClick={spin}
+              disabled={active || loading || !status || (!remaining && !pending)}>
+              {t(buttonLabel)}
+            </button>
+
+            <div className={`spin-result${result ? ' won' : ''}`} role="status" aria-live="polite" aria-atomic="true">
+              {result
+                ? <><strong>{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
+                  <small>{t('spin.wonNote')}</small></>
+                : <span className="spin-hint">{t('spin.hint')}</span>}
+            </div>
+          </div>
+
+          {pending && !active && <p className="spin-pending">{t('spin.pending')}</p>}
+          {error && <div className="spin-error" role="alert">
+            <p>{error}</p>
+            <button type="button" className="btn btn-sm" disabled={loading || active}
+              onClick={() => { setLoading(true); setError(''); load() }}>{t('spin.refresh')}</button>
+            {/* Token trình duyệt hỏng thì "Try again" không bao giờ thoát được:
+                cho người dùng tự cấp lại thay vì bắt liên hệ hỗ trợ. */}
+            {deviceBroken && (
+              <button type="button" className="btn btn-sm" title={t('spin.deviceResetHint')}
+                disabled={active}
+                onClick={() => { resetSpinDevice(); window.location.reload() }}>
+                {t('spin.deviceReset')}
+              </button>
+            )}
+          </div>}
+        </div>
+
+        <aside className="spin-panel">
+          <div className="spin-metrics">
+            <div className="spin-metric spin-remaining">
+              <span>{t('spin.available')}</span>
+              <b>{status ? remaining : '–'}<small> / {limit}</small></b>
+              <Pips remaining={status ? remaining : 0} limit={limit} />
+            </div>
+            <div className="spin-metric spin-purchased">
+              <span>{t('vote.purchased')}</span>
+              <b>{shown.purchased}<small>{t('spin.votes')}</small></b>
+            </div>
+            <div className="spin-metric spin-bonus">
+              <span>{t('vote.bonus')}</span>
+              <b>{shown.bonus}<small>{t('spin.votes')}</small></b>
+            </div>
+          </div>
+
+          <ul className="spin-rules" aria-label={t('spin.rules')}>
+            <li>{t('spin.ruleLimit', { n: limit })}</li>
+            <li>{t('spin.ruleReset')}</li>
+            <li>{t('spin.ruleCredit')}</li>
+          </ul>
+
+          <div className="spin-history">
+            <div className="spin-history-head">
+              <h3>{t('spin.history')}</h3>
+              <button type="button" className="spin-vote-link" onClick={onVote}>
+                {t('spin.useVotes')} <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            {history.length ? <ul>
+              {history.map(item => <li key={item.request_id}>
+                <b>{t(item.reward === 1 ? 'spin.rewardOne' : 'spin.reward', { n: item.reward })}</b>
+                <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
+              </li>)}
+            </ul> : <p>{t('spin.historyEmpty')}</p>}
+          </div>
+        </aside>
+      </div>
+    </section>
+  )
+}

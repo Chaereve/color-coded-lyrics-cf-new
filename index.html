@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chaereve — Request Page</title>
+    <meta name="description" content="Request and vote for colour-coded lyric videos, full albums, 1-hour loops and Shorts by @chaereve." />
+    <meta name="theme-color" content="#0d0f12" />
+    <meta name="color-scheme" content="dark" />
+    <!-- màu nền đặt sớm để khung hình đầu tiên không loá trắng rồi mới tối xuống -->
+    <style>html{background:#0d0f12}body{margin:0}</style>
+
+    <link rel="icon" type="image/png" href="/favicon-64.png?v=2" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Chaereve" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="preload" href="/fonts/bvp-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/archivo-display.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- ảnh bìa + avatar lấy từ hai host này: nối trước để TLS xong trước khi cần -->
+    <link rel="preconnect" href="https://i.ytimg.com" crossorigin />
+    <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin />
+
+    <!-- Xem trước khi dán link vào Telegram, Discord, Facebook… -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Chaereve" />
+    <meta property="og:title" content="Chaereve — Request Page" />
+    <meta property="og:description" content="Request and vote for colour-coded lyric videos by @chaereve." />
+    <meta property="og:image" content="/logo-192.png" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

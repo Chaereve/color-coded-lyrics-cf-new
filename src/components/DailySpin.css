@@ -1,0 +1,254 @@
+/* Daily Spin — same surfaces, type and controls as the request list, and every
+   fill stays FLAT: no gradient, no halo, no logo in the hub. The wheel is made
+   readable with structure instead of decoration: a bezel band, one tone per
+   prize tier (brighter slice = rarer, bigger prize), separators between the
+   16 slices, numbers that never hang upside down, and a pointer that reaches
+   into the disc.
+
+   Three bands: head (what this is + when the day resets) · stage (wheel and the
+   Spin button on the left, the status card on the right) · footer (today's
+   rewards). The action sits with the wheel; the numbers sit beside it. */
+
+.daily-spin {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  /* Four-step ramp for the slices, brightest tone for the jackpot. These stay
+     the neutral fallback (and what the odds chips reuse); the coloured wheel
+     below paints on top of them. */
+  --w-1: var(--surface-2);
+  --w-2: #232930;
+  --w-3: #2f3741;
+  --w-4: var(--a);
+
+  /* ---- every slice is a SHADE OF THE SITE ACCENT -------------------------
+     One hue only (the brand ultramarine), so the wheel belongs to the site
+     instead of looking like a fairground. Two axes carry the information:
+
+       tier  → how much accent is mixed into the dark surface. The bigger the
+               prize, the more accent, ending on pure --a for the jackpot.
+       shade → ±a few percent white/black inside the tier, cycling v1/v2/v3, so
+               two equal neighbouring slices never merge into one block.
+
+     Everything derives from var(--a): retune the brand colour and the whole
+     wheel follows. Fills stay FLAT — color-mix resolves to one solid colour.
+
+     The tier step (16 → 44 → 72 → 100% accent) is deliberately much wider than
+     the shade step (±5/7% white/black): the prize must always read louder than
+     the position, otherwise the shading would look like four more prizes.
+     White numbers keep at least 7.5:1 contrast on every one of the 12 fills. */
+  --w-t1: color-mix(in oklab, var(--a) 16%, var(--surface-2));
+  --w-t2: color-mix(in oklab, var(--a) 44%, var(--surface-2));
+  --w-t3: color-mix(in oklab, var(--a) 72%, var(--surface-2));
+  --w-t4: var(--a);
+
+  --w-1a: var(--w-t1);
+  --w-1b: color-mix(in oklab, #fff 5%, var(--w-t1));
+  --w-1c: color-mix(in oklab, #000 7%, var(--w-t1));
+  --w-2a: var(--w-t2);
+  --w-2b: color-mix(in oklab, #fff 5%, var(--w-t2));
+  --w-2c: color-mix(in oklab, #000 7%, var(--w-t2));
+  --w-3a: var(--w-t3);
+  --w-3b: color-mix(in oklab, #fff 5%, var(--w-t3));
+  --w-3c: color-mix(in oklab, #000 7%, var(--w-t3));
+  --w-4a: var(--w-t4);
+  --w-4b: color-mix(in oklab, #fff 5%, var(--w-t4));
+  --w-4c: color-mix(in oklab, #000 7%, var(--w-t4));
+}
+
+/* ---- head ---- */
+.spin-head {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 10px 16px; padding: 13px 22px;
+  background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+.spin-head-text { min-width: 0; }
+.spin-head h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .1px; color: var(--txt); }
+.spin-head p {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 0;
+  font-size: 11.5px; color: var(--txt-2);
+}
+.spin-demo {
+  padding: 2px 8px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  font: 400 10px/1.6 var(--mono); color: var(--txt-2); white-space: nowrap;
+}
+/* The countdown is a chip up here, not a footnote buried under the rules. */
+.spin-reset {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 13px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface);
+  font-size: 11px; color: var(--txt-2); white-space: nowrap;
+}
+.spin-reset b { font: 500 14px/1 var(--mono); color: var(--txt); font-variant-numeric: tabular-nums; }
+
+/* ---- stage ---- */
+.spin-stage {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 330px);
+  gap: 40px; align-items: start; max-width: 900px;
+  margin: 0 auto; padding: 28px 22px 30px;
+}
+.spin-dial { min-width: 0; display: grid; justify-items: center; gap: 14px; }
+
+/* ---- wheel ---- */
+.spin-wheel-wrap { position: relative; width: min(100%, 360px); aspect-ratio: 1; }
+.spin-wheel-disc {
+  display: block; width: 100%; height: 100%; transform-origin: 50% 50%;
+  transition: transform 4500ms cubic-bezier(.12, .72, .12, 1);
+}
+.is-spinning .spin-wheel-disc { will-change: transform; }
+/* Bezel: one flat band plus two hairlines, so the disc has an edge on a dark card. */
+.spin-wheel-bezel { fill: none; stroke: var(--surface-3); stroke-width: 14; }
+.spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+.spin-wheel-rim { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+/* One flat tone per prize tier; t1 is the base (darkest) step. */
+.spin-sector { fill: var(--w-1); transition: opacity .35s var(--e-soft); }
+.spin-sector.t2 { fill: var(--w-2); }
+.spin-sector.t3 { fill: var(--w-3); }
+.spin-sector.t4 { fill: var(--w-4); }
+/* Tier hue × slice shade: same prize keeps its colour, adjacent equal slices
+   still differ. v1/v2/v3 cycle in wheel order (see spinShades). */
+.spin-sector.t1.v1 { fill: var(--w-1a); } .spin-sector.t1.v2 { fill: var(--w-1b); } .spin-sector.t1.v3 { fill: var(--w-1c); }
+.spin-sector.t2.v1 { fill: var(--w-2a); } .spin-sector.t2.v2 { fill: var(--w-2b); } .spin-sector.t2.v3 { fill: var(--w-2c); }
+.spin-sector.t3.v1 { fill: var(--w-3a); } .spin-sector.t3.v2 { fill: var(--w-3b); } .spin-sector.t3.v3 { fill: var(--w-3c); }
+.spin-sector.t4.v1 { fill: var(--w-4a); } .spin-sector.t4.v2 { fill: var(--w-4b); } .spin-sector.t4.v3 { fill: var(--w-4c); }
+.spin-wheel-spoke { stroke: var(--bg); stroke-width: 2; }
+.spin-wheel-number {
+  font-family: var(--mono); font-size: 25px; font-weight: 600; letter-spacing: -.5px;
+  fill: #fff; transition: opacity .35s var(--e-soft);
+}
+.spin-wheel-number.t4 { fill: #fff; }
+.spin-wheel-plus { font-size: 15px; font-weight: 400; fill: rgba(255, 255, 255, .66); }
+/* The jackpot number steps up: it is the reason the wheel exists. */
+.spin-wheel-number.t4 { font-size: 30px; }
+.spin-wheel-number.t4 .spin-wheel-plus { fill: rgba(255, 255, 255, .72); }
+/* The hub is a pin, nothing else. */
+.spin-wheel-pin { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }
+.spin-wheel-pin-dot { fill: var(--line-2); }
+/* Winner: an outline drawn above the separators while the other slices step back. */
+.spin-wheel-marker { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linejoin: round; }
+.has-won .spin-sector:not(.is-won),
+.has-won .spin-wheel-number:not(.is-won) { opacity: .45; }
+/* Pointer: on top of the disc, tip reaching just inside the rim. */
+.spin-wheel-pointer {
+  position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+  pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
+}
+.spin-wheel-pointer svg { display: block; transform-origin: 50% 10%; }
+.spin-wheel-pointer path { fill: var(--txt); stroke: var(--surface); stroke-width: 2.5; stroke-linejoin: round; }
+/* A light flutter while slices pass the pointer — motion only, no extra colour. */
+.is-spinning .spin-wheel-pointer svg { animation: spinPointerTick .15s linear infinite; }
+@keyframes spinPointerTick {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+
+/* ---- call to action ---- */
+.spin-cta { width: min(100%, 360px); display: grid; gap: 10px; }
+.daily-spin .spin-button { width: 100%; min-height: 44px; font-size: 13.5px; }
+/* Global button sheen must not reintroduce a gradient on hover. */
+.daily-spin .btn-primary, .daily-spin .btn-primary:hover:not(:disabled) { box-shadow: none; }
+.daily-spin .btn-primary::after { content: none; background: none; animation: none; }
+.daily-spin .spin-button:disabled {
+  opacity: 1; background: var(--surface-3); border-color: var(--line-2);
+  color: var(--txt-2); cursor: not-allowed; transform: none;
+}
+/* Reserved height: a win never pushes the button around. */
+.spin-result {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 54px; padding: 7px 12px; text-align: center;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.spin-result.won { border-color: var(--a); background: var(--a-soft); }
+.spin-result strong { font: 600 16px/1.25 var(--mono); color: var(--txt); }
+.spin-result small { font-size: 11px; color: var(--txt-2); }
+.spin-hint { font-size: 11.5px; color: var(--txt-3); }
+.spin-pending {
+  width: min(100%, 360px); margin: 0; text-align: center;
+  font-size: 11.5px; line-height: 1.6; color: var(--txt-2);
+}
+.spin-error {
+  width: min(100%, 360px); display: grid; justify-items: center; gap: 9px;
+  padding: 11px 13px; border: 1px solid var(--line); border-left: 2px solid var(--denied);
+  border-radius: var(--r-md); background: var(--surface-2);
+}
+.spin-error p {
+  margin: 0; text-align: center; overflow-wrap: anywhere;
+  font-size: 11.5px; line-height: 1.6; color: #efa29d;
+}
+
+/* ---- status card beside the wheel ---- */
+.spin-panel {
+  min-width: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.spin-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.spin-metric { display: grid; align-content: start; gap: 6px; padding: 12px 14px; }
+.spin-purchased, .spin-bonus { border-left: 1px solid var(--line); }
+.spin-metric > span:first-child { font-size: 11px; color: var(--txt-2); }
+.spin-metric b { display: flex; align-items: baseline; gap: 6px; font: 600 24px/1.1 var(--mono); color: var(--txt); }
+.spin-metric b small { font: 400 12px var(--font); color: var(--txt-2); }
+.spin-purchased b { color: var(--paid); }
+.spin-bonus b { color: var(--a-2); }
+/* The same two slots drawn as a bar: today is open, or it is not. */
+.spin-pips { display: flex; gap: 4px; margin-top: 3px; }
+.spin-pips i { flex: 1; height: 3px; border-radius: var(--r-pill); background: var(--line-2); }
+.spin-pips i.on { background: var(--a-2); }
+
+.spin-rules {
+  display: grid; gap: 7px; margin: 0; padding: 12px 14px; list-style: none;
+  border-top: 1px solid var(--line); color: var(--txt-2); font-size: 11.5px; line-height: 1.5;
+}
+.spin-rules li { display: flex; gap: 9px; }
+.spin-rules li::before {
+  content: ''; flex: none; width: 5px; height: 5px; margin-top: 5px;
+  border-radius: 50%; background: var(--line-2);
+}
+
+/* ---- today's rewards live in the status card, next to the balance ---- */
+.spin-history { border-top: 1px solid var(--line); padding: 12px 14px; }
+.spin-history-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin-bottom: 8px;
+}
+.spin-history h3 { margin: 0; font-size: 11px; font-weight: 400; color: var(--txt-2); }
+.spin-vote-link {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: 500 11px/1.4 var(--font); color: var(--a-2);
+}
+.spin-vote-link:hover { color: var(--txt); }
+.spin-vote-link:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; border-radius: var(--r-sm); }
+.spin-vote-link > span { margin-left: 4px; }
+.spin-history ul { display: flex; flex-wrap: wrap; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.spin-history li {
+  display: flex; align-items: baseline; gap: 9px; padding: 5px 11px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface);
+}
+.spin-history b { font: 600 12px var(--mono); color: var(--txt); }
+.spin-history time { font: 400 10.5px var(--mono); color: var(--txt-2); }
+.spin-history p { margin: 0; font-size: 11.5px; color: var(--txt-3); }
+
+/* ---- narrow screens: one column, wheel first, action right under it ---- */
+@media (max-width: 1020px) {
+  .spin-stage { gap: 26px; padding: 24px 20px 26px; }
+}
+@media (max-width: 880px) {
+  .spin-stage { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 22px; }
+  .spin-panel { width: min(100%, 460px); }
+}
+@media (max-width: 720px) {
+  .spin-head { padding: 12px 16px; }
+  .spin-stage { padding: 20px 16px 22px; }
+  .spin-wheel-wrap { width: min(100%, 320px); }
+  .spin-cta, .spin-pending, .spin-error { width: min(100%, 320px); }
+  .daily-spin .spin-button { min-height: 46px; font-size: 14px; }
+}
+@media (max-width: 400px) {
+  .spin-metrics { grid-template-columns: 1fr; }
+  .spin-purchased, .spin-bonus { border-left: 0; border-top: 1px solid var(--line); }
+  .spin-reset { width: 100%; justify-content: space-between; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin-wheel-disc { transition: none !important; }
+  .is-spinning .spin-wheel-pointer svg { animation: none; }
+  .spin-sector, .spin-wheel-number { transition: none; }
+}

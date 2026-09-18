@@ -1,0 +1,600 @@
+/* ============================================================
+   i18n.jsx — toàn bộ chữ hiển thị trên web.
+   App chỉ có một thứ tiếng: tiếng Anh. Sửa chữ tại đây,
+   không phải đụng vào component nào.
+   Placeholder trong chuỗi: {name} — xem fill() bên dưới.
+   ============================================================ */
+import { createContext, useCallback, useContext, useMemo } from 'react'
+
+const S = {
+  /* dieu huong sidebar / mobile */
+  'nav.board': 'Requests',
+  'nav.spin': 'Daily Spin',
+  'nav.ranking': 'Leaderboard',
+  'nav.mine': 'My requests',
+
+  /* sidebar */
+  'side.label': 'Main menu',
+  'side.tagline': 'Request Page',
+  'side.nav': 'Browse',
+  'side.connect': 'Connect',
+  'side.youtube': 'YouTube',
+  'side.collapse': 'Collapse sidebar',
+  'side.expand': 'Expand sidebar',
+
+  /* nut */
+  'btn.newRequest': 'New request',
+  'btn.profile': 'Edit profile',
+
+  /* am thanh */
+  'sfx.on': 'Mute sounds',
+  'sfx.off': 'Unmute sounds',
+
+  /* ho so */
+  'prof.title': 'Profile',
+  'prof.name': 'Display name',
+  'prof.choose': 'Choose image',
+  'prof.reset': 'Use Google picture',
+  'prof.maxSize': '{mb}MB max',
+  'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
+  'prof.save': 'Save',
+  'prof.saving': 'Saving…',
+  'prof.cancel': 'Cancel',
+
+  /* cat anh */
+  'crop.title': 'Adjust the crop',
+  'crop.hint': 'Drag to move · scroll to zoom',
+  'crop.zoom': 'Zoom',
+  'crop.apply': 'Use this image',
+
+  /* thong bao duoi goc */
+  'toast.profSaved': 'Profile saved.',
+
+  /* menu goc */
+  'menu.open': 'Open menu',
+  'menu.close': 'Close menu',
+  'menu.settings': 'Settings',
+  'menu.sound': 'Sound',
+  'menu.admin': 'Admin panel',
+  'menu.signOut': 'Sign out',
+
+  /* the so diem vote */
+  'vp.yourVotes': 'Your votes',
+  'vp.left': 'votes left',
+  'vp.freeToday': 'Free today',
+  'vp.reset': 'Free votes reset at 00:00 (GMT+7)',
+  'vp.bonusReset': 'Bonus resets at the end of October',
+  'vp.goVote': 'Vote now',
+  'vp.buy': 'Buy votes',
+
+  /* daily spin — short product copy; technical details stay in the guide/privacy page */
+  'spin.demo': 'Demo · local data',
+  'spin.playLabel': 'Daily bonus wheel',
+  'spin.available': 'Spins left today',
+  'spin.wheelLabel': 'Wheel with {n} equal sectors: {odds} votes. Brighter sectors are rarer.',
+  'spin.action': 'Spin',
+  'spin.loading': 'Loading…',
+  'spin.requesting': 'Confirming…',
+  'spin.spinning': 'Spinning…',
+  'spin.recover': 'Check last spin',
+  'spin.finished': 'No spins left today',
+  'spin.pending': 'Last spin unconfirmed. Check it before spinning again.',
+  'spin.refresh': 'Try again',
+  'spin.deviceReset': 'Reset this browser',
+  'spin.deviceResetHint': 'Clears the saved browser token, then reloads. Your spins already used today stay used.',
+  'spin.hint': 'Every sector wins something.',
+  'spin.wonOne': '+1 bonus vote',
+  'spin.won': '+{n} bonus votes',
+  'spin.wonNote': 'Added to your vote credits.',
+  'spin.resetIn': 'Next reset',
+  'spin.votes': 'votes',
+  'spin.useVotes': 'Use votes',
+  'spin.rewardOne': '+1 vote',
+  'spin.reward': '+{n} votes',
+  'spin.history': 'Today’s rewards',
+  'spin.historyEmpty': 'No spins yet.',
+  'spin.addedAt': '{time} · GMT+7',
+  'spin.rules': 'Spin rules',
+  'spin.ruleLimit': '{n} spins per account and device, daily.',
+  'spin.ruleReset': 'Resets at 00:00 (GMT+7).',
+  'spin.ruleCredit': 'Bonus votes from the wheel reset at the end of October each year.',
+  'err.spinSetup': 'Daily Spin isn’t available yet.',
+  'err.spinDevice': 'Could not verify this browser. Please contact support.',
+  'err.spinStorage': 'Enable cookies and local storage to spin.',
+  'err.spinRegistration': 'Browser registration limit reached. Try again tomorrow.',
+  'err.spinDeviceLimit': 'This device has used its daily spins, including other accounts.',
+  'err.spinAccountLimit': 'This account has used its daily spins, including other devices.',
+  'err.spinAccountChanged': 'Account changed. Refresh before spinning.',
+  'err.spinRequest': 'Could not verify this spin. Please refresh.',
+  'err.spinTimeout': 'Connection timed out. Try again to check your spin.',
+  'err.spinResponse': 'Could not confirm the result. Check your last spin.',
+  'err.spinFingerprint': 'Could not read this browser’s signature. Enable scripts and try again.',
+  'err.spinCaptcha': 'Couldn’t run the security check quietly. Please try again.',
+  'err.spinGate': 'Could not reach the spin service. Try again.',
+  'err.spinEdgeFp': 'This browser has used its daily spins.',
+  'err.spinEdgeIp': 'Too many browsers spun from this network today. Try again tomorrow.',
+  'err.voteGate': 'Could not reach the vote service. Try again.',
+  'err.voteFpLimit': 'This browser has used its 3 free votes today. Buy votes or come back tomorrow.',
+  'err.voteEdgeFp': 'Too many vote requests from this browser today. Try again tomorrow.',
+
+  /* the thong ke */
+  'stat.queued': 'In queue',
+  'stat.inProgress': 'In progress',
+  'stat.completed': 'Completed',
+  'stat.paid': 'Paid',
+  'stat.submitted': 'Submitted',
+  'stat.pending': 'Pending',
+  'stat.votesReceived': 'Votes received',
+
+  /* bo loc */
+  'filter.queued': 'Queue',
+  'filter.picked': 'Up next',
+  'filter.newest': 'Newest',
+  'filter.top': 'Top voted',
+  'filter.in_progress': 'In progress',
+  'filter.completed': 'Done',
+  'filter.watch': 'Following',
+
+  /* ---------------- THEO DÕI + THÔNG BÁO ----------------
+     Chuông, bảng thông báo, vị trí trên hàng chờ. Sửa chữ tại đây là đủ mọi
+     thứ liên quan đến tính năng này (không còn "trang Updates" riêng). */
+  'nt.aria': 'Open your notifications',
+  /* so it khong dung duoc cho "1" -> dung cau "3 unread", dung cho moi n */
+  'nt.ariaUnread': 'Open your notifications \u2014 {n} unread',
+  'nt.title': 'Notifications',
+  'nt.markAll': 'Mark all read',
+  'nt.settings': 'Notification settings',
+  'nt.back': 'Back to notifications',
+  'nt.backShort': 'Notifications',
+  'nt.browse': 'Browse the board',
+  'nt.emptyTitle': 'Nothing yet',
+  'nt.emptyBody': 'Tap the bell on a song to get its news here. Songs you request are followed automatically.',
+  'nt.drop': 'Remove this',
+  'nt.vote': 'Vote now',
+  'nt.watch': 'Watch',
+  'nt.open': 'Go to the request',
+  'nt.voteNow': 'Vote now',
+  'nt.multi': '{n} new notifications',
+  'nt.multiBody': 'First one: {song}.',
+  'nt.none': 'You are not following any song yet.',
+
+  'nt.grp.need': 'Needs your votes',
+  'nt.grp.upnext': 'Up next',
+  'nt.grp.denied': 'Denied',
+  'nt.grp.work': 'In progress',
+  'nt.grp.out': 'Out now',
+  'nt.grp.other': 'Other',
+
+  'nt.tag.near': 'Almost picked',
+  'nt.tag.lead': 'First in line',
+  'nt.tag.approved': 'In queue',
+  'nt.tag.started': 'Production',
+  'nt.tag.picked': 'Up next',
+  'nt.tag.done': 'Out now',
+  'nt.tag.denied': 'Denied',
+  'nt.tag.progress': 'Progress',
+  'nt.tag.votes': 'Votes',
+  /* Chu cau tin NGAN, khong lap lai ten bai: hang tin nao cung co ten bai in
+     dam o dong tren. Toast la noi duy nhat khong co dong do -> nt.toast. */
+  'nt.n.near': 'Only {n} to lead the queue.',
+  'nt.n.lead': 'First in line \u2014 that is the next video.',
+  'nt.n.approved': 'Approved, open for votes.',
+  'nt.n.started': 'Moved into production.',
+  'nt.n.picked': 'Picked for Up next. Voting is closed.',
+  'nt.n.done': 'The video is up \u2014 go watch it.',
+  'nt.n.denied': 'The request was denied.',
+  'nt.n.progress': 'Progress is at {pct}%.',
+  'nt.n.votes': 'Reached {votes} votes.',
+  'nt.toast': '{song} — {msg}',
+
+  /* 4 cong tac trong tab cai dat. Ban truoc ("Close calls", "Vote milestones")
+     dung ten goi noi bo; ban thu hai ("Almost picked", "Work in progress") co
+     moi ten la mot TRANG THAI, doc len nhu gan cai nut tat cho nen kho hieu hon
+     cu. Quy tắc cho lần sau:
+       - nhan LUON MO DAU bang "Tell me ..." -> doc mot tieng biet day la chon
+         loai tin nhan, khong phai cai bat hien thi;
+       - chu thich = MOT cau van thuan, <dieu gi gay ra tin> + <ap dung cho bai
+         nao>, khong ngoa ngu ("heads-up", "hit send", "climbs", "slips past");
+       - duoi 60 ky tu de khong bi bung 2 dong trong bang 420px. */
+  'nt.p.auto': 'Tell me about my requests',
+  'nt.p.autoNote': 'Every step of a song you sent: approved, up next, done, denied.',
+  'nt.p.near': 'Tell me when a song is almost picked',
+  'nt.p.nearNote': 'One notice when a song needs 3 votes or fewer to go first.',
+  'nt.p.progress': 'Tell me about video progress',
+  'nt.p.progressNote': 'Each time the progress % goes up on a song you follow.',
+  'nt.p.votes': 'Tell me when votes go up',
+  'nt.p.votesNote': 'Every 5 votes on a song you follow or voted for.',
+
+  /* Pill trang thai nam trong dong tin: cung van "ai do can gi / con cach dau bao
+     xa", va dung dung duoc so nhieu (n = 1 hay n = 9 deu doc duoc). */
+  'standing.lead': 'top of the queue',
+  'standing.near': 'needs {n} to lead',
+  'standing.rank': '#{n} in line',
+  'standing.paidAhead': 'behind a paid request',
+  'standing.rule': 'Only one song is picked at a time: paid first, then most votes, then oldest request.',
+
+  /* chuong da thanh affordance an nen tooltip la thu duy nhat giai thich no:
+     noi ro "alert" va pham vi ca bai, khong goi chung la "follow" */
+  'row.follow': 'Get alerts about this song',
+  'row.unfollow': "You'll get alerts about this song — turn off",
+  'watch.on': 'We will tell you about {song}.',
+  'watch.off': 'Stopped following {song}.',
+  'watch.full': 'You follow {n} songs already — drop one first.',
+  'req.notifyNote': 'You will be told when this is approved, how production goes, and the moment the video is up.',
+  'req.notifyDemo': 'This demo stores notifications in your browser, so they only appear while this tab is open.',
+  'err.watchLimit': 'You are following too many songs.',
+
+  /* dang lam / tiep theo */
+  'now.next': 'Up next',
+  'now.votes': 'votes',
+  'now.nextPickLbl': 'Next pick in',
+  'now.nextPick': '{d}d {h}h {m}m',
+  'now.pickSoon': 'any moment…',
+  'now.everyDays': 'every {n} days',
+  'now.noPick': 'No request picked yet',
+  'now.pickRule': 'The most voted request is picked automatically every {n} days.',
+  'now.pickedAgo': 'picked {t}',
+  'now.more': 'View all {n} →',
+
+  /* danh sach request */
+  'board.listTitle': 'All requests',
+  'board.allKinds': 'All types',
+  'board.search': 'Title or artist',
+  'board.empty': 'Nothing here yet.',
+
+  /* phan trang — dung chung cho moi danh sach dai */
+  'pager.label': 'Pagination',
+  'pager.showing': '{from}–{to} of {total}',
+  'pager.prev': 'Previous',
+  'pager.next': 'Next',
+  'pager.goTo': 'Go to page {n}',
+
+  /* video noi bat */
+  'media.featured': 'Featured',
+  'media.latest': 'Latest update',
+  'media.openYT': 'Watch on YouTube',
+  'media.prev': 'Previous video',
+  'media.next': 'Next video',
+  'media.view': 'Show "{t}"',
+  'media.emptyAdmin': 'No videos yet — add the first one.',
+  'media.emptyPublic': 'No videos here yet.',
+
+  /* dong request */
+  'row.watch': 'Watch on YouTube',
+  'row.vote': 'vote',
+  'row.cantVote': 'Voting is closed for this request',
+  'row.voteLocked': 'Already picked. Voting is closed.',
+  'row.deleteReq': 'Delete request',
+  'row.openVote': 'Choose how many votes',
+  'row.mine': 'You voted {n}',
+  'row.confirmDelete': 'Delete this request?',
+
+  /* cum request trung bai */
+  'group.requests': '{n} requests',
+  'group.showAll': 'Show all {n} requests',
+  'group.hide': 'Show less',
+
+  /* bang xep hang */
+  'rank.title': 'Leaderboard',
+  'rank.empty': 'No data yet.',
+  'rank.you': 'you',
+  'rank.requests': 'requests',
+  'rank.completed': 'completed',
+  'rank.votes': 'votes',
+  'rank.kicker': 'Latest update',
+  'rank.sortLabel': 'Sort leaderboard',
+  'rank.sort.total': 'Requests',
+  'rank.sort.completed': 'Completed',
+  'rank.sort.total_votes': 'Votes earned',
+  'rank.player': 'Requester',
+  'rank.position': 'Rank {n} of {total}',
+  'rank.noMe': 'You are not on the board yet.',
+
+  /* request cua toi */
+  'mine.title': 'My requests',
+  'mine.empty': 'No requests yet.',
+  'mine.orders': 'My orders',
+  'mine.ordersEmpty': 'No orders yet.',
+
+  /* don hang */
+  'order.paid': 'Paid',
+  'order.rejected': 'Rejected',
+  'order.awaiting': 'Awaiting confirmation',
+  'order.cancel': 'Cancel order',
+  'order.confirmCancel': 'Cancel this order?',
+  'order.confirmCancelPaid': 'Cancelling also deletes the linked paid request. Continue?',
+  'order.paidRequest': 'Paid request',
+  'order.votes': '{n} votes',
+
+  /* footer */
+  'foot.tag': 'Request Page',
+  'foot.copy': '© {y} CHAEREVE. All rights reserved.',
+
+  /* tab trong modal */
+  'tab.request': 'New request',
+  'tab.vote': 'Vote',
+  'tab.buy': 'Buy votes',
+
+  /* nut */
+  'btn.close': 'Close',
+
+  /* form gui request */
+  'req.kind': 'Video type',
+  'req.kindNote.album': 'Full Album = all lyric videos of one album collected into a playlist. Only made after the channel has uploaded every colour-coded lyric video of that album.',
+  'req.artist': 'Artist',
+  'req.song': 'Song',
+  'req.albumName': 'Album',
+  'req.link': 'Song / album link',
+  'req.linkPh': 'https://youtu.be/…',
+  'req.note': 'Notes',
+  'req.needFields': 'Artist and {f} are required.',
+  'req.rulesTitle': 'Before requesting',
+  'req.rule1': "If the song is already requested, vote for it — don't send it again.",
+  'req.rule2': 'One song per request.',
+  'req.rule3': 'Most votes get made first — vote yours into UP NEXT.',
+  'req.rule4': "Don't request songs the channel already made.",
+  'req.rule5': 'Real artists only — no AI or virtual groups.',
+  'req.agree': 'Agree',
+  'req.okPaid': 'Paid request created. Transfer {p} to start production.',
+  'req.ok': 'Request sent. A moderator will review it.',
+  'req.paidLabel': 'Paid request ({p})',
+  'req.paidDesc1': 'Approved and started ',
+  'req.paidDescB': 'immediately',
+  'req.paidDesc2': ', no voting needed. Send the payment after submitting.',
+  'req.sending': 'Sending…',
+  'req.submitPaid': 'Send paid request for {p}',
+  'req.submit': 'Send request',
+
+  /* buou vote */
+  'vote.freeToday': 'Free votes today',
+  'vote.purchased': 'Purchased',
+  'vote.bonus': 'Bonus',
+  'vote.outBuy': 'Out of votes. Buy more to continue.',
+  'vote.sortTop': 'Most voted',
+  'vote.sortNew': 'Newest',
+  'vote.search': 'Search the list…',
+  'vote.empty': 'Nothing to vote on.',
+  'vote.dialogTitle': 'Vote for this request',
+  'vote.total': '{n} votes',
+  'vote.yours': 'you voted {n}',
+  'vote.qty': 'Number of votes',
+  'vote.available': '{n} left',
+  'vote.useAll': 'Use all {n}',
+  'vote.tooMany': 'You have {n} votes left.',
+  'vote.none': 'No votes left.',
+  'vote.confirm': 'Vote {n}',
+  'vote.locked': 'This request is already picked. Voting is closed.',
+  'vote.takeBack': 'Take back {n}',
+  'vote.backAll': 'All {n}',
+  'vote.canTakeBack': '{n} can be taken back',
+  'vote.tooManyBack': 'You voted {n} here.',
+  'vote.buyMore': 'Buy more votes',
+
+  /* mua vote */
+  'buy.packs': 'Vote packs',
+  'buy.best': 'Best value',
+  'buy.unit': 'votes',
+  'buy.order': 'Buy',
+  'buy.single': 'Single votes',
+  'buy.perVote': '/ vote',
+  'buy.each': '{v} each',
+  'buy.created': 'Order {label} created for {amt}. Send the payment using the details below.',
+  'buy.payment': 'Payment',
+  'buy.payNote1': 'Transfer with your ',
+  'buy.payNoteB': 'Google account name',
+  'buy.payNote2': ' as the note.',
+  'buy.yourOrders': 'Your orders',
+  'buy.noOrders': 'No orders yet.',
+
+  /* kenh ho tro */
+  'support.line': 'Contact for help or refund?',
+
+  /* phuong thuc thanh toan */
+  'pay.bank': 'Bank transfer',
+  'pay.paypal': 'PayPal',
+  'pay.hint': 'Select a payment method.',
+  'pay.bankName': 'Bank',
+  'pay.accNo': 'Account number',
+  'pay.accName': 'Account holder',
+  'pay.email': 'Email',
+  'pay.amount': 'Amount',
+  'pay.content': 'Transfer note',
+  'pay.memo': 'Note',
+  'pay.copy': 'Copy',
+  'pay.scanBank': 'Scan with your banking app',
+  'pay.scanPaypal': 'Scan or open the link',
+  'pay.qrFail1': 'The QR code could not be generated.',
+  'pay.qrFail2': 'Use the details on the left.',
+
+  /* man hinh dang nhap */
+  'gate.sub': 'Sign in with Google to request and vote.',
+  'gate.redirect': 'Redirecting…',
+  'gate.google': 'Continue with Google',
+  'gate.perk1': '{n} free votes per day',
+  'gate.perk2': '{n} requests per hour',
+  'gate.perk3': 'Paid requests start first',
+
+  /* bang dieu hanh */
+  'adm.pending': 'Pending',
+  'adm.active': 'Active',
+  'adm.orders': 'Orders',
+  'adm.done': 'Closed',
+  'adm.approve': 'Approve',
+  'adm.deny': 'Deny',
+  'adm.denyPrompt': 'Reason shown to the user (optional)',
+  'adm.edit': 'Edit',
+  'adm.closeEdit': 'Close',
+  'adm.artist': 'Artist',
+  'adm.songTitle': 'Song',
+  'adm.saveSong': 'Save name',
+  'adm.videoPh': 'Finished video link (YouTube)',
+  'adm.saveDone': 'Save and complete',
+  'adm.backToQueue': 'Back to queue',
+  'adm.pick': 'Pick for Up next',
+  'adm.unpick': 'Remove from Up next',
+  'adm.picked': 'Up next',
+  'adm.sourceLink': 'source link',
+  'adm.delete': 'Delete',
+  'adm.confirmDelete': 'Delete this request?',
+  'adm.received': 'Mark as paid',
+  'adm.noOrders': 'No orders yet.',
+  'adm.emptyList': 'Nothing here.',
+  'adm.reqDeleted': '(request deleted)',
+  'adm.votesShort': 'votes',
+  'adm.search': 'Search song, artist or requester…',
+  'adm.clearSearch': 'Clear search',
+  'adm.noResults': 'Nothing matches “{q}”.',
+  /* request trùng bài: dòng này là một phần của cụm, hạng tính theo tổng vote */
+  'adm.dupTotal': '{n} requests for this song · {v} votes in total',
+  'adm.mileGroup': 'Tick here moves the progress bar of all {n} requests for this song',
+  'adm.saveDoneGroup': 'Saves the link and closes all {n} requests for this song',
+  'adm.media': 'Videos',
+  'adm.mediaAddShort': '+ Add',
+  'adm.mediaViewHome': 'View on home page',
+  'adm.mediaGroupFeatured': 'Featured video',
+  'adm.mediaGroupVideo': 'Latest videos',
+  'adm.mediaAddFeatured': 'Add featured video',
+  'adm.mediaAddVideo': 'Add video link',
+  'adm.mediaEditList': 'Add / edit links',
+  'adm.mediaTextHint': 'One YouTube link per line · custom title: link | Title',
+  'adm.mediaTextCount': '{n} videos',
+  'adm.mediaTextBad': '{n} skipped (bad link or missing title)',
+  'adm.mediaTextSave': 'Save video list',
+'sfx.volume': 'Volume',
+  'adm.mediaBulkNone': 'No valid lines yet. Use: https://youtu.be/… | Title',
+  'adm.mediaEmptyGroup': 'Nothing here yet.',
+  'adm.mediaTitle': 'Video title',
+  'adm.mediaTitlePh': 'CHUNG HA México (Color Coded Lyrics)',
+  'adm.mediaUrl': 'YouTube video link',
+  'adm.mediaBadUrl': 'That link is not a YouTube video.',
+  'adm.mediaThumb': 'Cover image (optional, leave empty for HD YouTube thumbnail)',
+  'adm.mediaHide': 'Hide from site',
+  'adm.mediaHidden': 'hidden',
+  'adm.mediaLive': 'live',
+  'adm.mediaShow': 'Show again',
+  'adm.mediaSave': 'Save',
+  'adm.mediaUp': 'Move up',
+  'adm.mediaDown': 'Move down',
+
+  /* thong bao duoi goc */
+  'toast.deleted': 'Request deleted.',
+  'toast.approved': 'Request approved.',
+  'toast.denied': 'Request denied.',
+  'toast.repeated': '{n} identical notices merged into this one',
+  'toast.updated': 'Updated.',
+  'toast.updatedGroup': 'Updated · {n} requests for this song',
+  'toast.removed': 'Deleted.',
+  'toast.orderOk': 'Payment confirmed.',
+  'toast.orderNo': 'Order rejected.',
+  'toast.orderCancelled': 'Order cancelled.',
+  'toast.mediaSaved': 'Saved.',
+  'toast.mediaDeleted': 'Deleted.',
+  'toast.saved': 'Saved.',
+
+  /* thong bao */
+  'notif.ok': 'Done',
+  'notif.err': 'Something went wrong',
+  'notif.gold': 'Received',
+  'notif.region': 'Notifications',
+  'notif.dismiss': 'Dismiss notification',
+  'notif.reqTitle': 'Request sent',
+  'notif.reqBody': '{song} is waiting for review.',
+  'notif.paidTitle': 'Paid request created',
+  'notif.paidBody': '{song} costs {amt}. It skips the queue once paid.',
+  'notif.payNow': 'Open payment',
+  'notif.buyTitle': 'Order for {n} votes',
+  'notif.buyBody': 'Pay {amt} to add {n} votes to your account.',
+
+  /* ve dau trang */
+  'top.label': 'Back to top',
+
+  /* loi */
+  'err.signin': 'Sign in to continue.',
+  'err.voteAuth': 'Sign in to vote.',
+  'err.requestAuth': 'Sign in to send a request.',
+  'err.requestMissing': 'Request not found.',
+  'err.voteClosed': 'Voting is closed for this request.',
+  'err.needFields': 'Artist and title are required.',
+  'err.notOwner': 'You can only delete your own request.',
+  'err.deleteLocked': 'This request is in production and cannot be deleted.',
+  'err.adminOnly': 'Admin only.',
+  'err.orderOwner': 'You can only cancel your own orders.',
+  'err.orderPaidLocked': 'The request is already approved, so the order cannot be cancelled.',
+  'err.kindBad': 'Unknown video type.',
+  'err.mediaThumb': 'The cover link must start with http.',
+  'err.qty': 'Pick a number between 1 and 100.',
+  'err.priceChanged': 'Prices just changed. Reload the page and order again.',
+  'err.deleteVoted': 'Others have already voted for this request ({n} votes), so it can no longer be deleted.',
+  'err.paidPending': 'You already have {n} paid requests waiting for payment. Pay or cancel one first.',
+  'err.generic': 'Something went wrong. Try again.',
+  'err.databaseSetup': 'The database is out of date. Run the migration in supabase/migrations, then reload. Existing data is kept.',
+  'err.rateLimit': 'Up to {n} requests per hour.',
+  'err.orderMissing': 'Order not found.',
+  'err.orderLocked': 'An admin already handled this order, so it cannot be cancelled.',
+  'err.nameShort': 'Name needs at least 2 characters.',
+  'err.avatarType': 'That file is not an image.',
+  'err.avatarBig': 'That image is too large.',
+  'err.avatarRead': 'Could not read that image. Use a JPG or PNG.',
+  'err.avatarUpload': 'Upload failed. Try again.',
+  'err.notVoted': 'You have not cast that many votes here.',
+  'err.voteQty': 'Enter a number between 1 and 100.',
+  'err.voteLocked': 'This request is already picked. Voting is closed.',
+  'err.notEnoughVotes': 'Not enough votes. {n} left.',
+  'err.mediaTitle': 'The video needs a name.',
+  'err.mediaUrl': 'Paste a YouTube video URL.',
+  'err.mediaMissing': 'That item no longer exists.',
+  'err.mediaBulkEmpty': 'No valid lines. Use: https://youtu.be/… | Title',
+
+  /* thoi gian tuong doi */
+  'time.now': 'now',
+  'time.min': '{n}m ago',
+  'time.hour': '{n}h ago',
+  'time.day': '{n}d ago',
+  'time.week': '{n}w ago',
+  'time.month': '{n}mo ago',
+  'time.year': '{n}y ago',
+
+  /* trang thai */
+  'status.pending': 'Pending',
+  'status.queued': 'In queue',
+  'status.in_progress': 'In progress',
+  'status.completed': 'Completed',
+  'status.denied': 'Denied',
+}
+
+/* Thay {name} trong chuỗi bằng giá trị trong vars. */
+const fill = (s, vars) =>
+  vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s
+
+const I18nCtx = createContext(null)
+
+export function I18nProvider({ children }) {
+  const t = useCallback((key, vars) => fill(S[key] ?? key, vars), [])
+  const value = useMemo(() => ({ t }), [t])
+  return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
+}
+
+export function useI18n() {
+  const ctx = useContext(I18nCtx)
+  if (!ctx) throw new Error('useI18n phải nằm trong <I18nProvider>')
+  return ctx
+}
+
+/*
+ * Dịch lỗi. Hai nguồn:
+ *   · appError('err.xxx', vars) từ lib/db.js — message chính là key
+ *   · PostgREST khi hàm SQL raise — code là 'P0001' (vô nghĩa), message
+ *     là key 'err.xxx' mà schema.sql raise lên, hoặc một câu tiếng Anh
+ *     viết thẳng trong SQL (câu có số kèm nên không qua từ điển được)
+ * Vì vậy: ưu tiên chuỗi 'err.*', tuyệt đối không in raw code ra màn hình.
+ */
+export function errMsg(t, e) {
+  const m = typeof e?.message === 'string' ? e.message : String(e?.message ?? e ?? '')
+  if (m.startsWith('err.')) return t(m, e?.vars)
+  const c = typeof e?.code === 'string' ? e.code : ''
+  if (c.startsWith('err.')) return t(c, e?.vars)
+  if (!m || /^(position|detail|hint|context):|SQLSTATE|row-level security|violates |permission denied|does not exist/i.test(m)) {
+    return t('err.generic')
+  }
+  return m.length > 180 ? m.slice(0, 177) + '…' : m
+}

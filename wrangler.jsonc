@@ -1,0 +1,65 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "color-coded-lyrics",
+  "compatibility_date": "2026-01-01",
+
+  // =========================================================
+  //  LƯU Ý ĐƯỜNG DEPLOY (2026-09-08): file này KHÔNG PHẢI đường production.
+  //  Production là Cloudflare Pages (chaereveccl.pages.dev, nối GitHub, tự
+  //  build `npm run build` khi push). Lá chắn Edge chạy ở đó bằng
+  //  **Pages Functions**: functions/api/daily-spin/{health,spin}.js và
+  //  functions/api/vote/cast.js — lớp vỏ mỏng gọi lại đúng các hàm trong
+  //  worker/index.js, nên hai đường dùng chung một logic.
+  //  File wrangler.jsonc này chỉ còn là PHƯƠNG ÁN THAY THẾ: ai muốn chạy bằng
+  //  Workers with Static Assets (`wrangler deploy`) thì vẫn dùng được, vì
+  //  export default fetch() trong worker/index.js gọi chung các hàm route đó.
+  //  KV/binding khai ở đây KHÔNG tự sang Pages — Pages phải bind riêng trên
+  //  Dashboard (xem HUONG-DAN.md, mục "Lá chắn Edge").
+  // =========================================================
+
+  // Worker cổng: /api/daily-spin/* đi vào lá chắn Edge (worker/index.js),
+  // mọi đường dẫn còn lại vẫn trả file tĩnh của app như cũ.
+  "main": "worker/index.js",
+
+  "assets": {
+    "directory": "./dist",
+
+    // SPA: mọi đường dẫn không khớp file nào đều trả về index.html
+    "not_found_handling": "single-page-application"
+  },
+
+  // === LÁ CHẮN EDGE: DAILY SPIN + VOTE (đường Workers, phương án thay thế) ===
+  // Đường chính thức (Pages) làm các bước tương đương trên Dashboard, không
+  // dùng CLI — xem HUONG-DAN.md mục "Lá chắn Edge". Dưới đây là bản CLI cho
+  // ai deploy bằng `wrangler deploy`:
+  // 1) Tạo KV một lần: `wrangler kv namespace create SPIN_SHIELD` rồi bỏ comment
+  //    khối dưới và dán `id` thật vào. Chưa bật thì /api/daily-spin/spin trả 503
+  //    (err.spinSetup) và frontend không đặt VITE_SPIN_GATE_URL vẫn gọi thẳng RPC.
+  // 2) Secret (không bao giờ commit):
+  //      wrangler secret put TURNSTILE_SECRET_KEY   (Cloudflare → Turnstile)
+  //      wrangler secret put SUPABASE_ANON_KEY      (khoá anon công khai của project)
+  //      wrangler secret put EDGE_GATE_TOKEN        (tuỳ chọn, xem bước 4)
+  //    SUPABASE_URL không phải bí mật nên nằm trong [vars] bên dưới.
+  // 3) Build frontend với VITE_SPIN_GATE_URL=/api/daily-spin và
+  //    VITE_VOTE_GATE_URL=/api/vote để app gọi qua cổng. CHỈ làm bước này SAU
+  //    khi GET /api/daily-spin/health đã trả JSON {"ok":true,...} — thêm sớm
+  //    là hỏng nút Vote/Spin ngay lập tức.
+  // 4) [Khuyến nghị] Khoá hẳn đường đi tắt: đặt EDGE_GATE_TOKEN ở trên rồi chạy
+  //    `select public.set_edge_gate_token('<đúng chuỗi đó>');` trong Supabase.
+  //    Từ lúc đó cast_vote / spin_daily chỉ nhận lời gọi đi qua cổng này, nên
+  //    Turnstile + KV + hạn mức vân tay không thể bị đi vòng bằng anon key nữa.
+  //    ⚠ Thứ tự bắt buộc: cổng có token TRƯỚC, bật ở database SAU. Tắt khẩn cấp:
+  //    `select public.set_edge_gate_token(null);` (trả về hành vi cũ ngay).
+  // "kv_namespaces": [
+  //   { "binding": "SPIN_SHIELD", "id": "dán-id-kv-vào-đây" }
+  // ],
+
+  "vars": {
+    // Giống VITE_SUPABASE_URL trong .env của frontend
+    "SUPABASE_URL": "https://yooxntqwdlvkxcblgqbw.supabase.co"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
