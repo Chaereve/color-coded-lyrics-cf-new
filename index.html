@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chaereve — Request Page</title>
     <meta name="description" content="Request and vote for colour-coded lyric videos, full albums, 1-hour loops and Shorts by @chaereve." />
+    <!-- Canonical: SPA phục vụ MỌI đường dẫn bằng một index.html (xem
+         _redirects), nên không có nó thì `/`, `/?f=done`, `/daily-spin` đều
+         là "trang trùng nội dung" trong mắt Google và thứ hạng bị chia nhỏ.
+         Đây là giá trị cho lần tải đầu; mỗi lần đổi route, src/App.jsx cập
+         nhật lại thẻ này theo origin thật nên deploy ở Vercel/Workers vẫn đúng. -->
+    <link rel="canonical" href="https://chaereve.pages.dev/" />
     <meta name="theme-color" content="#0d0f12" />
     <meta name="color-scheme" content="dark" />
     <!-- màu nền đặt sớm để khung hình đầu tiên không loá trắng rồi mới tối xuống -->

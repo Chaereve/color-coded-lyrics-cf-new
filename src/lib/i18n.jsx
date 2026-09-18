@@ -309,6 +309,7 @@ const S = {
   /* footer */
   'foot.tag': 'Request Page',
   'foot.copy': '© {y} CHAEREVE. All rights reserved.',
+  'foot.privacy': 'Privacy',
 
   /* tab trong modal */
   'tab.request': 'New request',

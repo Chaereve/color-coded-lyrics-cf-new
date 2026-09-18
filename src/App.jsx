@@ -284,6 +284,8 @@ export default function App() {
   const [q, setQ] = useState(board.q)
   const [showTop, setShowTop] = useState(false)
   const searchRef = useRef(null)
+  /* vạch tiến độ cuộn: ghi thẳng style qua ref để không setState mỗi frame */
+  const progressRef = useRef(null)
 
   const [profile, setProfile] = useState(false)
   const [voteFor, setVoteFor] = useState(null)
@@ -365,7 +367,15 @@ export default function App() {
     let raf = 0
     const onScroll = () => {
       cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => setShowTop(window.scrollY > 520))
+      raf = requestAnimationFrame(() => {
+        setShowTop(window.scrollY > 520)
+        /* vạch tiến độ chỉ co giãn bằng transform (scaleX), không đụng layout;
+           ghi thẳng vào ref để cuộn không kéo theo một lần setState nào */
+        const max = document.documentElement.scrollHeight - window.innerHeight
+        if (progressRef.current) {
+          progressRef.current.style.transform = `scaleX(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`
+        }
+      })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
@@ -522,6 +532,15 @@ export default function App() {
     document.title = section === 'board'
       ? 'Chaereve — Request Page'
       : `${t(`nav.${section}`)} · Chaereve`
+    /* Canonical đi cùng tiêu đề vì cả hai đều đổi theo route. Thẻ trong
+       index.html chỉ đúng cho `/`, mà SPA đổi đường dẫn bằng pushState nên
+       không sửa lại thì /daily-spin, /ranking, /profile là ba "bản trùng"
+       của cùng một trang trong mắt Google. Lấy origin THẬT thay vì ghi cứng
+       tên miền: repo có ba đường deploy (Pages / Workers / Vercel). Không
+       kèm query string — `/?f=done&q=abc` vẫn là một nội dung đó, để nguyên
+       query là tự đẻ ra vô số canonical khác nhau cho cùng một trang. */
+    const canonical = document.querySelector('link[rel="canonical"]')
+    if (canonical) canonical.href = new URL(ROUTES[section], window.location.origin).href
   }, [section, t])
 
   const flash = (tone, m, extra) => push({
@@ -689,10 +708,11 @@ export default function App() {
     picked: pickedGroups.length,
     newest: pub.length,
     top: pub.filter(r => r.status !== 'completed' && !isPicked(r)).length,
-    /* Bài đang làm mà ĐÃ chốt thì thuộc hẳn về Up next (ở đó nó hiện kèm
-       thanh %), không đếm lẫn vào In progress để bốn mục trạng thái không
-       chồng nhau: Queue · Up next · In progress · Done. */
-    in_progress: pub.filter(r => r.status === 'in_progress' && !r.picked_at).length,
+    /* Bài đang làm mà ĐÃ chốt vẫn được đếm vào In progress: chủ dự án muốn
+       mọi thứ đang chạy phải hiện ở đó, kể cả cái đã lên Up next. Hệ quả là
+       một bài có thể nằm ở CẢ Up next lẫn In progress — chấp nhận chồng nhau
+       thay vì "giấu" trạng thái đang làm. */
+    in_progress: pub.filter(r => r.status === 'in_progress').length,
     completed: pub.filter(r => r.status === 'completed').length,
     pending: rows.filter(r => r.status === 'pending').length,
     watch: new Set(rows.filter(r => watchedSet.has(groupKey(r))).map(groupKey)).size,
@@ -707,10 +727,10 @@ export default function App() {
     let base = pub
     if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
     if (filter === 'picked') base = picked
-    /* Đã chốt (picked) thì chỉ nằm trong Up next — bài đang làm đã chốt
-       không hiện lại ở đây. In progress chỉ còn bài admin bấm làm nhưng
-       chưa qua mốc chốt. */
-    if (filter === 'in_progress') base = base.filter(r => r.status === 'in_progress' && !isPicked(r))
+    /* In progress hiện CẢ bài đã chốt (Up next) đang chạy — xem comment ở
+       counts.in_progress. Bài đã chốt vẫn giữ pill "Up next" trên dòng để
+       người xem biết nó đã được chọn, không nhầm với bài thường. */
+    if (filter === 'in_progress') base = base.filter(r => r.status === 'in_progress')
     if (filter === 'completed') base = base.filter(r => r.status === 'completed')
     if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !isPicked(r))
     /* Đang theo dõi thì muốn thấy CẢ bài pending/bị từ chối, không riêng
@@ -1028,6 +1048,8 @@ export default function App() {
   return (
     <>
       <Splash hide />
+      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
+      <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
         sections={SECTIONS} routes={ROUTES} section={section} onNavigate={go}
@@ -1041,7 +1063,7 @@ export default function App() {
       />
 
       <div className={`shell${collapsed ? ' min' : ''}`}>
-      <main className="main">
+      <main className="main" id="main" tabIndex={-1}>
         <header className="mainhead">
           <button className="fab only-narrow" type="button" aria-label={t('menu.open')}
             aria-expanded={menu} onClick={() => setMenu(true)}>
@@ -1316,6 +1338,9 @@ export default function App() {
             <div className="foot-contact">
               {t('support.line')}{' '}
               <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
+              {' · '}
+              {/* trang tĩnh trong public/ — trước đây không có link nào trỏ tới */}
+              <a href="/privacy.html">{t('foot.privacy')}</a>
             </div>
           </div>
         </div>

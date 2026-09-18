@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- =========================================================
+  sitemap.xml — chaereve.pages.dev
+  ---------------------------------------------------------
+  Đúng 4 route của app, lấy từ `ROUTES` trong src/App.jsx:
+    { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
+  Thêm route mới thì phải sửa CẢ HAI nơi, nếu không Google không biết
+  đường mới tồn tại (SPA nên không có link nào trỏ tới nó từ HTML gốc).
+
+  <lastmod> là ngày sửa thật của sitemap, không phải ngày deploy — ghi bừa
+  ngày mới mỗi lần build là dạy Google bỏ qua cột này.
+  ========================================================= -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Bảng yêu cầu: nội dung đổi liên tục (request mới, vote mới) và là
+       trang duy nhất có nội dung thật cho crawler chưa đăng nhập. -->
+  <url>
+    <loc>https://chaereve.pages.dev/</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Vòng quay thưởng: nội dung tĩnh, chỉ số dư là của riêng người dùng. -->
+  <url>
+    <loc>https://chaereve.pages.dev/daily-spin</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Bảng xếp hạng: đổi theo vote nên đáng quay lại, nhưng không gấp
+       bằng bảng chính. -->
+  <url>
+    <loc>https://chaereve.pages.dev/ranking</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- "Của tôi": trang CÁ NHÂN, chưa đăng nhập thì crawler chỉ thấy cổng
+       đăng nhập. Vẫn khai vì nằm trong ROUTES, nhưng priority thấp nhất —
+       nếu sau này thấy Google lập chỉ mục nó thành trang rỗng thì xoá
+       khối này và thêm `Disallow: /profile` vào robots.txt. -->
+  <url>
+    <loc>https://chaereve.pages.dev/profile</loc>
+    <lastmod>2026-09-18</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+</urlset>

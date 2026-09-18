@@ -200,6 +200,19 @@ export default function AdminPanel({
     }),
     [activeRows, totals])
   const orderQueue = useMemo(() => orders.filter(o => o.status === 'awaiting'), [orders])
+  /* Dải tổng quan: admin mở panel là thấy ngay đường ống đang nghẽn ở đâu
+     (chờ duyệt / hàng đợi / đang làm / xong / từ chối) mà không phải lướt tab.
+     Dẫn lại từ `rows` nên luôn khớp các con số trong tab. */
+  const pipeline = useMemo(() => {
+    const c = (s) => rows.filter(r => r.status === s).length
+    return [
+      { s: 'pending', n: c('pending') },
+      { s: 'queued', n: c('queued') },
+      { s: 'in_progress', n: c('in_progress') },
+      { s: 'completed', n: c('completed') },
+      { s: 'denied', n: c('denied') },
+    ]
+  }, [rows])
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
@@ -265,6 +278,16 @@ export default function AdminPanel({
         </div>
 
         <div className="modal-body" ref={listRef}>
+          {/* Tổng quan đường ống: mỗi chấm mang đúng màu trạng thái của .row
+              (--sc gán inline, CSS đọc qua var(--sc)) để admin quét một ánh mắt
+              là biết đang nghẽn ở đâu. */}
+          <div className="adm-sum">
+            {pipeline.map(p => (
+              <span className="adm-sum-i" key={p.s} style={{ '--sc': STATUS_META[p.s].c }}>
+                <i aria-hidden="true" />{t(`status.${p.s}`)} <b>{p.n}</b>
+              </span>
+            ))}
+          </div>
           {/* tab Videos có cơ chế quản lý riêng nên không lọc theo từ khoá */}
           {tab !== 'media' && (
             <div className="adm-search">

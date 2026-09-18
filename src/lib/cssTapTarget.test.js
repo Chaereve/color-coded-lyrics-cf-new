@@ -56,6 +56,40 @@ const CONTRACT = [
   ['toast-x', 22, 30, 'dấu × của toast là cách DUY NHẤT để đóng nó trên điện thoại'],
 ]
 
+/* DANH SÁCH THỨ HAI — control VUÔNG cần nới lên cỡ chạm (khác CONTRACT ở chỗ
+   vế desktop KHÔNG bị chốt số). Lý do phải tách bảng: CONTRACT đòi khớp CẢ
+   width LẪN height ở cả hai vế, mà helper sizedIn() thì chỉ hợp với nút vuông;
+   nhóm dưới đây chỉ cần chốt vế cảm ứng, còn bản desktop giữ đúng số cũ của
+   nó để khỏi phá mật độ hàng .row (đã có test khác chốt gap/padding).
+   Ngưỡng: Apple HIG 44px — repo chọn 40px cho control phụ và 44px cho điều
+   hướng chính, vì nới cả loạt lên 44 sẽ đẩy hàng .row và nhãn .pv-label giãn
+   ra thấy rõ trên màn 390px. */
+const CONTRACT_SQUARE = [
+  ['pv-add', 40, 'nút thêm video nổi bật: 20px cao là mức bấm trượt được bằng ngón cái'],
+  ['sfxbtn', 40, 'nút bật/tắt âm thanh nằm cạnh nhãn trong .side-row'],
+  ['side-x', 40, 'nút đóng ngăn kéo — cách duy nhất để đóng sidebar trên điện thoại'],
+  ['nt-btn', 40, 'chuông thông báo, ngồi chung hàng với nút "New request" 40px'],
+  ['to-top', 40, 'nút lên đầu trang nổi trên nội dung, dễ bấm lệch'],
+  ['fab', 40, 'nút ☰ mở ngăn kéo: không mở được sidebar thì mất hết điều hướng'],
+]
+/* Control RỘNG (nút chữ): chốt theo CHIỀU CAO và bắt buộc dùng min-height,
+   vì width của chúng do padding/chữ quyết định, khai cứng là vỡ bố cục. */
+const CONTRACT_WIDE = [
+  ['votebtn', 40, 'nút vote ở cuối mỗi dòng — hành động chính của cả trang'],
+  ['tab', 40, 'nhóm tab lọc bảng: 26px là mức phải ngắm mới bấm trúng'],
+  ['btn', 40, 'nút chữ dùng khắp nơi (New request · Buy votes · xác nhận modal)'],
+  ['side-out', 40, 'đăng xuất: bấm nhầm thì mất phiên, nên phải có chỗ đặt tay'],
+  ['side-item', 44, 'điều hướng CHÍNH trong ngăn kéo — lấy đúng ngưỡng Apple 44px'],
+  ['side-cta', 44, 'nút Gửi request: hành động quan trọng nhất của app'],
+]
+/* vế "to lên" phải nằm trong @media bản hẹp, và phải là min-height chứ không
+   phải height — height cứng trong cùng rule sẽ đè padding/nội dung co giãn. */
+const minIn = (cls, where, h) => forCls(cls).some((r) => (where === 'media' ? r.media : !r.media)
+  && size(r.body, 'min-height') === h)
+const grownIn = (cls, h) => forCls(cls).filter((r) => r.media && size(r.body, 'min-height') === h)
+const grownSq = (cls, px) => forCls(cls).filter((r) => r.media
+  && size(r.body, 'width') === px && size(r.body, 'height') === px)
+
 test('cặp desktop/bản hẹp của các nút nhỏ còn nguyên', () => {
   for (const [cls, desktop, mobile, why] of CONTRACT) {
     assert.ok(sizedIn(cls, 'root', desktop, desktop),
@@ -78,6 +112,30 @@ test('phần nới cỡ nằm đúng trong @media bản hẹp, không phải rul
     assert.ok(grown.length, `không tìm thấy rule nới ${mobile}px trong @media`)
     assert.ok(grown.every((r) => /max-width/.test(r.media)),
       `vế ${mobile}px phải nằm trong @media (max-width: …), đang ở: ${grown.map((r) => r.media).join(' | ')}`)
+  }
+})
+
+test('control vuông đã nới đủ cỡ chạm trong @media bản hẹp', () => {
+  for (const [cls, px, why] of CONTRACT_SQUARE) {
+    assert.ok(sizedIn(cls, 'media', px, px),
+      `.${cls} phải là ${px}×${px}px trong @media bản hẹp — ${why}`)
+    /* cùng lý do với vế cảm ứng của CONTRACT: viết ở rule thường là đánh thẳng
+       vào bản desktop, mật độ desktop vỡ mà thử trên máy tính không thấy */
+    assert.ok(grownSq(cls, px).every((r) => /max-width/.test(r.media)),
+      `vế ${px}px của .${cls} phải nằm trong @media (max-width: …)`)
+  }
+})
+
+test('nút chữ đạt chiều cao chạm bằng min-height trong @media bản hẹp', () => {
+  for (const [cls, h, why] of CONTRACT_WIDE) {
+    assert.ok(minIn(cls, 'media', h),
+      `.${cls} phải có min-height: ${h}px trong @media bản hẹp — ${why}`)
+    assert.ok(grownIn(cls, h).every((r) => /max-width/.test(r.media)),
+      `vế ${h}px của .${cls} phải nằm trong @media (max-width: …)`)
+    /* min-height + height cứng TRONG CÙNG một rule: cái sau thắng, padding
+       và nội dung co giãn mất tác dụng, nút không phình ra được nữa */
+    assert.ok(grownIn(cls, h).every((r) => !/(^|[;\s{])height\s*:/.test(r.body)),
+      `.${cls}: rule khai min-height thì không được khai luôn height cứng`)
   }
 })
 

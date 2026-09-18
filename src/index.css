@@ -57,7 +57,10 @@
   --line-2:    #2d343d;
   --txt:       #e4e7ea;
   --txt-2:     #949ba4;
-  --txt-3:     #6a727c;
+  /* #6a727c cũ chỉ 3.9:1 trên nền — trượt WCAG 2.2 AA (chữ thường cần 4.5:1)
+     ở mọi nhãn nhỏ dùng màu này. #7d858f đạt ~4.5:1 trên surface-2 (nền xấu
+     nhất) mà vẫn tối hơn --txt-2 rõ nên thang phân cấp không đổi. */
+  --txt-3:     #7d858f;
 
   /* Mau nhan lay dung tur logo: xanh ultramarine dien (hue 242°),
      khong con la xanh da troi nhat nhu cu — nut bam, thanh truot,
@@ -278,15 +281,27 @@ button { font-family: inherit; }
 .gate-card { animation: popIn .4s var(--e-out) both; }
 
 
+/* HỆ NÚT — bớt "thô": đệm rộng hơn cho chữ thở, bo --r-md đồng bộ khối,
+   chữ 600 + thư chữ nhẹ cho chắc; một lớp sáng 1px trên mép (--ring) và bóng
+   --sh-1 cho chiều sâu thay vì ô phẳng. Transition bằng token, không .13s magic. */
 .btn {
   position: relative; overflow: hidden;
-  padding: 6px 11px; border-radius: var(--radius); cursor: pointer;
+  padding: 7px 14px; border-radius: var(--r-md); cursor: pointer;
   border: 1px solid var(--line-2); background: var(--surface-2);
-  color: var(--txt); font-size: 13px; font-weight: 500; transition: .13s; white-space: nowrap;
+  color: var(--txt); font-size: 13px; font-weight: 600; letter-spacing: .1px; white-space: nowrap;
+  box-shadow: var(--sh-1), var(--ring);
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
+              color var(--t-1) var(--e-soft), box-shadow var(--t-2) var(--e-soft),
+              transform var(--t-1) var(--e-out);
 }
 .btn:hover { border-color: #3c4550; background: var(--surface-3); }
-.btn-primary { background: var(--a); border-color: var(--a); color: #fff; font-weight: 600; }
-.btn-primary:hover { background: var(--a-dim); border-color: var(--a-dim); }
+/* Primary: phủ một lớp sáng mỏng trên mép để nút không còn là mảng màu đặc;
+   giữ quầng --a-glow làm dấu nhấn nhãn hiệu. */
+.btn-primary {
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 45%), var(--a);
+  border-color: var(--a); color: #fff; font-weight: 600;
+}
+.btn-primary:hover { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), var(--a-dim); border-color: var(--a-dim); }
 .btn-gold { background: none; border-color: var(--paid); color: var(--paid); font-weight: 600; }
 .btn-gold:hover { background: rgba(201,154,60,.12); border-color: var(--paid); }
 .btn-sm { padding: 4px 9px; font-size: 12px; }
@@ -328,6 +343,13 @@ button { font-family: inherit; }
 .stat b { transition: color var(--t-1) var(--e-soft); }
 .stat b { display: block; font-family: var(--mono); font-size: 17px; font-weight: 600; line-height: 1.2; }
 .stat span { font-size: 12px; color: var(--txt-3); }
+/* Số liệu thẳng cột (skill MengTo: number-details). Bảng xếp hạng đã có
+   tabular-nums; các bề mặt số còn đếm/số động (thống kê, vote, badge) mà để
+   số nhảy bề rộng thì cột lệch mỗi lần giá trị đổi — bật chữ số bảng đều ở
+   mọi chỗ hiển thị số để không còn "rung" khi cập nhật realtime. */
+.stat b, .votebtn b, .tab .n, .side-n, .pv-count, .lb-pod-num b, .lb-me-stats, .dotbadge {
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---- đang thực hiện ---- */
 .nowbar { position: relative; padding: 14px 16px; margin-bottom: 24px; overflow: hidden;
@@ -706,6 +728,37 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .pack .p { font-family: var(--mono); font-size: 14px; font-weight: 600; }
 .pack .p small { display: block; font-size: 11.5px; font-weight: 400; color: var(--txt-3); margin-top: 2px; }
 .pack-save { margin-top: 6px; font-size: 11px; color: var(--done); font-family: var(--mono); }
+/* ---- Gói 4: làm rõ "gói nào lời nhất" trong bảng giá vote ----
+   Ba thẻ trước đây bằng vai nhau: viền cùng một màu, gói tốt nhất chỉ thêm
+   lá cờ 10px — mắt quét ngang không kịp thấy đâu là deal. Nhấn mạnh `.best`
+   bằng nền + bóng vàng và con số to hơn; hai thẻ còn lại lùi về vai "tham
+   khảo". KHÔNG thêm token (màu vàng đã có --paid, nền đã có --a-soft), KHÔNG
+   đổi số cột của .packs (modal đang ổn định), phần chuyển động chỉ opacity/
+   transform và luôn có nhánh giảm-chuyển-động + cảm ứng. */
+.pack.best {
+  background: linear-gradient(180deg, var(--a-soft), transparent 70%);
+  border-color: var(--paid);
+  box-shadow: 0 8px 26px -14px var(--paid);
+}
+.pack.best b { color: var(--paid); font-size: 26px; }
+.pack.best .p { color: var(--txt); }
+/* viên thuốc "−48%" phải tự co theo chữ và nằm giữa: để block full-width là
+   thành một dải màu chạy ngang thẻ, lệch với phần còn lại căn giữa */
+.pack-save { width: fit-content; margin: 6px auto 0; padding: 1px 7px;
+  border-radius: var(--r-pill); background: rgba(79,169,122,.12); }
+@media (hover: hover) {
+  .pack { transition: border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out),
+              box-shadow var(--t-2) var(--e-soft); }
+  .pack:hover { transform: translateY(-2px); }
+  .pack.best:hover { box-shadow: 0 12px 30px -14px var(--paid); }
+}
+@media (hover: none) {
+  /* cảm ứng không có hover: không nhấc thẻ, giữ bóng best cố định */
+  .pack:hover { transform: none; }
+  .pack.best:hover { box-shadow: 0 8px 26px -14px var(--paid); }
+}
+@media (prefers-reduced-motion: reduce) { .pack, .pack:hover { transform: none; } }
+@media (max-width: 899px) { .pack.best b { font-size: 24px; } }
 
 .buyone { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); }
 .buyone-info { min-width: 100px; }
@@ -1030,6 +1083,20 @@ img { max-width: 100%; }
 
 /* chọn chữ bằng chuột nhuộm màu nhãn hiệu */
 ::selection { background: rgba(43,34,226,.5); color: #fff; }
+
+/* SKIP-TO-CONTENT (WCAG 2.4.1 Bypass Blocks): người dùng phím Tab không phải
+   đi qua toàn bộ sidebar trước khi tới nội dung. Ẩn bằng transform (không
+   display:none — vẫn focus được), hiện khi :focus-visible. Chỉ composite. */
+.skip-link {
+  position: fixed; top: 10px; left: 10px; z-index: 100;
+  padding: 9px 14px; border-radius: var(--radius);
+  background: var(--float); color: var(--txt); border: 1px solid var(--line-2);
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  transform: translateY(-250%);
+  transition: transform var(--t-2) var(--e-out);
+}
+.skip-link:focus-visible { transform: none; }
+@media (prefers-reduced-motion: reduce) { .skip-link { transition: none; } }
 
 /* VÒNG FOCUS CHO BÀN PHÍM — quy tắc THE, không phải danh sách tên.
    Một danh sách tên là cơ chế thất bại của chính nó: quét 2026-09-08 còn 32
@@ -1545,6 +1612,50 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   .pvrow { flex-basis: 158px; }
 }
 
+/* =========================================================
+   CỠ CHẠM TRÊN BẢN HẸP — hợp đồng trong src/lib/cssTapTarget.test.js
+   ---------------------------------------------------------
+   Bản desktop giữ NGUYÊN từng pixel: chuột trỏ chính xác nên nút nhỏ là có lý,
+   còn ngón tay thì không. Mọi con số dưới đây chỉ sống trong @media bản hẹp.
+   Ngưỡng tham chiếu: Apple HIG 44px · Material 48dp · WCAG 2.2 AA (2.5.8) 24px.
+   Repo chọn 40px cho control phụ và 44px cho điều hướng chính — nới cả loạt
+   lên 44 thì hàng .row, nhãn .pv-label và thanh tab giãn ra thấy rõ trên
+   màn 390px, trong khi 40px đã vượt mức tối thiểu của WCAG (24px).
+   Control vuông khai width+height; nút chữ khai min-height để padding và nội
+   dung còn co giãn được (khai thêm height cứng trong cùng rule là self-defeat).
+   ========================================================= */
+@media (max-width: 899px) {
+  /* --- control vuông: 20–34px là cỡ nhìn thấy, không phải cỡ bấm được --- */
+  /* nút thêm video của admin, nằm trên nhãn .pv-label: hàng flex sẽ tự cao
+     thêm ~14px, đổi lại ngón cái không còn bấm trượt sang nhãn */
+  .pv-add { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; }
+  /* 40px > chiều cao 36px của .side-row, nên hàng cài đặt phải nới theo —
+     không nới là nút bị hàng ép dẹt lại, cỡ chạm vừa khai thành vô nghĩa */
+  .sfxbtn { width: 40px; height: 40px; }
+  .side-row { min-height: 44px; }
+  .side-x { width: 40px; height: 40px; display: grid; place-items: center; }
+  .nt-btn { width: 40px; height: 40px; }
+  .to-top { width: 40px; height: 40px; }
+  .fab { width: 40px; height: 40px; }
+
+  /* --- nút chữ: chốt chiều cao, để chiều rộng cho padding quyết định --- */
+  .votebtn { min-height: 40px; }
+  .tab { min-height: 40px; }
+  .btn { min-height: 40px; }
+  .side-out { min-height: 40px; }
+
+  /* --- điều hướng chính lấy đúng 44px của Apple HIG ---
+     .side-item cao lên làm danh sách dài thêm ~8px mỗi mục, nhưng .side-scroll
+     là flex:1 + min-height:0 nên phần dài ra rơi vào vùng cuộn, không đẩy
+     .side-foot (avatar + đăng xuất) xuống dưới mép màn hình. */
+  .side-item { min-height: 44px; }
+  .side-cta { min-height: 44px; }
+}
+
+/* Không có hợp đồng cho .pick-nav: bản desktop đã là 44×44 (mũi tên chuyển
+   video nổi bật), bản ≤620px cố ý thu còn 42×42 để khỏi che ảnh bìa — vẫn
+   trên ngưỡng 24px của WCAG 2.5.8. Khai min-height cho nó chỉ tạo rule chết. */
+
 /* ================= CHUYỂN ĐỘNG TRÊN ĐIỆN THOẠI =================
    Màn hình cảm ứng không có hover thật. Các rule desktop hover trước đó
    vẫn có thể bị trình duyệt giữ lại sau một lần chạm, tạo cảm giác nút
@@ -1873,6 +1984,19 @@ html[data-section="spin"] .bgfx { display: none; }
 /* =========================================================
    CHI TIẾT NHỎ: nút lên đầu trang · phím tắt tìm · vòng vote
    ========================================================= */
+/* Vạch tiến độ cuộn (skill MengTo: scroll-progress-timeline).
+   Mỏng 2px, gradient cùng họ màu nhấn, co giãn BẰNG transform scaleX nên
+   cuộn không gây layout/paint lại — chỉ composite. transform-origin bên
+   trái để vạch "chạy" theo hướng đọc. Không transition: tiến độ phải bám
+   tay cuộn tức thì, thêm easing là nó trễ hơn ngón tay. */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 80;
+  transform: scaleX(0); transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--a), var(--a-2));
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .scroll-progress { transition: none; } }
+
 .to-top {
   position: fixed; right: 18px; bottom: 18px; z-index: 30;
   width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer;
@@ -1952,7 +2076,10 @@ html[data-section="spin"] .bgfx { display: none; }
   .lb-me { flex-wrap: wrap; gap: 8px }
   .lb-me-stats { margin-left: 0; width: 100% }
   .lb-bar { align-items: flex-start }
-  .to-top { width: 34px; height: 34px; right: 12px; bottom: 12px }
+  /* chỉ dời vào mép, KHÔNG thu nhỏ: 34px từng nằm ở đây và vì khối 620px
+     đứng SAU khối cỡ chạm nên nó thắng — đúng trên màn điện thoại thật,
+     nút lại co về cỡ chuột. Giữ 40px của hợp đồng, chỉ đổi vị trí. */
+  .to-top { right: 12px; bottom: 12px }
   [data-glow]::after { display: none }        /* máy cảm ứng không có chuột */
 }
 
@@ -2444,3 +2571,73 @@ html[data-section="spin"] .bgfx { display: none; }
   100% { background: transparent; box-shadow: 0 0 0 1px transparent inset; }
 }
 .row.hl, .grow.hl { animation: songHl 2.6s var(--e-soft) both; }
+
+/* =========================================================
+   GÓI UI TOÀN TRANG — thống nhất "chữ ký" thị giác trên mọi màn
+   (Board · Daily Spin · Leaderboard · Profile · Login)
+   ---------------------------------------------------------
+   Chỉ dùng token sẵn có + opacity/transform; không thư viện, không
+   mức blur mới, không đổi số đo đã bị test chốt. Mục tiêu: các khối
+   lớn ở MỌI trang nhận cùng một ngôn ngữ thay vì mỗi nơi một kiểu.
+   ========================================================= */
+
+/* 1) Hairline gradient trên mép khối — cùng chữ ký với .modal::before và
+   .votepanel::before: một vệt sáng 1px mờ dần hai đầu, thay cho viền phẳng
+   lì. Trước đây chỉ modal và votepanel có, nên sang Leaderboard / Daily
+   Spin / Login thì mép trên "chết". */
+.stats, .lb, .daily-spin, .gate-card { position: relative; }
+.stats::before, .lb::before, .daily-spin::before, .gate-card::before {
+  content: ''; position: absolute; left: 14%; right: 14%; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--a-2), transparent);
+  opacity: .55; pointer-events: none;
+}
+
+/* 2) Empty / loading state (xuất hiện ở mọi trang): thêm một "chấm" mềm làm
+   tiêu điểm để khối trống không còn là một ô chữ lơ lửng; chữ nhấc lên một
+   bậc tương phản cho đọc được trên nền sọc. */
+.empty { color: var(--txt-2); padding: 44px 20px; }
+.empty::before {
+  content: ''; display: block; width: 34px; height: 34px; margin: 0 auto 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* 3) Login — ấn tượng đầu tiên: quầng nhấn rất loãng tỏa từ mép trên xuống,
+   nằm trong khối kính (z-index âm để dưới nội dung, trên nền khối). */
+.gate-card::after {
+  content: ''; position: absolute; left: -10%; right: -10%; top: 0; height: 55%;
+  background: radial-gradient(60% 80% at 50% 0%, var(--a-glow), transparent 70%);
+  opacity: .28; pointer-events: none; z-index: -1;
+}
+
+/* 4) Leaderboard — bục #1: viền + bóng vàng mềm quanh avatar để mắt neo đúng
+   người dẫn đầu thay vì phải đọc số huy hiệu. */
+.lb-pod.p1 .lb-av {
+  box-shadow: 0 0 0 2px rgba(217,179,74,.45), 0 8px 22px -10px rgba(217,179,74,.55);
+}
+
+/* =========================================================
+   ADMIN — tổng quan đường ống + hàng dạng thẻ
+   ---------------------------------------------------------
+   Trước: danh sách phẳng ngăn cách bằng border-bottom, quét lâu mới biết
+   trạng thái. Nay: dải chấm màu (.adm-sum) cho cái nhìn toàn cục, và mỗi
+   hàng là một thẻ riêng có hover để mắt không trôi giữa hai chục dòng.
+   ========================================================= */
+.adm-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.adm-sum-i {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--r-pill);
+  background: var(--surface-2); font-size: 11.5px; color: var(--txt-2);
+}
+/* chấm màu lấy đúng màu trạng thái gán inline (--sc) và tỏa nhẹ cho dễ quét */
+.adm-sum-i i { width: 7px; height: 7px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 8px var(--sc); }
+.adm-sum-i b { font-family: var(--mono); font-weight: 600; color: var(--txt); }
+
+.adm {
+  flex-wrap: wrap; padding: 12px 14px; margin-bottom: 8px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
+  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.adm:last-child { margin-bottom: 0; border-bottom: 1px solid var(--line); }
+.adm:hover { border-color: var(--line-2); background: var(--surface-2); }
