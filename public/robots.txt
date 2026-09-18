@@ -1,0 +1,18 @@
+# =========================================================
+#  robots.txt — chaereve.pages.dev
+#  ---------------------------------------------------------
+#  Tên miền lấy theo wrangler.jsonc + worker/index.js + HUONG-DAN.md
+#  (đường production thật). KHÔNG phải `chaereve.pages.dev` như vài chỗ
+#  trong goi-skills/ ghi — chỗ đó sai, đổi lại đây là sai cả sitemap.
+#
+#  Chủ dự án muốn được index, nên mặc định là Allow. Chỉ chặn /api/:
+#  đó là Pages Functions (lá chắn chống farm cho Daily Spin và Vote),
+#  trả JSON lỗi chứ không có nội dung gì để lập chỉ mục — để crawler
+#  mò vào chỉ tốn crawl budget và làm nhiễu log chống farm.
+# =========================================================
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://chaereve.pages.dev/sitemap.xml

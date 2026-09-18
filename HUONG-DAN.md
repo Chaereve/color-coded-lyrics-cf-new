@@ -193,7 +193,7 @@ không chỉ thêm một ô nhập số hoặc một cờ `verified` do client g
 
 ### Lá chắn Edge: Pages Functions + KV (chống farm)
 
-Đường chính thức trên production (`chaereveccl.pages.dev`, nối GitHub, tự build khi push)
+Đường chính thức trên production (`chaereve.pages.dev`, nối GitHub, tự build khi push)
 là **Cloudflare Pages Functions**: ba file `functions/api/daily-spin/health.js`,
 `functions/api/daily-spin/spin.js`, `functions/api/vote/cast.js`. Chúng là lớp vỏ mỏng —
 toàn bộ logic (Turnstile, KV, uỷ quyền RPC) nằm trong `worker/shield.js` và `worker/index.js`,
@@ -2209,7 +2209,7 @@ cắt nhầm ngay dấu `>` trong `onClick={() => …}` (cái bẫy đã làm h�
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` (`node:test`, 185 ca: `watch` 29 · `Notifications` 12 + 11 ca dữ liệu xấu · `toastStack` · `cssGridRows` 6 · `cssNotifyPitch` 4 · `cssInputBox` 4 · `cssScroll` 3 · `cssTokens` 4 · `cssTapTarget` 3 · `i18nKeys` 5 · `jsxHtml` 5 · `cssSelectArrow` 2 · `propContract` 4 · `board`/`dailySpin`/`voteHardening`/`spinDevice` …) | ✅ 184 đạt, 0 lỗi, 1 skip (`supabase/tests/dailySpin.test.js` — cần DB thật) |
+| `npm test` (`node --test src/ supabase/tests/ worker/`, 195 ca: `watch` 29 · `Notifications` 12 + 11 ca dữ liệu xấu · `toastStack` · `cssGridRows` 6 · `cssNotifyPitch` 4 · `cssInputBox` 4 · `cssScroll` 3 · `cssTokens` 4 · `cssTapTarget` 5 · `seoContract` 5 · `jsxHtml` 5 · `cssSelectArrow` 2 · `propContract` 4 · `pagesRoutes` 14 (gồm 3 ca `_headers`/no-store) · `board`/`dailySpin`/`voteHardening`/`spinDevice` …) | ✅ 194 đạt, 0 lỗi, 1 skip (`supabase/tests/dailySpin.test.js` — cần DB thật) |
 | `npx oxlint .` | ✅ 0 lỗi, 14 cảnh báo — đúng bằng nền trước khi sửa |
 | `npm run build` | ✅ sạch, bundle chính 330 kB (đã bỏ hộp thoại "This song") |
 | Check bố cục | ✅ bằng văn bản: `cssGridRows` + `cssNotifyPitch` (nhịp 12px/14px, lưới `.grow`, không hộp thoại trong hộp thư, nút phải có `:focus-visible`) |

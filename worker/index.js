@@ -2,7 +2,7 @@
    CỔNG EDGE cho Daily Spin VÀ Vote (Turnstile + KV + uỷ quyền RPC)
    ---------------------------------------------------------
    Logic dưới đây chạy ở HAI nơi nhưng chỉ viết MỘT lần:
-     · ĐƯỜNG CHÍNH THỨC (production chaereveccl.pages.dev): Cloudflare Pages
+     · ĐƯỜNG CHÍNH THỨC (production chaereve.pages.dev): Cloudflare Pages
        Functions — functions/api/daily-spin/health.js, .../spin.js và
        functions/api/vote/cast.js là lớp vỏ mỏng gọi lại đúng các hàm
        healthResponse/spinRoute/voteRoute trong file này. Pages tự build khi
@@ -37,7 +37,15 @@
    ========================================================= */
 import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './shield.js'
 
-const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' }
+/* `no-store` đặt Ở ĐÂY chứ không chỉ trong public/_headers: file _headers áp
+   cho tài nguyên tĩnh, còn response do Function sinh ra thì không chắc được nó
+   phủ (doc Cloudflare cảnh báo riêng chuyện này). Ba route này là lá chắn chống
+   farm — một lượt quay hay một lá phiếu bị trình duyệt/CDN trả lại từ cache là
+   luật chơi bị phá mà không có log nào để soi. */
+const JSON_HEADERS = {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const HASH64 = /^[a-f0-9]{64}$/
 

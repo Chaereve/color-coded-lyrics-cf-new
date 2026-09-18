@@ -90,16 +90,22 @@
 .spin-dial { min-width: 0; display: grid; justify-items: center; gap: 14px; }
 
 /* ---- wheel ---- */
-.spin-wheel-wrap { position: relative; width: min(100%, 360px); aspect-ratio: 1; }
+/* Halo tròn quanh bánh xe: một vòng kẻ mảnh + quầng --a-glow loãng tỏa ra,
+   cho bánh xe "nổi" khỏi card thay vì nằm bẹp. Bo tròn 50% để bóng tròn. */
+.spin-wheel-wrap {
+  position: relative; width: min(100%, 360px); aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line), 0 26px 70px -28px var(--a-glow);
+}
 .spin-wheel-disc {
   display: block; width: 100%; height: 100%; transform-origin: 50% 50%;
   transition: transform 4500ms cubic-bezier(.12, .72, .12, 1);
 }
 .is-spinning .spin-wheel-disc { will-change: transform; }
-/* Bezel: one flat band plus two hairlines, so the disc has an edge on a dark card. */
-.spin-wheel-bezel { fill: none; stroke: var(--surface-3); stroke-width: 14; }
-.spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
-.spin-wheel-rim { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+/* Viền mảnh hơn để bánh xe thoáng: bezel 14→9, hai hairline 1.5→1. */
+.spin-wheel-bezel { fill: none; stroke: var(--surface-3); stroke-width: 9; }
+.spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
+.spin-wheel-rim { fill: none; stroke: var(--line-2); stroke-width: 1; }
 /* One flat tone per prize tier; t1 is the base (darkest) step. */
 .spin-sector { fill: var(--w-1); transition: opacity .35s var(--e-soft); }
 .spin-sector.t2 { fill: var(--w-2); }
@@ -111,10 +117,11 @@
 .spin-sector.t2.v1 { fill: var(--w-2a); } .spin-sector.t2.v2 { fill: var(--w-2b); } .spin-sector.t2.v3 { fill: var(--w-2c); }
 .spin-sector.t3.v1 { fill: var(--w-3a); } .spin-sector.t3.v2 { fill: var(--w-3b); } .spin-sector.t3.v3 { fill: var(--w-3c); }
 .spin-sector.t4.v1 { fill: var(--w-4a); } .spin-sector.t4.v2 { fill: var(--w-4b); } .spin-sector.t4.v3 { fill: var(--w-4c); }
-.spin-wheel-spoke { stroke: var(--bg); stroke-width: 2; }
+/* Nan hoa mảnh và nhạt hơn: nó chỉ để ranh giới lát, không phải để "kẻ ô". */
+.spin-wheel-spoke { stroke: var(--bg); stroke-width: 1; opacity: .7; }
 .spin-wheel-number {
-  font-family: var(--mono); font-size: 25px; font-weight: 600; letter-spacing: -.5px;
-  fill: #fff; transition: opacity .35s var(--e-soft);
+  font-family: var(--mono); font-size: 22px; font-weight: 600; letter-spacing: -.5px;
+  fill: #fff; opacity: .92; transition: opacity .35s var(--e-soft);
 }
 .spin-wheel-number.t4 { fill: #fff; }
 .spin-wheel-plus { font-size: 15px; font-weight: 400; fill: rgba(255, 255, 255, .66); }

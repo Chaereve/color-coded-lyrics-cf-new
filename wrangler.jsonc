@@ -5,7 +5,7 @@
 
   // =========================================================
   //  LƯU Ý ĐƯỜNG DEPLOY (2026-09-08): file này KHÔNG PHẢI đường production.
-  //  Production là Cloudflare Pages (chaereveccl.pages.dev, nối GitHub, tự
+  //  Production là Cloudflare Pages (chaereve.pages.dev, nối GitHub, tự
   //  build `npm run build` khi push). Lá chắn Edge chạy ở đó bằng
   //  **Pages Functions**: functions/api/daily-spin/{health,spin}.js và
   //  functions/api/vote/cast.js — lớp vỏ mỏng gọi lại đúng các hàm trong

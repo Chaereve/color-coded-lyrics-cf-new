@@ -17,7 +17,7 @@ import { onRequest as health } from '../functions/api/daily-spin/health.js'
 import { onRequest as spin } from '../functions/api/daily-spin/spin.js'
 import { onRequest as vote } from '../functions/api/vote/cast.js'
 
-const SITE = 'https://chaereveccl.pages.dev'
+const SITE = 'https://chaereve.pages.dev'
 const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast']
 const hex64 = c => c.repeat(64)
 const post = (path, body) => new Request(SITE + path, {
@@ -143,4 +143,73 @@ test('_redirects giữ SPA fallback ở DÒNG CUỐI (Cloudflare so từ trên x
   assert.equal(from, '/*')
   assert.equal(to, '/index.html')
   assert.equal(status, '200')
+})
+
+/* =========================================================
+   CACHE — chốt hai nửa của cùng một quyết định: tài nguyên tĩnh cache dài,
+   API thì KHÔNG được cache ở bất kỳ tầng nào.
+   ========================================================= */
+
+/* Đọc _headers thành các khối { pattern, headers[] } theo đúng cú pháp
+   Cloudflare: dòng không thụt là pattern, dòng thụt là "Name: value",
+   dòng bắt đầu bằng # là comment. */
+const parseHeaders = () => {
+  const out = []
+  for (const line of readFileSync(new URL('../public/_headers', import.meta.url), 'utf8').split('\n')) {
+    if (!line.trim() || line.trim().startsWith('#')) continue
+    if (!/^\s/.test(line)) { out.push({ pattern: line.trim(), headers: [] }); continue }
+    const [name, ...rest] = line.trim().split(':')
+    out.at(-1).headers.push({ name: name.trim().toLowerCase(), value: rest.join(':').trim() })
+  }
+  return out
+}
+
+test('_headers: không có khối bắt-all nào đặt Cache-Control', () => {
+  /* Doc Cloudflare: request khớp nhiều rule thì header của MỌI rule được gộp,
+     và cùng một header xuất hiện hai lần thì giá trị bị NỐI BẰNG DẤU PHẨY.
+     Thêm `/*  Cache-Control: must-revalidate` là /assets/* nhận về
+     "…, immutable, public, max-age=0, must-revalidate" — hai vế ngược nhau,
+     mất trắng lợi ích của tên file có hash. Lỗi này không hiện ở đâu cả:
+     header vẫn 200, chỉ có cache là không chạy. */
+  const all = parseHeaders()
+  assert.ok(all.length >= 5, 'phải đọc được các khối của _headers')
+  const bad = all.filter(b => b.pattern === '/*' && b.headers.some(h => h.name === 'cache-control'))
+  assert.deepEqual(bad.map(b => b.pattern), [],
+    'bỏ Cache-Control khỏi khối /* — khai từng đường dẫn thay vào đó')
+  assert.ok(all.length <= 100, 'Cloudflare cho tối đa 100 rule')
+})
+
+test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store', () => {
+  const cc = (p) => parseHeaders().find(b => b.pattern === p)?.headers
+    .find(h => h.name === 'cache-control')?.value
+  for (const p of ['/assets/*', '/fonts/*']) {
+    assert.match(cc(p) || '', /max-age=31536000/, `${p} phải cache 1 năm`)
+    assert.match(cc(p) || '', /immutable/, `${p} có hash nội dung nên khai immutable được`)
+  }
+  assert.equal(cc('/api/*'), 'no-store', 'API chống farm không được cache')
+  for (const p of ['/', '/index.html', '/daily-spin', '/ranking', '/profile']) {
+    assert.match(cc(p) || '', /must-revalidate/,
+      `${p} là HTML: cache là người dùng kẹt ở bản cũ, không nhận bundle mới`)
+  }
+})
+
+test('mọi response của 3 route API đều no-store — cả Pages lẫn Workers', async () => {
+  /* _headers không chắc phủ được response do Function sinh ra (doc Cloudflare
+     cảnh báo riêng), nên header phải đi ra từ CHÍNH code dựng response.
+     Đây là chỗ duy nhất kiểm chứng được điều đó trước khi deploy. */
+  const env = {}
+  const cases = [
+    ['health', () => new Request(SITE + '/api/daily-spin/health'), health],
+    ['spin 405', () => new Request(SITE + '/api/daily-spin/spin'), spin],
+    ['spin 400', () => post('/api/daily-spin/spin', 'rac'), spin],
+    ['spin 503', () => post('/api/daily-spin/spin', goodSpinBody()), spin],
+    ['vote 400', () => post('/api/vote/cast', { delta: 'nhieu' }), vote],
+    ['vote 503', () => post('/api/vote/cast', goodVoteBody()), vote],
+  ]
+  for (const [name, make, pagesHandler] of cases) {
+    const pages = await pagesHandler({ request: make(), env })
+    assert.equal(pages.headers.get('cache-control'), 'no-store', `Pages · ${name}`)
+    const wrk = await worker.fetch(make(), env)
+    assert.equal(wrk.headers.get('cache-control'), 'no-store', `Workers · ${name}`)
+  }
 })
