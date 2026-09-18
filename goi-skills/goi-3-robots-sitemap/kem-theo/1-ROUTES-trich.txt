@@ -1,0 +1,15 @@
+# Trích từ src/App.jsx — chỉ những dòng liên quan SEO/định tuyến
+# (số dòng theo file gốc, để bạn trỏ đúng chỗ khi cần sửa)
+
+dòng 51 | const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
+dòng 52 | const sectionOf = (path) => {
+dòng 53 |   const clean = path.replace(/\/+$/, '') || '/'
+dòng 54 |   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
+dòng 55 | }
+
+# Tiêu đề tab đặt bằng JS theo từng route:
+dòng 521 |   useEffect(() => {
+dòng 522 |     document.title = section === 'board'
+dòng 523 |       ? 'Chaereve — Request Page'
+dòng 524 |       : `${t(`nav.${section}`)} · Chaereve`
+dòng 525 |   }, [section, t])

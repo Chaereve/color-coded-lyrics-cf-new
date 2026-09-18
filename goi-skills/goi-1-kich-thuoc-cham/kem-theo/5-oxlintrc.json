@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "react",
+    "oxc"
+  ],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "no-undef": "error"
+  },
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "overrides": [
+    {
+      "files": [
+        "supabase/tests/**/*.js",
+        "functions/**/*.js",
+        "vite.config.js"
+      ],
+      "env": {
+        "node": true,
+        "browser": false
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "docs/skills/**"
+  ]
+}
