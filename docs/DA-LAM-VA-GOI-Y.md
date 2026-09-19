@@ -775,3 +775,48 @@ chú thích thành hợp đồng có test (`src/lib/priceRate.test.js`).
 `npm test` → **366 ca / 365 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **225/225** (trước vòng
 này: 178). `npx oxlint src tools worker supabase` → **0 lỗi, 13 cảnh báo** (đầu vòng: 20 cảnh
 báo). `npm run build` → OK, bundle chính 293,7 kB (gzip 91,4 kB).
+
+## Phần Q — vòng 14 (tiếp): bước trả phí bị bỏ qua lần nữa, và đường thật là bấm Enter
+
+### Q1. Ba lỗi cũ không phải đường chủ dự án gặp
+
+Báo cáo trước kết luận bằng ba lỗi im lặng (ô tick dính sang request sau, form mất khi đổi
+tab, Clear không xoá ô tick) kèm bằng chứng gỡ-bản-sửa-ra. Chủ dự án trả lời: **vẫn bị skip**.
+Kết luận rút ra: ba lỗi đó là thật nhưng không phải đường người dùng đi, nên không được coi
+một danh sách lỗi đã sửa là bằng chứng cho một lời phàn nàn cụ thể.
+
+### Q2. Đường thật: `onSubmit` của form, không phải nút gửi
+
+Trong trình duyệt, Enter trong một ô nhập của form là **gửi form**; trên điện thoại phím
+Enter là nút "Go". Cả hai đều vào `onSubmit` của `<form>` duy nhất trong `src`
+(`ActionModal.jsx:354`). Bản cũ gọi thẳng `goSubmit()` bất kể đang ở bước nào → tạo request
+**ngay từ bước 2**, và người dùng chưa từng thấy bước 3 (ô "bài trả phí") — đúng hiện tượng
+được báo.
+
+Vì sao lượt rà trước bỏ sót: **jsdom không mô phỏng việc gửi ngầm**, chỉ phát `submit` khi
+bấm nút gửi. Cả bộ kiểm đi qua chỗ này mà không thấy gì. Bài học quy trình: khi một lời phàn
+nàn về luồng UI không tái hiện được bằng jsdom, phải **phát đúng sự kiện mà trình duyệt phát**
+(`new Event('submit', {bubbles:true, cancelable:true})` trên `<form>`) thay vì kết luận
+"không tái hiện được".
+
+### Q3. Sửa
+
+- `submit()` gate lại: `if (step < 3) { next(); return }` — chốt đặt ở tầng form để mọi ô
+  nhập thêm sau này đều đi qua nó.
+- `<form onKeyDown={onFormKey}>`: chặn Enter ở bước 1–2 (chỉ với `INPUT`), đi tiếp một bước;
+  `textarea` giữ nguyên nghĩa xuống dòng, bước 3 giữ nguyên nghĩa gửi.
+- Đảo thứ tự bước 3: `.paidbox` **trước** `.note-field` — màn quyết định phải đọc từ trên
+  xuống theo mức quan trọng.
+
+### Q4. Kiểm chứng hai chiều
+
+Chiều lỗi (bản chưa sửa, phát `submit` ở bước 2 sau khi điền tên bài): `bước=1`, request
+`6 → 7`, có thông báo đã gửi, `.paidbox` chưa từng xuất hiện; dòng được ghi là
+`is_paid:false`. Chiều đã sửa: bốn tình huống ở đầu mục 10c đều đúng, và gỡ chốt ra thì
+`npm run smoke` tụt còn **218/225** (7 mục đỏ, trong đó có mục "đưa người dùng tới bước 3").
+
+### Q5. Số của vòng này
+
+`npm test` → **366 ca / 365 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **235/235** (trước lượt
+này: 225). `npx oxlint src tools worker supabase` → **0 lỗi, 13 cảnh báo**. `tools/_probe_enter.mjs`
+là đồ tạm, đã xoá sau khi lấy xong bằng chứng.

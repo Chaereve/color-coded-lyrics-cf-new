@@ -329,7 +329,34 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
     finally { setBusy(false) }
   }
-  const submit = (e) => { e.preventDefault(); goSubmit() }
+  /* GỬI LÀ VIỆC CỦA BƯỚC 3 — và đây là chốt giữ đúng điều đó.
+     ---------------------------------------------------------------------
+     Trình duyệt GỬI NGẦM form khi người dùng bấm Enter trong một ô nhập, và
+     trên điện thoại thì phím Enter chính là nút "Go"/"Đi" của bàn phím. Mọi
+     đường gửi ngầm như vậy rơi thẳng vào đây trong khi người dùng còn đang ở
+     bước 2 — nghĩa là request được tạo mà họ CHƯA TỪNG thấy bước 3, nơi có ô
+     chọn bài trả phí. Không có gì đỏ, chỉ có một request thường được gửi.
+     jsdom không mô phỏng việc gửi ngầm (nó chỉ phát `submit` khi bấm nút gửi),
+     nên cả bộ kiểm tự động đi qua chỗ này mà không thấy gì — lỗi chỉ lộ ra trên
+     trình duyệt thật. Vì vậy chốt phải nằm Ở ĐÂY, chứ không chỉ ở từng ô nhập:
+     thêm một ô mới vào form là lại có thêm một đường gửi ngầm.
+     Gặp `submit` khi chưa tới bước 3 thì đi tiếp một bước, không gửi. */
+  const submit = (e) => {
+    e.preventDefault()
+    if (step < 3) { next(); return }
+    goSubmit()
+  }
+
+  /* Enter trong ô nhập ở bước 1–2 = "xong bước này", không phải "gửi".
+     Chặn ngay tại đây để trình duyệt không kịp gửi ngầm, và vì đi tiếp một bước
+     là đúng thứ người dùng vừa yêu cầu. Ô ghi chú là <textarea> nên Enter ở đó
+     vẫn là xuống dòng, còn ở bước 3 thì Enter giữ nguyên nghĩa gửi. */
+  const onFormKey = (e) => {
+    if (e.key !== 'Enter' || step >= 3) return
+    if (e.target?.tagName !== 'INPUT') return
+    e.preventDefault()
+    next()
+  }
 
   /* DÁN LINK Ở ĐÂU CŨNG ĐƯỢC: người dùng copy link video rồi dán vào ô đang mở
      — thường là ô tên bài. Nếu chuỗi vừa dán CHÍNH LÀ một link thì đưa nó về
@@ -351,7 +378,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     ? <span className="fcount">{form[k].length}/{max}</span> : null)
 
   return (
-    <form ref={formRef} onSubmit={submit} noValidate>
+    <form ref={formRef} onSubmit={submit} onKeyDown={onFormKey} noValidate>
       {/* DẢI BƯỚC — BỘ CHỈ BÁO TIẾN TRÌNH THẬT, KHÔNG PHẢI BA CÁI NHÃN.
           Bản cũ là ba ô chữ nằm cạnh nhau, còn form thì vẫn là một cột dài với
           mọi ô hiện cùng lúc: dải đó chỉ nói "form có ba việc", không nói người
@@ -583,9 +610,24 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       )}
 
       {/* ---------- BƯỚC 3: GỬI ----------
-          Bước quyết định: ghi chú (nếu có) và bài trả phí, rồi gửi. */}
+          Bước quyết định: bài này có TRẢ PHÍ hay không, ghi chú (nếu có), rồi gửi.
+          THỨ TỰ trong bước là cố ý (vòng 14, tiếp): ô "bài trả phí" đứng TRƯỚC ô
+          ghi chú, vì đây là màn QUYẾT ĐỊNH — việc phải trả thêm tiền hay không là
+          chuyện lớn nhất của màn này, còn ghi chú là thứ tuỳ chọn. Để ô trả phí
+          xuống dưới thì đúng cái lựa chọn đắt nhất lại nằm xa mắt nhất, và người
+          dùng bấm Gửi mà chưa từng đọc tới nó. */}
       {step === 3 && (
         <div className="req-pane" key="p3">
+          <div className="paidbox">
+            <label className="switch" style={{ margin: 0 }}>
+              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
+              <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
+            </label>
+            <p style={{ marginTop: 8 }}>
+              {t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}
+            </p>
+          </div>
+
           <div className="field note-field">
             {noteOpen ? (
               <>
@@ -601,19 +643,6 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
               </button>
             )}
           </div>
-
-          <div className="paidbox">
-            <label className="switch" style={{ margin: 0 }}>
-              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
-              <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
-            </label>
-            <p style={{ marginTop: 8 }}>
-              {t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}
-            </p>
-          </div>
-
-          {/* Nguoi gui co quyen biet tin se di dau: mot dong chu ben duoi nut
-              gui con thuyet phuc hon cai chuong an trong danh sach. */}
         </div>
       )}
 

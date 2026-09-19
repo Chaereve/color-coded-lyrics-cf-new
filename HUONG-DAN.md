@@ -2539,6 +2539,50 @@ Cùng lúc, `tools/smoke.mjs` sửa một lỗi của chính nó: mục rà DOM 
 vote ở lại mở suốt các mục sau và mục 10c lần đầu chạy trong **sai hộp**. Nay đóng bằng `Esc`
 và có mục chốt "không còn lớp phủ nào treo lại".
 
+### Vì sao vẫn "bị bỏ qua" sau khi sửa ba lỗi trên — bấm Enter là gửi (vòng 14, tiếp)
+
+Ba lỗi trên là thật, nhưng chúng **không phải** đường mà chủ dự án gặp. Đường thật nằm ở
+chỗ khác, và nó nằm ngoài tầm nhìn của cả bộ kiểm tự động:
+
+**Trong trình duyệt, bấm Enter trong một ô nhập của form là GỬI form.** Trên điện thoại thì
+phím Enter chính là nút **"Go / Đi"** của bàn phím — bấm nó là gửi. Cả hai đều rơi vào
+`onSubmit` của `<form>` ở `ActionModal.jsx`:
+
+- màn hình không có gì đỏ, không có cảnh báo — chỉ có **một request thường được tạo**;
+- người dùng **chưa từng đi qua bước 3**, nên chưa từng thấy ô "bài trả phí": đúng nghĩa
+  "bước chọn paid request bị bỏ qua".
+
+Vì sao máy kiểm không thấy: **jsdom không mô phỏng việc gửi ngầm** — nó chỉ phát sự kiện
+`submit` khi người ta bấm **nút** gửi. Đứng ở bước 2 mà bấm Enter thì jsdom im lặng không làm
+gì, và bộ kiểm thật thà ghi nhận "không có gì xảy ra". Đây là loại lỗi mà chỉ trình duyệt
+thật mới lộ ra, nên cách kiểm phải là **tự phát đúng sự kiện mà trình duyệt sẽ phát**.
+
+Đã sửa trong `src/components/ActionModal.jsx`, bằng hai lớp:
+
+| Lớp | Việc nó làm |
+|---|---|
+| Chốt trong `submit()` | Gặp `submit` khi **chưa tới bước 3** thì đi tiếp một bước, **không gửi**. Đặt ở đây — chứ không chỉ ở từng ô nhập — vì thêm một ô mới vào form là lại có thêm một đường gửi ngầm |
+| `onKeyDown` ở `<form>` | Enter trong ô nhập ở bước 1–2 = "xong bước này": chặn trình duyệt gửi ngầm và đi tiếp. Ô ghi chú là `<textarea>` nên Enter ở đó vẫn xuống dòng; ở bước 3 thì Enter giữ nguyên nghĩa **gửi** |
+
+Kèm theo một thay đổi về **thứ tự**: trong bước 3, ô "bài trả phí" nay đứng **trước** ô ghi
+chú. Đây là màn **quyết định** — trả thêm tiền hay không là chuyện lớn nhất ở đây, còn ghi
+chú là thứ tuỳ chọn; để ô trả phí xuống dưới thì lựa chọn đắt nhất lại nằm xa mắt nhất.
+
+Bằng chứng (cả hai chiều):
+
+- **Chiều lỗi** — phát đúng sự kiện `submit` mà trình duyệt phát khi người dùng bấm Enter ở
+  bước 2, trên bản **chưa sửa**: `bước=1 | số request: 6 → 7 | msg="Request sent…" | đã thấy ô
+  trả phí chưa: false` và request được ghi là `{"artist":"XG","title":"Left Right","is_paid":false}`.
+- **Chiều đã sửa** — bốn tình huống: bước 2 + gửi ngầm → **không** tạo request, đứng ở bước 3,
+  ô trả phí hiện ra; Enter trong ô Link → sang bước 3, không gửi; Enter trong ô Nghệ sĩ → nhảy
+  sang ô Tên bài như cũ; bước 3 + gửi → tạo **đúng một** request trả phí.
+- **Gỡ chốt ra** → `npm run smoke` tụt còn **218/225** với 7 mục đỏ, trong đó có
+  "...đưa người dùng tới bước 3 — nơi có ô chọn bài trả phí" (`bước=2 paidbox=false`).
+
+Bốn mục kiểm mới nằm ngay đầu mục **10c** của `npm run smoke` (235 mục, trước vòng này: 225),
+gồm cả một mục so **thứ tự tài liệu** giữa `.paidbox` và `.note-field`, để quyết định thứ tự
+trên không bị đảo lại trong im lặng.
+
 ### Header an toàn
 
 `public/_headers` có thêm khối bắt-all `/*` với `X-Content-Type-Options: nosniff`,

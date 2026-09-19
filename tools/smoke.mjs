@@ -1110,6 +1110,7 @@ where = 'bài trả phí'
     }
   }
   const tickBox = () => q('.paidbox input[type=checkbox]')
+  const stepNow = () => qa('.req-step .rs-btn').findIndex(b => b.getAttribute('aria-current') === 'step') + 1
   /* Điền một bài từ bất kỳ bước nào rồi tới bước 3. Gửi xong thì form tự về
      bước 1, nên "gõ vào ô tên bài" không phải lúc nào cũng bắt đầu ở bước 2. */
   const fill = async (artist, title) => {
@@ -1125,10 +1126,72 @@ where = 'bài trả phí'
     return true
   }
 
+  /* (0) ĐƯỜNG GỬI NGẦM CỦA TRÌNH DUYỆT — lỗi chủ dự án gặp, và là lỗi mà cả bộ
+     kiểm này từng không thể thấy. Trong trình duyệt thật, bấm Enter trong một ô
+     nhập là GỬI form (trên điện thoại, phím Enter chính là nút "Go" của bàn
+     phím) — không đi qua bước 3, nên không bao giờ thấy ô chọn bài trả phí:
+     request được tạo thẳng thành request thường. jsdom chỉ phát `submit` khi
+     người ta bấm NÚT gửi, nên đứng ở bước 2 mà bấm Enter thì nó im lặng không
+     làm gì — đúng chỗ mà máy kiểm thật thà tin rằng "không có gì xảy ra".
+     Nên ở đây phải tự phát đúng sự kiện mà trình duyệt sẽ phát. */
+  const implicitSubmit = async () => {
+    await act(async () => {
+      q('form')?.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
+    })
+    await tick(250)
+  }
+  const reqCount = () => JSON.parse(window.localStorage.getItem('ccl3_rows') || '[]').length
+  const enterIn = async (el) => {
+    await act(async () => {
+      el.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    })
+    await tick(220)
+  }
+
   await openForm()
+  await click(qa('.req-actions button').find(x => /Continue|Fill in/i.test(x.textContent || '')))
   await type(q('#rq-artist'), 'XG')
   await type(q('#rq-title'), 'Something Ain\'t Right')
-  await toSend()
+  await type(q('#rq-link'), 'https://youtu.be/dQw4w9WgXcQ')
+  {
+    const before = reqCount()
+    await enterIn(q('#rq-link'))
+    check('Enter trong ô Link ở bước 2: sang bước 3, KHÔNG gửi luôn', stepNow() === 3 && reqCount() === before,
+      `bước=${stepNow()} request ${before} → ${reqCount()}`)
+  }
+  {
+    const before = reqCount()
+    await implicitSubmit()
+    check('gửi từ bước 3 là đường gửi thật: tạo đúng 1 request',
+      reqCount() === before + 1, `request ${before} → ${reqCount()}`)
+    const req = JSON.parse(window.localStorage.getItem('ccl3_rows') || '[]')[0]
+    check('gửi từ bước 3 khi chưa tick: là request thường, không tự thành trả phí',
+      req?.is_paid === false, JSON.stringify({ is_paid: req?.is_paid }))
+  }
+  await click(q('.modal .x'))
+  await tick(250)
+  window.localStorage.removeItem('ccl.reqDraft')
+
+  /* Bây giờ mới tới lượt kiểm chính: điền xong ở bước 2 rồi để TRÌNH DUYỆT gửi
+     ngầm — không được tạo request nào, và phải đứng ở bước 3. */
+  await openForm()
+  await click(qa('.req-actions button').find(x => /Continue|Fill in/i.test(x.textContent || '')))
+  await type(q('#rq-artist'), 'XG')
+  await type(q('#rq-title'), "Something Ain't Right")
+  {
+    const before = reqCount()
+    await implicitSubmit()
+    check('GỬI NGẦM ở bước 2 không tạo request nào (nút "Go" trên bàn phím điện thoại)',
+      reqCount() === before, `request ${before} → ${reqCount()}`)
+    check('...và đưa người dùng tới bước 3 — nơi có ô chọn bài trả phí, thay vì gửi thẳng',
+      stepNow() === 3 && !!q('.paidbox'), `bước=${stepNow()} paidbox=${!!q('.paidbox')}`)
+    /* Thứ tự trong bước 3 là một quyết định thiết kế, không phải chuyện ngẫu
+       nhiên: lựa chọn trả phí phải nằm TRƯỚC ghi chú để mắt gặp nó trước. */
+    const pb = q('.paidbox'), nf = q('.note-field')
+    check('ô "bài trả phí" đứng TRƯỚC ô ghi chú trong bước 3',
+      !!pb && !!nf && !!(pb.compareDocumentPosition(nf) & window.Node.DOCUMENT_POSITION_FOLLOWING),
+      `paidbox=${!!pb} note=${!!nf}`)
+  }
   check('bước 3 của form có ô "bài trả phí"', !!q('.paidbox') && !!tickBox(),
     q('.paidbox')?.textContent?.replace(/\s+/g, ' ').slice(0, 70) || '(không có)')
 
@@ -1156,7 +1219,6 @@ where = 'bài trả phí'
   const reqModal = qa('.modal').find(m => m.querySelector('.req-steps'))
   const reqTabs = () => [...(reqModal?.querySelectorAll('.modal-tabs .mtab') || [])]
   const mtab = (re) => reqTabs().find(b => re.test(b.textContent || ''))
-  const stepNow = () => qa('.req-step .rs-btn').findIndex(b => b.getAttribute('aria-current') === 'step') + 1
   check('10c: hộp request có tab Vote để đổi qua lại', !!mtab(/^Vote/i) && !!mtab(/^New request/i),
     reqTabs().map(b => b.textContent.trim()).join(' / ') || '(không thấy dải tab)')
   if (mtab(/^Vote/i) && mtab(/^New request/i)) {
