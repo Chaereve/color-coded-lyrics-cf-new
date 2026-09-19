@@ -676,3 +676,49 @@ hay chuỗi i18n nào của paid bị thiếu (đã quét chéo CSS ↔ JSX và 
 
 → Kết luận: **không tìm thấy chỗ nào bị xoá**. Cần chủ dự án chỉ đúng chỗ đang nhìn để sửa trúng,
 thay vì đoán rồi sửa nhầm ba bốn chỗ khác.
+
+## Phần O — vòng 13 (tiếp): kéo đĩa để quay, và dọn khoá chữ chết
+
+### O1. Kéo đĩa — thao tác quen tay, và là mảnh âm thanh còn lại
+
+Đĩa trước giờ chỉ quay được bằng NÚT, nên "tiếng tách khi kéo đĩa" không có gì để bám vào.
+Nay đĩa cầm được bằng tay: giữ và kéo thì đĩa xoay theo con trỏ, mỗi vạch đi qua là một
+tiếng tách, nhả ra thì vào lượt quay thật. Ba quyết định, kèm lý do:
+
+| Quyết định | Vì sao |
+|---|---|
+| **Chuột và bút, KHÔNG ngón tay** | Trên máy cảm ứng, kéo một ngón ở giữa màn hình là **cuộn trang**. Cướp thao tác đó để quay làm trang khó dùng hơn hẳn, đổi lại chỉ thêm một cách quay — trong khi nút quay 46px đã nằm ngay dưới đĩa |
+| **Phần kéo nằm ở LỚP BỌC, không ở đĩa** | Đĩa đã có `transform` do React đặt cho nhịp quay 4,5s. Kéo ở lớp bọc rồi lúc nhả **cộng dồn phần đã kéo vào góc thật** (và đặt lại transform của đĩa trong CÙNG khung hình) là cách duy nhất để đĩa không nhảy về vị trí cũ trước khi quay |
+| **Nhả ra mới quay; dưới 40° coi như chạm hụt** | Kéo chỉ là cách bấm nút cho vui tay. Kết quả vẫn do **máy chủ** quyết định, nên không có đường gian lận nào mở ra; kéo hụt thì đĩa trả về chỗ cũ trong 0,26s để tay biết là chưa đủ |
+
+**Tiếng tách lúc kéo** dùng cùng cơ chế với lúc máy quay, chỉ khác nhịp do tay quyết định:
+hàm thuần `dragTicks(from, to)` đếm số vạch đã đi qua (dùng `trunc` để góc **âm** đếm đúng —
+kéo ngược chiều kim đồng hồ phải kêu y như kéo xuôi), độ mạnh theo **tốc độ kéo** (sàn 0,45
+để tiếng nhẹ vẫn nghe ra, trần 1 vì hơn nữa tai không phân biệt được), **sàn 45ms** và tối đa
+**3 tiếng một nhịp** để một cú nhích dài không thành tràng "tạch tạch". Nhịp đàn hồi 0,26s trên
+lớp bọc bị tắt trong lúc kéo (đĩa phải bám tay 1:1), và tắt hẳn khi người dùng chọn giảm
+chuyển động.
+
+Bản dựng còn một lỗi nữa lộ ra trong lúc làm: `wrapRef` được **khai báo nhưng chưa bao giờ
+gắn vào phần tử**, nên tay kéo không nhận được gì — máy kiểm bấm thật phát hiện ngay (3 mục
+đỏ), chứ đọc mã thì khó thấy.
+
+### O2. Sáu khoá chữ chết trong từ điển
+
+Một khoá không ai dùng không làm gì hỏng, nhưng nó là một chuỗi phải đọc, phải dịch và phải
+giữ mãi — mà người dọn sau không biết nó là để dành hay là rác. Đã gỡ: `crop.title`,
+`menu.admin`, `req.needFields`, `vote.available`, `vote.canTakeBack`, `adm.emptyList`.
+
+Và gỡ xong thì máy giữ: `i18nKeys.test.js` có thêm **ca 6 — không khoá nào nằm chết**, chạy
+chiều ngược với các ca cũ ("bản dịch có ai dùng không" thay vì "chuỗi dùng có bản dịch không").
+Ba đường miễn trừ, và chỉ ba: khoá có mặt **nguyên văn** trong một tệp mã (kể cả khi nó nằm
+trong một bảng dữ liệu như `adminTabs.js`) · khoá thuộc một **họ ghép động** đang dùng (đọc
+thẳng các mẫu `` t(`nav.${…}`) `` trong mã) · mã lỗi `err.*` (phần lớn đến từ payload của máy
+chủ, ca 4 đã giữ đầu kia). Đã thử bằng cách **cấy một khoá chết giả** — máy kiểm đỏ đúng chỗ.
+
+### O3. Số của lượt này
+
+`npm test` → **359 ca / 358 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **178/178** (thêm ba mục
+bấm thật cho tay kéo). `npx oxlint` → **0 lỗi**. `npm run build` → OK.
+
+Nối tiếp phần N, hết danh sách dư của vòng 13.
