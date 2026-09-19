@@ -495,11 +495,20 @@ select {
    dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
    xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
    thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
-.fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px;
+/* `flex-wrap: nowrap` là mặc định của flex nhưng được VIẾT RA ở đây: đã từng
+   có một luật `@media (min-width: 900px) { .fbar .fchips { flex-wrap: wrap } }`
+   ở cuối tệp đè lên, và bảy chip trạng thái gãy thành hai hàng lệch nhau bên
+   trong một khuôn thuốc — đúng thứ người dùng chỉ ra ("lọc status xuống hàng
+   xấu quá"). Hết chỗ thì dải này CUỘN NGANG, không bao giờ xuống dòng. */
+.fchips { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 3px;
   padding: 3px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .fchips::-webkit-scrollbar { display: none; }
-.fchip { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
+/* Chip gọn hơn một nhịp so với bản cũ (đệm 12px→10px, khe 7px→6px), để
+   dải status ưu tiên giữ các chip phổ biến trên cùng một hàng. Nếu số lượng
+   hoặc bề rộng cột vẫn không đủ, cả dải cuộn ngang — không tách pill ra hai
+   hàng. */
+.fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
   border: 1px solid transparent; border-radius: var(--r-pill); background: none;
   color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
@@ -520,7 +529,7 @@ select {
   .searchwrap { --x-w: 30px; --x-x: 5px; }
 }
 .fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
-.fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
+.fchip .fnum { padding: 2px 5px; border-radius: var(--r-pill); background: var(--hover-2);
   font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
 /* Chip đang chọn là VIÊN NỔI trong rãnh, không phải một viên thuốc có viền
    sáng quanh: quầng sáng trên chấm màu đã bị gỡ (vòng 11) — một điểm màu phát
@@ -3259,15 +3268,15 @@ html[data-section="spin"] .bgfx { display: none; }
 .nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
 
 /* ---- THANH LỌC -----------------------------------------------------------
-   MỘT thanh, HAI hàng, MỘT thứ tự cho mọi bề rộng:
-     · hàng 1 — ô tìm kiếm (việc chính, đứng trước theo thứ tự bàn phím), dải
-       chip trạng thái (đi ngang được, mỗi chip mang màu giai đoạn nó lọc), và
-       con số đếm kết quả;
-     · hàng 2 — chip loại bài + lối thoát "Bỏ hết lọc", luôn hiện từ 621px.
-   Máy hẹp KHÔNG có bố cục thứ hai: đúng thứ tự đó xuống dòng — ô tìm + nút
-   Bộ lọc ở hàng trên, dải chip ở hàng dưới, hàng 2 gấp sau nút Bộ lọc. Trước
-   đây thanh này có hai bộ luật chồng nhau (bản cũ ≤620px và bản v3), nên mỗi
-   bề rộng lại ra một hình dạng khác, mép không thẳng hàng với danh sách.
+   MỘT thanh, một thứ tự cho mọi bề rộng:
+     · hàng 1 — ô tìm kiếm (việc chính) + tóm tắt/nút Bộ lọc;
+     · hàng 2 — dải chip trạng thái, luôn là MỘT hàng và cuộn ngang nếu cột
+       hẹp (mỗi chip mang màu giai đoạn nó lọc);
+     · hàng 3 — chip loại bài + lối thoát "Bỏ hết lọc", luôn hiện từ 621px.
+   Máy hẹp giữ đúng hai việc đầu ở hai hàng: ô tìm + nút Bộ lọc ở hàng trên,
+   dải status ở hàng dưới; hàng loại bài gấp sau nút Bộ lọc. Trước đây thanh
+   này có hai bộ luật chồng nhau (bản cũ ≤620px và bản v3), nên mỗi bề rộng lại
+   ra một hình dạng khác, mép không thẳng hàng với danh sách.
 
    Thanh là một KHỐI CÓ VIỀN nằm trong cột nội dung (không tràn ra ngoài bằng
    lề âm) — mép trái của nó trùng mép trái của danh sách request ngay dưới.
@@ -3703,13 +3712,19 @@ html[data-section="spin"] .bgfx { display: none; }
   }
   .side.min .sfxwrap { justify-content: center; }
 }
-/* Mouse users should not need a hidden horizontal gesture to reach a filter. */
+/* Status filters get their own full-width row on desktop too. Their buttons
+   stay on ONE line; if the content column is genuinely narrower than the
+   labels, the row scrolls horizontally instead of making a crooked second
+   line of half-height pills. The DOM order is search → summary → statuses,
+   so the visual and keyboard order stay the same. */
 @media (min-width: 900px) {
-  .fbar-top { flex-wrap: wrap; align-items: flex-start; }
-  .fbar-top > .searchwrap { flex: 1 1 210px; }
-  .fbar-top > .fchips { flex: 3 1 560px; }
-  .fbar .fchips { flex-wrap: wrap; overflow: visible; border-radius: var(--r-md); }
-  .fbar-side { min-height: 34px; align-items: center; }
+  .fbar-top { flex-wrap: wrap; align-items: center; row-gap: 8px; }
+  .fbar-top > .searchwrap { flex: 1 1 210px; min-width: 0; }
+  .fbar-top > .fbar-side { flex: none; min-height: 34px; align-items: center; }
+  .fbar-top > .fchips {
+    flex: 1 1 100%; min-width: 0;
+    flex-wrap: nowrap; overflow-x: auto;
+  }
 }
 .adm-req-t { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
 .adm.adm-req { padding: 9px 11px; margin-bottom: 6px; gap: 8px; }
