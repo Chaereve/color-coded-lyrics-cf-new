@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
-  spinCountdown, spinRotation, spinShades, spinTicks, spinTiers,
+  spinCountdown, spinRotation, spinTicks, spinTiers,
 } from '../lib/dailySpin'
 import {
   SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,
@@ -31,100 +31,74 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
   timeZone: SPIN_TIME_ZONE, hour: '2-digit', minute: '2-digit',
 }).format(new Date(iso))
 
-/* Sector order and the twelve-o'clock alignment come from the server's array.
-   Fills are the site's flat surfaces, one tone per prize tier: the brighter the
-   slice, the rarer and bigger the reward. The centre is only a pin, no logo.
-
-   Wheel anatomy, from outside in: tick dial on the bezel band (60 ticks, the
-   12 "hour" ones longer) → disc → slice separators → prize numbers → hub with
-   an arrow that turns with the disc. On a landed result: outline on the winning
-   slice, arc on the rim outside it, winning number pops once (CSS), everything
-   else dims to 45%. Every one of those is a flat fill or a hairline stroke —
-   the wheel still has no gradient, no glow and no image inside it. */
-/* Vòng chia độ của vành: 60 vạch, mỗi vạch thứ 5 dài và đậm hơn (12 mốc giờ).
+/* Vòng quay — ĐĨA PHẲNG, NĂM LỚP.
    ---------------------------------------------------------
-   Đây là thứ khiến cái đĩa đọc ra là MỘT VÒNG QUAY chứ không phải một cái bánh
-   chia 16 lát: vạch cho mắt một mốc để ước lượng đĩa đang quay nhanh cỡ nào,
-   đúng lúc con trỏ đang gõ liên tục ở trên. Vẽ bằng <line> rẻ hơn mọi thứ khác
-   (không gradient, không filter), và tất cả nằm trong dải vành nên không chen
-   vào chỗ đọc số. Bản cũ chỉ có vành trơn + nan hoa -> nhìn "sơ sài" như người
-   dùng nói. */
-function Ticks() {
-  /* 48 vạch = 3 vạch cho mỗi lát, và vạch DÀI rơi đúng vào ranh giới lát
-     (22,5°). Bản đầu tôi vẽ 60 vạch kiểu đồng hồ (mỗi 6°, vạch giờ mỗi 30°) —
-     nhưng 30° không chia hết cho 22,5°, nên các vạch dài cắt ngang lát ở chỗ
-     chẳng có nghĩa gì. Vành chia độ phải giải thích CẤU TRÚC của bánh xe, chứ
-     không phải kể chuyện cái đồng hồ. */
-  return Array.from({ length: 48 }, (_, i) => {
-    const major = i % 3 === 0
-    const [x1, y1] = point(i * 7.5, major ? 187 : 189.5)
-    const [x2, y2] = point(i * 7.5, major ? 198.5 : 196.5)
-    return <line key={i} className={`spin-wheel-tick${major ? ' major' : ''}`} x1={x1} y1={y1} x2={x2} y2={y2} />
-  })
-}
+   Bản trước có 11 lớp: vành, 48 vạch chia độ, đường tóc, 16 lát nhuộm 12 sắc
+   độ khác nhau, nan hoa, số, viền lát trúng, cung ăn mừng ngoài vành, trục +
+   mũi chỉ + chấm, con trỏ, chùm hạt. Nhìn thì "nhiều chi tiết" nhưng mắt không
+   biết bám vào đâu, và ba dấu hiệu cùng nói một chuyện (trúng ô nào) là hai
+   dấu thừa. Bản này giữ đúng những gì làm nên một cái bánh xe:
 
-function Wheel({ rewards, rotation, duration, spinning, won, label }) {
+     1. vành: một dải phẳng + một đường tóc ngoài (không quầng sáng);
+     2. 16 lát: HAI tông phẳng xen kẽ (--w-1 / --w-2) để mắt đếm được lát, và
+        DUY NHẤT lát giải cao nhất tô bằng --a — một điểm nhấn, đúng chỗ. Hai
+        tông xen kẽ đã tự kẻ ranh giới từng lát, nên KHÔNG cần nan hoa: một
+        đường kẻ từ trục ra vành chỉ làm cái bánh xe trông như nan hoa xe đạp;
+     3. số thưởng: chữ mono màu chữ thường; riêng ô giải cao nhất chữ trắng,
+        lớn hơn một bậc;
+     4. trục: MỘT đĩa phẳng nhỏ (bỏ mũi chỉ và chấm — con trỏ ở vành đã trả lời
+        "kim đang chỉ đâu");
+     5. con trỏ: một mũi ở 12 giờ, GÕ theo đúng nhịp vạch mà tiếng tách đang
+        phát (xem drivePointer) thay vì rung đều như đồng hồ.
+
+   Trúng thưởng chỉ còn MỘT dấu: mọi lát tối đi, lát trúng được viền trắng và
+   số nảy lên một nhịp. Bỏ cung ngoài vành, bỏ lớp viền thứ hai — cùng một sự
+   thật thì chỉ cần nói một lần.
+
+   Toàn bộ vẫn 100% phẳng: không gradient, không quầng sáng, không ảnh, không
+   logo trong trục. */
+const HUB = 21             // bán kính trục
+
+function Wheel({ rewards, rotation, duration, spinning, won, label, pointerRef }) {
   const count = rewards.length
   const step = 360 / count
   const tiers = spinTiers(rewards)
-  const shades = spinShades(rewards)
   return (
     <div className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}`}
       role="img" aria-label={label}>
       <svg className="spin-wheel-disc" viewBox="0 0 400 400" aria-hidden="true"
         style={{ transform: `rotate(${rotation}deg)`, transitionDuration: `${duration}ms` }}>
-        {/* flat bezel band + hairlines: gives the disc an edge without a gradient */}
-        <circle cx={C} cy={C} r="193" className="spin-wheel-bezel" />
-        <Ticks />
-        <circle cx={C} cy={C} r="198.5" className="spin-wheel-edge" />
-        {/* Vành trong: nơi lát cắt chạm vành — một đường tóc để hai lớp không
-            dính vào nhau thành một khối dày */}
-        <circle cx={C} cy={C} r={FACE - .5} className="spin-wheel-seam" />
+        <circle cx={C} cy={C} r="195" className="spin-wheel-rim" />
+        <circle cx={C} cy={C} r="199.5" className="spin-wheel-edge" />
         {rewards.map((reward, i) => (
-          <path key={i} className={`spin-sector ${tiers[reward]} ${shades[i]}${won === i ? ' is-won' : ''}`}
+          <path key={i}
+            className={`spin-sector ${i % 2 ? 'alt' : 'base'}${tiers[i] === 't4' ? ' jackpot' : ''}${won === i ? ' is-won' : ''}`}
             d={sectorPath(i, count)} />
         ))}
-        {/* separators on top of the fills: 16 thin slices stay readable */}
-        {rewards.map((_, i) => {
-          const [x1, y1] = point((i - .5) * step, 26)
-          const [x2, y2] = point((i - .5) * step, FACE)
-          return <line key={i} className="spin-wheel-spoke" x1={x1} y1={y1} x2={x2} y2={y2} />
-        })}
         {rewards.map((reward, i) => {
           const [x, y] = point(i * step, LABEL)
           // Turn the lower half upright so no prize number hangs upside down.
           const flip = i * step > 90 && i * step < 270 ? 180 : 0
-          return <text key={i} className={`spin-wheel-number ${tiers[reward]} ${shades[i]}${won === i ? ' is-won' : ''}`}
+          return <text key={i} className={`spin-wheel-number${tiers[i] === 't4' ? ' jackpot' : ''}${won === i ? ' is-won' : ''}`}
             x={x} y={y} transform={`rotate(${i * step + flip} ${x} ${y})`}
             textAnchor="middle" dominantBaseline="central">
             <tspan className="spin-wheel-plus">+</tspan>{reward}
           </text>
         })}
         {won !== null && <path className="spin-wheel-marker" d={sectorPath(won, count)} />}
-        {/* Ô trúng còn được đánh dấu Ở NGOÀI vành: một cung đậm chạy đúng cung
-            của lát đó. Khi đĩa đã dừng, mắt tìm được kết quả từ mép ngoài của
-            vòng thay vì phải dò vào giữa. */}
-        {won !== null && <path className="spin-wheel-win-arc" d={sectorPath(won, count, 201.5)} />}
-        <circle cx={C} cy={C} r={FACE} className="spin-wheel-rim" />
-        <circle cx={C} cy={C} r="26" className="spin-wheel-pin" />
-        {/* Mũi chỉ trên trục: quay CÙNG đĩa nên sau khi dừng nó luôn chúc vào
-            đúng lát trúng — trục không còn là một cái chấm câm. */}
-        <path className="spin-wheel-hub-mark" d="M200 161 206.5 172.5h-13Z" />
-        <circle cx={C} cy={C} r="8" className="spin-wheel-pin-dot" />
+        <circle cx={C} cy={C} r={HUB} className="spin-wheel-hub" />
       </svg>
       <span className="spin-wheel-pointer" aria-hidden="true">
-        <svg width="28" height="34" viewBox="0 0 28 34">
+        {/* ref để JS gõ con trỏ theo nhịp vạch thật — xem drivePointer() */}
+        <svg ref={pointerRef} width="28" height="34" viewBox="0 0 28 34">
           <path d="M14 31 3 7.2Q1.2 3.4 5.2 3.4h17.6q4 0 2.2 3.8Z" />
         </svg>
       </span>
-      {/* Mười hai hạt bắn ra từ trục khi kết quả đã an vị: đây là KHOẢNH KHẮC
-          ăn mừng duy nhất của trang, và là lý do `--e-pop` tồn tại. Vẽ bằng
-          span + transform (không canvas, không ảnh), mỗi hạt một góc qua
-          `--ang`; cả chùm chạy đúng một lần rồi biến mất, không đụng bố cục.
-          Nhịp này theo transitions.dev 23-like-button (burst chỉ nổ lúc THẮng). */}
+      {/* Chùm hạt ăn mừng: MỘT màu (nhấn phụ), mười hạt, nổ đúng một lần khi
+          đĩa dừng. Nhiều màu + nhiều hạt là tiệc tùng, không phải phần thưởng. */}
       {won !== null && !spinning && (
         <span className="spin-burst" aria-hidden="true">
-          {Array.from({ length: 12 }, (_, i) => <i key={i} style={{ '--ang': `${i * 30}deg` }} />)}
+          {Array.from({ length: 10 }, (_, i) => <i key={i} style={{ '--ang': `${i * 36}deg` }} />)}
         </span>
       )}
     </div>
@@ -163,6 +137,43 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   const finishTimer = useRef(null)
   const stopTicks = useRef(null)
   const angle = useRef(0)   // góc hiện tại, đọc được ngoài render (updater có thể chạy 2 lần)
+  const pointerRef = useRef(null)
+  const pointerRaf = useRef(0)
+  const pointerTimer = useRef(0)
+
+  /* CON TRỎ GÕ THEO NHỊP THẬT.
+     ---------------------------------------------------------
+     `spinTicks()` đã tính sẵn thời điểm từng vạch đi qua con trỏ (cùng đường
+     cong với transition của CSS), và `sfx.spinTicks` phát tiếng tách đúng ở
+     những mốc đó. Trước đây con trỏ chỉ rung đều 0,15s vô hạn — mắt thấy một
+     nhịp KHÁC với tai nghe, nên cả hai đều giả. Nay mỗi lần một vạch đi qua,
+     con trỏ nhích đúng lúc: một vòng quay có "vật lý" thay vì một hiệu ứng.
+     Chạy bằng requestAnimationFrame (không tạo 100 timer), và tự dừng khi hết
+     nhịp hoặc khi component bị tháo. */
+  const drivePointer = (ticks, ms) => {
+    const el = pointerRef.current
+    if (!el || !ticks.length || reducedMotion()) return
+    cancelAnimationFrame(pointerRaf.current)
+    const t0 = performance.now()
+    let i = 0
+    const step = (now) => {
+      const t = now - t0
+      let hit = false
+      while (i < ticks.length && ticks[i].at * 1000 <= t) { i++; hit = true }
+      if (hit) {
+        el.style.transform = 'rotate(-7deg)'
+        clearTimeout(pointerTimer.current)
+        pointerTimer.current = setTimeout(() => { el.style.transform = '' }, 55)
+      }
+      if (t < ms + 120 && i < ticks.length) pointerRaf.current = requestAnimationFrame(step)
+    }
+    pointerRaf.current = requestAnimationFrame(step)
+  }
+  const stopPointer = () => {
+    cancelAnimationFrame(pointerRaf.current)
+    clearTimeout(pointerTimer.current)
+    if (pointerRef.current) pointerRef.current.style.transform = ''
+  }
 
   const applyStatus = useCallback(next => {
     if (next?.user_id !== userId) throw new Error('err.spinAccountChanged')
@@ -213,6 +224,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       mounted.current = false
       clearTimeout(finishTimer.current)
       stopTicks.current?.(); stopTicks.current = null
+      stopPointer()
       clearInterval(tick); clearInterval(poll)
       window.removeEventListener('focus', refresh)
       window.removeEventListener('storage', storage)
@@ -258,12 +270,16 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       setRotation(next)
       setPhase('spinning')
       // Tiếng tách bám đúng đường cong CSS: xếp lịch một lần, không dùng timer.
+      // Cùng mảng mốc đó nuôi luôn con trỏ — tai và mắt nghe/thấy một nhịp.
       stopTicks.current?.()
-      stopTicks.current = ms ? sfx.spinTicks(spinTicks(travel, rewards.length, ms)) : null
+      const ticks = ms ? spinTicks(travel, rewards.length, ms) : []
+      stopTicks.current = ticks.length ? sfx.spinTicks(ticks) : null
+      drivePointer(ticks, ms)
       const top = Math.max(...rewards)
       finishTimer.current = setTimeout(() => {
         if (!mounted.current) return
         stopTicks.current = null
+        stopPointer()
         setResult(data.spin); setPhase('idle'); busy.current = false
         sfx.spinWin(data.spin.reward >= top)
         load() // reconcile other tabs, or midnight passed during the animation
@@ -279,6 +295,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       ].includes(e?.message)) clearPendingSpin(userId, requestId)
       busy.current = false
       stopTicks.current?.(); stopTicks.current = null
+      stopPointer()
       if (!mounted.current) return
       setPhase('idle'); setError(errMsg(t, e)); setPending(!!readPendingSpin(userId))
       setDeviceBroken(['err.spinDevice', 'err.spinStorage'].includes(e?.message))
@@ -326,6 +343,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       <div className="spin-stage">
         <div className="spin-dial">
           <Wheel rewards={rewards} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
+            pointerRef={pointerRef}
             won={won} label={t('spin.wheelLabel', {
               n: rewards.length,
               odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),
@@ -379,9 +397,10 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
             </div>
           </div>
 
+          {/* Hai dòng, không phải ba: mốc reset đã nằm ở chip đếm ngược trên
+              đầu khối — nói lại lần nữa là chỗ dư thừa dễ thấy nhất của trang. */}
           <ul className="spin-rules" aria-label={t('spin.rules')}>
             <li>{t('spin.ruleLimit', { n: limit })}</li>
-            <li>{t('spin.ruleReset')}</li>
             <li>{t('spin.ruleCredit')}</li>
           </ul>
 

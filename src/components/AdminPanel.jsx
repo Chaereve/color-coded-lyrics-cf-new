@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
+import Progress from './Progress'
 import { isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
@@ -139,7 +140,9 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             ))}
             <div className="steps-pct">{pct}%</div>
           </div>
-          <div className="bar" style={{ maxWidth: 'none' }}><i style={{ width: `${pct}%` }} /></div>
+          {/* Số tổng đã in ở .steps-pct ngay trên nên thanh này không lặp lại
+              con số: nó trả lời "còn bao xa", tô theo trạng thái của bài. */}
+          <Progress pct={pct} label={t('progress.label')} color={statusColor(r.status)} wide />
           <div className="inline-form">
             <button type="button" className="btn btn-sm" onClick={() => onUpdate(r.id, { status: 'queued' })}>{t('adm.backToQueue')}</button>
             <button type="button" className={`btn btn-sm adm-copy${copied ? ' done' : ''}`}

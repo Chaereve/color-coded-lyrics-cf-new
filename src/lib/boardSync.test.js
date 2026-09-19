@@ -105,6 +105,14 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
     'badge tab In progress phải bằng số thẻ tab đó liệt kê — cùng tập với Up next')
   assert.match(app, /if \(filter === 'in_progress'\) base = picked/,
     'tab In progress liệt kê CẢ dây chuyền đã chốt (chủ dự án chốt 19/09), không chỉ bài đang chạy')
+  /* Dây chuyền = đã chốt HOẶC đang làm. Thiếu vế thứ hai thì một bài
+     in_progress mà không có picked_at (admin tick mốc trên request chưa chốt)
+     biến mất khỏi mọi tab — Queue vì status khác, Up next/In progress vì thiếu
+     picked_at, Done vì chưa xong. */
+  assert.match(metaSrc, /export const inChain = \(r\) => isPicked\(r\) \|\| r\?\.status === 'in_progress'/,
+    'inChain phải là phép HOẶC của isPicked và status in_progress')
+  assert.match(app, /pub\.filter\(inChain\)/,
+    'danh sách dây chuyền phải lọc bằng inChain, không phải isPicked')
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]
   assert.equal(nowN, 'pickedGroups.length', 'số trên nắp khối Up next phải là số bài đã chốt')

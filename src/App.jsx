@@ -13,12 +13,13 @@ import Countdown from './components/Countdown'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
 import Standing from './components/Standing'
+import Progress from './components/Progress'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
-import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
@@ -122,8 +123,11 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
   followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
   const sm = { c: statusColor(r.status) }
-  /* Đã vào Up next thì khóa vote (kể cả rút lại) và khóa xóa của user. */
-  const locked = isPicked(r)
+  /* Đã vào dây chuyền (chốt vào Up next HOẶC đang làm) thì khóa vote, kể cả
+     rút lại: bài sắp/đang được làm mà vẫn nhận phiếu thì lá phiếu không còn
+     nghĩa gì. Trước đây chỉ khóa theo isPicked nên một bài in_progress thiếu
+     picked_at vừa không hiện ở tab nào, vừa vẫn nhận vote. */
+  const locked = inChain(r)
   const votable = canVote && !locked
 
   const [pulse, setPulse] = useState(0)
@@ -165,14 +169,10 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
           {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
           {onShare && <ShareBtn onShare={() => onShare(r)} />}
         </div>
-        {/* Việc đang chạy: phần trăm đi CẠNH thanh, vì thanh 3px không đọc ra
-            số. Khối Up next in đúng con số này — một bài, một con số. */}
-        {r.status === 'in_progress' && (
-          <>
-            <span className="status" style={{ '--c': statusColor('in_progress') }}>{r.progress}%</span>
-            <div className="bar"><i style={{ width: `${r.progress}%` }} /></div>
-          </>
-        )}
+        {/* Việc đang chạy: MỘT khối (vạch + số cùng hàng), không phải số trần
+            mang chấm trạng thái rồi một vạch rời nằm dưới. Khối Up next in
+            đúng con số này — một bài, một con số. */}
+        {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
         {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
@@ -778,12 +778,18 @@ export default function App() {
     () => rows.filter(r => r.user_id === user?.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     [rows, user])
 
-  /* Danh sách đã chốt, chưa xong: đang làm trước, rồi chốt sớm trước.
-     Completed thì tự rơi khỏi đây. */
+  /* Dây chuyền đang chạy: đang làm trước, rồi chốt sớm trước. Completed thì
+     tự rơi khỏi đây.
+     Lọc bằng `inChain` (đã chốt HOẶC đang làm), không phải `isPicked`: một bài
+     có status in_progress mà thiếu picked_at vẫn thuộc dây chuyền, và trước
+     đây nó không hiện ở tab nào cả — xem chú thích `inChain` trong lib/meta.js.
+     Dòng thiếu picked_at xếp sau các dòng đã chốt bằng `|| 0` để phép so không
+     trả NaN (NaN trong comparator là thứ tự ngẫu nhiên, không phải lỗi rõ ràng). */
   const picked = useMemo(() => {
     const rank = (r) => (r.status === 'in_progress' ? 0 : 1)
-    return pub.filter(isPicked)
-      .sort((a, b) => rank(a) - rank(b) || new Date(a.picked_at) - new Date(b.picked_at))
+    return pub.filter(inChain)
+      .sort((a, b) => rank(a) - rank(b)
+        || ((+new Date(a.picked_at) || 0) - (+new Date(b.picked_at) || 0)))
   }, [pub])
 
   /* Gom cụm trung bài trong khối Up next: mỗi bài (artist + title) thành một
@@ -827,7 +833,7 @@ export default function App() {
        trên nắp khối Up next và bằng nút "View all". */
     picked: pickedGroups.length,
     newest: songCount(pub),
-    top: songCount(pub.filter(r => r.status !== 'completed' && !isPicked(r))),
+    top: songCount(pub.filter(r => r.status !== 'completed' && !inChain(r))),
     /* Tab "In progress" hiện CÙNG tập dòng với tab Up next (cả dây chuyền đã
        chốt, chỉ khác cách sắp) — nên badge của nó phải bằng ĐÚNG số thẻ mà nó
        liệt kê, tức bằng con số trên nắp khối Up next. Trước đây ô này lấy
@@ -856,7 +862,10 @@ export default function App() {
        người xem biết nó đã được chọn, không nhầm với bài thường. */
     if (filter === 'in_progress') base = picked
     if (filter === 'completed') base = base.filter(r => r.status === 'completed')
-    if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !isPicked(r))
+    /* "Top voted" là danh sách bài ĐANG XIN PHIẾU: bài đã xong hoặc đã nằm
+       trong dây chuyền làm việc không còn xin phiếu nữa (nút vote của chúng
+       cũng đã khóa) — dùng inChain để hai chỗ nói cùng một chuyện. */
+    if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
     /* Đang theo dõi thì muốn thấy CẢ bài pending/bị từ chối, không riêng
        hàng đã công bố — nên tab này lấy từ `rows`, không lấy từ `pub`. */
     if (filter === 'watch') base = rows.filter(r => watchedSet.has(groupKey(r)))
@@ -973,13 +982,15 @@ export default function App() {
   }, [flash, t])
 
   const openVote = useCallback((r) => {
-    if (!r || isPicked(r)) return
+    /* Khóa ở cả đường mở bảng chọn phiếu, không chỉ ở nút: người dùng phím
+       hoặc trình đọc màn hình vẫn bấm được nút nếu chỉ disable phần nhìn. */
+    if (!r || inChain(r)) return
     setVoteFor(r)
   }, [])
 
   const doVote = async (id, delta = 1) => {
     const target = rows.find(r => r.id === id)
-    if (target && isPicked(target)) {
+    if (target && inChain(target)) {
       flash('err', t('vote.locked'))
       throw new Error('err.voteLocked')
     }
@@ -1342,9 +1353,11 @@ export default function App() {
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot" aria-hidden="true" /><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
-                            {working && <><span className="dot" aria-hidden="true" /><span>{rep.progress}%</span></>}
                           </div>
-                          {working && <div className="bar"><i style={{ width: `${rep.progress}%` }} /></div>}
+                          {/* Số phần trăm chỉ nằm MỘT chỗ: trong thanh, sát mép
+                              phải. Trước đây nó nằm trong dòng meta rồi lặp
+                              lại lần nữa bằng một cái vạch trần bên dưới. */}
+                          {working && <Progress pct={rep.progress} label={t('progress.label')} />}
                           {g.rows.length > 1 && (
                             <ul className="now-members">
                               {g.rows.map(rr => (

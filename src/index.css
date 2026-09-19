@@ -394,8 +394,17 @@ button { font-family: inherit; }
 .nowbar h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1px; }
 .nowbar .sub { font-size: 12.5px; color: var(--txt-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-.section-title { font-size: 13px; font-weight: 600; color: var(--txt-2); margin: 0 0 10px;
-  animation: rise .42s var(--e-out) both; }
+/* Nhãn mục: chữ nhỏ in hoa, giãn chữ, kèm một đường tóc kéo hết chiều ngang.
+   Trước đây là một dòng 13px đậm nằm trơ giữa hai khối, và cả bảy chỗ trong
+   app đều dùng đúng một kiểu như nhau — mắt không biết "mục mới bắt đầu ở
+   đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
+.section-title {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--txt-3);
+  animation: rise .42s var(--e-out) both;
+}
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
 /* ---- thanh công cụ ---- */
 .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
@@ -558,12 +567,34 @@ select {
 .kind.loop  { color: var(--k-loop); }
 .kind.short { color: var(--k-short); }
 
-.bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 8px; max-width: 340px; }
-.bar > i { display: block; height: 100%; background: var(--progress); }
+/* Thanh tiến độ: vạch và con số là MỘT khối, số nằm sát mép phải của vạch.
+   Bản trước in con số trần ngay dưới nhãn trạng thái (mang luôn cả chấm tròn
+   của nhãn đó) rồi để cái vạch 3px rời hẳn xuống dưới: hai thứ nói cùng một
+   chuyện mà mắt phải tự nối, con số thì nằm lệch trái so với vạch, và vạch chỉ
+   3px nên khó thấy nó đang ở đâu. Nay vạch dày 6px, bo tròn hai đầu, tô theo
+   trạng thái của bài (--sc) — số và vạch cùng một hàng, đọc là hiểu ngay. */
+.prog { display: flex; align-items: center; gap: 10px; margin-top: 9px; max-width: 340px; }
+.prog-wide { max-width: none; }
+.prog-track {
+  flex: 1 1 auto; min-width: 56px; height: 6px; border-radius: var(--r-pill);
+  background: var(--line); overflow: hidden;
+}
 /* Bề rộng đã đúng ngay từ khung hình đầu (không animate `width` — đó là thuộc
    tính layout), nhưng cho nó MỌC ra bằng scaleX: thanh tiến độ đọc ra như đang
    chạy chứ không phải một vạch đã in sẵn. Chỉ transform, chỉ một lần. */
-.bar > i { transform-origin: left center; animation: barGrow .6s var(--e-out) both; }
+.prog-track > i {
+  display: block; height: 100%; width: var(--w, 0%);
+  border-radius: inherit; background: var(--sc, var(--progress));
+  transform-origin: left center; animation: barGrow .6s var(--e-out) both;
+}
+/* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên
+   cả cột không nhảy khi tiến độ đổi. */
+.prog-num {
+  flex: none; min-width: 42px; text-align: right;
+  font: 600 12.5px/1 var(--mono); color: var(--txt-2);
+  font-variant-numeric: tabular-nums; letter-spacing: -.2px;
+}
+.prog-num span { margin-left: 1px; font-size: 10px; color: var(--txt-3); }
 @keyframes barGrow { from { transform: scaleX(0) } to { transform: none } }
 
 .watch { display: inline-block; margin-top: 6px; font-size: 12.5px; color: var(--a-2); text-decoration: none; }
@@ -1225,14 +1256,14 @@ img { max-width: 100%; }
 .msg { animation: rowIn var(--t-2) var(--e-out) both; }
 
 /* thanh tiến độ chạy chứ không nhảy số */
-.bar > i, .vs-bar > i { transition: width .55s var(--e-out); }
+.prog-track > i, .vs-bar > i { transition: width .55s var(--e-out); }
 /* việc đang chạy: một vệt sáng quét chậm trên thanh — đủ thấy "sống",
    không lòe loẹt. Vệt là transform của pseudo-element nên rẻ.
    CHỈ đặt trên thanh của khối Up next (nơi luôn đúng MỘT bài đang làm).
    Trước đây mọi hàng in_progress trong danh sách cũng mang vệt: mười bài cùng
    lúc là mười vòng lặp vô hạn — vừa tốn máy vừa đọc ra như bảng đèn. */
-.bar > i { position: relative; overflow: hidden; }
-.nowbar .bar > i::after {
+.prog-track > i { position: relative; }
+.nowbar .prog-track > i::after {
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
   transform: translateX(-100%);
@@ -2335,7 +2366,7 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .bgfx-aurora { animation: none; }
   .nowbar::before, .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
-  .nowbar.live .bar > i::after { animation: none; opacity: 0 }
+  .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }
   .pick-stage::before { transition: none }
   .toast, .lb-me, .lb-pod, .lb-table tbody tr { animation: none }
   .toast-bar, .lb-underline, .lb-pod-bar > i { animation: none }
@@ -2537,7 +2568,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-item:first-child { border-top: 0; padding-top: 0; }
 .nowbar .now-item h3 { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
-.nowbar .now-item .bar { margin-top: 7px; }
+.nowbar .now-item .prog { margin-top: 7px; }
 .nowbar .now-item.now-group { padding-bottom: 11px; }
 .nowbar .now-item .pill.group { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 16px; min-width: 18px; text-align: center; padding: 0 5px; border-radius: 8px; color: var(--queued); background: color-mix(in srgb, var(--queued) 16%, transparent); }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }

@@ -18,7 +18,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { statusColor, kindCls, statusLabel, timeAgo, isPicked, compact, vnd, usd } from './meta.js'
+import { statusColor, inChain, kindCls, statusLabel, timeAgo, isPicked, compact, vnd, usd } from './meta.js'
 import { boardItems, stageCounts, groupKey, songCount, voteTotals, fold, creditText } from './board.js'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
@@ -86,6 +86,15 @@ test('dữ liệu bẩn không làm vỡ bảng: trạng thái, loại bài, th�
   }
   assert.equal(isPicked(junk[0]), false)
   assert.equal(isPicked(undefined), false)
+  /* Dây chuyền đang chạy: đã chốt (picked_at + queued/in_progress) HOẶC đang
+     làm. Bài đang làm mà thiếu picked_at vẫn phải thuộc dây chuyền, nếu không
+     nó không hiện ở tab nào. */
+  assert.equal(inChain({ status: 'in_progress' }), true)
+  assert.equal(inChain({ status: 'queued', picked_at: '2026-09-19T00:00:00Z' }), true)
+  assert.equal(inChain({ status: 'in_progress', picked_at: '2026-09-19T00:00:00Z' }), true)
+  assert.equal(inChain({ status: 'queued' }), false)
+  assert.equal(inChain({ status: 'completed', picked_at: '2026-09-19T00:00:00Z' }), false)
+  assert.equal(inChain(null), false)
   /* dựng bảng từ dữ liệu bẩn: không được ném lỗi, và không được mất dòng */
   assert.doesNotThrow(() => boardItems(junk, 'newest'))
   assert.doesNotThrow(() => boardItems(junk, 'top'))

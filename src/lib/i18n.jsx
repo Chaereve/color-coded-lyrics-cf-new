@@ -317,6 +317,7 @@ const S = {
   'row.voteLocked': 'Already picked. Voting is closed.',
   'row.deleteReq': 'Delete request',
   'row.openVote': 'Choose how many votes',
+  'progress.label': 'Build progress',
   'row.mine': 'You voted {n}',
   'row.confirmDelete': 'Delete this request?',
 

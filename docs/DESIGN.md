@@ -39,10 +39,22 @@ Kết luận đó quyết định bố cục ở §2.
 
 ### 1.1 Màu
 
-- **Một màu nhấn**: ultramarine `#2b22e2` (hue 242°, lấy đúng từ logo).
+- **Một màu nhấn**: ultramarine `#4d40f0` (hue 242°; bản gốc `#2b22e2` đã được
+  nâng một bậc sáng ở vòng 7 vì chữ trắng trên nền nhấn chỉ đạt 5.2:1).
   Bốn sắc độ có việc rõ ràng, không phải bốn "sắc thái thẩm mỹ":
   `--a` (nền nút), `--a-dim` (hover), `--a-2` (chữ/icon trên nền tối — `--a`
   nguyên bản không đủ tương phản cho chữ), `--a-soft` / `--a-glow` (nền/viền).
+- **Đối chiếu với bộ palette gửi kèm (12 palette × 10 shade)**: hệ này trùng
+  *Palette 3 — Purple + Blue Grey*, chỉ khác là chạy ở chế độ tối nên thang bị
+  lật. `--a #4d40f0` ≈ Purple 600 (`#4D3DF7`), `--a-dim #382ecc` nằm giữa 700–800
+  (`#3525E6` / `#1D0EBE`), `--a-2 #a9a4ff` ≈ Purple 200 (`#A2A5FC`). Nền và chữ đi
+  thang *Cool Grey* (`#1F2933 … #F5F7FA`) lật ngược: nền lấy đầu tối, chữ lấy đầu
+  sáng. Màu trạng thái lấy đúng thang *supporting* chuẩn nhưng chọn shade nhạt
+  hơn (Red 300 `#E66A6A`, Yellow 400–500 `#F7C948`/`#F0B429`, Green 400–500
+  `#57AE5B`) vì trên nền tối shade 600–900 của thang gốc không đủ tương phản.
+  Tỉ lệ của bộ palette — **nhấn 5–10%, trung tính 80–90%, hỗ trợ 5–10%** — cũng
+  là luật ở đây: màu nhấn chỉ nằm ở nút chính, ở mục đang chọn, và **đúng một
+  lát** của vòng quay.
 - **Màu trạng thái** chỉ sống trong một chấm tròn 6px + chữ xám. Trạng thái là
   *dữ liệu*, không phải *trang trí* — một hàng có 4 màu là một hàng không đọc được.
 - **Màu loại request** (CCL / Full Album / 1 Hour Loop / Short) là bốn màu loang
@@ -132,6 +144,25 @@ DOM luôn theo thứ tự đọc: `thống kê → video → Up next → vote �
 Bản hai cột đặt lại bằng `grid-template-areas`, **không** đổi DOM — đổi DOM cho
 khớp hình là cách chắc chắn nhất để bản một cột và bản hai cột lệch nhau về sau,
 và để trình đọc màn hình đọc sai thứ tự.
+
+### 2.5 Thanh tiến độ — một khối, một con số
+
+Phần trăm của một request đang làm đi qua **một** component: `components/Progress.jsx`.
+Luật:
+
+- Vạch và con số nằm **cùng một hàng**, số sát mép phải vạch. Không bao giờ in
+  con số trần rồi để cái vạch rời ở dưới: mắt phải tự nối hai thứ, và con số
+  luôn lệch trái so với vạch.
+- Số dùng `--mono` + `tabular-nums` (9% và 100% rộng như nhau) nên cột số không
+  nhảy sang trái phải mỗi lần tiến độ đổi.
+- Giá trị rác (`undefined`, `"abc"`, `150`, `-3`) bị kẹp về `0..100` **trong
+  component**; không chỗ gọi nào phải tự kiểm tra.
+- `role="progressbar"` + `aria-valuenow/min/max` + nhãn `t('progress.label')`:
+  máy đọc được "Build progress, 47 percent" thay vì một con số lơ lửng.
+- Vạch tô theo **màu trạng thái của bài** (`--sc`, mặc định `--progress`), nên
+  nhìn màu là biết bài đang ở giai đoạn nào.
+- Bản `wide` (bảng Admin) bỏ con số vì số tổng đã in ở `.steps-pct` ngay trên —
+  cùng một dữ liệu không in hai lần trong một khối.
 
 ---
 
@@ -326,3 +357,7 @@ Ghi lại để lần sau không ai "sửa" ngược:
       phiên bản — xem §6.
 - [ ] Nếu thêm một thứ "nhớ trạng thái" cho người dùng: nêu rõ **thứ tự ưu tiên**
       (URL → đã lưu → mặc định) và **cái gì KHÔNG nhớ** — xem §7.1.
+- [ ] Mọi con số tiến độ đi qua `components/Progress.jsx`
+      (`src/components/Progress.test.js` đỏ nếu ai dựng lại `.bar` bằng tay).
+- [ ] Màu nhấn vẫn dưới ~10% diện tích một khung nhìn: thêm một khối nền màu
+      nhấn nữa thì phải bỏ một khối cũ.

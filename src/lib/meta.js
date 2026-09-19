@@ -28,6 +28,15 @@ export const statusColor = (s) => STATUS_META[s]?.c || STATUS_META.pending.c
 export const isPicked = (r) =>
   !!r?.picked_at && (r.status === 'queued' || r.status === 'in_progress')
 
+/* DÂY CHUYỀN ĐANG CHẠY: bài đã chốt vào Up next (có picked_at) HOẶC bài đang
+   làm. Phải là phép HOẶC vì admin có thể tick một mốc tiến độ trên request
+   chưa từng được chốt (hoặc đẩy một bài về hàng chờ rồi làm lại) — khi đó dòng
+   mang status 'in_progress' mà KHÔNG có picked_at. Chỉ dùng isPicked thì bài đó
+   rơi khỏi MỌI tab cùng lúc: Queue (status không còn là queued), Up next và
+   In progress (thiếu picked_at), Done (chưa xong) — một request đang được làm
+   mà không thấy ở đâu trên bảng, người gửi tưởng nó bị xoá. */
+export const inChain = (r) => isPicked(r) || r?.status === 'in_progress'
+
 /* Nhãn trạng thái của MỘT dòng, dùng chung cho hàng trên bảng, cho thẻ trong
    khối Up next và cho ô trạng thái ở bảng Admin: bài đã chốt mà chưa khởi động
    hiện "Up next", còn lại theo status. Ba nơi tự viết lại biểu thức này là ba
