@@ -443,6 +443,26 @@ Người dùng gửi
 queued → (admin) in_progress + % tiến độ → completed + link video
 ```
 
+### Bài đã có trên bảng? Form nói ra trước khi bạn gửi
+
+Ngay khi gõ xong **tên bài + nghệ sĩ**, nếu bài đó đã nằm trên bảng thì form hiện một dải
+gợi ý ngay dưới ô nhập: tên bài, số request và tổng số vote đã có, kèm nút **"Vote for it
+instead"** — bấm là đóng form và mở thẳng hộp vote của bài đó. Bài đã làm xong rồi thì nút
+đổi thành **"Already done - watch it"** trỏ ra video.
+
+Đây là **gợi ý, không phải chặn**: người dùng vẫn gửi được nếu họ muốn (bài cũ bị từ chối,
+hoặc họ muốn một bản khác) — quyết định là của họ.
+
+Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việc *cụm 9 vote bị xếp dưới bài 5
+vote* (xem `src/lib/board.js`) lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
+nhiều so với phát hiện rồi gộp ở tầng SQL sau khi dữ liệu đã bẩn.
+
+Quy tắc dò **dùng đúng `groupKey`** mà bảng dùng để gom cụm (cùng tên bài + cùng nghệ sĩ,
+bỏ qua hoa/thường và khoảng trắng thừa), nên câu trả lời ở form và cách bảng cộng dồn vote
+không bao giờ nói hai chuyện khác nhau. Chưa đủ dữ liệu (tên bài dưới 3 ký tự, hoặc chưa có
+nghệ sĩ) thì **im lặng** — gõ tới đâu cũng thấy gợi ý là cách dạy người dùng phớt lờ nó.
+Luật nằm ở `findDuplicate()` trong `src/lib/board.js`, có 6 ca kiểm thử.
+
 Người dùng tự xoá được request của mình khi ở trạng thái `pending`, `queued` hoặc `denied`
 (**trừ hàng đã vào Up next** — đã chốt thì khoá cả xoá để khỏi vỡ kế hoạch làm việc).
 Admin xoá được mọi request.
@@ -459,7 +479,9 @@ Khối **Up next** trên trang Bảng yêu cầu **luôn hiện** (kể cả khi
 mốc giờ chốt tiếp theo không bao giờ biến mất. Mốc giờ lấy theo thứ tự ưu tiên:
 `settings.pick.next_pick_at` → `last_pick_at + interval_days` → cùng lắm hiện chữ
 "every N days" (`now.everyDays` trong `src/lib/i18n.jsx`). Quá mốc mà chưa có lượt chốt mới,
-chip chuyển sang trạng thái nhấp nháy nhẹ "any moment…" (chứ không đứng im), app tự hỏi lại
+chip đổi màu nhấn và hiện thêm **một chấm tĩnh** "any moment…" — đổi màu, KHÔNG nhấp nháy:
+một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1,6 giây, trong khi
+"quá mốc" đọc được bằng màu và con số là đủ. App tự hỏi lại
 `settings.pick` mỗi 30 giây — vừa có mốc mới (cron chạy, hoặc admin chốt tay khi quá hạn —
 trigger `pick_cycle_touch` ghi mốc) là đồng hồ đếm tiếp bình thường ngay trên tab đang mở.
 
@@ -1259,6 +1281,21 @@ Bộ lọc, loại video và từ khoá tìm nằm trên URL (`/?f=top&k=Short&q
 đúng chỗ, F5 không mất trạng thái, và nút Back quay lại đúng bộ lọc trước. Việc ghi URL được hoãn
 320ms — Chrome/Safari chặn `replaceState` quá dày (100 lần/30s), gõ phím nào cũng ghi là trang tự
 chuốc lệnh phong toả history.
+
+**Bộ lọc còn được NHỚ cho lần ghé sau** (tab + loại video, trong `localStorage` khoá `ccl.board`,
+ghi cùng nhịp 320ms với URL). Ba nguồn xếp theo thứ tự ưu tiên rõ ràng — luật nằm ở
+`pickBoardParam()` trong `src/lib/board.js`:
+
+| Nguồn | Khi nào thắng |
+|---|---|
+| URL (`?f=`, `?k=`) | Luôn thắng — dán link là mở đúng chỗ người gửi muốn chỉ |
+| `localStorage` | Khi URL không nói gì: lần ghé trước xem tab nào thì ghé sau vẫn ở đó |
+| Mặc định (`queued` / tất cả loại) | Khi cả hai đều không có, hoặc giá trị đã lưu không còn hợp lệ |
+
+Giá trị lạ (tab đã bị đổi tên ở bản trước còn nằm trong máy người dùng, hoặc URL cũ ai đó dán vào)
+**bị bỏ qua** chứ không đẩy vào state — một tab không tồn tại sẽ làm danh sách rỗng mà không ai
+hiểu vì sao. Còn `q` (từ khoá tìm) thì **không** nhớ: mở lại web mà danh sách tự dưng rỗng vì một
+từ khoá cũ là kiểu bực mình không ai gọi được tên — tìm kiếm là chuyện của phiên hiện tại.
 
 Hai phím tắt cho người dùng bàn phím: `N` mở form gửi request, `/` nhảy ô tìm kiếm
 (`Esc` ngay trong ô tìm là xoá luôn từ khoá).
@@ -2359,13 +2396,34 @@ và bản hai cột luôn là cùng một nội dung.
 - `public/manifest.webmanifest`: `background_color` là `#0b0d10` trong khi toàn app dùng
   `#0d0f12` — lệch ở đúng chỗ người dùng thấy lúc mở app từ màn hình chính.
 
+#### Vòng hai (cùng ngày): ba việc trong danh sách gợi ý đã làm
+
+1. **Dò trùng ngay lúc gõ** — xem mục *Bài đã có trên bảng?* ở phần Luồng của một
+   request. `findDuplicate()` + 6 ca kiểm thử.
+2. **Nhớ bộ lọc qua các lần ghé** — xem mục *Bộ lọc, loại video và từ khoá tìm* ở phần
+   Bố cục trang. `pickBoardParam()` + 3 ca kiểm thử.
+3. **Dấu phân cách trong dòng metadata** — bỏ hẳn ký tự `·`, thay bằng vạch mảnh 1×9px
+   (`.dot`), có `aria-hidden`: mỗi hàng request có 3-4 nhóm thông tin, mỗi nhóm cách nhau
+   bằng một dấu chấm giữa là đúng mẫu văn bản do máy sinh. Dấu `·` còn lại chỉ ở những
+   dòng có đúng một dấu (tiêu đề tab trình duyệt, vài dòng tiền/thời gian).
+
+Hai gợi ý còn lại trong danh sách **cố ý không làm**, đã ghi vào `docs/DESIGN.md` §7:
+không thêm chế độ sáng (mọi bóng/kính đã tính cho nền tối), và chưa bỏ aurora nền (nó là
+chuyển động vô hạn duy nhất còn lại, nhưng rẻ và hợp lệ — sẽ là thứ đầu tiên cần tắt nếu
+có phàn nàn về pin).
+
+Một lỗi tự gây ra trong lúc làm vòng hai, ghi lại vì nó suýt lọt: chú thích đặt **giữa
+danh sách prop** của một thẻ JSX (`<Foo a={1} /* ghi chú */ b={2} />`) làm
+`propContract.test.js` đọc chữ trong comment thành tên prop và báo "dây đứt" oan. Chú
+thích giải thích prop phải đặt TRƯỚC thẻ.
+
 #### Kiểm thử
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` (`node --test`) | ✅ 194 đạt, 0 lỗi, 1 skip (bài cần Postgres thật) |
+| `npm test` (`node --test`) | ✅ **203** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 9 ca mới |
 | `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
-| `npm run build` (Vite) | ✅ build sạch |
+| `npm run build` (Vite) | ✅ build sạch, bundle chính 333 kB (gzip 106 kB) |
 
 Đợt này **không thể** xem bằng mắt: sandbox không có trình duyệt (thiếu thư viện NSS,
 máy chủ gói không tới được). Vì vậy mọi kết luận về bố cục đều rút ra từ đọc CSS/JSX và

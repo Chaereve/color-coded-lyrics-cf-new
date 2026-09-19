@@ -103,7 +103,22 @@ ngay dưới thống kê vì đó là thứ "xem thêm" hấp dẫn nhất.
 Cột video là cột **phụ**: có thì tốt, không có trang vẫn đủ. Nó không được phép
 đẩy nội dung chính xuống.
 
-### 2.3 Thứ tự đọc và thứ tự DOM
+### 2.3 Ghi nhớ lựa chọn của người dùng
+
+Bộ lọc (tab + loại video) được nhớ trong `localStorage`, `q` thì không. Luật chung
+cho mọi thứ "nhớ trạng thái" trong app này:
+
+1. **URL luôn thắng** — một link được dán vào đâu đó phải mở đúng cái người gửi
+   nhìn thấy, kể cả trên máy người khác.
+2. **Đã lưu đứng thứ hai** — người quay lại không phải chọn lại từ đầu.
+3. **Mặc định đứng cuối**, và **giá trị không còn hợp lệ bị bỏ qua**, không đẩy vào
+   state: một tab đã bị đổi tên còn nằm trong máy người dùng sẽ cho ra một danh sách
+   rỗng mà không ai hiểu vì sao.
+4. **Thứ mang tính phiên thì không nhớ.** Từ khoá tìm kiếm không được nhớ: mở lại
+   web mà danh sách tự dưng rỗng vì một từ khoá cũ là kiểu bực mình không ai gọi
+   được tên. Cùng lý do, màn chờ chỉ chạy một lần mỗi phiên tab (§3.2).
+
+### 2.4 Thứ tự đọc và thứ tự DOM
 
 DOM luôn theo thứ tự đọc: `thống kê → video → Up next → vote → danh sách`.
 Bản hai cột đặt lại bằng `grid-template-areas`, **không** đổi DOM — đổi DOM cho
@@ -240,8 +255,13 @@ Luật lấy từ taste-skill §9:
 - Gạch ngang dài `—` và gạch ngang ngắn dùng như dấu phân cách: **không** dùng
   trong câu chữ do mình viết (dấu hiệu văn bản do máy sinh). Chỗ dùng còn lại là
   dấu nối *Tên bài — Nghệ sĩ*, một quy ước trình bày chứ không phải câu văn.
-- Trung bình cộng dấu `·` tối đa một lần trên mỗi dòng metadata. Hàng request
-  hiện có bốn dấu — khi sửa hàng, gộp lại thành dấu phân cách mảnh.
+- Dấu phân cách giữa các nhóm trong dòng metadata là **vạch mảnh 1×9px** (`.dot`),
+  không phải ký tự `·`. Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau
+  bằng dấu chấm giữa là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh —
+  vạch mảnh đọc ra thành *ranh giới*, dấu chấm đọc ra thành *dấu câu*.
+  Ký tự đã bỏ hẳn khỏi JSX và mọi `.dot` đều `aria-hidden`, nên không còn gì để
+  trình đọc màn hình đọc lên. Dấu `·` còn lại trong app chỉ ở những dòng **một**
+  dấu (tiêu đề tab trình duyệt, một số dòng tiền/thời gian) — đúng ngưỡng cho phép.
 - Số liệu phải **thật**. Không "1.000+ người dùng" khi con số lấy từ đâu không rõ.
 
 ---
@@ -258,6 +278,10 @@ Ghi lại để lần sau không ai "sửa" ngược:
   bàn phím muốn tốc độ, không muốn một màn trình diễn.
 - **Không** đặt một bảng thông số dài trong modal mua vote: người dùng đang cân
   nhắc chi tiền, họ cần ba lựa chọn đọc được trong một lần liếc (xem `.pack`).
+- **Không** chặn việc gửi một bài đã có trên bảng. Form chỉ *báo* (`findDuplicate`)
+  rồi mời đi vote cho bài đó; người gửi vẫn toàn quyền gửi tiếp. Chặn là quyết định
+  thay người dùng ở chỗ mình không có đủ thông tin (bài cũ có thể đã bị từ chối, hoặc
+  họ muốn một bản khác).
 
 ---
 
@@ -273,3 +297,7 @@ Ghi lại để lần sau không ai "sửa" ngược:
 - [ ] Bản hẹp 390px: không có mục nào bị `overflow` cắt mất mà không cuộn tới được.
 - [ ] Chuỗi mới đã vào `src/lib/i18n.jsx` (`src/lib/i18nKeys.test.js` sẽ đỏ nếu thiếu).
 - [ ] Đổi giao diện thì cập nhật `HUONG-DAN.md` (mục "Chuyển động" / "Bố cục trang").
+- [ ] Chuỗi mới không dùng gạch ngang dài, không mở đầu bằng "Quietly…", không nhãn
+      phiên bản — xem §6.
+- [ ] Nếu thêm một thứ "nhớ trạng thái" cho người dùng: nêu rõ **thứ tự ưu tiên**
+      (URL → đã lưu → mặc định) và **cái gì KHÔNG nhớ** — xem §7.1.

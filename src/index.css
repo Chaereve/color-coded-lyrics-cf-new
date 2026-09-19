@@ -463,20 +463,17 @@ select {
 .row .title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
-/* Dấu phân cách nhóm trong dòng metadata: một VẠCH MẢNH 1×9px, không phải ký
-   tự '·'. Một hàng request có 3-4 nhóm thông tin, mỗi nhóm cách nhau bằng dấu
-   chấm giữa là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh —
-   vạch mảnh đọc ra thành ranh giới, còn dấu chấm đọc ra thành dấu câu.
-   Ký tự trong JSX đã bỏ hẳn (aria-hidden) nên không còn gì để trình đọc màn
-   hình đọc lên. */
-/* dùng chung cho mọi chỗ: trong `.meta` (flex, đã có gap 8px) lẫn trong câu
-   chữ thường (inline) — nên phải là inline-block có lề riêng, còn `.meta` bỏ
-   lề đi để không cộng dồn với gap */
+/* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
+   Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau bằng dấu chấm giữa
+   là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh — vạch mảnh đọc
+   ra thành ranh giới, còn dấu chấm đọc ra thành dấu câu. Ký tự đã bỏ hẳn khỏi
+   JSX và mọi `.dot` đều `aria-hidden`, nên không còn gì để trình đọc màn hình
+   đọc lên thành một dấu câu lạc lõng.
+   Mọi khối đang dùng nó đều là flex CÓ gap sẵn (.meta, .lb-me-stats, .vm-sub,
+   .nt-meta) nên mặc định không lề. Chỗ nào nằm trong câu chữ thường (không có
+   gap nào lo khoảng cách) thì thêm `.dot-inline`. */
 .dot { display: inline-block; flex: none; width: 1px; height: 9px;
   margin: 0; padding: 0; background: var(--line-2); vertical-align: -1px; }
-/* Chỗ nào nằm trong câu chữ thường (không phải flex) thì phải tự mang lề, vì
-   ở đó không có `gap` nào lo khoảng cách. Mọi khối đang dùng .dot (.meta,
-   .lb-me-stats, .vm-sub, .nt-meta) đều là flex có gap sẵn nên mặc định là 0. */
 .dot-inline { margin: 0 7px; }
 
 /* trạng thái: chấm tròn nhỏ + chữ, không phải thẻ màu */
