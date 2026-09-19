@@ -722,3 +722,56 @@ chủ, ca 4 đã giữ đầu kia). Đã thử bằng cách **cấy một khoá 
 bấm thật cho tay kéo). `npx oxlint` → **0 lỗi**. `npm run build` → OK.
 
 Nối tiếp phần N, hết danh sách dư của vòng 13.
+
+## Phần P — vòng 14: hộp xác nhận của app, và ba lỗi im lặng ở ô "bài trả phí"
+
+### P1. Bảy nút xoá/từ chối từng không làm gì (lỗi thật, người dùng báo)
+
+Xoá request, xoá video, xoá một dòng quản trị, xoá hàng loạt, từ chối một bài, từ chối hàng
+loạt, và huỷ đơn — cả bảy hỏi bằng `confirm()`/`prompt()` của trình duyệt. Trong iframe bị
+chặn hộp thoại (thiếu `allow-modals`: mọi khung xem trước, mọi trang nhúng), `confirm()` trả
+`false` và `prompt()` trả `null` **mà không báo gì**; trình duyệt cũng tự chặn sau vài lần
+bấm. Người dùng bấm **Xoá** và không có gì xảy ra — nhìn y hệt "bảng quản trị hỏng", trong
+khi mã nguồn không sai dòng nào. jsdom (dùng cho `npm run smoke`) cài hai hàm đó là hàm rỗng,
+nên đúng những đường GHI nguy hiểm nhất chưa từng được máy kiểm.
+
+Nay là hộp của app: `src/components/ConfirmDialog.jsx` + `src/lib/confirm.jsx`, `ConfirmProvider`
+bọc `App`. Hỏi xong mới làm (`if (!(await ask({…}))) return`), Esc / bấm ra ngoài / Cancel là
+huỷ và **không ghi gì**, ô lý do cho việc từ chối (Enter xuống dòng, Ctrl+Enter gửi).
+`src/lib/noNativeDialogs.test.js` quét `src/` và đỏ nếu có ai gọi lại `confirm/prompt/alert`;
+`tools/smoke.mjs` (mục 10b) bấm thật qua cả năm đường ghi.
+
+### P2. Ô "bài trả phí": ba lỗi, và cả ba đều im lặng
+
+Câu hỏi của chủ dự án — *"trong form request, bước chọn paid request bị bỏ qua"* — dựng lại
+được, và có **ba** nguyên nhân chồng lên nhau:
+
+| Lỗi | Cách nhìn ra |
+|---|---|
+| Sau khi gửi một request trả phí, ô tick **vẫn bật** cho request sau | Dựng app thật, gửi một paid request, rồi điền bài thứ hai: tới bước 3 thì `checked=true` và nút gửi vẫn là "Send paid request for $0.75" — người dùng không được hỏi lại về tiền |
+| Đổi tab trong cùng hộp (Request ↔ Vote ↔ Buy) **xoá sạch form** | `RequestTab` bị tháo khỏi cây → bộ đếm 400ms ghi nháp bị huỷ → chữ vừa gõ mất luôn, bước về 1, ô tick biến mất. Quay lại là phải gõ lại từ đầu |
+| Nút **Clear** xoá chữ nhưng để nguyên ô tick | Ở bước 1 không nhìn thấy ô đó, nên lựa chọn về tiền còn sót lại là thứ vừa vô hình vừa có giá |
+
+Sửa trong `src/components/ActionModal.jsx`: `setPaid(false)` sau khi gửi và trong `clearForm`;
+nháp ghi ở hai thời điểm (400ms ngừng gõ, và **ngay khi rời màn** — hàm dùng chung `writeDraft`,
+giá trị mới nhất trong `ref`); nháp mang thêm `step` nên mở lại đứng đúng bước đang làm dở.
+
+**Kiểm chứng bằng cách gỡ bản sửa ra**: gỡ phần nháp/bước → 3 mục smoke đỏ; gỡ `setPaid(false)`
+→ 2 mục đỏ (`tick=true`, nút gửi vẫn "Send paid request for $0.75"). Một lỗi của chính công cụ
+kiểm thử cũng lộ ra trong lúc làm: mục rà DOM đóng hộp vote bằng selector **không tồn tại**
+(`.vm-close`), nên hộp vote ở lại mở và khối mới chạy trong sai hộp — nay đóng bằng `Esc` và
+có mục chốt "không còn lớp phủ nào treo lại".
+
+### P3. Header an toàn, và hai chỗ dọn
+
+`public/_headers` có khối `/*` với `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS;
+`worker/index.js` tự gắn `nosniff` cho mọi response JSON. **Chưa** đặt CSP — CSP sai một nguồn
+là trang trắng, mà nguồn thật (Supabase, `i.ytimg.com`, Turnstile) chỉ kiểm chứng được trên
+bản deploy. Bỏ `adminPick` (hàm chết, nút Pick đi qua `adminPickGroup`); `USD_VND` từ một câu
+chú thích thành hợp đồng có test (`src/lib/priceRate.test.js`).
+
+### P4. Số của vòng này
+
+`npm test` → **366 ca / 365 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **225/225** (trước vòng
+này: 178). `npx oxlint src tools worker supabase` → **0 lỗi, 13 cảnh báo** (đầu vòng: 20 cảnh
+báo). `npm run build` → OK, bundle chính 293,7 kB (gzip 91,4 kB).

@@ -488,6 +488,10 @@ không gửi gì lên server). Đóng hộp thoại, đổi tab, hay hết pin r
 nguyên, kèm một dòng **"Draft restored from your last visit"** và nút **Bỏ nháp** để dọn
 sạch form và bắt đầu lại (bấm nút mà chữ vẫn còn thì là lỗi).
 
+Nháp nhớ cả **bước đang đứng** và **ô "bài trả phí"**: quay lại là đứng đúng chỗ đang làm
+dở, và lựa chọn trả phí hiện ra ngay ở bước 3 — chỗ nó thuộc về — chứ không phải một ô tick
+nằm sẵn mà người dùng chưa từng nhìn thấy.
+
 Ba luật của bản nháp, để không biến việc nhớ giúp thành phiền:
 
 | Luật | Vì sao |
@@ -495,6 +499,7 @@ Ba luật của bản nháp, để không biến việc nhớ giúp thành phi�
 | Gửi thành công thì **xoá nháp** | Việc đang làm dở đã thành việc đã gửi; lần sau mở form ra mà thấy lại bài vừa gửi là chuyện khó hiểu |
 | Nháp cũ hơn **7 ngày** thì bỏ | Nửa cái form từ tháng trước không phải là "việc đang làm dở" |
 | **Link mời** (`?add=1&artist=…&title=…`) thắng bản nháp | Link mời là lời mời có chủ đích; đổ đúng thứ người gửi link muốn bạn điền |
+| **Ghi ngay khi form rời màn** (đổi tab trong cùng hộp, hoặc đóng hộp), không chỉ sau 400ms ngừng gõ | Bộ đếm 400ms bị huỷ khi component bị tháo: gõ xong rồi bấm sang tab khác ngay là mất chữ vừa gõ (lỗi đã sửa — xem mục *Hộp xác nhận trong app* bên dưới, phần vòng 14) |
 
 ### Dán nguyên tiêu đề video — form tự tách ra hai ô
 
@@ -2498,6 +2503,41 @@ Còn **huỷ đơn** (`doCancelOrder`) chưa có đường bấm tự động: d
 không có đơn nào của người đang đăng nhập, mà tạo một đơn thật thì phải đi qua luồng mua
 vote. Chỗ đó được giữ bởi chốt thứ nhất (không còn `confirm()`) và bởi chính dạng gọi
 `await ask(…)` giống sáu chỗ đã kiểm.
+
+### Bài trả phí trong form request — ba lỗi im lặng (vòng 14, tiếp)
+
+Ô **"Paid request ($0.75 / 20,000₫)"** nằm ở bước 3 của form, cạnh một dòng giải thích. Nó
+từng có ba vấn đề, cả ba đều không hiện ra dưới dạng lỗi:
+
+| Chuyện gì | Vì sao người dùng thấy "ô chọn trả phí bị bỏ qua" |
+|---|---|
+| Sau khi gửi **một** request trả phí, ô tick **vẫn bật** cho các request sau | Người dùng đi qua bước 3 mà không được hỏi lại — câu trả lời cho một câu hỏi về **tiền** đã có sẵn từ lần trước, và nút gửi vẫn là nút vàng. Không có gì đỏ, chỉ có thêm một đơn hàng nữa được tạo |
+| Đổi tab trong cùng hộp (Request ↔ Vote ↔ Buy) làm **mất sạch form**: chữ, bước đang đứng, và ô tick vừa chọn | `RequestTab` bị tháo khỏi cây, bộ đếm 400ms ghi nháp bị huỷ theo → chữ vừa gõ không bao giờ được lưu. Xem bảng giá rồi quay lại là phải gõ lại từ đầu |
+| Nút **Clear** xoá chữ nhưng **không** xoá ô tick | Ở bước 1 người dùng không nhìn thấy ô đó, nên một lựa chọn về tiền còn sót lại là thứ duy nhất trong form vừa vô hình vừa có giá |
+
+Đã sửa trong `src/components/ActionModal.jsx`:
+
+- gửi xong (và bấm Clear) thì `paid` về `false` — lựa chọn trả phí thuộc về request **vừa
+  gửi**, không thuộc về cái form;
+- nháp ghi ở **hai** thời điểm: sau 400ms ngừng gõ, và **ngay khi form rời màn** (hàm ghi
+  dùng chung `writeDraft()`, giá trị mới nhất giữ trong một `ref` vì hàm dọn chỉ chạy một lần);
+- nháp mang thêm `step`, nên mở lại là đứng đúng bước đang làm dở — ô trả phí hiện ra ở
+  đúng chỗ thay vì nằm sẵn trong bóng tối.
+
+Ba nhóm kiểm mới trong `npm run smoke` (mục **10c**), và cả ba đã được thử bằng cách **gỡ
+bản sửa ra**: gỡ phần nháp/bước thì 3 mục đỏ, gỡ `setPaid(false)` thì 2 mục đỏ — tức là
+chúng bắt được lỗi thật, không phải kiểm cho có:
+
+- bấm vào **chữ** "Paid request" (đích ngón tay thật, không phải ô 16px) thì ô tick phải ăn,
+  và nút gửi phải đổi thành nút vàng có giá;
+- đổi tab Vote rồi quay lại: vẫn ở bước 3, ô tick còn, và có dòng nói form được khôi phục;
+- gửi một request trả phí thật: dữ liệu có `is_paid: true` + một đơn `awaiting` trỏ đúng
+  request, và request **kế tiếp** phải có ô tick **tắt**, nút gửi là "Send request" thường.
+
+Cùng lúc, `tools/smoke.mjs` sửa một lỗi của chính nó: mục rà DOM đóng hộp vote bằng
+`q('.vm-close, .modal .icon-btn')` — hai lớp đó **không tồn tại** (nút đóng là `.x`), nên hộp
+vote ở lại mở suốt các mục sau và mục 10c lần đầu chạy trong **sai hộp**. Nay đóng bằng `Esc`
+và có mục chốt "không còn lớp phủ nào treo lại".
 
 ### Header an toàn
 

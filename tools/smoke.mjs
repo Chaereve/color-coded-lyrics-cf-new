@@ -759,8 +759,17 @@ if (auditVote) {
   await click(auditVote)
   await tick(200)
   auditDom('Hộp vote')
-  const closeVote = q('.vm-close, .modal .icon-btn')
-  if (closeVote) await click(closeVote)
+  /* ĐÓNG BẰNG Esc, không đi tìm nút đóng: hộp vote dùng `.x` chứ không phải
+     `.vm-close` như bản cũ, nên dòng `q('.vm-close, .modal .icon-btn')` cũ trả
+     về null và hộp ở LẠI mở suốt các mục sau. Lớp phủ còn treo không làm mục
+     nào đỏ, nó chỉ làm mục sau kiểm nhầm chỗ — đúng loại lỗi của chính công cụ
+     kiểm thử. Nên sau khi đóng phải CHỐT là không còn lớp phủ nào. */
+  await act(async () => {
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  await tick(250)
+  check('đóng hộp vote: không còn lớp phủ nào treo lại', qa('.overlay').length === 0,
+    `${qa('.overlay').length} lớp phủ`)
 }
 
 /* ---------- 10. MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn ----------
@@ -1051,6 +1060,168 @@ try {
   check('không có lỗi runtime nào rơi ra trong các đường ghi trên',
     problems.filter(p => p.kind !== 'warn').length === 0,
     problems.filter(p => p.kind !== 'warn').map(p => `(${p.where}) ${p.text}`).join(' / ').slice(0, 200))
+}
+
+/* ---------- 10c. BÀI TRẢ PHÍ: BẤM ĐƯỢC, Ở LẠI, VÀ TỰ TẮT SAU KHI GỬI ----------
+   Ba lỗi thật, kiểm bằng ba đường người dùng đi:
+
+     (1) Ô "bài trả phí" nằm ở bước 3 cạnh chữ giải thích — người dùng bấm vào
+         CHỮ, không bấm vào ô vuông 16px. Nếu chỉ `<input>` ăn cú bấm thì lựa
+         chọn này coi như không tồn tại.
+     (2) Ba tab của hộp (Request / Vote / Buy) dùng chung một hộp thoại: xem bảng
+         giá rồi quay lại KHÔNG được làm mất form. Trước đây thì mất sạch — chữ,
+         bước đang đứng, và cả ô tick vừa chọn — vì `RequestTab` bị tháo khỏi cây
+         và bộ đếm 400ms ghi nháp bị huỷ theo.
+     (3) Gửi xong một request trả phí thì lựa chọn đó phải TẮT. Không tắt thì mọi
+         request sau đều được đánh dấu trả phí sẵn: người dùng đi tới bước 3 mà
+         không hề được hỏi lại, và một đơn hàng nữa được tạo trong im lặng. */
+where = 'bài trả phí'
+{
+  const openForm = async () => {
+    /* Đóng hết hộp đang mở trước, nếu không thì nút "New request" tìm thấy có
+       thể là tab trong HỘP VOTE (hộp đó cũng có tab tên "New request"), và cả
+       khối kiểm này sẽ chạy trong sai hộp mà không báo gì. `.side-cta` là nút
+       trong thanh bên — lối vào duy nhất chắc chắn nằm trên trang. */
+    for (let i = 0; i < 4 && qa('.overlay').length; i++) {
+      await act(async () => {
+        window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      await tick(250)
+    }
+    check('10c: mở form từ trang sạch (không còn hộp nào treo)', qa('.overlay').length === 0,
+      `${qa('.overlay').length} lớp phủ`)
+    const b = q('.side-cta')
+    if (b) await click(b)
+    if (/Before requesting/i.test(text())) {
+      await click(qa('button').find(x => /agree/i.test(x.textContent || '')))
+    }
+    await tick(250)
+    for (let i = 0; i < 3 && !q('#rq-artist'); i++) {
+      const n = qa('.req-actions button').find(x => /Continue|Fill in/i.test(x.textContent || ''))
+      if (!n) break
+      await click(n); await tick(160)
+    }
+  }
+  const toSend = async () => {
+    for (let i = 0; i < 3 && !q('.paidbox'); i++) {
+      const n = qa('.req-actions button').find(x => /Continue|Fill in/i.test(x.textContent || ''))
+      if (!n) break
+      await click(n); await tick(160)
+    }
+  }
+  const tickBox = () => q('.paidbox input[type=checkbox]')
+  /* Điền một bài từ bất kỳ bước nào rồi tới bước 3. Gửi xong thì form tự về
+     bước 1, nên "gõ vào ô tên bài" không phải lúc nào cũng bắt đầu ở bước 2. */
+  const fill = async (artist, title) => {
+    for (let i = 0; i < 2 && !q('#rq-artist'); i++) {
+      const n = qa('.req-actions button').find(x => /Continue|Fill in/i.test(x.textContent || ''))
+      if (!n) break
+      await click(n); await tick(160)
+    }
+    if (!q('#rq-artist')) { check(`điền được bài "${title}"`, false, text().slice(0, 80)); return false }
+    await type(q('#rq-artist'), artist)
+    await type(q('#rq-title'), title)
+    await toSend()
+    return true
+  }
+
+  await openForm()
+  await type(q('#rq-artist'), 'XG')
+  await type(q('#rq-title'), 'Something Ain\'t Right')
+  await toSend()
+  check('bước 3 của form có ô "bài trả phí"', !!q('.paidbox') && !!tickBox(),
+    q('.paidbox')?.textContent?.replace(/\s+/g, ' ').slice(0, 70) || '(không có)')
+
+  /* (1) Bấm vào CHỮ của nhãn — đích bấm thật của ngón tay. */
+  check('10c: có ô tick để thử cú bấm', !!tickBox())
+  if (tickBox()) {
+    const before = tickBox().checked
+    await act(async () => {
+      q('.paidbox .t').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await tick(140)
+    check('bấm vào chữ "Paid request": ô tick ăn thật', tickBox().checked !== before,
+      `${before} → ${tickBox().checked}`)
+    check('tick xong thì nút gửi nói đúng việc sắp làm (nút vàng, có giá)',
+      /paid request/i.test(q('.req-actions button[type="submit"]')?.textContent || '')
+      && !!q('.req-actions .btn-gold'),
+      `${q('.req-actions button[type="submit"]')?.textContent?.trim()}`)
+  }
+
+  /* (2) Đổi tab trong cùng hộp rồi quay lại: form phải còn nguyên. */
+  /* Tab trong ĐÚNG hộp request — hộp có dải ba bước. Hộp vote cũng có một dải
+     `.modal-tabs` với tab tên "New request", nên tìm tab theo toàn trang là bắt
+     nhầm hộp kia (đã xảy ra một lần và làm cả khối này chạy trong sai hộp mà
+     không báo gì). */
+  const reqModal = qa('.modal').find(m => m.querySelector('.req-steps'))
+  const reqTabs = () => [...(reqModal?.querySelectorAll('.modal-tabs .mtab') || [])]
+  const mtab = (re) => reqTabs().find(b => re.test(b.textContent || ''))
+  const stepNow = () => qa('.req-step .rs-btn').findIndex(b => b.getAttribute('aria-current') === 'step') + 1
+  check('10c: hộp request có tab Vote để đổi qua lại', !!mtab(/^Vote/i) && !!mtab(/^New request/i),
+    reqTabs().map(b => b.textContent.trim()).join(' / ') || '(không thấy dải tab)')
+  if (mtab(/^Vote/i) && mtab(/^New request/i)) {
+    const tabsBefore = reqTabs().map(b => b.textContent.trim()).join(' / ')
+    await click(mtab(/^Vote/i)); await tick(220)
+    check('rời tab Request thì bảng vote hiện ra (và form request rời màn)',
+      !!q('.vote-status') && !q('.paidbox'),
+      `vote-status=${!!q('.vote-status')} paidbox=${!!q('.paidbox')} tabs=${tabsBefore}`)
+    await click(mtab(/^New request/i)); await tick(300)
+    check('quay lại tab Request: vẫn đứng ở bước 3, không bị đẩy về bước 1',
+      stepNow() === 3, `bước ${stepNow()}`)
+    check('quay lại tab Request: ô "bài trả phí" còn tick', !!tickBox()?.checked,
+      `tick=${tickBox()?.checked}`)
+    check('quay lại tab Request: form sống bằng nháp, và có dòng nói ra',
+      !!q('.draft-note'), q('.draft-note')?.textContent)
+  }
+
+  /* (3) Gửi thật một request trả phí, rồi xem form có tự tắt lựa chọn không. */
+  const sendPaid = q('.req-actions button[type="submit"]')
+  const paidReady = !!sendPaid && tickBox()?.checked === true && stepNow() === 3
+  check('10c: tới được trạng thái "gửi request trả phí" để kiểm phần tiền',
+    paidReady, `bước=${stepNow()} tick=${tickBox()?.checked} nút=${sendPaid?.textContent?.trim() || '(không có)'}`)
+  if (paidReady) {
+    await click(sendPaid)
+    const okPaid = await waitFor(() => !!q('.msg.ok'), 3000)
+    check('gửi request trả phí: có dòng xác nhận kèm số tiền', okPaid,
+      q('.msg')?.textContent?.slice(0, 80) || '(không có)')
+    const rowsNow = JSON.parse(window.localStorage.getItem('ccl3_rows') || '[]')
+    const paidRow = rowsNow.find(r => r.artist === 'XG' && r.title === "Something Ain't Right")
+    check('request vừa gửi được đánh dấu trả phí trong dữ liệu',
+      paidRow?.is_paid === true && paidRow?.payment_status === 'awaiting',
+      JSON.stringify(paidRow && { is_paid: paidRow.is_paid, payment_status: paidRow.payment_status }))
+    const ordersNow = JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]')
+    check('và có một đơn đang chờ thanh toán trỏ đúng vào request đó',
+      ordersNow.some(o => o.kind === 'paid_request' && o.status === 'awaiting'
+        && o.request_id === paidRow?.id),
+      ordersNow.slice(0, 2).map(o => `${o.kind}/${o.status}`).join(' | '))
+    check('gửi xong thì form về bước 1', stepNow() === 1, `bước ${stepNow()}`)
+
+    /* ĐIỀU QUAN TRỌNG NHẤT: request KẾ TIẾP không được thừa hưởng lựa chọn đó. */
+    await fill('IVE', 'ATTITUDE')
+    check('request kế tiếp: ô "bài trả phí" đã TẮT (không thừa hưởng lựa chọn cũ)',
+      tickBox()?.checked === false, `tick=${tickBox()?.checked}`)
+    check('request kế tiếp: nút gửi trở lại là "Send request" thường',
+      !/paid/i.test(q('.req-actions button[type="submit"]')?.textContent || ''),
+      q('.req-actions button[type="submit"]')?.textContent?.trim())
+
+    /* Bấm Clear khi đã tick: lựa chọn trả phí cũng phải bị dọn. */
+    await act(async () => {
+      q('.paidbox .t').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await tick(140)
+    /* eslint-disable-next-line no-unused-vars */
+    const clearBtn = qa('.req-actions button').find(b => /Clear/i.test(b.textContent || ''))
+    if (clearBtn && tickBox()?.checked) {
+      await click(clearBtn)
+      await tick(150)
+      await fill('aespa', 'Drama')
+      check('bấm "Clear" rồi điền lại: ô "bài trả phí" cũng đã tắt',
+        tickBox()?.checked === false, `tick=${tickBox()?.checked}`)
+    }
+  }
+  const closeReq = q('.modal .x')
+  if (closeReq) await click(closeReq)
+  await tick(250)
 }
 
 /* ---------- 11. kết luận ---------- */

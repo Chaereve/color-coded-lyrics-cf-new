@@ -36,6 +36,22 @@ const DRAFT_TTL = 7 * 24 * 60 * 60 * 1000
    sách, nếu không thì thêm một bước là chỗ này có mà chỗ kia không. */
 const REQ_STEPS = ['req.step1', 'req.step2', 'req.step3']
 
+/* GHI NHÁP — một chỗ duy nhất, vì nháp được ghi ở HAI thời điểm: sau mỗi lần
+   ngừng gõ 400ms, và NGAY khi form rời màn hình (đổi tab trong cùng hộp, hoặc
+   đóng hộp). Chỉ có lần ghi hoãn thì lần gõ cuối cùng bị mất: chuyển tab là
+   component bị tháo, bộ đếm 400ms bị huỷ theo, và chữ vừa gõ không bao giờ được
+   lưu — người dùng quay lại thấy form trắng.
+   `step` và `paid` cũng nằm trong nháp: quay lại thì đứng ĐÚNG bước đang làm dở,
+   nên lựa chọn trả phí hiện ra ngay chỗ nó thuộc về, không phải một ô tick nằm
+   sẵn ở bước 3 mà người dùng chưa từng nhìn thấy. */
+function writeDraft(form, paid, step) {
+  try {
+    const empty = !(form.artist.trim() || form.title.trim() || form.link.trim() || form.note.trim())
+    if (empty) localStorage.removeItem(DRAFT_KEY)
+    else localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: DRAFT_V, at: Date.now(), ...form, paid, step }))
+  } catch { /* chặn storage thì form vẫn chạy, chỉ là không nhớ được */ }
+}
+
 function readDraft() {
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
@@ -117,7 +133,14 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      bước đang đứng được dựng ra. Mở form với dữ liệu đã có sẵn (nháp, link mời)
      thì vào thẳng bước đang làm dở — bước 1 (chọn loại) chỉ có nghĩa khi chưa có
      gì để gõ. */
-  const [step, setStep] = useState(() => (form.artist.trim() || form.title.trim() ? 2 : 1))
+  /* Bước mở ra khi vào form: chưa có chữ thì bước 1; có chữ thì bước 2; và nếu
+     nháp ghi rằng lần trước đang đứng ở bước GỬI thì mở lại đúng đó — nhưng chỉ
+     khi hai ô bắt buộc đã có, kẻo mở ra một bước gửi không gửi được gì. */
+  const [step, setStep] = useState(() => {
+    const a = form.artist.trim(), ti = form.title.trim()
+    if (!a && !ti) return 1
+    return draft?.step === 3 && a && ti ? 3 : 2
+  })
   const formRef = useRef(null)
   const artistRef = useRef(null)
   const titleRef = useRef(null)
@@ -175,15 +198,15 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      trống thì xoá nháp luôn, kẻo lần sau mở lên lại thấy một cái form "khôi phục"
      mà chẳng có gì trong đó. */
   useEffect(() => {
-    const id = setTimeout(() => {
-      const empty = !(form.artist.trim() || form.title.trim() || form.link.trim() || form.note.trim())
-      try {
-        if (empty) localStorage.removeItem(DRAFT_KEY)
-        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: DRAFT_V, at: Date.now(), ...form, paid }))
-      } catch { /* chặn storage thì form vẫn chạy, chỉ là không nhớ được */ }
-    }, 400)
+    const id = setTimeout(() => writeDraft(form, paid, step), 400)
     return () => clearTimeout(id)
-  }, [form, paid])
+  }, [form, paid, step])
+  /* ...và ghi NGAY khi rời màn. Giữ giá trị mới nhất trong ref rồi đọc lúc tháo
+     component: hàm dọn chỉ chạy một lần nên không thể nhìn thấy `form` của lần
+     render mới nhất nếu đọc thẳng từ closure. */
+  const latest = useRef({ form, paid, step })
+  useEffect(() => { latest.current = { form, paid, step } }, [form, paid, step])
+  useEffect(() => () => writeDraft(latest.current.form, latest.current.paid, latest.current.step), [])
 
   /* Hai việc khác nhau, đừng gộp: QUÊN nháp là chỉ xoá bản lưu (dùng sau khi
      gửi xong — chữ trong form đã được dọn ở đường gửi), còn BỎ nháp là quên +
@@ -194,10 +217,14 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     setRestored(false)
   }
   /* DỌN FORM: xoá chữ, xoá nháp, và đưa về bước 1 — dọn nửa vời (chữ trắng
-     nhưng đang đứng ở bước 3) là một màn hình trống không nói gì. */
+     nhưng đang đứng ở bước 3) là một màn hình trống không nói gì.
+     Ô tick "bài trả phí" cũng phải về mặc định: ở bước 1 người dùng KHÔNG nhìn
+     thấy nó, nên một lựa chọn về tiền còn sót lại từ lần trước là thứ duy nhất
+     trong form vừa vô hình vừa có giá. */
   const clearForm = () => {
     forgetDraft()
     setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
+    setPaid(false)
     setTouched({}); setMsg(null); setStep(1); setNoteOpen(false)
   }
   const discardDraft = () => { clearForm(); artistRef.current?.focus() }
@@ -288,6 +315,16 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       setTouched({})
       setStep(1)      /* gửi xong thì form về bước đầu, sẵn sàng cho bài kế tiếp */
       forgetDraft()   /* gửi xong thì việc đang làm dở đã thành việc đã gửi */
+      /* LỰA CHỌN TRẢ PHÍ THUỘC VỀ REQUEST VỪA GỬI, không phải về cái form.
+         Thiếu dòng này thì sau một lần gửi paid, mọi request sau đó đều được
+         đánh dấu paid sẵn: người dùng đi qua bước 3 mà không hề được hỏi lại
+         (câu trả lời cho một câu hỏi về TIỀN đã có sẵn từ lần trước), và cái
+         nút gửi màu vàng vẫn nằm đó chờ bấm. Đây đúng là loại lỗi im lặng:
+         không có gì đỏ, chỉ có một đơn hàng nữa được tạo. */
+      setPaid(false)
+      /* Dòng báo dùng `paid` của CHÍNH lần gửi này (giá trị trong closure), nên
+         nó vẫn nói đúng vừa gửi request thường hay request trả phí — đọc lại
+         từ state sau khi `setPaid(false)` là nói sai việc vừa xảy ra. */
       setMsg({ t: 'ok', m: paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
     finally { setBusy(false) }
