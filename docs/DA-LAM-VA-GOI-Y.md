@@ -574,3 +574,30 @@ nên báo lỗi lặp — nay đóng bằng `Esc`.
 (trước: 100; thêm 65 mục rà DOM + 6 mục khoá các việc vòng 13). `npx oxlint` → **0 lỗi** / 22 cảnh
 báo (101 tệp). `npm run build` → OK. Bản chạy thử: `npm run dev` (đang chạy ở cổng 5173, chế độ
 demo không cần Supabase).
+
+### M9. Thẻ xem trước có lại tên của nó
+
+Vòng 13 gỡ nhãn dài `Preview — this is what goes on the board` như chủ dự án yêu cầu — nhưng gỡ
+luôn **cả chữ "Preview"**, thành ra thẻ chỉ còn một khung viền có con mắt, nằm dưới hai ô vừa gõ mà
+không nói nó là gì. Đây là lỗi do gỡ quá tay. Nay `req.preview` = **`Preview`** — đúng một chữ, đủ
+làm tên; câu dài vẫn vắng mặt (máy kiểm vẫn khoá: không được có "goes on the board"). `ActionModal`
+dựng `<span>` này cạnh biểu tượng con mắt; chip xanh "đã nhận link" hiện thêm khi có link hợp lệ.
+`smoke` thêm mục đọc thẳng chữ trong `.req-preview` để không thể mất lần nữa.
+
+### M10. "Trang không lên" — cách kiểm và cách chạy
+
+Trang chạy ở cổng 5173 qua **bản dựng thật** (`vite preview`) chứ không phải dev server nữa:
+dev server sống bằng HMR, mỗi lần sửa là mỗi lần nạp lại nửa vời; nếu trình duyệt đang mở đúng lúc
+tệp được ghi thì tab có thể kẹt ở trạng thái nửa cũ nửa mới. Bản dựng thì mỗi lần chỉ có một tệp
+JS/CSS duy nhất, không có HMR, không có trạng thái trung gian.
+
+Trước khi đổi, đã kiểm và loại trừ (đều **sạch**, không tìm ra lỗi nào ở phía máy chủ):
+
+- dev server: tiến trình còn sống, nhật ký chỉ có 3 dòng HMR, không lỗi;
+- `GET /` → 200 (3.724 byte); **cả 10 mô-đun** nguồn tải về đều 200 và qua được bước biên dịch;
+- CSS: biên dịch bằng `lightningcss` → **OK** (146.945 byte), nên không có cú pháp hỏng làm sập trang;
+- `npm run build` → OK, và **`vite preview` phục vụ `/`, `/admin`, `/daily-spin` đều 200**, tệp JS 360.140 byte.
+
+Nếu vẫn chưa lên: xem tab có đang mở địa chỉ cũ từ phiên trước không (mở lại địa chỉ xem trước), và
+nếu màn hình vẫn trắng thì gửi giúp **địa chỉ đang mở + dòng lỗi đỏ trong Console** (F12 → Console) —
+có hai thứ đó là khoanh được ngay, còn đoán thì chỉ tốn thời gian.
