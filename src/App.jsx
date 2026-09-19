@@ -1077,6 +1077,31 @@ export default function App() {
       flash('ok', t('toast.updated'))
     } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
+  /* THAO TÁC HÀNG LOẠT từ bảng Admin: duyệt / từ chối / chốt / bỏ chốt / trả về
+     hàng đợi / xoá nhiều request trong một lần bấm. Chạy tuần tự rồi TẢI LẠI
+     BẢNG ĐÚNG MỘT LẦN — trước đây mỗi request là một vòng loadBoard, nên mười
+     dòng thành mười lần tải và mười cái toast.
+     `selfActRef` nhận CẢ CỤM bài bị đụng tới, để phần thông báo không tự kể lại
+     việc mình vừa làm. */
+  const doBulk = async (action, ids = [], reason = null) => {
+    if (!ids.length) return
+    const hit = rows.filter(r => ids.includes(r.id))
+    if (hit.length) selfActRef.current = new Set(hit.map(groupKey))
+    try {
+      if (action === 'approve' || action === 'deny') {
+        for (const id of ids) await adminReview(id, action === 'approve', reason)
+      } else if (action === 'delete') {
+        for (const id of ids) await deleteRequest(id)
+      } else if (action === 'pick' || action === 'unpick') {
+        for (const id of ids) await adminPickGroup(id, action === 'pick')
+      } else if (action === 'queue') {
+        await adminUpdateMany(ids, { status: 'queued' })
+      }
+      await loadBoard(user)
+      loadPick()
+      flash('ok', t('toast.bulk', { n: ids.length }))
+    } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
+  }
   const doCancelOrder = async (o) => {
     const ask = o.kind === 'paid_request' ? t('order.confirmCancelPaid') : t('order.confirmCancel')
     if (!confirm(ask)) return
@@ -1597,7 +1622,7 @@ export default function App() {
             onClose={() => setAdmin(false)}
             rows={rows} orders={orders} media={featuredRows}
             onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
-            onPick={doAdminPick}
+            onPick={doAdminPick} onBulk={doBulk}
             onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
             onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
             onMediaViewHome={viewMediaHome}

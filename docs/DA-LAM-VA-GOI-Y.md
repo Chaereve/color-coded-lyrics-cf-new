@@ -1,7 +1,7 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
 Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
-So với mốc đầu phiên (`bc65c01`): **61 file, +4.435 dòng**, `npm test` **254 đạt / 0 lỗi / 1 skip** (255 ca).
+So với mốc đầu phiên (`bc65c01`): **65 file, +5224 dòng**, `npm test` **257 đạt / 0 lỗi / 1 skip** (258 ca).
 
 > **Đã làm tiếp (cùng ngày):** mục **C1-1 (sao lưu database)** và **cả ba việc ở C1-2/3/4** nay đã
 > xong — xem phần *F. Đã làm tiếp* ở cuối file.
@@ -78,7 +78,7 @@ Theo `kylezantos/design-motion-principles` (cổng tần suất của Emil Kowal
 
 ### A6. Kiểm thử
 
-`npm test` **254 đạt / 0 lỗi / 1 skip** (255 ca) · `npx oxlint` **0 lỗi, 15 cảnh báo** — toàn bộ là hai loại đã có từ trước (fast-refresh, set-state-in-effect), không có cảnh báo mới nào · `npm run build` sạch, bundle ~345 kB (gzip ~110 kB): bộ icon Lucide thêm khoảng 5 kB thô / 2 kB gzip.
+`npm test` **257 đạt / 0 lỗi / 1 skip** (258 ca) · `npx oxlint` **0 lỗi, 16 cảnh báo** — toàn bộ là hai loại đã có từ trước (fast-refresh, set-state-in-effect) · `npm run build` sạch, bundle 348 kB (gzip 111 kB): bộ icon Lucide thêm khoảng 5 kB thô / 2 kB gzip.
 
 Ba tệp kiểm thử mới canh đúng ba chỗ dễ hỏng câm lặng:
 
@@ -241,3 +241,21 @@ trùng, nhập hàng loạt, PWA)** và các việc C3.
 **Đã bỏ khỏi danh sách:** nối database cho theo dõi + gửi ra Telegram/Discord (C2-8/9 bản cũ).
 Chủ dự án chốt 19/09 là không làm — không hỏi lại, và bảng C đã đánh số lại sau khi xoá hai
 dòng đó (nay 18 gợi ý).
+
+---
+
+## G. Vòng 7 — giao diện, quản trị, và gỡ bộ khung "màn hình đen" (19/09/2026)
+
+| Việc | Đã làm |
+|---|---|
+| **Bảng màu** | Giữ nguyên hue ultramarine, **nâng độ sáng một bậc**: `--a #2b22e2 → #4d40f0`, chữ sáng hơn, nền sâu hơn, trạng thái/loại bài đều nhích theo. Ba nơi khớp cùng một bảng: `src/index.css`, `index.html` (theme-color + nền khung hình đầu) và `public/manifest.webmanifest`; `public/privacy.html` giữ bản sao `:root` theo đúng quy ước ghi trong file |
+| **Thanh lọc bảng request** | `.toolbar` cũ → **`.fbar`**: chip lọc theo trạng thái (kèm số đếm), ô chọn loại bài, ô tìm kiếm có nút xoá, dòng *"đang xem n/mục"* chỉ hiện khi có lọc. Chip đang chọn đổi màu theo đúng màu trạng thái của nó |
+| **Trạng thái rỗng** | Ba định nghĩa `.empty` rải rác gộp còn **một**; khối rỗng của bảng có icon, câu giải thích và gợi ý bấm gì tiếp |
+| **Hàng request** | Tên bài 14.5px/600, `.pill` viết hoa 10.5px, `.kind` thành viên thuốc nhuộm màu theo loại, nút vote thoáng hơn |
+| **Bảng Admin — chọn nhiều** | Thêm **chế độ chọn**: nút *Select* trong thanh công cụ, ô chọn từng dòng (dùng lại `Check.jsx`), hàng đang chọn được nhuộm nền, và **thanh hành động dính đáy** với Duyệt / Từ chối / Chốt / Bỏ chốt / Về hàng đợi / Xoá hàng loạt. App chạy tuần tự rồi **tải bảng đúng một lần** (trước đây mỗi request một vòng tải + một toast) |
+| **Bảng Admin — xếp hạng** | Ô chọn thứ tự: *Tab order* (mặc định, giữ nguyên luật cũ) · *Newest first* · *Most votes* · *Waiting longest* — trả lời được câu "bài nào chờ lâu nhất" mà trước đây phải tự dò |
+| **Form gửi request** | Nút gửi **bám đáy khung** (`sticky`) kèm câu xác nhận/lỗi ngay dưới: form dài hơn màn hình điện thoại, nút nằm cuối trang là phải cuộn hết mới biết đã gửi được chưa |
+| **Vòng quay — không lặp quá 2 lần** | Luật chủ dự án chốt: hai lượt gần nhất của **cùng một thiết bị** trùng số thưởng thì lượt kế tiếp không được ra số đó. Làm ở **cả hai đường**: `drawSegment()` trong `src/lib/dailySpin.js` (bản demo) và `spin_daily` trong `supabase/migrations/20261104_spin_streak.sql` + `supabase/schema.sql`. Tập ô hợp lệ (7 hoặc 12 ô) không chia hết 256 nên dùng **lấy mẫu loại bỏ** — dùng `byte % n` trần là lệch xác suất, phá đúng cam kết "ô nào cũng thật" |
+| **Gỡ bộ khung "màn hình đen"** | Xoá hẳn hai tầng lưới an toàn cũ (`components/ErrorBoundary.jsx` + khối `.bootfail` 8 giây trong `index.html`), CSS `.crash`/`.bootfail` và 4 khoá `crash.*`. Lý do: chúng biến MỘT lỗi render thành khối đen che hết trang — chủ dự án phải xoá tay class trên trình duyệt mới thấy lại app. Nay `main.jsx` dựng thẳng vào `#root`, lỗi runtime chỉ ghi ra console với tiền tố `[ccl]` |
+| **Dữ liệu bẩn không làm vỡ trang** | `statusColor()` luôn trả một màu (thay `STATUS_META[x].c` trần), `kindCls()`/`KIND_META[form.kind] || KIND_META[KINDS[0]]`, `vnd/usd/compact` không in `NaN`, `board.js` lọc dòng rác trước khi gom cụm, payload vòng quay thiếu `rewards` thì rơi về 16 ô mặc định, vân tay hỏng không giết lượt quay |
+| **Chốt chặn mới** | `src/lib/renderGuard.test.js` (4 ca): không file nguồn nào được dựng lại bộ khung màn hình đen; dữ liệu bẩn (trạng thái lạ, loại bài lạ, ngày rác, **cả một dòng `null`**) không làm hàm nào ném lỗi; chỗ render không tra trần `STATUS_META[` / `KIND_META[`; payload vòng quay thiếu khoá vẫn quay |

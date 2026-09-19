@@ -16,7 +16,8 @@ import { usePager } from '../lib/usePager'
 const PER_PAGE = 10
 
 
-function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick }) {
+function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
+  select = false, selected = false, onSelect }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
@@ -41,7 +42,15 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   const picked = isPicked(r)
 
   return (
-    <div className="adm adm-req">
+    <div className={`adm adm-req${selected ? ' on' : ''}`}>
+      {select && (
+        /* Ô chọn dùng lại đúng component Check của trang (một chỗ vẽ checkbox),
+           kèm nhãn ẩn để trình đọc màn hình đọc được là chọn dòng nào. */
+        <label className="adm-sel" title={t('adm.selectRow')}>
+          <Check checked={selected} onChange={() => onSelect?.(r.id)} />
+          <span className="sr-only">{t('adm.selectRow')}</span>
+        </label>
+      )}
       <div className="nm">
         <b>
           {r.title} <span style={{ color: 'var(--txt-2)', fontWeight: 400 }}>— {r.artist}</span>{' '}
@@ -152,7 +161,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
 
 export default function AdminPanel({
   open, onClose, rows, orders, media = [], initialTab,
-  onReview, onUpdate, onDelete, onOrder, onPick,
+  onReview, onUpdate, onDelete, onOrder, onPick, onBulk,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
 }) {
   const { t } = useI18n()
@@ -176,6 +185,18 @@ export default function AdminPanel({
      đổi tab vẫn giữ từ khoá để soát bài ở mọi trạng thái mà không phải gõ lại */
   const [q, setQ] = useState('')
   const searchRef = useRef(null)
+  /* CHỌN NHIỀU ĐỂ XỬ LÝ HÀNG LOẠT — duyệt 10 request trong một lượt bấm thay vì
+     mười vòng bấm-nút-chờ-tải-lại. Chỉ bật khi cần; đổi tab / đổi cách xếp /
+     gõ từ khoá là bỏ chọn hết, vì một lựa chọn không còn nhìn thấy thì không
+     được phép còn hiệu lực. */
+  const [pickMode, setPickMode] = useState(false)
+  const [sel, setSel] = useState(() => new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  /* Thứ tự danh sách. 'default' = đúng thứ tự từng tab vốn có (tab Đang xử lý
+     xếp theo tổng vote của cả bài) — ba lựa chọn còn lại là để TRẢ LỜI CÂU HỎI
+     KHÁC: bài nào chờ lâu nhất, bài nào nhiều vote nhất, bài nào vừa gửi. */
+  const [sortKey, setSortKey] = useState('default')
+  const goTab = (k) => { setTab(k); setSel(new Set()) }
 
   useEffect(() => {
     if (!open) return
@@ -259,10 +280,34 @@ export default function AdminPanel({
     : tab === 'active' ? active
       : tab === 'orders' ? orders
         : tab === 'done' ? others : []
+  const order = (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
+  const sortList = (list) => {
+    if (sortKey === 'default') return list
+    const out = [...list]
+    if (sortKey === 'votes') return out.sort((a, b) => (b.votes || 0) - (a.votes || 0) || order(a, b))
+    if (sortKey === 'waiting') return out.sort((a, b) => -order(a, b))
+    return out.sort(order)
+  }
   const shown = tab === 'orders' ? base.filter(matchOrder)
     : tab === 'media' ? base
-      : base.filter(matchReq)
-  const pg = usePager(shown, PER_PAGE, [tab, q])
+      : sortList(base.filter(matchReq))
+  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey])
+  /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
+     phần đã chọn mà không còn hiện không được lặng lẽ nằm trong lệnh hàng loạt. */
+  const selIds = pg.items.map(r => r.id).filter(id => sel.has(id))
+  const toggleSel = (id) => setSel(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const runBulk = async (action) => {
+    if (!selIds.length || bulkBusy) return
+    if (action === 'delete' && !confirm(t('adm.bulkConfirmDelete', { n: selIds.length }))) return
+    const reason = action === 'deny' ? (prompt(t('adm.denyPrompt')) || null) : null
+    setBulkBusy(true)
+    try { await onBulk(action, selIds, reason); setSel(new Set()) }
+    finally { setBulkBusy(false) }
+  }
 
   /* giữ nút ở trạng thái "đang lưu" cho tới khi bảng Admin được tải lại */
   const runMedia = async (fn) => {
@@ -279,19 +324,19 @@ export default function AdminPanel({
       <div className={`modal wide${out}`}>
         <div className="modal-head">
           <div className="modal-tabs">
-            <button className={`mtab${tab === 'pending' ? ' on' : ''}`} onClick={() => setTab('pending')}>
+            <button className={`mtab${tab === 'pending' ? ' on' : ''}`} onClick={() => goTab('pending')}>
               {t('adm.pending')} <span className="c">({pending.length})</span>
             </button>
-            <button className={`mtab${tab === 'active' ? ' on' : ''}`} onClick={() => setTab('active')}>
+            <button className={`mtab${tab === 'active' ? ' on' : ''}`} onClick={() => goTab('active')}>
               {t('adm.active')} <span className="c">({active.length})</span>
             </button>
-            <button className={`mtab${tab === 'orders' ? ' on' : ''}`} onClick={() => setTab('orders')}>
+            <button className={`mtab${tab === 'orders' ? ' on' : ''}`} onClick={() => goTab('orders')}>
               {t('adm.orders')} <span className="c">({orderQueue.length})</span>
             </button>
-            <button className={`mtab${tab === 'media' ? ' on' : ''}`} onClick={() => setTab('media')}>
+            <button className={`mtab${tab === 'media' ? ' on' : ''}`} onClick={() => goTab('media')}>
               {t('adm.media')} <span className="c">({media.length})</span>
             </button>
-            <button className={`mtab${tab === 'done' ? ' on' : ''}`} onClick={() => setTab('done')}>
+            <button className={`mtab${tab === 'done' ? ' on' : ''}`} onClick={() => goTab('done')}>
               {t('adm.done')} <span className="c">({others.length})</span>
             </button>
           </div>
@@ -323,6 +368,18 @@ export default function AdminPanel({
                   title={t('adm.clearSearch')} aria-label={t('adm.clearSearch')}
                   onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={15} /></button>
               )}
+              <select className="sel adm-sort" value={sortKey} aria-label={t('adm.sortAria')}
+                onChange={e => { setSortKey(e.target.value); setSel(new Set()) }}>
+                <option value="default">{t('adm.sortDefault')}</option>
+                <option value="newest">{t('adm.sortNewest')}</option>
+                <option value="votes">{t('adm.sortVotes')}</option>
+                <option value="waiting">{t('adm.sortWaiting')}</option>
+              </select>
+              <button type="button" className={`btn btn-sm adm-pickbtn${pickMode ? ' on' : ''}`}
+                aria-pressed={pickMode}
+                onClick={() => { setPickMode(v => !v); setSel(new Set()) }}>
+                {pickMode ? t('adm.pickModeOff') : t('adm.pickMode')}
+              </button>
             </div>
           )}
           {tab === 'media' ? (
@@ -379,11 +436,46 @@ export default function AdminPanel({
               ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
               : pg.items.map(r => (
                 <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))}
+                  select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
                   /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
                      người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
                   songRows={rows.filter(x => groupKey(x) === groupKey(r))}
                   onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick} />
               ))
+          )}
+          {/* THANH HÀNH ĐỘNG HÀNG LOẠT — dính đáy khung, chỉ hiện khi đang chọn
+              nhiều VÀ có ít nhất một dòng được chọn. Nút nào cũng là .btn nên
+              thừa hưởng sẵn chiều cao chạm 40px ở bản hẹp. */}
+          {pickMode && selIds.length > 0 && (
+            <div className="adm-bulk" role="group" aria-label={t('adm.bulkAria')}>
+              <b>{t('adm.selected', { n: selIds.length })}</b>
+              <div className="adm-bulk-acts">
+                {tab === 'pending' && (
+                  <>
+                    <button type="button" className="btn btn-sm btn-ok" disabled={bulkBusy}
+                      onClick={() => runBulk('approve')}>{t('adm.approve')}</button>
+                    <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
+                      onClick={() => runBulk('deny')}>{t('adm.deny')}</button>
+                  </>
+                )}
+                {tab === 'active' && (
+                  <>
+                    <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                      onClick={() => runBulk('pick')}>{t('adm.pick')}</button>
+                    <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                      onClick={() => runBulk('unpick')}>{t('adm.unpick')}</button>
+                  </>
+                )}
+                {(tab === 'active' || tab === 'done') && (
+                  <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                    onClick={() => runBulk('queue')}>{t('adm.backToQueue')}</button>
+                )}
+                <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
+                  onClick={() => runBulk('delete')}>{t('adm.delete')}</button>
+                <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                  onClick={() => setSel(new Set())}>{t('adm.bulkClear')}</button>
+              </div>
+            </div>
           )}
           {/* tab media tự quản lý thứ tự (kéo thả) nên không cắt trang */}
           {tab !== 'media' && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}

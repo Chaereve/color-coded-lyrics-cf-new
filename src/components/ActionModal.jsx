@@ -186,12 +186,18 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       {/* `type="submit"` vi day la nut DUY NHAT phai gui form; cac nut khac trong
           form (loai bai, switch tra phi) deu `type="button"` — de nguyen mac
           dinh la mot cai sau them cung gui form luc nguoi dung khong ngo. */}
-      <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`} style={{ width: '100%' }} disabled={busy}>
-        {busy ? t('req.sending')
-          : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
-            : t('req.submit')}
-      </button>
-      {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
+      {/* Nút gửi BÁM ĐÁY KHUNG (sticky trong .overlay): form này dài hơn màn
+          hình điện thoại, mà câu hỏi "gửi được chưa" chỉ trả lời được khi nhìn
+          thấy nút. Câu xác nhận/ lỗi nằm ngay dưới nút nên cũng luôn trong tầm
+          mắt — trước đây cả hai nằm cuối một cuộn dài. */}
+      <div className="req-actions">
+        <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`} style={{ width: '100%' }} disabled={busy}>
+          {busy ? t('req.sending')
+            : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
+              : t('req.submit')}
+        </button>
+        {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
+      </div>
     </form>
   )
 }

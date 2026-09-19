@@ -726,6 +726,13 @@ select {
 .vs-bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .vs-bar > i { display: block; height: 100%; background: var(--a-2); }
 
+/* Nút gửi của form request bám đáy khung cuộn — xem ActionModal.jsx. Nền mờ
+   như .modal để chữ cuộn phía sau không đâm xuyên qua nút. */
+.req-actions { position: sticky; bottom: -2px; z-index: 3; display: flex; flex-direction: column; gap: 8px;
+  margin-top: 12px; padding: 10px 0 2px; border-top: 1px solid var(--line);
+  background: var(--float-2); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+.req-actions .msg { margin-top: 0; }
+
 /* ================= MODAL ================= */
 .overlay {
   position: fixed; inset: 0; z-index: 60; background: rgba(6,7,9,.6);
@@ -980,6 +987,31 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
    cho đỡ lẫn với nút xoá request bên dưới */
 .adm-search-clear { flex: 0 0 auto; width: 28px; height: 28px; font-size: 16px; }
 .adm-search-clear:hover { color: var(--txt); border-color: var(--line-2); }
+
+/* ---- CHỌN NHIỀU TRONG BẢNG ADMIN -----------------------------------------
+   Ô chọn đứng trước nội dung hàng; hàng đang chọn được nhuộm nền nhấn để mắt
+   còn bám được danh sách trước khi bấm nút hàng loạt. Nút nào cũng là `.btn`
+   nên thừa hưởng chiều cao chạm 40px ở bản hẹp (xem cssTapTarget.test.js). */
+.adm-sel { flex: 0 0 auto; display: grid; place-items: center; padding: 4px; cursor: pointer; }
+.adm.on { background: var(--a-soft); border-color: var(--a-dim); }
+.adm-sort { flex: 0 0 auto; max-width: 152px; }
+.adm-pickbtn { flex: 0 0 auto; }
+.adm-pickbtn.on { border-color: var(--a-dim); background: var(--a-soft); color: var(--txt); }
+/* Thanh hành động hàng loạt: DÍNH đáy khung danh sách nên cuộn tới đâu vẫn
+   bấm được, và chỉ chiếm chỗ khi thật sự có dòng được chọn. */
+.adm-bulk { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-top: 10px; padding: 9px 12px; border: 1px solid var(--a-dim);
+  border-radius: var(--r-md); background: var(--float-2); box-shadow: var(--ring); }
+.adm-bulk > b { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.adm-bulk-acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+/* điện thoại: nút xuống hàng riêng, ô xếp hạng chiếm trọn bề rộng — thanh công
+   cụ trong panel admin có bốn thứ, nhét cùng một hàng là mỗi thứ một mẩu */
+@media (max-width: 620px) {
+  .adm-bulk { align-items: stretch; }
+  .adm-bulk-acts { margin-left: 0; width: 100%; }
+  .adm-sort { max-width: none; flex: 1 1 100%; }
+  .adm-pickbtn { flex: 1 1 auto; }
+}
 
 .steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
 .step {
