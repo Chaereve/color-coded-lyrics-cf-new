@@ -155,13 +155,20 @@ line('G. mã màu viết thẳng trong JSX (nên là token)')
 }
 
 /* ---------- H. console.log còn sót ---------- */
-line('H. console.* còn sót trong src')
+line('H. console.log/debug/info còn sót trong src (warn/error là cố ý)')
 {
+  /* Chỉ soi ba hàm ĐỂ LẠI DẤU trong mã khi đã xong việc. `console.warn/error`
+     thì giữ: chúng là đường báo lỗi thật của app (một truy vấn Supabase hỏng
+     phải kêu ở đâu đó), nên đếm riêng để biết chứ không bắt xoá. */
   const bad = []
+  let we = 0
   for (const f of srcFiles) {
-    if (/console\.(log|debug|info)\(/.test(read(f))) bad.push(`${rel(f)}`)
+    const t = read(f)
+    if (/console\.(log|debug|info)\(/.test(t)) bad.push(`${rel(f)}`)
+    we += (t.match(/console\.(warn|error)\(/g) || []).length
   }
   console.log(bad.length ? [...new Set(bad)].map((x) => `  · ${x}`).join('\n') : '  (không có)')
+  console.log(`  · console.warn/error: ${we} lời gọi (đường báo lỗi, giữ lại)`)
 }
 
 /* ---------- I. _blank thiếu rel ---------- */
