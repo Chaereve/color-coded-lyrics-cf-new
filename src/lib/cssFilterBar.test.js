@@ -61,6 +61,20 @@ test('.fbar nằm TRONG DÒNG — không dính, không nổi trên danh sách kh
   assert.doesNotMatch(bar, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')
 })
 
+test('lọc status giữ một hàng — hết chỗ thì cuộn ngang, không gãy thành hai hàng', () => {
+  /* Đây là lỗi người dùng báo trực tiếp: các pill trạng thái bị bẻ thành hai
+     hàng trong cùng một rãnh, hàng trên/dưới lệch nhau và nhìn như hai thanh
+     khác nhau. Rãnh phải nowrap ở luật gốc, và luật desktop không được đè lại
+     bằng `flex-wrap: wrap` + `overflow: visible`. */
+  const strip = anchor('.fchips', /flex-wrap:\s*nowrap/, 'không xuống hàng')
+  assert.match(strip, /overflow-x:\s*auto/, 'hết chỗ phải cuộn ngang trong rãnh')
+  assert.doesNotMatch(css, /\.fbar \.fchips\s*\{[^}]*flex-wrap:\s*wrap/,
+    'desktop không được bật lại xuống hàng cho dải status')
+  const desktop = css.slice(css.indexOf('.fbar-top { flex-wrap: wrap; align-items: center'))
+  assert.match(desktop, /\.fbar-top > \.fchips\s*\{[\s\S]*flex-wrap:\s*nowrap/,
+    'desktop phải giữ dải status một hàng')
+})
+
 test('màn rộng vẫn với tới được bộ lọc loại bài (lỗi cũ: hàng đó chỉ mở trên máy hẹp)', () => {
   /* Khối lọc thứ hai từng chỉ có mặt trong `@media (max-width: 620px)`, còn nút
      mở nó cũng chỉ hiện ở đó — trên desktop không có cách nào chọn loại bài. */

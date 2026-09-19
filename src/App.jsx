@@ -1517,22 +1517,20 @@ function AppInner() {
               {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
                   đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
                   cuộn ngang chứ không xuống dòng. */}
-              {/* THANH LỌC — hai hàng, một nguyên tắc: mỗi thứ chỉ có MỘT ô
-                  điều khiển. Hàng trên là trạng thái + tìm kiếm (luôn hiện),
-                  hàng dưới là loại bài + tóm tắt. Máy hẹp thì hàng dưới gấp
-                  vào sau nút "Bộ lọc" — nhồi bốn thứ vào một hàng 340px là mỗi
-                  thứ một mẩu, còn để nguyên bốn hàng thì danh sách bị đẩy khỏi
-                  màn hình đầu. Thanh NẰM TRONG DÒNG, không dính mép trên: cuộn
-                  qua nó là nó đi theo trang (vòng 13 — "đừng để thanh lọc
-                  floating lúc cuộn"); nút "lên đầu trang" là đường quay lại. */}
+              {/* THANH LỌC — mỗi thứ chỉ có MỘT ô điều khiển. Hàng trên là ô
+                  tìm + tóm tắt/nút Bộ lọc; dải status ở hàng dưới luôn giữ MỘT
+                  hàng, hết chỗ thì cuộn ngang chứ không gãy thành hai hàng.
+                  Hàng loại bài gấp sau nút "Bộ lọc" trên máy hẹp — nhồi tất cả
+                  vào một hàng 340px là mỗi thứ một mẩu. Thanh NẰM TRONG DÒNG,
+                  không dính mép trên: cuộn qua nó là nó đi theo trang (vòng 13
+                  — "đừng để thanh lọc floating lúc cuộn"); nút "lên đầu trang"
+                  là đường quay lại. */}
               <div className={`fbar${fbarOpen ? ' open' : ''}`}>
                 <div className="fbar-top">
-                  {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — một thứ tự cho cả hai bố cục.
-                      Bàn phím đi từ trái sang phải, mắt cũng vậy: ô nhập là
-                      việc chính của thanh này nên nó đứng trước, dải chip theo
-                      sau, con số đếm đóng hàng. Máy hẹp thì đúng thứ tự đó
-                      xuống dòng (ô tìm + nút Bộ lọc ở hàng trên, chip ở hàng
-                      dưới) — không có chỗ nào phải đảo thứ tự bằng `order`. */}
+                  {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — thứ tự DOM cũng là thứ tự
+                      bàn phím: ô nhập → tóm tắt/nút Bộ lọc → dải status. Máy
+                      hẹp tự thành hai hàng (ô tìm + nút ở trên, chip ở dưới),
+                      không cần đảo thứ tự bằng `order`. */}
                   <span className="searchwrap">
                     <Icon name="search" size={14} className="search-ico" />
                     <input ref={searchRef} className="search" placeholder={t('board.search')}
@@ -1543,6 +1541,17 @@ function AppInner() {
                           onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
                       : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
                   </span>
+                  <div className="fbar-side">
+                    <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
+                    <button type="button" className={`fmore${fbarOpen ? ' on' : ''}`}
+                      aria-expanded={fbarOpen} aria-controls="fbar-more"
+                      onClick={() => setFbarOpen(v => !v)}>
+                      <Icon name="settings" size={14} />{t('board.filters')}
+                      {(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0) > 0 && (
+                        <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
+                      )}
+                    </button>
+                  </div>
                   <div className="fchips" role="group" aria-label={t('board.filterAria')}>
                     {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
                       <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
@@ -1567,17 +1576,6 @@ function AppInner() {
                         {kindFilter}<Icon name="close" size={12} />
                       </button>
                     )}
-                  </div>
-                  <div className="fbar-side">
-                    <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
-                    <button type="button" className={`fmore${fbarOpen ? ' on' : ''}`}
-                      aria-expanded={fbarOpen} aria-controls="fbar-more"
-                      onClick={() => setFbarOpen(v => !v)}>
-                      <Icon name="settings" size={14} />{t('board.filters')}
-                      {(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0) > 0 && (
-                        <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
-                      )}
-                    </button>
                   </div>
                 </div>
 
