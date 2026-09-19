@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, formatChance, rewardOdds,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
   dragTicks, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
 } from '../lib/dailySpin'
@@ -486,17 +486,12 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
               odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),
             })} />
 
-          {/* CHÚ GIẢI BỐN DẢI — đĩa trả lời "ô nào đáng hơn" bằng MÀU, chú
-              giải trả lời bằng CHỮ: mỗi dải một dòng, kèm số ô và tỉ lệ thật
-              (cùng con số với bảng xác suất, không phải một câu quảng cáo).
-              Đây là dữ liệu, không phải ghi chú — bỏ nó thì người chơi phải
-              tự đoán dải màu nào là +3. */}
+          {/* Keep reward colours, without probability/count labels. */}
           <ul className="spin-legend" aria-label={t('spin.legendAria')}>
             {rewardOdds(rewards).map(o => (
               <li key={o.reward} className={o.tier}>
                 <i aria-hidden="true" />
                 <b>+{o.reward}</b>
-                <span>{t('spin.legendRow', { n: o.count, pct: formatChance(o.chance) })}</span>
               </li>
             ))}
           </ul>

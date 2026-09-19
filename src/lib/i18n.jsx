@@ -76,7 +76,6 @@ const S = {
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
   'spin.legendAria': 'The four prize tiers on the wheel',
-  'spin.legendRow': '{n} slices, {pct}%',
   'spin.playLabel': 'Daily bonus wheel',
   'spin.available': 'Spins left today',
   'spin.wheelLabel': 'Wheel with {n} equal sectors: {odds} votes. Brighter sectors are rarer.',
@@ -554,6 +553,10 @@ const S = {
   'adm.done': 'Closed',
   'adm.approve': 'Approve',
   'adm.deny': 'Deny',
+  'adm.denyVideo': 'Already made it? Video link (optional)',
+  'err.denyVideo': 'Enter a valid https:// or http:// video link.',
+  'err.mediaLimit': 'You can add up to 20 videos, including featured videos. Remove a video first.',
+  'adm.mediaLimit': '{n}/20 videos · featured included',
   'adm.denyPrompt': 'Reason shown to the user (optional)',
   'adm.edit': 'Edit',
   'adm.closeEdit': 'Close',

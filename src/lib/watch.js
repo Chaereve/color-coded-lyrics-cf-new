@@ -240,7 +240,7 @@ export function rowEvents(p, n, prefs = {}) {
   const s0 = p.status, s1 = n.status
 
   if (s1 !== s0) {
-    if (s1 === 'denied') out.push({ type: 'denied', reason: n.reason || null })
+    if (s1 === 'denied') out.push({ type: 'denied', reason: n.reason || null, url: n.video_url || null })
     else if (s1 === 'completed') out.push({ type: 'done', url: n.video_url || null })
     else if (s1 === 'in_progress') out.push({ type: 'started' })
     /* pending → queued: vừa được duyệt, mở cho vote */

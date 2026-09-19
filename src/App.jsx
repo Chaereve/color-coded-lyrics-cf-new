@@ -1115,10 +1115,10 @@ function AppInner() {
     try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.deleted')) }
     catch (e) { flash('err', errMsg(t, e)) }
   }
-  const doReview = async (id, ok, reason) => {
+  const doReview = async (id, ok, reason, videoUrl) => {
     const r = rows.find(x => x.id === id)
     if (r) selfActRef.current = new Set([groupKey(r)])
-    try { await adminReview(id, ok, reason); await loadBoard(user); flash('ok', ok ? t('toast.approved') : t('toast.denied')) }
+    try { await adminReview(id, ok, reason, videoUrl); await loadBoard(user); flash('ok', ok ? t('toast.approved') : t('toast.denied')) }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
   /* opts.group = patch tinh cho CA BAI (cung artist + title), khong rieng dong
@@ -1163,13 +1163,13 @@ function AppInner() {
      dòng thành mười lần tải và mười cái toast.
      `selfActRef` nhận CẢ CỤM bài bị đụng tới, để phần thông báo không tự kể lại
      việc mình vừa làm. */
-  const doBulk = async (action, ids = [], reason = null) => {
+  const doBulk = async (action, ids = [], reason = null, videoUrl = null) => {
     if (!ids.length) return
     const hit = rows.filter(r => ids.includes(r.id))
     if (hit.length) selfActRef.current = new Set(hit.map(groupKey))
     try {
       if (action === 'approve' || action === 'deny') {
-        for (const id of ids) await adminReview(id, action === 'approve', reason)
+        for (const id of ids) await adminReview(id, action === 'approve', reason, videoUrl)
       } else if (action === 'delete') {
         for (const id of ids) await deleteRequest(id)
       } else if (action === 'pick' || action === 'unpick') {
@@ -1205,14 +1205,17 @@ function AppInner() {
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
   const doMediaSave = async (item) => {
-    try { await saveMedia(item); await loadMedia(); flash('ok', t('toast.mediaSaved')) }
-    catch (e) { flash('err', errMsg(t, e)) }
+    try {
+      if (!item.id && media.length >= 20) throw new Error(t('err.mediaLimit'))
+      await saveMedia(item); await loadMedia(); flash('ok', t('toast.mediaSaved'))
+    } catch (e) { flash('err', errMsg(t, e)); throw e }
   }
   /* Bảng sửa cả danh sách Latest: xóa trước, rồi lưu mục sửa, thêm mục mới,
      cuối cùng xếp lại đủ cả bảng một lượt (mục featured giữ nguyên chỗ). */
   const doMediaCommit = async ({ updates = [], adds = [], removes = [], order = [] } = {}) => {
     const isVideo = (m) => m && (m.kind === 'video' || m.kind === 'playlist')
     try {
+      if (media.filter(m => !removes.includes(m.id)).length + adds.length > 20) throw new Error(t('err.mediaLimit'))
       if (removes.length) await deleteMediaMany(removes)
       for (const u of updates) await saveMedia(u)
       const newIdByKey = {}
@@ -1272,12 +1275,12 @@ function AppInner() {
      không chỉ định tab (panel tự chọn tab đầu). */
   const openAdmin = useCallback((tab = null) => {
     setAdmin(tab)
-    go(ADMIN_ONLY)
+    if (section !== ADMIN_ONLY) go(ADMIN_ONLY)
     /* Đổi mục trong trang quản trị là đổi địa chỉ, nhưng KHÔNG đẩy thêm một
        mốc lịch sử: bấm Back sau khi soát năm mục phải quay về trang trước đó,
        không phải lùi qua năm địa chỉ của cùng một trang. */
     if (tab) putUrl({ s: ADMIN_ONLY }, adminTabPath(ROUTES.admin, tab))
-  }, [go])
+  }, [go, section])
   /* Dang xuat phai LUON tra ve man dang nhap. Truoc day dung
      signOut().then(() => setUser(null)): mang loi la promise reject, setUser
      khong bao gio chay, va nguoi dung ket lai trong tai khoan cu. Don state

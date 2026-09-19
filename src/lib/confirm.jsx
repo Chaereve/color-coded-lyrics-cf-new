@@ -25,6 +25,7 @@ const ConfirmCtx = createContext(null)
 export function ConfirmProvider({ children }) {
   const [req, setReq] = useState(null)      // { title, body, confirmLabel, tone, reasonLabel, reasonPh }
   const [reason, setReason] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
   const resolve = useRef(null)
 
   const ask = useCallback((opts) => new Promise((done) => {
@@ -34,6 +35,7 @@ export function ConfirmProvider({ children }) {
     resolve.current?.(null)
     resolve.current = done
     setReason('')
+    setVideoUrl('')
     setReq(opts)
   }), [])
 
@@ -60,7 +62,10 @@ export function ConfirmProvider({ children }) {
         reasonPh={req?.reasonPh}
         reason={reason}
         onReason={setReason}
-        onConfirm={() => finish({ reason: reason.trim() || null })}
+        videoLabel={req?.videoLabel}
+        videoUrl={videoUrl}
+        onVideoUrl={setVideoUrl}
+        onConfirm={() => finish({ reason: reason.trim() || null, ...(req?.videoLabel ? { videoUrl: videoUrl.trim() || null } : {}) })}
         onClose={() => finish(null)}
       />
     </ConfirmCtx.Provider>

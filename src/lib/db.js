@@ -722,13 +722,15 @@ export async function cancelOrder(id) {
 }
 
 /* ======================== ADMIN ======================== */
-export async function adminReview(id, approve, reason = null) {
+export async function adminReview(id, approve, reason = null, videoUrl = null) {
+  const url = approve ? null : String(videoUrl || '').trim() || null
+  if (url && (url.length > 500 || !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(url))) throw appError('err.denyVideo')
   if (!hasSupabase) {
     wr(LS.rows, demoRows().map(r => r.id === id
-      ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason } : r))
+      ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url } : r))
     return
   }
-  const { error } = await supabase.rpc('admin_review', { p_id: id, p_approve: approve, p_reason: reason })
+  const { error } = await supabase.rpc('admin_review', { p_id: id, p_approve: approve, p_reason: reason, p_video_url: url })
   if (error) throw error
 }
 
@@ -869,6 +871,7 @@ export async function saveMedia(item = {}) {
       wr(LS.media, rows)
       return rows[i]
     }
+    if (rows.length >= 20) throw appError('err.mediaLimit')
     const row = {
       id: crypto.randomUUID(), kind, title, note, url, thumb,
       is_hidden: !!item.is_hidden,
