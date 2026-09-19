@@ -353,8 +353,10 @@ const S = {
   /* request cua toi */
   'mine.title': 'My requests',
   'mine.empty': 'No requests yet.',
+  'mine.emptyHint': 'Send your first request — it will show up here with its status and votes.',
   'mine.orders': 'My orders',
   'mine.ordersEmpty': 'No orders yet.',
+  'mine.ordersHint': 'Vote orders you buy show up here with their status.',
 
   /* don hang */
   'order.paid': 'Paid',
@@ -559,6 +561,14 @@ const S = {
   'adm.received': 'Mark as paid',
   'adm.noOrders': 'No orders yet.',
   'adm.emptyList': 'Nothing here.',
+  /* TRẠNG THÁI RỖNG NÓI RA LÝ DO. Bản cũ chỉ có một dòng "Nothing here." giữa
+     khung trống — người dùng đọc nó như một lỗi. Nay: một dòng đậm nói đang
+     thiếu gì, một dòng nhỏ nói vì sao, và lối thoát (bỏ bộ lọc) khi cái trống
+     là do chính bộ lọc. */
+  'adm.emptyTitle': 'No requests in this list',
+  'adm.emptyBody': 'Requests land here as soon as someone sends one. Try another list above.',
+  'adm.emptyOrdersBody': 'Vote orders appear here the moment someone buys votes.',
+  'adm.clearFilters': 'Clear filters',
   'adm.pickMode': 'Select',
   'adm.pickModeOff': 'Done',
   'adm.selectRow': 'Select this request',

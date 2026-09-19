@@ -1671,7 +1671,11 @@ export default function App() {
             <h2 className="section-title">{t('mine.title')}</h2>
             <div className="list" data-glow ref={mineRef}>
               {mineRows.length === 0
-                ? <div className="empty">{t('mine.empty')}</div>
+                ? <div className="empty">
+                  <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+                  <b>{t('mine.empty')}</b>
+                  <small>{t('mine.emptyHint')}</small>
+                </div>
                 : pgMine.items.map((r, i) => (
                   <RequestRow key={r.id} r={r} n={i} showDelete
                     myCount={myVotes.get(r.id) || 0}
@@ -1687,7 +1691,11 @@ export default function App() {
             <h2 className="section-title" style={{ marginTop: 26 }}>{t('mine.orders')}</h2>
             <div className="list" ref={ordersRef}>
               {myOrders.length === 0
-                ? <div className="empty">{t('mine.ordersEmpty')}</div>
+                ? <div className="empty">
+                  <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
+                  <b>{t('mine.ordersEmpty')}</b>
+                  <small>{t('mine.ordersHint')}</small>
+                </div>
                 : pgOrders.items.map(o => (
                   <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
                     <div className="body">

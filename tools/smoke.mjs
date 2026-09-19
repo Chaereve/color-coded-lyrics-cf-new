@@ -521,6 +521,28 @@ check('mở địa chỉ đã lọc sẵn: ô tìm kiếm có sẵn từ khoá',
 check('mở địa chỉ đã lọc sẵn: cách xếp đúng lựa chọn', q('.adm-sort')?.value === 'votes',
   `sort="${q('.adm-sort')?.value}"`)
 
+/* TRẠNG THÁI RỖNG CỦA BẢNG QUẢN TRỊ phải NÓI RA LÝ DO, không phải một khung
+   trống kèm dòng "Nothing here." — đó chính là thứ người dùng đọc thành "trang
+   bị lỗi". Ba phần: icon · dòng đậm nói thiếu gì · dòng nhỏ nói vì sao. */
+window.history.pushState({}, '', '/admin?tab=orders')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(400)
+check('đơn hàng rỗng: có khối trạng thái rỗng nói ra lý do',
+  !!q('.empty .empty-ico') && !!q('.empty b') && !!q('.empty small'),
+  (q('.empty')?.textContent || '').replace(/\s+/g, ' ').trim())
+/* Lọc ra rỗng thì phải có LỐI THOÁT, không bắt người dùng tự đoán đã bấm gì. */
+window.history.pushState({}, '', '/admin?tab=active&q=zzzzkhongconbai')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(400)
+check('lọc ra rỗng: có nút bỏ bộ lọc', !!q('.empty-acts button'), (q('.empty')?.textContent || '').replace(/\s+/g, ' ').trim())
+const clearBtn = q('.empty-acts button')
+if (clearBtn) {
+  await click(clearBtn)
+  await tick(300)
+  check('bấm bỏ bộ lọc là danh sách trở lại', qa('.adm').length > 0 || !q('.empty-acts'),
+    `${qa('.adm').length} dòng`)
+}
+
 /* Mục không có dòng phụ thì không được để lại thẻ rỗng: bảng xếp hạng là mục
    duy nhất như vậy (câu "ai gửi nhiều nhất, ai được làm xong" đã bị gỡ). */
 window.history.pushState({}, '', '/ranking')

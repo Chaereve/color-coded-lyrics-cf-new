@@ -3402,13 +3402,17 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm-bar .searchwrap { flex: 1 1 200px; min-width: 0; }
 .adm-bar .search { max-width: none; width: 100%; }
 .adm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.adm-note { display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+.adm-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px;
   font-size: 11.5px; color: var(--txt-3); }
 /* HAI PHÍM TẮT CỦA TRANG, in ngay chỗ dùng. `Esc` và `Ctrl/Cmd+A` là hai thứ
    nhanh nhất trong bảng này, mà trước đây chỉ có trong tài liệu — phím tắt
    không ai biết thì không phải phím tắt. Đẩy về cuối hàng, và tự ẩn trên thiết
    bị cảm ứng: máy không có bàn phím vật lý thì đừng hứa. */
-.adm-keys { margin-left: auto; white-space: nowrap; }
+/* Dòng phím tắt: đứng cuối hàng khi còn chỗ, tự xuống hàng khi hết — trước
+   đây nó `nowrap` và nằm cùng hàng với nhãn "chọn cả trang", nên trên màn hẹp
+   hai thứ chồng lên nhau (đúng kiểu "ô chữ đè nhau" trong ảnh người dùng gửi). */
+.adm-keys { margin-left: auto; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.adm-keys kbd { white-space: nowrap; }
 @media (pointer: coarse) { .adm-keys { display: none } }
 
 @media (max-width: 620px) {

@@ -29,6 +29,27 @@ const initialView = () => (typeof window === 'undefined'
   : readAdminView(window.location.search, KIND_KEYS))
 
 
+/* TRẠNG THÁI RỖNG CỦA BẢNG QUẢN TRỊ.
+   Một khung trống kèm dòng chữ "Nothing here." là thứ người dùng đọc thành
+   "trang bị lỗi" (đúng như ảnh đã gửi ở vòng 12). Trạng thái rỗng phải trả lời
+   ba câu: đang thiếu gì (dòng đậm) · vì sao (dòng nhỏ) · làm gì tiếp (nút).
+   Danh sách trống vì BỘ LỌC thì lối thoát là bỏ bộ lọc; trống thật thì nói ra
+   là nó tự đầy khi có người gửi. */
+function EmptyState({ title, body, filtered, q, t, onClear }) {
+  return (
+    <div className="empty">
+      <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+      <b>{title}</b>
+      <small>{filtered ? t('adm.noResults', { q: q.trim() || '—' }) : body}</small>
+      {filtered && (
+        <span className="empty-acts">
+          <button type="button" className="btn btn-sm" onClick={onClear}>{t('adm.clearFilters')}</button>
+        </span>
+      )}
+    </div>
+  )
+}
+
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
   select = false, selected = false, onSelect, pickInterval = 4 }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
@@ -367,6 +388,10 @@ export default function AdminPanel({
      người gửi / loại / ghi chú cho request; loại đơn + tên bài của request
      liên quan cho đơn hàng. Bỏ dấu bằng `fold()` — đúng hàm mà ô tìm trên
      bảng công khai dùng, nên hai màn hình không thể trả lời khác nhau. */
+  /* Bỏ MỌI bộ lọc bằng một cú bấm: trạng thái rỗng vì lọc mà không có lối thoát
+     thì người dùng phải tự đoán xem mình đã bấm vào đâu. */
+  const clearFilters = () => { setQ(''); setKindF('all'); setSortKey('default'); setSel(new Set()) }
+  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default'
   const needle = fold(q)
   const matchReq = (r) => !needle || fold(
     `${r.title} ${r.artist} ${r.requester} ${r.kind} ${r.note || ''} ${r.status}`
@@ -514,12 +539,16 @@ export default function AdminPanel({
             đọc màn hình chỉ nghe được tên các nút. Tên mục + số dòng đang xem
             đứng ngay trên thanh công cụ — dòng "Showing …" cũ nằm dưới thanh
             công cụ và nói lại đúng con số ấy. */}
-        {tab !== 'media' && (
-          <h2 className="adm-h2">
-            <span>{t(kpis.find(k => k.k === tab)?.label || 'adm.pageAria')}</span>
-            <span className="adm-h2-n">{t('adm.showing', { n: pg.items.length, total: shown.length })}</span>
-          </h2>
-        )}
+        {/* TIÊU ĐỀ CHO MỌI MỤC, kể cả Videos: trước đây tab Videos là tab duy
+            nhất không có h2, nên bấm vào nó là trang mất tiêu đề — nhìn như một
+            màn hình khác. Số đi kèm là số dòng đang xem của chính mục đó. */}
+        <h2 className="adm-h2">
+          <span>{t(kpis.find(k => k.k === tab)?.label || 'adm.pageAria')}</span>
+          <span className="adm-h2-n">{t('adm.showing', {
+            n: tab === 'media' ? media.length : pg.items.length,
+            total: tab === 'media' ? media.length : shown.length,
+          })}</span>
+        </h2>
 
         {tab !== 'media' && (
           <div className="adm-bar">
@@ -611,7 +640,8 @@ export default function AdminPanel({
           />
         ) : tab === 'orders' ? (
           shown.length === 0
-            ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.noOrders')}</div>
+            ? <EmptyState title={t('adm.noOrders')} body={t('adm.emptyOrdersBody')}
+                filtered={filtered} q={q} t={t} onClear={clearFilters} />
             : pg.items.map(o => (
               <div className="adm" key={o.id}>
                 <div className="nm">
@@ -651,7 +681,8 @@ export default function AdminPanel({
             ))
         ) : (
           shown.length === 0
-            ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
+            ? <EmptyState title={t('adm.emptyTitle')} body={t('adm.emptyBody')}
+                filtered={filtered} q={q} t={t} onClear={clearFilters} />
             : pg.items.map(r => (
               <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))} pickInterval={pickInterval}
                 select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
