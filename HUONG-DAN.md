@@ -935,7 +935,10 @@ Xong nhớ quay lại Supabase cập nhật `Site URL` thành link Vercel.
 
 Các file trong `supabase/` viết theo kiểu `create or replace` / `add column if not exists`
 → chạy lại bao nhiêu lần cũng không mất dữ liệu. Cách chạy: **Dashboard → SQL Editor →
-New query → dán cả file → Run**.
+New query → dán cả file → Run**. Mỗi file một tab riêng, đợi *Success* rồi mới sang file sau —
+và **không bao giờ dán lại cả `schema.sql`** khi chỉ cần một file migration (xem
+[`BUOC-THU-CONG.md`](BUOC-THU-CONG.md), mục 0: vì sao dán cả file 2808 dòng làm SQL Editor lag,
+và câu SQL một dòng để biết mình đang thiếu file nào).
 
 | File | Khi nào chạy |
 |---|---|
@@ -944,14 +947,19 @@ New query → dán cả file → Run**.
 | `migrations/20260905_pick_lock.sql` | một lần, cho project tạo trước 05/09/2026: thêm `picked_at` + bảng `settings` + khoá vote Up next |
 | `migrations/20260905_admin_edit_song.sql` | một lần, CHẠY SAU file pick_lock: `admin_update()` thêm `p_artist`/`p_title` để admin sửa tên bài + nghệ sĩ |
 | `migrations/20250601_auto_pick.sql` | một lần, CHẠY SAU file pick_lock: hàm `pick_top_request()` để cron tự chốt request nhiều vote nhất + ghi `next_pick_at` |
+| `migrations/20260906_rls_hardening.sql` | một lần: siết RLS/quyền ghi — Supabase mặc định cấp `insert/update/delete` cho `anon`/`authenticated`, chỉ RLS + policy mới thật sự chặn; không DROP/TRUNCATE bảng nào |
 | `migrations/20260907_group_top_pick.sql` | một lần, CHẠY SAU file auto_pick: sửa `pick_top_request()` xếp hạng theo **tổng vote cộng dồn của các request trùng bài** — không chạy thì cron vẫn chốt theo vote từng dòng, lệch với bảng *Top voted* |
 | `migrations/20260907_daily_spin.sql` | bật Daily Spin: định danh trình duyệt, ledger 2 lượt/ngày, RPC chọn thưởng + cộng bonus, RLS; đã có trong schema mới |
 | `migrations/20260908_daily_spin_prizes.sql` | một lần, CHẠY SAU file daily_spin: vòng quay 16 ô bằng nhau (56,25/25/12,5/6,25%), nới `segment` 0..15, rút thăm theo số ô; đã có trong schema mới |
 | `migrations/20260908_pick_cycle_fix.sql` | chạy được mọi lúc (an toàn chạy lại): trigger `pick_cycle_touch` để chốt tay quá hạn tự ghi mốc chu kỳ + dời mốc đang kẹt + đặt lại cron `auto-pick-top` mỗi 30 phút; đã có trong schema mới |
 | `migrations/20260909_daily_spin_edge.sql` | một lần, CHẠY SAU file prizes: cột audit `fp_hash`/`ip_hash` + `spin_daily` nhận hash từ cổng Edge (mặc định null); đã có trong schema mới |
+| `migrations/20261031_admin_pick_group.sql` | một lần: admin chốt một request thì chốt luôn **cả cụm trùng tên bài + nghệ sĩ** (gom giống `groupKey` trong `src/lib/board.js`), Up next hiện thành một thẻ gộp thay vì bị xẻ lẻ |
+| `migrations/20261031_bonus_reset.sql` | một lần, CHẠY TRƯỚC hai file 2026-11-01 và 2026-11-02: tách `profiles.bonus_credits` (bonus vòng quay, reset 31/10 hằng năm) khỏi `vote_credits` (vote đã mua, không bao giờ reset); có lên lịch `pg_cron` nếu extension đã bật |
+| `migrations/20261101_vote_status_split.sql` | một lần, CHẠY SAU file bonus_reset: API trả **riêng** vote đã mua và bonus vòng quay (trước đó chung một cột) |
 | `migrations/20261102_spin_fp_quota.sql` | một lần: hạn mức quay theo vân tay nằm trong Postgres (`fp_slot` + unique index), gọi thẳng RPC cũng bị chặn; đã có trong schema mới |
 | `migrations/20261103_vote_hardening.sql` | một lần, CHẠY SAU file spin_fp_quota: siết vote (khoá hàng, hạn mức vân tay, hoàn đúng ví, cổng `edge_gate`); đã có trong schema mới |
 | `migrations/20261104_spin_streak.sql` | một lần, CHẠY SAU file vote_hardening: vòng quay **không lặp quá 2 lượt liên tiếp** — hai lượt gần nhất của cùng một thiết bị đã ra cùng số thưởng thì lượt này loại số đó (ô vẫn rút đều trên 16 ô, chỉ hẹp tập hợp lệ trong đúng tình huống này); đã có trong schema mới |
+| `migrations/20261105_desktop_review_media.sql` | một lần: `admin_review` nhận thêm `p_video_url` — Từ chối request vẫn kèm được link video có sẵn để người gửi đối chiếu; bắt đầu bằng `drop function if exists` rồi tạo lại nên chạy lại vẫn an toàn |
 
 **Thấy đúng chữ `P0001` trên màn hình là schema chạy thiếu.** Từ bản này các hàm SQL
 `raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/i18n.jsx`
