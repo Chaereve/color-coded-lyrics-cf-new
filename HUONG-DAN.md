@@ -32,6 +32,12 @@ Copyright © @chaereve · Tự host, miễn phí 100%.
 
 Quy đổi theo tỷ giá **1 USD ≈ 26.100đ**, làm tròn đến nghìn gần nhất.
 Đổi giá: `src/lib/db.js` → `VOTE_PACKS`, `SINGLE_VOTE`, `PAID_REQUEST`, `USD_VND`.
+
+Ba chỗ đó phải khớp nhau, và nay có máy giữ: `src/lib/priceRate.test.js` kiểm
+`vnd = round(usd × USD_VND / 1000) × 1000` cho từng gói, cho mua lẻ và cho Paid Request.
+Sửa `usd` mà quên `vnd` là `npm test` đỏ ngay và in ra con số đúng — trước đây `USD_VND`
+chỉ nằm trong một câu chú thích, không dòng code nào đọc, nên hai vế lệch nhau bao lâu
+cũng không ai biết.
 Nhớ sửa cả `schema.sql` (hàm `create_request`, dòng `values (v_uid, 'paid_request', 0, 0.75, 20000, r.id)`)
 — giá Paid Request được ghi ở phía database để người dùng không sửa được bằng công cụ dev.
 
@@ -2444,6 +2450,56 @@ grant  select (id, name, avatar_url, is_admin) on public.profiles to anon, authe
 Người dùng vẫn xem được số dư của chính mình vì `my_vote_status()` là hàm
 `security definer`. Bảng xếp hạng vẫn lấy được ảnh đại diện vì `avatar_url` nằm trong
 danh sách cho phép.
+
+## Hộp xác nhận trong app (vòng 14)
+
+### Lỗi đã sửa
+
+Bảy thao tác **không hoàn tác được** hỏi bằng hộp thoại của trình duyệt
+(`confirm()` / `prompt()`): xoá request của mình, xoá video, xoá một dòng trong bảng
+quản trị, xoá hàng loạt, từ chối một bài, từ chối hàng loạt, huỷ đơn.
+
+Nghe thì vô hại, nhưng cả bảy **hỏng theo cùng một cách, và im lặng**: khi trang chạy
+trong một iframe bị chặn hộp thoại (thiếu `allow-modals` — đúng mọi khung xem trước,
+mọi trang nhúng), `confirm()` trả về `false` và `prompt()` trả về `null` mà không báo gì.
+Trình duyệt cũng tự chặn hộp thoại sau vài lần bấm. Kết quả: bấm **Xoá** và không có gì
+xảy ra — nhìn y hệt "bảng quản trị bị hỏng", trong khi mã nguồn không có lỗi nào.
+
+### Cách sửa
+
+Một hộp xác nhận của app: `src/components/ConfirmDialog.jsx` + `src/lib/confirm.jsx`.
+
+```js
+const ask = useConfirm()                       // trong component
+if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'),
+                  confirmLabel: t('adm.delete') }))) return
+```
+
+- Hỏi xong mới làm — mọi chỗ gọi vẫn giữ nguyên dạng `if (!… ) return` cũ.
+- Hộp có **ba phần**: việc sắp xảy ra, hậu quả, hai nút; màu nút theo mức nguy hiểm.
+- Huỷ được bằng **Esc**, bằng **bấm ra ngoài**, hoặc nút **Cancel** — và huỷ thì không
+  có gì được ghi xuống.
+- Việc cần lý do (từ chối bài) có **ô lý do**: Enter là xuống dòng, Ctrl/Cmd + Enter
+  mới gửi. Lý do chỉ có khoảng trắng được coi là *không có lý do*.
+- `ConfirmProvider` bọc `App` ở `src/App.jsx`, nên mọi nơi trong app dùng được hộp này.
+
+Hai chốt giữ cho lỗi không quay lại: `src/lib/noNativeDialogs.test.js` quét toàn bộ
+`src/` và đỏ nếu có ai gọi lại `confirm()`/`prompt()`/`alert()`; `tools/smoke.mjs` bấm
+thật qua cả năm đường ghi (gửi request → xoá ở mục About me, xoá một dòng quản trị, từ
+chối có lý do, từ chối hàng loạt, xoá hàng loạt, xoá video).
+
+### Header an toàn
+
+`public/_headers` có thêm khối bắt-all `/*` với `X-Content-Type-Options: nosniff`,
+`Referrer-Policy`, `Permissions-Policy` và `Strict-Transport-Security`; `worker/index.js`
+tự gắn `nosniff` cho mọi response JSON (response do Function sinh không chắc được
+`_headers` phủ). `worker/pagesRoutes.test.js` chốt: bốn header đó chỉ được khai ở **một**
+khối — Cloudflare nối giá trị khi cùng header khớp hai rule.
+
+**Chưa** đặt `Content-Security-Policy`: CSP sai một nguồn là trang trắng, mà những nguồn
+thật (Supabase, `i.ytimg.com`, `lh3.googleusercontent.com`, Turnstile) chỉ kiểm chứng
+được trên bản deploy thật. Việc còn lại: mở DevTools trên bản deploy, ghi lại danh sách
+nguồn thật, rồi mới dựng CSP.
 
 ## Danh sách kiểm tra trước khi deploy
 

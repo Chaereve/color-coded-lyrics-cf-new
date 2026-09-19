@@ -901,6 +901,33 @@ select {
   box-shadow: var(--sh-3), var(--ring);
 }
 .modal.narrow { max-width: 420px; }
+
+/* =========================================================
+   HỘP XÁC NHẬN (xem components/ConfirmDialog.jsx)
+   ---------------------------------------------------------
+   Một hộp nhỏ, ba phần: dòng đầu nói VIỆC SẮP XẢY RA (kèm một biểu tượng nhỏ
+   đổi màu theo mức nguy hiểm), dòng hai nói HẬU QUẢ, cuối là hai nút. Không
+   gradient, không bóng màu: đây là chỗ để đọc kỹ rồi quyết định, không phải
+   chỗ để trang trí.
+   ========================================================= */
+.dlg { padding: 17px 18px 14px; }
+.dlg-head { display: flex; align-items: flex-start; gap: 10px; }
+.dlg-ico { flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--surface-3); color: var(--txt-2); }
+.dlg-ico.is-danger { background: color-mix(in srgb, var(--denied) 16%, transparent); color: var(--denied); }
+.dlg-title { margin: 2px 0 0; font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--txt); }
+.dlg-body { margin: 9px 0 0; font-size: 13px; line-height: 1.6; color: var(--txt-2); }
+.dlg-field { display: block; margin-top: 13px; }
+.dlg-field > span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--txt-3); }
+.dlg-field textarea { width: 100%; padding: 9px 11px; resize: vertical;
+  background: var(--surface-2); color: var(--txt);
+  border: 1px solid var(--line-2); border-radius: var(--radius);
+  font: inherit; font-size: 13px; line-height: 1.5; }
+.dlg-field textarea:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+.dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* Nút trong hộp này là đích chạm thật: 40px cho ngón tay, và không co lại
+   thành hai dòng chữ khi cửa sổ hẹp. */
+.dlg-acts .btn { min-height: 40px; white-space: nowrap; }
 .modal-head { display: flex; align-items: stretch; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .modal-tabs { display: flex; flex-wrap: wrap; min-width: 0; flex: 1; gap: 2px; }
 .modal-tabs::-webkit-scrollbar { display: none; }

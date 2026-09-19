@@ -814,16 +814,14 @@ export async function adminOrder(orderId, approve) {
 }
 
 /* Admin chốt / gỡ một request khỏi Up next (đặt hoặc xóa picked_at).
-   Hàng đã chốt thì cast_vote ở database từ chối, không lách được. */
-export async function adminPick(id, picked = true) {
-  const at = picked ? new Date().toISOString() : null
-  if (!hasSupabase) {
-    wr(LS.rows, demoRows().map(r => (r.id === id ? { ...r, picked_at: at } : r)))
-    return
-  }
-  const { error } = await supabase.rpc('admin_pick', { p_id: id, p_picked: !!picked })
-  if (error) throw error
-}
+   Hàng đã chốt thì cast_vote ở database từ chối, không lách được.
+
+   Chỉ còn MỘT đường: `adminPickGroup` bên dưới. Bản `adminPick` (một dòng) đã
+   bị xoá vì không nơi nào gọi — nút Pick/Unpick trong bảng quản trị luôn đặt
+   theo CẢ BÀI (một bài = một video, các request trùng tên phải đi cùng nhau),
+   nên giữ thêm một hàm chỉ-chốt-một-dòng là giữ một đường thứ hai không ai đi,
+   mà lại là đường sai. Hàm `admin_pick` phía Postgres vẫn còn: nó là API của
+   database, không phải của giao diện. */
 
 /* Chốt / gỡ cả cụm trung bài (cùng artist + title) lên Up next. Backend dùng
    admin_pick_group để gom đúng khoá groupKey bên web (src/lib/board.js). */

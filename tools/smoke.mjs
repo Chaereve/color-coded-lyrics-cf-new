@@ -804,6 +804,255 @@ try {
   window.history.replaceState = realReplace
 }
 
+/* ---------- 10b. HỘP XÁC NHẬN + NĂM ĐƯỜNG GHI DỮ LIỆU ----------
+   Vì sao tới giờ mới kiểm được: bảy thao tác không hoàn tác được (xoá request,
+   xoá video, xoá hàng loạt, từ chối bài, huỷ đơn) trước đây hỏi bằng
+   `confirm()`/`prompt()` của trình duyệt — jsdom cài hai hàm đó là hàm rỗng,
+   nên bấm vào là KHÔNG GÌ XẢY RA và không có gì để kiểm. Trong iframe bị chặn
+   hộp thoại (mọi khung xem trước) trình duyệt thật cũng trả về y như vậy.
+   Nay chúng hỏi bằng hộp của app, nên kiểm được — và phải kiểm, vì đây là
+   những đường GHI dữ liệu duy nhất mà tới giờ chưa có máy nào chạm tới.
+
+   Thứ tự dưới đây là CỐ Ý: mục About me và bảng quản trị dùng chung một hàng
+   dữ liệu, nên bên nào chạy trước cũng lấy mất dòng của bên kia. */
+{
+  where = 'hộp xác nhận'
+  const dlgTitle = () => q('.dlg #dlg-title')?.textContent || '(không có hộp)'
+  const dlgBtn = (re) => qa('.dlg-acts button').find(b => re.test(b.textContent || ''))
+  const byLabel = (re, root) => qa('.icon-btn', root || window.document)
+    .find(b => re.test(b.getAttribute('aria-label') || b.getAttribute('title') || ''))
+  const nextBtn = () => qa('.req-actions button').find(b => /Continue|Fill in/i.test(b.textContent || ''))
+  const goto = async (path, ready, ms = 4000) => {
+    window.history.pushState({}, '', path)
+    window.dispatchEvent(new window.Event('popstate'))
+    const ok = await waitFor(ready, ms)
+    await tick(220)
+    return ok
+  }
+
+  /* (A) NGƯỜI DÙNG: GỬI request thật rồi XOÁ nó ở mục About me.
+     Phải tự tạo dòng của mình: dữ liệu mẫu chỉ có hai dòng thuộc về người đang
+     đăng nhập, và cả hai đều ở trạng thái KHÔNG xoá được (đang làm / đã xong) —
+     nút xoá chỉ hiện với pending, queued, denied. Đường GỬI cũng vì thế mà
+     được chạy hết lần đầu: mục 6 mới đi tới bước 3 rồi đóng, chưa bao giờ bấm
+     nút gửi thật. */
+  where = 'hộp xác nhận · người dùng'
+  const sendRequest = async (artist, title, label) => {
+    const add = qa('button').find(b => /New request|Request a|Gửi/i.test(b.textContent || ''))
+    if (!add) { check(`gửi request ${label}: mở được form`, false, 'không thấy nút mở form'); return false }
+    await click(add)
+    if (/Before requesting/i.test(text())) {
+      await click(qa('button').find(b => /agree/i.test(b.textContent || '')))
+    }
+    await tick(220)
+    for (let i = 0; i < 3 && !q('#rq-artist'); i++) {
+      const b = nextBtn(); if (!b) break
+      await click(b); await tick(160)
+    }
+    if (!q('#rq-artist')) {
+      check(`gửi request ${label}: tới được bước 2`, false, text().slice(0, 80)); return false
+    }
+    await type(q('#rq-artist'), artist)
+    await type(q('#rq-title'), title)
+    for (let i = 0; i < 3 && !q('.req-actions button[type="submit"]'); i++) {
+      const b = nextBtn(); if (!b) break
+      await click(b); await tick(160)
+    }
+    const sendBtn = q('.req-actions button[type="submit"]')
+    if (!sendBtn) { check(`gửi request ${label}: bước 3 có nút gửi thật`, false); return false }
+    await click(sendBtn)
+    const sent = await waitFor(() => !!q('.msg.ok'), 3000)
+    check(`gửi request ${label}: form báo đã gửi`, sent,
+      q('.msg')?.textContent?.slice(0, 80) || 'không thấy dòng xác nhận')
+    /* Đóng form sau mỗi lần gửi: lần sau bắt đầu từ trạng thái sạch, nếu không
+       thì "chờ dòng báo đã gửi" chỉ là chờ thứ còn nằm đó từ lần trước. */
+    const x = q('.modal .icon-btn')
+    if (x) await click(x)
+    await tick(240)
+    return sent
+  }
+
+  await goto('/', () => !q('.splash') && text().length > 200)
+  await sendRequest('XG', 'Shooting Star', '1')
+  await sendRequest('XG', 'Left Right', '2')
+
+  await goto('/profile', () => !!q('.prof-card'))
+  await waitFor(() => qa('.row .icon-btn').length > 0, 3000)
+  await tick(200)
+  const mineDel = () => qa('.row .icon-btn').find(b =>
+    /delete/i.test(b.getAttribute('aria-label') || b.getAttribute('title') || ''))
+  check('About me: request của mình có nút xoá', !!mineDel(),
+    qa('.row .icon-btn').map(b => b.getAttribute('aria-label') || '?').join(' | ') || 'không có nút xoá nào')
+  if (mineDel()) {
+    const rows0 = qa('.row').length
+    await click(mineDel())
+    check('xoá request của mình thì hỏi bằng hộp của app', !!q('.dlg[role="dialog"]'), dlgTitle())
+    check('hộp xoá nói rõ hậu quả không lấy lại được', !!q('#dlg-body'), q('#dlg-body')?.textContent)
+    /* Bấm HUỶ trước: một hộp hỏi mà không rút lại được thì không phải là hỏi. */
+    await click(dlgBtn(/Cancel/i))
+    await tick(220)
+    check('bấm Cancel: hộp đóng và request vẫn còn', !q('.dlg') && qa('.row').length === rows0,
+      `hộp=${!!q('.dlg')} dòng=${qa('.row').length}/${rows0}`)
+    await click(mineDel())
+    await click(dlgBtn(/Delete/i))
+    await waitFor(() => qa('.row').length < rows0, 2500)
+    check('bấm Delete: request của mình biến mất khỏi danh sách', qa('.row').length === rows0 - 1,
+      `${rows0} → ${qa('.row').length}`)
+  }
+
+  /* Request thứ ba GỬI SAU khi đã xoá một cái: hạn mức là 3 request/giờ và nó
+     đếm cả hàng mẫu vừa được tạo lúc này, nên phải trả lại một suất rồi mới
+     gửi tiếp. Bảng quản trị bên dưới cần đúng ba dòng chờ duyệt cho ba lệnh —
+     xoá một dòng, từ chối một dòng, và lệnh hàng loạt trên dòng cuối. */
+  await goto('/', () => !q('.splash') && text().length > 200)
+  await sendRequest('XG', 'Winter Without You', '3 · sau khi xoá một cái')
+
+  /* (B) BẢNG QUẢN TRỊ — cùng hộp đó, bốn đường ghi khác. */
+  where = 'hộp xác nhận · quản trị'
+  await goto('/admin?tab=pending', () => !!q('.adm-page'))
+  /* Đợi cả DỮ LIỆU: quay lại trang này lần thứ hai thì khung có trước hàng vài
+     trăm mili giây, chờ mỗi khung là kiểm vào lúc bảng còn trống. */
+  await waitFor(() => qa('.adm').length > 0, 3000)
+  await tick(200)
+  const rowsAdmin = () => qa('.adm .adm-acts').length
+  const selCount = () => qa('.adm .adm-sel input[type="checkbox"]').filter(b => b.checked).length
+  const n0 = rowsAdmin()
+  check('mục Chờ duyệt có dòng để thử', n0 > 0, `${n0} dòng`)
+
+  /* (B1) Esc = huỷ, và huỷ thì KHÔNG xoá gì. */
+  const pendTrash = byLabel(/delete/i, q('.adm'))
+  check('dòng quản trị có nút xoá', !!pendTrash)
+  if (pendTrash) {
+    await click(pendTrash)
+    check('bấm xoá trong bảng quản trị cũng mở hộp của app',
+      !!q('.dlg[role="dialog"]'), dlgTitle())
+    await act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await tick(250)
+    check('Esc: đóng hộp và không xoá dòng nào', !q('.dlg') && rowsAdmin() === n0,
+      `hộp=${!!q('.dlg')} dòng=${rowsAdmin()}/${n0}`)
+  }
+
+  /* (B2) Xoá MỘT dòng — số dòng phải giảm ĐÚNG một. */
+  const t1 = byLabel(/delete/i, q('.adm'))
+  if (t1) {
+    const n = rowsAdmin()
+    await click(t1)
+    await click(dlgBtn(/Delete/i))
+    await waitFor(() => rowsAdmin() < n, 2500)
+    check('xoá một dòng: danh sách giảm đúng một', rowsAdmin() === n - 1, `${n} → ${rowsAdmin()}`)
+  } else {
+    check('xoá một dòng quản trị', false, 'không còn dòng nào để xoá')
+  }
+
+  /* (B3) TỪ CHỐI một bài: hộp phải hỏi LÝ DO gửi cho người đặt. */
+  const denyBtn = qa('.adm .adm-acts button').find(b => /Deny/i.test(b.textContent || ''))
+  if (denyBtn) {
+    const n = rowsAdmin()
+    await click(denyBtn)
+    const box = q('.dlg-field textarea')
+    check('từ chối bài: hộp hỏi lý do gửi cho người đặt', !!box, dlgTitle())
+    if (box) {
+      await type(box, 'already on the channel')
+      const okDeny = dlgBtn(/Deny/i)
+      check('hộp từ chối có nút riêng, không lẫn với nút xoá', !!okDeny,
+        qa('.dlg-acts button').map(b => b.textContent).join(' / '))
+      if (okDeny) {
+        await click(okDeny)
+        await waitFor(() => rowsAdmin() < n, 2500)
+        check('từ chối xong: dòng rời khỏi danh sách chờ', rowsAdmin() === n - 1, `${n} → ${rowsAdmin()}`)
+      }
+    }
+  } else {
+    check('dòng chờ duyệt có nút Từ chối', false, q('.adm-acts')?.textContent?.slice(0, 80))
+  }
+
+  /* (B4) HÀNG LOẠT: hai lệnh nguy hiểm ở đây, cả hai đều phải hỏi lại — và lời
+     hỏi phải nói ra SỐ dòng, vì "bạn chắc chưa?" không cho biết mình sắp mất gì. */
+  const boxes2 = () => qa('.adm .adm-sel input[type="checkbox"]')
+  const pickToggle = q('.adm-pickbtn')
+  check('bảng quản trị có nút bật chế độ chọn nhiều', !!pickToggle)
+  if (pickToggle) {
+    await click(pickToggle)
+    await tick(160)
+    check('bật chế độ chọn: mỗi dòng có một ô tick', boxes2().length > 0, `${boxes2().length} ô`)
+    if (boxes2().length) {
+      /* Ô tick là `input` THẬT (xem Check.jsx) nên bấm bằng `.click()` để trình
+         duyệt tự lật `checked` rồi bắn `change` cho React nghe. */
+      await act(async () => { boxes2()[0].click() })
+      await tick(180)
+      const bulkBar = q('.adm-bulk')
+      check('chọn một dòng: thanh lệnh hàng loạt hiện ra', !!bulkBar)
+      const bulkDeny = qa('.adm-bulk button').find(b => /^Deny/i.test((b.textContent || '').trim()))
+      check('thanh hàng loạt (tab Chờ duyệt) có nút Từ chối', !!bulkDeny)
+      if (bulkBar && bulkDeny) {
+        const n = rowsAdmin()
+        await click(bulkDeny)
+        check('từ chối hàng loạt hỏi lại và nói ra số dòng', /1/.test(dlgTitle()), dlgTitle())
+        check('từ chối hàng loạt cũng hỏi LÝ DO, không chỉ hỏi có/không',
+          !!q('.dlg-field textarea'), q('.dlg-body')?.textContent?.slice(0, 60))
+        /* HUỶ lệnh này (Esc) chứ không xác nhận: còn phải để dòng cho lệnh xoá
+           hàng loạt bên dưới, và điều cần kiểm ở đây là "có hỏi lại không". */
+        await act(async () => {
+          window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        })
+        await tick(250)
+        check('huỷ lệnh hàng loạt: không dòng nào bị từ chối',
+          rowsAdmin() === n && selCount() === 1,
+          `dòng=${rowsAdmin()}/${n} chọn=${selCount()}`)
+      }
+    }
+  }
+
+  /* (B5) XOÁ HÀNG LOẠT — lệnh không hoàn tác được, và là lệnh cuối cùng. */
+  if (boxes2().length) {
+    /* Lựa chọn còn nguyên sau khi huỷ hộp ở trên — chỉ tick nếu chưa tick, vì
+       bấm lần nữa là BỎ chọn. */
+    if (!boxes2()[0].checked) {
+      await act(async () => { boxes2()[0].click() })
+      await tick(180)
+    }
+    const bulkDel = qa('.adm-bulk button').find(b => /^Delete/i.test((b.textContent || '').trim()))
+    check('thanh hàng loạt có nút Xoá', !!bulkDel,
+      qa('.adm-bulk button').map(b => b.textContent).join(' / '))
+    if (bulkDel) {
+      const n = rowsAdmin()
+      await click(bulkDel)
+      check('xoá hàng loạt: hộp nói ra số dòng sắp mất', dlgTitle().includes(String(n)), dlgTitle())
+      await click(dlgBtn(/Delete/i))
+      await waitFor(() => rowsAdmin() < n, 2500)
+      check('xoá hàng loạt xong: bảng bớt đúng số dòng đã chọn', rowsAdmin() === n - 1,
+        `${n} → ${rowsAdmin()}`)
+    }
+  } else {
+    check('xoá hàng loạt', false, 'không còn dòng nào để chọn')
+  }
+
+  /* (B6) XOÁ VIDEO (tab Media) — đường thứ năm, cùng một hộp. */
+  where = 'hộp xác nhận · video'
+  await goto('/admin?tab=media', () => !!q('.adm-page'))
+  await waitFor(() => qa('.mrow').length > 0, 3000)
+  await tick(200)
+  const mediaDel = byLabel(/delete/i, q('.mrow'))
+  check('tab Media có dòng và có nút xoá', !!mediaDel)
+  if (mediaDel) {
+    const n = qa('.mrow').length
+    await click(mediaDel)
+    check('xoá video: hộp của app mở ra, không phải hộp thoại trình duyệt',
+      !!q('.dlg[role="dialog"]'), dlgTitle())
+    check('hộp xoá video nói rõ nó biến khỏi trang chủ', !!q('#dlg-body'), q('#dlg-body')?.textContent)
+    await click(dlgBtn(/Delete/i))
+    await waitFor(() => qa('.mrow').length < n, 2500)
+    check('xoá video xong: danh sách ngắn lại', qa('.mrow').length === n - 1,
+      `${n} → ${qa('.mrow').length}`)
+  }
+
+  check('không có lỗi runtime nào rơi ra trong các đường ghi trên',
+    problems.filter(p => p.kind !== 'warn').length === 0,
+    problems.filter(p => p.kind !== 'warn').map(p => `(${p.where}) ${p.text}`).join(' / ').slice(0, 200))
+}
+
 /* ---------- 11. kết luận ---------- */
 where = 'kết thúc'
 const runtime = problems.filter(p => p.kind !== 'warn')

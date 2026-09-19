@@ -13,6 +13,7 @@ import Countdown from './components/Countdown'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
 import Standing from './components/Standing'
+import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
 import Progress from './components/Progress'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
@@ -275,7 +276,11 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
    nữa, và người dùng đọc đúng hiện tượng đó: "màn hình splash mất tiêu".
    Không đọc/ghi storage nữa: thứ quyết định màn chờ là NHỊP KHỞI ĐỘNG, không
    phải lịch sử duyệt web. */
-export default function App() {
+function AppInner() {
+  /* Hộp xác nhận trong app — thay `confirm()`/`prompt()` của trình duyệt:
+     trong iframe bị chặn hộp thoại, hai hàm đó trả về false/null mà KHÔNG báo
+     gì, nên nút Xoá/Huỷ trông như bị hỏng (xem components/ConfirmDialog.jsx). */
+  const ask = useConfirm()
   const { t } = useI18n()
   const { push } = useNotify()
   useGlow()
@@ -407,7 +412,10 @@ export default function App() {
       return
     }
     run()
-  }, [section])
+    /* `navOrder` phải có trong danh sách phụ thuộc: nó đổi khi người dùng đăng
+       nhập/đăng xuất (mục Admin chỉ có mặt với admin), và hướng chuyển cảnh
+       được tính từ nó. */
+  }, [section, navOrder])
 
   /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
      tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
@@ -1103,7 +1111,7 @@ export default function App() {
     return order
   }
   const doDelete = async (id) => {
-    if (!confirm(t('row.confirmDelete'))) return
+    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
     try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.deleted')) }
     catch (e) { flash('err', errMsg(t, e)) }
   }
@@ -1175,8 +1183,13 @@ export default function App() {
     } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
   const doCancelOrder = async (o) => {
-    const ask = o.kind === 'paid_request' ? t('order.confirmCancelPaid') : t('order.confirmCancel')
-    if (!confirm(ask)) return
+    const paid = o.kind === 'paid_request'
+    const ok = await ask({
+      title: t('order.confirmCancel'),
+      body: paid ? t('order.confirmCancelPaid') : t('dlg.cannotUndo'),
+      confirmLabel: t('order.cancel'),
+    })
+    if (!ok) return
     try { await cancelOrder(o.id); await load(user); flash('ok', t('toast.orderCancelled')) }
     catch (e) { flash('err', errMsg(t, e)) }
   }
@@ -1234,7 +1247,11 @@ export default function App() {
     } catch (e) { flash('err', errMsg(t, e)); throw e }
   }
   const doMediaDelete = async (id) => {
-    if (!confirm(t('adm.confirmDelete'))) return
+    const ok = await ask({ title: t('dlg.mediaTitle'), body: t('dlg.mediaBody'), confirmLabel: t('adm.delete') })
+    if (!ok) return
+    /* Tiếng "xoá" kêu SAU khi xác nhận. Trước đây nó nằm ở nút, nên bấm rồi
+       huỷ vẫn nghe thấy một tiếng xoá — âm thanh nói dối về việc vừa xảy ra. */
+    sfx.delete()
     try {
       await deleteMedia(id)
       await loadMedia(); flash('ok', t('toast.mediaDeleted'))
@@ -1798,5 +1815,17 @@ export default function App() {
         />
       </Suspense>
     </>
+  )
+}
+
+/* VỎ BỌC: nhà cung cấp hộp xác nhận nằm NGOÀI AppInner, vì một component không
+   dùng được context do chính nó vừa cung cấp. Tách ở đây (thay vì sửa main.jsx)
+   để mọi nơi dựng <App /> — main.jsx, công cụ smoke, về sau — đều có hộp xác
+   nhận mà không phải nhớ thêm một nhà cung cấp nữa. */
+export default function App() {
+  return (
+    <ConfirmProvider>
+      <AppInner />
+    </ConfirmProvider>
   )
 }

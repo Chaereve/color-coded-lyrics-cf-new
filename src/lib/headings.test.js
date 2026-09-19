@@ -58,7 +58,7 @@ test('không nhảy cóc cấp tiêu đề', () => {
 test('tiêu đề khối là thẻ tiêu đề, không phải div', () => {
   const bad = []
   for (const [f, body] of src) {
-    for (const m of body.matchAll(/<div className="section-title"/g)) bad.push(`${f}: <div class="section-title">`)
+    if (/<div className="section-title"/.test(body)) bad.push(`${f}: <div class="section-title">`)
   }
   assert.deepEqual(bad, [], `tiêu đề khối phải là h2/h3 (đang là div): ${bad.join(' | ')}`)
   /* Ít nhất một chỗ dùng thật, kẻo luật trên đúng một cách vô nghĩa. */

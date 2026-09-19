@@ -136,7 +136,7 @@ test('nguồn phiếu viết bằng chữ, và con số lớn được đọc l�
   assert.doesNotMatch(css, /\.vm-mix/, 'luật CSS của vạch đó cũng phải bị gỡ khỏi tệp')
 
   /* Con số lớn đổi theo từng lần chọn — trình đọc màn hình cũng phải biết. */
-  assert.match(src, /className=\{\`v\$\{changing \? '' : ' pop'\}\`\} aria-live="polite"/,
+  assert.match(src, /className=\{`v\$\{changing \? '' : ' pop'\}`\} aria-live="polite"/,
     'con số kết quả phải được đọc lên khi đổi')
   /* Ô nhập số phiếu trỏ tới dòng "còn 7 → còn 3": đọc tới ô là hiểu ngay sẽ mất gì. */
   assert.match(src, /aria-describedby="vm-after"/, 'ô số phiếu phải trỏ tới dòng trước–sau')

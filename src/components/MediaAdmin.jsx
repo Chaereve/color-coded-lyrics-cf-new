@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { sfx } from '../lib/sfx'
 import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
@@ -199,7 +198,7 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
         <button className="btn btn-sm" onClick={() => onEdit(m)}>{t('adm.edit')}</button>
         <button className="btn btn-sm" onClick={toggleHide}>{m.is_hidden ? t('adm.mediaShow') : t('adm.mediaHide')}</button>
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => { sfx.delete(); onDelete(m.id) }}><Icon name="close" size={15} /></button>
+          onClick={() => onDelete(m.id)}><Icon name="close" size={15} /></button>
       </div>
     </div>
   )

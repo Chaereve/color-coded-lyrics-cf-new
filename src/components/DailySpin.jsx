@@ -3,7 +3,7 @@ import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, formatChance, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
-  dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
+  dragTicks, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
 } from '../lib/dailySpin'
 import {
   SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,

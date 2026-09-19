@@ -7,6 +7,7 @@ import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
+import { useConfirm } from '../lib/confirm.jsx'
 import { useI18n } from '../lib/i18n.jsx'
 import { here, putUrl } from '../lib/history'
 import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
@@ -61,6 +62,9 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
      phim đó; ghi tên họ là thứ duy nhất khiến họ gửi tiếp.
      Nhãn nút đổi tại chỗ sau khi copy thay vì bật toast: mắt đang ở giữa bảng,
      còn toast nằm ở góc màn hình. */
+  /* Hộp xác nhận của app, gọi ngay trong hàng: hai việc không hoàn tác được
+     (từ chối bài, xoá bài) nằm ở đây chứ không ở thân bảng. */
+  const ask = useConfirm()
   const [copied, setCopied] = useState(false)
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
@@ -133,7 +137,13 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           <>
             <button className="btn btn-sm btn-ok" onClick={() => onReview(r.id, true)}>{t('adm.approve')}</button>
             <button className="btn btn-sm btn-no"
-              onClick={() => onReview(r.id, false, prompt(t('adm.denyPrompt')) || null)}>
+              onClick={async () => {
+                const r2 = await ask({
+                  title: t('dlg.denyTitle'), body: t('dlg.denyBody'),
+                  reasonLabel: t('adm.denyPrompt'), confirmLabel: t('adm.deny'),
+                })
+                if (r2) onReview(r.id, false, r2.reason)
+              }}>
               {t('adm.deny')}
             </button>
           </>
@@ -154,7 +164,10 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         )}
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => { if (confirm(t('adm.confirmDelete'))) { sfx.delete(); onDelete(r.id) } }}><Icon name="close" size={15} /></button>
+          onClick={async () => {
+            if (!(await ask({ title: t('adm.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
+            sfx.delete(); onDelete(r.id)
+          }}><Icon name="close" size={15} /></button>
       </div>
 
       {/* Khung sửa nằm NGOÀI hàng tên + nút: xuống dòng thành một dải riêng
@@ -380,6 +393,9 @@ export default function AdminPanel({
         || (+new Date(a.created_at) - +new Date(b.created_at))
     }),
     [activeRows, totals])
+  /* Hộp xác nhận trong app (xem components/ConfirmDialog.jsx): ba việc không
+     hoàn tác được — từ chối bài, xoá một bài, và lệnh hàng loạt. */
+  const ask = useConfirm()
   const orderQueue = useMemo(() => orders.filter(o => o.status === 'awaiting'), [orders])
   /* (Khối `pipeline` cũ đã bị gỡ: nó tính năm con số mà không chỗ nào đọc —
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
@@ -435,12 +451,28 @@ export default function AdminPanel({
   })
   const runBulk = async (action) => {
     if (!selIds.length || bulkBusy) return
-    if (action === 'delete' && !confirm(t('adm.bulkConfirmDelete', { n: selIds.length }))) return
-    /* XOÁ là thao tác duy nhất trong bảng này không hoàn tác được, nên nó có
-       tiếng riêng: trầm và đi xuống, khác hẳn mọi tiếng "xong việc" khác. Một
-       tiếng cho cả đợt, không phải mỗi dòng một tiếng. */
-    if (action === 'delete') sfx.delete()
-    const reason = action === 'deny' ? (prompt(t('adm.denyPrompt')) || null) : null
+    /* HAI lệnh hàng loạt hỏi lại trước khi làm, và hỏi bằng hộp của app: xoá
+       (không hoàn tác được) và từ chối (người gửi đọc được lý do). Duyệt thì
+       không hỏi — đó là việc admin bấm để ĐI TIẾP, hỏi lại chỉ làm chậm tay. */
+    let reason = null
+    if (action === 'delete') {
+      if (!(await ask({
+        title: t('adm.bulkConfirmDelete', { n: selIds.length }),
+        body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete'),
+      }))) return
+      /* XOÁ là thao tác duy nhất trong bảng này không hoàn tác được, nên nó có
+         tiếng riêng: trầm và đi xuống, khác hẳn mọi tiếng "xong việc" khác. Một
+         tiếng cho cả đợt, không phải mỗi dòng một tiếng. */
+      sfx.delete()
+    }
+    if (action === 'deny') {
+      const r2 = await ask({
+        title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: t('dlg.denyBody'),
+        reasonLabel: t('adm.denyPrompt'), confirmLabel: t('adm.deny'),
+      })
+      if (!r2) return
+      reason = r2.reason
+    }
     setBulkBusy(true)
     try { await onBulk(action, selIds, reason); setSel(new Set()) }
     finally { setBulkBusy(false) }

@@ -33,7 +33,7 @@ export default function LoginGate({ onDemoLogin }) {
     }).catch(() => setCapReady(false))
     return () => {
       dead = true
-      try { capId.current != null && window.turnstile?.remove(capId.current) } catch { /* unmount */ }
+      try { if (capId.current != null) window.turnstile?.remove(capId.current) } catch { /* unmount */ }
     }
   }, [])
 
@@ -47,7 +47,7 @@ export default function LoginGate({ onDemoLogin }) {
     } catch (e) { setErr(errMsg(t, e)); setBusy(false) }
     finally {
       // token da dung (hoac hong) thi reset de lan bam sau lay token moi
-      try { capId.current != null && window.turnstile?.reset(capId.current) } catch { /* unmount */ }
+      try { if (capId.current != null) window.turnstile?.reset(capId.current) } catch { /* unmount */ }
       setCapToken(null)
     }
   }

@@ -45,6 +45,9 @@ import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
+  /* Trình duyệt không được đoán kiểu tệp: response này LUÔN là JSON, và một
+     response bị đoán nhầm thành HTML/script là đường chạy mã ngoài ý muốn. */
+  'x-content-type-options': 'nosniff',
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const HASH64 = /^[a-f0-9]{64}$/

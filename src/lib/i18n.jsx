@@ -379,6 +379,18 @@ const S = {
 
   /* nut */
   'btn.close': 'Close',
+  'btn.cancel': 'Cancel',
+  'btn.confirm': 'Confirm',
+  /* Hộp xác nhận trong app — thay `confirm()`/`prompt()` của trình duyệt. Chữ ở
+     đây là chữ của một HỘP, không phải của nút: tiêu đề nói việc sắp xảy ra,
+     dòng dưới nói hậu quả, và hậu quả nào cũng là "không lấy lại được" — đó
+     chính là lý do hộp này tồn tại. */
+  'dlg.cannotUndo': 'This cannot be undone.',
+  'dlg.denyTitle': 'Deny this request?',
+  'dlg.denyBody': 'The reason you type here is shown to the requester.',
+  'dlg.bulkDenyTitle': 'Deny {n} requests?',
+  'dlg.mediaTitle': 'Delete this video?',
+  'dlg.mediaBody': 'It leaves the home page, and the other videos close the gap.',
 
   /* form gui request */
   /* Form gửi request: ba bước, lỗi từng ô, gợi ý cho từng loại bài. */

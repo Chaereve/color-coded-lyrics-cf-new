@@ -22,7 +22,6 @@ import { statusColor, inChain, kindCls, statusLabel, timeAgo, isPicked, compact,
 import { boardItems, stageCounts, groupKey, songCount, voteTotals, fold, creditText } from './board.js'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
-const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
 const read = (rel) => readFileSync(root + rel, 'utf8')
 
 /* mọi file nguồn, trừ chính file này (nó nhắc tên các thứ đang bị cấm) */

@@ -27,8 +27,15 @@ async function render(props) {
     server: { middlewareMode: true, hmr: false, watch: null },
   })
   const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+  const { ConfirmProvider } = await server.ssrLoadModule('/src/lib/confirm.jsx')
   const mod = await server.ssrLoadModule('/src/components/AdminPanel.jsx')
-  return renderToStaticMarkup(createElement(I18nProvider, null, createElement(mod.default, props)))
+  /* Bảng quản trị nay gọi `useConfirm()` (hộp xác nhận của app thay cho
+     `confirm()`/`prompt()` của trình duyệt), nên nó cần nhà cung cấp — đúng như
+     lúc chạy thật, `ConfirmProvider` bọc cả app trong src/App.jsx. Thiếu nó thì
+     component ném lỗi ngay chứ không im lặng bỏ qua: đó là chủ ý, xem
+     src/lib/confirm.jsx. */
+  return renderToStaticMarkup(createElement(I18nProvider, null,
+    createElement(ConfirmProvider, null, createElement(mod.default, props))))
 }
 
 after(async () => { await server?.close() })
