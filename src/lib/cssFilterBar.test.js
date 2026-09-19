@@ -141,9 +141,57 @@ test('chip lọc đủ to để chạm trên thiết bị cảm ứng, bản des
     /white-space:\s*nowrap/, 'nhãn chip không được tự xuống dòng')
 })
 
-test('nhãn đang chọn mang đúng màu của nó, không dùng màu trang trí chung', () => {
-  assert.ok(has('.fchip.on', /var\(--c\)/), 'chip đang chọn phải ăn màu của chính nó')
-  assert.ok(has('.fchip .fdot', /background: var\(--c/), 'chấm màu của chip lấy từ cùng biến')
+test('dải lọc là vạch + chữ, không phải hàng chip: bỏ rãnh, bỏ chấm, bỏ huy hiệu số', () => {
+  /* VÒNG 15 — người dùng chỉ ra đúng ba chữ: "phần hiện status xấu quá", "nhìn
+     AI". Ba lớp bo tròn xếp lên nhau trên một hàng (rãnh thuốc → chip thuốc →
+     huy hiệu số, cộng thêm chấm tròn màu) là khuôn mẫu của mọi bảng điều khiển
+     máy sinh. Chốt lại bằng ba vế, đúng ba thứ đã bị gỡ — vì đây là loại thứ
+     được "dọn CSS" trả lại đầu tiên khi có người sửa thanh lọc sau này. */
+  const strip = anchor('.fchips', /flex-wrap:\s*nowrap/, 'không xuống hàng')
+  for (const [prop, re] of [['background', /background\s*:/], ['viền', /border\s*:/], ['bo góc', /border-radius\s*:/]]) {
+    assert.doesNotMatch(strip, re, `rãnh của dải lọc không được có ${prop} — đó là lớp bo tròn thừa`)
+  }
+  assert.equal(bodies('.fchip .fdot').length, 0, 'chấm tròn màu của chip phải bị gỡ (không còn luật nào)')
+  assert.doesNotMatch(app, /className="fdot"/, 'JSX cũng không được dựng lại chấm tròn')
+  /* Con số chỉ là số: không nền, không huy hiệu. */
+  const num = anchor('.fchip .fnum', /var\(--txt-3\)/, 'số của mục lọc')
+  assert.doesNotMatch(num, /background\s*:/, 'con số không được nhốt trong một viên thuốc nữa')
+  assert.match(num, /font-variant-numeric:\s*tabular-nums/, 'số phải đứng yên khi giá trị đổi')
+})
+
+test('mục đang chọn mang đúng màu của nó, và không tô nền', () => {
+  /* Màu của một mục lọc là DỮ LIỆU (giai đoạn nào đang có việc), không phải
+     trang trí — nó sống trong VẠCH, lấy từ cùng biến `--c` mà thanh tiến độ
+     của hàng request đang dùng. */
+  assert.ok(has('.fchip .ftick', /background: var\(--c/), 'vạch màu của mục lấy từ biến của chính nó')
+  assert.ok(has('.fchip.on .ftick', /opacity:\s*1/), 'mục đang chọn phải giữ vạch ở đủ màu')
+  assert.ok(has('.fchip.on .fnum', /var\(--c/), 'số của mục đang chọn mang màu của mục đó')
+  /* Vế QUAN TRỌNG NHẤT: không tô nền cho mục đang chọn. Một viên thuốc phết
+     màu nhạt là thứ ai cũng vẽ được, và nó chính là thứ làm hàng này đọc ra
+     "do máy sinh" — chữ trắng + vạch đầy màu đã nói đủ. */
+  assert.ok(!bodies('.fchip.on').some(b => /background\s*:/.test(b)),
+    'mục đang chọn không được tô nền (chỉ chữ + vạch)')
+})
+
+test('dây chuyền không bị cắt: bốn giai đoạn đứng liền nhau, đúng thứ tự công việc', () => {
+  /* Bản cũ xếp FILTERS là queued · picked · newest · top · in_progress ·
+     completed, tức "In progress" đứng SAU "Top voted": bốn giai đoạn của cùng
+     một dây chuyền bị một trục khác chen vào giữa. Nay thứ tự nhóm là
+     pipe → view → you, và trong nhóm pipe là thứ tự việc chạy. */
+  const order = [...app.matchAll(/\{\s*k:\s*'(\w+)',\s*c:[^,]+,\s*ax:\s*'(\w+)'\s*\}/g)]
+    .map(m => ({ k: m[1], ax: m[2] }))
+  assert.deepEqual(order.map(x => x.k), ['queued', 'picked', 'in_progress', 'completed', 'newest', 'top', 'watch'],
+    'thứ tự mục lọc đã đổi khỏi thứ tự dây chuyền')
+  assert.deepEqual([...new Set(order.map(x => x.ax))], ['pipe', 'view', 'you'],
+    'ba nhóm phải đứng liền nhau, không xen kẽ')
+  /* Vạch ngăn chỉ mọc ở mục ĐẦU của một nhóm mới, và nhóm vắng mặt thì vạch
+     ngăn của nó biến mất theo — không để lại một vạch lẻ giữa hai mục. */
+  assert.match(app, /i > 0 && f\.ax !== list\[i - 1\]\.ax && <span className="dot"/,
+    'vạch ngăn giữa hai nhóm phải theo nhóm, không viết cứng vào JSX')
+  assert.match(app, /FILTERS\.filter\(f => f\.ax !== 'you' \|\| watchedSet\.size > 0\)/,
+    'nhóm "đang theo dõi" chỉ hiện khi có bài được theo dõi')
+  assert.ok(has('.fchips .dot', /align-self:\s*center/),
+    'vạch ngăn phải tự canh giữa hàng (dùng lại lớp .dot của dòng meta)')
 })
 
 /* ---------- 2. nhãn / tag ---------- */

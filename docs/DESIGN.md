@@ -267,6 +267,52 @@ nhiên. Luật phụ của cách xếp theo điểm nói luôn một điều ng�
 không farm: **bài bị từ chối không tính gì** (khớp với `where r.status <> 'denied'`
 của view `requester_ranking` và với `rankDemo()`).
 
+### 2.8 Dải chế độ xem — thanh lọc không phải một hàng chip
+
+Chủ dự án chỉ ra đúng ba chữ: **"phần hiện status xấu quá"**, và khi được hỏi nó
+xấu ở đâu thì câu trả lời là **"nhìn AI"**. Đây là chỗ dễ mắc nhất của cả trang,
+vì dải lọc là thứ được vẽ **bảy lần liên tiếp** trên cùng một hàng — mọi quyết
+định trang trí ở đó bị nhân lên bảy lần.
+
+Bốn thứ đã bị gỡ, kèm lý do (bản đầy đủ nằm ở khối *THANH LỌC — DẢI CHẾ ĐỘ XEM*
+trong `src/index.css`):
+
+| Thứ bị gỡ | Vì sao nó đọc ra "do máy sinh" |
+|---|---|
+| **Rãnh bo tròn** bao quanh dải chip | Hai lớp bo tròn lồng nhau (rãnh thuốc → chip thuốc). Lớp ngoài không mang thông tin nào; nó chỉ tồn tại để "cho giống một control" |
+| **Chấm tròn màu** trước mỗi nhãn | Hàng chip có chấm màu là khuôn mẫu của mọi bảng điều khiển máy sinh |
+| **Huy hiệu số** bo tròn | Lớp bo tròn thứ ba, cộng với chấm là thứ tư. Con số không cần một cái hộp |
+| **Tô nền** cho mục đang chọn | Một viên thuốc phết màu nhạt là thứ ai cũng vẽ được |
+
+Hình dáng mới, và điều nó mua được:
+
+- Một mục = **vạch màu 3×15px + nhãn + số**. Vạch đọc ra "một chặng của dây
+  chuyền", không ra "một đèn báo"; nó lấy đúng màu chấm trạng thái của hàng
+  request (`STATUS_META` → biến `--c`), nên **màu ở đây vẫn là dữ liệu**, không
+  phải trang trí.
+- **Đang chọn = chữ trắng + vạch đầy màu + số mang màu của mục đó.** Không đổi
+  độ đậm: chữ đậm lên làm cả hàng nhích một nhịp mỗi lần bấm, mà đã có ba tín
+  hiệu khác rồi.
+- **Số là số**: mono, `tabular-nums`, không nền. Số `0` lùi lại một nhịp
+  (`.fnum.zero`) — mục không có gì thì không được nói to bằng mục đang có việc.
+- **Ba nhóm, hai vạch ngăn** (dùng lại đúng lớp `.dot` của dòng meta, không
+  dựng khuôn vạch thứ hai):
+  `Queue · Up next · In progress · Done` — bốn **giai đoạn**, theo đúng thứ tự
+  dây chuyền chạy; rồi `Newest · Top voted` — hai **cách nhìn** cả bảng; rồi
+  `Following` — việc của riêng người đang xem. Bản cũ để `In progress` đứng
+  **sau** `Top voted`: một trục khác chen vào giữa bốn giai đoạn của cùng một
+  dây chuyền, và mắt không biết mình đang ở trục nào. Nhóm `Following` vắng mặt
+  (chưa theo dõi bài nào) thì **vạch ngăn của nó cũng biến mất** — không để lại
+  một vạch lẻ giữa hai mục.
+- **Màu của hai cách nhìn** là `--a-2`, không phải `--a`: đây là những sắc độ
+  dùng được cho chữ/icon trên nền tối, còn `--a` nguyên bản (hue 242) ở 40%
+  opacity trên nền `#10141a` là một vạch gần như vô hình.
+
+Hai phép kiểm giữ hình dáng này: `src/lib/cssFilterBar.test.js` chốt *không có*
+nền/viền/bo góc trên dải, *không còn* luật `.fdot`, thứ tự bốn giai đoạn, và vạch
+ngăn theo nhóm; `npm run smoke` chốt trên DOM thật (mỗi mục có vạch, **đúng một**
+mục đang chọn, số vạch ngăn khớp số nhóm đang hiện).
+
 ---
 
 ## 3. Chuyển động
@@ -397,22 +443,25 @@ Ngoài ra `scroll-behavior: smooth` của app tự chuyển thành `auto` (xem
   video đang mở đã nằm ngay trên khung.
 - **Thanh lọc**: 6 tab kèm số đếm không vừa 390px, và `.tabs` có `overflow: hidden`
   nên **tab cuối bị cắt mất** — không có cách nào bấm tới. Nay dải tab cuộn ngang.
-- **Thanh lọc trên máy hẹp** (chốt 19/09): hàng chip trạng thái cuộn ngang, dòng
+- **Thanh lọc trên máy hẹp** (chốt 19/09): dải chế độ xem cuộn ngang, dòng
   đếm nhường chỗ cho nút **Bộ lọc** kèm số điều kiện đang bật; khối lọc thứ hai
-  (chip loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
-  `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) chip cao ≥40px
-  — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
+  (thẻ loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
+  `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) mỗi mục lọc
+  cao ≥40px — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
 - **Thanh lọc trên máy hẹp: mỗi hàng một việc** (vòng 10, tiếp). Hàng 1 là dải
-  chip trạng thái — **chiếm trọn bề rộng** và cuộn ngang có điểm dừng
-  (`scroll-snap-type: x proximity`, mỗi chip một điểm dừng); hàng 2 là ô tìm kiếm
-  + nút Bộ lọc. Bản trước để hai thứ đó chen nhau trên một hàng: dải chip co được
-  tới 0 nên bị bóp còn vài chục pixel, người dùng chỉ thấy một mẩu chip cụt mà
+  chế độ xem (xem §2.8) — **chiếm trọn bề rộng** và cuộn ngang có điểm dừng
+  (`scroll-snap-type: x proximity`, mỗi mục một điểm dừng); hàng 2 là ô tìm kiếm
+  + nút Bộ lọc. Bản trước để hai thứ đó chen nhau trên một hàng: dải co được
+  tới 0 nên bị bóp còn vài chục pixel, người dùng chỉ thấy một mẩu cụt mà
   không hiểu vì sao. Phép kiểm `cssFilterBar.test.js` chốt cả hai vế (máy hẹp hai
   hàng, màn rộng một hàng).
 - **Loại bài đang lọc phải NHÌN THẤY** (vòng 10, tiếp). Trên màn hẹp khối lọc gấp
   sau nút Bộ lọc, nên nếu không có gì khác thì không có chỗ nào nói ra là danh sách
   đang bị lọc theo loại bài — người dùng chỉ thấy danh sách thiếu bài. Nay có
-  `.fchip.onkind` trên hàng chính, mang tên loại và bỏ được bằng một lần bấm; từ
+  `.fchip.onkind` ở cuối dải chế độ xem, mang tên loại và bỏ được bằng một lần
+  bấm. Nó vẫn là một **thẻ** (viền + nền cùng màu chữ) chứ không phải một mục chữ
+  trần như các mục cạnh nó: một điều kiện đang bật phải đọc ra là *bỏ được*, và
+  khuôn thẻ đó chính là khuôn mà thẻ loại bài mang trên từng hàng request. Từ
   621px trở lên nó bị ẩn vì khối lọc đã luôn hiện.
 - Không có `hover` thật ⇒ khối `@media (hover: none)` trả lại mọi thứ đọc được
   khi rê chuột. Trạng thái "đang mở" luôn phải đọc được **mà không cần rê**.
@@ -498,6 +547,11 @@ Ghi lại để lần sau không ai "sửa" ngược:
   rồi mời đi vote cho bài đó; người gửi vẫn toàn quyền gửi tiếp. Chặn là quyết định
   thay người dùng ở chỗ mình không có đủ thông tin (bài cũ có thể đã bị từ chối, hoặc
   họ muốn một bản khác).
+- **Không** dựng lại rãnh/chip cho dải chế độ xem (vòng 15, xem §2.8) và **không**
+  thêm "vạch trượt" chạy theo mục đang chọn. Vạch trượt là một chuyển động trang
+  trí đứng trên một control được bấm **nhiều lần mỗi phiên** — đúng chỗ cổng tần
+  suất (§3) cấm; trạng thái đang chọn ở đây đọc được ngay mà không cần chuyển động
+  nào.
 
 ---
 

@@ -831,3 +831,61 @@ là đồ tạm, đã xoá sau khi lấy xong bằng chứng.
    Đã thêm bốn việc phải bấm tay — Enter/"Go" ở bước 2 phải ra bước 3, request kế tiếp phải
    tắt ô trả phí, đổi tab phải giữ form, và ba lượt quay liền không được trùng số — vì đây
    đúng là những thứ jsdom không mô phỏng được (lý do cả bộ kiểm đi qua lỗi này ở vòng 14).
+
+## Phần S — vòng 15: "phần hiện status xấu quá … nhìn AI"
+
+### S1. Truy đúng chỗ, không đoán
+
+Báo cáo vào repo chỉ có một câu: *"phần hiện status xấu quá à"*. Chỗ hiện trạng thái trên
+trang này có bốn nơi (nhãn trong từng hàng request, dải chip lọc, ô trạng thái trong bảng
+quản trị, thẻ trong khối Up next). Đã hỏi lại đúng hai câu trước khi sửa: **chỗ nào**, và
+**xấu ở điểm nào**. Câu trả lời: **dải chip lọc trạng thái**, và nó xấu ở chỗ **"nhìn AI"**.
+
+Đây là điểm đáng ghi lại về quy trình: ba chữ "nhìn AI" không nói ra được một dòng CSS nào.
+Nó chỉ thành việc làm được sau khi mình tự trả lời câu hỏi *"cụ thể thì thứ gì ở đó đọc ra
+do máy sinh?"* — và câu trả lời phải là một **danh sách đếm được**, không phải một cảm nhận.
+Bốn thứ trong danh sách đó (rãnh bo tròn, chấm tròn, huy hiệu số, nền tô khi chọn) nay nằm
+nguyên văn ở khối *THANH LỌC — DẢI CHẾ ĐỘ XEM* trong `src/index.css` và ở §2.8 `DESIGN.md`.
+
+### S2. Đã sửa gì
+
+| Trước | Sau |
+|---|---|
+| Hai lớp bo tròn lồng nhau: rãnh thuốc bao quanh bảy chip thuốc | **Bỏ rãnh** — các mục nằm thẳng trên mặt thanh lọc |
+| Chấm tròn màu 7px trước mỗi nhãn | **Vạch đứng 3×15px** (đọc ra "một chặng", không ra "đèn báo") |
+| Số nằm trong huy hiệu bo tròn có nền | Số chỉ là **số**: mono, `tabular-nums`, không nền; số `0` lùi lại một nhịp |
+| Mục đang chọn = viên thuốc **tô nền** + viền màu | Mục đang chọn = **chữ trắng + vạch đầy màu + số mang màu của mục đó**; không tô nền, không đổi độ đậm (đổi độ đậm làm cả hàng nhích một nhịp mỗi lần bấm) |
+| Bảy mục cùng khuôn, xen kẽ hai trục: `Queue · Up next · Newest · Top voted · In progress · Done · Following` | **Ba nhóm, hai vạch ngăn**: `Queue · Up next · In progress · Done` (đúng thứ tự dây chuyền) │ `Newest · Top voted` (cách nhìn cả bảng) │ `Following` (việc của riêng bạn) |
+| `--a` làm màu của "Newest" | `--a-2` cho cả hai cách nhìn: `--a` (hue 242) ở 40% opacity trên nền `#10141a` là một vạch gần như vô hình |
+
+### S3. Vì sao "Newest" và "Top voted" vẫn nằm trong dải
+
+Đã cân nhắc chuyển hai mục đó ra một control "sắp xếp" riêng ở hàng trên, rồi **không làm**:
+`top` không chỉ là một cách sắp — nó *lọc* (bài đã xong hoặc đã vào dây chuyền không còn xin
+phiếu, xem `visible` trong `App.jsx`), nên nó là một **cách nhìn**, cùng loại với bốn giai
+đoạn. Đẩy nó vào một nút "sắp xếp" là nói sai bản chất của nó. Cách sửa đúng là **một vạch
+ngăn**: hai trục vẫn nằm cạnh nhau, nhưng mắt đọc ra được là hai trục.
+
+### S4. Kiểm chứng
+
+- `src/lib/cssFilterBar.test.js`: ba phép kiểm mới chốt *không có* nền/viền/bo góc trên dải,
+  *không còn* luật `.fdot` (và JSX không dựng lại chấm tròn), số không có nền, mục đang chọn
+  **không được tô nền**, thứ tự bốn giai đoạn trong `FILTERS`, và vạch ngăn mọc theo **nhóm**
+  (nhóm vắng thì vạch ngăn biến mất).
+- `npm run smoke`: năm mục mới chốt trên DOM thật — mỗi mục có vạch, **đúng một** mục đang
+  chọn, bốn giai đoạn đứng liền nhau đúng thứ tự, số vạch ngăn khớp số nhóm đang hiện.
+- **Hai phép kiểm cũ đang đỏ sẵn và đã được sửa cho đúng thực tế** (không phải do vòng này):
+  1. *"dải chip đứng sau ô tìm kiếm"* đòi `.fbar-top` có thứ tự `searchwrap · fchips`, trong
+     khi bản hiện tại (từ vòng 12) xếp `searchwrap · fbar-side · fchips` — tức con số đếm và
+     nút **Bộ lọc** đã được đưa lên hàng trên. Phép kiểm báo đỏ một thứ tự **đã cố ý**.
+  2. *"chú giải in ra số ô và tỉ lệ"* đòi chú giải bốn tầng thưởng của vòng quay in `N slices
+     … %`, trong khi chú giải đã cố ý bỏ số ô và tỉ lệ (tỉ lệ thật nằm ở `aria-label` của
+     chính đĩa) — bản in đầy đủ biến chú giải thành bảng dữ liệu dưới một trò chơi.
+  Cả hai nay chốt đúng điều đang có, kèm một dòng ghi lại vì sao phép kiểm cũ sai. **Một
+  công cụ còn màu đỏ vĩnh viễn là một công cụ dạy người ta cách phớt lờ màu đỏ.**
+
+### S5. Số của vòng này
+
+`npm test` → **372 ca / 371 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **240/240** (trước vòng
+này: 233/235, hai mục đỏ có sẵn đã sửa). `npx oxlint` → **0 lỗi, 13 cảnh báo** (không đổi).
+`npm run build` → OK, `index-CrJfrDJz.js` 294,7 kB (gzip 91,7 kB), CSS 118,7 kB.

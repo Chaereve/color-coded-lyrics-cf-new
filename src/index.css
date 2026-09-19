@@ -488,35 +488,62 @@ select {
 }
 .sel { max-width: 170px; cursor: pointer; }
 
-/* ---- THANH LỌC (vòng 7) -------------------------------------------------
-   Chip rời thay cho dãy tab liền khối: mỗi chip mang ĐÚNG màu của giai đoạn
-   nó lọc (biến `--c` lấy từ FILTERS trong App.jsx), nên mắt bám vào màu
-   trước khi đọc chữ, và chip đang chọn sáng lên bằng chính màu đó. Máy hẹp:
-   dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
-   xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
-   thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
+/* ---- THANH LỌC — DẢI CHẾ ĐỘ XEM (vòng 15) ------------------------------
+   Bản cũ là bảy VIÊN THUỐC giống hệt nhau, mỗi viên ba thứ trang trí — chấm
+   tròn màu, nhãn, huy hiệu số bo tròn — tất cả lồng trong một rãnh cũng bo
+   tròn. Chủ dự án gọi đúng tên nó: "phần hiện status xấu quá", "nhìn AI".
+
+   Bốn thứ làm hàng đó đọc ra "do máy sinh", và cách sửa từng thứ:
+
+     1. HAI LỚP BO TRÒN LỒNG NHAU (rãnh thuốc + chip thuốc). Mỗi lớp là một
+        quyết định trang trí không mang thông tin nào.
+        → BỎ RÃNH: các mục nằm thẳng trên mặt thanh lọc.
+     2. CHẤM TRÒN + HUY HIỆU SỐ. Chấm tròn là khuôn mẫu của mọi bảng điều
+        khiển máy sinh; con số thì bị nhốt thêm một viên thuốc nữa — bốn lớp
+        bo tròn trên một hàng.
+        → Màu đi vào một VẠCH ĐỨNG 3×15px (đọc ra "chặng", không ra "đèn
+        báo"), còn con số chỉ là số: mono, không nền, không huy hiệu.
+     3. BẢY THỨ GIỐNG HỆT NHAU. Bốn giai đoạn của dây chuyền và hai cách nhìn
+        bảng bị dàn cùng cỡ, cùng khuôn, xen kẽ nhau — mắt không biết đang ở
+        trục nào (bản cũ để "In progress" đứng SAU "Top voted").
+        → HAI NHÓM, MỘT VẠCH NGĂN: giai đoạn theo ĐÚNG thứ tự dây chuyền
+        (Queue · Up next · In progress · Done), rồi mới tới chế độ xem
+        (Newest · Top voted) và bài đang theo dõi.
+     4. TRẠNG THÁI CHỌN TÔ NỀN. Một viên thuốc phết màu nhạt là thứ ai cũng
+        vẽ được.
+        → Chọn = KIỂU CHỮ + VẠCH: chữ trắng, vạch đầy màu và cao thêm, con số
+        mang màu của chính mục đó. Không tô nền.
+
+   Vì sao vẫn giữ màu: màu ở đây là DỮ LIỆU (giai đoạn nào đang có việc),
+   không phải trang trí — vạch lấy đúng màu chấm trạng thái trên hàng request
+   (xem STATUS_META), nên liếc dải lọc là biết bảng đang có gì.
+
+   Máy hẹp: dải CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh
+   sách xuống dưới màn hình đầu. */
 /* `flex-wrap: nowrap` là mặc định của flex nhưng được VIẾT RA ở đây: đã từng
    có một luật `@media (min-width: 900px) { .fbar .fchips { flex-wrap: wrap } }`
    ở cuối tệp đè lên, và bảy chip trạng thái gãy thành hai hàng lệch nhau bên
    trong một khuôn thuốc — đúng thứ người dùng chỉ ra ("lọc status xuống hàng
-   xấu quá"). Hết chỗ thì dải này CUỘN NGANG, không bao giờ xuống dòng. */
-.fchips { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 3px;
-  padding: 3px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
+   xấu quá"). Hết chỗ thì dải này CUỘN NGANG, không bao giờ xuống dòng.
+   `align-items: stretch`: mọi mục cao bằng nhau, nên vạch màu của chúng nằm
+   trên cùng một đường ngang — dải đọc ra một hàng, không phải bảy cục rời. */
+.fchips { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 1px;
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .fchips::-webkit-scrollbar { display: none; }
-/* Chip gọn hơn một nhịp so với bản cũ (đệm 12px→10px, khe 7px→6px), để
-   dải status ưu tiên giữ các chip phổ biến trên cùng một hàng. Nếu số lượng
-   hoặc bề rộng cột vẫn không đủ, cả dải cuộn ngang — không tách pill ra hai
-   hàng. */
-.fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
-  border: 1px solid transparent; border-radius: var(--r-pill); background: none;
+/* MỘT MỤC = vạch màu + nhãn + số. Không viền, không nền, không bo tròn ở đáy:
+   mục chỉ "nhấc" lên khi rê tới (nền mờ, bo hai góc trên như một tab), đúng
+   lúc con trỏ đang ở đó — còn lại thì dải chỉ là chữ.
+   KHÔNG đổi độ đậm khi đang chọn: chữ đậm lên là cả hàng nhích một nhịp mỗi
+   lần bấm, mà "đang chọn" ở đây đã có hai tín hiệu khác (chữ trắng + vạch đầy
+   màu) nên không cần tín hiệu thứ ba đánh đổi bằng rung hình. */
+.fchip { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border: 0; border-radius: var(--radius) var(--radius) 0 0; background: none;
   color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
-  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-    color var(--t-1) var(--e-soft); }
-/* Trên thiết bị CHẠM, chip lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
-   bản desktop (khuôn viên thuốc, chữ 12.5px) và chỉ nâng chiều cao tối thiểu,
-   nới hai bên một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản
-   cũ — không phải hai bản CSS, chỉ là một luật cho thiết bị khác. */
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft); }
+/* Trên thiết bị CHẠM, mục lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
+   bản desktop (vạch + chữ 12.5px) và chỉ nâng chiều cao tối thiểu, nới hai bên
+   một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản desktop —
+   không phải hai bản CSS, chỉ là một luật cho thiết bị khác. */
 @media (pointer: coarse) {
   .fchip { min-height: 40px; padding-left: 14px; padding-right: 14px }
   .fchip.kind { min-height: 38px }
@@ -528,19 +555,27 @@ select {
      tính từ chính hai biến này. */
   .searchwrap { --x-w: 30px; --x-x: 5px; }
 }
-.fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
-.fchip .fnum { padding: 2px 5px; border-radius: var(--r-pill); background: var(--hover-2);
-  font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
-/* Chip đang chọn là VIÊN NỔI trong rãnh, không phải một viên thuốc có viền
-   sáng quanh: quầng sáng trên chấm màu đã bị gỡ (vòng 11) — một điểm màu phát
-   sáng là thứ trang trí đọc ra "AI", còn viên nổi + chữ đậm đã nói đủ "đang
-   chọn cái này". */
+.fchip .ftick { flex: none; width: 3px; height: 15px; border-radius: 2px;
+  background: var(--c, var(--txt-3)); opacity: .42;
+  transition: opacity var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
+/* Con số chỉ là SỐ: mono, không nền, không huy hiệu — huy hiệu bo tròn thứ tư
+   trên một hàng là thứ làm nó đọc ra "chip mẫu". Số 0 lùi lại một nhịp: mục
+   không có gì thì đừng nói to bằng mục đang có việc. */
+.fchip .fnum { font-family: var(--mono); font-size: 10.5px; line-height: 1;
+  color: var(--txt-3); font-variant-numeric: tabular-nums; }
+.fchip .fnum.zero { opacity: .5; }
+/* Đang chọn: chữ trắng + vạch đầy màu, cao thêm một nhịp (`scaleY` nên không
+   đẩy chữ chạy), số mang đúng màu của mục đó. KHÔNG tô nền — đó là điểm khác
+   duy nhất giữa dải này với hàng chip của một bảng điều khiển máy sinh. */
 .fchip:hover { color: var(--txt); background: var(--hover); }
-.fchip.on { color: var(--txt); font-weight: 600;
-  border-color: color-mix(in srgb, var(--c) 40%, transparent);
-  background: color-mix(in srgb, var(--c) 18%, var(--surface-3)); }
-.fchip.on .fdot { opacity: 1; }
-.fchip.on .fnum { color: var(--txt); background: color-mix(in srgb, var(--c) 24%, transparent); }
+.fchip:hover .ftick { opacity: .68; }
+.fchip.on { color: var(--txt); }
+.fchip.on .ftick { opacity: 1; transform: scaleY(1.3); }
+.fchip.on .fnum { color: var(--c, var(--txt)); }
+/* Vạch ngăn giữa hai NHÓM. Dùng lại đúng lớp `.dot` của dòng meta (xem khối
+   .meta) — một khuôn vạch mảnh cho cả trang, không dựng khuôn thứ hai; ở đây
+   nó chỉ cao hơn (ngang tầm vạch màu) và tự canh giữa hàng. */
+.fchips .dot { align-self: center; height: 18px; margin: 0 7px; }
 .fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 /* Ba luật .fbar* từng nằm ở đây đã dời về khối THANH LỌC ở cuối file — một
    chỗ duy nhất định hình thanh này. Hai bản khai cùng tên thì bản sau thắng
@@ -3301,10 +3336,15 @@ html[data-section="spin"] .bgfx { display: none; }
 .fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
 .fbar .search { width: 100%; max-width: none; }
 .fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
-/* chip loại bài: cùng khuôn với chip trạng thái nhưng KHÔNG đếm số — con số
-   đó phụ thuộc trạng thái đang lọc nên nếu in ra sẽ mâu thuẫn với danh sách
-   ngay bên dưới nó. Chip loại chỉ để chọn, không để đếm. */
-.fchips.kinds { flex: 1 1 auto; }
+/* Nhãn loại bài: cùng khối với dải chế độ xem nhưng KHÁC hẳn hình dáng — đây
+   là THẺ (viền + nền cùng màu chữ), không phải mục lọc chữ trần, vì thẻ loại
+   bài còn xuất hiện trên từng hàng request: nhìn hàng dưới là nhận ra ngay
+   "cái này lọc theo đúng thẻ mình thấy". Thẻ cũng KHÔNG đếm số — con số đó phụ
+   thuộc trạng thái đang lọc nên nếu in ra sẽ mâu thuẫn với danh sách ngay bên
+   dưới nó.
+   Khe 6px: dải này từng nằm trong rãnh (3px đệm + 3px khe), nay rãnh đã gỡ
+   nên khoảng cách phải được khai thẳng, không thì các thẻ dán vào nhau. */
+.fchips.kinds { flex: 1 1 auto; gap: 6px; }
 .fchip.kind { padding: 6px 11px; font-size: 12px; }
 .fchip.kind.on { background: color-mix(in srgb, var(--c) 16%, var(--surface-2)); }
 /* Con số đếm kết quả của THANH LỌC. Phải gọi đúng tên `.fbar .fcount`: trong

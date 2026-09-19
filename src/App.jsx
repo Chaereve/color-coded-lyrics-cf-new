@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
@@ -105,15 +105,29 @@ const readBoard = () => {
 const VT = typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
 const REDUCED = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+/* BA NHÓM, ĐÚNG THỨ TỰ NGƯỜI TA ĐỌC BẢNG.
+   `c` là màu VẠCH của mục (CSS đọc qua biến `--c`), `ax` là nhóm — mục đầu
+   tiên của một nhóm mới mở đầu bằng một vạch ngăn dọc trong dải (xem
+   `.fchips .dot` trong index.css).
+
+     · pipe — bốn GIAI ĐOẠN của dây chuyền, xếp theo đúng thứ tự công việc
+       chạy (Queue → Up next → In progress → Done). Bản cũ để "In progress"
+       đứng sau "Top voted": dây chuyền bị cắt làm hai khúc.
+     · view — hai CÁCH NHÌN cả bảng. Cùng một màu nhấn (`--a-2`, sắc độ dùng
+       được cho chữ/icon trên nền tối) vì đây không phải hai giai đoạn khác
+       nhau; `--a` nguyên bản ở đây sẽ là một vạch gần như vô hình (3px màu
+       hue 242 ở 40% opacity trên nền #10141a).
+     · you  — việc của riêng người đang xem. Chỉ hiện khi có ít nhất một bài
+       đang theo dõi (rỗng thì mục này vô nghĩa), nên nhóm này có thể vắng
+       mặt — vạch ngăn của nó cũng phải biến mất theo (xem chỗ dựng dải). */
 const FILTERS = [
-  { k: 'queued',      c: 'var(--queued)' },
-  { k: 'picked',      c: 'var(--queued)' },
-  { k: 'newest',      c: 'var(--a)' },
-  { k: 'top',         c: 'var(--a-2)' },
-  { k: 'in_progress', c: 'var(--progress)' },
-  { k: 'completed',   c: 'var(--done)' },
-  /* Chỉ hiện khi đang theo dõi ≥1 bài — rỗng thì tab vô nghĩa. */
-  { k: 'watch',       c: 'var(--a-2)' },
+  { k: 'queued',      c: 'var(--queued)',   ax: 'pipe' },
+  { k: 'picked',      c: 'var(--queued)',   ax: 'pipe' },
+  { k: 'in_progress', c: 'var(--progress)', ax: 'pipe' },
+  { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
+  { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
+  { k: 'top',         c: 'var(--a-2)',      ax: 'view' },
+  { k: 'watch',       c: 'var(--a-2)',      ax: 'you' },
 ]
 const FILTER_KEYS = FILTERS.map(f => f.k)
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
@@ -1553,13 +1567,20 @@ function AppInner() {
                     </button>
                   </div>
                   <div className="fchips" role="group" aria-label={t('board.filterAria')}>
-                    {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
-                      <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
-                        style={{ '--c': f.c }} aria-pressed={filter === f.k}
-                        onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
-                        <i className="fdot" aria-hidden="true" />{t(`filter.${f.k}`)}
-                        <b className="fnum">{counts[f.k]}</b>
-                      </button>
+                    {/* Mỗi mục = VẠCH MÀU + nhãn + số (xem khối THANH LỌC trong
+                        index.css). Vạch ngăn chỉ mọc lên ở mục đầu tiên của
+                        một nhóm MỚI, và nhóm "đang theo dõi" vắng mặt thì vạch
+                        ngăn của nó cũng không được ở lại một mình. */}
+                    {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
+                      <Fragment key={f.k}>
+                        {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
+                        <button type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
+                          style={{ '--c': f.c }} aria-pressed={filter === f.k}
+                          onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
+                          <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
+                          <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
+                        </button>
+                      </Fragment>
                     ))}
                     {/* LOẠI BÀI ĐANG LỌC, hiện thành chip bỏ được ngay trên hàng
                         chính. Trên màn rộng khối lọc thứ hai luôn hiện nên chip
