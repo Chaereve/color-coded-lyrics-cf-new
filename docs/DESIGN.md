@@ -432,6 +432,11 @@ Ghi lại để lần sau không ai "sửa" ngược:
 - [ ] Màn hình mới là **trang** hay **hộp thoại**? Bảng quản trị là trang ở
       `/admin` (§7 cấm quay lại popup) — `src/components/AdminPanel.test.js` dựng
       thật cả năm mục và đỏ nếu có lớp modal quay lại.
+- [ ] Trang mới có nhiều mục con? Mục đang mở phải nằm ở **địa chỉ**
+      (`/admin?tab=…`, xem `src/lib/adminTabs.js`), không chỉ ở state: F5, nút
+      Back và việc dán link cho người khác đều dựa vào đó.
+- [ ] Có thêm nút tải dữ liệu ra? Dùng `src/lib/csv.js` (bọc ô theo RFC 4180 +
+      BOM cho Excel) và xuất **đúng những gì đang nhìn**, không phải cả bảng.
 - [ ] Đụng vào thứ tự bảng xếp hạng thì luật phải sửa ở `src/lib/ranking.js` và
       `src/lib/ranking.test.js` phải xanh — không sắp bằng `||` trong component
       (xem §2.7).

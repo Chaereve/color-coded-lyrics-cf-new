@@ -13,6 +13,7 @@ import Countdown from './components/Countdown'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
 import Standing from './components/Standing'
+import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
 import Progress from './components/Progress'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
@@ -355,7 +356,13 @@ export default function App() {
   /* `admin` cũ là boolean của hộp thoại; nay là TAB đang mở trong trang
      /admin (null = chưa chọn thì lấy tab đầu). Giữ nguyên tên biến để mọi chỗ
      gọi openAdmin/đóng panel không phải đổi theo. */
-  const [admin, setAdmin] = useState(null)
+  /* Mục đang mở đọc từ ĐỊA CHỈ (`/admin?tab=orders`): F5, nút Back, và dán
+     link cho người khác đều mở đúng chỗ đang làm. Địa chỉ là nguồn sự thật,
+     state chỉ là bản sao để render. */
+  const [admin, setAdmin] = useState(() =>
+    (window.location.pathname.replace(/\/+$/, '') === ROUTES.admin
+      ? readAdminTab(window.location.search)
+      : null))
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(readSide)
   useEffect(() => { try { localStorage.setItem(SIDE_KEY, collapsed ? 'min' : 'full') } catch { /* ignore */ } }, [collapsed])
@@ -374,6 +381,8 @@ export default function App() {
       setMenu(false)
       const narrow = window.matchMedia?.('(max-width: 899px)').matches
       window.scrollTo({ top: 0, behavior: narrow ? 'auto' : 'smooth' })
+      /* Chỉ mục Bảng mới có tham số sống ở địa chỉ (`?f=top&q=…`); trang quản
+         trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây. */
       const qs = k === 'board' ? window.location.search : ''
       if (ROUTES[k] + qs !== window.location.pathname + window.location.search) {
         window.history.pushState({ s: k }, '', ROUTES[k] + qs)
@@ -411,6 +420,10 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       setSection(sectionOf(window.location.pathname))
+      /* Back/Forward trên trang quản trị: mục đang mở cũng nằm ở địa chỉ nên
+         phải đọc lại cùng lúc với mục của trang — không thì địa chỉ nói
+         `?tab=done` mà màn hình vẫn đang ở Đơn hàng. */
+      setAdmin(readAdminTab(window.location.search))
       const b = readBoard()
       setFilter(b.f); setKindFilter(b.k); setQ(b.q)
     }
@@ -1241,7 +1254,14 @@ export default function App() {
   }, [go])
   /* Mở bảng quản trị = ĐI TỚI một mục, không bật hộp thoại. `null` nghĩa là
      không chỉ định tab (panel tự chọn tab đầu). */
-  const openAdmin = useCallback((tab = null) => { setAdmin(tab); go(ADMIN_ONLY) }, [go])
+  const openAdmin = useCallback((tab = null) => {
+    setAdmin(tab)
+    go(ADMIN_ONLY)
+    /* Đổi mục trong trang quản trị là đổi địa chỉ, nhưng KHÔNG đẩy thêm một
+       mốc lịch sử: bấm Back sau khi soát năm mục phải quay về trang trước đó,
+       không phải lùi qua năm địa chỉ của cùng một trang. */
+    if (tab) window.history.replaceState({ s: ADMIN_ONLY }, '', adminTabPath(ROUTES.admin, tab))
+  }, [go])
   /* Dang xuat phai LUON tra ve man dang nhap. Truoc day dung
      signOut().then(() => setUser(null)): mang loi la promise reject, setUser
      khong bao gio chay, va nguoi dung ket lai trong tai khoan cu. Don state
@@ -1720,7 +1740,7 @@ export default function App() {
       {user.isAdmin && section === ADMIN_ONLY && (
         <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
           <AdminPanel
-            tab={admin || 'pending'} onTab={setAdmin}
+            tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
             rows={rows} orders={orders} media={featuredRows}
             onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
             onPick={doAdminPick} onBulk={doBulk}

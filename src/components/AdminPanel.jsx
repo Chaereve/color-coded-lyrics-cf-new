@@ -6,6 +6,7 @@ import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, u
 import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
+import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useI18n } from '../lib/i18n.jsx'
 import MediaAdmin from './MediaAdmin'
 import Pager from './Pager'
@@ -363,6 +364,44 @@ export default function AdminPanel({
     return next
   })
 
+  /* XUẤT CSV — cột khác nhau theo mục: đơn hàng có tiền, request có tiến độ
+     và vote. Dùng chung một bảng cột cho mọi mục là mở ra hai chục cột rỗng
+     trong file. Xuất ĐÚNG những dòng đang nhìn (đã lọc, đã xếp) — file phải
+     khớp với màn hình, không phải với cả database. */
+  const [exported, setExported] = useState(false)
+  const exportCsv = () => {
+    const ok = tab === 'orders'
+      ? downloadText(csvFileName('don-hang'), toCsv(shown, [
+        { k: 'id', label: 'ID' },
+        { k: 'kind', label: 'Loai' },
+        { k: 'qty', label: 'So vote' },
+        { k: 'amount_vnd', label: 'VND' },
+        { k: 'amount_usd', label: 'USD' },
+        { k: 'status', label: 'Trang thai' },
+        { k: 'created_at', label: 'Tao luc' },
+      ]))
+      : downloadText(csvFileName(`request-${tab}`), toCsv(shown, [
+        { k: 'id', label: 'ID' },
+        { k: 'kind', label: 'Loai bai' },
+        { k: 'artist', label: 'Nghe si' },
+        { k: 'title', label: 'Ten bai' },
+        { k: 'requester', label: 'Nguoi gui' },
+        { k: 'status', label: 'Trang thai' },
+        { k: 'votes', label: 'Vote' },
+        { k: 'is_paid', label: 'Tra phi' },
+        { k: 'progress', label: 'Tien do %', get: (r) => progressOf(r) },
+        { k: 'link', label: 'Link nguon' },
+        { k: 'video_url', label: 'Video' },
+        { k: 'note', label: 'Ghi chu' },
+        { k: 'created_at', label: 'Tao luc' },
+      ]))
+    if (!ok) return
+    /* Nhãn nút đổi tại chỗ rồi tự về: file tải xuống không có phản hồi nào
+       khác, và người bấm cần biết lần bấm của mình đã ăn. */
+    setExported(true)
+    setTimeout(() => setExported(false), 2000)
+  }
+
   /* giữ nút ở trạng thái "đang lưu" cho tới khi bảng Admin được tải lại */
   const runMedia = async (fn) => {
     setBusy(true)
@@ -420,6 +459,12 @@ export default function AdminPanel({
                     aria-pressed={pickMode}
                     onClick={() => { setPickMode(v => !v); setSel(new Set()) }}>
                     {pickMode ? t('adm.pickModeOff') : t('adm.pickMode')}
+                  </button>
+                  {/* XUẤT CSV: dữ liệu của bảng phải ra được khỏi bảng, và cách
+                      không tốn request nào là dựng file ngay trong trình duyệt. */}
+                  <button type="button" className="btn btn-sm adm-export"
+                    onClick={exportCsv}>
+                    {exported ? t('adm.exported') : t('adm.export')}
                   </button>
                 </>
               )}

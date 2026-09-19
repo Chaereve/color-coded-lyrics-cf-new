@@ -517,6 +517,8 @@ const S = {
 
   /* bang dieu hanh */
   'adm.pageAria': 'Admin workspace',
+  'adm.export': 'Export CSV',
+  'adm.exported': 'Saved',
   'adm.showing': 'Showing {n} of {total}',
   'adm.selectPage': 'Select all {n} on this page',
   'adm.pending': 'Pending',
