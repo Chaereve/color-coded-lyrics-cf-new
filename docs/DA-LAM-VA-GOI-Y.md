@@ -889,3 +889,24 @@ ngăn**: hai trục vẫn nằm cạnh nhau, nhưng mắt đọc ra được là
 `npm test` → **372 ca / 371 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **240/240** (trước vòng
 này: 233/235, hai mục đỏ có sẵn đã sửa). `npx oxlint` → **0 lỗi, 13 cảnh báo** (không đổi).
 `npm run build` → OK, `index-CrJfrDJz.js` 294,7 kB (gzip 91,7 kB), CSS 118,7 kB.
+
+### S6. Tinh chỉnh cho PC (bổ sung cùng vòng)
+
+Chủ dự án hỏi lại đúng một câu: *"bạn có tinh chỉnh cho trên pc chưa"*. Câu trả lời lúc đó
+là **chưa**: vòng S2 mới áp một hình dáng dùng chung cho mọi bề rộng. Đã đo lại cột nội dung
+trên PC (từ 900px `.main` = `min(bề rộng − 252, 1060) − 52`, nên cột hẹp nhất khoảng 596px)
+và thêm bốn nhịp riêng, cùng một chỗ sửa ở hàng trên:
+
+| Chỗ | Trước | Sau (chỉ trên PC) | Vì sao |
+|---|---|---|---|
+| Chiều cao mục lọc | 25px (đúng chiều cao chữ + đệm) | **32px** | Trên màn 27", 25px đọc ra như một dòng phụ, không như một hàng điều khiển; 32px bằng nút Bộ lọc ở hàng trên |
+| Nền khi rê chuột | `--hover` (5,5%) | `--hover-2` (8,5%) | Rê là thao tác **chỉ có** trên PC — nơi nó tồn tại thì nó phải đọc ra "chỗ này bấm được" |
+| Dải tràn ở cửa sổ 900–1010px | Thanh cuộn bị ẩn (`scrollbar-width: none`) → mục cuối bị cắt mà không có cách nào lăn tới bằng chuột | **Thanh cuộn mảnh 5px**, chỉ hiện khi thật sự tràn | Cửa sổ nửa màn hình là ca rất thật, mà lăn chuột ngang thì không phải ai cũng biết |
+| Ô tìm kiếm | `flex: 1 1 210px` → rộng ~1000px trên màn lớn | **chặn 360px**, con số đếm đẩy về mép phải | Phím tắt `/` neo ở mép phải ô (`.search-kbd { right: 6px }`) nên nó bị đẩy cách chỗ gõ gần một mét; một ô nhập rộng bằng cả trang đọc ra như form, không như ô tra cứu |
+| Vạch của mục đầu | thụt vào 10px so với mép ô tìm kiếm và mép danh sách | **0** (`.fchips > .fchip:first-child`) | Trên màn rộng, một khoảng thụt 10px đọc ra là "lệch", không ra là "đệm" |
+
+Một chi tiết về thứ tự trong `index.css`: khối PC đặt **trước** khối `@media (pointer: coarse)`
+là có chủ ý — thiết bị lạ (máy tính bảng cắm chuột) có thể khớp cả hai vế, và khi đó **vế chạm
+phải thắng** (40px cho ngón tay quan trọng hơn 32px cho chuột). Đây là loại lỗi cascade im
+lặng, nên nó được chốt bằng một phép kiểm **so vị trí hai khối trong tệp**, không phải bằng
+một dòng ghi chú.

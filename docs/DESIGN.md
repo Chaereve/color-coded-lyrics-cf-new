@@ -308,10 +308,26 @@ Hình dáng mới, và điều nó mua được:
   dùng được cho chữ/icon trên nền tối, còn `--a` nguyên bản (hue 242) ở 40%
   opacity trên nền `#10141a` là một vạch gần như vô hình.
 
+**PC và máy hẹp: cùng một hình dáng, khác nhịp.** Hình dáng trên không phụ thuộc
+bề rộng, nhưng **nhịp** thì phải khác — chuột trỏ chính xác và màn rộng là hai
+điều kiện khác hẳn ngón tay trên màn 390px:
+
+| | PC (`≥900px` + `hover: hover`) | Thiết bị chạm (`pointer: coarse`) |
+|---|---|---|
+| Chiều cao mục | **32px** — 25px (đúng chiều cao chữ) trên màn 27" đọc ra như một dòng phụ, không như hàng điều khiển | **≥40px** — ngưỡng ngón tay, giữ nguyên pixel bản desktop về hình dáng |
+| Rê chuột | Nền nhấc lên một nhịp đậm hơn (`--hover-2`) — đây là thao tác **chỉ có** trên PC | Không có hover; `@media (hover: none)` ở cuối tệp trả lại mọi thứ đọc được |
+| Dải tràn | Hiện **thanh cuộn mảnh 5px** (chỉ khi thật sự tràn — cửa sổ 900–1010px là bề rộng duy nhất bảy mục không vừa một hàng) | Cuộn bằng ngón tay, có điểm dừng (`scroll-snap`) — thanh cuộn bị ẩn |
+| Ô tìm kiếm | **Chặn 360px** + con số đếm đẩy về mép phải: để nó co giãn hết hàng thì trên màn 27" nó rộng ~1000px, và phím tắt `/` neo ở mép phải ô sẽ cách chỗ gõ gần một mét | Chiếm trọn một hàng (màn hẹp thì không có chỗ cho hai thứ cạnh nhau) |
+
+Khối PC cố ý đặt **trước** khối thiết bị chạm trong `index.css`: một thiết bị lạ
+(máy tính bảng cắm chuột) đôi khi khớp cả hai vế, và khi đó **vế chạm phải thắng**
+— 40px cho ngón tay quan trọng hơn 32px cho chuột. Điều đó được chốt bằng một
+phép kiểm so **thứ tự**, không phải bằng cảm nhận (xem `cssFilterBar.test.js`).
+
 Hai phép kiểm giữ hình dáng này: `src/lib/cssFilterBar.test.js` chốt *không có*
-nền/viền/bo góc trên dải, *không còn* luật `.fdot`, thứ tự bốn giai đoạn, và vạch
-ngăn theo nhóm; `npm run smoke` chốt trên DOM thật (mỗi mục có vạch, **đúng một**
-mục đang chọn, số vạch ngăn khớp số nhóm đang hiện).
+nền/viền/bo góc trên dải, *không còn* luật `.fdot`, thứ tự bốn giai đoạn, vạch
+ngăn theo nhóm, và **thứ tự khối PC/máy hẹp**; `npm run smoke` chốt trên DOM thật
+(mỗi mục có vạch, **đúng một** mục đang chọn, số vạch ngăn khớp số nhóm đang hiện).
 
 ---
 

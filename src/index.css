@@ -540,6 +540,42 @@ select {
   border: 0; border-radius: var(--radius) var(--radius) 0 0; background: none;
   color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
   transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft); }
+/* ---- BỐN NHỊP RIÊNG CHO PC (màn ≥900px, chuột) -------------------------
+   Đặt TRƯỚC khối `@media (pointer: coarse)` bên dưới, và đây là chủ ý: một
+   thiết bị lạ (máy tính bảng cắm chuột) đôi khi khớp cả hai vế, và khi đó vế
+   CHẠM phải thắng — 40px cho ngón tay quan trọng hơn 32px cho chuột.
+
+     1. HÀNG MỤC CAO 32px. Chuột trỏ chính xác nên không cần 40px, nhưng 25px
+        (đúng chiều cao chữ + đệm) trên màn 27" đọc ra như một dòng phụ chứ
+        không như một hàng điều khiển; 32px bằng nút **Bộ lọc** và gần bằng ô
+        tìm kiếm ở hàng trên. Áp theo `hover: hover` chứ không theo bề rộng:
+        màn hẹp mà vẫn có chuột (cửa sổ nửa màn hình) thì cũng được hưởng.
+     2. RÊ CHUỘT ĐẬM HƠN MỘT NHỊP. Rê là thao tác chỉ có trên PC (điện thoại
+        không có hover, xem khối `@media (hover: none)` ở cuối tệp) — nền nhấc
+        từ 5,5% lên 8,5% để "chỗ này bấm được" đọc ra ngay trên màn to.
+     3. THANH CUỘN MẢNH KHI DẢI THẬT SỰ TRÀN. Cửa sổ 900–1010px (cửa sổ nửa
+        màn hình) là bề rộng duy nhất mà bảy mục không vừa một hàng, mà lăn
+        chuột ngang thì không phải ai cũng biết. `overflow-x: auto` chỉ vẽ
+        thanh cuộn KHI có tràn, nên lúc bình thường hàng vẫn sạch — đây là
+        affordance thật, không phải trang trí.
+     4. MỤC ĐẦU KHÔNG THỤT VÀO. Vạch của mục đầu tiên phải thẳng hàng với mép
+        ô tìm kiếm ở hàng trên và mép danh sách request ở dưới — trên màn rộng
+        một khoảng thụt 10px đọc ra là "lệch", không ra là "đệm". */
+@media (min-width: 900px) and (hover: hover) {
+  .fchip { min-height: 32px; }
+  /* `.fchips .fchip:hover` (ba lớp) chứ không phải `.fchip:hover` (hai lớp):
+     luật `:hover` gốc nằm ở dưới trong tệp, và với cùng độ ưu tiên thì bản
+     dưới thắng — viết hai lớp ở đây là bản desktop bị đè im lặng. */
+  .fchips .fchip:hover { background: var(--hover-2); }
+}
+@media (min-width: 900px) {
+  .fchips { scrollbar-width: thin; }
+  .fchips::-webkit-scrollbar { display: block; height: 5px; }
+  .fchips::-webkit-scrollbar-track { background: none; }
+  .fchips::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+}
+.fchips > .fchip:first-child { padding-left: 0; }
+
 /* Trên thiết bị CHẠM, mục lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
    bản desktop (vạch + chữ 12.5px) và chỉ nâng chiều cao tối thiểu, nới hai bên
    một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản desktop —
@@ -3756,11 +3792,17 @@ html[data-section="spin"] .bgfx { display: none; }
    stay on ONE line; if the content column is genuinely narrower than the
    labels, the row scrolls horizontally instead of making a crooked second
    line of half-height pills. The DOM order is search → summary → statuses,
-   so the visual and keyboard order stay the same. */
+   so the visual and keyboard order stay the same.
+   VÒNG 15 (PC): ô tìm kiếm KHÔNG co giãn nữa. Bản trước để nó `flex: 1 1 210px`,
+   nên trên màn 27" nó rộng gần 1000px — và phím tắt `/` neo ở mép phải ô
+   (`.search-kbd { right: 6px }`) bị đẩy cách chỗ gõ gần một mét: một ô nhập
+   rộng bằng cả trang đọc ra như form chờ ai đó viết một bài luận, không như
+   một ô tra cứu. Chặn ở 360px và đẩy con số đếm về mép phải bằng
+   `margin-left: auto` để hàng trên vẫn là một thanh công cụ hai đầu. */
 @media (min-width: 900px) {
   .fbar-top { flex-wrap: wrap; align-items: center; row-gap: 8px; }
-  .fbar-top > .searchwrap { flex: 1 1 210px; min-width: 0; }
-  .fbar-top > .fbar-side { flex: none; min-height: 34px; align-items: center; }
+  .fbar-top > .searchwrap { flex: 0 1 360px; min-width: 0; }
+  .fbar-top > .fbar-side { flex: none; min-height: 34px; align-items: center; margin-left: auto; }
   .fbar-top > .fchips {
     flex: 1 1 100%; min-width: 0;
     flex-wrap: nowrap; overflow-x: auto;

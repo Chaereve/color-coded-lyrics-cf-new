@@ -159,6 +159,40 @@ test('dải lọc là vạch + chữ, không phải hàng chip: bỏ rãnh, bỏ
   assert.match(num, /font-variant-numeric:\s*tabular-nums/, 'số phải đứng yên khi giá trị đổi')
 })
 
+test('PC có nhịp riêng, và vế CHẠM không bị nó đè', () => {
+  /* Bốn nhịp riêng cho PC nằm trong khối BỐN NHỊP RIÊNG CHO PC của index.css.
+     Điều đáng chốt nhất không phải "có mấy luật" mà là THỨ TỰ: khối PC phải
+     đứng TRƯỚC `@media (pointer: coarse)`. Một thiết bị lạ (máy tính bảng cắm
+     chuột) đôi khi khớp cả hai vế, và khi đó vế chạm phải thắng — để sau là
+     32px của chuột đè lên 40px của ngón tay, đúng thứ người dùng chỉ ra ở vòng
+     1 ("nút nhỏ quá, bấm trượt"). */
+  const pc = css.indexOf('@media (min-width: 900px) and (hover: hover)')
+  const touch = css.indexOf('@media (pointer: coarse)')
+  assert.ok(pc > 0, 'thiếu khối nhịp riêng cho PC (chuột)')
+  assert.ok(touch > 0, 'thiếu khối nới cỡ cho thiết bị chạm')
+  assert.ok(pc < touch, 'khối PC phải đứng trước khối thiết bị chạm, nếu không vế chạm bị đè')
+  const block = css.slice(pc, css.indexOf('}', css.indexOf('.fchip:hover', pc)) + 1)
+  assert.match(block, /\.fchip \{ min-height: 32px/, 'hàng mục trên PC phải cao 32px')
+  assert.match(block, /\.fchips \.fchip:hover \{ background: var\(--hover-2\)/,
+    'nền rê chuột phải đậm hơn bản gốc — và phải gọi ba lớp, vì luật :hover gốc nằm dưới')
+  /* Dải có thể tràn khi cửa sổ 900–1010px: trên PC phải có affordance thật
+     (thanh cuộn mảnh), không phải im lặng cắt mất mục cuối. */
+  const wide = css.slice(css.indexOf('@media (min-width: 900px) {'))
+  assert.match(wide, /\.fchips \{ scrollbar-width: thin/, 'cửa sổ hẹp trên PC phải thấy thanh cuộn')
+  assert.match(wide, /\.fchips::-webkit-scrollbar \{ display: block; height: 5px/,
+    'thanh cuộn phải hiện lại được ở bản webkit, và chỉ cao 5px')
+  /* Vạch của mục đầu thẳng hàng với mép ô tìm kiếm và mép danh sách. */
+  assert.ok(has('.fchips > .fchip:first-child', /padding-left:\s*0/),
+    'mục đầu không được thụt vào so với mép nội dung')
+  /* Ô tìm kiếm trên PC bị chặn bề rộng: để nó co giãn hết hàng thì trên màn
+     27" nó rộng ~1000px, và phím tắt `/` neo ở mép phải bị đẩy cách chỗ gõ
+     gần một mét. */
+  assert.match(wide, /\.fbar-top > \.searchwrap \{ flex: 0 1 \d+px/,
+    'ô tìm kiếm trên PC phải có bề rộng chặn, không co giãn hết hàng')
+  assert.match(wide, /\.fbar-top > \.fbar-side \{[^}]*margin-left: auto/,
+    'con số đếm phải được đẩy về mép phải khi ô tìm kiếm không còn co giãn')
+})
+
 test('mục đang chọn mang đúng màu của nó, và không tô nền', () => {
   /* Màu của một mục lọc là DỮ LIỆU (giai đoạn nào đang có việc), không phải
      trang trí — nó sống trong VẠCH, lấy từ cùng biến `--c` mà thanh tiến độ
