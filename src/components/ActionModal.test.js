@@ -84,9 +84,16 @@ test('lần đầu mở modal: form bị chặn bằng bảng luật, không ph�
 
 test('thẻ XEM TRƯỚC dựng theo đúng việc đang gõ, và nói ra chỗ còn thiếu', async () => {
   alreadyAgreed()
+  /* Form là BA BƯỚC, mỗi bước một màn: thẻ xem trước nằm ở bước 2 (đặt tên bài).
+     Mở form với một ô đã có chữ thì rơi đúng vào bước 2 — đó cũng là đường đi
+     thật của người dùng khi mở lại form từ nháp hoặc từ link mời. */
   const empty = plain(await render({ ...base, live: false }))
-  assert.match(empty, /Preview — this is what goes on the board/, 'phải có thẻ xem trước')
-  assert.match(empty, /artist name…/, 'ô chưa điền phải hiện chữ mờ nói còn thiếu gì')
+  assert.match(empty, /Pick a type/, 'chưa có gì thì mở ở bước chọn loại')
+  assert.ok(!/Preview — this is what goes on the board/.test(empty),
+    'bước 1 không được chứa sẵn phần của bước 2')
+  const half = plain(await render({ ...base, live: false, prefill: { artist: 'aespa' } }))
+  assert.match(half, /Preview — this is what goes on the board/, 'phải có thẻ xem trước')
+  assert.match(half, /the song name…/, 'ô chưa điền phải hiện chữ mờ nói còn thiếu gì')
 
   const filled = plain(await render({
     ...base, live: false,
@@ -129,7 +136,13 @@ test('bài đã có trên bảng: form chỉ cho vote cho bài cũ, và luôn ch
     prefill: { artist: 'aespa', title: 'Whiplash' },
   }))
   assert.match(tx, /already on the board|Vote for/i, 'bài trùng phải được nói ra kèm lối vote')
-  assert.match(tx, /Send request|Fill in the required fields/, 'gợi ý không được biến thành cửa chặn')
+  /* Gợi ý KHÔNG phải cửa chặn: bằng chứng là bước kế tiếp vẫn mở. Nút gửi chỉ
+     bị chặn bởi `busy` — không có điều kiện nào đọc `dup`. */
+  assert.match(tx, /Continue/, 'gợi ý không được biến thành cửa chặn')
+  const src = readFileSync(`${root}src/components/ActionModal.jsx`, 'utf8')
+  const submit = src.match(/<button type="submit"([\s\S]*?)>/)[1]
+  assert.match(submit, /disabled=\{busy\}/, 'nút gửi chỉ chặn khi đang gửi')
+  assert.doesNotMatch(submit, /dup/, 'bài trùng không được chặn nút gửi')
 })
 test('form nhớ việc đang làm dở, và Enter/ dán link đều có đường đi ngắn', async () => {
   const { readFileSync } = await import('node:fs')
@@ -145,17 +158,23 @@ test('form nhớ việc đang làm dở, và Enter/ dán link đều có đườ
     'phải đọc nháp lúc mở form — trừ khi có link mời (link mời thắng)')
   assert.match(src, /forgetDraft\(\)\s*\/\* gửi xong/, 'gửi xong phải xoá nháp')
   /* và nút "Bỏ nháp" phải DỌN FORM, không chỉ xoá bản lưu: bấm vào mà chữ vẫn
-     còn thì người dùng vừa bấm cái gì? */
-  const discard = src.match(/const discardDraft = \(\) => \{([\s\S]*?)\n  \}/)[1]
-  assert.match(discard, /forgetDraft\(\)/, 'bỏ nháp phải xoá bản lưu')
-  assert.match(discard, /artist: '', title: '', link: '', note: ''/, 'bỏ nháp phải dọn form')
+     còn thì người dùng vừa bấm cái gì? Việc dọn nằm trong `clearForm` (dùng
+     chung với nút Xoá), và phải kéo cả form về bước 1 — dọn nửa vời (chữ trắng
+     nhưng đang đứng ở bước 3) là một màn hình trống không nói gì. */
+  const clear = src.match(/const clearForm = \(\) => \{([\s\S]*?)\n  \}/)[1]
+  assert.match(clear, /forgetDraft\(\)/, 'dọn form phải xoá bản lưu')
+  assert.match(clear, /artist: '', title: '', link: '', note: ''/, 'dọn form phải xoá chữ')
+  assert.match(clear, /setStep\(1\)/, 'dọn form phải về bước 1')
+  assert.match(src, /const discardDraft = \(\) => \{ clearForm\(\)/, 'bỏ nháp dùng chung một đường dọn')
   assert.match(src, /draft-note/, 'phải NÓI RA là form được khôi phục từ nháp')
 
-  /* ENTER: ô nghệ sĩ là đi tiếp, ô tên bài là gửi (đủ điều kiện). */
+  /* ENTER: ô nghệ sĩ là đi tiếp, ô tên bài là XONG BƯỚC NÀY (sang bước gửi),
+     chứ không gửi thẳng — ở bước 3 còn ô ghi chú và lựa chọn bài trả phí mà
+     người dùng chưa nhìn thấy. */
   assert.match(src, /if \(e\.key === 'Enter'\) \{ e\.preventDefault\(\); titleRef\.current\?\.focus\(\) \}/,
     'Enter ở ô nghệ sĩ phải nhảy sang ô tên bài')
-  assert.match(src, /if \(ready\) goSubmit\(\); else artistRef\.current\?\.focus\(\)/,
-    'Enter ở ô cuối phải gửi được khi form đã đủ')
+  assert.match(src, /if \(ready\) setStep\(3\); else artistRef\.current\?\.focus\(\)/,
+    'Enter ở ô cuối phải mở bước gửi khi form đã đủ')
 
   /* DÁN LINK vào ô tên bài: link phải về ô Link, không thành tên bài. */
   assert.match(src, /const pasteLink = \(e\) => \{/, 'thiếu bộ bắt dán link')

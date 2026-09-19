@@ -26,9 +26,9 @@
      Sáng dần theo độ hiếm, nên mắt đọc được "ô nào đáng hơn" trước cả khi đọc
      số. Bản trước tô xen kẽ theo chẵn/lẻ nên hai ô cùng thưởng nằm cạnh nhau
      vẫn khác màu — nhìn không suy ra được ô nào là ô nào. */
-  --w-1: var(--surface-2);
-  --w-2: color-mix(in oklab, var(--surface-2) 82%, var(--txt));
-  --w-3: color-mix(in oklab, var(--surface-3) 74%, var(--txt));
+  --w-1: var(--surface-3);
+  --w-2: color-mix(in oklab, var(--surface-3) 74%, var(--a-2));
+  --w-3: color-mix(in oklab, var(--a) 62%, var(--surface-3));
   --w-4: var(--a);
 }
 
@@ -85,26 +85,22 @@
 /* Vành: một dải phẳng + một đường tóc ngoài — "khung máy" của đĩa. */
 .spin-wheel-rim { fill: none; stroke: var(--surface-3); stroke-width: 9; }
 .spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
-/* Lát tô theo MỨC THƯỞNG (xem --w-1..--w-4 ở khối .daily-spin). Ô lẻ trong
-   mỗi dải nhạt hơn một chút (.weave) để vẫn đếm được từng ô 22,5° — đường kẻ
-   giữa các ô đã bị gỡ từ trước và không quay lại. */
-.spin-sector { fill: var(--wc, var(--w-1)); transition: opacity .35s var(--e-soft); }
+/* Lát tô theo MỨC THƯỞNG (xem --w-1..--w-4 ở khối .daily-spin).
+   NÉT CHIA Ô: mỗi lát được viền một nét mảnh MÀU NỀN của thẻ — đúng cách một
+   bánh xe thưởng thật chia ô. Nét này thay cho hai thứ đã bị gỡ: 16 nan hoa
+   (nói lại điều nét viền đã nói) và mẹo tô xen kẽ hai tông (.weave — làm mặt
+   đĩa lốm đốm như lỗi tô màu). Viền nằm TRONG lát nên không làm đĩa to ra. */
+.spin-sector { fill: var(--wc, var(--w-1)); stroke: var(--surface); stroke-width: 1.4;
+  stroke-linejoin: round; transition: opacity .35s var(--e-soft); }
 .spin-sector.t1 { --wc: var(--w-1); }
 .spin-sector.t2 { --wc: var(--w-2); }
 .spin-sector.t3 { --wc: var(--w-3); }
 .spin-sector.t4 { --wc: var(--w-4); }
-.spin-sector.weave { fill: color-mix(in oklab, var(--wc) 86%, var(--txt)); }
 .spin-wheel-number {
   font-family: var(--mono); font-size: 24px; font-weight: 600; letter-spacing: -.4px;
   fill: var(--txt); opacity: .94; transition: opacity .35s var(--e-soft);
 }
 .spin-wheel-plus { font-size: 15px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
-/* "×9" — số ô của dải. Chín ô cùng thưởng được in MỘT lần, kèm số ô, thay vì
-   chín số 1 giống hệt nhau rải quanh đĩa. */
-.spin-wheel-times {
-  font-size: 12.5px; font-weight: 500; letter-spacing: 0;
-  fill: color-mix(in oklab, var(--txt) 58%, transparent);
-}
 /* Ô giải cao nhất: chữ trắng trên nền --a (6,35:1) và lớn hơn một bậc — đây là
    lý do cả cái bánh xe tồn tại. */
 .spin-wheel-number.jackpot { fill: #fff; font-size: 29px; }
@@ -112,6 +108,9 @@
 /* Trục: MỘT đĩa phẳng nhỏ. Không mũi chỉ, không chấm — con trỏ ở vành đã trả
    lời "kim đang chỉ đâu", thêm hai chi tiết nữa là nói lại lần thứ ba. */
 .spin-wheel-hub { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }
+/* Trục to hơn (r=26) và có một vòng trong: ở cỡ 360px, một đĩa 21px trông như
+   lỗ hổng giữa bánh xe chứ không phải trục. Không vẽ mũi chỉ, không logo —
+   con trỏ ở vành đã trả lời "kim đang chỉ đâu". */
 /* Trúng thưởng: MỘT dấu. Mọi lát tối đi, lát trúng được viền trắng; số của nó
    nảy lên một nhịp (nhịp lấy từ transitions.dev 02-number-pop-in). */
 .spin-wheel-marker { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linejoin: round; }

@@ -855,10 +855,20 @@ select {
 
 /* Nút gửi của form request bám đáy khung cuộn — xem ActionModal.jsx. Nền mờ
    như .modal để chữ cuộn phía sau không đâm xuyên qua nút. */
-.req-actions { position: sticky; bottom: -2px; z-index: 3; display: flex; flex-direction: column; gap: 8px;
+/* CHÂN FORM — dính đáy khung, và là MỘT HÀNG: nút quay lại (nếu có) · nút
+   chính · nút xoá. Bản cũ xếp dọc nên nút chính và nút xoá chiếm hai hàng,
+   đẩy chính chúng ra khỏi tầm mắt khi form còn dài. */
+.req-actions { position: sticky; bottom: -2px; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   margin-top: 12px; padding: 10px 0 2px; border-top: 1px solid var(--line);
   background: var(--float-2); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
-.req-actions .msg { margin-top: 0; }
+.req-actions .msg { flex: 1 1 100%; margin-top: 0; }
+.req-actions .btn { height: 38px; }
+/* Trên máy hẹp, ba nút trên một hàng vẫn đủ chỗ: nút chính co giãn, hai nút
+   phụ giữ nguyên bề rộng chữ. */
+@media (max-width: 420px) {
+  .req-actions .req-back { order: 2; }
+  .req-actions .btn[type="submit"], .req-actions .btn-primary { flex: 1 1 100%; order: 1; }
+}
 
 /* ================= MODAL ================= */
 .overlay {
@@ -3392,23 +3402,64 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .draft-note .lnk { margin-left: auto; flex: none; font-size: 12px; }
 
-.req-steps { display: flex; gap: 6px; margin: 0 0 14px; padding: 0; list-style: none; flex-wrap: wrap; }
-.req-steps li {
-  flex: 1 1 0; min-width: 96px; display: flex; align-items: center; gap: 8px;
-  padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--radius);
-  background: var(--surface-2); color: var(--txt-3); font-size: 11.5px; line-height: 1.3;
-  transition: border-color var(--t-2) var(--e-soft), color var(--t-2) var(--e-soft);
+/* DẢI BƯỚC — bộ chỉ báo tiến trình, không phải ba cái nhãn.
+   Cấu trúc: ba mục (số thứ tự trong một vòng tròn + nhãn), giữa hai mục là một
+   đoạn nối. Đoạn nối của bước ĐÃ XONG được tô màu nhấn — vạch tiến trình nằm
+   luôn trong dải bước nên không cần thêm một thanh phần trăm thứ hai. Bước
+   đang đứng: vòng số đặc màu nhấn, chữ sáng nhất. Bước chưa tới: chìm hẳn.
+   Mọi mục đều bấm được (quay lại bước cũ), trừ bước GỬI khi chưa đủ hai ô bắt
+   buộc — nút đó ở trạng thái `disabled` thật, không phải chỉ mờ đi. */
+.req-steps { display: flex; align-items: center; gap: 0; margin: 0 0 14px; padding: 0; list-style: none; }
+.req-step { display: flex; align-items: center; flex: 1 1 0; min-width: 0; gap: 0; }
+.req-step:last-child { flex: 0 0 auto; }
+.rs-btn {
+  /* `flex: 0 1 auto` + min-width:0: bình thường nút giữ nguyên cỡ, nhưng ở máy
+     hẹp nhất (320px) nhãn cắt bằng dấu … thay vì đẩy dải bước tràn ra ngoài thẻ */
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto;
+  padding: 3px 2px; border: 0; background: none; cursor: pointer; font-family: inherit;
+  color: var(--txt-3); font-size: 12px; font-weight: 500; line-height: 1.25; text-align: left;
+  border-radius: var(--radius);
+  transition: color var(--t-1) var(--e-soft);
 }
-.req-steps b {
-  flex: none; width: 18px; height: 18px; display: grid; place-items: center;
-  border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface);
-  font: 600 10.5px/1 var(--mono); color: var(--txt-3);
+.rs-btn:hover:not(:disabled) { color: var(--txt-2); }
+.rs-btn:disabled { cursor: default; opacity: .55; }
+.rs-btn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.rs-n {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface-2);
+  font: 600 11px/1 var(--mono); color: var(--txt-3);
+  transition: background var(--t-2) var(--e-soft), border-color var(--t-2) var(--e-soft),
+    color var(--t-2) var(--e-soft);
 }
-.req-steps li.on { color: var(--txt-2); border-color: var(--line-2); }
-.req-steps li.on b { color: var(--a-2); border-color: var(--a-dim); background: var(--a-soft); }
+.rs-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* đoạn nối: một vạch mảnh chạy giữa hai vòng số, tô dần theo tiến trình */
+.rs-line { flex: 1 1 auto; height: 2px; min-width: 10px; margin: 0 9px; border-radius: 2px;
+  background: var(--line); transition: background var(--t-3) var(--e-soft); }
+.req-step.done .rs-line { background: color-mix(in srgb, var(--a-2) 55%, var(--line)); }
+.req-step.done .rs-n { color: var(--a-2); border-color: var(--a-dim); background: var(--a-soft); }
+.req-step.done .rs-btn { color: var(--txt-2); }
+.req-step.on .rs-btn { color: var(--txt); font-weight: 600; }
+.req-step.on .rs-n { color: #fff; border-color: var(--a); background: var(--a); font-weight: 700; }
+@media (max-width: 620px) {
+  /* MÁY HẸP: đủ ba vòng số, nhưng chỉ MỞ NHÃN của bước đang đứng. Ba nhãn đầy
+     đủ cộng ba vòng số không vừa một hàng ở 320–620px; mà ba cái nhãn bị cắt
+     cụt thì không giúp ai đọc. Vòng số + nhãn của bước hiện tại là đủ để biết
+     "đang ở đâu / còn mấy bước". */
+  .rs-t { display: none; font-size: 11px; }
+  .req-step.on .rs-t { display: inline; }
+  .rs-line { margin: 0 6px; min-width: 6px; }
+  .rs-btn { gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-line, .rs-n { transition: none; }
+}
 
-/* Chọn loại bài: bốn THẺ có tên + một dòng giải thích, thay cho bốn nút chữ.
-   Hai loại khác nhau phải đọc ra là khác nhau ngay ở bước chọn. */
+/* MỘT BƯỚC = MỘT MÀN. Đổi bước là một nhịp vào rất ngắn (150ms) — chỉ mờ dần
+   và nhích lên 4px, không trượt ngang: form không phải băng chuyền. */
+.req-pane { animation: paneIn .18s var(--e-out) both; }
+@keyframes paneIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .req-pane { animation: none } }
+
 /* CHỌN LOẠI BÀI: một hàng chip, không phải bốn tấm thẻ.
    Bốn thẻ kèm bốn câu giải thích chiếm gần một phần ba chiều cao form và bắt
    mắt đọc bốn câu để chọn một. Chip giữ nguyên màu của từng loại (cùng token
@@ -3509,7 +3560,6 @@ html[data-section="spin"] .bgfx { display: none; }
   /* hai ô tên bài cạnh nhau trên máy hẹp thì mỗi ô còn ~150px — xuống một cột */
   .field-row { grid-template-columns: minmax(0, 1fr); }
   .kindpicks { grid-template-columns: minmax(0, 1fr); }
-  .req-steps li { min-width: 0; padding: 7px 9px; }
   .rp-thumb { width: 68px; }
 }
 

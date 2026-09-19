@@ -279,22 +279,21 @@ if (addBtn) {
   }
   check('form request mở ra', !!q('.modal'))
   dump('form request', '.modal .req, .modal')
-  check('có thẻ xem trước', !!q('.req-preview'))
-  check('có dải 3 bước', qa('.req-steps li').length === 3)
+  /* FORM BA BƯỚC — mỗi bước là MỘT MÀN, không phải ba cái nhãn trên một cột
+     dài: bước chưa tới thì phần thân của nó không được dựng ra. Đây là điều
+     kiện để form ngắn lại, nên phải chốt. */
+  check('có dải 3 bước', qa('.req-step').length === 3, `${qa('.req-step').length} bước`)
+  check('bước đang đứng mang aria-current="step"', !!q('.req-step .rs-btn[aria-current="step"]'))
+  check('mở form ở bước 1 — chưa dựng ô của bước 2',
+    !!q('.req-pane') && !q('#rq-artist') && !q('#rq-note'))
   check('đủ 4 chip loại bài', qa('.kchip').length === 4)
   check('có đúng MỘT dòng giải thích loại đang chọn', qa('.kind-note').length === 1)
-  check('ô ghi chú gấp lại khi chưa dùng', !q('#rq-note') && !!q('.note-add'))
-  /* Mở ô ghi chú bằng MỘT cú bấm, và con trỏ phải rơi vào đúng ô vừa hiện. */
-  if (q('.note-add')) {
-    await click(q('.note-add'))
-    check('bấm "Add a note" là ô ghi chú hiện ra', !!q('#rq-note'))
-    check('con trỏ rơi vào ô ghi chú vừa mở', window.document.activeElement === q('#rq-note'))
-    if (q('#rq-note')) {
-      await type(q('#rq-note'), 'Chorus starts at 0:52')
-      check('ghi chú giữ được chữ vừa gõ', q('#rq-note').value === 'Chorus starts at 0:52')
-      await type(q('#rq-note'), '')
-    }
-  }
+  /* Nút chính của bước 1 là ĐI TIẾP, không phải Gửi: bước gửi chưa tới. */
+  const stepBtn = () => qa('.req-actions button').find(b => /Continue|Send request|Fill in/i.test(b.textContent || ''))
+  await click(stepBtn())
+  await tick(150)
+  check('bấm Continue là sang bước 2', !!q('#rq-artist') && !!q('#rq-title'))
+  check('bước 2 có thẻ xem trước', !!q('.req-preview'))
   const artist = q('#rq-artist'), title = q('#rq-title')
   if (artist && title) {
     await type(artist, 'aespa')
@@ -345,6 +344,25 @@ if (addBtn) {
     check('gõ dở rồi đóng, mở lại vẫn còn chữ', q('#rq-artist')?.value === 'aespa' && q('#rq-title')?.value === 'Whiplash',
       `artist="${q('#rq-artist')?.value}" title="${q('#rq-title')?.value}"`)
     check('có dòng nói rõ form được khôi phục từ nháp', !!q('.draft-note'), q('.draft-note')?.textContent)
+    /* MỞ LẠI VỚI NHÁP THÌ VÀO ĐÚNG BƯỚC ĐANG LÀM DỞ, không bắt chọn lại loại
+       bài rồi bấm Continue một lần nữa. */
+    check('nháp có tên bài thì mở thẳng ở bước 2',
+      !!q('#rq-artist') && !!q('.req-step .rs-btn[aria-current="step"]'))
+    /* BƯỚC 3: ô ghi chú gấp lại, mở bằng MỘT cú bấm và con trỏ rơi vào đúng ô. */
+    await click(stepBtn())
+    await tick(150)
+    check('bấm Continue lần nữa là sang bước 3', !!q('.note-add') && !q('#rq-note'))
+    check('bước 3 có nút gửi thật', qa('.req-actions button[type="submit"]').length === 1)
+    if (q('.note-add')) {
+      await click(q('.note-add'))
+      check('bấm "Add a note" là ô ghi chú hiện ra', !!q('#rq-note'))
+      check('con trỏ rơi vào ô ghi chú vừa mở', window.document.activeElement === q('#rq-note'))
+      if (q('#rq-note')) {
+        await type(q('#rq-note'), 'Chorus starts at 0:52')
+        check('ghi chú giữ được chữ vừa gõ', q('#rq-note').value === 'Chorus starts at 0:52')
+        await type(q('#rq-note'), '')
+      }
+    }
     const drop = q('.draft-note .lnk')
     if (drop) {
       await click(drop)
@@ -417,8 +435,28 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
   check(`${name} dựng được`, text().length > 200)
   if (name === 'Xếp hạng') {
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
+    /* Câu luật KHÔNG còn vế "· ties go to …" (vòng 12) — vế đó vừa dài vừa lặp
+       lại điều bảng đã nói bằng số. */
+    check('câu luật xếp hạng không còn vế "ties go to"',
+      !/ties go to/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
     const lone = loneTagClusters()
     check('Xếp hạng: không có cụm nhãn rời', lone.length === 0, lone.join(' | '))
+  }
+  if (name === 'Daily Spin') {
+    /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là
+       con số. Trước đây mỗi nhãn còn kèm "×9" nên mặt đĩa đọc như bảng dữ liệu. */
+    check('đĩa có 16 ô', qa('.spin-sector').length === 16, `${qa('.spin-sector').length} ô`)
+    const wheelLabels = qa('.spin-wheel-number').map(e => (e.textContent || '').trim())
+    check('đĩa có đúng bốn nhãn thưởng, không kèm số ô',
+      wheelLabels.length === 4 && wheelLabels.every(x => /^\+\d+$/.test(x)),
+      wheelLabels.join(' · '))
+    check('không còn nhãn "×N" trên đĩa', !q('.spin-wheel-times'))
+    /* Không còn note thừa: dòng "mỗi lượt thắng trung bình 1,75 vote" ở đầu
+       khối và câu "ô nào cũng có thưởng" dưới nút đều đã bị gỡ. */
+    check('đầu khối quay không còn dòng trung bình cộng',
+      !/1\.75|on average/i.test(text()), text().slice(0, 120))
+    check('không còn câu ghi chú "ô nào cũng có thưởng"',
+      !/Every sector wins/i.test(text()))
   }
 }
 

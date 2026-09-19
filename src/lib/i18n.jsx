@@ -385,6 +385,10 @@ const S = {
   'req.step1': 'Pick a type',
   'req.step2': 'Name the song',
   'req.step3': 'Send it',
+  /* điều hướng ba bước */
+  'req.stepsAria': 'Request form steps',
+  'req.next': 'Continue',
+  'req.back': 'Back',
   /* Nút mở ô ghi chú — ô tuỳ chọn duy nhất, mặc định gấp lại. */
   'req.noteAdd': 'Add a note (optional)',
   'req.kindHint.ccl': 'Colour-coded lyrics video',

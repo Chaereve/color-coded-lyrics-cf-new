@@ -30,6 +30,11 @@ const DRAFT_KEY = 'ccl.reqDraft'
 const DRAFT_V = 1
 const DRAFT_TTL = 7 * 24 * 60 * 60 * 1000
 
+/* BA BƯỚC CỦA FORM GỬI REQUEST — nhãn lấy từ từ điển, đúng ba việc phải làm.
+   Hằng số nằm ngoài component: dải bước và phần thân phải đọc CÙNG một danh
+   sách, nếu không thì thêm một bước là chỗ này có mà chỗ kia không. */
+const REQ_STEPS = ['req.step1', 'req.step2', 'req.step3']
+
 function readDraft() {
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
@@ -107,6 +112,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const [agreed, setAgreed] = useState(() => {
     try { return localStorage.getItem(RULES_KEY) === RULES_V } catch { return false }
   })
+  /* BƯỚC ĐANG ĐỨNG. Không phải một bộ đếm trang trí: mỗi bước là một MÀN, chỉ
+     bước đang đứng được dựng ra. Mở form với dữ liệu đã có sẵn (nháp, link mời)
+     thì vào thẳng bước đang làm dở — bước 1 (chọn loại) chỉ có nghĩa khi chưa có
+     gì để gõ. */
+  const [step, setStep] = useState(() => (form.artist.trim() || form.title.trim() ? 2 : 1))
+  const formRef = useRef(null)
   const artistRef = useRef(null)
   const titleRef = useRef(null)
   const noteRef = useRef(null)
@@ -181,11 +192,14 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     try { localStorage.removeItem(DRAFT_KEY) } catch { /* không xoá được thì thôi */ }
     setRestored(false)
   }
-  const discardDraft = () => {
+  /* DỌN FORM: xoá chữ, xoá nháp, và đưa về bước 1 — dọn nửa vời (chữ trắng
+     nhưng đang đứng ở bước 3) là một màn hình trống không nói gì. */
+  const clearForm = () => {
     forgetDraft()
     setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
-    setTouched({}); setMsg(null); artistRef.current?.focus()
+    setTouched({}); setMsg(null); setStep(1); setNoteOpen(false)
   }
+  const discardDraft = () => { clearForm(); artistRef.current?.focus() }
 
   useEffect(() => {
     if (noteOpen && wantsNote.current) {
@@ -195,6 +209,31 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   }, [noteOpen])
 
   const openNote = () => { wantsNote.current = true; setNoteOpen(true) }
+
+  /* Điều hướng ba bước. `goStep` cho bấm thẳng trong dải bước, nhưng bước GỬI
+     chỉ mở khi hai ô bắt buộc đã có chữ — nếu không, "sang bước 3" và "bấm Gửi"
+     là hai câu trả lời khác nhau cho cùng một câu hỏi. */
+  const goStep = (n) => { if (n === 3 && !ready) return; setStep(n) }
+  const next = () => {
+    if (step === 1) { setStep(2); return }
+    if (step === 2) {
+      if (!ready) {
+        setTouched(s2 => ({ ...s2, artist: true, title: true }))
+        ;(errArtist ? artistRef : titleRef).current?.focus()
+        return
+      }
+      setStep(3)
+    }
+  }
+  const back = () => setStep(s2 => Math.max(1, s2 - 1))
+  /* Đổi bước là đổi màn: đưa khung cuộn của hộp thoại về đỉnh, nếu không thì
+     bước mới mở ra ở giữa chừng vì khung còn đứng nguyên chỗ cuộn cũ. */
+  useEffect(() => {
+    const body = formRef.current?.closest('.modal-body')
+    if (body && typeof body.scrollTo === 'function') {
+      try { body.scrollTo({ top: 0 }) } catch { /* jsdom không có layout */ }
+    }
+  }, [step])
 
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
@@ -229,6 +268,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       await onSubmit(form, paid)
       setForm({ ...form, artist: '', title: '', link: '', note: '' })
       setTouched({})
+      setStep(1)      /* gửi xong thì form về bước đầu, sẵn sàng cho bài kế tiếp */
       forgetDraft()   /* gửi xong thì việc đang làm dở đã thành việc đã gửi */
       setMsg({ t: 'ok', m: paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
@@ -256,13 +296,34 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     ? <span className="fcount">{form[k].length}/{max}</span> : null)
 
   return (
-    <form onSubmit={submit} noValidate>
-      {/* DẢI BƯỚC: cho biết còn phải làm gì, và đang ở đâu. Ba bước ứng với
-          đúng ba việc — không có bước ẩn nào xuất hiện sau khi bấm Gửi. */}
-      <ol className="req-steps">
-        <li className="on"><b>1</b>{t('req.step1')}</li>
-        <li className={step2 ? 'on' : ''}><b>2</b>{t('req.step2')}</li>
-        <li className={ready ? 'on' : ''}><b>3</b>{t('req.step3')}</li>
+    <form ref={formRef} onSubmit={submit} noValidate>
+      {/* DẢI BƯỚC — BỘ CHỈ BÁO TIẾN TRÌNH THẬT, KHÔNG PHẢI BA CÁI NHÃN.
+          Bản cũ là ba ô chữ nằm cạnh nhau, còn form thì vẫn là một cột dài với
+          mọi ô hiện cùng lúc: dải đó chỉ nói "form có ba việc", không nói người
+          dùng đang ở đâu. Nay ba bước là BA MÀN:
+            · bước xong đổi số thành dấu ✓ và đoạn nối tới nó được tô kín —
+              vạch tiến trình nằm ngay trong dải bước, nên không cần thêm một
+              thanh phần trăm thứ hai nói lại đúng một điều;
+            · bước đang đứng mang `aria-current="step"` và viền nhấn;
+            · bấm quay lại được (chỉ tới bước đã qua), nên không phải nhớ đường.
+          Thứ tự DOM = thứ tự Tab = thứ tự đọc của trình đọc màn hình. */}
+      <ol className="req-steps" aria-label={t('req.stepsAria')}>
+        {REQ_STEPS.map((k, i) => {
+          const n = i + 1
+          const done = step > n
+          const here = step === n
+          return (
+            <li key={k} className={`req-step${here ? ' on' : ''}${done ? ' done' : ''}`}>
+              <button type="button" className="rs-btn" disabled={n === 3 && !ready}
+                aria-current={here ? 'step' : undefined}
+                onClick={() => goStep(n)}>
+                <b className="rs-n">{done ? <Icon name="check" size={12} /> : n}</b>
+                <span className="rs-t">{t(k)}</span>
+              </button>
+              {n < REQ_STEPS.length && <i className="rs-line" aria-hidden="true" />}
+            </li>
+          )
+        })}
       </ol>
 
       {/* Nháp được khôi phục: nói ra, kèm lối bỏ — người dùng phải biết vì sao
@@ -276,221 +337,251 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         </p>
       )}
 
-      <div className="field">
-        <label id="kind-label">{t('req.kind')}</label>
-        {/* MỘT hàng chip, và MỘT dòng giải thích cho loại ĐANG chọn.
-            Bản trước là bốn tấm thẻ, mỗi thẻ kèm một câu giải thích: muốn chọn
-            một loại thì mắt phải đọc bốn câu, và cả khối chiếm gần một phần ba
-            chiều cao form — đúng thứ bị gọi là "rối mắt". Câu giải thích vẫn
-            còn nguyên, chỉ chuyển tới chỗ nó có ích: dưới lựa chọn đang bấm. */}
-        <div className="kindpicks" role="group" aria-labelledby="kind-label">
-          {KINDS.map(k => (
-            <button type="button" key={k}
-              className={`kchip ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
-              aria-pressed={form.kind === k}
-              title={t(`req.kindHint.${kindCls(k)}`)}
-              onClick={() => setForm(f => ({ ...f, kind: k }))}>
-              {form.kind === k && <Icon name="check" size={13} />}
-              <span>{k}</span>
-            </button>
-          ))}
-        </div>
-        {/* Dòng này ĐỔI theo lựa chọn nên nó vừa giải thích vừa xác nhận, chứ
-            không phải một dải chữ tĩnh nằm đó suốt buổi. */}
-        <p className="kind-note" key={form.kind}>
-          <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
-          <b>{t(`req.kindHint.${kindCls(form.kind)}`)}</b>
-          {meta.noteKey && <span className="kind-note-sub">{t(meta.noteKey)}</span>}
-        </p>
-      </div>
-
-      {/* HAI Ô CHÍNH — hai lối tắt ở đây đều là đường đi ngắn nhất của người
-          đã biết mình muốn gì:
-            · Enter ở ô nghệ sĩ là "xong ô này" → nhảy sang ô tên bài;
-            · Enter ở ô tên bài (khi đã đủ hai ô) là GỬI luôn;
-            · dán một link vào BẤT KỲ ô nào trong hai ô → link về đúng ô Link,
-              không nhét một URL dài vào tên bài. */}
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="rq-artist">{t('req.artist')} <span aria-hidden="true">*</span></label>
-          <div className="fin">
-            <input id="rq-artist" ref={artistRef} value={form.artist} onChange={set('artist')}
-              onBlur={blur('artist')} onPaste={pasteLink} maxLength={120} autoComplete="off"
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); titleRef.current?.focus() } }}
-              aria-invalid={showErr('artist') ? 'true' : undefined}
-              aria-describedby={showErr('artist') ? 'err-artist' : undefined}
-              placeholder={t('req.artistPh')} />
-            {left('artist', 120)}
+      {/* ---------- BƯỚC 1: CHỌN LOẠI BÀI ---------- */}
+      {step === 1 && (
+        <div className="req-pane" key="p1">
+          <div className="field">
+            <label id="kind-label">{t('req.kind')}</label>
+            {/* MỘT hàng chip, và MỘT dòng giải thích cho loại ĐANG chọn.
+                Bản trước là bốn tấm thẻ, mỗi thẻ kèm một câu giải thích: muốn chọn
+                một loại thì mắt phải đọc bốn câu, và cả khối chiếm gần một phần ba
+                chiều cao form — đúng thứ bị gọi là "rối mắt". Câu giải thích vẫn
+                còn nguyên, chỉ chuyển tới chỗ nó có ích: dưới lựa chọn đang bấm. */}
+            <div className="kindpicks" role="group" aria-labelledby="kind-label">
+              {KINDS.map(k => (
+                <button type="button" key={k}
+                  className={`kchip ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
+                  aria-pressed={form.kind === k}
+                  title={t(`req.kindHint.${kindCls(k)}`)}
+                  onClick={() => setForm(f => ({ ...f, kind: k }))}>
+                  {form.kind === k && <Icon name="check" size={13} />}
+                  <span>{k}</span>
+                </button>
+              ))}
+            </div>
+            {/* Dòng này ĐỔI theo lựa chọn nên nó vừa giải thích vừa xác nhận, chứ
+                không phải một dải chữ tĩnh nằm đó suốt buổi. */}
+            <p className="kind-note" key={form.kind}>
+              <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
+              <b>{t(`req.kindHint.${kindCls(form.kind)}`)}</b>
+              {meta.noteKey && <span className="kind-note-sub">{t(meta.noteKey)}</span>}
+            </p>
           </div>
-          {showErr('artist') && <p className="ferr" id="err-artist" role="alert">{showErr('artist')}</p>}
-        </div>
-        <div className="field">
-          <label htmlFor="rq-title">{titleLabel} <span aria-hidden="true">*</span></label>
-          <div className="fin">
-            <input id="rq-title" ref={titleRef} value={form.title} onChange={set('title')}
-              onBlur={blur('title')} onPaste={pasteLink} maxLength={160} autoComplete="off"
-              onKeyDown={e => {
-                if (e.key !== 'Enter') return
-                e.preventDefault()
-                if (ready) goSubmit(); else artistRef.current?.focus()
-              }}
-              aria-invalid={showErr('title') ? 'true' : undefined}
-              aria-describedby={showErr('title') ? 'err-title' : undefined}
-              placeholder={t('req.titlePh')} />
-            {left('title', 160)}
-          </div>
-          {showErr('title') && <p className="ferr" id="err-title" role="alert">{showErr('title')}</p>}
-        </div>
-      </div>
-
-      {/* XEM TRƯỚC: đúng cái thẻ mà người khác sẽ thấy trên bảng, dựng từ
-          chính những gì đang gõ. Đây là phần trả lời câu hỏi "tôi vừa gửi cái
-          gì" TRƯỚC khi bấm Gửi — trước đây phải gửi xong mới biết, và nếu sai
-          thì sửa lại tốn thêm một vòng duyệt của admin.
-          Chỗ nào chưa điền thì hiện chữ mờ nói rõ còn thiếu gì, nên tấm thẻ này
-          vừa là bản xem trước, vừa là danh sách việc cần làm.
-          Đứng NGAY DƯỚI hai ô tên bài/nghệ sĩ: đó là chỗ mắt đang ở sau khi gõ
-          xong tên bài, và trên màn hình đầu của form — để dưới đáy thì phần lớn
-          người dùng không bao giờ cuộn tới nó. */}
-      {/* TÁCH TIÊU ĐỀ VIDEO: đứng ngay dưới hai ô vừa gõ (chỗ mắt đang ở),
-          TRƯỚC thẻ xem trước — vì đây là việc sửa dữ liệu, không phải việc
-          xem lại. */}
-      {split && (
-        <div className="dup-note split-note" role="status">
-          <span className="dup-tx">
-            <b>{split.artist} — {split.title}</b>
-            <span className="dup-sub">{t('req.splitLead')}</span>
-          </span>
-          <span className="tags">
-            <button type="button" className="btn btn-sm btn-primary" onClick={applySplit}>
-              {t('req.splitGo')}
-            </button>
-          </span>
         </div>
       )}
 
-      <div className="req-preview">
-        <div className="rp-bar">
-          <Icon name="preview" size={13} />
-          <span>{t('req.preview')}</span>
-          {ytId && <span className="rp-yt">{t('req.previewYt')}</span>}
-        </div>
-        <div className="rp-row">
-          <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
-          <div className="rp-tx">
-            <b className={form.artist.trim() ? '' : 'ph'}>
-              {form.artist.trim() || t('req.phArtist')}
-            </b>
-            <span className="rp-dash" aria-hidden="true">—</span>
-            <span className={form.title.trim() ? '' : 'ph'}>
-              {form.title.trim() || t('req.phTitle', { f: titleLabel.toLowerCase() })}
-            </span>
-            <small className="rp-meta">
-              {userName || t('req.phYou')}
-              <span className="dot dot-inline" aria-hidden="true" />
-              {paid ? t('req.phPaid') : t('req.phFresh')}
-            </small>
+      {/* ---------- BƯỚC 2: TÊN BÀI ----------
+          Toàn bộ việc "bài này là bài nào" nằm trong một bước: tên bài, nghệ sĩ,
+          gợi ý tách tiêu đề dán từ YouTube, link video, và tấm thẻ xem trước
+          đúng cái mà người khác sẽ thấy. Link ở ĐÂY chứ không phải ở bước gửi:
+          nó là một phần của việc nhận diện bài, và thẻ xem trước đứng ngay dưới nó. */}
+      {step === 2 && (
+        <div className="req-pane" key="p2">
+          {/* HAI Ô CHÍNH — hai lối tắt ở đây đều là đường đi ngắn nhất của người
+              đã biết mình muốn gì:
+                · Enter ở ô nghệ sĩ là "xong ô này" → nhảy sang ô tên bài;
+                · Enter ở ô tên bài (khi đã đủ hai ô) là GỬI luôn;
+                · dán một link vào BẤT KỲ ô nào trong hai ô → link về đúng ô Link,
+                  không nhét một URL dài vào tên bài. */}
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="rq-artist">{t('req.artist')} <span aria-hidden="true">*</span></label>
+              <div className="fin">
+                <input id="rq-artist" ref={artistRef} value={form.artist} onChange={set('artist')}
+                  onBlur={blur('artist')} onPaste={pasteLink} maxLength={120} autoComplete="off"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); titleRef.current?.focus() } }}
+                  aria-invalid={showErr('artist') ? 'true' : undefined}
+                  aria-describedby={showErr('artist') ? 'err-artist' : undefined}
+                  placeholder={t('req.artistPh')} />
+                {left('artist', 120)}
+              </div>
+              {showErr('artist') && <p className="ferr" id="err-artist" role="alert">{showErr('artist')}</p>}
+            </div>
+            <div className="field">
+              <label htmlFor="rq-title">{titleLabel} <span aria-hidden="true">*</span></label>
+              <div className="fin">
+                <input id="rq-title" ref={titleRef} value={form.title} onChange={set('title')}
+                  onBlur={blur('title')} onPaste={pasteLink} maxLength={160} autoComplete="off"
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    /* Enter ở ô tên bài là "xong bước này", không phải "gửi luôn":
+                       ở bước 3 còn ô link, ô ghi chú và lựa chọn bài trả phí mà
+                       người dùng chưa nhìn thấy. */
+                    if (ready) setStep(3); else artistRef.current?.focus()
+                  }}
+                  aria-invalid={showErr('title') ? 'true' : undefined}
+                  aria-describedby={showErr('title') ? 'err-title' : undefined}
+                  placeholder={t('req.titlePh')} />
+                {left('title', 160)}
+              </div>
+              {showErr('title') && <p className="ferr" id="err-title" role="alert">{showErr('title')}</p>}
+            </div>
           </div>
-          {ytId && (
-            <img className="rp-thumb" src={thumbUrl(ytId, 'mq')} alt=""
-              loading="lazy" decoding="async" referrerPolicy="no-referrer" />
-          )}
-        </div>
-      </div>
 
-      {/* Bài đã có trên bảng: nói ra rồi đưa thẳng tới chỗ vote cho bài đó.
-          Đây là gợi ý, KHÔNG phải chặn — người dùng vẫn gửi được nếu họ muốn
-          (ví dụ bài cũ đã bị từ chối, hoặc họ muốn một bản khác). */}
-      {dup && (
-        <div className="dup-note" role="status">
-          <span className="dup-tx">
-            <b>{dup.title}</b>
-            <span className="dup-sub">
-              {dup.open === 0 && dup.pending > 0
-                ? t('req.dupPending', { c: dup.pending })
-                : t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
-            </span>
-          </span>
-          <span className="tags">
-            {dup.best && onVoteExisting && (
-              <button type="button" className="btn btn-sm btn-primary"
-                onClick={() => onVoteExisting(dup.best)}>
-                {t('req.dupVote')}
+          {/* XEM TRƯỚC: đúng cái thẻ mà người khác sẽ thấy trên bảng, dựng từ
+              chính những gì đang gõ. Đây là phần trả lời câu hỏi "tôi vừa gửi cái
+              gì" TRƯỚC khi bấm Gửi — trước đây phải gửi xong mới biết, và nếu sai
+              thì sửa lại tốn thêm một vòng duyệt của admin.
+              Chỗ nào chưa điền thì hiện chữ mờ nói rõ còn thiếu gì, nên tấm thẻ này
+              vừa là bản xem trước, vừa là danh sách việc cần làm.
+              Đứng NGAY DƯỚI hai ô tên bài/nghệ sĩ: đó là chỗ mắt đang ở sau khi gõ
+              xong tên bài, và trên màn hình đầu của form — để dưới đáy thì phần lớn
+              người dùng không bao giờ cuộn tới nó. */}
+          {/* TÁCH TIÊU ĐỀ VIDEO: đứng ngay dưới hai ô vừa gõ (chỗ mắt đang ở),
+              TRƯỚC thẻ xem trước — vì đây là việc sửa dữ liệu, không phải việc
+              xem lại. */}
+          {split && (
+            <div className="dup-note split-note" role="status">
+              <span className="dup-tx">
+                <b>{split.artist} — {split.title}</b>
+                <span className="dup-sub">{t('req.splitLead')}</span>
+              </span>
+              <span className="tags">
+                <button type="button" className="btn btn-sm btn-primary" onClick={applySplit}>
+                  {t('req.splitGo')}
+                </button>
+              </span>
+            </div>
+          )}
+
+          <div className="req-preview">
+            <div className="rp-bar">
+              <Icon name="preview" size={13} />
+              <span>{t('req.preview')}</span>
+              {ytId && <span className="rp-yt">{t('req.previewYt')}</span>}
+            </div>
+            <div className="rp-row">
+              <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
+              <div className="rp-tx">
+                <b className={form.artist.trim() ? '' : 'ph'}>
+                  {form.artist.trim() || t('req.phArtist')}
+                </b>
+                <span className="rp-dash" aria-hidden="true">—</span>
+                <span className={form.title.trim() ? '' : 'ph'}>
+                  {form.title.trim() || t('req.phTitle', { f: titleLabel.toLowerCase() })}
+                </span>
+                <small className="rp-meta">
+                  {userName || t('req.phYou')}
+                  <span className="dot dot-inline" aria-hidden="true" />
+                  {paid ? t('req.phPaid') : t('req.phFresh')}
+                </small>
+              </div>
+              {ytId && (
+                <img className="rp-thumb" src={thumbUrl(ytId, 'mq')} alt=""
+                  loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+              )}
+            </div>
+          </div>
+
+          {/* Bài đã có trên bảng: nói ra rồi đưa thẳng tới chỗ vote cho bài đó.
+              Đây là gợi ý, KHÔNG phải chặn — người dùng vẫn gửi được nếu họ muốn
+              (ví dụ bài cũ đã bị từ chối, hoặc họ muốn một bản khác). */}
+          {dup && (
+            <div className="dup-note" role="status">
+              <span className="dup-tx">
+                <b>{dup.title}</b>
+                <span className="dup-sub">
+                  {dup.open === 0 && dup.pending > 0
+                    ? t('req.dupPending', { c: dup.pending })
+                    : t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
+                </span>
+              </span>
+              <span className="tags">
+                {dup.best && onVoteExisting && (
+                  <button type="button" className="btn btn-sm btn-primary"
+                    onClick={() => onVoteExisting(dup.best)}>
+                    {t('req.dupVote')}
+                  </button>
+                )}
+                {!dup.best && dup.video && (
+                  <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
+                    {t('req.dupWatch')}
+                  </a>
+                )}
+              </span>
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="rq-link">{t('req.link')}</label>
+            <input id="rq-link" value={form.link} onChange={set('link')} onBlur={blur('link')}
+              placeholder={t('req.linkPh')} maxLength={500}
+              aria-invalid={warnLink ? 'true' : undefined}
+              aria-describedby="req-link-hint" />
+            {/* Gợi ý và cảnh báo dùng CHUNG một chỗ: bình thường là câu giải thích
+                "để trống cũng được", khi link sai dạng thì đổi thành câu nhắc. */}
+            <p className={warnLink ? 'ferr warn' : ytId ? 'fhint ok' : 'fhint'} id="req-link-hint">
+              {warnLink || (ytId ? t('req.linkOk') : yt?.kind === 'playlist' ? t('req.linkList') : t('req.linkHint'))}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- BƯỚC 3: GỬI ----------
+          Bước quyết định: ghi chú (nếu có) và bài trả phí, rồi gửi. */}
+      {step === 3 && (
+        <div className="req-pane" key="p3">
+          <div className="field note-field">
+            {noteOpen ? (
+              <>
+                <label htmlFor="rq-note">{t('req.note')}</label>
+                <textarea id="rq-note" ref={noteRef} value={form.note} onChange={set('note')} maxLength={500}
+                  placeholder={t('req.notePh')} />
+                <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
+              </>
+            ) : (
+              <button type="button" className="note-add" aria-controls="rq-note" onClick={openNote}>
+                <Icon name="plus" size={13} />
+                {t('req.noteAdd')}
               </button>
             )}
-            {!dup.best && dup.video && (
-              <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
-                {t('req.dupWatch')}
-              </a>
-            )}
-          </span>
+          </div>
+
+          <div className="paidbox">
+            <label className="switch" style={{ margin: 0 }}>
+              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
+              <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
+            </label>
+            <p style={{ marginTop: 8 }}>
+              {t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}
+            </p>
+          </div>
+
+          {/* Nguoi gui co quyen biet tin se di dau: mot dong chu ben duoi nut
+              gui con thuyet phuc hon cai chuong an trong danh sach. */}
         </div>
       )}
 
-      <div className="field">
-        <label htmlFor="rq-link">{t('req.link')}</label>
-        <input id="rq-link" value={form.link} onChange={set('link')} onBlur={blur('link')}
-          placeholder={t('req.linkPh')} maxLength={500}
-          aria-invalid={warnLink ? 'true' : undefined}
-          aria-describedby="req-link-hint" />
-        {/* Gợi ý và cảnh báo dùng CHUNG một chỗ: bình thường là câu giải thích
-            "để trống cũng được", khi link sai dạng thì đổi thành câu nhắc. */}
-        <p className={warnLink ? 'ferr warn' : ytId ? 'fhint ok' : 'fhint'} id="req-link-hint">
-          {warnLink || (ytId ? t('req.linkOk') : yt?.kind === 'playlist' ? t('req.linkList') : t('req.linkHint'))}
-        </p>
-      </div>
-
-      <div className="field note-field">
-        {noteOpen ? (
-          <>
-            <label htmlFor="rq-note">{t('req.note')}</label>
-            <textarea id="rq-note" ref={noteRef} value={form.note} onChange={set('note')} maxLength={500}
-              placeholder={t('req.notePh')} />
-            <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
-          </>
-        ) : (
-          <button type="button" className="note-add" aria-controls="rq-note" onClick={openNote}>
-            <Icon name="plus" size={13} />
-            {t('req.noteAdd')}
-          </button>
-        )}
-      </div>
-
-      <div className="paidbox">
-        <label className="switch" style={{ margin: 0 }}>
-          <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
-          <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
-        </label>
-        <p style={{ marginTop: 8 }}>
-          {t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}
-        </p>
-      </div>
-
-      {/* Nguoi gui co quyen biet tin se di dau: mot dong chu ben duoi nut
-          gui con thuyet phuc hon cai chuong an trong danh sach. */}
       <p className="am-note">
         {live ? t('req.notifyNote') : t('req.notifyDemo')}
       </p>
 
-      {/* `type="submit"` vi day la nut DUY NHAT phai gui form; cac nut khac trong
-          form (loai bai, switch tra phi) deu `type="button"`.
-          Nút gửi BÁM ĐÁY KHUNG (sticky trong .overlay) và nhãn của nó nói rõ
-          còn thiếu gì trước khi bấm, thay vì để nút xám im lặng. */}
+      {/* CHÂN FORM — một hàng, thứ tự cố định: quay lại (nếu có) · tiếp/gửi ·
+          xoá hết. Nút chính đổi NGHĨA theo bước chứ không đổi chỗ, nên ngón tay
+          bấm cùng một điểm suốt cả form. */}
       <div className="req-actions">
-        <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
-          style={{ flex: 1 }} disabled={busy}
-          title={ready ? undefined : t('req.notReady')}>
-          {busy ? t('req.sending')
-            : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
-              : ready ? t('req.submit') : t('req.submitFix')}
-        </button>
-        <button type="button" className="btn" disabled={busy}
-          onClick={() => {
-            setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
-            setTouched({}); setMsg(null); forgetDraft(); artistRef.current?.focus()
-          }}>{t('req.clear')}</button>
+        {step > 1 && (
+          <button type="button" className="btn req-back" disabled={busy} onClick={back}>
+            {t('req.back')}
+          </button>
+        )}
+        {step < 3 ? (
+          <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={next}>
+            {t('req.next')}
+          </button>
+        ) : (
+          <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
+            style={{ flex: 1 }} disabled={busy}
+            title={ready ? undefined : t('req.notReady')}>
+            {busy ? t('req.sending')
+              : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
+                : ready ? t('req.submit') : t('req.submitFix')}
+          </button>
+        )}
+        <button type="button" className="btn" disabled={busy} onClick={clearForm}>{t('req.clear')}</button>
         {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
       </div>
+
     </form>
   )
 }

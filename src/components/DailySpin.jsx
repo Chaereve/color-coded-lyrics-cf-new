@@ -59,7 +59,7 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
 
    Toàn bộ vẫn 100% phẳng: không gradient, không quầng sáng, không ảnh, không
    logo trong trục. */
-const HUB = 21             // bán kính trục
+const HUB = 26             // bán kính trục
 
 function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef }) {
   const count = sectors.length
@@ -71,16 +71,25 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef }
         <circle cx={C} cy={C} r="195" className="spin-wheel-rim" />
         <circle cx={C} cy={C} r="199.5" className="spin-wheel-edge" />
         {sectors.map((s, i) => (
-          /* Màu = MỨC THƯỞNG (cùng dải cùng màu), kẻ ô bằng sắc nhạt hơn ở ô
-             lẻ trong dải — nên mắt vẫn đếm được từng ô mà vẫn đọc ra "vùng
-             nào là +1", thứ mà cách tô xen kẽ theo chẵn/lẻ không nói được. */
+          /* Màu = MỨC THƯỞNG, và nay là MỘT THANG đi lên: ô +1 là nền chìm, +2
+             pha nhạt, +3 đậm hơn, +5 đúng màu nhấn. Trước đây ô lẻ trong mỗi
+             dải còn được tô nhạt hơn (`.weave`) để "đếm được từng ô" — nhưng
+             chính nó làm mặt đĩa lốm đốm hai tông xen kẽ nhau, đọc ra như lỗi
+             tô màu. Ranh giới giữa các ô nay do MỘT nét mảnh màu nền vẽ ra
+             (xem .spin-sector trong DailySpin.css): đúng cách một bánh xe
+             thưởng thật được chia ô — nhìn là biết có 16 ô, mà không thêm một
+             lớp trang trí nào. */
           <path key={i}
-            className={`spin-sector ${s.tier}${s.slot % 2 ? ' weave' : ''}${won === i ? ' is-won' : ''}`}
+            className={`spin-sector ${s.tier}${won === i ? ' is-won' : ''}`}
             d={sectorAt(s.angle, count)} />
         ))}
         {sectors.map((s, i) => {
-          /* MỘT nhãn cho MỘT dải, in ở ô giữa dải, kèm số ô của dải ("×9") —
-             chín ô +1 thì đọc là "+1 ×9", không phải chín lần số 1. */
+          /* MỘT nhãn cho MỘT dải, in ở ô giữa dải. Nhãn chỉ là con số thưởng
+             ("+1", "+2"…): số ô của dải đã hiện ra bằng CHÍNH ĐỘ DÀI CUNG của
+             dải — dải +1 chiếm hơn nửa vòng, dải +5 đúng một ô. Bản trước in
+             thêm "×9" ngay dưới số, nên mặt đĩa đọc như một bảng dữ liệu chứ
+             không phải một bánh xe; tỉ lệ chính xác vẫn còn nguyên trong nhãn
+             đọc được của cả đĩa (spin.wheelLabel). */
           if (!s.label) return null
           const [x, y] = point(s.angle, LABEL)
           // Turn the lower half upright so no prize number hangs upside down.
@@ -90,7 +99,6 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef }
             x={x} y={y} transform={`rotate(${s.angle + flip} ${x} ${y})`}
             textAnchor="middle" dominantBaseline="central">
             <tspan className="spin-wheel-plus">+</tspan>{s.reward}
-            {s.count > 1 && <tspan className="spin-wheel-times" x={x} dy="19">×{s.count}</tspan>}
           </text>
         })}
         {won !== null && <path className="spin-wheel-marker" d={sectorAt(sectors[won].angle, count)} />}

@@ -62,13 +62,15 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.equal((html.match(/class="spin-sector t2(?: |")/g) || []).length, 4, '4 lát +2')
     assert.equal((html.match(/class="spin-sector t3(?: |")/g) || []).length, 2, '2 lát +3')
     assert.equal((html.match(/class="spin-sector t4(?: |")/g) || []).length, 1, 'đúng MỘT lát giải cao nhất')
-    assert.equal((html.match(/class="spin-sector [^"]*weave/g) || []).length, 7, 'ô lẻ trong dải nhạt hơn')
+    assert.equal((html.match(/class="spin-sector [^"]*weave/g) || []).length, 0,
+      'không còn mẹo tô xen kẽ: ranh giới ô do nét viền vẽ ra')
     /* LỖI "TRÙNG LẶP SỐ VOTE": mỗi ô từng in một số, nên chín ô +1 in ra chín số
        1 giống hệt nhau rải quanh đĩa. Nay mỗi mức thưởng in ĐÚNG MỘT lần, ở ô
-       giữa dải, kèm số ô của dải ("+1×9", "+2×4", …). */
+       giữa dải — và CHỈ con số thưởng ("+1"), không kèm "×9": số ô của dải đã
+       hiện ra bằng độ dài cung của chính dải đó. */
     const labels = [...html.matchAll(/class="spin-wheel-number[^"]*"[^>]*>([\s\S]*?)<\/text>/g)]
       .map(m => m[1].replace(/<[^>]*>/g, '').trim())
-    assert.deepEqual(labels, ['+1×9', '+2×4', '+3×2', '+5'], 'bốn nhãn, một nhãn cho một dải')
+    assert.deepEqual(labels, ['+1', '+2', '+3', '+5'], 'bốn nhãn, một nhãn cho một dải')
     assert.equal(new Set(labels).size, labels.length, 'không nhãn nào lặp lại')
     assert.equal((html.match(/class="spin-wheel-number jackpot"/g) || []).length, 1)
     /* Không nan hoa: hai tông xen kẽ đã tự kẻ ranh giới lát, nên 16 đường kẻ
@@ -138,18 +140,19 @@ test('Daily Spin uses flat site colours and opts out of the shared background', 
   /* Ba tông, tất cả là token: hai tông nền xen kẽ + ĐÚNG MỘT tông nhấn cho ô
      giải cao nhất. Bảng 12 sắc độ cũ (4 bậc × 3 sắc) đã bị gỡ — nếu nó quay
      lại, bài này phải đỏ. */
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-1:\s*var\(--surface-2\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--surface-2\)[^;]+;/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-1:\s*var\(--surface-3\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--surface-3\)[^;]+;/)
   assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*var\(--a\)/)
   /* Tông lát đi theo MỨC THƯỞNG: mỗi lớp tier trỏ về một token, nên đổi bảng
      thưởng là đổi luôn bảng màu — không phải sửa tay từng lát. */
   assert.match(pageCss, /\.spin-sector\s*\{[^}]*fill:\s*var\(--wc/)
   assert.match(pageCss, /\.spin-sector\.t1\s*\{[^}]*--wc:\s*var\(--w-1\)/)
   assert.match(pageCss, /\.spin-sector\.t4\s*\{[^}]*--wc:\s*var\(--w-4\)/)
-  assert.match(pageCss, /\.spin-sector\.weave\s*\{[^}]*color-mix/)
+  /* Ranh giới giữa các ô: nét mảnh màu nền thẻ, nằm trong lát. */
+  assert.match(pageCss, /\.spin-sector\s*\{[^}]*stroke:\s*var\(--surface\)/)
   assert.doesNotMatch(pageCss, /\.spin-sector\.(?:alt|base)/, 'tông xen kẽ theo chẵn/lẻ đã bị gỡ')
-  /* Nhãn dải in kèm số ô — "+1" một lần, không phải chín lần. */
-  assert.match(pageCss, /\.spin-wheel-times\s*\{/)
+  /* Nhãn dải CHỈ là con số thưởng — không còn dòng "×9" dưới số. */
+  assert.doesNotMatch(pageCss, /\.spin-wheel-times\s*\{/)
   assert.doesNotMatch(pageCss, /--w-t\d/, 'bảng 4 bậc thưởng đã bị gỡ')
   assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
   // Số thưởng đọc bằng màu chữ của trang; chỉ ô giải cao nhất mới đi chữ trắng.
