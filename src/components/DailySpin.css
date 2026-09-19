@@ -26,10 +26,18 @@
      Sáng dần theo độ hiếm, nên mắt đọc được "ô nào đáng hơn" trước cả khi đọc
      số. Bản trước tô xen kẽ theo chẵn/lẻ nên hai ô cùng thưởng nằm cạnh nhau
      vẫn khác màu — nhìn không suy ra được ô nào là ô nào. */
+  /* BỐN TÔNG = BỐN MÀU THẬT, không phải bốn sắc độ xám (vòng 13: "vòng quay cx
+     ko clear và colorful cho người dùng"). Mỗi tầng lấy một màu đã có nghĩa
+     trong app, và đi từ chìm tới rực theo độ hiếm:
+       +1  nền trung tính          (56,25% — ô phổ thông, không cần hét lên)
+       +2  xanh tím  --queued      (25%)
+       +3  hổ phách  --progress    (12,5%)
+       +5  vàng      --paid        (6,25% — ô giải, phải nổi nhất đĩa)
+     Vẫn 100% phẳng: color-mix cho ra một MÀU ĐẶC, không gradient. */
   --w-1: var(--surface-3);
-  --w-2: color-mix(in oklab, var(--surface-3) 74%, var(--a-2));
-  --w-3: color-mix(in oklab, var(--a) 62%, var(--surface-3));
-  --w-4: var(--a);
+  --w-2: color-mix(in oklab, var(--queued) 34%, var(--surface-3));
+  --w-3: color-mix(in oklab, var(--progress) 46%, var(--surface-3));
+  --w-4: var(--paid);
 }
 
 /* ---- head ---- */
@@ -101,10 +109,28 @@
   fill: var(--txt); opacity: .94; transition: opacity .35s var(--e-soft);
 }
 .spin-wheel-plus { font-size: 15px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
-/* Ô giải cao nhất: chữ trắng trên nền --a (6,35:1) và lớn hơn một bậc — đây là
-   lý do cả cái bánh xe tồn tại. */
-.spin-wheel-number.jackpot { fill: #fff; font-size: 29px; }
-.spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(255, 255, 255, .75); }
+/* Ô giải cao nhất: nền VÀNG ĐẶC nên chữ phải là MỰC ĐẬM — trắng trên vàng chỉ
+   được ~2,5:1, đọc không ra. Mực đậm #1a1206 cho ~13:1, và đây cũng đúng cặp
+   màu đã dùng cho huy hiệu số tin chưa đọc. */
+.spin-wheel-number.jackpot { fill: #1a1206; font-size: 29px; font-weight: 700; }
+.spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(26, 18, 6, .7); }
+
+/* ---- CHÚ GIẢI BỐN DẢI ------------------------------------------------------
+   Đĩa nói "ô nào đáng hơn" bằng MÀU; chú giải nói lại bằng CHỮ, kèm số ô và tỉ
+   lệ thật. Ô màu của chú giải dùng đúng biến --wc của lát trên đĩa, nên hai chỗ
+   không thể lệch màu nhau. Đây là dữ liệu, không phải ghi chú. */
+.spin-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 8px;
+  margin: 0; padding: 0; list-style: none; }
+.spin-legend li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 7px;
+  border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
+  font-size: 11.5px; color: var(--txt-3); }
+.spin-legend i { width: 10px; height: 10px; flex: none; border-radius: 3px;
+  background: var(--wc); border: 1px solid rgba(255, 255, 255, .14); }
+.spin-legend li.t1 { --wc: var(--w-1); }
+.spin-legend li.t2 { --wc: var(--w-2); }
+.spin-legend li.t3 { --wc: var(--w-3); }
+.spin-legend li.t4 { --wc: var(--w-4); }
+.spin-legend b { font-family: var(--mono); font-size: 12px; color: var(--txt); }
 /* Trục: MỘT đĩa phẳng nhỏ. Không mũi chỉ, không chấm — con trỏ ở vành đã trả
    lời "kim đang chỉ đâu", thêm hai chi tiết nữa là nói lại lần thứ ba. */
 .spin-wheel-hub { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }

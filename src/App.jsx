@@ -350,8 +350,6 @@ export default function App() {
      đầu khi cuộn qua — hai thứ này chỉ để phục vụ việc CHỌN, không phải dữ
      liệu, nên không lưu vào localStorage. */
   const [fbarOpen, setFbarOpen] = useState(false)
-  const [fbarStuck, setFbarStuck] = useState(false)
-  const fbarRef = useRef(null)
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
@@ -503,22 +501,6 @@ export default function App() {
     onScroll()
     return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
-
-  /* Thanh lọc dính đầu trang: chỉ hỏi "mép trên của thanh đã chạm mép trên
-     khung nhìn chưa" — đúng một lần đọc hình học mỗi khung hình khi đang cuộn,
-     và setState cùng giá trị thì React tự bỏ qua nên không có vòng render. */
-  useEffect(() => {
-    const el = fbarRef.current
-    if (!el || section !== 'board') return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => setFbarStuck(el.getBoundingClientRect().top <= 1))
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
-  }, [section])
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
@@ -1520,8 +1502,10 @@ export default function App() {
                   hàng dưới là loại bài + tóm tắt. Máy hẹp thì hàng dưới gấp
                   vào sau nút "Bộ lọc" — nhồi bốn thứ vào một hàng 340px là mỗi
                   thứ một mẩu, còn để nguyên bốn hàng thì danh sách bị đẩy khỏi
-                  màn hình đầu. Thanh dính đầu trang khi cuộn qua. */}
-              <div className={`fbar${fbarStuck ? ' stuck' : ''}${fbarOpen ? ' open' : ''}`} ref={fbarRef}>
+                  màn hình đầu. Thanh NẰM TRONG DÒNG, không dính mép trên: cuộn
+                  qua nó là nó đi theo trang (vòng 13 — "đừng để thanh lọc
+                  floating lúc cuộn"); nút "lên đầu trang" là đường quay lại. */}
+              <div className={`fbar${fbarOpen ? ' open' : ''}`}>
                 <div className="fbar-top">
                   {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — một thứ tự cho cả hai bố cục.
                       Bàn phím đi từ trái sang phải, mắt cũng vậy: ô nhập là

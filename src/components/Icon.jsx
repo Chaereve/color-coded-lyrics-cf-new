@@ -16,7 +16,7 @@
    logo thương hiệu, mà logo thì phải đúng logo — chúng nằm ngay tại chỗ dùng
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
 import {
-  ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
+  ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
   CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Play,
   Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
   Trophy, User, Volume2, VolumeX, X,
@@ -24,7 +24,8 @@ import {
 
 /* tên theo VIỆC -> icon Lucide */
 const SET = {
-  up: ArrowUp,                    /* lên đầu trang */
+  up: ArrowUp,                    /* lên / lên đầu trang */
+  down: ArrowDown,                /* xuống — đổi thứ tự trong bảng Admin */
   ext: ArrowUpRight,              /* link mở ra ngoài */
   bell: Bell,                     /* chuông — chưa theo dõi */
   bellOn: BellRing,               /* chuông — đang theo dõi */

@@ -138,12 +138,35 @@ export function formatChance(chance) {
   return String(Math.round(chance * 100) / 100)
 }
 
-/* Sector zero is centred at 12 o'clock; positive angles turn clockwise.
-   Always land at the CENTRE of the server's sector, not a visual boundary. */
-export function spinRotation(current, segment, count = SPIN_REWARDS.length) {
-  if (!Number.isInteger(segment) || segment < 0 || segment >= count) throw new Error('err.spinResponse')
+/* GÓC DỪNG CỦA ĐĨA — tính theo GÓC CỦA Ô TRÚNG TRÊN BẢN VẼ, không theo chỉ số.
+   ------------------------------------------------------------------
+   LỖI THẬT (vòng 13 — "quay ra ko đúng phần thưởng"): hàm này từng nhận chỉ số
+   ô trong BẢNG RÚT và quy ra góc bằng `segment × 360/n`. Cách đó chỉ đúng khi
+   bản vẽ giữ nguyên thứ tự rút. Nhưng bản vẽ đã GOM các ô cùng thưởng thành
+   dải liền và dịch cả vòng (xem `spinSectors`), nên ô rút thứ 7 không còn nằm ở
+   7 × 22,5° nữa — kim dừng đúng chỗ "theo công thức" nhưng chỗ đó là ô KHÁC,
+   trong khi ô được tô sáng lại là ô đúng. Người chơi thấy đĩa nói một đằng, con
+   số nói một nẻo.
+
+   Nay hợp đồng là: truyền vào GÓC TÂM của ô trúng trên bản vẽ
+   (`sectors[spinSectorIndex(segment)].angle`), và đĩa quay sao cho tâm ô đó
+   dừng ở 0° (12 giờ). Số vòng quay tối thiểu 5 vòng giữ nguyên. */
+export function spinRotation(current, angle) {
+  if (!Number.isFinite(angle)) throw new Error('err.spinResponse')
   const mod = n => ((n % 360) + 360) % 360
-  return current + 5 * 360 + mod(-segment * 360 / count - mod(current))
+  return current + 5 * 360 + mod(-angle - mod(current))
+}
+
+/* ĐĨA DỪNG Ở Ô NÀO? — phép kiểm ngược của `spinRotation`, dùng cho test và cho
+   bất cứ ai cần biết "kim đang chỉ vào ô nào sau khi quay R độ". */
+export function sectorAtPointer(rotation, sectors) {
+  const mod = n => ((n % 360) + 360) % 360
+  const step = 360 / sectors.length
+  const at = mod(-rotation)
+  /* Tâm ô nằm trên lưới `step` độ (spinSectors bảo đảm điều đó), nên làm tròn
+     tới lưới là đủ và không phụ thuộc sai số dấu phẩy động. */
+  const slot = mod(Math.round(at / step)) % sectors.length
+  return sectors.find(s => mod(s.angle) === slot * step) ?? null
 }
 
 /* ---- tiếng "tách" khi mép ô chạy qua kim ----------------------------------

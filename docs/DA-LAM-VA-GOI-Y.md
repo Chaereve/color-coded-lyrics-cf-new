@@ -493,3 +493,84 @@ lệ dưới tên và nền hàng "của bạn" cũng về **một màu phẳng*
 `npm test` → **339 ca / 338 đạt / 0 lỗi / 1 skip** (trước vòng này: 333). `npm run smoke`
 → **63/63** (trước: 58). `npx oxlint` → 0 lỗi. CSS chính 3 507 dòng, cân bằng ngoặc, và
 `lightningcss` đọc được toàn bộ tệp.
+
+## M. Vòng 13 — đĩa quay trả đúng thưởng, thanh lọc hết "bay", và một lượt rà DOM toàn trang (19/09/2026)
+
+> Vòng 12 (gộp hồ sơ vào mục **About me**, form request ba bước, trạng thái rỗng của bảng quản trị,
+> gỡ *Order queue*, gỡ năm chuỗi thừa, "Two free a day", icon cây bút) đã lên ở các commit `2ce5f9d`
+> … `b45493a`; phần dưới đây là vòng 13.
+
+### M1. Vì sao quay ra **không đúng** phần thưởng — và cách sửa tận gốc
+
+Máy chủ trả về **chỉ số ô trong bảng rút**, còn mặt đĩa được **vẽ lại**: các ô cùng mức thưởng được
+gom thành dải và cả vòng được xoay để dải giải cao nhất nằm ở 6 giờ (`spinSectors`). Công thức cũ
+lấy `chỉ số × 22,5°` để tính góc dừng — tức là tính trên bảng rút, không phải trên bản vẽ. Hai bên
+lệch nhau nên kim dừng ở một ô **khác** với ô được tô sáng.
+
+Cách sửa không phải "chỉnh lại hằng số cho khớp" (lần sau đổi bảng rút là lệch lại) mà là **đổi hợp
+đồng của hàm**: `spinRotation(góc cũ, GÓC TÂM CỦA Ô TRÚNG TRÊN BẢN VẼ)`. Thêm hàm ngược
+`sectorAtPointer(rotation, sectors)` để bài kiểm hỏi được câu đúng: *"sau khi quay R độ, kim đang chỉ
+vào ô nào?"* — test đi hết **16 ô**, mỗi ô kiểm bằng chính bản vẽ, và còn kiểm ô dưới kim trùng ô
+được tô sáng (mắt nhìn đĩa, không đọc số).
+
+### M2. Đĩa **rõ** và **có màu**
+
+- Bốn tầng thưởng nay là **bốn màu** thay vì bốn sắc xám: `+1` nền trung tính · `+2` xanh tím
+  (`--queued`) · `+3` hổ phách (`--progress`) · `+5` vàng (`--paid`). Vẫn 100% **phẳng** —
+  `color-mix` cho ra một màu đặc, không gradient.
+- Ô vàng đổi chữ sang **mực đậm** (`#1a1206`, ~13:1) vì trắng trên vàng chỉ được ~2,5:1.
+- Thêm **chú giải bốn dải** ngay dưới đĩa: mỗi dòng một ô màu (dùng đúng biến `--wc` của lát trên
+  đĩa nên không thể lệch màu) + số ô + tỉ lệ thật. Đây là **dữ liệu**, không phải ghi chú.
+
+### M3. Thanh lọc **không còn bay** khi cuộn
+
+Bỏ hẳn `position: sticky` (và cả khối `.fbar.stuck`). Trước đây khi dính, thanh cao gần nửa màn
+hình trên máy hẹp nên nó phủ lên danh sách suốt lúc cuộn. Nay thanh **nằm trong dòng**: cuộn qua là
+nó đi theo trang; nút *lên đầu trang* (góc phải dưới) là đường quay lại. Việc theo dõi "đang dính"
+trong `App.jsx` cũng bị gỡ theo (một effect + một state ít hơn).
+
+### M4. Bốn chuỗi đã gỡ
+
+`"… TikTok"` ở dòng gợi ý kiểu bài (nay chỉ nói Shorts) · nhãn dài của thẻ xem trước
+(`req.preview`) · câu *"Paste the YouTube link if you have one."* (`req.linkHint`) · dòng
+*"Square crop, up to 8MB"* (`prof.avatarNote`). Kèm theo: dòng gợi ý dưới ô Link **chỉ dựng khi có
+điều để nói** (link sai dạng / đã nhận ra link), và `aria-describedby` của ô đó được bỏ khi dòng ấy
+không tồn tại — trỏ vào một id không có là một liên kết đứt.
+
+### M5. Bảng quản trị
+
+- **Nền của `<html>`** được đặt tường minh: chuyển cảnh cho hai ảnh chụp trượt ngang nên hai mép
+  màn hình lộ ra "khung vẽ" bên dưới, mà khung vẽ mặc định của trình duyệt là **màu trắng**. Nay
+  mọi khe hở (kể cả kéo quá đà trên iOS) là màu nền trang. Lớp phủ của chuyển cảnh cũng được tô nền.
+- Mục **Videos** có **thanh công cụ đúng một hàng** như mọi mục khác (nút *View on home page* vào
+  `.adm-bar`), thay vì một dải riêng nằm chênh giữa tiêu đề và nhóm đầu tiên.
+- **Hàng video trên máy hẹp**: năm nút (hai nút đổi thứ tự, Sửa, Ẩn/Hiện, Xoá) xuống thành **một
+  hàng riêng** dưới tiêu đề, nút cao 38px; trước đây luật bó hàng chỉ áp cho hàng request.
+- Hai nút đổi thứ tự dùng **icon Lucide** (ArrowUp/ArrowDown) thay cho ký tự `↑` `↓`.
+- Hàng cuối không còn vẽ thêm đường kẻ dưới (mỗi hàng đã là một thẻ có viền riêng).
+
+### M6. Tiếng
+
+Âm sắc: thêm **bè trầm nửa cao độ** (nghe ra "gỗ" thay vì "tiếng bíp"), bồi âm quãng tám bị **chặn
+trần 5kHz** (2 × C7 là đỉnh chói nhất), tiếng gõ dùi ở đầu nốt hạ từ nửa biên độ xuống 0,28 và lọc
+xuống 6,5kHz, trần lọc chung 4,6kHz, vang 0,22 → 0,15, âm lượng mặc định 0,8 → **0,7**. Tiếng tách
+của vòng quay khẽ hơn (~2/3) và tối hơn (2,1kHz). **Tin về dồn dập không kêu thành chuỗi**: hai
+tiếng thông báo cách nhau tối thiểu 1,5s. Hai tiếng chưa từng được gọi (`open`, `close`) bị gỡ;
+tiếng **xoá** được nối vào đúng chỗ nó có nghĩa: nút xoá trong bảng quản trị (một dòng, và một lượt
+xoá hàng loạt).
+
+### M7. Rà DOM toàn trang — và ba lỗi thật nó tìm ra
+
+`npm run smoke` có thêm một khối **rà DOM** chạy trên năm màn, năm mục của bảng quản trị và hai hộp
+thoại: **id trùng** · **phần tử tương tác không có tên** · **tham chiếu `aria-*`/`label[for]` trỏ
+vào id không tồn tại** · **ảnh thiếu `alt`** · **thẻ tương tác lồng nhau**. Ba lỗi thật lộ ra và đã
+sửa: (1) `aria-describedby="req-link-hint"` đứt khi dòng gợi ý không dựng (M4); (2) ô chọn ảnh ẩn
+trong khối hồ sơ không có tên cho trình đọc màn hình; (3) máy kiểm đóng hộp thoại bằng nút đầu tiên
+nên báo lỗi lặp — nay đóng bằng `Esc`.
+
+### M8. Số của vòng này
+
+`npm test` → **352 ca / 351 đạt / 0 lỗi / 1 skip** (trước: 350). `npm run smoke` → **171/171**
+(trước: 100; thêm 65 mục rà DOM + 6 mục khoá các việc vòng 13). `npx oxlint` → **0 lỗi** / 22 cảnh
+báo (101 tệp). `npm run build` → OK. Bản chạy thử: `npm run dev` (đang chạy ở cổng 5173, chế độ
+demo không cần Supabase).

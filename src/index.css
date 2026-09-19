@@ -160,6 +160,13 @@
 html, body, #root { height: 100%; margin: 0; }
 html {
   color-scheme: dark;
+  /* NỀN CỦA KHUNG VẼ, không chỉ của <body>.
+     LỖI NGƯỜI DÙNG CHỈ RA (vòng 12–13, "flash trắng khó chịu khi chuyển mục"):
+     chuyển cảnh cho hai ảnh chụp trượt ngang, nên hai mép màn hình lộ ra khung
+     vẽ nằm dưới. Khung vẽ lấy màu từ <html>; <html> không có nền thì trình
+     duyệt dùng màu mặc định của nó — TRẮNG — và người dùng thấy đúng một vệt
+     trắng nháy ở mép, mỗi lần đổi mục. Kéo quá đà trên iOS cũng lộ khoảng trắng
+     ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang. */
   /* lề cuộn chừa sẵn: dữ liệu về làm thanh cuộn xuất hiện là cả trang
      giật ngang một cái, rất dễ thấy trên khối danh sách */
   scrollbar-gutter: stable;
@@ -1042,7 +1049,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .prof-av-img { width: 64px; height: 64px; flex: none; border-radius: 50%; object-fit: cover; background: var(--surface-3); }
 .prof-av-ph { display: grid; place-items: center; font-size: 24px; font-weight: 600; color: var(--txt-3); }
 .prof-av-acts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
-.prof-av-note { width: 100%; font-size: 11px; color: var(--txt-3); line-height: 1.55; }
 .prof-acts { display: flex; justify-content: flex-end; gap: 7px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 
 /* KHỐI HỒ SƠ TRONG MỤC "ABOUT ME" (vòng 12) — trước đây là hộp thoại riêng.
@@ -1187,6 +1193,18 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
     white-space: normal; text-align: center; }
   .adm-req .adm-acts .icon-btn { flex: 0 0 auto; width: 38px; height: 38px;
     margin-left: auto; font-size: 17px; }
+
+  /* HÀNG VIDEO cũng là một hàng có nút, mà mỗi hàng tới NĂM nút (hai nút đổi
+     thứ tự, Sửa, Ẩn/Hiện, Xoá).
+     Trước đây luật bó hàng chỉ áp cho `.adm-req`, nên trên máy hẹp năm nút này
+     chen thành hai dòng so le bên cạnh tiêu đề. Nay xuống hẳn một hàng riêng
+     dưới tiêu đề, nút 38px đủ để ngón tay bấm, và nút xoá đứng cuối hàng. */
+  .mrow { gap: 8px; }
+  .mrow > .adm-acts { width: 100%; justify-content: flex-start; gap: 6px; }
+  .mrow .adm-acts .btn { flex: 1 1 auto; min-height: 38px; padding: 8px 12px;
+    white-space: normal; text-align: center; }
+  .mrow .adm-acts .icon-btn { flex: 0 0 auto; width: 38px; height: 38px; }
+  .mrow > .adm-acts > .icon-btn:last-child { margin-left: auto; }
 
   .inline-form { gap: 6px; }
   .inline-form input { flex: 1 1 100%; font-size: 16px; padding: 9px 10px; }
@@ -1456,8 +1474,9 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   border-radius: var(--r-sm); overflow: hidden; background: var(--surface-3); }
 .mrow-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
-/* bảng Admin → Videos: hai nhóm (featured / dải mới) + ô dán hàng loạt */
-.mgroup-bar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+/* bảng Admin → Videos: hai nhóm (featured / dải mới) + ô dán hàng loạt.
+   Nút "View on home page" không còn nằm trong một dải riêng (.mgroup-bar) mà
+   đứng trong .adm-bar — xem .adm-bar-end. */
 .mgroup { padding: 12px 0 4px; border-top: 1px solid var(--line); }
 .mgroup:first-of-type { border-top: 0; padding-top: 2px; }
 .mgroup-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -2140,6 +2159,9 @@ html[data-section="spin"] .bgfx { display: none; }
    ========================================================= */
 @media (prefers-reduced-motion: no-preference) {
   @supports (view-transition-name: none) {
+    /* Lớp phủ của chuyển cảnh cũng được tô nền trang: hai ảnh chụp mờ dần nên
+       giữa chúng luôn có khe hở, và khe hở phải là nền trang, không phải trắng. */
+    html[data-vt="on"]::view-transition { background: var(--bg); }
     html[data-vt="on"] .side { view-transition-name: sidebar; }
     html[data-vt="on"]::view-transition-group(sidebar) { animation: none; }
     html[data-vt="on"]::view-transition-old(root),
@@ -3089,7 +3111,12 @@ html[data-section="spin"] .bgfx { display: none; }
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
   transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
 }
-.adm:last-child { margin-bottom: 0; border-bottom: 1px solid var(--line); }
+/* Hàng cuối KHÔNG vẽ thêm đường dưới: từ vòng 12 mỗi hàng là một THẺ có viền
+   riêng (luật `.adm` ở trên), nên đường kẻ của bản danh sách cũ chỉ còn là một
+   vạch thừa nằm ngay trên đáy khung. Luật gốc `.adm:last-child { border-bottom:
+   0 }` đã đúng; dòng dưới từng ghi đè nó, làm hàng cuối có viền dưới còn hàng
+   giữa thì không — nhìn như khung bị lệch. */
+.adm:last-child { margin-bottom: 0; }
 .adm:hover { border-color: var(--line-2); background: var(--surface-2); }
 
 
@@ -3212,24 +3239,22 @@ html[data-section="spin"] .bgfx { display: none; }
 
    Thanh là một KHỐI CÓ VIỀN nằm trong cột nội dung (không tràn ra ngoài bằng
    lề âm) — mép trái của nó trùng mép trái của danh sách request ngay dưới.
-   Khi dính lên đỉnh khung nhìn, nền đổi sang màu ĐỤC: nền trong suốt là lý do
-   hàng request hiện xuyên qua thanh và chữ hai lớp chồng lên nhau. */
+   KHÔNG DÍNH MÉP TRÊN (vòng 13: "đừng để cái filter search bar floating lúc cuộn
+   trang"). Trước đây thanh `position: sticky; top: 0` và khi dính thì đổi nền,
+   thêm viền + bóng — nhưng ở máy hẹp nó là một khối cao gần nửa màn hình (ô tìm
+   + dải chip + nút Bộ lọc), nên nó phủ lên danh sách request suốt lúc cuộn, và
+   người dùng đọc đúng như một lỗi. Nay thanh là một KHỐI TRONG DÒNG: cuộn qua
+   nó thì nó đi theo trang. Đổi lại, nút "lên đầu trang" (đã có sẵn, góc phải
+   dưới) là đường về thanh lọc — không phải một thanh chiếm màn hình.
+   Mép trái/phải của thanh vẫn TRÙNG mép danh sách: lề âm làm nó thò ra ngoài
+   cột nội dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
 .fbar {
-  position: sticky; top: 0; z-index: 22;
   animation: rise .42s var(--e-out) .05s both;
   display: grid; gap: 9px;
   padding: 10px 12px; margin: 0 0 12px;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel);
-  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft),
-    box-shadow var(--t-2) var(--e-soft), border-radius var(--t-2) var(--e-soft);
-}
-.fbar.stuck {
-  padding-top: 12px;
-  background: var(--float);
-  border-color: var(--line-2); border-top-color: transparent;
-  border-radius: 0 0 var(--r-md) var(--r-md);
-  box-shadow: var(--sh-2), var(--ring);
+  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
 }
 .fbar-top { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
@@ -3399,6 +3424,9 @@ html[data-section="spin"] .bgfx { display: none; }
   box-shadow: var(--sh-1), var(--ring); padding: 12px 14px 14px; }
 .adm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 10px;
   border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+/* Mục Videos chỉ có MỘT nút trong thanh công cụ, và nó là việc phụ (mở trang
+   chủ ra xem) nên đứng về phía phải — cùng chỗ với nhóm nút của các mục khác. */
+.adm-bar-end { justify-content: flex-end; }
 .adm-bar .searchwrap { flex: 1 1 200px; min-width: 0; }
 .adm-bar .search { max-width: none; width: 100%; }
 .adm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

@@ -51,7 +51,7 @@ test('tin trả tiền và tin lỗi có tiếng riêng, không dùng chung mộ
   assert.ok(Array.isArray(VOICES.gold), 'thiếu tiếng cho tin trả tiền')
   assert.ok(VOICES.notify.length >= 2)
   /* `sfx.notify` là cửa duy nhất để chọn tiếng: gọi không tham số = tin thường. */
-  assert.match(src, /notify:\s*tone => play\(tone === 'gold' \? 'gold' : tone === 'err' \? 'error' : 'notify'\)/,
+  assert.match(src, /notify:\s*tone => \{[\s\S]{0,400}?play\(tone === 'gold' \? 'gold' : tone === 'err' \? 'error' : 'notify'\)/,
     'sfx.notify phải chọn tiếng theo tone')
   /* Ba tiếng phải khác nhau về nội dung, không chỉ khác tên. */
   const shape = (k) => VOICES[k].map(n => `${n[0]}:${n[2]}`).join('|')
@@ -86,4 +86,27 @@ test('bảng VOICES là dữ liệu tĩnh, đọc hai lần ra đúng một kế
      kêu như tiếng bấm nút. */
   assert.equal(typeof sfx.spinTicks, 'function')
   assert.ok(!('tick' in VOICES), 'tiếng tách của vòng quay không được nằm trong bảng giai điệu')
+})
+
+/* ---------- 5. vòng 13: tai người dùng, không phải tai máy đo ---------- */
+test('tin về dồn dập không kêu thành chuỗi', () => {
+  /* Một đợt vote làm nhiều bài nhúc nhích → nhiều tin trong vài giây. Không có
+     khoảng cách tối thiểu thì tai nghe một chuỗi tiếng giống nhau, và người
+     dùng gọi đó là "âm thanh chưa ổn" — đúng lỗi của vòng 13. */
+  assert.match(src, /const NOTIFY_GAP = \d+/, 'phải có khoảng cách tối thiểu giữa hai tiếng thông báo')
+  const gap = Number(/const NOTIFY_GAP = (\d+)/.exec(src)?.[1])
+  assert.ok(gap >= 1000, `khoảng cách phải đủ lớn để tách hai tin (đang ${gap}ms)`)
+  assert.match(src, /if \(now - lastNotify < NOTIFY_GAP\) return/,
+    'luật chặn phải nằm trong chính sfx.notify')
+})
+
+test('tiếng nghe ấm: có bè trầm nửa cao độ, bồi âm bị chặn trần, gõ dùi khẽ', () => {
+  assert.match(src, /const low = ac\.createOscillator\(\)/, 'thiếu bè trầm')
+  assert.match(src, /low\.frequency\.setValueAtTime\(freq \/ 2, t\)/, 'bè trầm phải đúng nửa cao độ')
+  assert.match(src, /shim\.frequency\.setValueAtTime\(Math\.min\(freq \* 2, 5000\), t\)/,
+    'bồi âm quãng tám phải bị chặn trần — 2×C7 là đỉnh chói nhất của bộ tiếng')
+  const clickGain = Number(/gc\.gain\.setValueAtTime\(peak \* ([\d.]+), t\)/.exec(src)?.[1])
+  assert.ok(clickGain <= 0.3, `tiếng gõ dùi phải khẽ (đang ${clickGain} × biên độ nốt)`)
+  const cut = Number(/input\.frequency\.value = (\d+)/.exec(src)?.[1])
+  assert.ok(cut <= 4800, `trần lọc phải dưới 4,8kHz (đang ${cut})`)
 })

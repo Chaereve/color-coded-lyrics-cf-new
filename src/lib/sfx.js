@@ -10,6 +10,11 @@
 const KEY = 'ccl.sfx'
 const VOL = 'ccl.sfx.vol'
 
+/* Âm lượng tổng mặc định. 0,8 là mức "nghe thử trong phòng thu"; ngoài đời
+   người ta mở web trong quán, trong lớp — 0,7 vẫn nghe rõ mà không giật mình,
+   và luôn chỉnh được bằng thanh trượt cạnh nút loa. */
+const VOLUME_DEFAULT = 0.7
+
 /* Cao độ (Hz) */
 const N = {
   Bb4: 466.16, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25,
@@ -32,8 +37,6 @@ export const VOICES = {
   toggle: [[N.C6, 0.000, 0.10, 0.090], [N.G6, 0.045, 0.13, 0.060]],
   off:    [[N.G6, 0.000, 0.09, 0.060], [N.C6, 0.045, 0.13, 0.080]],
   // mở / đóng hộp thoại
-  open:   [[N.G5, 0.000, 0.12, 0.090], [N.D6, 0.050, 0.18, 0.080]],
-  close:  [[N.D6, 0.000, 0.10, 0.070], [N.G5, 0.045, 0.16, 0.070]],
   // thông báo (toast thành công)
   notify: [[N.E6, 0.000, 0.14, 0.100], [N.A6, 0.090, 0.22, 0.085]],
   // xóa — trầm, đi xuống
@@ -101,49 +104,72 @@ export function schedule(ac, dest, seq, t0 = 0) {
     osc.frequency.setValueAtTime(freq * 1.012, t)
     osc.frequency.exponentialRampToValueAtTime(freq, t + 0.025)
 
-    // bồi âm quãng tám, khẽ, tắt nhanh hơn
+    /* BÈ TRẦM — một sóng sin đúng NỬA cao độ, rất khẽ, ngân gần bằng nốt
+       chính. Đây là phần làm tiếng nghe ra "gỗ" chứ không phải "tiếng bíp":
+       tai người ghép hai tần số cách nhau một quãng tám thành CÙNG một nốt,
+       nhưng âm sắc dày lên và bớt chói, nhất là ở các nốt C6–C7 mà bộ tiếng
+       này dùng nhiều. */
+    const low = ac.createOscillator()
+    low.type = 'sine'
+    low.frequency.setValueAtTime(freq / 2, t)
+
+    // bồi âm quãng tám, khẽ, tắt nhanh hơn — và BỊ CHẶN TRẦN 5kHz: bồi âm
+    // của C7 là 4186Hz, để nguyên thì đúng cái đỉnh chói nhất của cả bộ tiếng.
     const shim = ac.createOscillator()
     shim.type = 'sine'
-    shim.frequency.setValueAtTime(freq * 2, t)
+    shim.frequency.setValueAtTime(Math.min(freq * 2, 5000), t)
 
     const g = ac.createGain()
     const gs = ac.createGain()
-    for (const [node, p, d] of [[g, peak, dur], [gs, peak * 0.22, dur * 0.55]]) {
+    const gl = ac.createGain()
+    for (const [node, p, d, at] of [
+      [g, peak, dur, 0.008],
+      [gs, peak * 0.14, dur * 0.45, 0.008],
+      [gl, peak * 0.13, dur * 0.9, 0.012],
+    ]) {
       node.gain.setValueAtTime(0.0001, t)
-      node.gain.exponentialRampToValueAtTime(p, t + 0.008)
+      node.gain.exponentialRampToValueAtTime(p, t + at)
       node.gain.exponentialRampToValueAtTime(0.0001, t + d)
     }
 
-    // tiếng gõ dùi — nhiễu lọc dải, chỉ ~18ms
+    /* Tiếng gõ dùi — nhiễu lọc dải, ~14ms. Trước đây nó chiếm một nửa biên độ
+       của nốt và lọc tới 9kHz, nên mỗi cú bấm kèm một tiếng "tách" sắc: đúng
+       thứ làm âm thanh giao diện nghe rẻ tiền. Nay nó chỉ còn là cạnh lên của
+       nốt, không phải một tiếng riêng. */
     const click = ac.createBufferSource()
     click.buffer = noiseBuffer(ac)
     const bp = ac.createBiquadFilter()
     bp.type = 'bandpass'
-    bp.frequency.value = Math.min(freq * 3, 9000)
-    bp.Q.value = 1.2
+    bp.frequency.value = Math.min(freq * 2.4, 6500)
+    bp.Q.value = 0.9
     const gc = ac.createGain()
-    gc.gain.setValueAtTime(peak * 0.5, t)
-    gc.gain.exponentialRampToValueAtTime(0.0001, t + 0.018)
+    gc.gain.setValueAtTime(peak * 0.28, t)
+    gc.gain.exponentialRampToValueAtTime(0.0001, t + 0.014)
 
     osc.connect(g).connect(dest)
     shim.connect(gs).connect(dest)
+    low.connect(gl).connect(dest)
     click.connect(bp).connect(gc).connect(dest)
 
     osc.start(t);   osc.stop(t + dur + 0.03)
-    shim.start(t);  shim.stop(t + dur * 0.55 + 0.03)
-    click.start(t); click.stop(t + 0.03)
+    shim.start(t);  shim.stop(t + dur * 0.45 + 0.03)
+    low.start(t);   low.stop(t + dur * 0.9 + 0.03)
+    click.start(t); click.stop(t + 0.025)
   }
 }
 
 /** Đường tiếng chung: lọc → (vang) → compressor → master → loa */
-export function buildBus(ac, { volume = 0.8 } = {}) {
+export function buildBus(ac, { volume = VOLUME_DEFAULT } = {}) {
+  /* Trần 4,6kHz: bộ tiếng này nằm ở C6–C7 (1046–2093Hz), cộng bè quãng tám là
+     chạm 4kHz — đúng vùng tai người nghe chói nhất. Cắt ở 4,6kHz giữ nguyên
+     độ "sáng" mà bỏ được phần gắt, và cũng là chỗ loa điện thoại dễ rè. */
   const input = ac.createBiquadFilter()
   input.type = 'lowpass'
-  input.frequency.value = 5200
+  input.frequency.value = 4600
   input.Q.value = 0.6
 
   const comp = ac.createDynamicsCompressor()
-  comp.threshold.value = -18
+  comp.threshold.value = -20
   comp.knee.value = 12
   comp.ratio.value = 4
   comp.attack.value = 0.002
@@ -152,10 +178,12 @@ export function buildBus(ac, { volume = 0.8 } = {}) {
   const master = ac.createGain()
   master.gain.value = volume
 
+  /* Vang ÍT hơn (0,22 → 0,15): nhiều tiếng cùng lúc (đổi bước liên tục, một
+     đợt vote) mà vang nhiều thì chúng nhoè vào nhau thành một cục ồn. */
   const verb = ac.createConvolver()
   verb.buffer = impulse(ac)
   const wet = ac.createGain()
-  wet.gain.value = 0.22
+  wet.gain.value = 0.15
 
   input.connect(comp)
   input.connect(verb).connect(wet).connect(comp)
@@ -173,8 +201,8 @@ let enabled = (() => {
 let volume = (() => {
   try {
     const v = parseFloat(localStorage.getItem(VOL))
-    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.8
-  } catch { return 0.8 }
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : VOLUME_DEFAULT
+  } catch { return VOLUME_DEFAULT }
 })()
 
 export const isEnabled = () => enabled
@@ -209,10 +237,18 @@ function live() {
    Bản nhạc gốc (VOICES) vẫn nguyên vẹn — `schedule` là hàm thuần, chỉ bản sao
    truyền vào nó mới bị lệch, nên phép kiểm nào đọc thẳng VOICES vẫn đúng. */
 const JITTER = 0.004
+
 const jittered = (seq) => seq.map(([f, at, dur, peak]) =>
   [f * (1 + (Math.random() * 2 - 1) * JITTER), at, dur, peak])
 
 /* Cùng một tiếng không phát lại trong 45ms (double-click, spam) */
+/* Tin về dồn dập (một đợt vote làm bảng nhúc nhích liên tiếp) không được kêu
+   thành chuỗi: hai tiếng THÔNG BÁO cách nhau tối thiểu 1,5 giây. Tiếng của
+   thao tác mình vừa bấm (vote, gửi, chép link…) không bị chặn — đó là phản hồi
+   trực tiếp, phải kêu ngay. */
+const NOTIFY_GAP = 1500
+let lastNotify = -Infinity
+
 const last = new Map()
 const play = (name) => {
   const seq = VOICES[name]
@@ -234,18 +270,21 @@ function tick(ac, dest, t, gain) {
   src.buffer = noiseBuffer(ac)
   const bp = ac.createBiquadFilter()
   bp.type = 'bandpass'
-  bp.frequency.value = 2600
-  bp.Q.value = 3.5
+  bp.frequency.value = 2100
+  bp.Q.value = 3.0
   const g = ac.createGain()
-  g.gain.setValueAtTime(Math.max(0.0001, 0.13 * gain), t)
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03)
+  /* Một lượt quay có hàng chục tiếng tách. Để mỗi tiếng to và sáng như trước
+     thì cả lượt quay là một tràng "tạch tạch" chói; hạ biên độ còn ~2/3 và kéo
+     lọc xuống 2,1kHz là đủ để nghe ra nhịp quay mà không đau tai. */
+  g.gain.setValueAtTime(Math.max(0.0001, 0.085 * gain), t)
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.026)
 
   const body = ac.createOscillator()
   body.type = 'square'
-  body.frequency.setValueAtTime(1400, t)
-  body.frequency.exponentialRampToValueAtTime(700, t + 0.02)
+  body.frequency.setValueAtTime(1200, t)
+  body.frequency.exponentialRampToValueAtTime(620, t + 0.02)
   const gb = ac.createGain()
-  gb.gain.setValueAtTime(Math.max(0.0001, 0.035 * gain), t)
+  gb.gain.setValueAtTime(Math.max(0.0001, 0.026 * gain), t)
   gb.gain.exponentialRampToValueAtTime(0.0001, t + 0.022)
 
   src.connect(bp).connect(g).connect(dest)
@@ -276,7 +315,12 @@ export const sfx = {
   /* `notify(tone)` — tiếng thông báo đi theo TONE của tin: tin thường, tin trả
      tiền ('gold'), tin lỗi. Trước đây mọi loại tin đều kêu đúng một tiếng, nên
      tai không phân biệt được "có bài vừa được chốt" với "có người vừa vote". */
-  notify:  tone => play(tone === 'gold' ? 'gold' : tone === 'err' ? 'error' : 'notify'),
+  notify:  tone => {
+    const now = performance.now()
+    if (now - lastNotify < NOTIFY_GAP) return
+    lastNotify = now
+    play(tone === 'gold' ? 'gold' : tone === 'err' ? 'error' : 'notify')
+  },
   step:    () => play('step'),
   back:    () => play('back'),
   copy:    () => play('copy'),
@@ -286,8 +330,6 @@ export const sfx = {
   tap:     () => play('tap'),
   toggle:  () => play('toggle'),
   off:     () => play('off'),
-  open:    () => play('open'),
-  close:   () => play('close'),
   delete:  () => play('delete'),
   error:   () => play('error'),
   preview: () => play('vote'),

@@ -287,6 +287,10 @@ if (addBtn) {
   check('mở form ở bước 1 — chưa dựng ô của bước 2',
     !!q('.req-pane') && !q('#rq-artist') && !q('#rq-note'))
   check('đủ 4 chip loại bài', qa('.kchip').length === 4)
+  /* VÒNG 13: chữ "TikTok" trong dòng gợi ý kiểu bài đã bị gỡ — trang chỉ nói
+     về YouTube, nhắc một nền tảng khác chỉ làm người gửi phân vân. */
+  check('dòng gợi ý kiểu bài không còn nhắc TikTok', !/TikTok/i.test(text()),
+    q('.kind-note')?.textContent)
   check('có đúng MỘT dòng giải thích loại đang chọn', qa('.kind-note').length === 1)
   /* Nút chính của bước 1 là ĐI TIẾP, không phải Gửi: bước gửi chưa tới. */
   const stepBtn = () => qa('.req-actions button').find(b => /Continue|Send request|Fill in/i.test(b.textContent || ''))
@@ -294,6 +298,10 @@ if (addBtn) {
   await tick(150)
   check('bấm Continue là sang bước 2', !!q('#rq-artist') && !!q('#rq-title'))
   check('bước 2 có thẻ xem trước', !!q('.req-preview'))
+  check('thẻ xem trước không còn nhãn dài "… goes on the board"',
+    !/goes on the board/i.test(text()))
+  check('ô Link không còn câu "Paste the YouTube link if you have one."',
+    !/Paste the YouTube link/i.test(text()))
   const artist = q('#rq-artist'), title = q('#rq-title')
   if (artist && title) {
     await type(artist, 'aespa')
@@ -451,6 +459,13 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
       wheelLabels.length === 4 && wheelLabels.every(x => /^\+\d+$/.test(x)),
       wheelLabels.join(' · '))
     check('không còn nhãn "×N" trên đĩa', !q('.spin-wheel-times'))
+    /* VÒNG 13: "vòng quay cx ko clear và colorful cho người dùng". Bốn tầng
+       thưởng nay là BỐN MÀU khác nhau trên đĩa, và có một chú giải nói lại
+       bằng chữ: mỗi dải một dòng, kèm số ô và tỉ lệ thật. */
+    check('đĩa có chú giải bốn dải thưởng', qa('.spin-legend li').length === 4,
+      `${qa('.spin-legend li').length} dòng`)
+    check('chú giải in ra số ô và tỉ lệ', /\d+\s*slices?.{0,12}\d/.test(q('.spin-legend')?.textContent || ''),
+      q('.spin-legend')?.textContent?.replace(/\s+/g, ' ').slice(0, 90))
     /* Không còn note thừa: dòng "mỗi lượt thắng trung bình 1,75 vote" ở đầu
        khối và câu "ô nào cũng có thưởng" dưới nút đều đã bị gỡ. */
     check('đầu khối quay không còn dòng trung bình cộng',
@@ -464,6 +479,7 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     check('mục About me có khối hồ sơ ngay trong trang', !!q('.prof-card') && !!q('#prof-name'))
     check('khối hồ sơ có nút Lưu và nút đổi ảnh', qa('.prof-head-acts button').length >= 1 && !!q('.prof-av-acts button'))
     check('hồ sơ không còn là hộp thoại nổi', !q('.overlay .modal.narrow'))
+    check('khối hồ sơ không còn dòng "Square crop…"', !/Square crop/i.test(text()))
     check('mục About me vẫn liệt kê request của mình', !!q('.list') && !!q('.section-title'))
   }
 }
@@ -581,6 +597,131 @@ if (pick) {
     check('chọn nhiều có ô chọn hàng', false, 'không thấy .adm-sel')
   }
   await click(pick)
+}
+
+/* ---------- 9b. RÀ SOÁT DOM TOÀN TRANG (vòng 13) ----------
+   Bốn nhóm lỗi mà mắt người bỏ qua nhưng máy đọc được — và cả bốn đều là lỗi
+   thật, người dùng gặp bằng cách khác:
+     · id trùng: thẻ <label for> hoặc aria trỏ vào id đầu tiên, phần tử thứ hai
+       mất tên;
+     · nút/ô nhập không có TÊN: trình đọc màn hình đọc "button";
+     · tham chiếu aria/label trỏ vào id KHÔNG tồn tại: liên kết đứt;
+     · thẻ tương tác lồng trong thẻ tương tác: bấm không biết vào cái nào.
+   Soi mọi màn, mọi tab quản trị, và hai hộp thoại — lỗi loại này thường chỉ
+   xuất hiện ở đúng màn ít ai mở. */
+const auditDom = (label) => {
+  const doc = window.document
+  const accName = (el) => {
+    const own = (el.textContent || '').trim()
+    if (own) return own
+    for (const a of ['aria-label', 'title', 'alt', 'placeholder', 'value']) {
+      const v = el.getAttribute?.(a)
+      if (v && String(v).trim() && a !== 'value') return String(v).trim()
+    }
+    const lb = el.getAttribute?.('aria-labelledby')
+    if (lb) {
+      const t = lb.split(/\s+/).map(id => doc.getElementById(id)?.textContent || '').join(' ').trim()
+      if (t) return t
+    }
+    if (el.id) {
+      const l = doc.querySelector(`label[for="${el.id}"]`)
+      if (l?.textContent.trim()) return l.textContent.trim()
+    }
+    return ''
+  }
+
+  const seen = new Map()
+  for (const el of doc.querySelectorAll('[id]')) seen.set(el.id, (seen.get(el.id) || 0) + 1)
+  const dup = [...seen].filter(([, n]) => n > 1).map(([id]) => id)
+  check(`${label}: không có id trùng`, dup.length === 0, dup.join(', '))
+
+  const nameless = []
+  for (const el of doc.querySelectorAll('button, a[href], select, textarea, input:not([type="hidden"])')) {
+    if (el.closest('[aria-hidden="true"]') || el.closest('.sr-only')) continue
+    if (el.tagName === 'A' && /<svg/.test(el.innerHTML) && !el.textContent.trim()) {
+      /* icon-only links must still carry a name */
+    }
+    if (!accName(el)) nameless.push(`${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).split(' ')[0] : ''}`)
+  }
+  check(`${label}: phần tử tương tác đều có tên`, nameless.length === 0,
+    [...new Set(nameless)].slice(0, 6).join(' | '))
+
+  const broken = []
+  for (const el of doc.querySelectorAll('[aria-controls], [aria-labelledby], [aria-describedby], label[for]')) {
+    for (const a of ['aria-controls', 'aria-labelledby', 'aria-describedby', 'for']) {
+      const v = el.getAttribute(a)
+      if (!v) continue
+      for (const id of v.split(/\s+/)) if (id && !doc.getElementById(id)) broken.push(`${a}="${id}"`)
+    }
+  }
+  check(`${label}: tham chiếu aria/label đều trỏ tới id có thật`, broken.length === 0,
+    [...new Set(broken)].slice(0, 6).join(' | '))
+
+  /* Ảnh: `alt` RỖNG là hợp lệ cho ảnh trang trí; THIẾU HẲN thuộc tính mới lỗi. */
+  const noAlt = [...doc.querySelectorAll('img:not([alt])')].length
+  check(`${label}: ảnh đều có thuộc tính alt`, noAlt === 0, `${noAlt} ảnh`)
+
+  const nested = []
+  for (const sel of ['button button', 'a a', 'button a', 'a button']) {
+    for (const el of doc.querySelectorAll(sel)) {
+      nested.push(`${sel} @ ${String(el.className || el.tagName).split(' ')[0]}`)
+    }
+  }
+  check(`${label}: không lồng thẻ tương tác trong nhau`, nested.length === 0,
+    [...new Set(nested)].slice(0, 4).join(' | '))
+}
+
+for (const [label, path] of [['Trang chủ', '/'], ['Daily Spin', '/daily-spin'],
+  ['Xếp hạng', '/ranking'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
+  where = `rà soát DOM · ${label}`
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new window.Event('popstate'))
+  await waitFor(() => !q('.splash') && text().length > 200)
+  await tick(140)
+  auditDom(label)
+}
+
+for (const k of ['pending', 'active', 'orders', 'done', 'media']) {
+  where = `rà soát DOM · quản trị ${k}`
+  window.history.pushState({}, '', `/admin?tab=${k}`)
+  window.dispatchEvent(new window.Event('popstate'))
+  await waitFor(() => !!q('.adm-page'))
+  await tick(140)
+  auditDom(`Quản trị · ${k}`)
+}
+
+/* Hai hộp thoại: chỗ dày đặc id và nhãn nhất, và cũng là chỗ ít được soi nhất. */
+where = 'rà soát DOM · form request'
+window.history.pushState({}, '', '/')
+window.dispatchEvent(new window.Event('popstate'))
+await waitFor(() => !q('.splash') && text().length > 200)
+const auditAdd = qa('button').find(b => /New request|Request a|Gửi/i.test(b.textContent || ''))
+if (auditAdd) {
+  await click(auditAdd)
+  if (/Before requesting/i.test(text())) await click(qa('button').find(b => /agree/i.test(b.textContent || '')))
+  await tick(200)
+  auditDom('Form request')
+  if (q('.modal')) {
+    const stepBtn2 = qa('.req-actions button').find(b => /Continue|Send request|Fill in/i.test(b.textContent || ''))
+    if (stepBtn2) { await click(stepBtn2); await tick(180); auditDom('Form request · bước 2') }
+  }
+  /* Đóng bằng phím Esc: đúng đường người dùng đi, và không phụ thuộc việc nút
+     đóng là `.icon-btn` thứ mấy trong hộp (bấm nhầm thì hộp còn nguyên và màn
+     sau bị báo lỗi hai lần). */
+  await act(async () => {
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  await tick(200)
+}
+
+where = 'rà soát DOM · hộp vote'
+const auditVote = qa('.votebtn:not([disabled])')[0]
+if (auditVote) {
+  await click(auditVote)
+  await tick(200)
+  auditDom('Hộp vote')
+  const closeVote = q('.vm-close, .modal .icon-btn')
+  if (closeVote) await click(closeVote)
 }
 
 /* ---------- 10. MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn ----------

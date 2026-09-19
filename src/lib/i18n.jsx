@@ -44,7 +44,6 @@ const S = {
   'prof.name': 'Display name',
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
-  'prof.avatarNote': 'Square crop, up to {mb}MB',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',
@@ -78,6 +77,8 @@ const S = {
 
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
+  'spin.legendAria': 'The four prize tiers on the wheel',
+  'spin.legendRow': '{n} slices, {pct}%',
   'spin.playLabel': 'Daily bonus wheel',
   'spin.available': 'Spins left today',
   'spin.wheelLabel': 'Wheel with {n} equal sectors: {odds} votes. Brighter sectors are rarer.',
@@ -395,12 +396,11 @@ const S = {
   'req.kindHint.ccl': 'Colour-coded lyrics video',
   'req.kindHint.album': 'Every track on the release',
   'req.kindHint.loop': 'One song looping for an hour',
-  'req.kindHint.short': 'Vertical cut for Shorts and TikTok',
+  'req.kindHint.short': 'Vertical cut for Shorts',
   'req.artistPh': 'e.g. aespa',
   'req.titlePh': 'Song, or album name',
   'req.notePh': 'Anything the editor should know',
   'req.noteHint': 'Optional. Up to 500 characters.',
-  'req.linkHint': 'Optional. Paste the YouTube link if you have one.',
   'req.warnLink': 'That does not look like a full link — it should start with http.',
   'req.errArtist': 'Who is the artist? This one is required.',
   'req.errTitle': 'This one is required.',
@@ -410,7 +410,6 @@ const S = {
 
   /* Thẻ XEM TRƯỚC trong form: dựng đúng cái người khác sẽ thấy trên bảng, từ
      chính những gì đang gõ. Chỗ chưa điền hiện chữ mờ nói rõ còn thiếu gì. */
-  'req.preview': 'Preview — this is what goes on the board',
   /* Gợi ý tách tiêu đề video dán nguyên si thành hai ô (xem `splitSong`). */
   'req.splitLead': 'This looks like a full video title. Split it into the two fields?',
   'req.splitGo': 'Split it',

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, formatChance, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
 } from '../lib/dailySpin'
 import {
@@ -283,7 +283,8 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       /* Chỉ số server trả về thuộc BẢNG RÚT; bản vẽ gom ô cùng thưởng thành
          dải nên phải quy đổi sang ô trên bản vẽ, kẻo kim dừng ở ô khác với ô
          được tô sáng. */
-      const next = spinRotation(angle.current, spinSectorIndex(data.spin.segment, rewards), rewards.length)
+      const winIndex = spinSectorIndex(data.spin.segment, rewards)
+      const next = spinRotation(angle.current, spinSectors(rewards)[winIndex].angle)
       const travel = next - angle.current
       angle.current = next
       setRotation(next)
@@ -375,6 +376,21 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
               n: rewards.length,
               odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),
             })} />
+
+          {/* CHÚ GIẢI BỐN DẢI — đĩa trả lời "ô nào đáng hơn" bằng MÀU, chú
+              giải trả lời bằng CHỮ: mỗi dải một dòng, kèm số ô và tỉ lệ thật
+              (cùng con số với bảng xác suất, không phải một câu quảng cáo).
+              Đây là dữ liệu, không phải ghi chú — bỏ nó thì người chơi phải
+              tự đoán dải màu nào là +3. */}
+          <ul className="spin-legend" aria-label={t('spin.legendAria')}>
+            {rewardOdds(rewards).map(o => (
+              <li key={o.reward} className={o.tier}>
+                <i aria-hidden="true" />
+                <b>+{o.reward}</b>
+                <span>{t('spin.legendRow', { n: o.count, pct: formatChance(o.chance) })}</span>
+              </li>
+            ))}
+          </ul>
 
           <div className="spin-cta" aria-busy={active || loading}>
             <button type="button" className="btn btn-primary spin-button" onClick={spin}

@@ -41,23 +41,21 @@ const anchor = (sel, re, what = '') => {
 const has = (sel, re) => bodies(sel).some((b) => re.test(b))
 
 /* ---------- 1. thanh lọc ---------- */
-test('.fbar dính mép trên khi cuộn, và dấu hiệu "đang dính" chỉ thêm viền + bóng', () => {
-  const bar = anchor('.fbar', /position:\s*sticky/, 'dính mép trên')
-  assert.match(bar, /position:\s*sticky/)
-  assert.match(bar, /top:\s*0/)
-  assert.match(bar, /z-index:\s*\d+/)
-  /* LỖI NGƯỜI DÙNG CHỈ RA (vòng 12 — "filter bar floating đang bị lỗi giao diện"):
-     nền bán trong suốt + backdrop-filter khiến hàng request cuộn ngay dưới thanh
-     hiện XUYÊN QUA nó: chữ của thanh và chữ của hàng chồng lên nhau, hàng đầu
-     bị cắt cụt. Nay thanh là một khối ĐỤC — nền --panel lúc nằm trong dòng,
-     --float (đục 97%) khi đã dính — nên không còn gì lộ qua. */
+test('.fbar nằm TRONG DÒNG — không dính, không nổi trên danh sách khi cuộn', () => {
+  const bar = anchor('.fbar', /background:\s*var\(--panel\)/, 'khối trong dòng')
+  /* LỖI NGƯỜI DÙNG CHỈ RA (vòng 13 — "đừng để cái filter search bar floating lúc
+     cuộn trang"): thanh từng `position: sticky; top: 0`, nên suốt lúc cuộn nó
+     phủ lên các hàng request; ở máy hẹp nó cao gần nửa màn hình. Nay nó trôi
+     theo trang. Chốt hai vế: KHÔNG sticky, và KHÔNG còn khối luật `.stuck` mồ
+     côi (đổi nền + viền + bóng của trạng thái dính). */
+  assert.doesNotMatch(bodies('.fbar').join(' '), /position:\s*sticky/,
+    'thanh lọc không được dính mép trên nữa')
+  assert.equal(bodies('.fbar.stuck').length, 0, 'khối luật của trạng thái "đang dính" phải bị gỡ')
+  assert.doesNotMatch(css, /\.fbar\.stuck/, 'không còn tham chiếu nào tới .fbar.stuck')
+  /* Vẫn phải là khối ĐỤC: nền trong suốt là lý do hàng request hiện xuyên qua. */
   assert.match(bar, /background:\s*var\(--panel\)/)
   assert.doesNotMatch(bodies('.fbar').join(' '), /backdrop-filter/,
-    'thanh lọc không được dùng nền mờ nữa (đó là nguyên nhân chữ chồng lên nhau)')
-  assert.match(anchor('.fbar.stuck', /background:\s*var\(--float\)/, 'nền đục khi dính'),
-    /background:\s*var\(--float\)/)
-  assert.match(anchor('.fbar.stuck', /border-color/), /border-color/)
-  assert.match(anchor('.fbar.stuck', /box-shadow/), /box-shadow/)
+    'thanh lọc không được dùng nền mờ (đó là nguyên nhân chữ chồng lên nhau)')
   /* Mép thanh phải TRÙNG mép danh sách: lề âm làm thanh thò ra ngoài cột nội
      dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
   assert.doesNotMatch(bar, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')

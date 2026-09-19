@@ -141,8 +141,11 @@ test('Daily Spin uses flat site colours and opts out of the shared background', 
      giải cao nhất. Bảng 12 sắc độ cũ (4 bậc × 3 sắc) đã bị gỡ — nếu nó quay
      lại, bài này phải đỏ. */
   assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-1:\s*var\(--surface-3\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--surface-3\)[^;]+;/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*var\(--a\)/)
+  /* Bốn tầng là bốn MÀU, không phải bốn sắc độ xám: +2 xanh tím, +3 hổ phách,
+     +5 vàng đặc (chữ mực đậm cho đủ tương phản trên nền vàng). */
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--queued\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-3:\s*color-mix\(in oklab, var\(--progress\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*var\(--paid\)/)
   /* Tông lát đi theo MỨC THƯỞNG: mỗi lớp tier trỏ về một token, nên đổi bảng
      thưởng là đổi luôn bảng màu — không phải sửa tay từng lát. */
   assert.match(pageCss, /\.spin-sector\s*\{[^}]*fill:\s*var\(--wc/)
@@ -157,7 +160,9 @@ test('Daily Spin uses flat site colours and opts out of the shared background', 
   assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
   // Số thưởng đọc bằng màu chữ của trang; chỉ ô giải cao nhất mới đi chữ trắng.
   assert.match(pageCss, /\.spin-wheel-number\s*\{[^}]*fill:\s*var\(--txt\)/)
-  assert.match(pageCss, /\.spin-wheel-number\.jackpot\s*\{[^}]*fill:\s*#fff/)
+  assert.match(pageCss, /\.spin-wheel-number\.jackpot\s*\{[^}]*fill:\s*#1a1206/,
+    'chữ trên ô vàng phải là mực đậm (trắng trên vàng chỉ ~2,5:1)')
+  assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
   // Không quầng sáng màu nhấn: đĩa nổi bằng bóng đổ trung tính.
   assert.doesNotMatch(pageCss, /box-shadow[^;]*var\(--a-glow\)/, 'bỏ quầng sáng màu')
   // Con trỏ gõ theo nhịp THẬT do JS đặt (drivePointer), không rung đều vô hạn.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { updateProfile } from '../lib/db'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { loadImage, centerCrop, processAvatar, checkFile, MAX_FILE_MB } from '../lib/avatar'
+import { loadImage, centerCrop, processAvatar, checkFile } from '../lib/avatar'
 import AvatarCropper from './AvatarCropper'
 
 /* SỬA HỒ SƠ — NAY LÀ MỘT KHỐI CỦA TRANG "ABOUT ME", KHÔNG CÒN HỘP THOẠI.
@@ -137,9 +137,9 @@ export default function ProfilePanel({ user, onSaved }) {
                   {t('prof.reset')}
                 </button>
               )}
-              <div className="prof-av-note">{t('prof.avatarNote', { mb: MAX_FILE_MB })}</div>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={pick} />
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={pick}
+              aria-label={t('prof.choose')} />
           </div>
 
           <div className="field" style={{ marginTop: 16 }}>

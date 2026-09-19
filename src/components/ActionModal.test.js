@@ -89,10 +89,13 @@ test('thẻ XEM TRƯỚC dựng theo đúng việc đang gõ, và nói ra chỗ 
      thật của người dùng khi mở lại form từ nháp hoặc từ link mời. */
   const empty = plain(await render({ ...base, live: false }))
   assert.match(empty, /Pick a type/, 'chưa có gì thì mở ở bước chọn loại')
-  assert.ok(!/Preview — this is what goes on the board/.test(empty),
+  assert.ok(!/the song name…/.test(empty),
     'bước 1 không được chứa sẵn phần của bước 2')
   const half = plain(await render({ ...base, live: false, prefill: { artist: 'aespa' } }))
-  assert.match(half, /Preview — this is what goes on the board/, 'phải có thẻ xem trước')
+  /* Thẻ xem trước không còn nhãn chữ (vòng 13 gỡ "Preview — this is what goes on
+     the board"), nên dấu hiệu nó CÓ MẶT là chính nội dung nó dựng: chữ vừa gõ
+     xuất hiện ở đây, còn ô chưa điền thì hiện chữ mờ. */
+  assert.match(half, /aespa/, 'phải có thẻ xem trước dựng theo chữ vừa gõ')
   assert.match(half, /the song name…/, 'ô chưa điền phải hiện chữ mờ nói còn thiếu gì')
 
   const filled = plain(await render({

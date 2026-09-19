@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
-  spinRotation, spinCountdown,
+  spinRotation, spinCountdown, sectorAtPointer,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
@@ -96,18 +96,31 @@ test('reset is exactly midnight Vietnam, including month/year boundaries', () =>
   }
 })
 
-test('wheel always stops at the centre of the awarded sector on repeated spins', () => {
-  const step = 360 / SPIN_REWARDS.length
+/* LỖI THẬT (vòng 13): "quay ra ko đúng phần thưởng".
+   Kim dừng ở 12 giờ, nên phép kiểm đúng không phải "đĩa quay bao nhiêu độ" mà là
+   "SAU KHI QUAY, Ô NẰM DƯỚI KIM CÓ ĐÚNG PHẦN THƯỞNG MÀ MÁY CHỦ TRẢ VỀ KHÔNG".
+   Bản trước quy góc từ CHỈ SỐ ô trong bảng rút, mà bản vẽ đã gom ô cùng thưởng
+   thành dải và dịch cả vòng — nên đĩa dừng lệch sang ô khác. Test dưới đây đi
+   hết 16 ô, và với mỗi ô kiểm bằng CHÍNH bản vẽ (sectors), không bằng công thức
+   hình học tự chế. */
+test('đĩa dừng đúng ô trúng: hết 16 ô, mỗi lần kim chỉ vào đúng phần thưởng', () => {
+  const sectors = spinSectors()
   let rotation = 0
-  for (let pass = 0; pass < 4; pass++) {
-    for (let index = 0; index < SPIN_REWARDS.length; index++) {
-      const next = spinRotation(rotation, index)
-      assert.ok(next - rotation >= 1800)
-      assert.equal((next + index * step) % 360, 0)
+  for (let pass = 0; pass < 3; pass++) {
+    for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
+      const winIndex = spinSectorIndex(segment)
+      const next = spinRotation(rotation, sectors[winIndex].angle)
+      assert.ok(next - rotation >= 1800, 'ít nhất 5 vòng mỗi lượt')
       rotation = next
+      const under = sectorAtPointer(rotation, sectors)
+      assert.ok(under, `kim không nằm trên ô nào (lượt ${segment})`)
+      assert.equal(under.reward, SPIN_REWARDS[segment],
+        `lượt ${segment}: kim chỉ +${under.reward}, đáng ra +${SPIN_REWARDS[segment]}`)
+      /* Và ô được TÔ SÁNG cũng phải là ô đó — mắt nhìn đĩa, không đọc số. */
+      assert.equal(sectors[winIndex].reward, under.reward, 'ô sáng và ô dưới kim phải là một')
     }
   }
-  for (const index of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) assert.throws(() => spinRotation(0, index))
+  for (const bad of [NaN, Infinity, null, undefined, '90']) assert.throws(() => spinRotation(0, bad))
 })
 
 test('bản vẽ gom ô cùng thưởng thành dải và in số MỘT lần cho mỗi dải', () => {

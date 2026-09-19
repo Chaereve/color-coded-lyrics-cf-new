@@ -262,6 +262,10 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const errArtist = !form.artist.trim() ? t('req.errArtist') : ''
   const errTitle = !form.title.trim() ? t('req.errTitle', { f: titleLabel.toLowerCase() }) : ''
   const warnLink = form.link.trim() && !URL_RE.test(form.link.trim()) ? t('req.warnLink') : ''
+  /* Dòng dưới ô Link nay chỉ dựng khi CÓ điều để nói (vòng 13), nên liên kết
+     `aria-describedby` cũng phải theo: trỏ vào một id không tồn tại là một liên
+     kết đứt — trình đọc màn hình không đọc gì, mà máy kiểm DOM thì báo lỗi. */
+  const hasLinkHint = !!(warnLink || ytId || yt?.kind === 'playlist')
   const err = { artist: errArtist, title: errTitle }
   const showErr = (k) => (touched[k] ? err[k] : '')
   const ready = !errArtist && !errTitle
@@ -459,10 +463,14 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
             </div>
           )}
 
+          {/* Thẻ này KHÔNG có nhãn chữ. Câu "Preview — this is what goes on the
+              board" đã bị gỡ (vòng 13): cái thẻ có viền, có nền, lại nằm ngay
+              dưới hai ô vừa gõ — nó tự nói nó là gì. Chỉ còn lại thứ đúng là
+              THÔNG TIN: con mắt đánh dấu đây là bản xem trước, và chip xanh khi
+              link YouTube đã được nhận. */}
           <div className="req-preview">
             <div className="rp-bar">
               <Icon name="preview" size={13} />
-              <span>{t('req.preview')}</span>
               {ytId && <span className="rp-yt">{t('req.previewYt')}</span>}
             </div>
             <div className="rp-row">
@@ -521,12 +529,17 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
             <input id="rq-link" value={form.link} onChange={set('link')} onBlur={blur('link')}
               placeholder={t('req.linkPh')} maxLength={500}
               aria-invalid={warnLink ? 'true' : undefined}
-              aria-describedby="req-link-hint" />
-            {/* Gợi ý và cảnh báo dùng CHUNG một chỗ: bình thường là câu giải thích
-                "để trống cũng được", khi link sai dạng thì đổi thành câu nhắc. */}
-            <p className={warnLink ? 'ferr warn' : ytId ? 'fhint ok' : 'fhint'} id="req-link-hint">
-              {warnLink || (ytId ? t('req.linkOk') : yt?.kind === 'playlist' ? t('req.linkList') : t('req.linkHint'))}
-            </p>
+              aria-describedby={hasLinkHint ? 'req-link-hint' : undefined} />
+            {/* Dòng dưới ô Link chỉ tồn tại khi CÓ điều gì để nói: link sai
+                dạng (cảnh báo), link nhận ra được (xác nhận), hoặc link là
+                playlist. Câu "để trống cũng được, dán link YouTube nếu có" đã
+                bị gỡ (vòng 13) — nhãn ô đã ghi "Song / album link" và chữ
+                "Optional" trong nhãn, nói lại lần nữa là thừa. */}
+            {hasLinkHint && (
+              <p className={warnLink ? 'ferr warn' : 'fhint ok'} id="req-link-hint">
+                {warnLink || (ytId ? t('req.linkOk') : t('req.linkList'))}
+              </p>
+            )}
           </div>
         </div>
       )}

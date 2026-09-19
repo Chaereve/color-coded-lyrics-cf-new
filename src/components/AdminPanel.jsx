@@ -11,6 +11,7 @@ import { useI18n } from '../lib/i18n.jsx'
 import { here, putUrl } from '../lib/history'
 import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import MediaAdmin from './MediaAdmin'
+import { sfx } from '../lib/sfx'
 import Pager from './Pager'
 import { usePager } from '../lib/usePager'
 
@@ -153,7 +154,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         )}
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => confirm(t('adm.confirmDelete')) && onDelete(r.id)}><Icon name="close" size={15} /></button>
+          onClick={() => { if (confirm(t('adm.confirmDelete'))) { sfx.delete(); onDelete(r.id) } }}><Icon name="close" size={15} /></button>
       </div>
 
       {/* Khung sửa nằm NGOÀI hàng tên + nút: xuống dòng thành một dải riêng
@@ -435,6 +436,10 @@ export default function AdminPanel({
   const runBulk = async (action) => {
     if (!selIds.length || bulkBusy) return
     if (action === 'delete' && !confirm(t('adm.bulkConfirmDelete', { n: selIds.length }))) return
+    /* XOÁ là thao tác duy nhất trong bảng này không hoàn tác được, nên nó có
+       tiếng riêng: trầm và đi xuống, khác hẳn mọi tiếng "xong việc" khác. Một
+       tiếng cho cả đợt, không phải mỗi dòng một tiếng. */
+    if (action === 'delete') sfx.delete()
     const reason = action === 'deny' ? (prompt(t('adm.denyPrompt')) || null) : null
     setBulkBusy(true)
     try { await onBulk(action, selIds, reason); setSel(new Set()) }
@@ -550,7 +555,17 @@ export default function AdminPanel({
           })}</span>
         </h2>
 
-        {tab !== 'media' && (
+        {tab === 'media' ? (
+          /* Mục Videos không có gì để tìm hay xếp thứ tự, nhưng vẫn cần ĐÚNG MỘT
+             thanh công cụ như mọi mục khác: nút mở trang chủ đứng bên phải, cùng
+             chỗ với nhóm nút của các mục còn lại — trước đây nó nằm trong một dải
+             riêng (.mgroup-bar) nằm chênh giữa tiêu đề và nhóm đầu tiên. */
+          <div className="adm-bar adm-bar-end">
+            <button type="button" className="btn btn-sm" onClick={onMediaViewHome}>
+              {t('adm.mediaViewHome')}
+            </button>
+          </div>
+        ) : (
           <div className="adm-bar">
             <span className="searchwrap">
               <Icon name="search" size={14} className="search-ico" />
@@ -636,7 +651,6 @@ export default function AdminPanel({
             onCommit={(p) => runMedia(() => onMediaCommit(p))}
             onDelete={(id) => runMedia(() => onMediaDelete(id))}
             onReorder={(ids) => runMedia(() => onMediaReorder(ids))}
-            onViewHome={onMediaViewHome}
           />
         ) : tab === 'orders' ? (
           shown.length === 0

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { sfx } from '../lib/sfx'
 import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
@@ -11,7 +12,8 @@ import { timeAgo } from '../lib/meta'
    Hai loại mục, cùng một bảng `media`:
      · featured — hero lớn ở giữa trang chủ (mục đầu chưa ẩn)
      · video    — dải "Latest update": link YouTube admin dán
-   Mỗi loại có thứ tự riêng (nút ↑↓). Dải video sửa bằng một ô textarea:
+   Mỗi loại có thứ tự riêng (hai nút mũi tên, icon Lucide). Dải video sửa bằng
+   một ô textarea:
    mỗi dòng một link theo định dạng   link | tên video — lưu một lần
    là xong (thêm + sửa + xoá + xếp).
    ========================================================= */
@@ -169,7 +171,7 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
         {img
           ? <img src={img} alt="" loading="lazy" referrerPolicy="no-referrer"
               onError={(e) => { e.currentTarget.style.visibility = 'hidden' }} />
-          : <span className="mthumb-ph sm" aria-hidden="true">▶</span>}
+          : <span className="mthumb-ph sm"><Icon name="play" size={13} fill="currentColor" /></span>}
       </span>
 
       <div className="nm">
@@ -187,14 +189,17 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
       </div>
 
       <div className="adm-acts">
+        {/* Hai nút đổi thứ tự là ICON Lucide, không phải ký tự "↑" "↓": bộ
+            icon của trang là Lucide (xem Icon.jsx), và một ký tự chữ trong nút
+            icon sẽ lệch nét, lệch dòng, lệch cả khi phông thay. */}
         <button className="icon-btn" title={t('adm.mediaUp')} aria-label={t('adm.mediaUp')} disabled={i === 0 || busy}
-          onClick={() => onMove(i, -1)}>↑</button>
+          onClick={() => onMove(i, -1)}><Icon name="up" size={15} /></button>
         <button className="icon-btn" title={t('adm.mediaDown')} aria-label={t('adm.mediaDown')} disabled={last || busy}
-          onClick={() => onMove(i + 1)}>↓</button>
+          onClick={() => onMove(i + 1)}><Icon name="down" size={15} /></button>
         <button className="btn btn-sm" onClick={() => onEdit(m)}>{t('adm.edit')}</button>
         <button className="btn btn-sm" onClick={toggleHide}>{m.is_hidden ? t('adm.mediaShow') : t('adm.mediaHide')}</button>
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => onDelete(m.id)}><Icon name="close" size={15} /></button>
+          onClick={() => { sfx.delete(); onDelete(m.id) }}><Icon name="close" size={15} /></button>
       </div>
     </div>
   )
@@ -286,15 +291,15 @@ function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, o
   )
 }
 
-export default function MediaAdmin({ media = [], busy, onSave, onCommit, onDelete, onReorder, onViewHome }) {
+export default function MediaAdmin({ media = [], busy, onSave, onCommit, onDelete, onReorder }) {
   const { t } = useI18n()
 
   return (
     <div>
-      <div className="mgroup-bar">
-        <button className="btn btn-sm" onClick={onViewHome}>{t('adm.mediaViewHome')}</button>
-      </div>
-
+      {/* Nút "View on home page" đứng trong thanh công cụ của trang quản trị
+          (xem .adm-bar-end ở AdminPanel) — cùng hàng, cùng chỗ với điều khiển
+          của mọi mục khác, thay vì một dải riêng nằm chênh giữa tiêu đề và
+          nhóm đầu tiên. */}
       <MediaGroup kind="featured" allItems={media} busy={busy}
         label={t('adm.mediaGroupFeatured')}
         addLabel={t('adm.mediaAddFeatured')}
