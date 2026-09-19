@@ -18,7 +18,7 @@
 import {
   ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
   CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Pencil, Play,
-  Plus, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2,
+  Plus, Search, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2,
   VolumeX, X,
 } from 'lucide-react'
 
@@ -32,6 +32,7 @@ const SET = {
   prev: ChevronLeft,
   next: ChevronRight,
   settings: SlidersHorizontal,    /* tuỳ chọn thông báo */
+  search: Search,                 /* ô tìm kiếm */
   check: Check,
   info: Info,
   warn: CircleAlert,

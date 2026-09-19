@@ -19,9 +19,20 @@
 
 const ts = (v) => +new Date(v) || 0
 
+/* Chuẩn hoá một trường thành chuỗi so sánh được — kể cả khi nó không phải
+   chuỗi (số, null) hay cả dòng request là null. */
+const txt = (v) => (v == null ? '' : String(v)).trim().toLowerCase()
+
 /* Khoá gom cụm: cùng nghệ sĩ + cùng tên bài là một cụm. */
-export const groupKey = (r) =>
-  `${(r.artist || '').trim().toLowerCase()}\n${(r.title || '').trim().toLowerCase()}`
+export const groupKey = (r) => `${txt(r?.artist)}\n${txt(r?.title)}`
+
+/* Chỉ giữ lại những dòng THẬT SỰ là object.
+   Một phần tử null/rác trong mảng rows (payload realtime méo, một lần ghi
+   localStorage hỏng, câu trả lời của PostgREST bị cắt) trước đây làm cả bảng
+   ném lỗi ngay lúc render — mà render ném lỗi thì React gỡ sạch cây: cả trang
+   biến mất chỉ vì MỘT dòng. Lọc ở đây rẻ hơn nhiều so với đi kiểm tra từng
+   trường ở từng chỗ dùng. */
+const real = (rows) => (rows || []).filter((r) => r && typeof r === 'object')
 
 /* Bỏ dấu tiếng Việt để một từ khoá khớp cả ba cách người ta gõ tên bài:
    "Chung Hạ", "Chung Ha", "chung ha". Một chỗ định nghĩa, dùng cho cả ô tìm
@@ -183,7 +194,7 @@ export const byPickOrder = (a, b) =>
 /* Thứ tự từng dòng theo tab đang mở. Tab "Đang chờ" (mặc định) đẩy
    paid request lên đầu rồi mới xét tới vote, giống hệt thứ tự cũ. */
 export function sortRows(rows, filter) {
-  const out = [...rows]
+  const out = real(rows)
   if (filter === 'picked') return out.sort(byPickOrder)
   /* Tab "In progress" là danh sách việc ĐANG CHẠY: xếp việc gần xong lên trước
      (%, giảm dần), hoà thì theo vote. Xếp theo vote như bảng thường là sai ngữ
@@ -200,7 +211,7 @@ export function sortRows(rows, filter) {
 export function groupRows(rows) {
   const order = []
   const byKey = new Map()
-  for (const r of rows) {
+  for (const r of real(rows)) {
     const k = groupKey(r)
     let g = byKey.get(k)
     if (!g) {
@@ -235,7 +246,7 @@ export function sortGroups(groups, filter) {
    dòng riêng (bảng Admin chẳng hạn): key = groupKey, value = { n, total }. */
 export function voteTotals(rows) {
   const m = new Map()
-  for (const r of rows) {
+  for (const r of real(rows)) {
     const k = groupKey(r)
     const c = m.get(k) || { n: 0, total: 0 }
     c.n += 1
@@ -281,12 +292,12 @@ export function stageCounts(rows) {
    bảng gom cụm theo bài, nên một bài có ba người gửi là MỘT thẻ. Đếm theo dòng
    thì badge ghi 3 mà dưới chỉ có 1 thẻ — đó là kiểu "lệch số" người dùng nhìn
    ra ngay mà không gọi được tên. */
-export const songCount = (rows) => new Set((rows || []).map(groupKey)).size
+export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
 
 /* Danh sách cuối cùng để render + phân trang: cụm nhiều dòng thành một
    thẻ gập/mở được, cụm một dòng giữ nguyên hàng thường. */
 export function boardItems(rows, filter) {
-  return sortGroups(groupRows(sortRows(rows, filter)), filter)
+  return sortGroups(groupRows(sortRows(real(rows), filter)), filter)
     .map((g) => (g.rows.length > 1
       ? { type: 'group', ...g }
       : { type: 'row', key: g.key, r: g.rows[0] }))

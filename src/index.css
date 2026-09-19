@@ -46,50 +46,51 @@
 
 :root {
   /* nen trung tinh, khong nhuom mau */
-  --bg:        #0d0f12;
-  --bg-2:      #111418;
-  --surface:   #14171b;
-  --surface-2: #191d22;
-  --surface-3: #20252b;
+  --bg:        #0a0c10;
+  --bg-2:      #0e1116;
+  --surface:   #12161c;
+  --surface-2: #171c23;
+  --surface-3: #1e242c;
   /* viền sáng hơn một chút trên nền kính — đường kẻ vẫn đọc được khi
      khối đã trong suốt */
-  --line:      #21262d;
-  --line-2:    #2d343d;
-  --txt:       #e4e7ea;
-  --txt-2:     #949ba4;
+  --line:      #212934;
+  --line-2:    #2f3a47;
+  --txt:       #e9edf3;
+  --txt-2:     #9aa4b2;
   /* #6a727c cũ chỉ 3.9:1 trên nền — trượt WCAG 2.2 AA (chữ thường cần 4.5:1)
-     ở mọi nhãn nhỏ dùng màu này. #7d858f đạt ~4.5:1 trên surface-2 (nền xấu
-     nhất) mà vẫn tối hơn --txt-2 rõ nên thang phân cấp không đổi. */
-  --txt-3:     #7d858f;
+     ở mọi nhãn nhỏ dùng màu này. #808b9a đạt 4.8:1 trên --panel-2 (nền xấu
+     nhất có thể gặp) mà vẫn tối hơn --txt-2 rõ nên thang phân cấp không đổi. */
+  --txt-3:     #808b9a;
 
-  /* Mau nhan lay dung tur logo: xanh ultramarine dien (hue 242°),
-     khong con la xanh da troi nhat nhu cu — nut bam, thanh truot,
-     focus ring va logo la cung mot mau.
-       --a     : mau nen — cho cho nut co chu trang ben tren
-       --a-dim : nhan/xam hon — trang thai hover, active
-       --a-2   : sang hon — chu, icon, thanh mong tren nen toi
-                 (dung --a nguyen ban cho chu tren nen toi bi thap tuong phan)
-       --a-soft: lot nhat cho nen khoi selection
-       --a-glow: bong to nhe, chi dung cho nut nhan va vach truot sidebar */
-  --a:      #2b22e2;
-  --a-dim:  #211aad;
-  --a-2:    #8782fa;
-  --a-soft: rgba(43,34,226,.14);
-  --a-glow: rgba(43,34,226,.45);
+  /* MAU NHAN — ultramarine cua logo, nang len mot bac (vong 7).
+     Ban cu #2b22e2 (hue 242, rat bao hoa) tren nen toi doc ra "nang, bun":
+     no chi hon nen vai phan tram do sang nen khoi mau nhu bi lem, con chu
+     trang tren no chi duoc 5,2:1. Ban nay keo do sang len ma giu nguyen hue:
+       --a   #4d40f0 — nen nut: chu trang dat 6,35:1 (cu 5,2:1)
+       --a-2 #a9a4ff — chu/icon nhan tren nen toi: 7,4:1 tren --panel-2
+       --a-dim      — hover/active: toi hon --a, khong doi hue
+     Nut bam, thanh truot, focus ring va logo van la cung mot mau. */
+  /* --a-soft: nen khối khi đang chọn · --a-glow: bóng toả của nút nhấn
+     và vạch trượt sidebar — hai giá trị này đi kèm --a, đổi --a là đổi cả hai */
+  --a:      #4d40f0;
+  --a-dim:  #382ecc;
+  --a-2:    #a9a4ff;
+  --a-soft: rgba(77,64,240,.16);
+  --a-glow: rgba(77,64,240,.45);
 
   /* mau trang thai — chi dung cho cham tron nho */
-  --pending:  #7b838d;
-  --queued:   #7a7ff8;
-  --progress: #d3a03a;
-  --done:     #4fa97a;
-  --denied:   #d0605c;
-  --paid:     #c99a3c;
+  --pending:  #8d95a3;
+  --queued:   #8f94ff;
+  --progress: #e0a93e;
+  --done:     #4cba88;
+  --denied:   #e26e69;
+  --paid:     #d7a63f;
 
   /* loai request */
-  --k-ccl:   #9b7fd4;
-  --k-album: #4a9c9c;
-  --k-loop:  #c47f52;
-  --k-short: #c2688f;
+  --k-ccl:   #ab8fe0;
+  --k-album: #4fb0ad;
+  --k-loop:  #d18b5f;
+  --k-short: #d1789d;
 
   /* mặt kính: nền tối + blur phía sau.  Ban to (stats, danh sách, modal,
      sidebar) dùng bản trong suốt này để vệt gradient của nền lọt nhẹ qua,
@@ -103,18 +104,18 @@
      nên chữ trong khung bị "trôi" trên vệt gradient, và hai khung chồng
      nhau thì cộng dồn thành một mảng màu lạ. Giữ nguyên hiệu ứng kính,
      chỉ đặc thêm để nội dung bám nền. */
-  --float:     rgba(16,19,24,.97);
-  --float-2:   rgba(14,17,21,.96);
-  --panel:     rgba(19,22,27,.94);
-  --panel-2:   rgba(25,29,35,.92);
-  --panel-3:   rgba(33,38,45,.9);
+  --float:     rgba(13,16,21,.97);
+  --float-2:   rgba(11,14,18,.96);
+  --panel:     rgba(16,20,26,.94);
+  --panel-2:   rgba(22,26,33,.92);
+  --panel-3:   rgba(29,34,42,.9);
   --glass:     blur(16px) saturate(140%);
   --glass-sm:  blur(9px) saturate(130%);
 
   /* màu phủ khi rê/đang chọn, dùng trong khối kính — nền đặc sẽ hiện
      thành một ô sáng lệch tông với khối */
-  --hover:     rgba(255,255,255,.038);
-  --hover-2:   rgba(255,255,255,.06);
+  --hover:     rgba(255,255,255,.055);
+  --hover-2:   rgba(255,255,255,.085);
 
   /* thang góc bo: control nhỏ 6, khối 8, nổi/modal 12, logo splash 16.
      Trước đây 3/5/6/7/8/10/12/14 lẫn lộn nên nhìn kỹ là thấy "lệch tay". */
@@ -321,12 +322,12 @@ button { font-family: inherit; }
 }
 .btn-primary:hover { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), var(--a-dim); border-color: var(--a-dim); }
 .btn-gold { background: none; border-color: var(--paid); color: var(--paid); font-weight: 600; }
-.btn-gold:hover { background: rgba(201,154,60,.12); border-color: var(--paid); }
+.btn-gold:hover { background: rgba(215,166,63,.12); border-color: var(--paid); }
 .btn-sm { padding: 4px 9px; font-size: 12px; }
-.btn-ok { border-color: rgba(79,169,122,.5); color: var(--done); }
-.btn-ok:hover { background: rgba(79,169,122,.1); border-color: var(--done); }
-.btn-no { border-color: rgba(208,96,92,.45); color: var(--denied); }
-.btn-no:hover { background: rgba(208,96,92,.1); border-color: var(--denied); }
+.btn-ok { border-color: rgba(76,186,136,.5); color: var(--done); }
+.btn-ok:hover { background: rgba(76,186,136,.1); border-color: var(--done); }
+.btn-no { border-color: rgba(226,110,105,.45); color: var(--denied); }
+.btn-no:hover { background: rgba(226,110,105,.1); border-color: var(--denied); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .dotbadge {
@@ -381,7 +382,7 @@ button { font-family: inherit; }
   box-shadow: var(--sh-1), var(--ring); transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out); }
 /* khối "đang làm" thở rất nhẹ — có người thật đang ngồi sửa video */
 .nowbar::before { content: ''; position: absolute; left: -40%; top: 0; bottom: 0; width: 55%;
-  background: linear-gradient(90deg, transparent, rgba(135,130,250,.10), transparent);
+  background: linear-gradient(90deg, transparent, rgba(169,164,255,.10), transparent);
   transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite; pointer-events: none; }
 @keyframes nowdrift { 0% { transform: translateX(0) } 55%,100% { transform: translateX(260%) } }
 .nowbar:hover { border-color: var(--line-2); }
@@ -457,6 +458,51 @@ select {
 }
 .sel { max-width: 170px; cursor: pointer; }
 
+/* ---- THANH LỌC (vòng 7) -------------------------------------------------
+   Chip rời thay cho dãy tab liền khối: mỗi chip mang ĐÚNG màu của giai đoạn
+   nó lọc (biến `--c` lấy từ FILTERS trong App.jsx), nên mắt bám vào màu
+   trước khi đọc chữ, và chip đang chọn sáng lên bằng chính màu đó. Máy hẹp:
+   dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
+   xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
+   thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
+.fbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+  animation: rise .42s var(--e-out) .05s both; }
+.fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 2px; margin: -2px; }
+.fchips::-webkit-scrollbar { display: none; }
+.fchip { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
+    color var(--t-1) var(--e-soft); }
+.fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
+.fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
+.fchip:hover { color: var(--txt); background: var(--surface-3); }
+.fchip.on { color: var(--txt); font-weight: 600;
+  border-color: color-mix(in srgb, var(--c) 52%, transparent);
+  background: color-mix(in srgb, var(--c) 15%, var(--surface-2)); }
+.fchip.on .fdot { opacity: 1; box-shadow: 0 0 9px var(--c); }
+.fchip.on .fnum { color: var(--txt); background: color-mix(in srgb, var(--c) 24%, transparent); }
+.fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
+.fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
+  font-size: 11.5px; color: var(--txt-3); }
+.fbar .searchwrap { flex: none; }
+.search-ico { position: absolute; left: 9px; color: var(--txt-3); pointer-events: none; }
+.fbar .search { padding-left: 28px; }
+.search-x { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
+  transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
+.search-x:hover { color: var(--txt); background: var(--hover-2); }
+@media (max-width: 620px) {
+  .fbar-side { flex: 1 1 100%; }
+  .fbar .searchwrap { flex: 1 1 auto; }
+  .fbar .search { max-width: none; }
+  .sel { max-width: 132px; }
+  .fchip { height: 34px; padding: 0 12px; }
+}
+
 /* ---- danh sách request ---- */
 .list { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
   background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
@@ -470,10 +516,10 @@ select {
   transition: transform .3s var(--e-out); }
 .row:hover { background: var(--hover); }
 .row:hover::before { transform: scaleY(1); }
-.row.paid { background: rgba(201,154,60,.045); }
+.row.paid { background: rgba(215,166,63,.045); }
 .row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
 .row .body { flex: 1; min-width: 0; }
-.row .title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.row .title { font-size: 14.5px; font-weight: 600; letter-spacing: .1px; margin-bottom: 4px; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
@@ -493,15 +539,20 @@ select {
 .status { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2); }
 .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--txt-3)); }
 
-.pill { display: inline-block; padding: 1px 6px; border-radius: var(--r-sm); font-size: 11px; border: 1px solid var(--line-2); color: var(--txt-2); }
+.pill { display: inline-block; padding: 2px 7px; border-radius: var(--r-pill); font-size: 10.5px;
+  letter-spacing: .3px; text-transform: uppercase; line-height: 1.5; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
 .pill.in_progress{ color: var(--progress); }
 .pill.completed  { color: var(--done); }
 .pill.denied     { color: var(--denied); }
-.pill.gold       { color: var(--paid); border-color: rgba(201,154,60,.4); }
+.pill.gold       { color: var(--paid); border-color: rgba(215,166,63,.4); }
 
-.kind { font-size: 12px; color: var(--k-ccl); }
+/* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
+   với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
+.kind { font-size: 11px; letter-spacing: .2px; padding: 2px 7px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
 .kind.album { color: var(--k-album); }
 .kind.loop  { color: var(--k-loop); }
@@ -524,12 +575,12 @@ select {
 }
 .votebtn {
   position: relative; flex: none; display: flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border-radius: var(--radius); cursor: pointer;
+  padding: 6px 12px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--line-2); background: none; color: var(--txt-2);
   font-family: inherit; transition: .13s;
 }
 .votebtn:hover:not(:disabled) { border-color: var(--a-2); color: var(--txt); }
-.votebtn b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--txt); }
+.votebtn b { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--txt); }
 .votebtn span { font-size: 11.5px; }
 .votebtn.on { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft);
   box-shadow: 0 2px 12px -6px var(--a-glow); }
@@ -546,20 +597,19 @@ select {
 }
 .icon-btn:hover { color: var(--denied); border-color: var(--line-2); }
 
-.empty { padding: 30px 20px; text-align: center; color: var(--txt-3); font-size: 13px; }
 
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
    Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
    cột tổng vote, nút mũi tên tròn. Bấm là bung ra đủ request (mở/rút mượt). */
-.grow { position: relative; margin: 10px 12px; border: 1px solid rgba(135,130,250,.35);
+.grow { position: relative; margin: 10px 12px; border: 1px solid rgba(169,164,255,.35);
   border-radius: var(--r-md); overflow: hidden;
-  background: linear-gradient(135deg, rgba(43,34,226,.16), rgba(43,34,226,.04) 55%, transparent),
+  background: linear-gradient(135deg, rgba(77,64,240,.16), rgba(77,64,240,.04) 55%, transparent),
     var(--surface);
   box-shadow: 0 8px 24px -18px var(--a-glow);
   transition: border-color var(--t-2) var(--e-soft), box-shadow var(--t-2) var(--e-soft); }
 .list > .grow:first-child { margin-top: 12px; }
 .list > .grow:last-child { margin-bottom: 12px; }
-.grow:hover { border-color: rgba(135,130,250,.6); }
+.grow:hover { border-color: rgba(169,164,255,.6); }
 .grow.open { border-color: var(--a-2); box-shadow: 0 10px 28px -16px var(--a-glow); }
 .grow-head { position: relative; display: flex; align-items: center; gap: 12px;
   width: 100%; padding: 12px 14px;
@@ -726,8 +776,8 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .hint { margin-top: 8px; font-size: 11.5px; color: var(--txt-3); }
 .msg { margin-top: 11px; padding: 9px 11px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.55; border: 1px solid var(--line-2); }
-.msg.ok   { border-color: rgba(79,169,122,.4); color: #86d0a8; }
-.msg.err  { border-color: rgba(208,96,92,.4); color: #eb9a97; }
+.msg.ok   { border-color: rgba(76,186,136,.4); color: #86d0a8; }
+.msg.err  { border-color: rgba(226,110,105,.4); color: #eb9a97; }
 /* Lỗi thì RUNG một nhịp: 3px ngang, 300ms, chạy đúng lúc dòng lỗi xuất hiện —
    đủ để mắt bắt được "vừa hỏng", không đủ để thành trò hề. Chỉ chạy ở lần mount
    đầu của thông báo, cùng lắm là một lần cho mỗi lần gửi. Biên độ nhỏ vì trên
@@ -748,10 +798,10 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
   font-size: 12.5px; font-family: inherit; transition: .13s;
 }
 .kbtn:hover { color: var(--txt); border-color: #3c4550; }
-.kbtn.on.ccl   { color: var(--k-ccl);   border-color: var(--k-ccl);   background: rgba(155,127,212,.09); }
-.kbtn.on.album { color: var(--k-album); border-color: var(--k-album); background: rgba(74,156,156,.09); }
-.kbtn.on.loop  { color: var(--k-loop);  border-color: var(--k-loop);  background: rgba(196,127,82,.09); }
-.kbtn.on.short { color: var(--k-short); border-color: var(--k-short); background: rgba(194,104,143,.09); }
+.kbtn.on.ccl   { color: var(--k-ccl);   border-color: var(--k-ccl);   background: rgba(171,143,224,.09); }
+.kbtn.on.album { color: var(--k-album); border-color: var(--k-album); background: rgba(79,176,173,.09); }
+.kbtn.on.loop  { color: var(--k-loop);  border-color: var(--k-loop);  background: rgba(209,139,95,.09); }
+.kbtn.on.short { color: var(--k-short); border-color: var(--k-short); background: rgba(209,120,157,.09); }
 
 .paidbox { margin: 14px 0; padding: 11px 13px; border: 1px solid var(--line-2); border-radius: var(--radius); }
 .paidbox .t { font-size: 13px; font-weight: 600; color: var(--paid); }
@@ -801,8 +851,8 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
 .pack { position: relative; padding: 14px 12px; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-md); transition: border-color .13s; }
 .pack:hover { border-color: #3c4550; }
-.pack.best { border-color: rgba(201,154,60,.45); }
-.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(201,154,60,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
+.pack.best { border-color: rgba(215,166,63,.45); }
+.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(215,166,63,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
 .pack b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .pack .u { font-size: 11.5px; color: var(--txt-3); margin-bottom: 9px; }
 .pack .p { font-family: var(--mono); font-size: 14px; font-weight: 600; }
@@ -825,7 +875,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 /* viên thuốc "−48%" phải tự co theo chữ và nằm giữa: để block full-width là
    thành một dải màu chạy ngang thẻ, lệch với phần còn lại căn giữa */
 .pack-save { width: fit-content; margin: 6px auto 0; padding: 1px 7px;
-  border-radius: var(--r-pill); background: rgba(79,169,122,.12); }
+  border-radius: var(--r-pill); background: rgba(76,186,136,.12); }
 @media (hover: hover) {
   .pack { transition: border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out),
               box-shadow var(--t-2) var(--e-soft); }
@@ -918,7 +968,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .adm-req { flex-wrap: wrap; }
 .adm-edit { flex: 1 1 100%; min-width: 0; }
 /* cụm trùng bài trong bảng admin: hạng tính theo tổng vote của cả bài */
-.pill.dup { color: var(--a-2); border-color: rgba(135,130,250,.35); background: var(--a-soft); }
+.pill.dup { color: var(--a-2); border-color: rgba(169,164,255,.35); background: var(--a-soft); }
 
 /* thanh tìm kiếm trong panel admin: bám trên đầu danh sách mọi tab, ô search
    chiếm trọn bề rộng như trên bảng request ngoài trang chủ */
@@ -940,7 +990,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 }
 .step:hover { border-color: #3c4550; color: var(--txt); }
 .step em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
-.step.on { border-color: rgba(79,169,122,.5); color: var(--done); }
+.step.on { border-color: rgba(76,186,136,.5); color: var(--done); }
 .step.on em { color: var(--done); }
 .steps-pct { margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 600; }
 
@@ -1032,7 +1082,7 @@ img { max-width: 100%; }
 .pay-v.mono { font-family: var(--mono); }
 .copy { flex: 0 0 auto; padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid var(--line-2); background: none; color: var(--txt-3); font-size: 11px; font-family: inherit; transition: .13s; }
 .copy:hover { color: var(--txt); border-color: var(--a-2); }
-.copy.done { color: var(--done); border-color: rgba(79,169,122,.45); }
+.copy.done { color: var(--done); border-color: rgba(76,186,136,.45); }
 .pay-qr { text-align: center; flex: 0 0 auto; }
 .qr-canvas { display: block; border-radius: var(--r-sm); background: #fff; padding: 7px; width: 156px !important; height: 156px !important; }
 .pay-qr-cap { margin-top: 7px; font-size: 11px; color: var(--txt-3); }
@@ -1163,7 +1213,7 @@ img { max-width: 100%; }
 .tick { display: inline-block; animation: tickIn .26s var(--e-out) both; }
 
 /* chọn chữ bằng chuột nhuộm màu nhãn hiệu */
-::selection { background: rgba(43,34,226,.5); color: #fff; }
+::selection { background: rgba(77,64,240,.5); color: #fff; }
 
 /* SKIP-TO-CONTENT (WCAG 2.4.1 Bypass Blocks): người dùng phím Tab không phải
    đi qua toàn bộ sidebar trước khi tới nội dung. Ẩn bằng transform (không
@@ -1259,36 +1309,6 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   background: var(--surface); animation: rowIn var(--t-2) var(--e-out) both; }
 .medit textarea:focus { outline: 2px solid var(--a-2); outline-offset: 1px; }
 .medit-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-
-/* Lưới an toàn tầng HTML (index.html): chỉ hiện khi app không dựng nổi. Dùng
-   chữ sáng trên nền tối để đọc được kể cả khi index.css chưa kịp nạp. */
-.bootfail { max-width: 430px; margin: 18vh auto 0; padding: 18px; text-align: center;
-  border: 1px solid var(--line-2, #2a3138); border-radius: var(--r-md, 8px);
-  background: var(--panel-2, #191d23); color: var(--txt, #e8ecf1);
-  font: 400 13px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.bootfail b { display: block; margin-bottom: 8px; font-size: 14px; }
-.bootfail p { margin: 0 0 14px; color: var(--txt-2, #a8b0ba); }
-.bootfail button { padding: 7px 14px; border-radius: var(--r-md, 8px); cursor: pointer;
-  border: 1px solid var(--a-dim, #211aad); background: var(--a, #2b22e2); color: #fff;
-  font: 600 13px/1.2 inherit; }
-
-/* ================= LƯỚI AN TOÀN KHI RENDER NÉM LỖI ================= */
-/* Màn hình này thay cho "trang đen" — xem components/ErrorBoundary.jsx. Nằm
-   trên cả toast (95) vì nó là thứ duy nhất còn lại trên trang lúc đó. */
-.crash { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center;
-  padding: 22px; background: var(--bg); }
-.crash-card { width: min(430px, 100%); padding: 18px; border: 1px solid var(--line-2);
-  border-radius: var(--r-md); background: var(--panel-2); box-shadow: var(--ring); }
-.crash-ico { color: var(--paid); }
-.crash-title { display: block; margin: 9px 0 6px; font-size: 14px; }
-.crash-body { margin: 0 0 12px; font-size: 12.5px; line-height: 1.6; color: var(--txt-2); }
-.crash-more { margin-bottom: 14px; font-size: 12px; color: var(--txt-3); }
-.crash-more summary { cursor: pointer; }
-.crash-more pre { margin: 8px 0 0; padding: 8px 10px; max-height: 140px; overflow: auto;
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2);
-  color: var(--txt-2); font-family: var(--mono); font-size: 11.5px;
-  white-space: pre-wrap; overflow-wrap: anywhere; }
-.crash-btn { width: 100%; justify-content: center; }
 
 /* ================= TÔN TRỌNG prefers-reduced-motion ================= */
 @media (prefers-reduced-motion: reduce) {
@@ -1507,7 +1527,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   padding: 0 var(--side-ix); border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-family: inherit; font-size: 13px; text-align: left;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.side-out:hover { color: var(--denied); background: rgba(208,96,92,.08); }
+.side-out:hover { color: var(--denied); background: rgba(226,110,105,.08); }
 .side-out:hover .sico { opacity: 1; transform: translateX(2px); }
 .side-copy { height: 22px; margin-top: 4px; padding: 0 var(--side-ix); display: flex; align-items: center;
   font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-3); }
@@ -1558,7 +1578,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   position: relative; display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
   padding: 14px 16px; margin: 4px 0 22px; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--r-md);
-  background: linear-gradient(180deg, rgba(43,34,226,.10), rgba(0,0,0,0) 62%), var(--panel);
+  background: linear-gradient(180deg, rgba(77,64,240,.10), rgba(0,0,0,0) 62%), var(--panel);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-1), var(--ring);
 }
@@ -1640,7 +1660,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   content: ''; position: absolute;
   left: 6%; right: 6%; top: 10%; bottom: -6%;
   border-radius: var(--r-lg);
-  background: radial-gradient(60% 60% at 50% 60%, var(--a-glow), rgba(43,34,226,0) 72%);
+  background: radial-gradient(60% 60% at 50% 60%, var(--a-glow), rgba(77,64,240,0) 72%);
   filter: blur(34px); opacity: .5;
   transition: opacity var(--t-3) var(--e-soft);
   pointer-events: none;
@@ -1651,10 +1671,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .pick-stage::after {
   content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
   border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 1px rgba(135,130,250,.22), inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow: inset 0 0 0 1px rgba(169,164,255,.22), inset 0 1px 0 rgba(255,255,255,.06);
   transition: box-shadow var(--t-2) var(--e-soft);
 }
-.pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(135,130,250,.42), inset 0 1px 0 rgba(255,255,255,.09); }
+.pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(169,164,255,.42), inset 0 1px 0 rgba(255,255,255,.09); }
 
 .pick-stage:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -14px rgba(0,0,0,.7); }
 .pick-stage:hover .mthumb > img { transform: scale(1.045); }
@@ -1712,7 +1732,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .pvrow:hover .playbtn.sm { opacity: 1; transform: none; }
 /* video đang mở trên sân khấu: khoanh viền cùng tông accent — nhìn một
    cái biết dải đang "đứng" ở video nào */
-.pvrow.on { border-color: rgba(135,130,250,.55); background: var(--panel-3) }
+.pvrow.on { border-color: rgba(169,164,255,.55); background: var(--panel-3) }
 .pvrow.on .pv-tx b { color: var(--a-2) }
 .pvrow.on .playbtn.sm { opacity: 1; transform: none; }
 .pv-thumb { position: relative; display: block; }
@@ -1871,7 +1891,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   /* không có chuột thì không có hover để bật quầng sáng — để sẵn mức giữa */
   .pick-stage::before { opacity: .68; }
   .pick-stage:hover::before { opacity: .68; }
-  .pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(135,130,250,.22), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(169,164,255,.22), inset 0 1px 0 rgba(255,255,255,.06); }
   .pick-stage:hover .mthumb > img, .pvrow:hover .mthumb > img { transform: none; }
   .pick-stage:hover .playbtn { transform: none; background: rgba(13,15,18,.6); border-color: rgba(255,255,255,.28); }
   .pvrow:hover { background: var(--panel-2); border-color: var(--line); }
@@ -1917,11 +1937,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .bgfx-aurora { position: absolute; inset: -25%; will-change: transform;
   background:
     /* xanh nhạt --a-2: vệt phụ mé phải trên */
-    radial-gradient(46% 38% at 78% 22%, rgba(135,130,250,.16), rgba(135,130,250,0) 70%),
+    radial-gradient(46% 38% at 78% 22%, rgba(169,164,255,.16), rgba(169,164,255,0) 70%),
     /* vàng --paid: nhắc màu thứ ba, gần như không thấy */
-    radial-gradient(42% 34% at 56% 88%, rgba(201,154,60,.08), rgba(201,154,60,0) 72%),
+    radial-gradient(42% 34% at 56% 88%, rgba(215,166,63,.08), rgba(215,166,63,0) 72%),
     /* ultramarine của logo: vệt chính, chếch trên trái */
-    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(43,34,226,0) 68%);
+    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(77,64,240,0) 68%);
   animation: auroraDrift 36s ease-in-out infinite alternate; }
 @keyframes auroraDrift {
   from { transform: translate3d(-3%, -2%, 0) scale(1); }
@@ -2044,7 +2064,7 @@ html[data-section="spin"] .bgfx { display: none; }
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
 .lb-segb:hover { color: var(--txt-2) }
-.lb-segb.on { color: #0d0f12; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
+.lb-segb.on { color: #0a0c10; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
 .lb-segb:active { transform: scale(.97) }
 
 /* ---- bục 1/2/3 ---- */
@@ -2060,7 +2080,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-pod { position: relative; overflow: hidden; padding: 20px 14px 16px; text-align: center;
   background: var(--panel-2); animation: podIn .55s var(--e-pop) both; animation-delay: calc(var(--i, 0) * 90ms) }
 @keyframes podIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
-.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, rgba(201,154,60,.12), rgba(0,0,0,0) 60%), var(--panel-2) }
+.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, rgba(215,166,63,.12), rgba(0,0,0,0) 60%), var(--panel-2) }
 .lb-pod.p2 { background: linear-gradient(180deg, rgba(173,181,189,.08), rgba(0,0,0,0) 60%), var(--panel-2) }
 .lb-pod.p3 { background: linear-gradient(180deg, rgba(179,129,79,.09), rgba(0,0,0,0) 60%), var(--panel-2) }
 /* ánh kim quét một lần trên hai thẻ đầu: phần thưởng, không phải trang trí */
@@ -2124,7 +2144,7 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: background var(--t-1) var(--e-soft) }
 .lb-table tbody tr:hover { background: rgba(255,255,255,.03) }
 .lb-table tbody tr.me { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
-.lb-table tbody tr.me:hover { background: linear-gradient(90deg, rgba(43,34,226,.2), rgba(255,255,255,.03) 65%) }
+.lb-table tbody tr.me:hover { background: linear-gradient(90deg, rgba(77,64,240,.2), rgba(255,255,255,.03) 65%) }
 .lb-table td.c-rk b { font-family: var(--mono); font-size: 12px; color: var(--txt-3) }
 .lb-table td.c-pl { position: relative; min-width: 0 }
 .lb-pl-in { display: flex; align-items: center; gap: 9px; min-width: 0 }
@@ -2142,7 +2162,7 @@ html[data-section="spin"] .bgfx { display: none; }
 /* ---- hàng của bạn, dính đáy khối ---- */
 .lb-me { display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-top: 0;
   border-top: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(43,34,226,.13), rgba(43,34,226,.02));
+  background: linear-gradient(180deg, rgba(77,64,240,.13), rgba(77,64,240,.02));
   animation: rise .5s var(--e-out) .3s both }
 .lb-me:not(.has) { justify-content: center; background: var(--panel-2); color: var(--txt-3); font-size: 12.5px }
 .lb-me-rk { min-width: 26px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--a-2) }
@@ -2320,11 +2340,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .stat:hover::after { transform: scaleX(1) }
 
 /* hàng paid: thêm một lớp ánh vàng mờ phía trái, phân biệt từ xa */
-.row.paid { background: linear-gradient(90deg, rgba(201,154,60,.055), rgba(201,154,60,0) 55%) }
+.row.paid { background: linear-gradient(90deg, rgba(215,166,63,.055), rgba(215,166,63,0) 55%) }
 /* hover đè lên gradient: nếu chỉ đổi background thì vệt gold biến mất cái rụp,
    nên phải giữ cả hai lớp trong trạng thái hover */
-.row.paid:hover { background: linear-gradient(90deg, rgba(201,154,60,.08), rgba(201,154,60,0) 55%), var(--hover) }
-.pill.gold { background: rgba(201,154,60,.1) }
+.row.paid:hover { background: linear-gradient(90deg, rgba(215,166,63,.08), rgba(215,166,63,0) 55%), var(--hover) }
+.pill.gold { background: rgba(215,166,63,.1) }
 
 /* link "xem video": mũi tên nhích ra khi rê */
 .watch { position: relative; transition: color var(--t-1) var(--e-soft) }
@@ -2342,7 +2362,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .pack { transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
   box-shadow var(--t-2) var(--e-soft) }
 .pack:hover { transform: translateY(-2px); box-shadow: var(--sh-2) }
-.pack.best { background: linear-gradient(180deg, rgba(201,154,60,.08), transparent 55%) }
+.pack.best { background: linear-gradient(180deg, rgba(215,166,63,.08), transparent 55%) }
 
 /* nút vote đã bấm: một chấm sáng nhỏ báo "phần của bạn nằm ở đây" */
 .votebtn.on::before { content: ''; position: absolute; top: -2px; right: -2px; width: 6px; height: 6px;
@@ -2351,12 +2371,9 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* logo ở đầu sidebar: vòng sáng viền ngoài khi rê vào */
 .side-brand .applogo { transition: box-shadow var(--t-2) var(--e-soft); box-shadow: 0 0 0 0 var(--a-glow) }
-.side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(43,34,226,.18) }
+.side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(77,64,240,.18) }
 .applogo.lg-nav { border-radius: var(--radius) }
 
-/* danh sách rỗng: đừng trơ một câu chữ, cho nó một cái khung nhẹ */
-.empty { padding: 34px 20px; text-align: center; color: var(--txt-3); font-size: 13px;
-  background: repeating-linear-gradient(-45deg, rgba(255,255,255,.012) 0 8px, transparent 8px 16px) }
 
 /* chữ không bao giờ xuống dòng lổn nhổn */
 .row .title, .nowbar h3, .pick-cap b, .pv-tx b, .lb-pod-name { text-wrap: balance }
@@ -2372,7 +2389,7 @@ html[data-section="spin"] .bgfx { display: none; }
   /* cảm ứng không giữ trạng thái hover của nút mũi tên (kẻo dính màu sau khi chạm) */
   .grow-head:hover .grow-arrow:not(.on) { color: var(--txt-2); border-color: var(--line-2);
     background: var(--surface-2); }
-  .grow:hover { border-color: rgba(135,130,250,.35); }
+  .grow:hover { border-color: rgba(169,164,255,.35); }
   .stat:hover::after { transform: scaleX(0) }
   .pack:hover, .kbtn:hover, .to-top:hover { transform: none; box-shadow: none }
   .pack:hover { box-shadow: none }
@@ -2413,8 +2430,8 @@ html[data-section="spin"] .bgfx { display: none; }
    cùng khuôn với .pill.gold: chữ + viền + nền rất nhạt theo màu queued */
 .pill.upnext {
   color: var(--queued);
-  border-color: rgba(122,127,248,.45);
-  background: rgba(122,127,248,.12);
+  border-color: rgba(143,148,255,.45);
+  background: rgba(143,148,255,.12);
   margin-left: 4px;
 }
 .row.paid .pill.upnext { margin-left: 6px; }
@@ -2441,7 +2458,7 @@ html[data-section="spin"] .bgfx { display: none; }
   font-size: 12.5px; line-height: 1.55; color: var(--txt-2);
   border-radius: var(--radius); border: 1px solid var(--line);
   border-left: 2px solid var(--k-album);
-  background: rgba(74,156,156,.07);
+  background: rgba(79,176,173,.07);
   animation: kn-in .26s var(--e-out) both;
 }
 .kind-note .kind { font-weight: 600; }
@@ -2470,7 +2487,7 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (max-width: 620px) { .now-split { white-space: normal; } }
 .now-n { font-family: var(--mono); font-size: 10.5px; font-weight: 600; line-height: 16px; min-width: 16px;
   padding: 0 5px; text-align: center; border-radius: var(--r-pill);
-  color: var(--queued); background: rgba(122,127,248,.14); }
+  color: var(--queued); background: rgba(143,148,255,.14); }
 
 /* đếm ngược: nhãn nhỏ + số mono, căn phải */
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
@@ -2545,7 +2562,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .nt-btn:hover { color: var(--txt); border-color: #3c4550; background: var(--surface-3); }
 /* co tin chua doc: chuong sang mau nhu dang duoc goi */
-.nt-btn.has { color: var(--a-2); border-color: rgba(135,130,250,.42); background: var(--a-soft); }
+.nt-btn.has { color: var(--a-2); border-color: rgba(169,164,255,.42); background: var(--a-soft); }
 .nt-btn .dotbadge { position: absolute; top: -6px; right: -7px; margin: 0; line-height: 14px; min-width: 14px; font-size: 9.5px;
   /* Số tin chưa đọc POP lên khi nó đổi (key ở JSX), và chỉ nó động — chuông
      đứng yên, nên không có gì dịch chuyển quanh nó. scale + opacity thôi; nảy
@@ -2660,8 +2677,8 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3) }
 .nt-meta em { font-style: normal; font-family: var(--font); font-weight: 600; letter-spacing: .2px }
 .nt-acts { display: flex; align-items: center; gap: 5px; flex: none; padding: 8px 0 8px 0 }
-.nt-vote { color: var(--paid); border-color: rgba(240,178,65,.4) }
-.nt-vote:hover { background: rgba(240,178,65,.14) }
+.nt-vote { color: var(--paid); border-color: rgba(215,166,63,.4) }
+.nt-vote:hover { background: rgba(215,166,63,.14) }
 
 .nt-empty { padding: 26px 12px 28px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; min-height: 210px }
 .nt-empty b { font-family: var(--display); font-size: 13px }
@@ -2699,8 +2716,8 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .standing b { font-weight: 600 }
 .standing.is-lead { color: var(--done); border-color: rgba(79,203,143,.42); background: rgba(79,203,143,.1) }
-.standing.is-hot { color: var(--paid); border-color: rgba(240,178,65,.45); background: rgba(240,178,65,.12) }
-.standing.is-near { color: var(--a-2); border-color: rgba(135,130,250,.4); background: var(--a-soft) }
+.standing.is-hot { color: var(--paid); border-color: rgba(215,166,63,.45); background: rgba(215,166,63,.12) }
+.standing.is-near { color: var(--a-2); border-color: rgba(169,164,255,.4); background: var(--a-soft) }
 .standing.is-muted { color: var(--txt-3) }
 /* Phần "sớm nhất bao lâu" mờ và nhỏ hơn phần hạng: nó là SUY RA từ lịch chốt
    chứ không phải số liệu đọc thẳng từ database, nên không được trông như một
@@ -2807,7 +2824,7 @@ html[data-section="spin"] .bgfx { display: none; }
    được giữa hai chục dòng mà không nhấp nháy mãi */
 @keyframes songHl {
   0%   { background: var(--a-soft); box-shadow: 0 0 0 1px var(--a-2) inset; }
-  70%  { background: var(--a-soft); box-shadow: 0 0 0 1px rgba(135,130,250,.45) inset; }
+  70%  { background: var(--a-soft); box-shadow: 0 0 0 1px rgba(169,164,255,.45) inset; }
   100% { background: transparent; box-shadow: 0 0 0 1px transparent inset; }
 }
 .row.hl, .grow.hl { animation: songHl 2.6s var(--e-soft) both; }
@@ -2832,16 +2849,17 @@ html[data-section="spin"] .bgfx { display: none; }
   opacity: .55; pointer-events: none;
 }
 
-/* 2) Empty / loading state (xuất hiện ở mọi trang): thêm một "chấm" mềm làm
-   tiêu điểm để khối trống không còn là một ô chữ lơ lửng; chữ nhấc lên một
-   bậc tương phản cho đọc được trên nền sọc. */
-.empty { color: var(--txt-2); padding: 44px 20px; }
-.empty::before {
-  content: ''; display: block; width: 34px; height: 34px; margin: 0 auto 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-}
+/* 2) EMPTY / LOADING (mọi trang). Trước đây khối này được định nghĩa BA lần ở
+   ba chỗ khác nhau và lớp sau đè lớp trước — sửa một chỗ là hai chỗ kia im
+   lặng cãi lại. Nay một định nghĩa: hình tròn có icon, câu kết luận đậm, và
+   một dòng gợi ý nhỏ. Dùng được cho cả trạng thái đang tải (role="status"). */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 40px 20px; text-align: center; color: var(--txt-2); font-size: 13px; }
+.empty-ico { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 6px;
+  border: 1px solid var(--line-2); border-radius: 50%; color: var(--txt-3);
+  background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%); }
+.empty b { font-family: var(--display); font-size: 13.5px; font-weight: 700; color: var(--txt); }
+.empty small { color: var(--txt-3); font-size: 12px; max-width: 36ch; line-height: 1.6; }
 
 /* 3) Login — ấn tượng đầu tiên: quầng nhấn rất loãng tỏa từ mép trên xuống,
    nằm trong khối kính (z-index âm để dưới nội dung, trên nền khối). */
@@ -2970,4 +2988,4 @@ html[data-section="spin"] .bgfx { display: none; }
    bật toast. Toast nằm ở góc màn hình còn mắt đang ở giữa bảng; nhãn nút đổi
    ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
    nhiều thông báo nổi. */
-.adm-copy.done { color: var(--done); border-color: rgba(79,169,122,.4); }
+.adm-copy.done { color: var(--done); border-color: rgba(76,186,136,.4); }

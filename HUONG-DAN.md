@@ -2204,7 +2204,6 @@ src/
     PaymentMethods.jsx        lưới chọn phương thức + STK + QR
     Icon.jsx                  bộ icon Lucide: một chỗ khai tên gọi, nét 1.7, cỡ 16px
     Check.jsx                 ô đánh dấu vẽ bằng SVG (cài đặt thông báo, mốc tiến độ admin, ẩn/hiện media, yêu cầu trả phí)
-    ErrorBoundary.jsx         lưới an toàn: render ném lỗi thì hiện câu giải thích + nút tải lại, thay cho trang đen
     GoogleIcon.jsx
 supabase/schema.sql           chạy 1 lần trong SQL Editor
 ```

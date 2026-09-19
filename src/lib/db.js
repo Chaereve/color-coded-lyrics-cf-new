@@ -336,7 +336,14 @@ export async function fetchDailySpinStatus() {
    KV/secret) thì gọi thẳng RPC như trước đây — app không chết vì cổng. */
 async function performSpinViaGate(requestId, userId) {
   const token = await spinDevice()
-  const [fpHash, captchaToken] = await Promise.all([fingerprintHash(), acquireCaptchaToken()])
+  /* Vân tay KHÔNG bắt buộc: FingerprintJS có thể bị chặn (adblock, mạng, chính
+     sách trình duyệt) và khi đó băm không chạy được. Không có vân tay thì mất
+     một lớp hạn mức phía máy chủ (Postgres coi NULL là "không khai báo"), còn
+     hơn là chặn người thật bằng một lỗi đỏ. Đường vote đã tha từ trước — hai
+     đường phải xử sự như nhau. */
+  const [fpHash, captchaToken] = await Promise.all([
+    fingerprintHash().catch(() => null), acquireCaptchaToken(),
+  ])
   const { data: session } = await supabase.auth.getSession()
   const userToken = session?.session?.access_token
   if (!userToken) throw new Error('err.signin')

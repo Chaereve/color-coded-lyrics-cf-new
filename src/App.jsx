@@ -18,7 +18,7 @@ import Standing from './components/Standing'
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
-import { KIND_META, STATUS_META, isPicked, kindCls, statusLabel, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
@@ -121,7 +121,7 @@ function Stat({ c, v, label, why }) {
 function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
   followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
-  const sm = STATUS_META[r.status]
+  const sm = { c: statusColor(r.status) }
   /* Đã vào Up next thì khóa vote (kể cả rút lại) và khóa xóa của user. */
   const locked = isPicked(r)
   const votable = canVote && !locked
@@ -169,7 +169,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             số. Khối Up next in đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && (
           <>
-            <span className="status" style={{ '--c': STATUS_META.in_progress.c }}>{r.progress}%</span>
+            <span className="status" style={{ '--c': statusColor('in_progress') }}>{r.progress}%</span>
             <div className="bar"><i style={{ width: `${r.progress}%` }} /></div>
           </>
         )}
@@ -1313,7 +1313,7 @@ export default function App() {
                             {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
                           </h3>
                           <div className="sub">
-                            <span className="status" style={{ '--c': STATUS_META[rep.status].c }}>{statusLabel(rep, t)}</span>
+                            <span className="status" style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot" aria-hidden="true" /><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
@@ -1324,7 +1324,7 @@ export default function App() {
                             <ul className="now-members">
                               {g.rows.map(rr => (
                                 <li key={rr.id}>
-                                  <span className="status" style={{ '--c': STATUS_META[rr.status].c }}>{statusLabel(rr, t)}</span>
+                                  <span className="status" style={{ '--c': statusColor(rr.status) }}>{statusLabel(rr, t)}</span>
                                   {rr.is_paid && <span className="pill gold">PAID</span>}
                                   <span>{rr.votes} {t('now.votes')}</span>
                                 </li>
@@ -1385,29 +1385,56 @@ export default function App() {
 
             <div className="board-list">
               <div className="section-title">{t('board.listTitle')}</div>
-              <div className="toolbar">
-                <div className="tabs">
+              {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
+                  đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
+                  cuộn ngang chứ không xuống dòng. */}
+              <div className="fbar">
+                <div className="fchips" role="group" aria-label={t('board.filterAria')}>
                   {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
-                    <button key={f.k} className={`tab${filter === f.k ? ' on' : ''}`} onClick={() => setFilter(f.k)}>
-                      {t(`filter.${f.k}`)}<span className="n">{counts[f.k]}</span>
+                    <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
+                      style={{ '--c': f.c }} aria-pressed={filter === f.k}
+                      onClick={() => setFilter(f.k)}>
+                      <i className="fdot" aria-hidden="true" />{t(`filter.${f.k}`)}
+                      <b className="fnum">{counts[f.k]}</b>
                     </button>
                   ))}
                 </div>
-                <div className="spacer" />
-                <select className="sel" value={kindFilter} onChange={e => setKindFilter(e.target.value)}>
-                  <option value="all">{t('board.allKinds')}</option>
-                  {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
-                </select>
-                <span className="searchwrap">
-                  <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
-                    onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
-                  {!q && <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-                </span>
+                <div className="fbar-side">
+                  <select className="sel" value={kindFilter} onChange={e => setKindFilter(e.target.value)}
+                    aria-label={t('board.allKinds')}>
+                    <option value="all">{t('board.allKinds')}</option>
+                    {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <span className="searchwrap">
+                    <Icon name="search" size={14} className="search-ico" />
+                    <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
+                      onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
+                    {q
+                      ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
+                          onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
+                      : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+                  </span>
+                </div>
+                {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu
+                    bài và lối thoát về trạng thái đầy đủ. */}
+                {(kindFilter !== 'all' || !!q) && (
+                  <div className="fbar-meta">
+                    <span>{t('board.showing', { n: boardItems.length })}</span>
+                    <button type="button" className="lnk"
+                      onClick={() => { setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
+                  </div>
+                )}
               </div>
 
               <div className="list" data-glow key={filter} ref={listRef}>
                 {boardItems.length === 0
-                  ? <div className="empty">{filter === 'watch' ? t('nt.none') : t('board.empty')}</div>
+                  ? (
+                    <div className="empty">
+                      <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+                      <b>{filter === 'watch' ? t('nt.none') : t('board.empty')}</b>
+                      <small>{t('board.emptyHint')}</small>
+                    </div>
+                  )
                   : pgBoard.items.map((e, i) => (e.type === 'group'
                     ? (
                       <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}

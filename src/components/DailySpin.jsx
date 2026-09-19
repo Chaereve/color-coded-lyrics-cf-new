@@ -247,15 +247,20 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       setPending(!!readPendingSpin(userId))
       const ms = reducedMotion() || data.replayed ? 0 : 4500
       setDuration(ms)
-      const next = spinRotation(angle.current, data.spin.segment, data.status.rewards.length)
+      /* `rewards` là bảng ô do MÁY CHỦ trả về. Bản deploy cũ (hoặc một hàm SQL
+         chưa cập nhật) có thể trả payload thiếu khoá này — đọc thẳng là
+         TypeError giữa lúc quay, người dùng mất lượt mà không thấy gì. Thiếu
+         thì rơi về đúng 16 ô mặc định. */
+      const rewards = data.status?.rewards?.length ? data.status.rewards : SPIN_REWARDS
+      const next = spinRotation(angle.current, data.spin.segment, rewards.length)
       const travel = next - angle.current
       angle.current = next
       setRotation(next)
       setPhase('spinning')
       // Tiếng tách bám đúng đường cong CSS: xếp lịch một lần, không dùng timer.
       stopTicks.current?.()
-      stopTicks.current = ms ? sfx.spinTicks(spinTicks(travel, data.status.rewards.length, ms)) : null
-      const top = Math.max(...data.status.rewards)
+      stopTicks.current = ms ? sfx.spinTicks(spinTicks(travel, rewards.length, ms)) : null
+      const top = Math.max(...rewards)
       finishTimer.current = setTimeout(() => {
         if (!mounted.current) return
         stopTicks.current = null

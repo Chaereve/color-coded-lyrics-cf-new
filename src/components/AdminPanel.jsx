@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
-import { isPicked, kindCls, statusLabel, STATUS_META, timeAgo, vnd, usd } from '../lib/meta'
+import { isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
@@ -75,7 +75,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         ) : (
           <>
-            <span className="status" style={{ '--c': STATUS_META[r.status].c }}>{statusLabel(r, t)}</span>
+            <span className="status" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>
             {(r.status === 'queued' || r.status === 'in_progress') && onPick && (
               <button className="btn btn-sm" onClick={() => onPick(r.id, !picked)}
                 title={t('now.pickRule', { n: 4 })}>
@@ -304,7 +304,7 @@ export default function AdminPanel({
               là biết đang nghẽn ở đâu. */}
           <div className="adm-sum">
             {pipeline.map(p => (
-              <span className="adm-sum-i" key={p.s} style={{ '--sc': STATUS_META[p.s].c }}>
+              <span className="adm-sum-i" key={p.s} style={{ '--sc': statusColor(p.s) }}>
                 <i aria-hidden="true" />{t(`status.${p.s}`)} <b>{p.n}</b>
               </span>
             ))}

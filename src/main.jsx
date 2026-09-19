@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Background from './components/Background'
 import Toaster from './components/Toaster'
 import { I18nProvider } from './lib/i18n.jsx'
@@ -16,24 +15,27 @@ if (typeof document.startViewTransition === 'function') {
   document.documentElement.dataset.vt = 'on'
 }
 
+/* KHÔNG bọc app trong "màn hình lỗi", và KHÔNG dựng lưới an toàn ở
+   index.html (chủ dự án chốt 19/09/2026). Cả hai thứ đó nghe thì hợp lý —
+   "đừng để trang trắng" — nhưng thực tế chúng biến MỘT lỗi render thành một
+   khối đen che hết trang: người dùng mất cả app trong khi lỗi thật vẫn nằm
+   trong console. Lỗi phải nhỏ hơn thiệt hại, không được lớn hơn.
+   Ở đây chỉ còn đúng việc ghi lỗi ra console với tiền tố [ccl] — mở DevTools
+   là thấy, dán lại được — còn lỗi nghiệp vụ vẫn đi đường toast đỏ như cũ. */
+const report = (label, e) => console.error(`[ccl] ${label}:`, e)
+window.addEventListener('error', (e) => report('lỗi runtime', e.error || e.message))
+window.addEventListener('unhandledrejection', (e) => report('promise bị từ chối', e.reason))
+
 const root = createRoot(document.getElementById('root'))
 root.render(
   <StrictMode>
     <I18nProvider>
       <NotifyProvider>
-        {/* Lưới an toàn bọc NGOÀI cùng: một component ném lỗi trong lúc render
-            thì React gỡ sạch cây DOM, để lại trang đen không một chữ — lưới
-            này đổi thành câu giải thích + nút tải lại. */}
-        <ErrorBoundary>
-          {/* nền loang nằm sau mọi thứ, toaster nằm trước mọi thứ */}
-          <Background />
-          <App />
-          <Toaster />
-        </ErrorBoundary>
+        {/* nền loang nằm sau mọi thứ, toaster nằm trước mọi thứ */}
+        <Background />
+        <App />
+        <Toaster />
       </NotifyProvider>
     </I18nProvider>
   </StrictMode>
 )
-/* Đã dựng xong: tắt lưới an toàn trong index.html (nếu không nó sẽ thay cả
-   trang bằng dòng chữ sau 8 giây, kể cả khi app đang chạy tốt). */
-window.__cclBoot = true

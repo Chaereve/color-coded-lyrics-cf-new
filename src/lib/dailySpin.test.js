@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinTiers, spinShades, spinTicks, spinAverage, formatChance, spinRotation, spinCountdown,
-  demoSpinStatus, drawDemoSpin, validateSpinResult,
+  demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
 const now = Date.parse('2026-09-07T12:00:00Z')
@@ -221,4 +221,47 @@ test('đồng hồ đếm ngược không bao giờ in NaN', () => {
   assert.equal(spinCountdown(undefined), '00:00:00')
   assert.equal(spinCountdown(-5000), '00:00:00')
   assert.equal(spinCountdown(3_600_000 + 61_000), '01:01:01')
+})
+
+test('không lặp cùng một giải quá hai lần liên tiếp', () => {
+  assert.equal(streakBlocked([]), null)
+  assert.equal(streakBlocked([1]), null)
+  assert.equal(streakBlocked([1, 2]), null, 'hai lượt KHÁC nhau thì lượt sau tự do')
+  assert.equal(streakBlocked([3, 3]), 3)
+
+  // đang chặn +1 thì không lần rút nào được rơi vào một trong 9 ô mang số 1
+  for (let i = 0; i < 500; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [1, 1] })], 1)
+  // chặn ở ô hiếm nhất (+5, đúng một ô) cũng phải tránh
+  for (let i = 0; i < 200; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [5, 5] })], 5)
+  // chưa đủ hai lượt trùng thì rút đều như cũ: mọi ô đều có thể ra
+  const seen = new Set()
+  for (let i = 0; i < 400; i++) seen.add(drawSegment({ recent: [2, 1] }))
+  assert.equal(seen.size, SPIN_REWARDS.length, 'không được hẹp tập ô khi luật không bật')
+  // bảng thưởng một ô (mọi ô đều là số bị chặn) vẫn phải trả về một ô hợp lệ
+  assert.equal(drawSegment({ rewards: [7], recent: [7, 7] }), 0)
+})
+
+test('bản demo theo đúng luật đó', () => {
+  const base = { user_id: 'account-a', device_token: 'device-a', created_at: '2026-09-07T09:00:00Z' }
+  const twoOnes = [{ ...base, reward: 1 }, { ...base, reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  // random() => 0 luôn trỏ vào ô đầu tiên (mang số 1) — luật phải đẩy sang ô khác
+  assert.notEqual(draw(twoOnes, { random: () => 0 }).entry.reward, 1)
+  // hai lượt trước khác nhau thì ô đầu tiên vẫn hợp lệ
+  const mixed = [{ ...base, reward: 2 }, { ...base, reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  assert.equal(draw(mixed, { random: () => 0 }).entry.reward, 1)
+  // lượt của THIẾT BỊ KHÁC không được tính vào chuỗi của mình
+  const otherDevice = [{ ...base, device_token: 'device-b', reward: 1 },
+    { ...base, device_token: 'device-b', reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  assert.equal(draw(otherDevice, { random: () => 0 }).entry.reward, 1)
+})
+
+test('SQL thật giữ đúng luật, và schema.sql khớp với migration', () => {
+  for (const rel of ['../../supabase/schema.sql', '../../supabase/migrations/20261104_spin_streak.sql']) {
+    const sql = readFileSync(new URL(rel, import.meta.url), 'utf8')
+    assert.match(sql, /v_recent\[1\] = v_recent\[2\]/, `${rel}: thiếu so sánh hai lượt gần nhất`)
+    assert.match(sql, /where device_hash = v_hash/, `${rel}: chuỗi tính theo thiết bị`)
+    assert.match(sql, /256 % array_length\(v_allowed, 1\)/,
+      `${rel}: tập ô hẹp lại không chia hết 256 nên phải lấy mẫu loại bỏ`)
+    assert.match(sql, /v_prizes\[i\] <> v_block/, `${rel}: phải loại đúng số thưởng đang bị chặn`)
+  }
 })

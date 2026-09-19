@@ -16,6 +16,12 @@ export const STATUS_META = {
 
 export const kindCls = (k) => KIND_META[k]?.cls || 'ccl'
 
+/* Màu trạng thái — LUÔN trả về một màu. Một dòng lạ (trạng thái cũ còn sót
+   trong DB, dữ liệu nhập tay, hàng của bản deploy trước) không được làm vỡ cả
+   bảng chỉ vì tra bảng màu không thấy: `STATUS_META[s].c` trần là TypeError
+   ngay trong lúc render, mà render ném lỗi thì mất cả cây. */
+export const statusColor = (s) => STATUS_META[s]?.c || STATUS_META.pending.c
+
 /* Request đã được chốt vào Up next nhưng chưa xong: đã chốt (picked_at)
    và vẫn còn trong hàng (queued) hoặc đang làm (in_progress).
    Completed/denied tự rơi khỏi nhóm này. Up next thì KHÓA vote. */
@@ -42,9 +48,17 @@ export const timeAgo = (iso, t) => {
 }
 
 /* 1234 -> "1.2K" — dùng cho lượt xem */
+/* Số từ DB có thể thiếu, null, hoặc là chuỗi lạ. In ra "NaN₫" hay "$NaN" là
+   chuyện nhỏ nhưng nó nói với người dùng rằng trang hỏng — mà chỉ vì một ô
+   trống. Mọi hàm định dạng số đi qua đây trước. */
+const num = (n) => {
+  const v = Number(n)
+  return Number.isFinite(v) ? v : 0
+}
+
 export const compact = (n) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0)
 
-export const vnd = (n) => Number(n).toLocaleString('en-US') + '₫'
+export const vnd = (n) => num(n).toLocaleString('en-US') + '₫'
 
-export const usd = (n) => '$' + Number(n).toFixed(2)
+export const usd = (n) => '$' + num(n).toFixed(2)

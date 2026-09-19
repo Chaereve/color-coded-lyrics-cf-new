@@ -287,6 +287,11 @@ const S = {
   'board.allKinds': 'All types',
   'board.search': 'Title or artist',
   'board.empty': 'Nothing here yet.',
+  'board.emptyHint': 'Try another filter, or send the first request.',
+  'board.filterAria': 'Filter requests',
+  'board.clearQ': 'Clear search',
+  'board.clearAll': 'Clear filters',
+  'board.showing': '{n} shown',
 
   /* phan trang — dung chung cho moi danh sach dai */
   'pager.label': 'Pagination',
@@ -461,11 +466,6 @@ const S = {
   'gate.perk2': '{n} requests per hour',
   'gate.perk3': 'Paid requests start first',
 
-  /* man hinh khi render nem loi (components/ErrorBoundary.jsx) */
-  'crash.title': 'This page hit an error while drawing.',
-  'crash.body': 'Nothing was lost. Reloading fixes it almost every time — if it comes back, tell Chaereve what you were doing.',
-  'crash.details': 'What the error says',
-  'crash.reload': 'Reload',
 
   /* bang dieu hanh */
   'adm.pending': 'Pending',

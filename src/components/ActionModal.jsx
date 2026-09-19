@@ -55,7 +55,11 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     try { return localStorage.getItem(RULES_KEY) === RULES_V } catch { return false }
   })
 
-  const meta = KIND_META[form.kind]
+  /* Tra bảng loại bài LUÔN phải có kết quả: `form.kind` đi qua state nên về lý
+     thuyết chỉ nhận bốn giá trị của KINDS, nhưng tra trượt ở đây là TypeError
+     ngay trong lúc render — cả form biến mất chỉ vì một giá trị lạ. Trượt thì
+     lấy loại đầu. */
+  const meta = KIND_META[form.kind] || KIND_META[KINDS[0]]
   const titleLabel = t(meta.titleKey)
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 

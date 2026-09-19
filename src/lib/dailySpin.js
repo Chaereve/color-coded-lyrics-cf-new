@@ -9,7 +9,13 @@ export const DAILY_SPIN_LIMIT = 2
      +3 votes x2 = 12.5%    |  +5 votes x1 = 6.25%  (jackpot, at six o'clock)
    Average 1.75 votes per spin, 3.5 per day, most 10 per day. Every spin wins.
    The count must stay a divisor of 256 so one random byte needs no rejection
-   sampling (both SQL and the tests check this). */
+   sampling (both SQL and the tests check this).
+
+   MỘT LUẬT CHỒNG LÊN, KHÔNG ĐỔI BẢNG THƯỞNG: cùng một số thưởng không được ra
+   quá 2 lần liên tiếp trên cùng một thiết bị (chủ dự án chốt 19/09 — 9/16 ô là
+   "+1", nên ba lượt liền ra +1 là chuyện thường về xác suất nhưng đọc ra thành
+   "vòng quay gian"). Luật nằm ở `drawSegment` dưới đây và ở `spin_daily` trong
+   `supabase/migrations/20261104_spin_streak.sql` — hai bên phải luôn khớp. */
 export const SPIN_REWARDS = Object.freeze([1, 2, 1, 3, 1, 1, 2, 1, 5, 1, 2, 1, 3, 1, 2, 1])
 export const SPIN_TIME_ZONE = 'Asia/Ho_Chi_Minh'
 const DAY = 86_400_000
@@ -23,6 +29,23 @@ export function spinDay(now = Date.now()) {
 
 export function nextSpinReset(now = Date.now()) {
   return new Date(Math.floor((+new Date(now) + VN_OFFSET) / DAY) * DAY + DAY - VN_OFFSET).toISOString()
+}
+
+/* ---- luật "không lặp quá hai lần" -----------------------------------------
+   Trả về SỐ THƯỞNG đang bị chặn, hoặc null khi được rút tự do. `recent` là các
+   số thưởng gần nhất của CÙNG một thiết bị, mới nhất đứng đầu. */
+export function streakBlocked(recent = []) {
+  return recent.length >= 2 && recent[0] === recent[1] ? recent[0] : null
+}
+
+/* Chọn ô để kim dừng. Không chặn gì thì rút đều trên 16 ô như cũ; đang bị chặn
+   thì hẹp tập ô lại rồi rút đều TRONG TẬP ĐÓ — chứ không rút rồi rút lại, vì
+   cách đó vừa lệch xác suất vừa có thể lặp vô hạn. */
+export function drawSegment({ rewards = SPIN_REWARDS, recent = [], random = Math.random } = {}) {
+  const blocked = streakBlocked(recent)
+  const allowed = blocked == null ? null : rewards.map((r, i) => (r === blocked ? -1 : i)).filter(i => i >= 0)
+  const pool = allowed && allowed.length ? allowed : rewards.map((_, i) => i)
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
 }
 
 export function rewardOdds(rewards = SPIN_REWARDS) {
@@ -146,7 +169,14 @@ export function drawDemoSpin({ entries, deviceToken, userId, requestId, now = Da
   const status = demoSpinStatus({ entries, deviceToken, userId, credits: 0, now })
   if (status.device_used >= DAILY_SPIN_LIMIT) throw new Error('err.spinDeviceLimit')
   if (status.account_used >= DAILY_SPIN_LIMIT) throw new Error('err.spinAccountLimit')
-  const segment = Math.floor(random() * SPIN_REWARDS.length)
+  /* Hai lượt gần nhất của CHÍNH thiết bị này quyết định lượt này có bị chặn
+     hay không — giống hệt điều kiện trong SQL (device_hash = v_hash). */
+  const recent = entries
+    .filter(s => s.device_token === deviceToken)
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+    .slice(0, 2)
+    .map(s => s.reward)
+  const segment = drawSegment({ recent, random })
   return {
     replayed: false,
     entry: {
