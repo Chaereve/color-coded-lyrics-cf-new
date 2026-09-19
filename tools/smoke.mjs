@@ -66,7 +66,12 @@ const out = process.stdout.write.bind(process.stdout)
 const errOut = process.stderr.write.bind(process.stderr)
 const realLog = (...a) => out(a.join(' ') + '\n')
 /* Cảnh báo `act(...)` là do BÀI KIỂM này gây ra, không phải lỗi của app. */
-const NOISE = /not wrapped in act|ReactDOMTestUtils|The current testing environment/i
+const NOISE = /not wrapped in act|ReactDOMTestUtils|The current testing environment|Not implemented: navigation to another Document/i
+/* jsdom KHÔNG cài đặt việc điều hướng: bấm vào một thẻ <a href> thật (bài kiểm
+   này bấm nút menu, và nút menu là thẻ <a>) là jsdom kêu "Not implemented:
+   navigation to another Document" BẤT KỂ app đã gọi preventDefault đúng — đã
+   thử cả hai đường (bấm thẳng thẻ <a> và bấm vào chữ bên trong). Tiếng ồn này
+   thuộc về bài kiểm, không phải về app. */
 process.stderr.write = (chunk, ...rest) => (NOISE.test(String(chunk)) ? true : errOut(chunk, ...rest))
 const note = (kind, args) => {
   const text = args.map(a => (a && a.stack) ? a.stack.split('\n').slice(0, 3).join(' | ') : String(a)).join(' ')
@@ -139,6 +144,19 @@ const check = (name, ok, extra = '') => {
   if (!ok) realLog(` FAIL  ${name}${extra ? ` — ${extra}` : ''}`)
 }
 
+/* ---------- in HTML của vùng đang soi (SMOKE_DUMP=1) ----------
+   Đọc mã trả lời được "phần tử có tồn tại không"; chỉ đọc HTML đã dựng mới trả
+   lời được "nó nằm ở đâu, lồng trong cái gì" — đúng loại câu hỏi phát sinh khi
+   bố cục sai. In theo yêu cầu để lượt chạy thường không bị rối. */
+const DUMP = !!process.env.SMOKE_DUMP
+const dump = (label, sel) => {
+  if (!DUMP) return
+  const el = q(sel)
+  realLog(`\n===== DUMP ${label} · ${sel} =====`)
+  realLog(el ? el.outerHTML.replace(/\n\s*/g, '\n') : '(không thấy phần tử)')
+  realLog('===== /DUMP =====\n')
+}
+
 /* ---------- rà nhãn: chỗ nào có ≥2 nhãn cạnh nhau phải nằm trong .tags ---------- */
 const TAGISH = '.pill, .kind, .badge'
 function loneTagClusters(limit = 6) {
@@ -202,6 +220,7 @@ if (kindChip) {
 
 const lone1 = loneTagClusters()
 check('trang chủ: không có cụm nhãn rời', lone1.length === 0, lone1.join(' | '))
+dump('thanh lọc trang chủ', '.fbar')
 
 /* tìm kiếm + lọc */
 where = 'bộ lọc'
@@ -231,6 +250,7 @@ if (addBtn) {
     await click(qa('button').find(b => /agree/i.test(b.textContent || '')))
   }
   check('form request mở ra', !!q('.modal'))
+  dump('form request', '.modal .req, .modal')
   check('có thẻ xem trước', !!q('.req-preview'))
   check('có dải 3 bước', qa('.req-steps li').length === 3)
   check('đủ 4 thẻ loại bài', qa('.kcard').length === 4)
@@ -301,7 +321,6 @@ const voteBtn = qa('.votebtn:not([disabled])')[0]
 if (voteBtn) {
   await click(voteBtn)
   check('hộp vote mở ra', !!q('.vm-hero'))
-  check('có ba ô số dư', qa('.vm-chip').length >= 3, `${qa('.vm-chip').length} ô`)
   /* BÀN PHÍM: mũi lên / dấu + phải chỉnh được số phiếu mà không cần tới ô nhập */
   const qtyBox = q('#vm-qty')
   if (qtyBox) {
@@ -318,22 +337,14 @@ if (voteBtn) {
     check('bấm mức nhanh đổi số lớn', q('.vm-hero .v')?.textContent !== before,
       `${before} → ${q('.vm-hero .v')?.textContent}`)
   }
-  /* Ba ô số dư phải cộng lại đúng bằng tổng phiếu đang có (thanh trượt lấy
-     đúng tổng đó làm mức cao nhất). Sai ở đây là người dùng bị báo thiếu phiếu
-     trong khi vẫn còn. */
-  const chips = qa('.vm-chip b').map(b => Number(b.textContent) || 0)
-  const slideMax = Number(q('.vm-slide')?.getAttribute('max') || 0)
-  check('ba ô số dư cộng đúng bằng tổng phiếu', chips.reduce((a, b) => a + b, 0) === slideMax,
-    `${chips.join(' + ')} = ${chips.reduce((a, b) => a + b, 0)} vs max ${slideMax}`)
-
-  /* VẠCH NGUỒN PHIẾU: ba đoạn của cùng một màu, cộng lại đúng 100% bề rộng —
-     đọc ra được phần nào là phiếu miễn phí, phần nào là phiếu mua. */
-  const mix = qa('.vm-mix i')
-  const mixW = mix.map(i => parseFloat((i.style.getPropertyValue('--w') || '').replace('%', '')) || 0)
-  check('có vạch tỉ lệ nguồn phiếu', mix.length >= 1 && mixW.length === mix.length,
-    `${mix.length} đoạn · ${mixW.join(' + ')}`)
-  check('ba đoạn cộng lại đúng 100%', Math.abs(mixW.reduce((a, b) => a + b, 0) - 100) < 0.6,
-    `${mixW.reduce((a, b) => a + b, 0).toFixed(1)}%`)
+  /* QUỸ PHIẾU: MỘT dòng chữ "còn … → còn …" (kèm nguồn mua/thưởng nếu có).
+     Vòng 10 dựng ba ô có viền + một vạch chia tỉ lệ; vòng 11 gỡ cả hai vì hộp
+     vote bị chê là rối — nên phép kiểm ở đây chốt luôn rằng chúng KHÔNG quay
+     lại: một khung viền nữa trong hộp chật là một lớp rối nữa. */
+  const after = q('.vm-after')
+  check('có dòng "còn … → còn …"', !!after && /\d/.test(after.textContent || ''),
+    after?.textContent?.replace(/\s+/g, ' ').trim())
+  check('quỹ phiếu không còn ô/vạch trang trí', !q('.vm-chip') && !q('.vm-mix'))
 
   /* Bấm gửi thật: con số trên hàng phải tăng đúng bằng số vừa chọn, và hộp
      phải tự đóng. Đây là phép thử duy nhất chứng minh đường ray vote chạy.
@@ -378,10 +389,12 @@ await waitFor(() => !!q('.adm-page'))
 check('trang quản trị dựng ra', !!q('.adm-page'))
 check('có dải số liệu chuyển mục', qa('.adm-kpi').length === 5, `${qa('.adm-kpi').length} ô`)
 check('có thanh công cụ', !!q('.adm-bar'))
-/* Vạch chia tỉ lệ: năm ô số liệu nói "bao nhiêu", vạch nói "chiếm bao nhiêu
-   phần" — và số đoạn phải khớp số mục đang có việc. */
-const admMix = qa('.adm-mix i')
-check('có vạch chia tỉ lệ khối lượng việc', admMix.length >= 1, `${admMix.length} đoạn`)
+/* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
+   (Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ ở vòng 11.) */
+const admH2 = q('.adm-h2')
+check('có tiêu đề cho mục đang mở', !!admH2 && !!q('.adm-h2-n'),
+  admH2?.textContent?.replace(/\s+/g, ' ').trim())
+check('không còn vạch chia tỉ lệ trang trí', !q('.adm-mix'))
 check('nút xuất CSV có mặt', qa('button').some(b => /Export CSV/.test(b.textContent || '')))
 
 /* Bộ lọc của bảng quản trị nằm ở ĐỊA CHỈ: mở một địa chỉ đã lọc sẵn thì ô tìm
@@ -405,6 +418,7 @@ for (const k of ['pending', 'active', 'orders', 'done', 'media']) {
   check(`mục ${k} dựng được, không lỗi`, !!q('.adm-page') && problems.length === before,
     problems.length > before ? problems.slice(before).map(p => p.text).join(' / ').slice(0, 160) : '')
   check(`mục ${k} không có cụm nhãn rời`, lone.length === 0, lone.join(' | '))
+  dump(`quản trị · ${k}`, '.adm-page')
 }
 
 /* chọn nhiều + hành động hàng loạt */
@@ -425,7 +439,48 @@ if (pick) {
   await click(pick)
 }
 
-/* ---------- 10. kết luận ---------- */
+/* ---------- 10. MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn ----------
+   Bản xem trước của nền tảng chạy trong iframe, và một iframe bị sandbox (hoặc
+   trang mở bằng file://, hoặc chế độ riêng tư của vài trình duyệt) NÉM
+   SecurityError ở `pushState`/`replaceState`. Trước vòng 11, lỗi đó bắn ra từ
+   trong handler React: người dùng bấm "Admin" và không có gì xảy ra — đúng ca
+   "trang quản trị hỏng toàn bộ" mà chủ dự án báo. Bài kiểm này giả lập đúng
+   môi trường đó rồi đi bằng ĐƯỜNG NGƯỜI DÙNG: bấm nút trong menu. */
+where = 'iframe bị sandbox (history ném lỗi)'
+const realPush = window.history.pushState
+const realReplace = window.history.replaceState
+const boom = () => { throw new window.DOMException('The operation is insecure.', 'SecurityError') }
+window.history.pushState = boom
+window.history.replaceState = boom
+try {
+  /* Rời khỏi trang quản trị TRƯỚC khi chặn history — nếu không thì phép kiểm
+     "vẫn mở được" chỉ xác nhận cái đang có sẵn trên màn hình. */
+  const item = (name) => qa('.side-nav .side-item').find(a => new RegExp('^' + name).test((a.textContent || '').trim()))
+  const navBoard = item('Requests')
+  if (navBoard) await click(navBoard)
+  await tick(220)
+  const before = problems.length
+  const navAdmin = item('Admin')
+  check('menu có mục Admin để bấm', !!navAdmin, navAdmin ? '' : (q('.side-nav')?.textContent || '').slice(0, 80))
+  if (navAdmin) await click(navAdmin)
+  const opened = await waitFor(() => !!q('.adm-page'), 3000)
+  check('địa chỉ bị chặn: bảng quản trị vẫn mở', opened,
+    opened ? '' : text().slice(0, 140))
+  const kpis = qa('.adm-kpi')
+  if (kpis.length > 2) {
+    await click(kpis[2])
+    await tick(250)
+    check('địa chỉ bị chặn: vẫn đổi được mục',
+      kpis[2].className.includes('on') && !!q('.adm-page'))
+  }
+  check('địa chỉ bị chặn: không có lỗi mới trong console', problems.length === before,
+    problems.slice(before).map(x => x.text).join(' / ').slice(0, 180))
+} finally {
+  window.history.pushState = realPush
+  window.history.replaceState = realReplace
+}
+
+/* ---------- 11. kết luận ---------- */
 where = 'kết thúc'
 const runtime = problems.filter(p => p.kind !== 'warn')
 check('không có lỗi runtime', runtime.length === 0, `${problems.length} mục trong console`)

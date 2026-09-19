@@ -8,6 +8,7 @@ import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useI18n } from '../lib/i18n.jsx'
+import { here, putUrl } from '../lib/history'
 import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import MediaAdmin from './MediaAdmin'
 import Pager from './Pager'
@@ -64,11 +65,14 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         </label>
       )}
       <div className="nm">
-        <b>
+        {/* Tên bài là TIÊU ĐỀ của hàng, nên nó là một thẻ tiêu đề thật (h3):
+            bảng quản trị không có cấp tiêu đề nào thì trình đọc màn hình đọc
+            một mạch tên bài, người gửi, giờ, số phiếu mà không có chỗ ngắt. */}
+        <h3 className="adm-req-t">
           {r.title} <span style={{ color: 'var(--txt-2)', fontWeight: 400 }}>— {r.artist}</span>{' '}
           {r.is_paid && <span className="pill gold">PAID</span>}
           {picked && <span className="pill upnext">{t('adm.picked')}</span>}
-        </b>
+        </h3>
         <small>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>{' '}
           {r.requester}
@@ -279,9 +283,12 @@ export default function AdminPanel({
         q: tab === 'media' ? '' : q, sort: tab === 'media' ? 'default' : sortKey,
         kind: tab === 'media' ? 'all' : kindF,
       })
-      const here = window.location.pathname + window.location.search
       const next = window.location.pathname + qs
-      if (next !== here) window.history.replaceState({ s: 'admin' }, '', next)
+      /* Ghi địa chỉ đi qua `putUrl` (src/lib/history.js): trong iframe bị
+         sandbox hoặc ở chế độ riêng tư, `replaceState` ném SecurityError —
+         gọi thẳng là lỗi bắn ra từ trong effect này và bảng quản trị chết
+         giữa lúc đang dùng. Ghi được thì tốt, không thì thôi. */
+      if (next !== here()) putUrl({ s: 'admin' }, next)
     }, 260)
     return () => clearTimeout(id)
   }, [tab, q, sortKey, kindF])
@@ -419,8 +426,6 @@ export default function AdminPanel({
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
-  const kpiTotal = useMemo(() => kpis.reduce((sum, k) => sum + k.n, 0), [kpis])
-
   /* Chọn cả trang đang nhìn: admin soát 10 dòng một lượt, tick từng ô là 10 cú
      bấm cho một việc. Chỉ áp cho những dòng ĐANG HIỆN (giống mọi lệnh hàng loạt
      khác) để lựa chọn không lặng lẽ chạm tới hàng ở trang khác. */
@@ -498,24 +503,24 @@ export default function AdminPanel({
         ))}
       </div>
 
-      {/* CẢ KHỐI LƯỢNG VIỆC TRONG MỘT VẠCH. Năm ô số liệu trả lời "bao nhiêu";
-          vạch này trả lời "chiếm bao nhiêu phần" — cùng dữ liệu, khác câu hỏi,
-          và chỉ tốn 5px. Mỗi đoạn mang đúng màu của mục đó, nên không cần chú
-          giải: ô số liệu ngay trên đã là chú giải rồi. */}
-      {kpiTotal > 0 && (
-        <div className="adm-mix" aria-hidden="true">
-          {kpis.filter(k => k.n > 0).map(k => (
-            <i key={k.k} style={{ '--sc': k.tone, '--w': `${(k.n / kpiTotal) * 100}%` }} />
-          ))}
-        </div>
-      )}
-
       {/* `aria-busy` trong lúc chạy thao tác hàng loạt: trình đọc màn hình phải
           biết danh sách đang được ghi, không phải "bảng trống". */}
       <div className="adm-panel" aria-busy={bulkBusy || undefined}>
         {/* THANH CÔNG CỤ: tìm kiếm → xếp thứ tự → lọc loại bài → chế độ chọn.
             Ô tìm kiếm đứng đầu vì đó là việc admin làm nhiều nhất; nút chọn
             nhiều đứng cuối vì nó đổi cách làm việc của cả trang. */}
+        {/* TIÊU ĐỀ MỤC ĐANG MỞ (h2). Dải số liệu ở trên là bộ chuyển mục nên
+            không thể vừa là tiêu đề; mà trang không có tiêu đề nào thì trình
+            đọc màn hình chỉ nghe được tên các nút. Tên mục + số dòng đang xem
+            đứng ngay trên thanh công cụ — dòng "Showing …" cũ nằm dưới thanh
+            công cụ và nói lại đúng con số ấy. */}
+        {tab !== 'media' && (
+          <h2 className="adm-h2">
+            <span>{t(kpis.find(k => k.k === tab)?.label || 'adm.pageAria')}</span>
+            <span className="adm-h2-n">{t('adm.showing', { n: pg.items.length, total: shown.length })}</span>
+          </h2>
+        )}
+
         {tab !== 'media' && (
           <div className="adm-bar">
             <span className="searchwrap">
@@ -575,7 +580,6 @@ export default function AdminPanel({
             đang chọn gì", nên nằm chung một hàng. */}
         {tab !== 'media' && (
           <div className="adm-note">
-            <span>{t('adm.showing', { n: pg.items.length, total: shown.length })}</span>
             {pickMode && pageIds.length > 0 && (
               <label className="adm-all">
                 <Check checked={allPage} onChange={toggleAllPage} />
@@ -585,7 +589,9 @@ export default function AdminPanel({
             {/* Hai phím tắt của trang này chỉ có trong tài liệu là hai phím
                 tắt không ai biết. Dòng gợi ý nằm ngay chỗ dùng, và tự ẩn trên
                 thiết bị cảm ứng (không có bàn phím thì đừng hứa). */}
-            <span className="adm-keys">{t('adm.keys')}</span>
+            <span className="adm-keys">
+              <kbd>Esc</kbd>{t('adm.keyEsc')}<kbd>Ctrl/Cmd + A</kbd>{t('adm.keyAll')}
+            </span>
           </div>
         )}
         {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không

@@ -100,7 +100,7 @@ const SEED = [
   /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote */
   { kind: '1 Hour Loop', artist: 'TWICE', title: 'Moonlight Sunrise', requester: "O'Clock", status: 'queued', progress: 0, votes: 12,
     picked_at: new Date(Date.now() - 172800000).toISOString() },
-  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
+  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
   { kind: 'Full Album', artist: 'NewJeans', title: 'Get Up', requester: 'lyricscsc', status: 'completed', progress: 100, votes: 27, video_url: 'https://youtu.be/dQw4w9WgXcQ' },
   { kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', progress: 0, votes: 0 },
   { kind: 'Full Album', artist: 'IVE', title: 'IVE SWITCH', requester: 'ttokyeoni', status: 'queued', progress: 0, votes: 6 },

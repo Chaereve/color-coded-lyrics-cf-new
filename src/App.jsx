@@ -24,6 +24,8 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
+import { here, pushUrl, putUrl } from './lib/history'
+import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
 import { copyText } from './lib/clipboard'
@@ -385,7 +387,7 @@ export default function App() {
          trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây. */
       const qs = k === 'board' ? window.location.search : ''
       if (ROUTES[k] + qs !== window.location.pathname + window.location.search) {
-        window.history.pushState({ s: k }, '', ROUTES[k] + qs)
+        pushUrl({ s: k }, ROUTES[k] + qs)
       }
     }
     if (VT && !REDUCED()) {
@@ -441,7 +443,7 @@ export default function App() {
       const qs = p.toString()
       const next = ROUTES.board + (qs ? `?${qs}` : '')
       if (next !== window.location.pathname + window.location.search) {
-        window.history.replaceState({ s: 'board' }, '', next)
+        putUrl({ s: 'board' }, next)
       }
       /* Ghi cùng lúc với URL, cùng một nhịp hoãn 320ms: hai lần ghi tách rời
          nhau thì có lúc URL nói một đằng, bộ nhớ nói một nẻo. */
@@ -510,7 +512,7 @@ export default function App() {
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
     if (!Object.values(ROUTES).includes(clean)) {
-      window.history.replaceState(null, '', ROUTES.board + window.location.search)
+      putUrl(null, ROUTES.board + window.location.search)
     }
   }, [])
 
@@ -523,7 +525,7 @@ export default function App() {
 
   useEffect(() => {
     if (window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      putUrl(null, window.location.pathname + window.location.search)
     }
   }, [])
 
@@ -537,7 +539,7 @@ export default function App() {
     if (!has) return
     for (const k of ['add', 'artist', 'title', 'link']) u.searchParams.delete(k)
     const qs = u.searchParams.toString()
-    window.history.replaceState(null, '', u.pathname + (qs ? `?${qs}` : '') + u.hash)
+    putUrl(null, u.pathname + (qs ? `?${qs}` : '') + u.hash)
   }, [])
 
   /* Màn chờ chạy theo HAI mốc, không phải một con số cứng:
@@ -1260,7 +1262,7 @@ export default function App() {
     /* Đổi mục trong trang quản trị là đổi địa chỉ, nhưng KHÔNG đẩy thêm một
        mốc lịch sử: bấm Back sau khi soát năm mục phải quay về trang trước đó,
        không phải lùi qua năm địa chỉ của cùng một trang. */
-    if (tab) window.history.replaceState({ s: ADMIN_ONLY }, '', adminTabPath(ROUTES.admin, tab))
+    if (tab) putUrl({ s: ADMIN_ONLY }, adminTabPath(ROUTES.admin, tab))
   }, [go])
   /* Dang xuat phai LUON tra ve man dang nhap. Truoc day dung
      signOut().then(() => setUser(null)): mang loi la promise reject, setUser
@@ -1719,7 +1721,6 @@ export default function App() {
         open={!!voteFor} request={voteFor}
         myCount={voteFor ? (myVotes.get(voteFor.id) || 0) : 0}
         votesLeft={votesLeft}
-        freeLeft={freeLeft}
         purchased={voteStatus.purchased ?? 0}
         bonus={voteStatus.bonus ?? 0}
         onClose={() => setVoteFor(null)}
@@ -1754,18 +1755,25 @@ export default function App() {
           nguyên tab đang mở, và mở được song song ở tab trình duyệt thứ hai.
           `tab` truyền xuống là tab đang mở (null = để panel tự chọn). */}
       {user.isAdmin && section === ADMIN_ONLY && (
-        <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-          <AdminPanel
-            tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
-            rows={rows} orders={orders} media={featuredRows}
-            onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
-            onPick={doAdminPick} onBulk={doBulk}
-            onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
-            onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
-            onMediaViewHome={viewMediaHome}
-            pickInterval={pick?.interval_days || 4}
-          />
-        </Suspense>
+        /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
+           từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
+           và người dùng chỉ thấy trang trắng — không còn menu, không đường về.
+           Có lưới này thì chỉ khối đó hỏng, kèm nút dựng lại. */
+        <Boundary label={t('nav.admin')} title={t('err.blockTitle')} body={t('err.blockBody')}
+          retry={t('err.blockRetry')}>
+          <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
+            <AdminPanel
+              tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
+              rows={rows} orders={orders} media={featuredRows}
+              onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
+              onPick={doAdminPick} onBulk={doBulk}
+              onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
+              onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
+              onMediaViewHome={viewMediaHome}
+              pickInterval={pick?.interval_days || 4}
+            />
+          </Suspense>
+        </Boundary>
       )}
     </>
   )

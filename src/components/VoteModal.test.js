@@ -53,12 +53,18 @@ test('hộp thoại dựng được và con số lớn là số vote SAU khi vot
   assert.ok(html.includes('Whiplash'), 'phải hiện tên bài đang vote')
 })
 
-test('ba ô số dư đọc ra đúng quỹ vote', async () => {
+test('quỹ phiếu đọc ra bằng MỘT dòng chữ, không phải ba ô có viền', async () => {
   const html = await render(base)
-  const chips = (html.match(/vm-chip/g) || []).length
-  assert.ok(chips >= 3, 'phải có ba ô: vote miễn phí / đã mua / thưởng')
-  assert.ok(html.includes('>5<') && html.includes('>4<') && html.includes('>3<'),
-    'số của từng quỹ phải hiện đúng')
+  /* Vòng 10 dựng ba ô có viền + một vạch chia tỉ lệ cho cùng một câu trả lời
+     ("phiếu này lấy từ đâu"); vòng 11 gỡ cả hai vì hộp vote bị chê là rối —
+     khung viền là thứ đắt nhất trong một hộp chật. */
+  assert.doesNotMatch(html, /vm-chip/, 'ba ô số dư phải bị gỡ')
+  assert.doesNotMatch(html, /vm-mix/, 'vạch chia tỉ lệ cũng phải bị gỡ')
+  assert.match(html, /class="vm-after" id="vm-after"/, 'phải có dòng trước–sau')
+  assert.match(html, /including 4 bought and 3 bonus/, 'nguồn phiếu viết bằng chữ ngay sau dòng đó')
+  /* Không có phiếu mua / phiếu thưởng thì đừng nhắc tới chúng. */
+  const plain = await render({ ...base, purchased: 0, bonus: 0 })
+  assert.doesNotMatch(plain, /including/, 'không có gì để kể thì không thêm một dòng')
 })
 
 test('không mức nhanh nào vượt quá số vote còn lại', async () => {
@@ -98,10 +104,12 @@ test('bàn phím chỉnh được số phiếu, và trên điện thoại hộp 
   assert.match(src, /ArrowUp/, 'mũi lên cũng phải chỉnh được số')
   assert.match(src, /el\?\.tagName === 'INPUT'/, 'phải nhường phím khi đang gõ trong ô nhập')
 
-  /* gợi ý phím chỉ có nghĩa ở nơi có bàn phím */
+  /* Viên gợi ý phím cạnh ô số đã bị gỡ (vòng 11): phím vẫn chỉnh được số
+     (phần trên của bài kiểm này chốt điều đó), mà hộp vote thì bị chê là rối —
+     một viên chữ nữa trong hộp không đổi lại được gì. */
   const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
-  assert.match(css, /\.vm-keys \{/, 'thiếu gợi ý phím cạnh ô số')
-  assert.match(coarse, /\.vm-keys \{ display: none/, 'máy cảm ứng không có bàn phím — đừng hứa')
+  assert.doesNotMatch(src, /vm-keys/, 'viên gợi ý phím phải bị gỡ khỏi hộp vote')
+  assert.doesNotMatch(css, /\.vm-keys/, 'luật CSS của nó cũng phải bị gỡ')
 
   /* tấm trượt đáy trên máy hẹp: nút xác nhận nằm trong tầm ngón cái */
   const narrow = css.slice(css.indexOf('@media (max-width: 620px)'))
@@ -114,26 +122,18 @@ test('bàn phím chỉnh được số phiếu, và trên điện thoại hộp 
   assert.match(coarse, /\.vm-preset \{ min-width: 54px; height: 44px/, 'mức chọn nhanh phải đủ 44px khi chạm')
 })
 
-test('nguồn phiếu: ba ô số lượng + một vạch tỉ lệ cùng màu, và con số lớn được đọc lên', async () => {
+test('nguồn phiếu viết bằng chữ, và con số lớn được đọc lên', async () => {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(fileURLToPath(new URL('./VoteModal.jsx', import.meta.url)), 'utf8')
   const css = readFileSync(fileURLToPath(new URL('../index.css', import.meta.url)), 'utf8')
 
-  /* Ba ô số nói SỐ LƯỢNG; vạch chia tỉ lệ nói TỈ LỆ. Vạch phải vẽ từ đúng ba
-     con số đang hiện (cộng ba ô) chứ không lấy `votesLeft` — lệch một cái là
-     người dùng thấy hai chỗ nói khác nhau về cùng một quỹ phiếu. */
-  assert.match(src, /const leftTotal = Math\.max\(0, freeLeft\) \+ Math\.max\(0, purchased\) \+ Math\.max\(0, bonus\)/,
-    'tổng của vạch phải là tổng ba ô đang hiển thị')
-  assert.match(src, /className=\"vm-mix\"/, 'thiếu vạch nguồn phiếu')
-  assert.match(src, /m\.v \/ leftTotal/, 'bề rộng mỗi đoạn phải theo tỉ lệ thật')
-  assert.match(src, /m\.v > 0 \? \(/, 'nguồn có 0 phiếu thì không vẽ một đoạn rỗng')
-
-  /* Ba đoạn là BA SẮC CỦA CÙNG MỘT MÀU: một bảng màu thứ tư trong hộp vote là
-     đúng thứ làm giao diện rối thêm. */
-  const mixAt = css.indexOf('.vm-mix')
-  const mix = css.slice(mixAt, mixAt + 700)   /* khối .vm-mix + ba đoạn của nó */
-  assert.match(mix, /background: color-mix\(in oklab, var\(--a-2\) 92%/, 'đoạn chính dùng màu nhấn')
-  assert.ok((mix.match(/--a-2/g) || []).length === 3, 'cả ba đoạn phải cùng một huệ, chỉ khác độ đậm')
+  /* Nguồn phiếu: hai con số mua / thưởng viết ra thành chữ trong CÙNG dòng
+     trước–sau, và CHỈ hiện khi thật sự có phiếu thuộc nguồn đó. */
+  assert.match(src, /t\('vote\.sources', \{ p: purchased, b: bonus \}\)/,
+    'nguồn phiếu phải viết ra bằng chữ')
+  assert.match(src, /purchased > 0 \|\| bonus > 0/, 'không có phiếu mua/thưởng thì không nhắc')
+  assert.doesNotMatch(src, /vm-mix|leftTotal/, 'vạch chia tỉ lệ và phép tính của nó đã bị gỡ')
+  assert.doesNotMatch(css, /\.vm-mix/, 'luật CSS của vạch đó cũng phải bị gỡ khỏi tệp')
 
   /* Con số lớn đổi theo từng lần chọn — trình đọc màn hình cũng phải biết. */
   assert.match(src, /className=\{\`v\$\{changing \? '' : ' pop'\}\`\} aria-live="polite"/,

@@ -90,23 +90,28 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   /* .bar cũ đã bị gỡ khỏi CSS; .prog mới phải thật sự có luật. */
   const css = readFileSync(`${root}src/index.css`, 'utf8')
   assert.doesNotMatch(css, /^\.bar\s*\{/m, 'luật .bar cũ phải bị xoá')
-  assert.match(css, /\.prog-track\s*\{[^}]*height:\s*7px/, 'rãnh 7px — đủ dày để đọc được mà không thành một dải băng')
-  assert.match(css, /\.prog-track\s*\{[^}]*inset 0 1px 2px/, 'bóng lõm phải khai ngay trong luật của rãnh, không tách ra luật rời')
+  assert.match(css, /\.prog-track\s*\{[^}]*height:\s*6px/, 'rãnh 6px — đủ dày để đọc được mà không thành một dải băng')
   assert.match(css, /\.prog-track > i\s*\{[^}]*width:\s*var\(--w, 0%\)/)
   assert.match(css, /\.prog-num\s*\{[^}]*tabular-nums/, 'số phải đứng yên khi tiến độ đổi')
 
-  /* MÀU VẠCH (vòng 10): một màu sạch nâng nhẹ độ sáng, KHÔNG trộn về phía màu
-     nền (trộn với nền trên nền tối ra vệt bùn — lý do cũ người dùng chê màu
-     thanh tiến độ), có đầu vạch sáng, và đổi màu khi tick hết mốc. */
+  /* VẠCH PHẲNG (vòng 11) — khuôn lấy từ thanh tiến độ của Preline: rãnh bo
+     tròn + ruột đặc một màu + nhãn ở cuối. Ba thứ bị gỡ cùng lúc, vì mỗi thứ
+     là một lớp trang trí chồng lên một thanh cao 6px, và chủ dự án đọc đúng
+     bản chất của chúng: "gradient progress bar nhìn kì cục và AI quá". */
   const fill = css.match(/\.prog-track > i \{([^}]*)\}/)[1]
-  assert.match(fill, /#fff/, 'màu vạch phải được nâng sáng bằng chút trắng')
-  assert.match(fill, /inset 0 -1px 0/, 'mép dưới của vạch phải tối đi — không có vế này thì vạch là một dải phẳng')
-  assert.doesNotMatch(css, /hai điểm CÙNG MỘT HUỆ/, 'chú thích cũ về dải màu hai điểm phải bị gỡ cùng với mã đã gỡ')
-  assert.doesNotMatch(fill, /var\(--bg\)/, 'không được kéo màu vạch về phía màu nền')
-  assert.match(css, /\.prog-track > i::before\s*\{[^}]*right:\s*0[^}]*width:\s*3px/,
-    'đầu vạch phải có mũi sáng ở mép phải (và dùng ::before để không đè vệt sáng của khối Up next)')
+  assert.match(fill, /background:\s*var\(--sc/, 'ruột vạch là MỘT màu đặc, không pha')
+  assert.doesNotMatch(fill, /gradient|#fff|inset|box-shadow/,
+    'ruột vạch không được có gradient, ánh sáng, quầng, hay bóng lõm')
+  assert.doesNotMatch(css, /\.prog-track > i::before/, 'mũi sáng ở đầu vạch đã bị gỡ')
+  assert.doesNotMatch(fill, /animation:/, 'vạch không mọc bằng animation nữa — chỉ dài ra khi số đổi')
+  assert.match(css, /\.prog-track\s*\{[^}]*background:\s*var\(--surface-3\)/,
+    'rãnh là một sắc nền, không phải bóng lõm')
+  assert.match(css, /\.prog-track > i[^{]*\{[^}]*transition:\s*width/,
+    'vạch dài ra có chuyển tiếp — khuôn của Preline (transition duration-500)')
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.prog-track > i \{ transition: none/,
+    'ai tắt hiệu ứng thì thanh đứng yên')
   assert.match(css, /\.prog-full \{ --sc: var\(--done\); \}/,
-    'tick hết mốc thì --sc đổi sang màu xong (vạch, đầu vạch và con số cùng ăn theo)')
+    'tick hết mốc thì --sc đổi sang màu xong')
   assert.match(src.get('src/components/Progress.jsx'), /prog-full/,
     'component phải thật sự đánh dấu trạng thái đã tick hết mốc')
   /* Bảng quản trị và trang chủ phải tô GIỐNG nhau: không truyền màu trạng thái

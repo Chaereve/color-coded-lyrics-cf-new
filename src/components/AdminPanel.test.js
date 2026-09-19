@@ -83,14 +83,22 @@ test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê —
   assert.deepEqual(nums, ['2', '1', '1', '2', '1'],
     'chờ duyệt 2 · đang xử lý 1 · đơn chờ 1 · đã xong/từ chối 2 · video 1')
 
-  /* VẠCH CHIA TỈ LỆ: năm ô nói "bao nhiêu", vạch nói "chiếm bao nhiêu phần".
-     Nó phải vẽ từ chính dải số liệu (một nguồn), và chỉ có MỘT vạch trên trang. */
-  assert.equal((html.match(/adm-mix/g) || []).length, 1, 'đúng một vạch chia tỉ lệ, không lặp ở nơi khác')
+  /* TIÊU ĐỀ MỤC ĐANG MỞ: dải số liệu là bộ CHUYỂN MỤC nên nó không thể vừa là
+     tiêu đề; mà trang không có tiêu đề nào thì trình đọc màn hình chỉ nghe được
+     tên các nút. Tên mục (h2) + số dòng đang xem đứng ngay trên thanh công cụ,
+     và dòng "Showing …" cũ ở dưới thanh công cụ đã bị gộp vào đây — một con số
+     chỉ được nói một lần. */
+  assert.equal((html.match(/class="adm-h2"/g) || []).length, 1, 'đúng một tiêu đề cho mục đang mở')
+  const h2 = html.match(/<h2 class="adm-h2">[\s\S]*?<\/h2>/)?.[0] ?? ''
+  assert.match(h2, /<span class="adm-h2-n">/, 'tiêu đề phải mang luôn số dòng đang xem')
+  assert.match(h2, /Showing 2 of 2/, 'số dòng đang xem phải khớp danh sách')
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
-  assert.match(src, /const kpiTotal = useMemo\(\(\) => kpis\.reduce/, 'tổng của vạch phải tính từ chính dải số liệu')
-  assert.match(src, /kpis\.filter\(k => k\.n > 0\)/, 'mục có 0 việc thì không vẽ một đoạn rỗng')
+  assert.match(src, /t\(kpis\.find\(k => k\.k === tab\)\?\.label/, 'tên mục lấy từ chính dải số liệu (một nguồn)')
+  /* Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ (vòng 11): năm đoạn màu cho một
+     câu "mục nào nhiều việc" là trang trí, không phải thông tin — con số ngay
+     trên nó đã trả lời rồi. */
   const css = readFileSync(`${root}src/index.css`, 'utf8')
-  assert.match(css, /\.adm-mix i \{[^}]*var\(--sc\)/, 'mỗi đoạn mang đúng màu của mục đó (không cần chú giải riêng)')
+  assert.doesNotMatch(css, /\.adm-mix/, 'vạch chia tỉ lệ phải bị gỡ khỏi CSS, không để lại luật chết')
 })
 
 test('mục Chờ duyệt có thanh công cụ, dòng đếm, ô tìm kiếm và hai nút duyệt/từ chối', async () => {
@@ -164,6 +172,10 @@ test('hai phím tắt của trang được in ra chỗ dùng, và có vùng thô
   const css = readFileSync(`${root}src/index.css`, 'utf8')
   assert.match(css, /@media \(pointer: coarse\) \{ \.adm-keys \{ display: none/,
     'máy không có bàn phím thì đừng hứa phím tắt')
+  /* Hai phím là hai VIÊN PHÍM cạnh hai câu giải thích ngắn, không phải một câu
+     dài — cùng một thông tin, đọc ra như giao diện thay vì như đoạn văn. */
+  assert.ok(/<kbd>Esc<\/kbd>/.test(html) && /<kbd>Ctrl\/Cmd \+ A<\/kbd>/.test(html),
+    'phím tắt phải được vẽ thành viên phím')
   assert.match(css, /@media \(max-width: 620px\) \{[\s\S]{0,400}\.adm-bar \.searchwrap \{ flex: 1 1 100%/,
     'trên máy hẹp, ô tìm kiếm phải chiếm trọn một hàng')
   assert.match(css, /\.adm-kpis > :last-child:nth-child\(odd\) \{ grid-column: 1 \/ -1/,

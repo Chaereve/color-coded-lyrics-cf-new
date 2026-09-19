@@ -12,10 +12,10 @@ const MAX = 100
  */
 export default function VoteModal({
   open, request, myCount = 0, votesLeft = 0,
-  /* Ba nguồn phiếu tách riêng — hộp vote nói được "phiếu này lấy từ đâu",
-     thay vì chỉ một con số tổng. Mặc định 0 để hộp vẫn dựng được một mình
+  /* Hai nguồn phiếu ngoài quỹ miễn phí (đã mua / được thưởng) — hộp vote nói
+     được "số phiếu này lấy từ đâu". Mặc định 0 để hộp vẫn dựng được một mình
      trong test và ở chỗ gọi chưa truyền. */
-  freeLeft = 0, purchased = 0, bonus = 0,
+  purchased = 0, bonus = 0,
   onClose, onVote, onBuy,
 }) {
   const { t } = useI18n()
@@ -93,9 +93,6 @@ export default function VoteModal({
      hai mức phổ biến, "tất cả" cho người đã quyết). Con số nào vượt quá số
      phiếu đang có thì KHÔNG hiện — một nút bấm vào là báo lỗi thì thà đừng có. */
   const presets = [1, 5, 10, 25].filter(v => v <= addMax)
-  /* Ba nguồn phiếu — cộng lại để vẽ vạch tỉ lệ. Dùng tổng của BA Ô đang hiển
-     thị chứ không dùng `votesLeft`: vạch phải khớp với ba con số ngay trên nó. */
-  const leftTotal = Math.max(0, freeLeft) + Math.max(0, purchased) + Math.max(0, bonus)
   const after = locked ? req.votes : req.votes + n
   const leftAfter = Math.max(0, votesLeft - n)
   const changing = busy
@@ -131,8 +128,8 @@ export default function VoteModal({
                   Con số cũ (tổng hiện tại) chỉ là dòng phụ bên dưới. */}
               <div className="vm-hero" style={{ marginTop: 14 }}>
                 <span className="k">{t('vote.hero')}</span>
-                {/* Con số này đổi theo từng lần bấm mức nhanh / kéo thanh trượt,
-                    và nó là KẾT QUẢ của việc đang làm — nên phải được đọc lên,
+                {/* Con số này đổi theo từng lần bấm mức nhanh hoặc chỉnh ô số, và
+                    nó là KẾT QUẢ của việc đang làm — nên phải được đọc lên,
                     không chỉ đổi màu. */}
                 <span key={after} className={`v${changing ? '' : ' pop'}`} aria-live="polite">{after}</span>
                 <span className="u">{t('vote.heroSub', { n: req.votes })}</span>
@@ -150,12 +147,6 @@ export default function VoteModal({
                 )}
               </div>
 
-              {/* Thanh trượt: kéo là thấy con số lớn ở trên chạy theo. Cùng một
-                  trục với dãy nút trên, nên hai cách chọn không mâu thuẫn. */}
-              <input type="range" className="vm-slide" min="1" max={addMax} value={Math.min(n, addMax)}
-                aria-label={t('vote.qty')} disabled={busy}
-                onChange={e => setQty(Number(e.target.value))} />
-
               <div className="field" style={{ marginTop: 6, marginBottom: 0 }}>
                 <label htmlFor="vm-qty">{t('vote.qty')}</label>
                 <div className="vm-row">
@@ -170,43 +161,21 @@ export default function VoteModal({
                     <button type="button" onClick={() => setQty(q => Math.min(MAX, Number(q) + 1))}
                       disabled={busy} aria-label="+"><Icon name="plus" size={15} /></button>
                   </div>
-                  {myCount > 1 && (
-                    <button type="button" className="btn btn-sm" disabled={busy}
-                      onClick={() => setQty(myCount)}>{t('vote.backAll', { n: myCount })}</button>
-                  )}
-                  {/* Gợi ý phím nằm ngay cạnh ô số: máy cảm ứng (không bàn phím)
-                      tự ẩn nó bằng CSS, nên không có lời hứa suông. */}
-                  <kbd className="vm-keys" aria-hidden="true">+ / −</kbd>
                 </div>
-                {/* TÓM TẮT TRƯỚC – SAU: "còn 7 → còn 3" là câu trả lời cho
-                    "bấm nút này thì tôi mất gì", thứ mà một dòng "bạn có 7
-                    phiếu" không nói được. */}
+                {/* TÓM TẮT TRƯỚC – SAU, MỘT DÒNG: "còn 7 → còn 3" trả lời câu
+                    "bấm nút này thì tôi mất gì". Phần nguồn phiếu (mua / thưởng)
+                    viết bằng chữ ngay sau đó — vòng 10 dựng thêm ba ô có viền và
+                    một vạch chia tỉ lệ cho cùng câu trả lời ấy, và hộp vote đọc ra
+                    thành "quá rối". */}
                 <div className="vm-after" id="vm-after">
                   <span>{t('vote.leftBefore', { n: votesLeft })}</span>
                   <span className="arw" aria-hidden="true">→</span>
                   <b className={leftAfter === 0 ? 'bad' : 'good'}>{leftAfter}</b>
+                  {(purchased > 0 || bonus > 0) && (
+                    <span className="vm-src">{t('vote.sources', { p: purchased, b: bonus })}</span>
+                  )}
                 </div>
               </div>
-
-              <div className="vm-balance">
-                <span className="vm-chip"><span>{t('vote.freeToday')}</span><b>{Math.max(0, freeLeft)}</b></span>
-                <span className="vm-chip"><span>{t('vote.purchasedShort')}</span><b>{purchased}</b></span>
-                <span className="vm-chip"><span>{t('vote.bonusShort')}</span><b>{bonus}</b></span>
-              </div>
-              {/* NGUỒN PHIẾU, vẽ thành một vạch chia tỉ lệ. Ba ô số ở trên nói
-                  SỐ LƯỢNG; vạch này nói TỈ LỆ — cùng dữ liệu nhưng trả lời câu
-                  hỏi khác, và chỉ tốn 4px. Ba đoạn là BA SẮC CỦA CÙNG MỘT MÀU
-                  (đậm tới nhạt) nên đọc ra ngay đâu là phần chính, và không
-                  sinh ra bảng màu thứ tư trong hộp. */}
-              {leftTotal > 0 && (
-                <div className="vm-mix" aria-hidden="true">
-                  {[{ k: 'a', v: Math.max(0, freeLeft) },
-                    { k: 'b', v: Math.max(0, purchased) },
-                    { k: 'c', v: Math.max(0, bonus) }].map(m => (m.v > 0 ? (
-                      <i key={m.k} className={`s-${m.k}`} style={{ '--w': `${(m.v / leftTotal) * 100}%` }} />
-                    ) : null))}
-                </div>
-              )}
 
               {noVotes && myCount === 0 && <div className="msg err">{t('vote.none')}</div>}
               {!invalid && (tooMany || (myCount > 0 && tooManyBack)) && (

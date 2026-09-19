@@ -452,7 +452,6 @@ const S = {
   'req.submit': 'Send request',
 
   /* buou vote */
-  'vote.freeToday': 'Free votes today',
   'vote.purchased': 'Purchased',
   'vote.bonus': 'Bonus',
   'vote.outBuy': 'Out of votes. Buy more to continue.',
@@ -462,6 +461,7 @@ const S = {
   'vote.empty': 'Nothing to vote on.',
   'vote.dialogTitle': 'Vote for this request',
   'vote.total': '{n} votes',
+  'vote.freeToday': 'Free votes today',
   'vote.yours': 'you voted {n}',
   'vote.qty': 'Number of votes',
   'vote.available': '{n} left',
@@ -469,8 +469,6 @@ const S = {
   'vote.hero': 'Votes after this',
   'vote.heroSub': 'Currently {n} votes',
   'vote.leftBefore': 'Your votes left',
-  'vote.purchasedShort': 'Purchased',
-  'vote.bonusShort': 'Bonus',
   'vote.useAll': 'Use all {n}',
   'vote.tooMany': 'You have {n} votes left.',
   'vote.none': 'No votes left.',
@@ -478,7 +476,7 @@ const S = {
   'vote.locked': 'This request is already picked. Voting is closed.',
   'vote.closed': 'Voting is closed for this request — it is no longer in the queue.',
   'vote.takeBack': 'Take back {n}',
-  'vote.backAll': 'All {n}',
+  'vote.sources': 'including {p} bought and {b} bonus',
   'vote.canTakeBack': '{n} can be taken back',
   'vote.tooManyBack': 'You voted {n} here.',
   'vote.buyMore': 'Buy more votes',
@@ -535,7 +533,8 @@ const S = {
   'adm.showing': 'Showing {n} of {total}',
   'adm.selectPage': 'Select all {n} on this page',
   /* Hai phím tắt của bảng quản trị, in ngay chỗ dùng (tự ẩn trên máy cảm ứng). */
-  'adm.keys': 'Esc clears the selection · Ctrl/Cmd + A selects this page',
+  'adm.keyEsc': 'clears the selection',
+  'adm.keyAll': 'selects this page',
   /* Vùng chỉ trình đọc màn hình đọc: đổi bộ lọc là con số đổi, nhưng mắt
      thường không được báo. */
   'adm.resultCount': 'Now showing {n} requests',
@@ -647,6 +646,11 @@ const S = {
 
   /* loi */
   'err.signin': 'Sign in to continue.',
+  /* LƯỚI AN TOÀN của một khối (Boundary.jsx): khi một vùng ném lỗi lúc vẽ,
+     người dùng phải đọc được chuyện gì vừa xảy ra thay vì thấy trang trắng. */
+  'err.blockTitle': 'This section could not load',
+  'err.blockBody': 'The rest of the page still works. Try again — if it keeps failing, reload the page.',
+  'err.blockRetry': 'Try again',
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',

@@ -238,7 +238,7 @@ button { font-family: inherit; }
   }
 }
 .splash-sub { margin-top: 5px; color: var(--txt-3); font-size: 11px; font-family: var(--mono);
-  letter-spacing: 2.4px; text-transform: uppercase;
+  letter-spacing: 1px;
   animation: riseBlur .3s var(--e-out) .1s both; }
 .splash-bar { animation: riseBlur .3s var(--e-out) .14s both; }
 .splash-bar { margin-top: 26px; width: 140px; height: 2px; background: var(--line); overflow: hidden; }
@@ -259,6 +259,9 @@ button { font-family: inherit; }
    transitions.dev 18-texts-reveal / 02-number-pop-in, hạ xuống ngưỡng của app). */
 @keyframes riseBlur { from { opacity: 0; transform: translateY(6px); filter: blur(1.5px) } to { opacity: 1; transform: none; filter: none } }
 @keyframes fill { to { width: 100% } }
+/* Vệt sáng của THANH TẢI trong màn chờ (không phải thanh tiến độ công việc:
+   vòng 11 đã gỡ vệt quét khỏi thanh tiến độ vì nó đọc ra "AI"). */
+@keyframes sheen { to { transform: translateX(100%) } }
 
 /* ================= LOGIN ================= */
 .gate { min-height: 100%; display: grid; place-items: center; padding: 24px; }
@@ -400,8 +403,8 @@ button { font-family: inherit; }
    đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
 .section-title {
   display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
-  font-size: 11px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
-  color: var(--txt-3);
+  font-size: 12.5px; font-weight: 600; letter-spacing: .1px;
+  color: var(--txt-2);
   animation: rise .42s var(--e-out) both;
 }
 .section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
@@ -613,7 +616,7 @@ select {
    trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
 .pill.dup { display: inline-block; vertical-align: bottom; }
 .pill { padding: 3px 8px; border-radius: var(--r-pill); font-size: 10.5px;
-  letter-spacing: .3px; text-transform: uppercase; border: 1px solid var(--line-2); color: var(--txt-2); }
+  letter-spacing: .2px; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
 .pill.in_progress{ color: var(--progress); }
@@ -623,10 +626,9 @@ select {
 
 /* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
    với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
-/* `.kind` viết HOA toàn bộ để phân biệt với chữ thường của tên bài — cùng khuôn
-   chữ với `.pill` nên mắt đọc ra ngay "đây là thẻ, không phải tên" (vòng 10). */
+/* Thẻ loại bài: chữ THƯỜNG (chủ dự án chốt — không viết hoa nhãn lọc/nhãn thẻ
+   nữa), phân biệt với tên bài bằng khuôn chữ + viền + nền nhạt. */
 .kind { font-size: 11px; letter-spacing: .2px; padding: 3px 8px; border-radius: var(--r-pill);
-  text-transform: uppercase;
   border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
   background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
@@ -640,79 +642,42 @@ select {
    chuyện mà mắt phải tự nối, con số thì nằm lệch trái so với vạch, và vạch chỉ
    3px nên khó thấy nó đang ở đâu. Nay vạch dày 6px, bo tròn hai đầu, tô theo
    trạng thái của bài (--sc) — số và vạch cùng một hàng, đọc là hiểu ngay. */
-.prog { display: flex; align-items: center; gap: 10px; margin-top: 9px; max-width: 340px;
-  /* MÀU CỦA VẠCH do CSS quyết: đây là "màu đang làm", và tick hết mốc thì
-     `.prog-full` đổi nó sang màu xong. Không có prop màu — mỗi chỗ gọi tự tô một
-     màu chính là cách cùng một bài có hai màu vạch ở hai màn hình khác nhau. */
+/* ---- THANH TIẾN ĐỘ ------------------------------------------------------
+   MỘT vạch phẳng: rãnh chìm một sắc, ruột đặc đúng màu trạng thái, con số
+   đứng ở cuối vạch.
+
+   Bản trước tô ruột bằng `color-mix` nâng sáng, thêm hai vệt bóng trong lòng
+   vạch, một quầng sáng, và một mũi 3px ở đầu vạch — bốn lớp ánh sáng cho một
+   thanh cao 7px. Chủ dự án đọc ra đúng bản chất của nó: "gradient progress bar
+   nhìn kì cục và AI quá". Khuôn nay lấy từ thanh tiến độ của Preline
+   (preline.co/docs/components/progress.html): rãnh bo tròn + ruột đặc + nhãn
+   cuối dòng, KHÔNG gradient, KHÔNG quầng sáng, KHÔNG mũi nhọn.
+
+   Vẫn giữ `min-width` cho ruột: 1% trên rãnh 56px chỉ rộng 0,56px — nhỏ hơn
+   chính bán kính bo tròn thì vạch biến mất và người đọc tưởng "chưa bắt đầu".
+   Phần tử chỉ tồn tại khi pct > 0 (Progress.jsx), nên 0% không sinh que thừa. */
+.prog { display: flex; align-items: center; gap: 9px; margin-top: 8px; max-width: 340px;
+  /* MÀU CỦA VẠCH do CSS quyết (không có prop màu): cùng một bài phải có cùng
+     một màu vạch ở trang chủ và trong bảng quản trị. */
   --sc: var(--progress); }
 .prog-full { --sc: var(--done); }
 .prog-wide { max-width: none; }
-.prog-track {
-  flex: 1 1 auto; min-width: 56px; height: 7px; border-radius: var(--r-pill);
-  background: var(--line); overflow: hidden;
-  /* BÓNG LÕM CỦA RÃNH — khai ngay tại luật của rãnh, không tách ra một luật
-     rời nằm cách đó hai trăm dòng (bản trước có cả hai, đọc mãi mới thấy). */
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
-}
-/* Bề rộng đã đúng ngay từ khung hình đầu (không animate `width` — đó là thuộc
-   tính layout), nhưng cho nó MỌC ra bằng scaleX: thanh tiến độ đọc ra như đang
-   chạy chứ không phải một vạch đã in sẵn. Chỉ transform, chỉ một lần. */
-.prog-track > i {
-  position: relative;
-  display: block; height: 100%; width: var(--w, 0%);
-  border-radius: inherit;
-  /* MÀU ĐÃ ĐƯỢC PHA LẠI (vòng 10). Bản trước trộn màu trạng thái với NỀN ở
-     đầu vạch rồi mới tới màu gốc ở cuối: trên nền xanh đen, một đầu vạch bị kéo
-     về phía màu nền đọc ra như vệt bẩn chứ không ra chiều sâu — đúng lý do
-     người dùng vẫn thấy "màu thanh tiến độ chưa đẹp".
-     Nay vạch là MỘT màu sạch, chỉ nâng nhẹ độ sáng bằng một chút trắng (nâng
-     sáng thì vẫn ra màu của chính nó, trộn với nền thì ra màu bùn), cộng một
-     đầu vạch sáng và quầng sáng nhỏ ở ::before để mắt thấy được "đang chạy tới
-     đâu". */
-  background: color-mix(in oklab, var(--sc, var(--progress)) 88%, #fff);
-  /* Hai vệt bóng trong lòng vạch: sáng ở mép TRÊN, tối ở mép DƯỚI — cùng một
-     huệ, chỉ là ánh sáng, nên vạch đọc ra như một thanh mảnh có mặt cong thay
-     vì một dải màu dán phẳng. Cộng quầng sáng rất nhẹ ở đầu vạch. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22),
-              inset 0 -1px 0 rgba(0, 0, 0, .28),
-              0 0 10px -3px color-mix(in oklab, var(--sc, var(--progress)) 70%, transparent);
-  transform-origin: left center; animation: barGrow .6s var(--e-out) both;
-}
-/* ĐẦU VẠCH: một mũi sáng 3px ở mép phải, đúng chỗ tiến độ đang đứng. Là
-   `::before` chứ không phải `::after` vì `::after` đã là vệt sáng quét của
-   khối Up next (`.nowbar .prog-track > i::after`). */
-.prog-track > i::before {
-  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
-  border-radius: inherit;
-  background: color-mix(in oklab, var(--sc, var(--progress)) 55%, #fff);
-}
-/* TICK HẾT MỐC: vạch chuyển sang màu "xong". Không phải trang trí — 100% là
-   trạng thái thật (ba mốc Layout/Lyrics/Edit đã tick hết, chỉ còn chờ chốt),
-   và admin nhìn một lượt cả bảng là thấy ngay bài nào đã tới đích. */
-/* (đổi sang màu xong chỉ là đổi `--sc` ở khối .prog phía trên — vạch, đầu vạch
-   và con số đều đi theo, không phải chép lại ba luật) */
-/* 1% vẫn phải NHÌN THẤY: bề rộng nhỏ hơn chính bán kính bo tròn thì vạch biến
-   mất, người dùng đọc ra "chưa bắt đầu". */
-/* 1% chỉ rộng 0.56px trên rãnh 56px — nhỏ hơn chính bán kính bo tròn thì vạch
-   biến mất và người dùng đọc ra "chưa bắt đầu". Phần tử này chỉ tồn tại khi
-   pct > 0 (xem Progress.jsx), nên `min-width` không sinh ra que thừa ở 0%. */
-.prog-track > i { min-width: 6px; }
-/* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên
-   cả cột không nhảy khi tiến độ đổi. */
-.prog-num {
-  flex: none; min-width: 42px; text-align: right;
-  font: 600 12.5px/1 var(--mono); color: var(--txt-2);
-  font-variant-numeric: tabular-nums; letter-spacing: -.2px;
-}
-/* Dấu `%` mờ đi bằng chính độ mờ của số (opacity) chứ không đổi sang màu xám:
-   số màu hổ phách mà dấu % màu xám là hai giọng chữ trong cùng một cụm. */
-.prog-num span { margin-left: 1px; font-size: 10px; opacity: .55; }
+.prog-track { flex: 1 1 auto; min-width: 56px; height: 6px; border-radius: var(--r-pill);
+  background: var(--surface-3); overflow: hidden; }
+.prog-track > i { display: block; height: 100%; width: var(--w, 0%); min-width: 6px;
+  border-radius: inherit; background: var(--sc, var(--progress));
+  transition: width .45s var(--e-out); }
+/* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên cả
+   cột không nhảy khi tiến độ đổi. */
+.prog-num { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--txt-2);
+  font-variant-numeric: tabular-nums; }
+.prog-num span { margin-left: 1px; opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 /* Con số phải thuộc về vạch: nó lấy đúng tông của vạch (sáng hơn một bậc để
    đọc được trên nền), thay vì một màu xám không liên quan gì tới thanh bên
    cạnh nó. */
 .prog .prog-num { color: color-mix(in oklab, var(--sc, var(--progress)) 78%, #fff); }
 /* con số cũng ăn theo --sc, nên không cần luật riêng cho trạng thái xong */
-@keyframes barGrow { from { transform: scaleX(0) } to { transform: none } }
 
 .watch { display: inline-block; margin-top: 6px; font-size: 12.5px; color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
@@ -1349,21 +1314,13 @@ img { max-width: 100%; }
 @keyframes popOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(8px) scale(.985) } }
 .msg { animation: rowIn var(--t-2) var(--e-out) both; }
 
-/* thanh tiến độ chạy chứ không nhảy số */
-.prog-track > i, .vs-bar > i { transition: width .55s var(--e-out); }
-/* việc đang chạy: một vệt sáng quét chậm trên thanh — đủ thấy "sống",
-   không lòe loẹt. Vệt là transform của pseudo-element nên rẻ.
-   CHỈ đặt trên thanh của khối Up next (nơi luôn đúng MỘT bài đang làm).
-   Trước đây mọi hàng in_progress trong danh sách cũng mang vệt: mười bài cùng
-   lúc là mười vòng lặp vô hạn — vừa tốn máy vừa đọc ra như bảng đèn. */
-.prog-track > i { position: relative; }
-.nowbar .prog-track > i::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
-  transform: translateX(-100%);
-  animation: sheen 2.4s var(--e-soft) .3s infinite;
-}
-@keyframes sheen { to { transform: translateX(100%) } }
+/* Thanh tiến độ chạy chứ không nhảy số. `.prog-track > i` khai transition ngay
+   trong luật của nó (khối THANH TIẾN ĐỘ ở trên) — ở đây chỉ còn thanh của hộp
+   mua vote.
+   VỆT SÁNG QUÉT đã bị gỡ (vòng 11): một dải trắng mờ trượt qua lại trên vạch
+   màu là đúng thứ chủ dự án gọi là "gradient progress bar nhìn kì cục và AI
+   quá". Vạch tiến độ chỉ cần đúng một tín hiệu: dài bao nhiêu. */
+.vs-bar > i { transition: width .55s var(--e-out); }
 
 /* số vừa đổi thì nhún một nhịp rất ngắn (key theo giá trị ở JSX) */
 @keyframes tickIn { from { opacity: .25; transform: translateY(4px) scale(.9) } to { opacity: 1; transform: none } }
@@ -1578,8 +1535,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   border-bottom: 1px solid var(--line); }
 .side-brand-tx { flex: 1; }
 .side-brand-name { font-family: var(--display); font-weight: 700; font-size: 14.5px; letter-spacing: .1px; line-height: 1.2; }
-.side-brand-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.3px;
-  text-transform: uppercase; color: var(--txt-3); margin-top: 3px; }
+.side-brand-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; color: var(--txt-3); margin-top: 3px; }
 .side-x { flex: none; width: 28px; height: 28px; border: 0; border-radius: var(--radius);
   background: none; color: var(--txt-3); font-size: 19px; line-height: 1; cursor: pointer; }
 .side-x:hover { color: var(--txt); background: var(--hover); }
@@ -1608,7 +1564,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-group { padding: 4px 0 10px; }
 .side-group + .side-group { border-top: 1px solid var(--line); padding-top: 12px; }
 .side-label { position: relative; height: 18px; margin: 0 0 6px; padding: 0 var(--side-ix);
-  font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--txt-3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-3);
   display: flex; align-items: center; }
 .side-label > span { transition: opacity .15s var(--e-soft); }
 /* thu gọn: nhãn chữ biến thành một gạch ngắn — vẫn thấy chỗ ngắt nhóm (rule ở khối "THU GỌN" bên dưới) */
@@ -1839,7 +1795,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .pick-flag { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 3px 8px; border-radius: var(--r-sm);
   background: rgba(13,15,18,.72); border: 1px solid rgba(255,255,255,.22);
   backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-  color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+  color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .2px; }
 .pick-cap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 44px 14px 12px;
   display: flex; flex-direction: column; gap: 3px;
   background: linear-gradient(to top, rgba(13,15,18,.94) 0%, rgba(13,15,18,.72) 45%, rgba(13,15,18,0) 100%);
@@ -2210,8 +2166,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px;
   flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line) }
 .lb-bar-tx { min-width: 0 }
-.lb-kicker { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px;
-  text-transform: uppercase; color: var(--a-2) }
+.lb-kicker { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .5px; color: var(--a-2) }
 .lb-title { margin: 3px 0 0; font-family: var(--display); font-weight: 700; font-size: 16.5px; letter-spacing: .1px }
 /* Luật đang chạy, viết ra thành câu. Chữ nhỏ, xám, KHÔNG phải một dòng chú
    thích trang trí: nó trả lời câu "vì sao thứ tự này" mà trước đây người xem
@@ -2296,7 +2251,7 @@ html[data-section="spin"] .bgfx { display: none; }
 /* tên dài còn lại thì cắt bằng ellipsis, hàng không bao giờ vỡ */
 .lb-nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500 }
 .lb-table td.num { white-space: nowrap }
-.lb-table th { font: 600 10px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--txt-3);
+.lb-table th { font: 600 10px/1 var(--mono); letter-spacing: .3px; color: var(--txt-3);
   text-align: left; padding: 9px 14px; background: rgba(255,255,255,.015) }
 .lb-table td { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--line); vertical-align: middle }
 .lb-table th.num, .lb-table td.num { text-align: right }
@@ -2808,13 +2763,13 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-grp-h {
   position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
-  font-size: 10.5px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--txt-3);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .2px; color: var(--txt-3);
 }
 .nt-grp-h i { font-style: normal; padding: 0 5px; border-radius: var(--r-pill); background: var(--a-soft); color: var(--a-2); font-family: var(--mono); font-size: 10px }
 .nt-hvote {
   margin-left: auto; flex: none; padding: 3px 9px; border-radius: var(--r-pill);
   border: 1px solid transparent; background: var(--paid); color: #1a1206; cursor: pointer;
-  font: 700 10px/1.5 var(--font); letter-spacing: .5px; text-transform: uppercase;
+  font: 700 10px/1.5 var(--font); letter-spacing: .2px;
   transition: filter var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out)
 }
 .nt-hvote:hover { filter: brightness(1.07); }
@@ -3289,16 +3244,17 @@ html[data-section="spin"] .bgfx { display: none; }
 @keyframes sheetUp { from { opacity: .7; transform: translateY(16px) } to { opacity: 1; transform: none } }
 @media (prefers-reduced-motion: reduce) { .modal.narrow { animation: none } }
 /* Máy cảm ứng: mức chọn nhanh và nút tăng/giảm phải đủ to cho ngón tay */
+
+/* Máy cảm ứng: mức chọn nhanh và nút tăng/giảm phải đủ to cho ngón tay */
 @media (pointer: coarse) {
   .vm-preset { min-width: 54px; height: 44px; }
   .qty button { min-width: 44px; height: 44px; }
-  .vm-slide { height: 28px; }
 }
 
 /* ---- HỘP NHẬP SỐ VOTE (VoteModal) — phần thân --------------------------- */
 .vm-hero { display: grid; gap: 3px; padding: 14px 16px; border-radius: var(--r-md);
   border: 1px solid var(--line-2); background: var(--surface-2); text-align: center; }
-.vm-hero .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-3); }
+.vm-hero .k { font-size: 11px; letter-spacing: .2px; color: var(--txt-3); }
 .vm-hero .v { font-family: var(--mono); font-size: 34px; font-weight: 600; line-height: 1.05;
   color: var(--txt); font-variant-numeric: tabular-nums; }
 .vm-hero .u { font-size: 11.5px; color: var(--txt-3); }
@@ -3311,34 +3267,19 @@ html[data-section="spin"] .bgfx { display: none; }
   color: var(--txt-2); font: 500 12.5px/1 var(--mono); transition: .13s; }
 .vm-preset:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
 .vm-preset.on { color: var(--txt); border-color: var(--a-dim); background: var(--a-soft); }
-/* Gợi ý hai phím chỉnh số, đứng cạnh ô nhập. Nhỏ và mờ: nó là chỉ dẫn, không
-   phải một điều khiển — bấm vào nó không có gì xảy ra. */
-.vm-keys { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3);
-  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px 6px; }
-@media (pointer: coarse) { .vm-keys { display: none } }
 .vm-preset:disabled { opacity: .4; cursor: not-allowed; }
-/* thanh trượt: cùng một trục với dãy số ở trên, kéo là thấy con số chạy */
-.vm-slide { width: 100%; margin: 12px 0 2px; accent-color: var(--a-2); cursor: pointer; }
-.vm-slide:focus-visible { outline: 2px solid var(--a-2); outline-offset: 3px; }
 /* tóm tắt "trước → sau": người dùng thấy hậu quả trước khi bấm */
-.vm-after { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 11px;
-  font-size: 12px; color: var(--txt-3); }
+/* MỘT dòng "còn 7 → còn 3": người dùng thấy hậu quả trước khi bấm, và phần
+   nguồn phiếu viết bằng chữ ngay sau đó — bỏ ba ô chip và vạch chia tỉ lệ của
+   vòng 10 (ba khung viền + một vạch màu cho cùng một câu là đúng thứ làm hộp
+   vote bị chê "quá rối"). */
+.vm-after { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 7px; margin-top: 11px; font-size: 12px; color: var(--txt-3); }
 .vm-after b { font-family: var(--mono); font-size: 13px; color: var(--txt); }
 .vm-after .arw { color: var(--txt-3); }
 .vm-after .good { color: var(--done); }
 .vm-after .bad { color: var(--denied); }
-.vm-balance { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.vm-chip { flex: 1 1 90px; display: grid; gap: 2px; padding: 9px 11px; border-radius: var(--radius);
-  border: 1px solid var(--line); background: var(--surface-2); }
-.vm-chip span { font-size: 10.5px; color: var(--txt-3); }
-.vm-chip b { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--txt); }
-/* VẠCH NGUỒN PHIẾU: ba đoạn của cùng một màu, đậm dần về bên trái. Khe 2px lấy
-   nền của hộp làm vách ngăn — đọc ra ba phần mà không cần thêm màu nào. */
-.vm-mix { display: flex; gap: 2px; margin-top: 8px; height: 4px; }
-.vm-mix i { display: block; width: var(--w, 0%); min-width: 4px; border-radius: var(--r-pill);
-  background: color-mix(in oklab, var(--a-2) 92%, #fff); }
-.vm-mix .s-b { background: color-mix(in oklab, var(--a-2) 58%, var(--surface-2)); }
-.vm-mix .s-c { background: color-mix(in oklab, var(--a-2) 30%, var(--surface-2)); }
+.vm-after .vm-src { font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
 .vm-song { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 
 /* ---- BẢNG ADMIN — TRANG RIÊNG ------------------------------------------ */
@@ -3358,12 +3299,15 @@ html[data-section="spin"] .bgfx { display: none; }
   font-variant-numeric: tabular-nums; }
 .adm-kpi.on .v { color: var(--sc); }
 .adm-kpi:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-/* Vạch chia tỉ lệ của cả khối lượng việc: năm mục, năm màu lấy từ chính dải
-   số liệu ngay trên nó. Khe 2px lấy nền trang làm vách ngăn. */
-.adm-mix { display: flex; gap: 2px; height: 5px; margin-top: -6px; }
-.adm-mix i { display: block; width: var(--w, 0%); min-width: 4px; border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--sc) 70%, var(--surface-2)); }
 
+
+/* TIÊU ĐỀ CỦA MỤC ĐANG MỞ. Dải số liệu là bộ chuyển mục, nên nó không thể
+   vừa là tiêu đề; mà một trang quản trị không có tiêu đề nào thì người đọc
+   màn hình chỉ nghe được tên nút. Tên mục + số dòng đang xem đứng ngay trên
+   thanh công cụ: đây là cấp h2 của trang (h1 là tên trang). */
+.adm-h2 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px;
+  font-size: 14px; font-weight: 600; color: var(--txt); }
+.adm-h2-n { font-family: var(--mono); font-size: 11.5px; font-weight: 500; color: var(--txt-3); }
 
 .adm-panel { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel);
   box-shadow: var(--sh-1), var(--ring); padding: 12px 14px 14px; }
@@ -3476,8 +3420,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .rp-bar {
   display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
-  font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px;
-  text-transform: uppercase; color: var(--txt-3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .3px; color: var(--txt-3);
 }
 .rp-bar .rp-yt { margin-left: auto; color: var(--done); letter-spacing: .4px; text-transform: none }
 .rp-row { display: flex; align-items: flex-start; gap: 9px; }
@@ -3513,4 +3456,24 @@ html[data-section="spin"] .bgfx { display: none; }
   .kindpicks { grid-template-columns: minmax(0, 1fr); }
   .req-steps li { min-width: 0; padding: 7px 9px; }
   .rp-thumb { width: 68px; }
+}
+
+/* ---- LƯỚI AN TOÀN CỦA MỘT KHỐI (Boundary) -------------------------------
+   Khi một vùng của trang ném lỗi trong lúc vẽ, React tháo cả cây — người dùng
+   chỉ thấy trang trắng. Khối này giữ chỗ bằng một tấm bảng đọc được: nói vùng
+   nào hỏng, phần còn lại vẫn dùng được, và có nút dựng lại. */
+.boundary { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 12px; align-items: start;
+  padding: 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel); }
+.boundary-ico { color: var(--denied); margin-top: 1px; }
+.boundary-tx { min-width: 0; }
+.boundary-tx b { display: block; font-size: 13.5px; color: var(--txt); }
+.boundary-tx p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--txt-2); }
+.boundary-tx small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
+.boundary-why { grid-column: 1 / -1; font-size: 11.5px; color: var(--txt-3); }
+.boundary-why summary { cursor: pointer; }
+.boundary-why code { display: block; margin-top: 5px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--surface-3); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .boundary { grid-template-columns: auto 1fr; }
+  .boundary .btn { grid-column: 1 / -1; width: 100%; }
 }
