@@ -46,50 +46,51 @@
 
 :root {
   /* nen trung tinh, khong nhuom mau */
-  --bg:        #0d0f12;
-  --bg-2:      #111418;
-  --surface:   #14171b;
-  --surface-2: #191d22;
-  --surface-3: #20252b;
+  --bg:        #0a0c10;
+  --bg-2:      #0e1116;
+  --surface:   #12161c;
+  --surface-2: #171c23;
+  --surface-3: #1e242c;
   /* viền sáng hơn một chút trên nền kính — đường kẻ vẫn đọc được khi
      khối đã trong suốt */
-  --line:      #21262d;
-  --line-2:    #2d343d;
-  --txt:       #e4e7ea;
-  --txt-2:     #949ba4;
+  --line:      #212934;
+  --line-2:    #2f3a47;
+  --txt:       #e9edf3;
+  --txt-2:     #9aa4b2;
   /* #6a727c cũ chỉ 3.9:1 trên nền — trượt WCAG 2.2 AA (chữ thường cần 4.5:1)
-     ở mọi nhãn nhỏ dùng màu này. #7d858f đạt ~4.5:1 trên surface-2 (nền xấu
-     nhất) mà vẫn tối hơn --txt-2 rõ nên thang phân cấp không đổi. */
-  --txt-3:     #7d858f;
+     ở mọi nhãn nhỏ dùng màu này. #808b9a đạt 4.8:1 trên --panel-2 (nền xấu
+     nhất có thể gặp) mà vẫn tối hơn --txt-2 rõ nên thang phân cấp không đổi. */
+  --txt-3:     #808b9a;
 
-  /* Mau nhan lay dung tur logo: xanh ultramarine dien (hue 242°),
-     khong con la xanh da troi nhat nhu cu — nut bam, thanh truot,
-     focus ring va logo la cung mot mau.
-       --a     : mau nen — cho cho nut co chu trang ben tren
-       --a-dim : nhan/xam hon — trang thai hover, active
-       --a-2   : sang hon — chu, icon, thanh mong tren nen toi
-                 (dung --a nguyen ban cho chu tren nen toi bi thap tuong phan)
-       --a-soft: lot nhat cho nen khoi selection
-       --a-glow: bong to nhe, chi dung cho nut nhan va vach truot sidebar */
-  --a:      #2b22e2;
-  --a-dim:  #211aad;
-  --a-2:    #8782fa;
-  --a-soft: rgba(43,34,226,.14);
-  --a-glow: rgba(43,34,226,.45);
+  /* MAU NHAN — ultramarine cua logo, nang len mot bac (vong 7).
+     Ban cu #2b22e2 (hue 242, rat bao hoa) tren nen toi doc ra "nang, bun":
+     no chi hon nen vai phan tram do sang nen khoi mau nhu bi lem, con chu
+     trang tren no chi duoc 5,2:1. Ban nay keo do sang len ma giu nguyen hue:
+       --a   #4d40f0 — nen nut: chu trang dat 6,35:1 (cu 5,2:1)
+       --a-2 #a9a4ff — chu/icon nhan tren nen toi: 7,4:1 tren --panel-2
+       --a-dim      — hover/active: toi hon --a, khong doi hue
+     Nut bam, thanh truot, focus ring va logo van la cung mot mau. */
+  /* --a-soft: nen khối khi đang chọn · --a-glow: bóng toả của nút nhấn
+     và vạch trượt sidebar — hai giá trị này đi kèm --a, đổi --a là đổi cả hai */
+  --a:      #4d40f0;
+  --a-dim:  #382ecc;
+  --a-2:    #a9a4ff;
+  --a-soft: rgba(77,64,240,.16);
+  --a-glow: rgba(77,64,240,.45);
 
   /* mau trang thai — chi dung cho cham tron nho */
-  --pending:  #7b838d;
-  --queued:   #7a7ff8;
-  --progress: #d3a03a;
-  --done:     #4fa97a;
-  --denied:   #d0605c;
-  --paid:     #c99a3c;
+  --pending:  #8d95a3;
+  --queued:   #8f94ff;
+  --progress: #e0a93e;
+  --done:     #4cba88;
+  --denied:   #e26e69;
+  --paid:     #d7a63f;
 
   /* loai request */
-  --k-ccl:   #9b7fd4;
-  --k-album: #4a9c9c;
-  --k-loop:  #c47f52;
-  --k-short: #c2688f;
+  --k-ccl:   #ab8fe0;
+  --k-album: #4fb0ad;
+  --k-loop:  #d18b5f;
+  --k-short: #d1789d;
 
   /* mặt kính: nền tối + blur phía sau.  Ban to (stats, danh sách, modal,
      sidebar) dùng bản trong suốt này để vệt gradient của nền lọt nhẹ qua,
@@ -103,18 +104,18 @@
      nên chữ trong khung bị "trôi" trên vệt gradient, và hai khung chồng
      nhau thì cộng dồn thành một mảng màu lạ. Giữ nguyên hiệu ứng kính,
      chỉ đặc thêm để nội dung bám nền. */
-  --float:     rgba(16,19,24,.97);
-  --float-2:   rgba(14,17,21,.96);
-  --panel:     rgba(19,22,27,.94);
-  --panel-2:   rgba(25,29,35,.92);
-  --panel-3:   rgba(33,38,45,.9);
+  --float:     rgba(13,16,21,.97);
+  --float-2:   rgba(11,14,18,.96);
+  --panel:     rgba(16,20,26,.94);
+  --panel-2:   rgba(22,26,33,.92);
+  --panel-3:   rgba(29,34,42,.9);
   --glass:     blur(16px) saturate(140%);
   --glass-sm:  blur(9px) saturate(130%);
 
   /* màu phủ khi rê/đang chọn, dùng trong khối kính — nền đặc sẽ hiện
      thành một ô sáng lệch tông với khối */
-  --hover:     rgba(255,255,255,.038);
-  --hover-2:   rgba(255,255,255,.06);
+  --hover:     rgba(255,255,255,.055);
+  --hover-2:   rgba(255,255,255,.085);
 
   /* thang góc bo: control nhỏ 6, khối 8, nổi/modal 12, logo splash 16.
      Trước đây 3/5/6/7/8/10/12/14 lẫn lộn nên nhìn kỹ là thấy "lệch tay". */
@@ -136,19 +137,40 @@
   --display: 'Archivo Display', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Chuyển động — một bộ easing dùng chung cho cả trang, không chỗ nào tự chế.
-     Chỉ animate opacity/transform (GPU lo, không gây layout lại giữa chừng). */
+     Chỉ animate opacity/transform (GPU lo, không gây layout lại giữa chừng).
+
+     BA mức, chia theo CỔNG TẦN SUẤT (xem DESIGN.md § Chuyển động — người dùng
+     bấm càng nhiều thì chuyển động càng phải ít và nhanh):
+       --e-out  mọi thứ VÀO trang + mọi thứ dịch chuyển. Không overshoot.
+       --e-soft đổi màu nền/viền/chữ — lặp hàng trăm lần mỗi phiên nên phải
+                là đường thẳng không gợn.
+       --e-pop  overshoot. CHỈ dành cho khoảnh khắc ăn mừng (bục xếp hạng,
+                vòng quay thưởng). Toast, công tắc, nút điều hướng dùng nó
+                là sai: nảy trên một thao tác tiện ích đọc ra thành đồ chơi,
+                không phải phản hồi. */
   --e-out:  cubic-bezier(.22,.61,.36,1);    /* vào: nhanh rồi hãm dần */
   --e-soft: cubic-bezier(.4,0,.2,1);        /* đổi màu nền, viền */
-  --e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — modal, nút phát */
-  --t-1: .16s;
-  --t-2: .28s;
-  --t-3: .42s;
+  --e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — chỉ lúc ăn mừng */
+  --t-1: .16s;   /* phản hồi con trỏ: hover, active, focus */
+  --t-2: .28s;   /* khối nhỏ đổi trạng thái */
+  --t-3: .42s;   /* khối lớn, chuyển cảnh */
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 html {
   color-scheme: dark;
+  /* NỀN CỦA KHUNG VẼ, không chỉ của <body>.
+     LỖI NGƯỜI DÙNG CHỈ RA (vòng 12–13, "flash trắng khó chịu khi chuyển mục"):
+     chuyển cảnh cho hai ảnh chụp trượt ngang, nên hai mép màn hình lộ ra khung
+     vẽ nằm dưới. Khung vẽ lấy màu từ <html>; <html> không có nền thì trình
+     duyệt dùng màu mặc định của nó — TRẮNG — và người dùng thấy đúng một vệt
+     trắng nháy ở mép, mỗi lần đổi mục. Kéo quá đà trên iOS cũng lộ khoảng trắng
+     ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang.
+     (index.html có sẵn một bản sao y hệt nội tuyến trong <head>: nó phải có mặt
+     TRƯỚC khi tệp CSS tải xong để khung hình đầu tiên không trắng. Hai chỗ cùng
+     một màu — sửa màu nền thì sửa cả hai.) */
+  background: var(--bg);
   /* lề cuộn chừa sẵn: dữ liệu về làm thanh cuộn xuất hiện là cả trang
      giật ngang một cái, rất dễ thấy trên khối danh sách */
   scrollbar-gutter: stable;
@@ -169,7 +191,6 @@ body {
 button { font-family: inherit; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); }
-::-webkit-scrollbar-thumb:hover { background: #3a424c; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ================= SPLASH ================= */
@@ -185,13 +206,13 @@ button { font-family: inherit; }
 .splash.hide { opacity: 0; visibility: hidden; transform: scale(1.035); }
 /* logo vào: nở ra từ giữa và hết mờ dần — blur chỉ chạy một lần lúc mở */
 @keyframes splashIn { from { opacity: 0; transform: scale(.88); filter: blur(7px) } to { opacity: 1; transform: none; filter: none } }
-.applogo.lg-splash { position: relative; animation: splashIn .7s var(--e-out) both; }
+.applogo.lg-splash { position: relative; animation: splashIn .4s var(--e-out) both; }
 /* Không có vòng tròn xoay quanh logo — nhìn như icon đang load.
    Thay bằng một vệt sáng quét chéo NGANG LOGO, có nghỉ giữa hai nhịp:
    shimmer thật của app xịn là quét rồi im, không quay vô hạn.
    .applogo đã overflow:hidden nên vệt sáng bị cắt đúng theo khối logo. */
 .splash-mark { position: relative; display: grid; place-items: center;
-  animation: rise .55s var(--e-out) both; }
+  animation: rise .36s var(--e-out) both; }
 .applogo.lg-splash {
   border-radius: var(--r-xl);
   box-shadow: 0 16px 44px -18px var(--a-glow), inset 0 0 0 1px rgba(255,255,255,.06);
@@ -203,43 +224,54 @@ button { font-family: inherit; }
     transparent 41%, rgba(255,255,255,.14) 46%, rgba(255,255,255,.82) 50%,
     rgba(255,255,255,.14) 54%, transparent 59%);
   transform: translateX(-72%);
-  animation: logoShimmer 2.9s var(--e-soft) .45s infinite;
+  animation: logoShimmer 1.6s var(--e-soft) .08s infinite;
 }
 @keyframes logoShimmer {
   0%   { transform: translateX(-72%) }
-  34%  { transform: translateX(72%) }
-  100% { transform: translateX(72%) }   /* nghỉ 2/3 chu kỳ, không quay liên tục */
+  22%  { transform: translateX(72%) }
+  100% { transform: translateX(72%) }   /* quét 0.35s rồi nghỉ phần còn lại */
 }
 @keyframes shine { 0% { background-position: 130% 0 } 100% { background-position: -60% 0 } }
 /* chữ hiệu chạy ánh kim: một dải sáng quét qua nền chữ, chạy hai nhịp
    rồi đứng — đủ để mở màn, không phải banner chạy chữ. Chỉ bật khi trình
    duyệt cắt được gradient theo chữ, không thì giữ màu chữ thường. */
 .splash-title { margin-top: 20px; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .2px;
-  color: var(--txt); animation: rise .5s var(--e-out) .18s both; }
+  color: var(--txt); animation: riseBlur .3s var(--e-out) .06s both; }
 @supports (background-clip: text) or (-webkit-background-clip: text) {
   .splash-title {
     background: linear-gradient(100deg, var(--txt) 20%, #fff 38%, var(--a-2) 50%, var(--txt) 66%, var(--txt) 100%);
     background-size: 260% 100%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: rise .5s var(--e-out) .18s both, shine 2.1s var(--e-soft) .5s 2 both;
+    /* Mot nhip anh kim, khong hai: man cho chi con ~0,56s */
+    animation: riseBlur .42s var(--e-out) .1s both, shine 1.5s var(--e-soft) .28s 1 both;
   }
 }
 .splash-sub { margin-top: 5px; color: var(--txt-3); font-size: 11px; font-family: var(--mono);
-  letter-spacing: 2.4px; text-transform: uppercase;
-  animation: rise .5s var(--e-out) .28s both; }
-.splash-bar { animation: rise .5s var(--e-out) .36s both; }
+  letter-spacing: 1px;
+  animation: riseBlur .3s var(--e-out) .1s both; }
+.splash-bar { animation: riseBlur .3s var(--e-out) .14s both; }
 .splash-bar { margin-top: 26px; width: 140px; height: 2px; background: var(--line); overflow: hidden; }
 .splash-bar > i { position: relative; display: block; height: 100%; width: 0; overflow: hidden;
   background: linear-gradient(90deg, var(--a), var(--a-2) 65%, #b9b6ff);
   box-shadow: 0 0 14px -2px var(--a-glow);
-  animation: fill 1.15s var(--e-out) .5s forwards; }
+  /* .72s/.2s cu chay dai hon ca man cho -> thanh tai khong bao gio day.
+     .5s/.06s khép đúng trong 560ms; ai mạng chậm thì nó đã đầy từ lâu và
+     vệt sáng bên dưới vẫn chạy tiếp. */
+  animation: fill .5s var(--e-out) .06s forwards; }
 /* vệt sáng chạy dọc thanh: thanh tải "có điện" chứ không chỉ dài ra */
 .splash-bar > i::after { content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
-  transform: translateX(-100%); animation: sheen 1.25s var(--e-soft) .55s infinite; }
+  transform: translateX(-100%); animation: sheen 1s var(--e-soft) .1s infinite; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+/* Chữ vào bằng dịch chuyển + mờ dần: 6px là đủ để mắt thấy nó "hiện ra", và
+   1,5px blur tan đi là thứ khiến chữ đọc ra như đang lấy nét (nhịp này lấy từ
+   transitions.dev 18-texts-reveal / 02-number-pop-in, hạ xuống ngưỡng của app). */
+@keyframes riseBlur { from { opacity: 0; transform: translateY(6px); filter: blur(1.5px) } to { opacity: 1; transform: none; filter: none } }
 @keyframes fill { to { width: 100% } }
+/* Vệt sáng của THANH TẢI trong màn chờ (không phải thanh tiến độ công việc:
+   vòng 11 đã gỡ vệt quét khỏi thanh tiến độ vì nó đọc ra "AI"). */
+@keyframes sheen { to { transform: translateX(100%) } }
 
 /* ================= LOGIN ================= */
 .gate { min-height: 100%; display: grid; place-items: center; padding: 24px; }
@@ -303,12 +335,12 @@ button { font-family: inherit; }
 }
 .btn-primary:hover { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), var(--a-dim); border-color: var(--a-dim); }
 .btn-gold { background: none; border-color: var(--paid); color: var(--paid); font-weight: 600; }
-.btn-gold:hover { background: rgba(201,154,60,.12); border-color: var(--paid); }
+.btn-gold:hover { background: rgba(215,166,63,.12); border-color: var(--paid); }
 .btn-sm { padding: 4px 9px; font-size: 12px; }
-.btn-ok { border-color: rgba(79,169,122,.5); color: var(--done); }
-.btn-ok:hover { background: rgba(79,169,122,.1); border-color: var(--done); }
-.btn-no { border-color: rgba(208,96,92,.45); color: var(--denied); }
-.btn-no:hover { background: rgba(208,96,92,.1); border-color: var(--denied); }
+.btn-ok { border-color: rgba(76,186,136,.5); color: var(--done); }
+.btn-ok:hover { background: rgba(76,186,136,.1); border-color: var(--done); }
+.btn-no { border-color: rgba(226,110,105,.45); color: var(--denied); }
+.btn-no:hover { background: rgba(226,110,105,.1); border-color: var(--denied); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .dotbadge {
@@ -333,10 +365,15 @@ button { font-family: inherit; }
 
 
 /* ---- dải thống kê ---- */
-.stats { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--r-md); margin-bottom: 22px; overflow: hidden;
-  background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
-.stat { flex: 1; min-width: 110px; padding: 11px 14px; border-right: 1px solid var(--line); }
-.stat:last-child { border-right: 0; }
+/* Bốn ô giai đoạn (In queue · Picked · In progress · Completed) cộng lại đúng
+   bằng tổng số bài trên bảng — xem stageCounts trong lib/board.js. Dùng GRID
+   auto-fit + gap 1px làm vách ngăn thay cho `border-right` + `:last-child`:
+   cách cũ vỡ ngay khi hàng xuống dòng trên điện thoại (ô cuối dòng vẫn còn
+   vách, ô đầu dòng sau cũng có), còn gap thì đúng ở mọi số cột. */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 1px; border: 1px solid var(--line); border-radius: var(--r-md); margin-bottom: 22px; overflow: hidden;
+  background: var(--line); box-shadow: var(--sh-1), var(--ring); }
+.stat { padding: 11px 14px; background: var(--panel); }
 .stat { transition: background var(--t-1) var(--e-soft); }
 .stat:hover { background: var(--hover); }
 .stat:hover b { color: var(--c, var(--txt)); }
@@ -358,20 +395,37 @@ button { font-family: inherit; }
   box-shadow: var(--sh-1), var(--ring); transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out); }
 /* khối "đang làm" thở rất nhẹ — có người thật đang ngồi sửa video */
 .nowbar::before { content: ''; position: absolute; left: -40%; top: 0; bottom: 0; width: 55%;
-  background: linear-gradient(90deg, transparent, rgba(135,130,250,.10), transparent);
+  background: linear-gradient(90deg, transparent, rgba(169,164,255,.10), transparent);
   transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite; pointer-events: none; }
 @keyframes nowdrift { 0% { transform: translateX(0) } 55%,100% { transform: translateX(260%) } }
-.nowbar:hover { border-color: var(--line-2); transform: translateY(-1px) }
+.nowbar:hover { border-color: var(--line-2); }
 /* accent bên trong, clipped theo border-radius của khối — border-left 2px
    cộng bo góc 8px thì hai đầu đường kẻ bị vát lệch, nhìn rất lộ */
 .nowbar > .nbar { position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
   background: linear-gradient(180deg, var(--a-2), var(--a)) }
-.nowbar .lbl { font-size: 11.5px; color: var(--txt-3); margin-bottom: 5px; }
+/* TIÊU ĐỀ KHỐI UP NEXT — trước đây 13,5px, tức là NHỎ HƠN cả tên từng bài
+   nằm trong nó (15px): mắt đọc tên bài trước, rồi mới biết đó là khối gì.
+   Nay nó là cấp bậc thật của khối: chữ hiển thị 19px, đậm 700, màu sáng nhất
+   trang; con số đi kèm thành một huy hiệu mang ĐÚNG màu giai đoạn hàng đợi
+   (cùng màu chấm ở chip lọc "Queue"), nên tiêu đề vừa to vừa nói được nó đang
+   đếm việc gì. Dải nhấn 2px ở mép trái khối (.nbar) vẫn là mốc của cả khối. */
+.nowbar .lbl { display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
+  font-family: var(--display); font-size: 19px; font-weight: 700; letter-spacing: -.2px;
+  line-height: 1.15; color: var(--txt); }
 .nowbar h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1px; }
 .nowbar .sub { font-size: 12.5px; color: var(--txt-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-.section-title { font-size: 13px; font-weight: 600; color: var(--txt-2); margin: 0 0 10px;
-  animation: rise .42s var(--e-out) both; }
+/* Nhãn mục: chữ nhỏ in hoa, giãn chữ, kèm một đường tóc kéo hết chiều ngang.
+   Trước đây là một dòng 13px đậm nằm trơ giữa hai khối, và cả bảy chỗ trong
+   app đều dùng đúng một kiểu như nhau — mắt không biết "mục mới bắt đầu ở
+   đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
+.section-title {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+  font-family: var(--display); font-size: 16.5px; font-weight: 700; letter-spacing: .1px;
+  color: var(--txt);
+  animation: rise .42s var(--e-out) both;
+}
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
 /* ---- thanh công cụ ---- */
 .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
@@ -434,6 +488,92 @@ select {
 }
 .sel { max-width: 170px; cursor: pointer; }
 
+/* ---- THANH LỌC (vòng 7) -------------------------------------------------
+   Chip rời thay cho dãy tab liền khối: mỗi chip mang ĐÚNG màu của giai đoạn
+   nó lọc (biến `--c` lấy từ FILTERS trong App.jsx), nên mắt bám vào màu
+   trước khi đọc chữ, và chip đang chọn sáng lên bằng chính màu đó. Máy hẹp:
+   dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
+   xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
+   thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
+.fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px;
+  padding: 3px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.fchips::-webkit-scrollbar { display: none; }
+.fchip { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
+  border: 1px solid transparent; border-radius: var(--r-pill); background: none;
+  color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
+    color var(--t-1) var(--e-soft); }
+/* Trên thiết bị CHẠM, chip lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
+   bản desktop (khuôn viên thuốc, chữ 12.5px) và chỉ nâng chiều cao tối thiểu,
+   nới hai bên một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản
+   cũ — không phải hai bản CSS, chỉ là một luật cho thiết bị khác. */
+@media (pointer: coarse) {
+  .fchip { min-height: 40px; padding-left: 14px; padding-right: 14px }
+  .fchip.kind { min-height: 38px }
+  /* nút mở khối lọc và ô tìm kiếm là hai thứ ngón tay chạm nhiều nhất trong
+     thanh này — 34px là dưới ngưỡng chạm thoải mái */
+  .fmore { height: 44px; padding-left: 14px; padding-right: 14px }
+  .fbar .search, .fbar .fmore { min-height: 44px; }
+  /* Nút xoá to hơn cho ngón tay — và khoảng chừa bên phải tự đi theo, vì nó
+     tính từ chính hai biến này. */
+  .searchwrap { --x-w: 30px; --x-x: 5px; }
+}
+.fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
+.fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
+/* Chip đang chọn là VIÊN NỔI trong rãnh, không phải một viên thuốc có viền
+   sáng quanh: quầng sáng trên chấm màu đã bị gỡ (vòng 11) — một điểm màu phát
+   sáng là thứ trang trí đọc ra "AI", còn viên nổi + chữ đậm đã nói đủ "đang
+   chọn cái này". */
+.fchip:hover { color: var(--txt); background: var(--hover); }
+.fchip.on { color: var(--txt); font-weight: 600;
+  border-color: color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 18%, var(--surface-3)); }
+.fchip.on .fdot { opacity: 1; }
+.fchip.on .fnum { color: var(--txt); background: color-mix(in srgb, var(--c) 24%, transparent); }
+.fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+/* Ba luật .fbar* từng nằm ở đây đã dời về khối THANH LỌC ở cuối file — một
+   chỗ duy nhất định hình thanh này. Hai bản khai cùng tên thì bản sau thắng
+   một cách âm thầm, và đó chính là kiểu lỗi đã làm thanh lọc không đọc ra
+   được luật nào ở màn hẹp. */
+/* Kính lúp của ô tìm kiếm. LỖI CŨ: thiếu `top` nên phần tử absolute rơi về
+   ĐIỂM TĨNH ĐẦU TIÊN của hộp (góc trên-trái), tức là icon nằm lệch lên trên và
+   lòi ra ngoài viền ô nhập. Nay neo đúng giữa theo chiều dọc. */
+/* HAI BÊN Ô TÌM KIẾM, CÙNG MỘT LUẬT: khoảng chừa được TÍNH từ bề rộng thật
+   của thứ nằm đè lên ô (kính lúp bên trái, nút xoá bên phải). Bản trước chỉ
+   chừa chỗ bên trái; bên phải là con số 26px viết cứng, mà trên thiết bị chạm
+   nút xoá được nới lên 30px — thành ra chữ gõ vào vẫn có thể chui xuống dưới
+   nút xoá, đúng kiểu "icon chồng chữ" người dùng nhìn ra. */
+.searchwrap { --ico-x: 10px; --ico-w: 14px; --x-x: 4px; --x-w: 22px; }
+.search-ico { position: absolute; left: var(--ico-x); top: 50%; transform: translateY(-50%);
+  color: var(--txt-3); pointer-events: none; }
+/* CHỪA CHỖ CHO ICON — MỌI ô tìm kiếm, không riêng ô ở trang chủ.
+   LỖI THẬT: luật cũ chỉ là `.fbar .search { padding-left: 28px }`, nên ô tìm
+   kiếm trong BẢNG QUẢN TRỊ (cùng lớp `.search`, cùng icon) không được chừa chỗ:
+   chữ và dấu nháy của ô nằm ngay dưới kính lúp — đúng lỗi "icon lòi ra/chồng
+   chữ" người dùng chỉ ra, chỉ khác màn hình. Nay khoảng chừa tính từ chính bề
+   rộng icon + lề của nó, nên đổi cỡ icon là khoảng chừa tự đi theo. */
+.searchwrap .search {
+  padding-left: calc(var(--ico-x) + var(--ico-w) + 4px);
+  padding-right: calc(var(--x-x) + var(--x-w) + 4px);
+}
+/* Ô đang được gõ: kính lúp sáng lên cùng màu nhấn — dấu hiệu "đang tìm ở đây"
+   rẻ hơn một nhãn chữ. */
+.searchwrap:focus-within .search-ico { color: var(--a-2); }
+.search-x { position: absolute; right: var(--x-x); width: var(--x-w); height: var(--x-w); display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
+  transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
+.search-x:hover { color: var(--txt); background: var(--hover-2); }
+@media (max-width: 620px) {
+  /* Màn hẹp: ô chọn chỉ còn một cột hẹp — cắt bề rộng để nó không đẩy hàng.
+     Bốn luật .fbar* từng nằm ở đây đã được gỡ: chúng là bản CŨ của thanh lọc,
+     trùng tên với khối v3 ở cuối file, nên màn hẹp phải chịu hai bộ luật chồng
+     nhau — đúng thứ làm bố cục thanh lọc không đọc ra được luật nào. */
+  .sel { max-width: 132px; }
+  .fchip { height: 34px; padding: 0 12px; }
+}
+
 /* ---- danh sách request ---- */
 .list { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
   background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
@@ -447,34 +587,128 @@ select {
   transition: transform .3s var(--e-out); }
 .row:hover { background: var(--hover); }
 .row:hover::before { transform: scaleY(1); }
-.row.paid { background: rgba(201,154,60,.045); }
+/* HÀNG PAID — MỘT sắc phẳng, không phải một dải gradient chạy dần sang trái.
+   Bản cũ khai báo hàng paid ở HAI chỗ: một luật phẳng ở đây và một cặp gradient
+   ở cuối tệp đè lên. Đọc mã thì thấy mâu thuẫn ("phẳng" hay "gradient"?), còn
+   trên màn hình thì hàng paid đổi hẳn tính cách khi rê chuột: vệt vàng biến
+   mất, chỉ còn nền hover xám. Nay chỉ còn một cặp luật, cả hai đều phẳng, và
+   hover đậm hơn một chút thay vì đổi sang màu khác. */
+.row.paid { background: rgba(215,166,63,.045); }
+.row.paid:hover { background: rgba(215,166,63,.075); }
 .row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
 .row .body { flex: 1; min-width: 0; }
-.row .title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+/* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
+   rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
+   đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
+.row .title { font-size: 14.5px; font-weight: 600; letter-spacing: .1px; margin-bottom: 4px; line-height: 1.45; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
-.meta .dot { color: var(--line-2); }
+/* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
+   Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau bằng dấu chấm giữa
+   là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh — vạch mảnh đọc
+   ra thành ranh giới, còn dấu chấm đọc ra thành dấu câu. Ký tự đã bỏ hẳn khỏi
+   JSX và mọi `.dot` đều `aria-hidden`, nên không còn gì để trình đọc màn hình
+   đọc lên thành một dấu câu lạc lõng.
+   Mọi khối đang dùng nó đều là flex CÓ gap sẵn (.meta, .lb-me-stats, .vm-sub,
+   .nt-meta) nên mặc định không lề. Chỗ nào nằm trong câu chữ thường (không có
+   gap nào lo khoảng cách) thì thêm `.dot-inline`. */
+.dot { display: inline-block; flex: none; width: 1px; height: 9px;
+  margin: 0; padding: 0; background: var(--line-2); vertical-align: -1px; }
+.dot-inline { margin: 0 7px; }
 
 /* trạng thái: chấm tròn nhỏ + chữ, không phải thẻ màu */
 .status { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2); }
 .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--txt-3)); }
 
-.pill { display: inline-block; padding: 1px 6px; border-radius: var(--r-sm); font-size: 11px; border: 1px solid var(--line-2); color: var(--txt-2); }
+/* NHÃN (tag) — một nguyên mẫu duy nhất cho .pill và .kind.
+   Ba tính chất bắt buộc để nhãn không chồng/vướng vào nhau:
+     · `flex: none`    — nhãn KHÔNG co lại khi hàng chật; co lại là chữ bên
+                         trong bị bóp và tràn ra ngoài khung bo góc;
+     · `white-space: nowrap` — "UP NEXT" không bao giờ bị bẻ đôi thành hai dòng
+                         nằm đè lên nhãn kế bên;
+     · `vertical-align: middle` + `line-height: 1` — nhãn nằm giữa dòng chữ
+                         thay vì lệch lên trên theo baseline.
+   Mọi chỗ đặt nhãn cạnh nhau phải nằm trong một hộp `.tags` (xem bên dưới) để
+   có `flex-wrap` + `row-gap`; nhãn nằm trần trong một dòng chữ thì không có gì
+   bảo đảm khoảng cách khi xuống dòng. */
+.pill, .kind { display: inline-flex; align-items: center; flex: none; white-space: nowrap;
+  vertical-align: middle; line-height: 1; }
+/* MỘT NHÃN KHÔNG BAO GIỜ RỘNG HƠN CHỖ NÓ NẰM (vòng 10). `flex: none` ở trên
+   giữ nhãn khỏi bị bóp méo, nhưng nếu cả chuỗi bên trong dài hơn hộp thì nhãn
+   vẫn tràn ra ngoài khung bo góc và đè lên thứ bên cạnh: một `kind` dài, một
+   cái tên do người dùng nhập, hay chỉ là cỡ chữ của máy người xem. Kẹp bề rộng
+   theo hộp cha rồi cắt bằng dấu ba chấm — nhãn cụt còn hơn hai nhãn chồng nhau. */
+.pill, .kind { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* NHÃN DÀI NHẤT TRONG HỆ: "3 requests for this song · 9 votes in total". Luật
+   `text-overflow: ellipsis` ở trên KHÔNG chạy trên hộp `inline-flex`: chữ trong
+   đó là một flex item ẩn, mà dấu ba chấm chỉ vẽ được cho dòng chữ nằm TRỰC TIẾP
+   trong hộp. Hệ quả: nhãn này bị cắt ngang chữ mà không có dấu hiệu gì — đúng
+   kiểu "nhãn chồng/cụt" người dùng nhìn ra. Về `inline-block` thì chữ nằm ngay
+   trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
+.pill.dup { display: inline-block; vertical-align: bottom; }
+.pill { padding: 3px 8px; border-radius: var(--r-pill); font-size: 10.5px;
+  letter-spacing: .2px; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
 .pill.in_progress{ color: var(--progress); }
 .pill.completed  { color: var(--done); }
 .pill.denied     { color: var(--denied); }
-.pill.gold       { color: var(--paid); border-color: rgba(201,154,60,.4); }
+.pill.gold       { color: var(--paid); border-color: rgba(215,166,63,.4); }
 
-.kind { font-size: 12px; color: var(--k-ccl); }
+/* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
+   với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
+/* Thẻ loại bài: chữ THƯỜNG (chủ dự án chốt — không viết hoa nhãn lọc/nhãn thẻ
+   nữa), phân biệt với tên bài bằng khuôn chữ + viền + nền nhạt. */
+.kind { font-size: 11px; letter-spacing: .2px; padding: 3px 8px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
 .kind.album { color: var(--k-album); }
 .kind.loop  { color: var(--k-loop); }
 .kind.short { color: var(--k-short); }
 
-.bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 8px; max-width: 340px; }
-.bar > i { display: block; height: 100%; background: var(--progress); }
+/* Thanh tiến độ: vạch và con số là MỘT khối, số nằm sát mép phải của vạch.
+   Bản trước in con số trần ngay dưới nhãn trạng thái (mang luôn cả chấm tròn
+   của nhãn đó) rồi để cái vạch 3px rời hẳn xuống dưới: hai thứ nói cùng một
+   chuyện mà mắt phải tự nối, con số thì nằm lệch trái so với vạch, và vạch chỉ
+   3px nên khó thấy nó đang ở đâu. Nay vạch dày 6px, bo tròn hai đầu, tô theo
+   trạng thái của bài (--sc) — số và vạch cùng một hàng, đọc là hiểu ngay. */
+/* ---- THANH TIẾN ĐỘ ------------------------------------------------------
+   MỘT vạch phẳng: rãnh chìm một sắc, ruột đặc đúng màu trạng thái, con số
+   đứng ở cuối vạch.
+
+   Bản trước tô ruột bằng `color-mix` nâng sáng, thêm hai vệt bóng trong lòng
+   vạch, một quầng sáng, và một mũi 3px ở đầu vạch — bốn lớp ánh sáng cho một
+   thanh cao 7px. Chủ dự án đọc ra đúng bản chất của nó: "gradient progress bar
+   nhìn kì cục và AI quá". Khuôn nay lấy từ thanh tiến độ của Preline
+   (preline.co/docs/components/progress.html): rãnh bo tròn + ruột đặc + nhãn
+   cuối dòng, KHÔNG gradient, KHÔNG quầng sáng, KHÔNG mũi nhọn.
+
+   Vẫn giữ `min-width` cho ruột: 1% trên rãnh 56px chỉ rộng 0,56px — nhỏ hơn
+   chính bán kính bo tròn thì vạch biến mất và người đọc tưởng "chưa bắt đầu".
+   Phần tử chỉ tồn tại khi pct > 0 (Progress.jsx), nên 0% không sinh que thừa. */
+.prog { display: flex; align-items: center; gap: 9px; margin-top: 8px; max-width: 340px;
+  /* MÀU CỦA VẠCH do CSS quyết (không có prop màu): cùng một bài phải có cùng
+     một màu vạch ở trang chủ và trong bảng quản trị. */
+  --sc: var(--progress); }
+.prog-full { --sc: var(--done); }
+.prog-wide { max-width: none; }
+.prog-track { flex: 1 1 auto; min-width: 56px; height: 6px; border-radius: var(--r-pill);
+  background: var(--surface-3); overflow: hidden; }
+.prog-track > i { display: block; height: 100%; width: var(--w, 0%); min-width: 6px;
+  border-radius: inherit; background: var(--sc, var(--progress));
+  transition: width .45s var(--e-out); }
+/* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên cả
+   cột không nhảy khi tiến độ đổi. */
+.prog-num { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--txt-2);
+  font-variant-numeric: tabular-nums; }
+.prog-num span { margin-left: 1px; opacity: .55; }
+@media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
+/* Con số phải thuộc về vạch: nó lấy đúng tông của vạch (sáng hơn một bậc để
+   đọc được trên nền), thay vì một màu xám không liên quan gì tới thanh bên
+   cạnh nó. */
+.prog .prog-num { color: color-mix(in oklab, var(--sc, var(--progress)) 78%, #fff); }
+/* con số cũng ăn theo --sc, nên không cần luật riêng cho trạng thái xong */
 
 .watch { display: inline-block; margin-top: 6px; font-size: 12.5px; color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
@@ -485,12 +719,12 @@ select {
 }
 .votebtn {
   position: relative; flex: none; display: flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border-radius: var(--radius); cursor: pointer;
+  padding: 6px 12px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--line-2); background: none; color: var(--txt-2);
   font-family: inherit; transition: .13s;
 }
 .votebtn:hover:not(:disabled) { border-color: var(--a-2); color: var(--txt); }
-.votebtn b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--txt); }
+.votebtn b { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--txt); }
 .votebtn span { font-size: 11.5px; }
 .votebtn.on { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft);
   box-shadow: 0 2px 12px -6px var(--a-glow); }
@@ -507,20 +741,19 @@ select {
 }
 .icon-btn:hover { color: var(--denied); border-color: var(--line-2); }
 
-.empty { padding: 30px 20px; text-align: center; color: var(--txt-3); font-size: 13px; }
 
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
    Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
    cột tổng vote, nút mũi tên tròn. Bấm là bung ra đủ request (mở/rút mượt). */
-.grow { position: relative; margin: 10px 12px; border: 1px solid rgba(135,130,250,.35);
+.grow { position: relative; margin: 10px 12px; border: 1px solid rgba(169,164,255,.35);
   border-radius: var(--r-md); overflow: hidden;
-  background: linear-gradient(135deg, rgba(43,34,226,.16), rgba(43,34,226,.04) 55%, transparent),
+  background: linear-gradient(135deg, rgba(77,64,240,.16), rgba(77,64,240,.04) 55%, transparent),
     var(--surface);
   box-shadow: 0 8px 24px -18px var(--a-glow);
   transition: border-color var(--t-2) var(--e-soft), box-shadow var(--t-2) var(--e-soft); }
 .list > .grow:first-child { margin-top: 12px; }
 .list > .grow:last-child { margin-bottom: 12px; }
-.grow:hover { border-color: rgba(135,130,250,.6); }
+.grow:hover { border-color: rgba(169,164,255,.6); }
 .grow.open { border-color: var(--a-2); box-shadow: 0 10px 28px -16px var(--a-glow); }
 .grow-head { position: relative; display: flex; align-items: center; gap: 12px;
   width: 100%; padding: 12px 14px;
@@ -541,7 +774,6 @@ select {
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
 .grow-head .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12px; color: var(--txt-3); }
-.grow-head .meta .dot { color: var(--line-2); }
 /* cột tổng vote bên phải — con số mono lớn màu accent */
 .grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
   min-width: 44px; }
@@ -638,25 +870,64 @@ select {
 .vs-bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .vs-bar > i { display: block; height: 100%; background: var(--a-2); }
 
+/* Nút gửi của form request bám đáy khung cuộn — xem ActionModal.jsx. Nền mờ
+   như .modal để chữ cuộn phía sau không đâm xuyên qua nút. */
+/* CHÂN FORM — dính đáy khung, và là MỘT HÀNG: nút quay lại (nếu có) · nút
+   chính · nút xoá. Bản cũ xếp dọc nên nút chính và nút xoá chiếm hai hàng,
+   đẩy chính chúng ra khỏi tầm mắt khi form còn dài. */
+.req-actions { position: sticky; bottom: -2px; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 12px; padding: 10px 0 2px; border-top: 1px solid var(--line);
+  background: var(--float-2); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+.req-actions .msg { flex: 1 1 100%; margin-top: 0; }
+.req-actions .btn { height: 38px; }
+/* Trên máy hẹp, ba nút trên một hàng vẫn đủ chỗ: nút chính co giãn, hai nút
+   phụ giữ nguyên bề rộng chữ. */
+@media (max-width: 420px) {
+  .req-actions .req-back { order: 2; }
+  .req-actions .btn[type="submit"], .req-actions .btn-primary { flex: 1 1 100%; order: 1; }
+}
+
 /* ================= MODAL ================= */
 .overlay {
   position: fixed; inset: 0; z-index: 60; background: rgba(6,7,9,.6);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 40px 16px; overflow-y: auto; overscroll-behavior: contain;
-  animation: fade .14s ease;
 }
-@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 .modal {
   width: 100%; max-width: 560px;
   background: var(--float);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   border: 1px solid var(--line-2); border-radius: var(--r-lg);
   box-shadow: var(--sh-3), var(--ring);
-  animation: pop .16s ease;
 }
-@keyframes pop { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-.modal.wide { max-width: 780px; }
 .modal.narrow { max-width: 420px; }
+
+/* =========================================================
+   HỘP XÁC NHẬN (xem components/ConfirmDialog.jsx)
+   ---------------------------------------------------------
+   Một hộp nhỏ, ba phần: dòng đầu nói VIỆC SẮP XẢY RA (kèm một biểu tượng nhỏ
+   đổi màu theo mức nguy hiểm), dòng hai nói HẬU QUẢ, cuối là hai nút. Không
+   gradient, không bóng màu: đây là chỗ để đọc kỹ rồi quyết định, không phải
+   chỗ để trang trí.
+   ========================================================= */
+.dlg { padding: 17px 18px 14px; }
+.dlg-head { display: flex; align-items: flex-start; gap: 10px; }
+.dlg-ico { flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--surface-3); color: var(--txt-2); }
+.dlg-ico.is-danger { background: color-mix(in srgb, var(--denied) 16%, transparent); color: var(--denied); }
+.dlg-title { margin: 2px 0 0; font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--txt); }
+.dlg-body { margin: 9px 0 0; font-size: 13px; line-height: 1.6; color: var(--txt-2); }
+.dlg-field { display: block; margin-top: 13px; }
+.dlg-field > span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--txt-3); }
+.dlg-field textarea { width: 100%; padding: 9px 11px; resize: vertical;
+  background: var(--surface-2); color: var(--txt);
+  border: 1px solid var(--line-2); border-radius: var(--radius);
+  font: inherit; font-size: 13px; line-height: 1.5; }
+.dlg-field textarea:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+.dlg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* Nút trong hộp này là đích chạm thật: 40px cho ngón tay, và không co lại
+   thành hai dòng chữ khi cửa sổ hẹp. */
+.dlg-acts .btn { min-height: 40px; white-space: nowrap; }
 .modal-head { display: flex; align-items: stretch; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .modal-tabs { display: flex; flex-wrap: wrap; min-width: 0; flex: 1; gap: 2px; }
 .modal-tabs::-webkit-scrollbar { display: none; }
@@ -674,6 +945,11 @@ select {
 .mtab.on::after { transform: scaleX(1); }
 .mtab.on { color: var(--txt); border-bottom-color: transparent; font-weight: 600; }
 .mtab .c { font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
+/* Nút chỉ có MỘT icon: canh giữa bằng grid. `line-height` chỉ đúng với glyph
+   chữ; <svg> là hộp inline cao đúng cỡ của nó nên vẫn lệch trục chữ. Từ khi
+   đổi sang bộ icon Lucide (xem components/Icon.jsx) mọi nút loại này đi qua
+   một luật duy nhất thay vì mỗi nút tự đo. */
+.x, .icon-btn, .side-x, .toast-x, .qty button, .crop-z { display: inline-grid; place-items: center; }
 .x { flex: 0 0 28px; align-self: center; height: 28px; border: 0; background: none; color: var(--txt-3); font-size: 19px; line-height: 1; cursor: pointer; border-radius: var(--radius); }
 .x:hover { color: var(--txt); background: var(--hover); }
 .modal-body { padding: 16px; }
@@ -683,21 +959,21 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .hint { margin-top: 8px; font-size: 11.5px; color: var(--txt-3); }
 .msg { margin-top: 11px; padding: 9px 11px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.55; border: 1px solid var(--line-2); }
-.msg.ok   { border-color: rgba(79,169,122,.4); color: #86d0a8; }
-.msg.err  { border-color: rgba(208,96,92,.4); color: #eb9a97; }
+.msg.ok   { border-color: rgba(76,186,136,.4); color: #86d0a8; }
+.msg.err  { border-color: rgba(226,110,105,.4); color: #eb9a97; }
+/* Lỗi thì RUNG một nhịp: 3px ngang, 300ms, chạy đúng lúc dòng lỗi xuất hiện —
+   đủ để mắt bắt được "vừa hỏng", không đủ để thành trò hề. Chỉ chạy ở lần mount
+   đầu của thông báo, cùng lắm là một lần cho mỗi lần gửi. Biên độ nhỏ vì trên
+   điện thoại rung ngang dễ đọc ra là giật. Nhịp theo transitions.dev 12. */
+.msg.err { animation: errShake .3s var(--e-soft) both; }
+@keyframes errShake {
+  0%, 100% { transform: none }
+  22% { transform: translateX(-3px) }
+  46% { transform: translateX(2.5px) }
+  70% { transform: translateX(-1.5px) }
+}
 .msg.info { border-color: var(--line-2); color: var(--txt-2); }
 
-.kindpick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
-.kbtn {
-  padding: 8px 6px; border-radius: var(--radius); cursor: pointer;
-  border: 1px solid var(--line-2); background: none; color: var(--txt-2);
-  font-size: 12.5px; font-family: inherit; transition: .13s;
-}
-.kbtn:hover { color: var(--txt); border-color: #3c4550; }
-.kbtn.on.ccl   { color: var(--k-ccl);   border-color: var(--k-ccl);   background: rgba(155,127,212,.09); }
-.kbtn.on.album { color: var(--k-album); border-color: var(--k-album); background: rgba(74,156,156,.09); }
-.kbtn.on.loop  { color: var(--k-loop);  border-color: var(--k-loop);  background: rgba(196,127,82,.09); }
-.kbtn.on.short { color: var(--k-short); border-color: var(--k-short); background: rgba(194,104,143,.09); }
 
 .paidbox { margin: 14px 0; padding: 11px 13px; border: 1px solid var(--line-2); border-radius: var(--radius); }
 .paidbox .t { font-size: 13px; font-weight: 600; color: var(--paid); }
@@ -711,18 +987,43 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .rules { padding: 15px; border: 1px solid var(--line-2); border-radius: var(--r-md);
   background: var(--surface); animation: rowIn var(--t-2) var(--e-out) both; }
 .rules h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
-.rules ol { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 8px;
+.rules ol { margin: 0 0 14px; display: grid; gap: 8px;
   font-size: 13px; color: var(--txt-2); line-height: 1.55; }
 .rules .btn { width: 100%; }
 .switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.switch input { width: auto; margin: 0; accent-color: var(--paid); cursor: pointer; }
+.switch { --chk: var(--paid); }
+
+/* ---- ô đánh dấu: input thật bị làm trong suốt, hình do SVG vẽ ----
+   (ý tưởng từ uiverse.io `catraco/plastic-moth-91` — xem components/Check.jsx)
+   `.chk` chỉ giữ ĐÚNG 15px chỗ, mọi thứ còn lại là hình. Input phủ kín ô nên
+   bấm ở đâu trong hộp cũng ăn, và vòng focus vẽ lên chính cái hộp — không còn
+   viền focus mặc định của trình duyệt lệch ra ngoài hình. */
+.chk { position: relative; flex: none; display: inline-grid; place-items: center; width: 15px; height: 15px; }
+.chk input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.chk-box { width: 15px; height: 15px; overflow: visible; pointer-events: none;
+  transition: transform var(--t-1) var(--e-pop); }
+/* nền chỉ đổi `fill-opacity` — không cần color-mix, không gradient */
+.chk-bd { fill: var(--chk, var(--a-2)); fill-opacity: 0; stroke: var(--line-2); stroke-width: 1.5;
+  transition: fill-opacity .13s var(--e-soft), stroke .13s var(--e-soft); }
+.chk-tick { fill: none; stroke: var(--chk, var(--a-2)); stroke-width: 1.9; stroke-linecap: round;
+  stroke-linejoin: round; stroke-dasharray: 10; stroke-dashoffset: 10;
+  transition: stroke-dashoffset .18s var(--e-out); }
+.chk:hover .chk-bd { stroke: var(--txt-3); }
+.chk input:checked ~ .chk-box .chk-bd { fill-opacity: .22; stroke: var(--chk, var(--a-2)); }
+.chk input:checked ~ .chk-box .chk-tick { stroke-dashoffset: 0; }
+.chk input:focus-visible ~ .chk-box { outline: 2px solid var(--a-2); outline-offset: 2px; border-radius: 5px; }
+.chk-ring { fill: none; stroke: var(--chk, var(--a-2)); stroke-width: 1.5; opacity: 0;
+  transform-box: fill-box; transform-origin: center; }
+.chk-box.is-pop { animation: chkPop .34s var(--e-pop); }
+.chk-box.is-pop .chk-ring { animation: chkRing .34s var(--e-out); }
+@keyframes chkPop  { 0% { transform: scale(1) } 30% { transform: scale(1.18) } 100% { transform: scale(1) } }
+@keyframes chkRing { 0% { opacity: .55; transform: scale(1) } 100% { opacity: 0; transform: scale(1.75) } }
 
 /* ---- gói vote ---- */
 .packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-.pack { position: relative; padding: 14px 12px; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-md); transition: border-color .13s; }
+.pack { position: relative; padding: 14px 12px; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-md); }
 .pack:hover { border-color: #3c4550; }
-.pack.best { border-color: rgba(201,154,60,.45); }
-.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(201,154,60,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
+.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(215,166,63,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
 .pack b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .pack .u { font-size: 11.5px; color: var(--txt-3); margin-bottom: 9px; }
 .pack .p { font-family: var(--mono); font-size: 14px; font-weight: 600; }
@@ -735,8 +1036,12 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
    khảo". KHÔNG thêm token (màu vàng đã có --paid, nền đã có --a-soft), KHÔNG
    đổi số cột của .packs (modal đang ổn định), phần chuyển động chỉ opacity/
    transform và luôn có nhánh giảm-chuyển-động + cảm ứng. */
+/* Thẻ "đáng mua nhất": nổi bằng BA thứ đo được — viền vàng, bóng vàng rất mờ,
+   và con số to hơn. Nền là MỘT sắc vàng nhạt phẳng: bản cũ để hai gradient xếp
+   lên nhau ở hai chỗ trong tệp (một tím, một vàng), lớp dưới không bao giờ hiện
+   mà vẫn nằm đó chờ người sau sửa nhầm. */
 .pack.best {
-  background: linear-gradient(180deg, var(--a-soft), transparent 70%);
+  background: rgba(215,166,63,.055);
   border-color: var(--paid);
   box-shadow: 0 8px 26px -14px var(--paid);
 }
@@ -745,7 +1050,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 /* viên thuốc "−48%" phải tự co theo chữ và nằm giữa: để block full-width là
    thành một dải màu chạy ngang thẻ, lệch với phần còn lại căn giữa */
 .pack-save { width: fit-content; margin: 6px auto 0; padding: 1px 7px;
-  border-radius: var(--r-pill); background: rgba(79,169,122,.12); }
+  border-radius: var(--r-pill); background: rgba(76,186,136,.12); }
 @media (hover: hover) {
   .pack { transition: border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out),
               box-shadow var(--t-2) var(--e-soft); }
@@ -780,8 +1085,29 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .prof-av-img { width: 64px; height: 64px; flex: none; border-radius: 50%; object-fit: cover; background: var(--surface-3); }
 .prof-av-ph { display: grid; place-items: center; font-size: 24px; font-weight: 600; color: var(--txt-3); }
 .prof-av-acts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
-.prof-av-note { width: 100%; font-size: 11px; color: var(--txt-3); line-height: 1.55; }
 .prof-acts { display: flex; justify-content: flex-end; gap: 7px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* KHỐI HỒ SƠ TRONG MỤC "ABOUT ME" (vòng 12) — trước đây là hộp thoại riêng.
+   Nó là một khối cùng họ với các thẻ khác của trang (viền 1px, nền --panel,
+   bán kính --r-md) chứ không phải một cái hộp nổi: người dùng đang ở trong
+   trang nói về mình, không cần thêm một lớp phủ nào nữa.
+   Hàng tiêu đề: tên khối bên trái, nút Lưu + Huỷ bên phải — Lưu chỉ sáng khi
+   có gì để lưu, nên chỗ đứng của nó vừa là trạng thái vừa là hành động. */
+.prof-card { margin-bottom: 18px; padding: 15px 17px 17px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); }
+.prof-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.prof-h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0;
+  font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--txt); }
+.prof-h2 svg { color: var(--txt-3); }
+.prof-head-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+@media (max-width: 620px) {
+  .prof-card { padding: 13px 13px 15px; }
+  /* máy hẹp: ảnh đại diện và hai nút xếp dọc, không còn chỗ cho hàng ngang */
+  .prof-av { flex-wrap: wrap; gap: 11px; }
+  .prof-av-img { width: 56px; height: 56px; }
+  .prof-head { align-items: flex-start; }
+  .prof-head-acts { width: 100%; margin-left: 0; justify-content: space-between; }
+}
 
 /* ---- bảng nhập số lượt vote ---- */
 .vote-overlay { z-index: 70; }
@@ -825,7 +1151,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .crop-hint { margin-top: 10px; font-size: 11.5px; color: var(--txt-3); text-align: center; }
 
 /* ---- hàng quản trị ---- */
-.adm { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.adm { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .adm:last-child { border-bottom: 0; }
 .adm .nm { flex: 1; min-width: 0; }
 .adm .nm b { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 13.5px; font-weight: 500; }
@@ -838,29 +1164,43 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .adm-req { flex-wrap: wrap; }
 .adm-edit { flex: 1 1 100%; min-width: 0; }
 /* cụm trùng bài trong bảng admin: hạng tính theo tổng vote của cả bài */
-.pill.dup { color: var(--a-2); border-color: rgba(135,130,250,.35); background: var(--a-soft); }
+.pill.dup { color: var(--a-2); border-color: rgba(169,164,255,.35); background: var(--a-soft); }
 
-/* thanh tìm kiếm trong panel admin: bám trên đầu danh sách mọi tab, ô search
-   chiếm trọn bề rộng như trên bảng request ngoài trang chủ */
-.adm-search { display: flex; align-items: center; gap: 8px; padding-bottom: 11px; margin-bottom: 2px;
-  border-bottom: 1px solid var(--line); }
-.adm-search .searchwrap { flex: 1; min-width: 0; }
-.adm-search .search { max-width: none; width: 100%; }
-/* nút × xoá từ khoá chỉ mang màu cảnh báo khi rê chuột — mặc định trung tính
-   cho đỡ lẫn với nút xoá request bên dưới */
-.adm-search-clear { flex: 0 0 auto; width: 28px; height: 28px; font-size: 16px; }
-.adm-search-clear:hover { color: var(--txt); border-color: var(--line-2); }
+/* ---- CHỌN NHIỀU TRONG BẢNG ADMIN -----------------------------------------
+   Ô chọn đứng trước nội dung hàng; hàng đang chọn được nhuộm nền nhấn để mắt
+   còn bám được danh sách trước khi bấm nút hàng loạt. Nút nào cũng là `.btn`
+   nên thừa hưởng chiều cao chạm 40px ở bản hẹp (xem cssTapTarget.test.js). */
+.adm-sel { flex: 0 0 auto; display: grid; place-items: center; padding: 4px; cursor: pointer; }
+.adm.on { background: var(--a-soft); border-color: var(--a-dim); }
+.adm-sort { flex: 0 0 auto; max-width: 152px; }
+.adm-pickbtn { flex: 0 0 auto; }
+.adm-pickbtn.on { border-color: var(--a-dim); background: var(--a-soft); color: var(--txt); }
+/* Thanh hành động hàng loạt: DÍNH đáy khung danh sách nên cuộn tới đâu vẫn
+   bấm được, và chỉ chiếm chỗ khi thật sự có dòng được chọn. */
+.adm-bulk { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-top: 10px; padding: 9px 12px; border: 1px solid var(--a-dim);
+  border-radius: var(--r-md); background: var(--float-2); box-shadow: var(--ring); }
+.adm-bulk > b { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.adm-bulk-acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+/* điện thoại: nút xuống hàng riêng, ô xếp hạng chiếm trọn bề rộng — thanh công
+   cụ trong panel admin có bốn thứ, nhét cùng một hàng là mỗi thứ một mẩu */
+@media (max-width: 620px) {
+  .adm-bulk { align-items: stretch; }
+  .adm-bulk-acts { margin-left: 0; width: 100%; }
+  .adm-sort { max-width: none; flex: 1 1 100%; }
+  .adm-pickbtn { flex: 1 1 auto; }
+}
 
 .steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
 .step {
   display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;
   padding: 4px 9px; border: 1px solid var(--line-2); border-radius: var(--radius);
+  --chk: var(--done);
   font-size: 12px; color: var(--txt-2); transition: .13s;
 }
 .step:hover { border-color: #3c4550; color: var(--txt); }
-.step input { width: auto; margin: 0; cursor: pointer; accent-color: var(--done); }
 .step em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
-.step.on { border-color: rgba(79,169,122,.5); color: var(--done); }
+.step.on { border-color: rgba(76,186,136,.5); color: var(--done); }
 .step.on em { color: var(--done); }
 .steps-pct { margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 600; }
 
@@ -889,6 +1229,18 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
     white-space: normal; text-align: center; }
   .adm-req .adm-acts .icon-btn { flex: 0 0 auto; width: 38px; height: 38px;
     margin-left: auto; font-size: 17px; }
+
+  /* HÀNG VIDEO cũng là một hàng có nút, mà mỗi hàng tới NĂM nút (hai nút đổi
+     thứ tự, Sửa, Ẩn/Hiện, Xoá).
+     Trước đây luật bó hàng chỉ áp cho `.adm-req`, nên trên máy hẹp năm nút này
+     chen thành hai dòng so le bên cạnh tiêu đề. Nay xuống hẳn một hàng riêng
+     dưới tiêu đề, nút 38px đủ để ngón tay bấm, và nút xoá đứng cuối hàng. */
+  .mrow { gap: 8px; }
+  .mrow > .adm-acts { width: 100%; justify-content: flex-start; gap: 6px; }
+  .mrow .adm-acts .btn { flex: 1 1 auto; min-height: 38px; padding: 8px 12px;
+    white-space: normal; text-align: center; }
+  .mrow .adm-acts .icon-btn { flex: 0 0 auto; width: 38px; height: 38px; }
+  .mrow > .adm-acts > .icon-btn:last-child { margin-left: auto; }
 
   .inline-form { gap: 6px; }
   .inline-form input { flex: 1 1 100%; font-size: 16px; padding: 9px 10px; }
@@ -919,7 +1271,9 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 img { max-width: 100%; }
 .applogo { display: inline-block; overflow: hidden; flex: none; padding: 0; border: 0; background: none; box-shadow: none; animation: none; line-height: 0; font-size: 0; }
 .applogo > img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.applogo.lg-nav    { width: 22px; height: 22px; border-radius: var(--r-sm); }
+/* Logo ở đầu sidebar: kích thước thật nằm ở khối SIDEBAR bên dưới (30px, khớp
+   đúng width/height ghi trên thẻ <img> trong Sidebar.jsx). Dòng 22px cũ ở đây
+   đã bị luật sau ghi đè hoàn toàn — gỡ để không còn hai chỗ nói hai cỡ khác nhau. */
 .applogo.lg-foot   { width: 28px; height: 28px; border-radius: var(--radius); }
 .applogo.lg-splash { width: 64px; height: 64px; border-radius: var(--r-xl); }
 .applogo.lg-gate   { width: 52px; height: 52px; border-radius: var(--r-lg); }
@@ -952,7 +1306,7 @@ img { max-width: 100%; }
 .pay-v.mono { font-family: var(--mono); }
 .copy { flex: 0 0 auto; padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid var(--line-2); background: none; color: var(--txt-3); font-size: 11px; font-family: inherit; transition: .13s; }
 .copy:hover { color: var(--txt); border-color: var(--a-2); }
-.copy.done { color: var(--done); border-color: rgba(79,169,122,.45); }
+.copy.done { color: var(--done); border-color: rgba(76,186,136,.45); }
 .pay-qr { text-align: center; flex: 0 0 auto; }
 .qr-canvas { display: block; border-radius: var(--r-sm); background: #fff; padding: 7px; width: 156px !important; height: 156px !important; }
 .pay-qr-cap { margin-top: 7px; font-size: 11px; color: var(--txt-3); }
@@ -964,7 +1318,7 @@ img { max-width: 100%; }
 
 /* ================= MÀN HÌNH HẸP ================= */
 @media (max-width: 620px) {
-  .field-row, .kindpick, .packs { grid-template-columns: 1fr; }
+  .field-row, .packs { grid-template-columns: 1fr; }
   .search, .sel { max-width: none; flex: 1; }
   .row .idx { display: none; }
   /* cụm trùng bài: bỏ số thứ tự, thẻ card ôm sát mép cho vừa màn hẹp */
@@ -972,7 +1326,10 @@ img { max-width: 100%; }
   .grow-head { padding: 10px 12px; gap: 10px; }
   .grow-head .idx { display: none; }
   .grow-stat b { font-size: 17px; }
-  .grow-rows-in > .row { padding-left: 12px; padding-right: 12px; }
+  /* lề trái của hàng trong cụm; lề PHẢI do khối thẻ ở dưới quyết định (10px,
+     cùng nhịp với chấm chuông) — hai chỗ cùng khai một cạnh thì chỗ dưới
+     luôn thắng và chỗ trên chỉ còn là một câu đọc lên thấy mâu thuẫn. */
+  .grow-rows-in > .row { padding-left: 12px; }
   /* bo loc: cho truot ngang thay vi gay chu thanh 2 dong */
   .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -999,44 +1356,42 @@ img { max-width: 100%; }
 @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes thumbIn { from { opacity: 0; transform: scale(1.06) } to { opacity: 1; transform: none } }
 
-/* đổi mục là cả khối dựng lại (key theo section) → chạy lại một nhịp,
-   tiêu đề trượt vào từ trái cùng lúc */
-.sect { animation: sectIn .5s var(--e-out) both; }
-.mainhead-tx { animation: fadeUp .5s var(--e-out) both; }
-.mainhead-t { animation: headMask .55s var(--e-out) .04s both; }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
-/* tiêu đề được "kéo ra" từ một đường kẻ: mask chạy từ trên xuống, chữ không nhô lệch dòng */
-@keyframes headMask { from { opacity: 0; clip-path: inset(0 0 100% 0) } to { opacity: 1; clip-path: inset(-15% -15% -15% -15%) } }
+/* đổi mục là cả khối dựng lại (key theo section) → chạy lại một nhịp.
+   Tiêu đề chỉ mờ dần + nhích 6px: bản trước còn "kéo" nó ra bằng clip-path
+   (mask chạy từ trên xuống). Chữ là nội dung TĨNH — mỗi lần bấm menu lại thấy
+   nó được vẽ ra là chuyển động tự giới thiệu, không phải phản hồi. */
+.sect { animation: sectIn .34s var(--e-out) both; }
+.mainhead-tx { animation: fadeUp .34s var(--e-out) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 
-/* hàng trong danh sách vào lần lượt; --i do component truyền, chặn tối đa 12 nhịp */
-.list > * { animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
-/* ô thống kê nảy lên từng ô một */
-.stats .stat { animation: rowIn .45s var(--e-out) both; }
-.stats .stat:nth-child(1) { animation-delay: 60ms; }
-.stats .stat:nth-child(2) { animation-delay: 120ms; }
-.stats .stat:nth-child(3) { animation-delay: 180ms; }
-.stats .stat:nth-child(4) { animation-delay: 240ms; }
+/* Hàng trong danh sách vào lần lượt — ĐÂY là nhịp so le duy nhất của trang
+   Bảng: --i do component truyền, chặn ở 10 nhịp và 32ms/nhịp (12 nhịp × 40ms
+   thì hàng cuối phải chờ gần nửa giây mới hiện, lâu hơn cả thời gian đọc). */
+.list > * { animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 10) * 32ms); }
+/* Dải thống kê KHÔNG tự chạy animation nữa: cả khối đã có [data-reveal] lo,
+   bốn ô nhấp nhô thêm 60ms một lần là hai lớp chuyển động cho cùng một thứ. */
 
 /* hiện dần khi vừa lăn vào tầm nhìn (lib/useReveal.js thêm class .in) */
-[data-reveal] { opacity: 0; transform: translateY(18px);
-  transition: opacity .55s var(--e-out), transform .55s var(--e-out); }
+[data-reveal] { opacity: 0; transform: translateY(12px);
+  transition: opacity .42s var(--e-out), transform .42s var(--e-out); }
 [data-reveal].in { opacity: 1; transform: none; }
 
-/* nút: nhấc lên 1px khi rê, ấn xuống nhẹ khi bấm — cảm giác có phản hồi */
-.btn, .tab, .votebtn, .kbtn, .copy, .icon-btn, .sfxbtn, .mtab,
+/* Nút: nút CHÍNH mới nhấc lên khi rê (nó là hành động của trang); nút phụ trả
+   lời bằng màu viền/nền, còn mọi nút đều lún xuống khi bấm. Nhấc-cả-lên ở mọi
+   nút là mẫu chuyển động phổ biến nhất của giao diện do máy sinh: chỗ nào cũng
+   nhún thì không chỗ nào là chính. */
+.btn, .tab, .votebtn, .kchip, .copy, .icon-btn, .sfxbtn, .mtab,
 .side-item, .side-row, .side-user, .pvrow {
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
 }
-.btn:hover:not(:disabled) { transform: translateY(-1.5px); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1.5px); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.97); }
 /* nút nhấn mang màu logo: đỡ bằng một quầng tỏa rất nhẹ, rê chuột thì nở ra */
 .btn-primary { box-shadow: 0 2px 12px -6px var(--a-glow); }
 .btn-primary:hover:not(:disabled) { box-shadow: 0 7px 20px -7px var(--a-glow); }
 .btn-primary:active:not(:disabled) { box-shadow: 0 1px 6px -4px var(--a-glow); }
-.votebtn:hover:not(:disabled) { transform: translateY(-1px); }
 .votebtn:active:not(:disabled) { transform: scale(.97); }
-.icon-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
 
 /* modal mượt hơn: mờ dần + trượt nhẹ, không giật.
@@ -1064,25 +1419,20 @@ img { max-width: 100%; }
 @keyframes popOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(8px) scale(.985) } }
 .msg { animation: rowIn var(--t-2) var(--e-out) both; }
 
-/* thanh tiến độ chạy chứ không nhảy số */
-.bar > i, .vs-bar > i { transition: width .55s var(--e-out); }
-/* việc đang chạy: một vệt sáng quét chậm trên thanh — đủ thấy "sống",
-   không lòe loẹt. Vệt là transform của pseudo-element nên rẻ. */
-.bar > i { position: relative; overflow: hidden; }
-.bar > i::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
-  transform: translateX(-100%);
-  animation: sheen 1.9s var(--e-soft) .3s infinite;
-}
-@keyframes sheen { to { transform: translateX(100%) } }
+/* Thanh tiến độ chạy chứ không nhảy số. `.prog-track > i` khai transition ngay
+   trong luật của nó (khối THANH TIẾN ĐỘ ở trên) — ở đây chỉ còn thanh của hộp
+   mua vote.
+   VỆT SÁNG QUÉT đã bị gỡ (vòng 11): một dải trắng mờ trượt qua lại trên vạch
+   màu là đúng thứ chủ dự án gọi là "gradient progress bar nhìn kì cục và AI
+   quá". Vạch tiến độ chỉ cần đúng một tín hiệu: dài bao nhiêu. */
+.vs-bar > i { transition: width .55s var(--e-out); }
 
 /* số vừa đổi thì nhún một nhịp rất ngắn (key theo giá trị ở JSX) */
 @keyframes tickIn { from { opacity: .25; transform: translateY(4px) scale(.9) } to { opacity: 1; transform: none } }
-.tick { display: inline-block; animation: tickIn .34s var(--e-pop) both; }
+.tick { display: inline-block; animation: tickIn .26s var(--e-out) both; }
 
 /* chọn chữ bằng chuột nhuộm màu nhãn hiệu */
-::selection { background: rgba(43,34,226,.5); color: #fff; }
+::selection { background: rgba(77,64,240,.5); color: #fff; }
 
 /* SKIP-TO-CONTENT (WCAG 2.4.1 Bypass Blocks): người dùng phím Tab không phải
    đi qua toàn bộ sidebar trước khi tới nội dung. Ẩn bằng transform (không
@@ -1097,6 +1447,16 @@ img { max-width: 100%; }
 }
 .skip-link:focus-visible { transform: none; }
 @media (prefers-reduced-motion: reduce) { .skip-link { transition: none; } }
+
+/* Chữ chỉ dành cho trình đọc màn hình. Dùng khi một khối hình đã có bản dịch
+   bằng chữ cho AT nhưng KHÔNG được chiếm chỗ trên màn hình (nhãn trạng thái
+   "đang tải", số tin chưa đọc ở vùng live). Không dùng `display:none` —
+   như vậy là xoá luôn khỏi accessibility tree. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
+}
 
 /* VÒNG FOCUS CHO BÀN PHÍM — quy tắc THE, không phải danh sách tên.
    Một danh sách tên là cơ chế thất bại của chính nó: quét 2026-09-08 còn 32
@@ -1155,8 +1515,9 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   border-radius: var(--r-sm); overflow: hidden; background: var(--surface-3); }
 .mrow-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
-/* bảng Admin → Videos: hai nhóm (featured / dải mới) + ô dán hàng loạt */
-.mgroup-bar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+/* bảng Admin → Videos: hai nhóm (featured / dải mới) + ô dán hàng loạt.
+   Nút "View on home page" không còn nằm trong một dải riêng (.mgroup-bar) mà
+   đứng trong .adm-bar — xem .adm-bar-end. */
 .mgroup { padding: 12px 0 4px; border-top: 1px solid var(--line); }
 .mgroup:first-of-type { border-top: 0; padding-top: 2px; }
 .mgroup-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -1202,7 +1563,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 
 .shell { min-height: 100%; }
-.main { max-width: 1060px; margin: 0 auto; padding: 26px 26px 60px; }
+.main { position: relative; max-width: 1060px; margin: 0 auto; padding: 26px 26px 60px; }
+/* mốc 0px của nội dung: KHÔNG vẽ, không chiếm chỗ, chỉ để IntersectionObserver
+   của nút "lên đầu trang" biết đã cuộn qua ngưỡng (xem App.jsx) */
+.top-sentinel { position: absolute; top: 0; left: 12px; width: 1px; height: 1px; pointer-events: none; }
 @media (min-width: 900px) {
   .shell { padding-left: var(--side-w); transition: padding-left var(--t-side) var(--e-out); }
   .shell.min { padding-left: var(--side-min); }
@@ -1263,9 +1627,9 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   background: var(--surface-2); color: var(--txt-2);
   box-shadow: 0 2px 8px rgba(0,0,0,.35);
   transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-              background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop);
+              background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-out);
 }
-.side-toggle:hover { color: var(--txt); border-color: var(--a-2); background: var(--surface-3); transform: scale(1.1); }
+.side-toggle:hover { color: var(--txt); border-color: var(--a-2); background: var(--surface-3); }
 .side-toggle:active { transform: scale(.94); }
 .side-toggle .sico { opacity: 1; transition: transform var(--t-side) var(--e-out); }
 /* trong ngăn kéo (bản hẹp) không có khái niệm thu gọn */
@@ -1277,8 +1641,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   border-bottom: 1px solid var(--line); }
 .side-brand-tx { flex: 1; }
 .side-brand-name { font-family: var(--display); font-weight: 700; font-size: 14.5px; letter-spacing: .1px; line-height: 1.2; }
-.side-brand-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.3px;
-  text-transform: uppercase; color: var(--txt-3); margin-top: 3px; }
+.side-brand-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .5px; color: var(--txt-3); margin-top: 3px; }
 .side-x { flex: none; width: 28px; height: 28px; border: 0; border-radius: var(--radius);
   background: none; color: var(--txt-3); font-size: 19px; line-height: 1; cursor: pointer; }
 .side-x:hover { color: var(--txt); background: var(--hover); }
@@ -1290,24 +1653,35 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
    nao ca. `.nt-list` tung ngat tin cung vi bo qua dong nay. */
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px var(--side-pad) 6px; scrollbar-width: thin; }
 
-/* ---- nút Gửi request ---- */
+/* ---- nút Gửi request ----
+   Cùng khuôn với một mục điều hướng (.side-item) chứ không phải một viên màu
+   đặc: nền chìm, một đường viền mảnh, và dải nhấn 2px ở mép trái. Icon nằm
+   trong ô vuông nhỏ 26px có nền nhấn nhạt — ô vuông là thứ khiến nó đọc ra
+   "hành động" giữa các icon trần của thanh điều hướng. Khi sidebar thu gọn,
+   chỉ còn đúng ô vuông đó ở đúng cột icon 24px như mọi mục khác. */
 .side-cta {
-  width: 100%; height: 38px; display: flex; align-items: center; gap: var(--side-gap);
-  padding: 0 var(--side-ix); margin-bottom: 16px; cursor: pointer;
-  border: 1px solid var(--a); border-radius: var(--r-md);
-  background: var(--a); color: #fff; font-family: inherit; font-size: 13px; font-weight: 600;
-  letter-spacing: .1px; box-shadow: 0 2px 12px -7px var(--a-glow);
-  transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out), box-shadow var(--t-2) var(--e-soft);
+  position: relative; width: 100%; height: 40px; display: flex; align-items: center; gap: var(--side-gap);
+  padding: 0 var(--side-ix); margin-bottom: 14px; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--txt); font-family: inherit; font-size: 13px; font-weight: 600;
+  letter-spacing: .1px; overflow: hidden;
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
 }
-.side-cta .sico { opacity: 1; }
-.side-cta:hover { background: var(--a-dim); border-color: var(--a-dim); transform: translateY(-1px); box-shadow: 0 6px 16px -6px var(--a-glow); }
-.side-cta:active { transform: scale(.985); box-shadow: none; }
+.side-cta::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--a-2); }
+.side-cta .cta-ico { flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--a-2); background: var(--a-soft);
+  box-shadow: inset 0 0 0 1px var(--a-dim); }
+.side-cta:hover { background: var(--surface-3); border-color: var(--a-dim); }
+.side-cta:hover .cta-ico { background: color-mix(in srgb, var(--a-2) 22%, transparent); color: var(--txt); }
+.side-cta:active { transform: scale(.99); }
+.side-cta:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 
 /* ---- nhóm + nhãn nhóm ---- */
 .side-group { padding: 4px 0 10px; }
 .side-group + .side-group { border-top: 1px solid var(--line); padding-top: 12px; }
 .side-label { position: relative; height: 18px; margin: 0 0 6px; padding: 0 var(--side-ix);
-  font-family: var(--mono); font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--txt-3);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-3);
   display: flex; align-items: center; }
 .side-label > span { transition: opacity .15s var(--e-soft); }
 /* thu gọn: nhãn chữ biến thành một gạch ngắn — vẫn thấy chỗ ngắt nhóm (rule ở khối "THU GỌN" bên dưới) */
@@ -1324,21 +1698,22 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-ind::before { content: ''; position: absolute; left: 0; top: 50%; width: 3px; height: 16px;
   margin-top: -8px; border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--a-2);
   box-shadow: 0 0 10px var(--a-glow); }
-.side-ind.live { transition: transform .34s var(--e-pop), height .2s var(--e-out), opacity .2s var(--e-soft); }
+/* ô sáng trượt sang mục mới: chỉ transform + opacity, không đụng layout */
+.side-ind.live { transition: transform .3s var(--e-out), opacity .2s var(--e-soft); }
 
 .side-item {
   position: relative; z-index: 1; display: flex; align-items: center; gap: var(--side-gap); width: 100%;
   height: 36px; padding: 0 var(--side-ix); border: 0; border-radius: var(--radius);
   background: none; cursor: pointer; color: var(--txt-2); text-decoration: none;
   font-family: inherit; font-size: 13.5px; font-weight: 500; letter-spacing: .1px; text-align: left;
-  animation: sideIn .42s var(--e-out) both; animation-delay: calc(60ms + var(--i, 0) * 45ms);
-  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft),
-              transform var(--t-2) var(--e-out);
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
 }
-@keyframes sideIn { from { opacity: 0; transform: translateX(-10px) } to { opacity: 1; transform: none } }
-.side-item:hover { background: var(--hover); color: var(--txt); transform: translateX(3px); }
+/* Không có animation vào cho từng mục: sidebar đứng yên suốt phiên, bốn mục
+   nhấp nhô lệch 45ms một lần lúc mở trang là chuyển động không ai xin. Ô sáng
+   trượt theo mục đang đứng mới là chuyển động có nghĩa ở đây. */
+.side-item:hover { background: var(--hover); color: var(--txt); }
 .side-item.on { color: var(--txt); font-weight: 600; }
-.side-item.on:hover { background: none; transform: none; }
+.side-item.on:hover { background: none; }
 .side-item:active { transform: scale(.98); }
 .side-item .side-tx { flex: 1; }
 .side-n { font-family: var(--mono); font-size: 11px; color: var(--txt-3); min-width: 18px; text-align: center;
@@ -1349,11 +1724,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-item:hover .side-ext { color: var(--a-2); transform: translate(2px, -2px); }
 
 /* icon: bao giờ cũng 20px vuông để cột icon thẳng hàng dù svg 15 hay 16px */
-.sico { flex: none; opacity: .72; transition: opacity var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop); }
+.sico { flex: none; opacity: .72; transition: opacity var(--t-1) var(--e-soft); }
 .side-item .sico, .side-out .sico, .side-cta .sico { width: 20px; height: 20px; }
 .side-item.on .sico, .side-item:hover .sico { opacity: 1; }
 .side-item.on .sico { color: var(--a-2); }
-.side-item:hover .sico { transform: scale(1.12); }
 
 .side-item .dotbadge { transition: opacity .15s var(--e-soft); }
 
@@ -1377,13 +1751,13 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-user-tx b { font-size: 13px; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
 .side-user-tx small { font-size: 11px; color: var(--txt-3); line-height: 1.25; }
 .avatar.lg { width: 28px; height: 28px; font-size: 12.5px; }
-.side-user .avatar { transition: transform var(--t-2) var(--e-pop), box-shadow var(--t-2) var(--e-soft); }
-.side-user:hover .avatar { transform: scale(1.06); }
+.side-user .avatar { transition: box-shadow var(--t-2) var(--e-soft); }
+.side-user:hover .avatar { box-shadow: 0 0 0 3px var(--a-soft); }
 .side-out { display: flex; align-items: center; gap: var(--side-gap); width: 100%; height: 34px; margin-top: 2px;
   padding: 0 var(--side-ix); border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-family: inherit; font-size: 13px; text-align: left;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.side-out:hover { color: var(--denied); background: rgba(208,96,92,.08); }
+.side-out:hover { color: var(--denied); background: rgba(226,110,105,.08); }
 .side-out:hover .sico { opacity: 1; transform: translateX(2px); }
 .side-copy { height: 22px; margin-top: 4px; padding: 0 var(--side-ix); display: flex; align-items: center;
   font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-3); }
@@ -1419,17 +1793,22 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 
 /* ================= ĐẦU TRANG NỘI DUNG ================= */
-.mainhead { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 20px; }
+.mainhead { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .mainhead-tx { flex: 1; min-width: 0; }
 .mainhead-t { margin: 0; font-family: var(--display); font-weight: 700; font-size: 21px;
   letter-spacing: .1px; line-height: 1.2; }
+/* Dòng phụ: tiêu đề một mình ở góc trên bên trái để lại một khoảng trống
+   không rõ chức năng, còn người mới vào thì không biết trang này để làm gì.
+   Một dòng, chữ nhỏ, màu nhạt nhất trong thang — đủ định hướng, không tranh
+   chỗ với tiêu đề và không lặp lại số liệu của dải thống kê ngay dưới. */
+.mainhead-sub { margin: 3px 0 0; color: var(--txt-3); font-size: 12.5px; line-height: 1.4; }
 
 /* ---- khối "Vote của bạn", đặt ngay dưới thanh Up next ---- */
 .votepanel {
   position: relative; display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
   padding: 14px 16px; margin: 4px 0 22px; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--r-md);
-  background: linear-gradient(180deg, rgba(43,34,226,.10), rgba(0,0,0,0) 62%), var(--panel);
+  background: linear-gradient(180deg, rgba(77,64,240,.10), rgba(0,0,0,0) 62%), var(--panel);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-1), var(--ring);
 }
@@ -1492,7 +1871,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 .pick-nav.prev { left: 10px }
 .pick-nav.next { right: 10px }
-.pick-nav:hover { background: var(--a); border-color: transparent; transform: scale(1.06) }
+.pick-nav:hover { background: var(--a); border-color: transparent; }
 .pick-nav:active { transform: scale(.94) }
 
 /* ---- quầng sáng quanh khung video featured ----
@@ -1511,7 +1890,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   content: ''; position: absolute;
   left: 6%; right: 6%; top: 10%; bottom: -6%;
   border-radius: var(--r-lg);
-  background: radial-gradient(60% 60% at 50% 60%, var(--a-glow), rgba(43,34,226,0) 72%);
+  background: radial-gradient(60% 60% at 50% 60%, var(--a-glow), rgba(77,64,240,0) 72%);
   filter: blur(34px); opacity: .5;
   transition: opacity var(--t-3) var(--e-soft);
   pointer-events: none;
@@ -1522,10 +1901,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .pick-stage::after {
   content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
   border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 1px rgba(135,130,250,.22), inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow: inset 0 0 0 1px rgba(169,164,255,.22), inset 0 1px 0 rgba(255,255,255,.06);
   transition: box-shadow var(--t-2) var(--e-soft);
 }
-.pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(135,130,250,.42), inset 0 1px 0 rgba(255,255,255,.09); }
+.pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(169,164,255,.42), inset 0 1px 0 rgba(255,255,255,.09); }
 
 .pick-stage:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -14px rgba(0,0,0,.7); }
 .pick-stage:hover .mthumb > img { transform: scale(1.045); }
@@ -1533,7 +1912,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .pick-flag { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 3px 8px; border-radius: var(--r-sm);
   background: rgba(13,15,18,.72); border: 1px solid rgba(255,255,255,.22);
   backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-  color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+  color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .2px; }
 .pick-cap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 44px 14px 12px;
   display: flex; flex-direction: column; gap: 3px;
   background: linear-gradient(to top, rgba(13,15,18,.94) 0%, rgba(13,15,18,.72) 45%, rgba(13,15,18,0) 100%);
@@ -1572,16 +1951,18 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   display: flex; flex-direction: column; gap: 7px; padding: 0; overflow: hidden; cursor: pointer;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel-2); color: inherit; font-family: inherit; text-align: left; text-decoration: none;
-  animation: rowIn .45s var(--e-out) both; animation-delay: calc(var(--i, 0) * 45ms);
   transition: transform var(--t-2) var(--e-out), border-color var(--t-2) var(--e-soft),
               background var(--t-2) var(--e-soft);
 }
-.pvrow:hover { transform: translateY(-3px); border-color: var(--line-2); background: var(--panel-3); }
+/* rê vào một mục trong dải: đổi viền + nền + ảnh khẽ phóng. Không nhấc ô
+   lên: dải có 8-12 ô nằm sát nhau, mỗi ô nhấc 3px là hàng răng cưa nhấp nhô
+   chạy theo con trỏ. */
+.pvrow:hover { border-color: var(--line-2); background: var(--panel-3); }
 .pvrow:hover .mthumb > img { transform: scale(1.05); }
 .pvrow:hover .playbtn.sm { opacity: 1; transform: none; }
 /* video đang mở trên sân khấu: khoanh viền cùng tông accent — nhìn một
    cái biết dải đang "đứng" ở video nào */
-.pvrow.on { border-color: rgba(135,130,250,.55); background: var(--panel-3) }
+.pvrow.on { border-color: rgba(169,164,255,.55); background: var(--panel-3) }
 .pvrow.on .pv-tx b { color: var(--a-2) }
 .pvrow.on .playbtn.sm { opacity: 1; transform: none; }
 .pv-thumb { position: relative; display: block; }
@@ -1601,15 +1982,55 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .channel-state .hint { margin-top: 10px; }
 @keyframes skeletonShimmer { from { background-position: 120% 0 } to { background-position: -120% 0 } }
 
+/* Thanh lọc: 6 tab kèm số đếm không vừa bề ngang 390px. `.tabs` có
+   `overflow: hidden` (để bo góc khối) nên bản trước CẮT MẤT tab cuối —
+   "Completed" (và "Following" khi đang theo dõi) biến mất, không cách nào
+   bấm tới. Cho dải tab cuộn ngang: cùng chỗ, cùng hình dáng, không mất mục. */
+@media (max-width: 899px) {
+  /* Dải tab chiếm trọn một hàng rồi tự cuộn ngang: `.tabs` có `overflow: hidden`
+     (để bo góc) nên bản trước CẮT mất tab cuối — "Done" (và "Following") biến
+     mất khỏi màn hình, không cách nào bấm tới. */
+  .toolbar .tabs { flex: 1 1 100%; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .toolbar .tabs::-webkit-scrollbar { display: none; }
+  .toolbar .tabs .tab { flex: none; }
+}
+
 @media (max-width: 620px) {
   .main { padding: 18px 14px 44px; }
   .mainhead { align-items: center; gap: 9px; }
+  /* Dải thống kê: 4 ô về MỘT hàng (mỗi ô ~90px) thay vì 3+1 hai hàng.
+     Ô "12 / queued" đọc được ở cỡ 15px, còn 60px chiều cao tiết kiệm được
+     thì trả thẳng cho danh sách request — trên 390px, mỗi 60px là một phần
+     tư khoảng cách từ đầu trang tới hàng request đầu tiên. */
+  .stat { flex: 1 1 25%; min-width: 0; padding: 9px 10px; }
+  .stat b { font-size: 15px; }
+  .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; }
+  /* Dải mục lục video: bỏ TÊN, chỉ còn ảnh bìa 96px. Tên của video đang mở đã
+     nằm ngay trên sân khấu phía trên, còn ở đây mắt chỉ cần chọn nhanh (viền
+     sáng đánh dấu ô đang mở). Một hàng ảnh cao ~62px thay vì ~140px. */
+  .pick-side .pv-tx { display: none; }
+  .pvrow { flex-basis: 96px; }
+  .pick-side .pv-label { margin-bottom: 6px; }
+  /* Dải thống kê: 4 ô về MỘT hàng (mỗi ô ~90px) thay vì 3+1 hai hàng.
+     Ô "12 / queued" đọc được ở cỡ 15px, còn 60px chiều cao tiết kiệm được
+     là 60px mà danh sách request không phải nằm dưới màn hình đầu tiên. */
+  .stat { flex: 1 1 25%; min-width: 0; padding: 9px 10px; }
+  .stat b { font-size: 15px; }
+  .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; }
   .mainhead-t { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .votepanel { gap: 14px; }
   .vp-divider { display: none; }
   .vp-acts { margin-left: 0; width: 100%; }
   .vp-acts .btn { flex: 1; text-align: center; }
-  .pvrow { flex-basis: 158px; }
+  /* Dải mục lục video trên điện thoại: thu về 96px và BỎ tên video — tên
+     của video đang mở đã nằm ngay trên sân khấu, còn dải này là để chọn
+     nhanh bằng mắt (viền sáng đánh dấu ô đang mở). Chiều cao tiết kiệm được
+     trả lại cho danh sách request. */
+  .pick-side .pv-tx { display: none; }
+  .pvrow { flex-basis: 96px; }
+  .pick-side .pv-label { margin-bottom: 6px; }
 }
 
 /* =========================================================
@@ -1667,13 +2088,12 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   .pick-stage::before { filter: blur(22px); opacity: .42; top: 16%; bottom: -3%; }
   /* trên Phone, hai nút qua lại là cách chính để lướt video: giữ to vừa tay, thu nhẹ cho đỡ chiếm ảnh */
   .pick-nav { width: 42px; height: 42px; margin-top: -21px }
-  .sect { animation-duration: .28s; }
-  .mainhead-tx { animation-duration: .25s; }
+  .sect { animation-duration: .26s; }
+  .mainhead-tx { animation-duration: .24s; }
   [data-reveal] { transform: translateY(8px); transition-duration: .3s; }
-  .list > * { animation-duration: .28s; animation-delay: min(calc(var(--i, 0) * 24ms), 120ms); }
-  .stats .stat { animation-duration: .28s; }
-  .stats .stat:nth-child(n) { animation-delay: 0ms; }
-  .pvrow { animation-duration: .28s; animation-delay: min(calc(var(--i, 0) * 24ms), 96ms); }
+  /* trên điện thoại người ta cuộn nhanh hơn là chờ hiệu ứng: nhịp ngắn hơn
+     và chặn ở 6 hàng */
+  .list > * { animation-duration: .26s; animation-delay: calc(min(var(--i, 0), 6) * 22ms); }
   .mthumb > img { animation-duration: .3s; }
   .modal { animation-duration: .22s; }
   .overlay { animation-duration: .16s; }
@@ -1701,7 +2121,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   /* không có chuột thì không có hover để bật quầng sáng — để sẵn mức giữa */
   .pick-stage::before { opacity: .68; }
   .pick-stage:hover::before { opacity: .68; }
-  .pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(135,130,250,.22), inset 0 1px 0 rgba(255,255,255,.06); }
+  .pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(169,164,255,.22), inset 0 1px 0 rgba(255,255,255,.06); }
   .pick-stage:hover .mthumb > img, .pvrow:hover .mthumb > img { transform: none; }
   .pick-stage:hover .playbtn { transform: none; background: rgba(13,15,18,.6); border-color: rgba(255,255,255,.28); }
   .pvrow:hover { background: var(--panel-2); border-color: var(--line); }
@@ -1747,11 +2167,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .bgfx-aurora { position: absolute; inset: -25%; will-change: transform;
   background:
     /* xanh nhạt --a-2: vệt phụ mé phải trên */
-    radial-gradient(46% 38% at 78% 22%, rgba(135,130,250,.16), rgba(135,130,250,0) 70%),
+    radial-gradient(46% 38% at 78% 22%, rgba(169,164,255,.16), rgba(169,164,255,0) 70%),
     /* vàng --paid: nhắc màu thứ ba, gần như không thấy */
-    radial-gradient(42% 34% at 56% 88%, rgba(201,154,60,.08), rgba(201,154,60,0) 72%),
+    radial-gradient(42% 34% at 56% 88%, rgba(215,166,63,.08), rgba(215,166,63,0) 72%),
     /* ultramarine của logo: vệt chính, chếch trên trái */
-    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(43,34,226,0) 68%);
+    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(77,64,240,0) 68%);
   animation: auroraDrift 36s ease-in-out infinite alternate; }
 @keyframes auroraDrift {
   from { transform: translate3d(-3%, -2%, 0) scale(1); }
@@ -1780,6 +2200,9 @@ html[data-section="spin"] .bgfx { display: none; }
    ========================================================= */
 @media (prefers-reduced-motion: no-preference) {
   @supports (view-transition-name: none) {
+    /* Lớp phủ của chuyển cảnh cũng được tô nền trang: hai ảnh chụp mờ dần nên
+       giữa chúng luôn có khe hở, và khe hở phải là nền trang, không phải trắng. */
+    html[data-vt="on"]::view-transition { background: var(--bg); }
     html[data-vt="on"] .side { view-transition-name: sidebar; }
     html[data-vt="on"]::view-transition-group(sidebar) { animation: none; }
     html[data-vt="on"]::view-transition-old(root),
@@ -1816,10 +2239,10 @@ html[data-section="spin"] .bgfx { display: none; }
   background: var(--float); border: 1px solid var(--line-2);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-3), var(--ring);
-  animation: toastIn .36s var(--e-pop) both;
+  animation: toastIn .3s var(--e-out) both;
 }
 .toast.out { animation: toastOut .2s var(--e-soft) both; }
-@keyframes toastIn  { from { opacity: 0; transform: translateX(18px) scale(.96) } to { opacity: 1; transform: none } }
+@keyframes toastIn  { from { opacity: 0; transform: translateX(16px) scale(.97) } to { opacity: 1; transform: none } }
 @keyframes toastOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(14px) scale(.97) } }
 /* mép màu theo loại — nhìn một cái biết tốt/xấu, không cần đọc chữ */
 .toast::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--tone) }
@@ -1843,7 +2266,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .toast-act { margin-top: 9px; padding: 4px 9px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--a); background: var(--a); color: #fff;
   font: 600 11.5px/1.3 var(--font); transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out) }
-.toast-act:hover { background: var(--a-dim); transform: translateY(-1px) }
+.toast-act:hover { background: var(--a-dim); }
 .toast-x { width: 22px; height: 22px; border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-size: 15px; line-height: 1; transition: color var(--t-1), background var(--t-1) }
 .toast-x:hover { color: var(--txt); background: var(--hover-2) }
@@ -1863,9 +2286,12 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px;
   flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line) }
 .lb-bar-tx { min-width: 0 }
-.lb-kicker { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px;
-  text-transform: uppercase; color: var(--a-2) }
+.lb-kicker { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .5px; color: var(--a-2) }
 .lb-title { margin: 3px 0 0; font-family: var(--display); font-weight: 700; font-size: 16.5px; letter-spacing: .1px }
+/* Luật đang chạy, viết ra thành câu. Chữ nhỏ, xám, KHÔNG phải một dòng chú
+   thích trang trí: nó trả lời câu "vì sao thứ tự này" mà trước đây người xem
+   phải tự đoán khi đổi cách sắp xếp. */
+.lb-rule { margin: 4px 0 0; font-size: 11.5px; line-height: 1.35; color: var(--txt-3); max-width: 46ch }
 
 /* nhóm nút sắp xếp dạng viên thuốc — một lựa chọn, một chỗ sáng */
 .lb-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
@@ -1874,7 +2300,7 @@ html[data-section="spin"] .bgfx { display: none; }
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
 .lb-segb:hover { color: var(--txt-2) }
-.lb-segb.on { color: #0d0f12; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
+.lb-segb.on { color: #0a0c10; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
 .lb-segb:active { transform: scale(.97) }
 
 /* ---- bục 1/2/3 ---- */
@@ -1890,7 +2316,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-pod { position: relative; overflow: hidden; padding: 20px 14px 16px; text-align: center;
   background: var(--panel-2); animation: podIn .55s var(--e-pop) both; animation-delay: calc(var(--i, 0) * 90ms) }
 @keyframes podIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
-.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, rgba(201,154,60,.12), rgba(0,0,0,0) 60%), var(--panel-2) }
+.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, rgba(215,166,63,.12), rgba(0,0,0,0) 60%), var(--panel-2) }
 .lb-pod.p2 { background: linear-gradient(180deg, rgba(173,181,189,.08), rgba(0,0,0,0) 60%), var(--panel-2) }
 .lb-pod.p3 { background: linear-gradient(180deg, rgba(179,129,79,.09), rgba(0,0,0,0) 60%), var(--panel-2) }
 /* ánh kim quét một lần trên hai thẻ đầu: phần thưởng, không phải trang trí */
@@ -1945,25 +2371,27 @@ html[data-section="spin"] .bgfx { display: none; }
 /* tên dài còn lại thì cắt bằng ellipsis, hàng không bao giờ vỡ */
 .lb-nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500 }
 .lb-table td.num { white-space: nowrap }
-.lb-table th { font: 600 10px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--txt-3);
+.lb-table th { font: 600 10px/1 var(--mono); letter-spacing: .3px; color: var(--txt-3);
   text-align: left; padding: 9px 14px; background: rgba(255,255,255,.015) }
 .lb-table td { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--line); vertical-align: middle }
 .lb-table th.num, .lb-table td.num { text-align: right }
 .lb-table th.c-rk, .lb-table td.c-rk { width: 42px; text-align: center }
-.lb-table tbody tr { position: relative; animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 26ms);
+.lb-table tbody tr { position: relative; animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 8) * 24ms);
   transition: background var(--t-1) var(--e-soft) }
 .lb-table tbody tr:hover { background: rgba(255,255,255,.03) }
-.lb-table tbody tr:hover .lb-av { transform: scale(1.07) }
-.lb-table tbody tr.me { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
-.lb-table tbody tr.me:hover { background: linear-gradient(90deg, rgba(43,34,226,.2), rgba(255,255,255,.03) 65%) }
+.lb-table tbody tr.me { background: var(--a-soft) }
+.lb-table tbody tr.me:hover { background: color-mix(in oklab, var(--a) 26%, var(--surface-3)) }
 .lb-table td.c-rk b { font-family: var(--mono); font-size: 12px; color: var(--txt-3) }
 .lb-table td.c-pl { position: relative; min-width: 0 }
 .lb-pl-in { display: flex; align-items: center; gap: 9px; min-width: 0 }
 /* (.lb-nm đã định nghĩa đầy đủ ở khối trên — ellipsis để chịu tên dài) */
 .lb-you { font-size: 10px; color: var(--a-2); border: 1px solid var(--line-2); padding: 0 5px; border-radius: var(--r-sm) }
-/* vạch dưới tên = tỉ lệ so với người dẫn đầu, đọc được cả một cột nhanh */
+/* Vạch dưới tên = tỉ lệ so với người dẫn đầu: đọc được cả một cột trong một
+   cái lướt. Vạch PHẲNG một màu — bản trước cho nó chạy gradient sang trong
+   suốt, đúng kiểu "thanh chỉ báo có gradient" mà vòng 11 đã gỡ ở thanh tiến
+   độ; cùng một loại chi tiết thì cùng một luật. */
 .lb-underline { position: absolute; left: 14px; bottom: 0; height: 2px; max-width: 60%; border-radius: 2px;
-  background: linear-gradient(90deg, var(--a-2), transparent); transform-origin: left;
+  background: var(--a-2); transform-origin: left;
   animation: barGrow .8s var(--e-out) both }
 .lb-table td.num { font-family: var(--mono); font-size: 12.5px; color: var(--txt-2) }
 .lb-table td.num b { font-weight: 600; color: var(--txt) }
@@ -1973,7 +2401,7 @@ html[data-section="spin"] .bgfx { display: none; }
 /* ---- hàng của bạn, dính đáy khối ---- */
 .lb-me { display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-top: 0;
   border-top: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(43,34,226,.13), rgba(43,34,226,.02));
+  background: linear-gradient(180deg, rgba(77,64,240,.13), rgba(77,64,240,.02));
   animation: rise .5s var(--e-out) .3s both }
 .lb-me:not(.has) { justify-content: center; background: var(--panel-2); color: var(--txt-3); font-size: 12.5px }
 .lb-me-rk { min-width: 26px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--a-2) }
@@ -1995,6 +2423,18 @@ html[data-section="spin"] .bgfx { display: none; }
   background: linear-gradient(90deg, var(--a), var(--a-2));
   pointer-events: none;
 }
+/* Trình duyệt có scroll-driven animations thì vạch chạy bằng CSS, KHÔNG cần
+   listener 'scroll' nào cả (App.jsx chỉ gắn listener khi thiếu tính năng này).
+   Cuộn là thao tác liên tục: để CSS lo thì việc vẽ vạch nằm cùng luồng
+   composite với việc cuộn, không phải chạy JS mỗi khung hình. */
+@supports (animation-timeline: scroll()) {
+  .scroll-progress {
+    transform: none;
+    animation: progressGrow linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes progressGrow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+}
 @media (prefers-reduced-motion: reduce) { .scroll-progress { transition: none; } }
 
 .to-top {
@@ -2004,10 +2444,13 @@ html[data-section="spin"] .bgfx { display: none; }
   background: var(--panel); backdrop-filter: var(--glass-sm); -webkit-backdrop-filter: var(--glass-sm);
   box-shadow: var(--sh-2);
   opacity: 0; transform: translateY(10px) scale(.92); pointer-events: none;
-  transition: opacity var(--t-2) var(--e-soft), transform var(--t-2) var(--e-pop),
+  transition: opacity var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
               color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft) }
 .to-top.on { opacity: 1; transform: none; pointer-events: auto }
-.to-top:hover { color: var(--txt); border-color: var(--a-2); transform: translateY(-2px) }
+/* nút "lên đầu trang" đổi viền + mũi tên nhích lên — nút nổi ở góc màn
+   hình mà còn nhấc cả khối thì nó thành phần tử chuyển động duy nhất
+   ngoài rìa mắt người đọc */
+.to-top:hover { color: var(--txt); border-color: var(--a-2); }
 .to-top:active { transform: scale(.94) }
 .to-top svg { transition: transform var(--t-2) var(--e-out) }
 .to-top:hover svg { transform: translateY(-1.5px) }
@@ -2018,13 +2461,15 @@ html[data-section="spin"] .bgfx { display: none; }
   border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: var(--r-sm);
   transition: opacity var(--t-1) var(--e-soft) }
 .searchwrap:focus-within .search-kbd, .search:not(:placeholder-shown) + .search-kbd { opacity: 0 }
+/* Máy cảm ứng không có bàn phím vật lý: gợi ý "/" chỉ tổ chiếm chỗ trong ô hẹp */
+@media (pointer: coarse) { .search-kbd { display: none } }
 
 /* vote được tính: một vòng sáng bung ra khỏi nút rồi tan */
 .votefx { position: absolute; inset: -1px; border-radius: inherit; border: 1px solid var(--a-2);
   pointer-events: none; animation: votefx .62s var(--e-out) both }
 @keyframes votefx { 0% { opacity: .85; transform: scale(.94) } 100% { opacity: 0; transform: scale(1.22) } }
 
-.pv-label { display: flex; align-items: center }
+
 
 /* nút chính: vệt sáng quét khi rê vào — cùng nhịp với splash */
 .btn-primary::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none;
@@ -2099,6 +2544,7 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .bgfx-aurora { animation: none; }
   .nowbar::before, .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
+  .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }
   .pick-stage::before { transition: none }
   .toast, .lb-me, .lb-pod, .lb-table tbody tr { animation: none }
   .toast-bar, .lb-underline, .lb-pod-bar > i { animation: none }
@@ -2120,11 +2566,11 @@ html[data-section="spin"] .bgfx { display: none; }
    ========================================================= */
 
 /* các khối data-reveal vào so le nhau, không cùng một loạt */
-.sect > [data-reveal]:nth-child(1) { transition-delay: 0ms }
-.sect > [data-reveal]:nth-child(2) { transition-delay: 70ms }
-.sect > [data-reveal]:nth-child(3) { transition-delay: 140ms }
-.sect > [data-reveal]:nth-child(4) { transition-delay: 210ms }
-.sect > [data-reveal]:nth-child(5) { transition-delay: 280ms }
+:is(.sect, .board) > [data-reveal]:nth-child(1) { transition-delay: 0ms }
+:is(.sect, .board) > [data-reveal]:nth-child(2) { transition-delay: 70ms }
+:is(.sect, .board) > [data-reveal]:nth-child(3) { transition-delay: 140ms }
+:is(.sect, .board) > [data-reveal]:nth-child(4) { transition-delay: 210ms }
+:is(.sect, .board) > [data-reveal]:nth-child(5) { transition-delay: 280ms }
 [data-reveal] { transition-delay: 0s }
 
 /* ô thống kê: một sợi màu chân đế mọc lên khi rê vào */
@@ -2134,12 +2580,7 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .34s var(--e-out) }
 .stat:hover::after { transform: scaleX(1) }
 
-/* hàng paid: thêm một lớp ánh vàng mờ phía trái, phân biệt từ xa */
-.row.paid { background: linear-gradient(90deg, rgba(201,154,60,.055), rgba(201,154,60,0) 55%) }
-/* hover đè lên gradient: nếu chỉ đổi background thì vệt gold biến mất cái rụp,
-   nên phải giữ cả hai lớp trong trạng thái hover */
-.row.paid:hover { background: linear-gradient(90deg, rgba(201,154,60,.08), rgba(201,154,60,0) 55%), var(--hover) }
-.pill.gold { background: rgba(201,154,60,.1) }
+.pill.gold { background: rgba(215,166,63,.1) }
 
 /* link "xem video": mũi tên nhích ra khi rê */
 .watch { position: relative; transition: color var(--t-1) var(--e-soft) }
@@ -2148,18 +2589,13 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .3s var(--e-out) }
 .watch:hover::after { transform: scaleX(1) }
 
-/* chọn loại request: thẻ được chọn nảy nhẹ, thẻ chưa chọn ngả sáng hơn */
-.kbtn { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-  background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop) }
-.kbtn:hover { transform: translateY(-1px) }
-.kbtn.on { transform: none; animation: pickIn .32s var(--e-pop) both }
-@keyframes pickIn { 0% { transform: scale(.965) } 60% { transform: scale(1.02) } 100% { transform: none } }
+/* (nhịp chuyển của .kchip nằm trong luật đầy đủ của nó ở khối form request —
+   trước đây khai lại ở đây nữa, cùng danh sách chỉ khác thứ tự.) */
 
 /* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
 .pack { transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
   box-shadow var(--t-2) var(--e-soft) }
 .pack:hover { transform: translateY(-2px); box-shadow: var(--sh-2) }
-.pack.best { background: linear-gradient(180deg, rgba(201,154,60,.08), transparent 55%) }
 
 /* nút vote đã bấm: một chấm sáng nhỏ báo "phần của bạn nằm ở đây" */
 .votebtn.on::before { content: ''; position: absolute; top: -2px; right: -2px; width: 6px; height: 6px;
@@ -2167,14 +2603,9 @@ html[data-section="spin"] .bgfx { display: none; }
   animation: fadeIn .3s var(--e-out) both }
 
 /* logo ở đầu sidebar: vòng sáng viền ngoài khi rê vào */
-.side-brand .applogo { transition: transform var(--t-2) var(--e-pop), box-shadow var(--t-2) var(--e-soft);
-  box-shadow: 0 0 0 0 var(--a-glow) }
-.side-brand:hover .applogo { transform: rotate(-4deg) scale(1.06); box-shadow: 0 0 0 4px rgba(43,34,226,.18) }
-.applogo.lg-nav { border-radius: var(--radius) }
+.side-brand .applogo { transition: box-shadow var(--t-2) var(--e-soft); box-shadow: 0 0 0 0 var(--a-glow) }
+.side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(77,64,240,.18) }
 
-/* danh sách rỗng: đừng trơ một câu chữ, cho nó một cái khung nhẹ */
-.empty { padding: 34px 20px; text-align: center; color: var(--txt-3); font-size: 13px;
-  background: repeating-linear-gradient(-45deg, rgba(255,255,255,.012) 0 8px, transparent 8px 16px) }
 
 /* chữ không bao giờ xuống dòng lổn nhổn */
 .row .title, .nowbar h3, .pick-cap b, .pv-tx b, .lb-pod-name { text-wrap: balance }
@@ -2190,9 +2621,9 @@ html[data-section="spin"] .bgfx { display: none; }
   /* cảm ứng không giữ trạng thái hover của nút mũi tên (kẻo dính màu sau khi chạm) */
   .grow-head:hover .grow-arrow:not(.on) { color: var(--txt-2); border-color: var(--line-2);
     background: var(--surface-2); }
-  .grow:hover { border-color: rgba(135,130,250,.35); }
+  .grow:hover { border-color: rgba(169,164,255,.35); }
   .stat:hover::after { transform: scaleX(0) }
-  .pack:hover, .kbtn:hover, .to-top:hover { transform: none; box-shadow: none }
+  .pack:hover, .kchip:hover, .to-top:hover { transform: none; box-shadow: none }
   .pack:hover { box-shadow: none }
   .lb-table tbody tr:hover { background: none }
   .lb-table tbody tr.me:hover { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
@@ -2201,12 +2632,12 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 
 @media (max-width: 620px) {
-  .sect > [data-reveal]:nth-child(n) { transition-delay: 0ms }
+  :is(.sect, .board) > [data-reveal]:nth-child(n) { transition-delay: 0ms }
   .watch::after { display: none }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stat::after, .watch::after, .votebtn.on::before, .kbtn.on { animation: none }
+  .stat::after, .watch::after, .votebtn.on::before, .kchip.on { animation: none }
   .stat:hover::after, .watch:hover::after { transition: none }
 }
 
@@ -2222,31 +2653,53 @@ html[data-section="spin"] .bgfx { display: none; }
    CHỐT REQUEST ĐỊNH KỲ — đếm ngược · nhãn Up next · chú thích loại video
    ========================================================= */
 
-/* ---- đếm ngược trong khối Up next (.nowbar) ---- */
-.pick-cd { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; font-size: 12.5px; }
-.pick-cd b { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--queued); letter-spacing: .01em; }
-.pick-cd span { color: var(--txt-3); font-size: 11.5px; line-height: 1.5; }
+/* Đếm ngược (.pick-cd) chỉ có MỘT định nghĩa, nằm ở khối .nowbar phía dưới
+   (nhãn nhỏ bên trên, số mono căn phải bên dưới). Bản cũ khai báo nó ở đây
+   nữa với cỡ chữ và khoảng cách khác — luật dưới thắng, nên khối này chưa bao
+   giờ hiện ra; giữ lại chỉ để người sau sửa nhầm chỗ. */
 
 /* ---- nhãn Up next trên dòng request / danh sách vote ----
    cùng khuôn với .pill.gold: chữ + viền + nền rất nhạt theo màu queued */
 .pill.upnext {
   color: var(--queued);
-  border-color: rgba(122,127,248,.45);
-  background: rgba(122,127,248,.12);
+  border-color: rgba(143,148,255,.45);
+  background: rgba(143,148,255,.12);
   margin-left: 4px;
 }
 .row.paid .pill.upnext { margin-left: 6px; }
 
 /* ---- chú thích loại video trong form gửi request ----
    chỉ mount khi KIND_META[kind].noteKey có → animation chạy đúng lúc bấm chọn */
+/* "Bài này đã có trên bảng" — một dải viền nhấn, đặt NGAY DƯỚI ô tên bài vì
+   đó là chỗ mắt đang nhìn lúc gõ, không phải cạnh nút Gửi ở cuối form. Viền
+   trái dày + nền nhấn nhạt: đọc ra là gợi ý, không phải lỗi (lỗi ở form này
+   có màu đỏ của `.msg.err`). */
+.dup-note {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 9px 12px;
+  border: 1px solid var(--line-2); border-left: 3px solid var(--a-2);
+  border-radius: var(--radius); background: var(--a-soft);
+}
+.dup-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; }
+.dup-tx b { font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dup-sub { color: var(--txt-2); font-size: 11.5px; }
+.dup-note .btn { flex: none; }
+/* Dải gợi ý TÁCH TIÊU ĐỀ VIDEO dùng chung khuôn với dải "bài đã có" (cùng là
+   một lời gợi ý kèm một nút), nhưng đổi sắc: hai dải có thể đứng cạnh nhau, và
+   lúc đó người dùng phải phân biệt được cái nào là "bài này có rồi", cái nào
+   là "để tôi điền giúp ô bên cạnh". */
+.split-note { border-left-color: var(--queued); background: color-mix(in srgb, var(--queued) 10%, transparent); }
+
+/* Chú thích của hàng chip: MỘT dòng, không khung, không nền — nó thuộc về hàng
+   chip ngay trên chứ không phải một khối thứ hai trong form. Nhãn màu đứng
+   trước để mắt nối được "tôi vừa chọn cái nào" mà không phải đọc lại câu. */
 .kind-note {
-  margin: 10px 0 0; padding: 9px 12px;
-  font-size: 12.5px; line-height: 1.55; color: var(--txt-2);
-  border-radius: var(--radius); border: 1px solid var(--line);
-  border-left: 2px solid var(--k-album);
-  background: rgba(74,156,156,.07);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 9px 0 0; font-size: 12px; line-height: 1.5; color: var(--txt-2);
   animation: kn-in .26s var(--e-out) both;
 }
+.kind-note b { font-weight: 500; color: var(--txt); }
+.kind-note-sub { padding-left: 9px; border-left: 1px solid var(--line-2); color: var(--txt-3); }
 .kind-note .kind { font-weight: 600; }
 @keyframes kn-in { from { opacity: 0; transform: translateY(-3px) } to { opacity: 1; transform: none } }
 
@@ -2266,26 +2719,33 @@ html[data-section="spin"] .bgfx { display: none; }
    ========================================================= */
 .now-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .nowbar .now-head .lbl { display: flex; align-items: center; gap: 7px; margin: 0; }
-.now-n { font-family: var(--mono); font-size: 10.5px; font-weight: 600; line-height: 16px; min-width: 16px;
-  padding: 0 5px; text-align: center; border-radius: var(--r-pill);
-  color: var(--queued); background: rgba(122,127,248,.14); }
+/* Dòng tách giai đoạn cạnh con số trên nắp khối Up next: nói rõ con số đó gồm
+   bao nhiêu việc đang chạy và bao nhiêu việc chờ tới lượt — hai số nhỏ này là
+   hai ô thống kê phía trên, nên mắt nối được mà không phải đoán. */
+.now-split { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
+@media (max-width: 620px) { .now-split { white-space: normal; } }
+.now-n { font-family: var(--mono); font-size: 12px; font-weight: 700; line-height: 20px; min-width: 20px;
+  padding: 0 6px; text-align: center; border-radius: var(--r-pill);
+  color: var(--queued); background: color-mix(in srgb, var(--queued) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--queued) 34%, transparent); }
 
 /* đếm ngược: nhãn nhỏ + số mono, căn phải */
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
 .pick-cd span { font-size: 11px; color: var(--txt-3); }
 .pick-cd b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--queued); letter-spacing: .02em; }
-/* Đã tới mốc chốt mà lượt chốt chưa xong: nhấp nháy nhẹ để không tưởng
-   đồng hồ chết — mốc mới (sau khi cron/admin chốt) sẽ tự hiện lên. */
-.pick-cd.over b { color: var(--a-2); animation: pickPulse 1.6s ease-in-out infinite; }
-@keyframes pickPulse { 0%, 100% { opacity: 1 } 50% { opacity: .4 } }
+/* Đã tới mốc chốt mà lượt chốt chưa xong: đổi màu + một chấm nhịp, KHÔNG
+   nhấp nháy. Một đồng hồ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh
+   sách mỗi 1,6 giây; "quá mốc" đọc được bằng màu và con số là đủ. */
+.pick-cd.over b { color: var(--a-2); }
+.pick-cd.over b::after { content: ''; display: inline-block; width: 6px; height: 6px;
+  margin-left: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 
 .now-list { display: flex; flex-direction: column; }
-.now-item { padding: 9px 0; border-top: 1px solid var(--line);
-  animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.now-item { padding: 9px 0; border-top: 1px solid var(--line); }
 .now-item:first-child { border-top: 0; padding-top: 0; }
 .nowbar .now-item h3 { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
-.nowbar .now-item .bar { margin-top: 7px; }
+.nowbar .now-item .prog { margin-top: 7px; }
 .nowbar .now-item.now-group { padding-bottom: 11px; }
 .nowbar .now-item .pill.group { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 16px; min-width: 18px; text-align: center; padding: 0 5px; border-radius: 8px; color: var(--queued); background: color-mix(in srgb, var(--queued) 16%, transparent); }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
@@ -2296,19 +2756,33 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .now-rule { font-size: 11.5px; color: var(--txt-3); line-height: 1.5; }
+/* Định nghĩa của khối này, đặt ngay dưới tiêu đề: mục Up next và tab In progress
+   nói cùng một dây chuyền, người đọc không phải tự suy ra. */
 .now-more { margin-left: auto; }
 
 @media (max-width: 620px) {
   .now-head { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .pick-cd { align-items: flex-start; text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
+  .pick-cd { text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
   .now-more { width: 100%; text-align: center; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .now-item { animation: none; } }
-/* Nút âm thanh + thanh âm lượng hiện khi rê chuột / focus */
+/* Nút âm thanh + thanh âm lượng hiện khi rê chuột / focus.
+   Bản trước cho thanh chạy từ width 0 → 64px: bề rộng đổi là LAYOUT đổi,
+   nên mỗi lần rê vào nút, chữ "Âm thanh" bên trái bị bóp lại rồi giãn ra —
+   đúng kiểu giật người dùng nhận ra ngay mà không gọi được tên.
+   Thanh giữ nguyên 64px, chỉ đổi opacity (compositor lo), nên không có gì
+   dịch chuyển; `pointer-events` đi kèm để lúc ẩn nó không chặn chuột. */
 .sfxwrap{display:inline-flex;align-items:center;gap:6px}
-.sfxvol{width:0;opacity:0;margin:0;transition:width .18s ease,opacity .18s ease;accent-color:var(--a-2);cursor:pointer}
-.sfxwrap:hover .sfxvol,.sfxwrap:focus-within .sfxvol{width:64px;opacity:1}
-.sfxvol:disabled{opacity:.35;cursor:not-allowed}
+.sfxvol{width:64px;opacity:0;margin:0;pointer-events:none;
+  transition:opacity var(--t-2) var(--e-soft);accent-color:var(--a-2);cursor:pointer}
+.sfxwrap:hover .sfxvol,.sfxwrap:focus-within .sfxvol{opacity:1;pointer-events:auto}
+.sfxvol:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+/* sidebar thu gọn: nút âm thanh bị ghim vào ô 20px ở mép trái (xem khối
+   .side.min phía trên) nên thanh trượt không còn chỗ — giấu hẳn thay vì để
+   nó tràn ra ngoài sidebar */
+@media (min-width: 900px) {
+  .side.min .sfxvol { display: none; }
+}
 
 
 /* =========================================================
@@ -2327,8 +2801,17 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .nt-btn:hover { color: var(--txt); border-color: #3c4550; background: var(--surface-3); }
 /* co tin chua doc: chuong sang mau nhu dang duoc goi */
-.nt-btn.has { color: var(--a-2); border-color: rgba(135,130,250,.42); background: var(--a-soft); }
-.nt-btn .dotbadge { position: absolute; top: -6px; right: -7px; margin: 0; line-height: 14px; min-width: 14px; font-size: 9.5px; }
+.nt-btn.has { color: var(--a-2); border-color: rgba(169,164,255,.42); background: var(--a-soft); }
+.nt-btn .dotbadge { position: absolute; top: -6px; right: -7px; margin: 0; line-height: 14px; min-width: 14px; font-size: 9.5px;
+  /* Số tin chưa đọc POP lên khi nó đổi (key ở JSX), và chỉ nó động — chuông
+     đứng yên, nên không có gì dịch chuyển quanh nó. scale + opacity thôi; nảy
+     một nhịp rồi đứng, không lặp. Nhịp này theo transitions.dev 03. */
+  animation: badgePop .45s var(--e-pop) both; }
+@keyframes badgePop {
+  0%   { opacity: 0; transform: scale(.35) translateY(3px) }
+  62%  { opacity: 1; transform: scale(1.14) translateY(0) }
+  100% { opacity: 1; transform: none }
+}
 
 /* min-height de don tab (danh sach dai -> cai dat ngan) khong khien cai
    card bip het len xuong, nhin nhu loi ve */
@@ -2346,11 +2829,17 @@ html[data-section="spin"] .bgfx { display: none; }
   background: var(--surface);
   box-shadow: 0 24px 50px -22px rgba(0,0,0,.78), 0 0 0 1px rgba(255,255,255,.02) inset;
   overflow: hidden; animation: ntIn .2s var(--e-out) both;
+  /* Bảng mọc RA TỪ NÚT CHUÔNG (gốc ở góc trên-phải), không phình từ giữa: mắt
+     nối được cái vừa bấm với cái vừa hiện. Cùng họ với transitions.dev 05/17. */
+  transform-origin: top right;
 }
 @keyframes ntIn { from { opacity: 0; transform: translateY(-7px) scale(.985) } to { opacity: 1; transform: none } }
 
 .nt-head { display: flex; align-items: center; gap: 8px; padding: 11px 12px; border-bottom: 1px solid var(--line); flex: none; }
-.nt-head b { font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .3px; }
+/* Tiêu đề bảng là một h2 THẬT (vòng 12): trước đây là <b>, tức là trong cây
+   tiêu đề của trang nó không tồn tại — trình đọc màn hình đọc "dialog · Thông
+   báo" rồi nhảy thẳng vào danh sách. Chữ giữ nguyên cỡ; chỉ cấp bậc đổi. */
+.nt-h2 { margin: 0; font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--txt); }
 .nt-count {
   padding: 1px 6px; border-radius: var(--r-pill); background: var(--paid); color: #1a1206;
   font-family: var(--mono); font-size: 10.5px; font-weight: 700;
@@ -2381,16 +2870,16 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-grp-h {
   position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 7px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
-  font-size: 10.5px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--txt-3);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .2px; color: var(--txt-3);
 }
 .nt-grp-h i { font-style: normal; padding: 0 5px; border-radius: var(--r-pill); background: var(--a-soft); color: var(--a-2); font-family: var(--mono); font-size: 10px }
 .nt-hvote {
   margin-left: auto; flex: none; padding: 3px 9px; border-radius: var(--r-pill);
   border: 1px solid transparent; background: var(--paid); color: #1a1206; cursor: pointer;
-  font: 700 10px/1.5 var(--font); letter-spacing: .5px; text-transform: uppercase;
+  font: 700 10px/1.5 var(--font); letter-spacing: .2px;
   transition: filter var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out)
 }
-.nt-hvote:hover { filter: brightness(1.07); transform: translateY(-1px) }
+.nt-hvote:hover { filter: brightness(1.07); }
 
 /* ---- mot dong tin ----
    MOT NHIP CHO CA BANG: 12px la don vi do loi tinh tu mép ngoài của popover,
@@ -2430,8 +2919,8 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3) }
 .nt-meta em { font-style: normal; font-family: var(--font); font-weight: 600; letter-spacing: .2px }
 .nt-acts { display: flex; align-items: center; gap: 5px; flex: none; padding: 8px 0 8px 0 }
-.nt-vote { color: var(--paid); border-color: rgba(240,178,65,.4) }
-.nt-vote:hover { background: rgba(240,178,65,.14) }
+.nt-vote { color: var(--paid); border-color: rgba(215,166,63,.4) }
+.nt-vote:hover { background: rgba(215,166,63,.14) }
 
 .nt-empty { padding: 26px 12px 28px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; min-height: 210px }
 .nt-empty b { font-family: var(--display); font-size: 13px }
@@ -2445,19 +2934,14 @@ html[data-section="spin"] .bgfx { display: none; }
    do da co phan tach lo, nen 5px nua la thua: reset ve 0. */
 .nt-pref {
   display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 11px 12px;
+  --chk: var(--a-2);
   cursor: pointer; border-bottom: 1px solid var(--line);
   transition: background var(--t-1) var(--e-soft);
 }
 .nt-prefs .nt-pref:last-child { border-bottom: 0 }
 .nt-pref:hover { background: var(--hover) }
-.nt-pref input {
-  flex: none; box-sizing: border-box;
-  width: auto; min-width: 15px; height: auto; padding: 0; border: 0; border-radius: 0;
-  background: none; box-shadow: none; outline-offset: 2px;
-  font-size: 15px; margin: 1px 0 0; accent-color: var(--a-2); cursor: pointer;
-  transition: none;
-}
-.nt-pref input:focus-visible { outline: 2px solid var(--a-2); border-color: transparent }
+/* hộp tick lệch lên 1px cho thẳng hàng chữ đầu dòng */
+.nt-pref .chk { margin-top: 1px }
 .nt-pref-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
 .nt-pref-tx b { font-size: 12.5px; font-weight: 600; color: var(--txt) }
 .nt-pref-tx small { font-size: 11.5px; line-height: 1.5; color: var(--txt-3) }
@@ -2474,13 +2958,30 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .standing b { font-weight: 600 }
 .standing.is-lead { color: var(--done); border-color: rgba(79,203,143,.42); background: rgba(79,203,143,.1) }
-.standing.is-hot { color: var(--paid); border-color: rgba(240,178,65,.45); background: rgba(240,178,65,.12) }
-.standing.is-near { color: var(--a-2); border-color: rgba(135,130,250,.4); background: var(--a-soft) }
+.standing.is-hot { color: var(--paid); border-color: rgba(215,166,63,.45); background: rgba(215,166,63,.12) }
+.standing.is-near { color: var(--a-2); border-color: rgba(169,164,255,.4); background: var(--a-soft) }
 .standing.is-muted { color: var(--txt-3) }
+/* Phần "sớm nhất bao lâu" mờ và nhỏ hơn phần hạng: nó là SUY RA từ lịch chốt
+   chứ không phải số liệu đọc thẳng từ database, nên không được trông như một
+   lời hứa ngang hàng với con số vote. */
+.standing-eta { font-style: normal; font-size: 10px; color: var(--txt-3) }
 
+
+/* Tấm chắn của bảng thông báo: chỉ có nghĩa ở máy hẹp (bảng trải kín đáy màn
+   hình). Ở màn rộng bảng chỉ là một khối nhỏ cạnh chuông — che cả trang bằng
+   một lớp mờ ở đó là nặng tay. Nền KHÔNG cuộn sau lưng tấm kín: xem
+   `body.nt-sheet-open` bên dưới. */
+.nt-scrim { display: none; }
 
 @media (max-width: 620px) {
   /* tren mobile: day len thanh sheet sat day man hinh, de mot tay bam */
+  .nt-scrim { display: block; position: fixed; inset: 0; z-index: 39;
+    background: rgba(6, 8, 12, .58); animation: ntFade .18s var(--e-soft) both; }
+  @keyframes ntFade { from { opacity: 0 } to { opacity: 1 } }
+  /* Cuộn nền sau một tấm trải kín đáy màn hình là lỗi ai cũng gặp: người dùng
+     vuốt trong bảng mà trang phía sau lại chạy. Khoá cuộn nền khi tấm đang mở
+     — chỉ ở máy hẹp, và tự nhả khi bảng đóng (Notifications.jsx). */
+  body.nt-sheet-open { overflow: hidden; }
   .nt-pop {
     position: fixed; left: 0; right: 0; top: auto; bottom: 0; width: 100%;
     max-height: 82vh; border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 0;
@@ -2507,7 +3008,11 @@ html[data-section="spin"] .bgfx { display: none; }
    - cam ung (hover:none): glyph lo mo mai, vi o day khong co "re" de phat hien;
    - theo doi la cho CA BAI nen hang ben trong cum khong con chu ong nao ca —
      bo duoc cai "o ghost" 26px dung cho thang cot cua lan truoc. */
-.followbtn {
+/* Nút mảnh cuối dòng meta — hiện dùng cho HAI việc: theo dõi bài (chuông) và
+   chia sẻ bài (mắt xích). Cùng cỡ, cùng chỗ, cùng độ mờ: một nút đậm hơn nút
+   kia ở cạnh nhau là cách nhanh nhất để hàng trông lệch. */
+.rowact {
+  position: relative;
   flex: none; width: 18px; height: 18px; display: inline-grid; place-items: center;
   border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); opacity: 0;
@@ -2520,16 +3025,23 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft);
 }
 /* glyph va cham xep chong len nhau trong cung mot o: doi chi la doi noi dung */
-.followbtn > svg, .followbtn::after { grid-area: 1 / 1 }
+.rowact > svg, .followbtn::after { grid-area: 1 / 1 }
+/* Vùng CHẠM rộng 26px quanh glyph 15px: nới bằng pseudo-element tuyệt đối nên
+   hình không đổi một pixel, hàng không cao thêm — đúng cách pro-max chỉ cho
+   icon nhỏ ("expand the hit area when the visual icon is smaller"). Bản hẹp
+   vẫn giữ hợp đồng 18px→24px trong @media ở dưới. */
+.rowact::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
+/* Phản hồi lúc bấm: thu nhẹ tại chỗ, không đổi kích thước hộp, không đẩy hàng. */
+.rowact:active { transform: scale(.9); }
 .followbtn::after {
   content: ''; width: 4px; height: 4px; border-radius: 50%;
   background: currentColor; opacity: 0;
 }
-.row:hover .followbtn, .grow:hover > .followbtn, .followbtn:focus-visible { opacity: .85; pointer-events: auto }
+.row:hover .rowact, .grow:hover > .rowact, .rowact:focus-visible { opacity: .85; pointer-events: auto }
 /* hàng đang bật thì giữ nguyên độ đậm 1: chấm 4px mà bị giảm xuống .85 lúc rê
    vào là nó nhạt đi đúng lúc người dùng nhìn nó nhất */
 .row:hover .followbtn.on, .grow:hover > .followbtn.on { opacity: 1 }
-.followbtn:hover { color: var(--txt) }
+.rowact:hover { color: var(--txt) }
 .followbtn.on { color: var(--a-2); opacity: 1 }
 .followbtn.on > svg { opacity: 0 }
 .followbtn.on::after { opacity: 1 }
@@ -2537,7 +3049,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .followbtn.on:hover > svg, .followbtn.on:focus-visible > svg { opacity: 1 }
 .row:hover .followbtn.on::after, .grow:hover > .followbtn.on::after,
 .followbtn.on:hover::after, .followbtn.on:focus-visible::after { opacity: 0 }
-@media (hover: none) { .followbtn { opacity: .55; pointer-events: auto } }
+@media (hover: none) { .rowact { opacity: .55; pointer-events: auto } }
 /* CHUONG CUA CA CU NAM O COT LUOI THU HAI, khong neo absolute: .grow-head cao
    theo noi dung (nhan + ten + meta) nen moi so do "top: 15px" deu lech voi mui
    ten; `align-self:center` tu thang hang. Cung nhip: 12px gitua cac nut, 14px
@@ -2548,16 +3060,16 @@ html[data-section="spin"] .bgfx { display: none; }
    — chuong nam rieng mot dong o goc, the card cao them ~40px. Lan sua truoc do
    lech nhieu hon cung vi ly do nay. */
 .grow > .grow-head { grid-area: 1 / 1; min-width: 0; padding-right: 0 }
-.grow > .followbtn { grid-area: 1 / 2; align-self: center; justify-self: end; margin: 0 14px 0 12px; z-index: 2 }
+.grow > .rowact { grid-area: 1 / 2; align-self: center; justify-self: end; margin: 0 14px 0 12px; z-index: 2 }
 .grow > .grow-rows { grid-area: 2 / 1 / 3 / 3 }
 .grow.hl { border-color: var(--a-2); }
 
 @media (max-width: 620px) {
   .row { gap: 8px; }
   /* ban cham: 18px qua nho cho ngon tay; 24px ma khong hop thi hang van ghe */
-  .followbtn { width: 24px; height: 24px }
+  .rowact { width: 24px; height: 24px }
   /* giu dung mot nhip o ban hep: 8px giua cac nut, 10px t mép phai */
-  .grow > .followbtn { margin: 0 10px 0 8px }
+  .grow > .rowact { margin: 0 10px 0 8px }
   .grow-rows-in > .row { padding-right: 10px }
   .votebtn { padding-left: 8px; padding-right: 8px; }
   .standing { margin-left: 0; }
@@ -2567,7 +3079,7 @@ html[data-section="spin"] .bgfx { display: none; }
    được giữa hai chục dòng mà không nhấp nháy mãi */
 @keyframes songHl {
   0%   { background: var(--a-soft); box-shadow: 0 0 0 1px var(--a-2) inset; }
-  70%  { background: var(--a-soft); box-shadow: 0 0 0 1px rgba(135,130,250,.45) inset; }
+  70%  { background: var(--a-soft); box-shadow: 0 0 0 1px rgba(169,164,255,.45) inset; }
   100% { background: transparent; box-shadow: 0 0 0 1px transparent inset; }
 }
 .row.hl, .grow.hl { animation: songHl 2.6s var(--e-soft) both; }
@@ -2592,16 +3104,17 @@ html[data-section="spin"] .bgfx { display: none; }
   opacity: .55; pointer-events: none;
 }
 
-/* 2) Empty / loading state (xuất hiện ở mọi trang): thêm một "chấm" mềm làm
-   tiêu điểm để khối trống không còn là một ô chữ lơ lửng; chữ nhấc lên một
-   bậc tương phản cho đọc được trên nền sọc. */
-.empty { color: var(--txt-2); padding: 44px 20px; }
-.empty::before {
-  content: ''; display: block; width: 34px; height: 34px; margin: 0 auto 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-}
+/* 2) EMPTY / LOADING (mọi trang). Trước đây khối này được định nghĩa BA lần ở
+   ba chỗ khác nhau và lớp sau đè lớp trước — sửa một chỗ là hai chỗ kia im
+   lặng cãi lại. Nay một định nghĩa: hình tròn có icon, câu kết luận đậm, và
+   một dòng gợi ý nhỏ. Dùng được cho cả trạng thái đang tải (role="status"). */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 40px 20px; text-align: center; color: var(--txt-2); font-size: 13px; }
+.empty-ico { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 6px;
+  border: 1px solid var(--line-2); border-radius: 50%; color: var(--txt-3);
+  background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%); }
+.empty b { font-family: var(--display); font-size: 13.5px; font-weight: 700; color: var(--txt); }
+.empty small { color: var(--txt-3); font-size: 12px; max-width: 36ch; line-height: 1.6; }
 
 /* 3) Login — ấn tượng đầu tiên: quầng nhấn rất loãng tỏa từ mép trên xuống,
    nằm trong khối kính (z-index âm để dưới nội dung, trên nền khối). */
@@ -2621,23 +3134,553 @@ html[data-section="spin"] .bgfx { display: none; }
    ADMIN — tổng quan đường ống + hàng dạng thẻ
    ---------------------------------------------------------
    Trước: danh sách phẳng ngăn cách bằng border-bottom, quét lâu mới biết
-   trạng thái. Nay: dải chấm màu (.adm-sum) cho cái nhìn toàn cục, và mỗi
-   hàng là một thẻ riêng có hover để mắt không trôi giữa hai chục dòng.
+   trạng thái. Nay: dải số liệu ở đầu trang (vừa tổng quan vừa chuyển mục), và
+   mỗi hàng là một thẻ riêng có hover để mắt không trôi giữa hai chục dòng.
    ========================================================= */
-.adm-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
-.adm-sum-i {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--r-pill);
-  background: var(--surface-2); font-size: 11.5px; color: var(--txt-2);
-}
-/* chấm màu lấy đúng màu trạng thái gán inline (--sc) và tỏa nhẹ cho dễ quét */
-.adm-sum-i i { width: 7px; height: 7px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 8px var(--sc); }
-.adm-sum-i b { font-family: var(--mono); font-weight: 600; color: var(--txt); }
 
 .adm {
   flex-wrap: wrap; padding: 12px 14px; margin-bottom: 8px;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface);
   transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
 }
-.adm:last-child { margin-bottom: 0; border-bottom: 1px solid var(--line); }
+/* Hàng cuối KHÔNG vẽ thêm đường dưới: từ vòng 12 mỗi hàng là một THẺ có viền
+   riêng (luật `.adm` ở trên), nên đường kẻ của bản danh sách cũ chỉ còn là một
+   vạch thừa nằm ngay trên đáy khung. Luật gốc `.adm:last-child { border-bottom:
+   0 }` đã đúng; dòng dưới từng ghi đè nó, làm hàng cuối có viền dưới còn hàng
+   giữa thì không — nhìn như khung bị lệch. */
+.adm:last-child { margin-bottom: 0; }
 .adm:hover { border-color: var(--line-2); background: var(--surface-2); }
+
+
+/* =========================================================
+   BỐ CỤC BẢNG — nội dung chính + cột video (≥1300px)
+   ---------------------------------------------------------
+   Trước: MỘT cột dọc, nên trên màn 1440px trở lên khối nội dung chỉ
+   rộng 1060px giữa hai khoảng trắng, mà phía trên danh sách request
+   phải xếp lần lượt: dải thống kê → sân khấu video (cao ~430px) → Up
+   next → Vote của bạn → tiêu đề mục → thanh công cụ. Người vào để
+   xem/xin bài phải cuộn hơn một màn hình mới thấy hàng request đầu
+   tiên, trong khi bề ngang còn thừa.
+
+   Nay: hai cột. Cột trái là việc chính của trang (thống kê, Up next,
+   vote của bạn, danh sách). Cột phải là video của kênh — đúng vai một
+   cột "xem thêm": có thì tốt, không có thì trang vẫn đủ. Bề rộng cột
+   video cố định 336px, cột nội dung co giãn nên màn rộng bao nhiêu
+   cũng chỉ ăn vào khoảng trống, không kéo giãn hàng request.
+
+   Ngưỡng 1300px không phải con số cho đẹp: từ 900px trở lên, `.shell` đã
+   chừa 252px cho sidebar, nên bề ngang thật của `.main` là (viewport - 252).
+   Muốn cột nội dung còn ≥650px — mức tối thiểu để một hàng request không
+   phải xuống dòng ở tên bài — thì cần 650 + 24 (khe) + 320 (cột video) +
+   52 (lề) + 252 = 1298px. Dưới ngưỡng đó, hai cột sẽ bóp hàng request chứ
+   không phải tận dụng khoảng trống, nên về một cột.
+
+   Dưới 1300px: về lại một cột theo đúng thứ tự DOM (thống kê → video →
+   Up next → vote → danh sách) — thứ tự này là thứ tự đọc tốt nhất từ
+   trên xuống, nên bản hẹp không cần đổi gì.
+   ========================================================= */
+.board { display: grid; grid-template-columns: minmax(0, 1fr); }
+/* Khoảng cách giữa các khối do MỘT nhịp `gap` quyết định, không để mỗi
+   khối tự mang margin-bottom (22 · 24 · 26 · 4px cộng dồn: nhìn kỹ là thấy
+   các khối không đều nhau, mà sửa một chỗ là ba chỗ lệch theo). */
+.board > * { margin: 0; }
+.board { gap: 22px; }
+
+.board-list { display: flex; flex-direction: column; min-width: 0; }
+.board-list .pager { margin-top: 12px; }
+
+@media (min-width: 1300px) {
+  /* rộng hơn 1060px một chút để sau khi trừ cột video vẫn còn ~740px cho
+     hàng request — vẫn là một cột chữ dễ đọc, không phải bảng kéo ngang */
+  .main { max-width: 1140px; }
+  .board {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-areas:
+      "stats media"
+      "now   media"
+      "votes media"
+      "list  media";
+    align-items: start;
+    column-gap: 26px;
+  }
+  .board > .stats     { grid-area: stats; }
+  .board > .nowbar    { grid-area: now; }
+  .board > .votepanel { grid-area: votes; }
+  .board > .board-list { grid-area: list; }
+  .board > .pick      { grid-area: media; }
+
+  /* ---- cột video: sân khấu hết bị ghim giữa trang, dải mục lục xếp dọc ---- */
+  .board .pick-hero { max-width: none; }
+  .board .pick-nav { width: 38px; height: 38px; margin-top: -19px; }
+  .board .pick-nav.prev { left: 7px; }
+  .board .pick-nav.next { right: 7px; }
+  .board .pick-cap { padding: 34px 12px 10px; }
+  .board .pick-cap b { font-size: 14.5px; }
+  .board .pvlist {
+    flex-direction: column; gap: 4px;
+    overflow: visible; scroll-snap-type: none; padding: 0;
+  }
+  /* hàng ngang: ảnh 112px bên trái, tên bên phải — cùng dạng với danh sách
+     "video mới" quen thuộc, đọc được cả tên dài trong bề ngang 336px */
+  .board .pvrow { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 10px; padding: 5px; }
+  .board .pvrow:hover { transform: none; background: var(--panel-3); border-color: var(--line-2); }
+  .board .pv-thumb { flex: none; width: 112px; }
+  .board .pv-thumb .mthumb { border-radius: var(--radius); }
+  .board .pv-tx { padding: 0 6px 0 0; }
+  .board .pv-tx b { font-size: 12.5px; line-height: 1.4; }
+  .board .pvrow:hover .mthumb > img { transform: scale(1.04); }
+}
+
+/* Bản hẹp: cột video trở lại dải cuộn ngang như cũ — .pick-hero đã có
+   max-width 760px của nó, không cần gì thêm. */
+
+
+/* Nút "Copy credits" trong hàng admin: đổi nhãn tại chỗ sau khi copy thay vì
+   bật toast. Toast nằm ở góc màn hình còn mắt đang ở giữa bảng; nhãn nút đổi
+   ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
+   nhiều thông báo nổi. */
+.adm-copy.done { color: var(--done); border-color: rgba(76,186,136,.4); }
+
+/* =========================================================================
+   VÒNG 8 — NHÃN, THANH LỌC, HỘP VOTE, VÀ BẢNG ADMIN THÀNH TRANG RIÊNG
+   ========================================================================= */
+
+/* ---- NHÃN nằm trong hộp .tags ------------------------------------------
+   Nhãn đặt trần trong một dòng chữ thì khi xuống hàng chúng dính vào nhau:
+   không có `row-gap`, và `line-height` của dòng văn bản không phải khoảng cách
+   thiết kế. Mọi cụm nhãn đi qua .tags để có wrap + hai trục gap. */
+.tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0;
+  max-width: 100%; }
+.tags.wide { display: flex; width: 100%; }
+/* dòng chữ đứng cạnh nhãn phải co được, nếu không nhãn bị đẩy ra ngoài khung */
+.tags .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { row-gap: 6px; }
+.row .title .tags { margin-left: 2px; }
+.nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
+
+/* ---- THANH LỌC -----------------------------------------------------------
+   MỘT thanh, HAI hàng, MỘT thứ tự cho mọi bề rộng:
+     · hàng 1 — ô tìm kiếm (việc chính, đứng trước theo thứ tự bàn phím), dải
+       chip trạng thái (đi ngang được, mỗi chip mang màu giai đoạn nó lọc), và
+       con số đếm kết quả;
+     · hàng 2 — chip loại bài + lối thoát "Bỏ hết lọc", luôn hiện từ 621px.
+   Máy hẹp KHÔNG có bố cục thứ hai: đúng thứ tự đó xuống dòng — ô tìm + nút
+   Bộ lọc ở hàng trên, dải chip ở hàng dưới, hàng 2 gấp sau nút Bộ lọc. Trước
+   đây thanh này có hai bộ luật chồng nhau (bản cũ ≤620px và bản v3), nên mỗi
+   bề rộng lại ra một hình dạng khác, mép không thẳng hàng với danh sách.
+
+   Thanh là một KHỐI CÓ VIỀN nằm trong cột nội dung (không tràn ra ngoài bằng
+   lề âm) — mép trái của nó trùng mép trái của danh sách request ngay dưới.
+   KHÔNG DÍNH MÉP TRÊN (vòng 13: "đừng để cái filter search bar floating lúc cuộn
+   trang"). Trước đây thanh `position: sticky; top: 0` và khi dính thì đổi nền,
+   thêm viền + bóng — nhưng ở máy hẹp nó là một khối cao gần nửa màn hình (ô tìm
+   + dải chip + nút Bộ lọc), nên nó phủ lên danh sách request suốt lúc cuộn, và
+   người dùng đọc đúng như một lỗi. Nay thanh là một KHỐI TRONG DÒNG: cuộn qua
+   nó thì nó đi theo trang. Đổi lại, nút "lên đầu trang" (đã có sẵn, góc phải
+   dưới) là đường về thanh lọc — không phải một thanh chiếm màn hình.
+   Mép trái/phải của thanh vẫn TRÙNG mép danh sách: lề âm làm nó thò ra ngoài
+   cột nội dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
+.fbar {
+  animation: rise .42s var(--e-out) .05s both;
+  display: grid; gap: 9px;
+  padding: 10px 12px; margin: 0 0 12px;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel);
+  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
+}
+.fbar-top { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
+.fbar .search { width: 100%; max-width: none; }
+.fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
+/* chip loại bài: cùng khuôn với chip trạng thái nhưng KHÔNG đếm số — con số
+   đó phụ thuộc trạng thái đang lọc nên nếu in ra sẽ mâu thuẫn với danh sách
+   ngay bên dưới nó. Chip loại chỉ để chọn, không để đếm. */
+.fchips.kinds { flex: 1 1 auto; }
+.fchip.kind { padding: 6px 11px; font-size: 12px; }
+.fchip.kind.on { background: color-mix(in srgb, var(--c) 16%, var(--surface-2)); }
+/* Con số đếm kết quả của THANH LỌC. Phải gọi đúng tên `.fbar .fcount`: trong
+   form request cũng có một `.fcount` (bộ đếm ký tự nằm trong ô nhập, khác hẳn
+   về vị trí lẫn ý nghĩa). Một luật trần `.fcount` ở đây sẽ kéo theo bộ đếm của
+   form — đúng kiểu hai thứ khác nhau dùng chung một cái tên. */
+.fbar .fcount { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
+/* nút mở khối lọc trên máy hẹp — chỉ hiện ở đó */
+.fmore { display: none; flex: none; align-items: center; gap: 7px; padding: 0 12px; height: 34px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--txt-2); font: 500 12.5px/1 var(--font); cursor: pointer; }
+.fmore b { min-width: 16px; padding: 2px 5px; border-radius: var(--r-pill); background: var(--a-soft);
+  color: var(--a-2); font-family: var(--mono); font-size: 10.5px; }
+.fmore.on { color: var(--txt); border-color: var(--a-dim); background: var(--surface-3); }
+/* HÀNG LỌC THỨ HAI — trước đây chỉ được mở trong `@media (max-width: 620px)`,
+   mà nút mở nó (`.fmore`) cũng chỉ hiện ở đó: trên desktop KHÔNG có cách nào
+   chọn loại bài. Nay nó là hàng thứ hai LUÔN hiện của thanh lọc; máy hẹp mới
+   gấp lại sau nút "Bộ lọc". */
+.fbar-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Trên màn rộng, con số kết quả đã in ở hàng trên (`.fcount`); dòng tóm tắt
+   chỉ còn để giữ lối thoát. In lại con số ở đây là hai chỗ nói cùng một điều. */
+.fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
+  font-size: 11.5px; color: var(--txt-3); }
+@media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; } }
+
+/* TỪ 899px TRỞ XUỐNG: đúng một thứ tự, chỉ đổi chỗ xuống dòng. Dải chip cần
+   trọn một hàng (7 chip không còn chỗ chen với ô tìm), còn ô tìm + số đếm ở
+   hàng trên. Không dùng `order` — thứ tự nhìn phải trùng thứ tự Tab. */
+@media (max-width: 899px) {
+  .fbar-top { flex-wrap: wrap; row-gap: 8px; }
+  .fbar-top > .searchwrap { flex: 1 1 auto; min-width: 0; }
+  .fchips { flex: 1 1 100%; }
+  .fbar-side { flex: none; }
+}
+
+@media (max-width: 620px) {
+  /* Ở màn hẹp, nút Bộ lọc đã mang con số "đang lọc mấy thứ", và chỗ của con
+     số đếm kết quả là hàng dưới của danh sách — ẩn nó ở đây, không ẩn bộ đếm
+     ký tự của form (xem chú thích ở khối THANH LỌC). */
+  .fbar .fcount { display: none; }
+  .fmore { display: inline-flex; }
+  /* chip loại bài trong khối gấp: xuống dòng cho thấy HẾT, không bắt người dùng
+     đoán là còn nữa phía sau một dải cuộn ngang */
+  .fchips.kinds { flex-wrap: wrap; overflow: visible; }
+  /* máy hẹp: hàng dưới gấp lại, chỉ mở khi bấm nút Bộ lọc */
+  .fbar:not(.open) .fbar-more { display: none; }
+  .fbar.open .fbar-more {
+    display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+    flex: 1 1 100%; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line);
+  }
+  /* dải chip trạng thái đi ngang, snap từng chip — ngón tay vuốt là dừng đúng
+     một chip, không dừng giữa hai chip */
+  .fchips { scroll-snap-type: x proximity; }
+  .fchip { scroll-snap-align: start; }
+  /* chip loại bài đang lọc: chỉ có nghĩa trên máy hẹp (khối lọc gấp lại) */
+  .fchip.onkind { display: inline-flex; }
+}
+
+/* Từ 621px khối lọc thứ hai LUÔN hiện, nên chip "loại đang lọc" ở hàng chính
+   là chỗ thứ hai nói cùng một điều — ẩn nó đi. */
+@media (min-width: 621px) { .fchip.onkind { display: none; } }
+
+/* Ô đang được gõ: cả HỘP sáng lên, không chỉ con trỏ — cùng một tín hiệu với
+   kính lúp đổi màu, và là thứ duy nhất nhìn thấy được khi ô đã có chữ. */
+.searchwrap:focus-within .search { border-color: var(--a-2); }
+
+/* ---- HỘP NHẬP SỐ VOTE (VoteModal) --------------------------------------
+   Trên ĐIỆN THOẠI hộp này là tấm trượt từ đáy lên, không phải một hộp thoại
+   lơ lửng giữa màn hình: nút xác nhận rơi đúng vào vùng ngón cái với tới, và
+   bàn phím số của máy (nếu mở) không đẩy hộp lên khỏi tầm nhìn. Vẫn là cùng
+   một hộp, cùng thứ tự nội dung — chỉ khác chỗ neo và hình dáng trên máy hẹp. */
+@media (max-width: 620px) {
+  .vote-overlay { align-items: flex-end; padding: 0; }
+  .modal.narrow {
+    position: relative;
+    max-width: none; width: 100%;
+    border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheetUp .22s var(--e-out) both;
+  }
+  /* Tay nắm: dấu hiệu "tấm này trượt được", và cũng là chỗ chừa cho phần đầu
+     hộp không bị sát mép trên */
+  .modal.narrow::before {
+    content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: var(--r-pill); background: var(--line-2);
+  }
+  .modal.narrow .modal-head { padding-top: 16px; }
+}
+@keyframes sheetUp { from { opacity: .7; transform: translateY(16px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .modal.narrow { animation: none } }
+/* Máy cảm ứng: mức chọn nhanh và nút tăng/giảm phải đủ to cho ngón tay */
+
+/* Máy cảm ứng: mức chọn nhanh và nút tăng/giảm phải đủ to cho ngón tay */
+@media (pointer: coarse) {
+  .vm-preset { min-width: 54px; height: 44px; }
+  .qty button { min-width: 44px; height: 44px; }
+}
+
+/* ---- HỘP NHẬP SỐ VOTE (VoteModal) — phần thân --------------------------- */
+.vm-hero { display: grid; gap: 3px; padding: 14px 16px; border-radius: var(--r-md);
+  border: 1px solid var(--line-2); background: var(--surface-2); text-align: center; }
+.vm-hero .k { font-size: 11px; letter-spacing: .2px; color: var(--txt-3); }
+.vm-hero .v { font-family: var(--mono); font-size: 34px; font-weight: 600; line-height: 1.05;
+  color: var(--txt); font-variant-numeric: tabular-nums; }
+.vm-hero .u { font-size: 11.5px; color: var(--txt-3); }
+.vm-hero .v.pop { animation: vmPop .34s var(--e-pop) both; }
+@keyframes vmPop { 0% { opacity: .4; transform: scale(.9) } 100% { opacity: 1; transform: none } }
+/* dãy chọn nhanh: 1 · 5 · 10 · tất cả */
+.vm-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.vm-preset { min-width: 46px; height: 32px; padding: 0 11px; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--txt-2); font: 500 12.5px/1 var(--mono); transition: .13s; }
+.vm-preset:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
+.vm-preset.on { color: var(--txt); border-color: var(--a-dim); background: var(--a-soft); }
+.vm-preset:disabled { opacity: .4; cursor: not-allowed; }
+/* tóm tắt "trước → sau": người dùng thấy hậu quả trước khi bấm */
+/* MỘT dòng "còn 7 → còn 3": người dùng thấy hậu quả trước khi bấm, và phần
+   nguồn phiếu viết bằng chữ ngay sau đó — bỏ ba ô chip và vạch chia tỉ lệ của
+   vòng 10 (ba khung viền + một vạch màu cho cùng một câu là đúng thứ làm hộp
+   vote bị chê "quá rối"). */
+.vm-after { display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 7px; margin-top: 11px; font-size: 12px; color: var(--txt-3); }
+.vm-after b { font-family: var(--mono); font-size: 13px; color: var(--txt); }
+.vm-after .arw { color: var(--txt-3); }
+.vm-after .good { color: var(--done); }
+.vm-after .bad { color: var(--denied); }
+.vm-after .vm-src { font-family: var(--mono); font-size: 11px; color: var(--txt-3); }
+.vm-song { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+
+/* ---- BẢNG ADMIN — TRANG RIÊNG ------------------------------------------ */
+.adm-page { display: grid; gap: 14px; }
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 8px; }
+.adm-kpi {
+  display: grid; gap: 3px; padding: 11px 13px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  font-family: inherit; transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.adm-kpi:hover { border-color: var(--line-2); background: var(--surface-3); }
+.adm-kpi.on { border-color: color-mix(in srgb, var(--sc) 55%, transparent);
+  background: color-mix(in srgb, var(--sc) 12%, var(--surface-2)); }
+.adm-kpi .k { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--txt-2); }
+.adm-kpi .k i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--sc); }
+.adm-kpi .v { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums; }
+.adm-kpi.on .v { color: var(--sc); }
+.adm-kpi:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+
+/* TIÊU ĐỀ CỦA MỤC ĐANG MỞ. Dải số liệu là bộ chuyển mục, nên nó không thể
+   vừa là tiêu đề; mà một trang quản trị không có tiêu đề nào thì người đọc
+   màn hình chỉ nghe được tên nút. Tên mục + số dòng đang xem đứng ngay trên
+   thanh công cụ: đây là cấp h2 của trang (h1 là tên trang). */
+.adm-h2 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px;
+  font-size: 14px; font-weight: 600; color: var(--txt); }
+.adm-h2-n { font-family: var(--mono); font-size: 11.5px; font-weight: 500; color: var(--txt-3); }
+
+.adm-panel { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel);
+  box-shadow: var(--sh-1), var(--ring); padding: 12px 14px 14px; }
+.adm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+/* Mục Videos chỉ có MỘT nút trong thanh công cụ, và nó là việc phụ (mở trang
+   chủ ra xem) nên đứng về phía phải — cùng chỗ với nhóm nút của các mục khác. */
+.adm-bar-end { justify-content: flex-end; }
+.adm-bar .searchwrap { flex: 1 1 200px; min-width: 0; }
+.adm-bar .search { max-width: none; width: 100%; }
+.adm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px;
+  font-size: 11.5px; color: var(--txt-3); }
+/* HAI PHÍM TẮT CỦA TRANG, in ngay chỗ dùng. `Esc` và `Ctrl/Cmd+A` là hai thứ
+   nhanh nhất trong bảng này, mà trước đây chỉ có trong tài liệu — phím tắt
+   không ai biết thì không phải phím tắt. Đẩy về cuối hàng, và tự ẩn trên thiết
+   bị cảm ứng: máy không có bàn phím vật lý thì đừng hứa. */
+/* Dòng phím tắt: đứng cuối hàng khi còn chỗ, tự xuống hàng khi hết — trước
+   đây nó `nowrap` và nằm cùng hàng với nhãn "chọn cả trang", nên trên màn hẹp
+   hai thứ chồng lên nhau (đúng kiểu "ô chữ đè nhau" trong ảnh người dùng gửi). */
+.adm-keys { margin-left: auto; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.adm-keys kbd { white-space: nowrap; }
+@media (pointer: coarse) { .adm-keys { display: none } }
+
+@media (max-width: 620px) {
+  .adm-panel { padding: 11px 11px 13px; }
+  /* Ô tìm kiếm chiếm trọn một hàng, các ô chọn xuống hàng dưới — cùng luật với
+     thanh lọc ngoài trang chủ: trên máy hẹp, ô nhập là việc chính nên nó không
+     chia hàng với ba control khác. */
+  .adm-bar .searchwrap { flex: 1 1 100%; }
+  .adm-bar .sel, .adm-bar .adm-pickbtn { flex: 1 1 auto; }
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* NĂM ô số liệu trong HAI cột để lại một hàng thừa nửa bên phải — một lỗ
+     hổng ở cuối dải trông như thiếu dữ liệu. Ô lẻ cuối cùng kéo dài hết hàng. */
+  .adm-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* ---- FORM GỬI REQUEST --------------------------------------------------- */
+
+/* Dải ba bước. Bước chưa xong là chữ xám + số rỗng; bước xong thì số được tô
+   và có dấu kiểm bằng chính màu nhấn. Đây là bản đồ của form — người dùng biết
+   còn phải làm gì mà không phải cuộn xuống xem còn ô nào trống. */
+/* NHÁP ĐƯỢC KHÔI PHỤC — một dòng, không phải một hộp thoại hỏi han. Nó nói ra
+   vì sao form đã có sẵn chữ (nếu im lặng thì người dùng tưởng trình duyệt tự
+   điền bừa), và lối bỏ nằm ngay cuối dòng vì đó là việc duy nhất còn lại. */
+.draft-note {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 8px 11px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  font-size: 12px; color: var(--txt-2);
+}
+.draft-note .lnk { margin-left: auto; flex: none; font-size: 12px; }
+
+/* DẢI BƯỚC — bộ chỉ báo tiến trình, không phải ba cái nhãn.
+   Cấu trúc: ba mục (số thứ tự trong một vòng tròn + nhãn), giữa hai mục là một
+   đoạn nối. Đoạn nối của bước ĐÃ XONG được tô màu nhấn — vạch tiến trình nằm
+   luôn trong dải bước nên không cần thêm một thanh phần trăm thứ hai. Bước
+   đang đứng: vòng số đặc màu nhấn, chữ sáng nhất. Bước chưa tới: chìm hẳn.
+   Mọi mục đều bấm được (quay lại bước cũ), trừ bước GỬI khi chưa đủ hai ô bắt
+   buộc — nút đó ở trạng thái `disabled` thật, không phải chỉ mờ đi. */
+.req-steps { display: flex; align-items: center; gap: 0; margin: 0 0 14px; padding: 0; list-style: none; }
+.req-step { display: flex; align-items: center; flex: 1 1 0; min-width: 0; gap: 0; }
+.req-step:last-child { flex: 0 0 auto; }
+.rs-btn {
+  /* `flex: 0 1 auto` + min-width:0: bình thường nút giữ nguyên cỡ, nhưng ở máy
+     hẹp nhất (320px) nhãn cắt bằng dấu … thay vì đẩy dải bước tràn ra ngoài thẻ */
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto;
+  padding: 3px 2px; border: 0; background: none; cursor: pointer; font-family: inherit;
+  color: var(--txt-3); font-size: 12px; font-weight: 500; line-height: 1.25; text-align: left;
+  border-radius: var(--radius);
+  transition: color var(--t-1) var(--e-soft);
+}
+.rs-btn:hover:not(:disabled) { color: var(--txt-2); }
+.rs-btn:disabled { cursor: default; opacity: .55; }
+.rs-btn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.rs-n {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface-2);
+  font: 600 11px/1 var(--mono); color: var(--txt-3);
+  transition: background var(--t-2) var(--e-soft), border-color var(--t-2) var(--e-soft),
+    color var(--t-2) var(--e-soft);
+}
+.rs-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* đoạn nối: một vạch mảnh chạy giữa hai vòng số, tô dần theo tiến trình */
+.rs-line { flex: 1 1 auto; height: 2px; min-width: 10px; margin: 0 9px; border-radius: 2px;
+  background: var(--line); transition: background var(--t-3) var(--e-soft); }
+.req-step.done .rs-line { background: color-mix(in srgb, var(--a-2) 55%, var(--line)); }
+.req-step.done .rs-n { color: var(--a-2); border-color: var(--a-dim); background: var(--a-soft); }
+.req-step.done .rs-btn { color: var(--txt-2); }
+.req-step.on .rs-btn { color: var(--txt); font-weight: 600; }
+.req-step.on .rs-n { color: #fff; border-color: var(--a); background: var(--a); font-weight: 700; }
+@media (max-width: 620px) {
+  /* MÁY HẸP: đủ ba vòng số, nhưng chỉ MỞ NHÃN của bước đang đứng. Ba nhãn đầy
+     đủ cộng ba vòng số không vừa một hàng ở 320–620px; mà ba cái nhãn bị cắt
+     cụt thì không giúp ai đọc. Vòng số + nhãn của bước hiện tại là đủ để biết
+     "đang ở đâu / còn mấy bước". */
+  .rs-t { display: none; font-size: 11px; }
+  .req-step.on .rs-t { display: inline; }
+  .rs-line { margin: 0 6px; min-width: 6px; }
+  .rs-btn { gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-line, .rs-n { transition: none; }
+}
+
+/* MỘT BƯỚC = MỘT MÀN. Đổi bước là một nhịp vào rất ngắn (150ms) — chỉ mờ dần
+   và nhích lên 4px, không trượt ngang: form không phải băng chuyền. */
+.req-pane { animation: paneIn .18s var(--e-out) both; }
+@keyframes paneIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .req-pane { animation: none } }
+
+/* CHỌN LOẠI BÀI: một hàng chip, không phải bốn tấm thẻ.
+   Bốn thẻ kèm bốn câu giải thích chiếm gần một phần ba chiều cao form và bắt
+   mắt đọc bốn câu để chọn một. Chip giữ nguyên màu của từng loại (cùng token
+   với nhãn `.kind` trên bảng) nên vẫn nhận ra loại bằng màu, còn lời giải thích
+   dồn xuống MỘT dòng bên dưới, đổi theo lựa chọn. */
+.kindpicks { display: flex; flex-wrap: wrap; gap: 7px; min-width: 0; }
+.kchip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--txt-2);
+  font: 500 12.5px/1 var(--font); font-family: inherit; cursor: pointer;
+  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
+    color var(--t-1) var(--e-soft);
+}
+.kchip:hover { background: var(--surface-3); color: var(--txt); }
+.kchip.on { color: var(--txt); font-weight: 600; }
+.kchip.on.ccl   { border-color: color-mix(in srgb, var(--k-ccl) 52%, transparent);   background: color-mix(in srgb, var(--k-ccl) 15%, var(--surface-2)); }
+.kchip.on.album { border-color: color-mix(in srgb, var(--k-album) 52%, transparent); background: color-mix(in srgb, var(--k-album) 15%, var(--surface-2)); }
+.kchip.on.loop  { border-color: color-mix(in srgb, var(--k-loop) 52%, transparent);  background: color-mix(in srgb, var(--k-loop) 15%, var(--surface-2)); }
+.kchip.on.short { border-color: color-mix(in srgb, var(--k-short) 52%, transparent); background: color-mix(in srgb, var(--k-short) 15%, var(--surface-2)); }
+.kchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+/* Nút mở ô ghi chú — ô TUỲ CHỌN duy nhất của form. Nét đứt, chữ nhạt: nó là
+   một lời mời, không phải một ô nhập đang chờ bị bỏ trống. */
+.note-add {
+  display: inline-flex; align-items: center; gap: 7px; align-self: start;
+  padding: 8px 13px; border: 1px dashed var(--line-2); border-radius: var(--r-pill);
+  background: none; color: var(--txt-3); font: 500 12.5px/1 var(--font);
+  cursor: pointer; transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+}
+.note-add:hover { color: var(--txt); border-color: var(--a-dim); }
+.note-add:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.note-field { gap: 0 }
+
+/* Ô nhập có bộ đếm ký tự ở mép phải. Bộ đếm nằm TRONG khung nhập (absolute)
+   nên không làm ô cao lên khi nó xuất hiện ở ký tự thứ 85. */
+.fin { position: relative; }
+.fin .fcount {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  font: 400 10.5px/1 var(--mono); color: var(--txt-3); pointer-events: none;
+  background: var(--bg-2); padding: 1px 3px; border-radius: 3px;
+}
+.fin input { padding-right: 52px; }
+.fhint { margin: 5px 0 0; font-size: 11px; line-height: 1.5; color: var(--txt-3); }
+.ferr { margin: 5px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--denied); }
+.ferr.warn { color: var(--progress); }
+/* Link đã nhận ra: cùng chỗ với gợi ý, chỉ đổi màu — một dòng chữ, hai trạng
+   thái, không thêm dòng nào vào form. */
+.fhint.ok { color: var(--done) }
+
+/* =========================================================
+   THẺ XEM TRƯỚC TRONG FORM REQUEST
+   ---------------------------------------------------------
+   Dựng theo ĐÚNG cấu trúc một hàng trên bảng (nhãn loại bài + "Nghệ sĩ — Bài")
+   để người gửi nhận ra ngay mình đang tạo ra cái gì. Khác một chỗ: đây là khối
+   TĨNH, chữ mờ thay cho chỗ chưa điền — nên nó không tranh sự chú ý với các ô
+   nhập phía trên, chỉ đứng dưới làm điểm tựa.
+   Ảnh bìa YouTube bên phải: i.ytimg.com, không API key, không tốn quota free.
+   ========================================================= */
+.req-preview {
+  margin-top: 14px; padding: 10px 11px 11px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: rgba(255, 255, 255, .015);
+}
+.rp-bar {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .3px; color: var(--txt-3);
+}
+.rp-bar .rp-yt { margin-left: auto; color: var(--done); letter-spacing: .4px; text-transform: none }
+.rp-row { display: flex; align-items: flex-start; gap: 9px; }
+.rp-row > .kind { flex: none; margin-top: 1px }
+.rp-tx { min-width: 0; flex: 1; font-size: 13px; line-height: 1.45 }
+.rp-tx b { font-weight: 600 }
+.rp-dash { margin: 0 5px; color: var(--txt-3) }
+.rp-tx .ph { color: var(--txt-3) }
+.rp-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px;
+  font-size: 11px; color: var(--txt-3) }
+.rp-thumb {
+  flex: none; width: 84px; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--bg-2);
+}
+/* Ô đang sai: viền đỏ + một vạch mảnh bên trái. Viền một mình đủ để mắt thấy
+   nhưng không đủ để thấy khi đang nhìn giữa form. */
+.field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: rgba(226,110,105,.6); }
+.field input[aria-invalid="true"]:focus { border-color: var(--denied); }
+
+/* Bảng nội quy: đánh số bằng vòng tròn để mỗi điều là một mục đọc được, thay
+   vì một khối chữ 5 dòng. */
+.rules ol { padding-left: 0; list-style: none; }
+.rules ol li { display: flex; gap: 9px; align-items: flex-start; }
+.rules ol li b {
+  flex: none; width: 19px; height: 19px; display: grid; place-items: center; margin-top: 1px;
+  border-radius: 50%; background: var(--surface-3); color: var(--txt-2);
+  font: 600 10.5px/1 var(--mono);
+}
+
+@media (max-width: 620px) {
+  /* hai ô tên bài cạnh nhau trên máy hẹp thì mỗi ô còn ~150px — xuống một cột */
+  .field-row { grid-template-columns: minmax(0, 1fr); }
+  .kindpicks { grid-template-columns: minmax(0, 1fr); }
+  .rp-thumb { width: 68px; }
+}
+
+/* ---- LƯỚI AN TOÀN CỦA MỘT KHỐI (Boundary) -------------------------------
+   Khi một vùng của trang ném lỗi trong lúc vẽ, React tháo cả cây — người dùng
+   chỉ thấy trang trắng. Khối này giữ chỗ bằng một tấm bảng đọc được: nói vùng
+   nào hỏng, phần còn lại vẫn dùng được, và có nút dựng lại. */
+.boundary { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 12px; align-items: start;
+  padding: 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel); }
+.boundary-ico { color: var(--denied); margin-top: 1px; }
+.boundary-tx { min-width: 0; }
+.boundary-tx b { display: block; font-size: 13.5px; color: var(--txt); }
+.boundary-tx p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--txt-2); }
+.boundary-tx small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
+.boundary-why { grid-column: 1 / -1; font-size: 11.5px; color: var(--txt-3); }
+.boundary-why summary { cursor: pointer; }
+.boundary-why code { display: block; margin-top: 5px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--surface-3); font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .boundary { grid-template-columns: auto 1fr; }
+  .boundary .btn { grid-column: 1 / -1; width: 100%; }
+}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import Check from './Check'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { isPicked, timeAgo } from '../lib/meta'
 import { groupNotices, ownNotices, otherNotices, unreadCount } from '../lib/watch'
@@ -41,13 +43,54 @@ const PREF_ROWS = [
 export default function Notifications({
   open = false, notices = [], rowsByKey, rank, prefs,
   startTab = 'list', onToggle, onOpenNotice, onReadAll, onDrop, onBrowse, onVote,
-  onPrefs, onClose,
+  onBuy = null, onPrefs, onClose,
 }) {
   const { t } = useI18n()
   const [tab, setTab] = useState(startTab)
   const box = useRef(null)
+  const pop = useRef(null)
+  const bell = useRef(null)
   const unread = unreadCount(notices)
   const label = unread ? t('nt.ariaUnread', { n: unread }) : t('nt.aria')
+
+  /* TIÊU ĐIỂM ĐI THEO BẢNG (vòng 12).
+     Bảng là một hộp thoại (role="dialog") nhưng trước đây tiêu điểm ở lại trên
+     nút chuông: người dùng bàn phím mở bảng xong vẫn đang đứng ngoài bảng, Tab
+     tiếp theo đi tiếp trong trang chứ không vào danh sách tin. Nay: mở thì đưa
+     tiêu điểm vào chính bảng, đóng thì TRẢ VỀ NÚT CHUÔNG — đúng đường đi của
+     một hộp thoại không chặn trang (pattern disclosure của preline: trigger giữ
+     aria-expanded + aria-controls, panel nhận tiêu điểm khi mở). */
+  useEffect(() => {
+    if (!open) return
+    /* Giữ phần tử ở biến cục bộ: trong hàm dọn, `bell.current` có thể đã trỏ
+       sang phần tử khác (hoặc null) — chỗ cần trả tiêu điểm về là nút ĐÃ mở
+       bảng này, không phải nút nào đang ở đó lúc đóng. */
+    const back = bell.current
+    pop.current?.focus()
+    const onKey = (e) => {
+      if (e.key !== 'Tab' || !pop.current) return
+      /* Vòng Tab khép kín trong bảng: bảng nổi trên trang, để Tab đi ra ngoài
+         là người dùng lạc khỏi chỗ vừa mở. */
+      const f = pop.current.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')
+      if (!f.length) return
+      const first = f[0]
+      const last = f[f.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && (active === first || active === pop.current)) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    /* Máy hẹp: bảng là tấm trải kín đáy màn hình, nên nền KHÔNG được cuộn sau
+       lưng nó (cuộn nền sau một tấm kín là lỗi ai cũng gặp mà ít ai gọi tên).
+       Chỉ khoá ở máy hẹp — màn rộng bảng chỉ là một khối nhỏ cạnh chuông. */
+    const narrow = window.matchMedia?.('(max-width: 620px)')
+    if (narrow?.matches) document.body.classList.add('nt-sheet-open')
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.classList.remove('nt-sheet-open')
+      back?.focus()
+    }
+  }, [open])
 
   /* Esc + click ra ngoài là đóng. Bảng chỉ là lớp phủ: tin vẫn còn nguyên
      trong hộp thư, mở lại lúc nào cũng còn (bản đầu làm ngược lại). */
@@ -69,34 +112,46 @@ export default function Notifications({
 
   return (
     <div className="nt" ref={box}>
-      <button type="button" className={`nt-btn${unread ? ' has' : ''}`} onClick={onToggle}
-        aria-expanded={open} aria-haspopup="dialog" aria-label={label} title={label}>
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-          <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7Z" />
-            <path d="M10.3 19a2 2 0 0 0 3.4 0" />
-            {unread > 0 && <path d="M12 2v2" />}
-          </g>
-        </svg>
-        {unread > 0 && <span className="dotbadge">{unread > 9 ? '9+' : unread}</span>}
+      <button type="button" className={`nt-btn${unread ? ' has' : ''}`} ref={bell} onClick={onToggle}
+        aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? 'nt-panel' : undefined}
+        aria-label={label} title={label}>
+        <Icon name={unread > 0 ? 'bellOn' : 'bell'} size={16} />
+        {/* `key={unread}` để con số MỌC LÊN mỗi lần số tin đổi (animation ở
+            .nt-btn .dotbadge) — nếu không, React dùng lại đúng thẻ đó và nhịp
+            nảy chỉ chạy một lần duy nhất trong cả phiên. */}
+        {unread > 0 && <span className="dotbadge" key={unread}>{unread > 9 ? '9+' : unread}</span>}
       </button>
 
+      {/* Vùng live DUY NHẤT của chuông: số tin chưa đọc tự báo khi nó đổi (nhãn
+          của nút chỉ được đọc lúc người dùng focus vào nút). Luôn có mặt trong
+          DOM — trình đọc màn hình chỉ thông báo nội dung THAY ĐỔI bên trong một
+          vùng đã tồn tại, nên đừng mount nó cùng lúc với con số. */}
+      <span className="sr-only" role="status" aria-atomic="true">
+        {unread ? t('nt.liveUnread', { n: unread }) : ''}
+      </span>
+
+      {/* TẤM CHẮN chỉ hiện ở máy hẹp (CSS ẩn ở màn rộng): bảng trải kín đáy màn
+          hình thì phải có gì đó nói rằng phần còn lại của trang đang tạm gác, và
+          bấm vào đó là đóng. Nó là ANH EM của bảng, không phải con — con của một
+          khối `overflow: hidden` thì không phủ được ra ngoài khối. */}
+      {open && <div className="nt-scrim" aria-hidden="true" onMouseDown={() => onClose?.()} />}
       {open && (
-        <div className="nt-pop" role="dialog" aria-label={t('nt.title')}>
+        <div className="nt-pop" id="nt-panel" role="dialog" aria-label={t('nt.title')}
+          ref={pop} tabIndex={-1}>
           {tab === 'prefs' ? (
             <>
               <header className="nt-head">
                 <button type="button" className="nt-back" onClick={() => setTab('list')} aria-label={t('nt.back')}>
-                  <span aria-hidden="true">‹</span>{t('nt.backShort')}
+                  <Icon name="prev" size={14} />{t('nt.backShort')}
                 </button>
                 <span className="nt-hbtns">
-                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}>×</button>
+                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
                 </span>
               </header>
               <div className="nt-list nt-prefs">
                 {PREF_ROWS.map(([k, name, note]) => (
                   <label className="nt-pref" key={k}>
-                    <input type="checkbox" checked={!!prefs?.[k]}
+                    <Check checked={!!prefs?.[k]}
                       onChange={e => onPrefs?.({ [k]: e.target.checked })} />
                     <span className="nt-pref-tx">
                       <b>{t(name)}</b>
@@ -109,7 +164,7 @@ export default function Notifications({
           ) : (
             <>
               <header className="nt-head">
-                <b>{t('nt.title')}</b>
+                <h2 className="nt-h2">{t('nt.title')}</h2>
                 {unread > 0 && <span className="nt-count">{unread}</span>}
                 <span className="nt-hbtns">
                   {unread > 0 && (
@@ -117,14 +172,9 @@ export default function Notifications({
                   )}
                   <button type="button" className="icon-btn" aria-label={t('nt.settings')} title={t('nt.settings')}
                     onClick={() => setTab('prefs')}>
-<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-                      <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                        <path d="M3 8h9M17.5 8H21M3 16h4M12.5 16H21" />
-                        <circle cx="14.5" cy="8" r="2.4" /><circle cx="9.5" cy="16" r="2.4" />
-                      </g>
-                    </svg>
+                    <Icon name="settings" size={15} />
                   </button>
-                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}>×</button>
+                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
                 </span>
               </header>
 
@@ -164,7 +214,8 @@ export default function Notifications({
                       {g.items.map(n => (
                         <Item key={n.id} n={n} st={rank?.get(n.key)} row={rowsByKey?.get(n.key) || null}
                           grp={t(`nt.grp.${g.id}`)}
-                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote} />
+                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote}
+                          onBuy={onBuy} />
                       ))}
                     </section>
                     )
@@ -184,7 +235,7 @@ export default function Notifications({
    Ca dong la mot nut bam: bo qua hop thoai trung gian, nhay thang toi dong
    request cua bai do tren bang (App lo). Nut hanh dong nhanh nam NGOAI nut do,
    khong long trong — `button` trong `button` la HTML hong. */
-function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
+function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
   const c = TONE[n.type] || 'var(--txt-3)'
   const tag = t(`nt.tag.${n.type}`)
   const url = row?.video_url || n.url || null
@@ -202,7 +253,7 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
           <span className="nt-meta">
             {/* nhan to trong ten nhom thi khong lap lai nua ("Out now" da
                 nam o nhan nhom ngay tren dau) */}
-            {tag !== grp && <><em style={{ color: c }}>{tag}</em><span className="dot">·</span></>}
+            {tag !== grp && <><em style={{ color: c }}>{tag}</em><span className="dot" aria-hidden="true" /></>}
             <span>{timeAgo(n.at, t)}</span>
             <Standing st={st} />
           </span>
@@ -214,12 +265,22 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
             {t('nt.vote')}
           </button>
         )}
+        {/* Mua thêm vote CHỈ hiện ở tin "sát nút" — tin duy nhất mà con số
+            "còn 2 vote nữa" vừa đọc được vừa làm được gì đó ngay. Nút cố ý
+            để LẶNG (viền xám như nút Watch, không tô vàng như nút Vote):
+            người đọc trả tiền khi họ muốn, không phải vì có nút vàng hét lên. */}
+        {n.type === 'near' && onBuy && (
+          <button type="button" className="btn btn-sm" title={t('nt.buyWhy', { n: n.gap ?? 0 })}
+            onClick={() => onBuy(row)}>
+            {t('nt.buyVotes')}
+          </button>
+        )}
         {url && (
           <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer"
             title={t('row.watch')}>{t('nt.watch')}</a>
         )}
         <button type="button" className="icon-btn" title={t('nt.drop')} aria-label={t('nt.drop')}
-          onClick={() => onDrop?.(n.id)}>×</button>
+          onClick={() => onDrop?.(n.id)}><Icon name="close" size={15} /></button>
       </span>
     </div>
   )

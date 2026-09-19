@@ -4,6 +4,7 @@ import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
 import { groupKey } from './board'
+import { rankDemo } from './ranking.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -99,7 +100,7 @@ const SEED = [
   /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote */
   { kind: '1 Hour Loop', artist: 'TWICE', title: 'Moonlight Sunrise', requester: "O'Clock", status: 'queued', progress: 0, votes: 12,
     picked_at: new Date(Date.now() - 172800000).toISOString() },
-  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
+  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
   { kind: 'Full Album', artist: 'NewJeans', title: 'Get Up', requester: 'lyricscsc', status: 'completed', progress: 100, votes: 27, video_url: 'https://youtu.be/dQw4w9WgXcQ' },
   { kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', progress: 0, votes: 0 },
   { kind: 'Full Album', artist: 'IVE', title: 'IVE SWITCH', requester: 'ttokyeoni', status: 'queued', progress: 0, votes: 6 },
@@ -336,7 +337,14 @@ export async function fetchDailySpinStatus() {
    KV/secret) thì gọi thẳng RPC như trước đây — app không chết vì cổng. */
 async function performSpinViaGate(requestId, userId) {
   const token = await spinDevice()
-  const [fpHash, captchaToken] = await Promise.all([fingerprintHash(), acquireCaptchaToken()])
+  /* Vân tay KHÔNG bắt buộc: FingerprintJS có thể bị chặn (adblock, mạng, chính
+     sách trình duyệt) và khi đó băm không chạy được. Không có vân tay thì mất
+     một lớp hạn mức phía máy chủ (Postgres coi NULL là "không khai báo"), còn
+     hơn là chặn người thật bằng một lỗi đỏ. Đường vote đã tha từ trước — hai
+     đường phải xử sự như nhau. */
+  const [fpHash, captchaToken] = await Promise.all([
+    fingerprintHash().catch(() => null), acquireCaptchaToken(),
+  ])
   const { data: session } = await supabase.auth.getSession()
   const userToken = session?.session?.access_token
   if (!userToken) throw new Error('err.signin')
@@ -414,18 +422,10 @@ export async function performDailySpin(requestId, userId) {
 }
 
 export async function fetchRanking() {
-  if (!hasSupabase) {
-    const m = {}
-    for (const r of demoRows()) {
-      if (r.status === 'denied') continue
-      const k = `${r.user_id}::${r.requester}`
-      m[k] ??= { user_id: r.user_id, key: k, name: r.requester, avatar_url: null, total: 0, completed: 0, total_votes: 0 }
-      m[k].total++
-      if (r.status === 'completed') m[k].completed++
-      m[k].total_votes += r.votes
-    }
-    return Object.values(m)
-  }
+  /* Chế độ demo dùng CHUNG luật gom với view thật (`rankDemo`, có test riêng):
+     một `user_id` là một dòng. Bản cũ khoá theo `user_id::requester` nên người
+     đổi tên hiển thị bị tách thành hai dòng — hai dòng cùng được tô "bạn". */
+  if (!hasSupabase) return rankDemo(demoRows())
   const { data, error } = await supabase.from('requester_ranking').select('*')
   if (!error) {
     cacheWrite(CACHE.ranking, data)
@@ -814,16 +814,14 @@ export async function adminOrder(orderId, approve) {
 }
 
 /* Admin chốt / gỡ một request khỏi Up next (đặt hoặc xóa picked_at).
-   Hàng đã chốt thì cast_vote ở database từ chối, không lách được. */
-export async function adminPick(id, picked = true) {
-  const at = picked ? new Date().toISOString() : null
-  if (!hasSupabase) {
-    wr(LS.rows, demoRows().map(r => (r.id === id ? { ...r, picked_at: at } : r)))
-    return
-  }
-  const { error } = await supabase.rpc('admin_pick', { p_id: id, p_picked: !!picked })
-  if (error) throw error
-}
+   Hàng đã chốt thì cast_vote ở database từ chối, không lách được.
+
+   Chỉ còn MỘT đường: `adminPickGroup` bên dưới. Bản `adminPick` (một dòng) đã
+   bị xoá vì không nơi nào gọi — nút Pick/Unpick trong bảng quản trị luôn đặt
+   theo CẢ BÀI (một bài = một video, các request trùng tên phải đi cùng nhau),
+   nên giữ thêm một hàm chỉ-chốt-một-dòng là giữ một đường thứ hai không ai đi,
+   mà lại là đường sai. Hàm `admin_pick` phía Postgres vẫn còn: nó là API của
+   database, không phải của giao diện. */
 
 /* Chốt / gỡ cả cụm trung bài (cùng artist + title) lên Up next. Backend dùng
    admin_pick_group để gom đúng khoá groupKey bên web (src/lib/board.js). */

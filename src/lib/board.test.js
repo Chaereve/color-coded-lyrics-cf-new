@@ -6,7 +6,9 @@
    chỉ để trưng bày. Bài 9 vote xé làm 3 request bị xếp dưới bài 5 vote. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boardItems, groupIds, groupKey, groupRows, sortGroups, sortRows, voteTotals } from './board.js'
+import { readFileSync } from 'node:fs'
+import { boardItems, creditText, findDuplicate, fold, groupIds, groupKey, groupRows, parseRequestPrefill,
+  pickBoardParam, sortGroups, sortRows, splitSong, voteTotals } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -163,4 +165,205 @@ test('groupIds: dong khong co id va danh sach rong khong lam bai', () => {
 test('groupIds: noi ket qua cho admin, khong phai cho rieng tung hang', () => {
   const ids = groupIds(cluster, cluster[1], ['queued', 'in_progress', 'completed'])
   assert.deepEqual(ids, ['b', 'a', 'c'])
+})
+
+/* ------------------------------------------------------------------
+   Bộ lọc đã nhớ: thứ tự ưu tiên URL → giá trị đã lưu → mặc định
+   ------------------------------------------------------------------ */
+test('pickBoardParam: URL thắng giá trị đã lưu', () => {
+  assert.equal(pickBoardParam('top', 'newest', ['top', 'newest', 'queued'], 'queued'), 'top')
+})
+
+test('pickBoardParam: không có trên URL thì dùng giá trị đã lưu', () => {
+  assert.equal(pickBoardParam(null, 'completed', ['queued', 'completed'], 'queued'), 'completed')
+})
+
+test('pickBoardParam: giá trị lạ bị bỏ qua, không đẩy vào state', () => {
+  /* tab đã bị đổi tên ở bản trước để lại trong localStorage, hoặc URL cũ ai đó
+     dán vào: cả hai đều phải rơi về mặc định chứ không làm danh sách rỗng */
+  assert.equal(pickBoardParam('khong-co-tab-nay', 'cung-khong', ['queued', 'top'], 'queued'), 'queued')
+  assert.equal(pickBoardParam('', undefined, ['queued', 'top'], 'queued'), 'queued')
+})
+
+/* ------------------------------------------------------------------
+   Dò trùng lúc gõ: câu trả lời phải khớp ĐÚNG cách bảng gom cụm
+   ------------------------------------------------------------------ */
+const dupSample = [
+  req('aespa', 'Whiplash', 5, { status: 'queued' }),
+  req('  AESPA ', '  whiplash', 4, { status: 'in_progress' }),
+  req('aespa', 'Whiplash', 3, { status: 'completed', video_url: 'https://youtu.be/x' }),
+  req('Itzy', 'Whiplash', 9, { status: 'queued' }),   // khác nghệ sĩ -> bài khác
+]
+
+test('findDuplicate: gom đúng cụm trùng và cộng TỔNG vote của cả cụm', () => {
+  const d = findDuplicate(dupSample, { artist: 'Aespa', title: 'WHIPLASH' })
+  assert.ok(d)
+  assert.equal(d.rows.length, 3)
+  assert.equal(d.votes, 12)          // 5 + 4 + 3, kể cả dòng đã xong
+  assert.equal(d.open, 2)            // queued + in_progress
+  assert.equal(d.video, 'https://youtu.be/x')
+})
+
+test('findDuplicate: chỗ bấm vote là dòng còn sống nhiều vote nhất', () => {
+  const d = findDuplicate(dupSample, { artist: 'aespa', title: 'whiplash' })
+  assert.equal(d.best.id, dupSample[0].id)
+  assert.equal(d.best.votes, 5)
+})
+
+test('findDuplicate: khác nghệ sĩ hoặc khác tên bài thì KHÔNG báo trùng', () => {
+  assert.equal(findDuplicate(dupSample, { artist: 'Itzy', title: 'Dalla Dalla' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: 'Aespa', title: 'Supernova' }), null)
+})
+
+test('findDuplicate: chưa đủ dữ liệu thì im lặng, không gợi ý sớm', () => {
+  /* gõ tới ký tự thứ hai đã thấy "đã có trên bảng" là cách dạy người dùng
+     phớt lờ gợi ý */
+  assert.equal(findDuplicate(dupSample, { artist: 'aespa', title: 'wh' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: '', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: 'aespa', title: '   ' }), null)
+})
+
+test('findDuplicate: bài chỉ còn dòng đã xong thì không có gì để vote', () => {
+  const d = findDuplicate([req('aespa', 'Whiplash', 3, { status: 'completed' })],
+    { artist: 'aespa', title: 'Whiplash' })
+  assert.equal(d.open, 0)
+  assert.equal(d.best, null)
+})
+
+test('findDuplicate: không có dòng nào thì không sập', () => {
+  assert.equal(findDuplicate([], { artist: 'aespa', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate(null, { artist: 'aespa', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate([undefined, null], { artist: 'aespa', title: 'Whiplash' }), null)
+})
+
+test('findDuplicate: đếm riêng hàng đang chờ duyệt (không vote được nhưng vẫn là trùng)', () => {
+  const d = findDuplicate([req('aespa', 'Whiplash', 0, { status: 'pending' })],
+    { artist: 'aespa', title: 'Whiplash' })
+  assert.equal(d.pending, 1)
+  assert.equal(d.open, 0)
+  assert.equal(d.best, null)      // chờ duyệt thì chưa có gì để bấm vào vote
+})
+
+/* ------------------------------------------------------------------
+   Link mời gửi bài: /?add=1&artist=…&title=…
+   ------------------------------------------------------------------ */
+const q = (str) => new URLSearchParams(str)
+
+test('parseRequestPrefill: mở form khi có tham số add', () => {
+  assert.deepEqual(parseRequestPrefill(q('?add=1&artist=aespa&title=Whiplash')),
+    { artist: 'aespa', title: 'Whiplash', link: '' })
+  /* `?add` trần và `?add=TRUE` cũng phải mở — link do người dùng gõ tay */
+  assert.ok(parseRequestPrefill(q('?add')))
+  assert.ok(parseRequestPrefill(q('?add=true')))
+})
+
+test('parseRequestPrefill: không có add (hoặc add=0) thì im lặng', () => {
+  assert.equal(parseRequestPrefill(q('?artist=aespa&title=Whiplash')), null)
+  assert.equal(parseRequestPrefill(q('?add=0')), null)
+  assert.equal(parseRequestPrefill(q('?add=false')), null)
+  assert.equal(parseRequestPrefill(null), null)
+})
+
+test('parseRequestPrefill: cắt độ dài theo đúng maxLength của ô nhập', () => {
+  const p = parseRequestPrefill(q(`?add=1&artist=${'a'.repeat(300)}&title=${'t'.repeat(300)}`))
+  assert.equal(p.artist.length, 120)
+  assert.equal(p.title.length, 160)
+})
+
+/* ------------------------------------------------------------------
+   Ghim công: chữ dán vào mô tả video
+   ------------------------------------------------------------------ */
+test('creditText: tên nghệ sĩ đứng trước, gom người gửi, bỏ trùng', () => {
+  const song = {
+    artist: 'aespa', title: 'Whiplash',
+    rows: [{ requester: 'An' }, { requester: 'Bình' }, { requester: 'An' }],
+  }
+  assert.equal(creditText(song), 'aespa - Whiplash\nRequested by: An, Bình')
+})
+
+test('creditText: quá nhiều người thì gộp phần đuôi', () => {
+  const rows = Array.from({ length: 11 }, (_, i) => ({ requester: `U${i}` }))
+  const out = creditText({ artist: 'a', title: 't', rows })
+  assert.match(out, /Requested by: U0, U1, U2, U3, U4, U5, U6, U7 \+3$/)
+})
+
+test('creditText: bài chưa có tên thì trả rỗng, không in dòng cụt', () => {
+  assert.equal(creditText({ artist: 'a', title: '  ', rows: [{ requester: 'X' }] }), '')
+  assert.equal(creditText(null), '')
+})
+
+test('creditText: không có người gửi thì chỉ có dòng tên bài', () => {
+  assert.equal(creditText({ artist: 'aespa', title: 'Whiplash', rows: [] }), 'aespa - Whiplash')
+  assert.equal(creditText({ artist: '', title: 'Whiplash', rows: [{}] }), 'Whiplash')
+})
+
+/* ------------------------------------------------------------------
+   Tìm kiếm bỏ dấu: một luật duy nhất cho cả bảng lẫn panel admin
+   ------------------------------------------------------------------ */
+test('fold: bỏ dấu, hạ chữ thường, gộp khoảng trắng', () => {
+  assert.equal(fold('Chung Hạ'), 'chung ha')
+  assert.equal(fold('  CHUNG   Ha  '), 'chung ha')
+  assert.equal(fold('Whiplash'), 'whiplash')
+  assert.equal(fold(null), '')
+  assert.equal(fold(undefined), '')
+})
+
+test('fold: "đ" là ký tự riêng của tiếng Việt, không phải d có dấu', () => {
+  /* NFD không tách được "đ" — thiếu bước thay tay thì "dang nhap" không tìm ra
+     "Đặng Nhập", mà nhìn vào code chẳng thấy sai ở đâu. */
+  assert.equal(fold('Đặng Nhập'), 'dang nhap')
+  assert.equal(fold('đường'), 'duong')
+  assert.equal(fold('ĐƯỜNG'), 'duong')
+})
+
+test('fold: gõ không dấu vẫn ra bài có dấu, và ngược lại', () => {
+  const rows = [req('Chung Hạ', 'Hoa Hồng', 3), req('aespa', 'Whiplash', 5)]
+  const search = (q) => rows
+    .filter(r => fold(`${r.artist} ${r.title}`).includes(fold(q)))
+    .map(r => r.artist)
+  assert.deepEqual(search('chung ha'), ['Chung Hạ'])
+  assert.deepEqual(search('CHUNG HẠ'), ['Chung Hạ'])
+  assert.deepEqual(search('hoa hong'), ['Chung Hạ'])
+  assert.deepEqual(search('whiplash'), ['aespa'])
+  assert.deepEqual(search('blabla'), [])
+})
+
+test('bỏ dấu: chỉ MỘT chỗ định nghĩa, không bản sao thứ hai', () => {
+  /* Panel admin từng có `norm()` riêng không xử lý được "đ", nên cùng một từ
+     khoá cho hai kết quả khác nhau ở hai màn hình. */
+  for (const f of ['../App.jsx', '../components/AdminPanel.jsx']) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8')
+    assert.doesNotMatch(src, /normalize\('NFD'\)/, `${f} tự chuẩn hoá lại — phải dùng fold()`)
+    assert.match(src, /\bfold\(/, `${f} phải lọc bằng fold()`)
+  }
+})
+
+/* =========================================================
+   TÁCH TIÊU ĐỀ VIDEO — người dùng dán nguyên tiêu đề vào ô tên bài
+   ---------------------------------------------------------
+   Hai khuôn thật của tiêu đề nhạc: tên bài nằm trong cặp nháy (nhạc Hàn/Nhật)
+   và "Nghệ sĩ - Tên bài" kèm nhãn quảng cáo ở cuối. Cả hai đều phải ra đúng
+   hai vế, và thứ KHÔNG đoán được thì phải trả về `null` — một gợi ý sai bắt
+   người dùng sửa hai ô thay vì một.
+   ========================================================= */
+test('tách tiêu đề video: tên bài trong nháy, dấu gạch nối, và nhãn quảng cáo ở hai đầu', () => {
+  assert.deepEqual(splitSong("CHUNG HA 청하 'Algorithm' MV"), { artist: 'CHUNG HA 청하', title: 'Algorithm' })
+  assert.deepEqual(splitSong('Billie Eilish - "Birds of a Feather"'), { artist: 'Billie Eilish', title: 'Birds of a Feather' })
+  assert.deepEqual(splitSong('aespa - Whiplash (Official Video)'), { artist: 'aespa', title: 'Whiplash' })
+  assert.deepEqual(splitSong('[4K] (Official) aespa - Whiplash'), { artist: 'aespa', title: 'Whiplash' })
+  assert.deepEqual(splitSong('Artist - Title - Extra'), { artist: 'Artist', title: 'Title - Extra' },
+    'dấu gạch nối ĐẦU TIÊN mới là chỗ tách — phần còn lại là tên bài')
+  /* Nhãn nằm GIỮA câu là một phần thật của tên bài, không phải nhãn quảng cáo. */
+  assert.deepEqual(splitSong('IU - Love wins all (feat. someone)'), { artist: 'IU', title: 'Love wins all (feat. someone)' })
+})
+
+test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {
+  for (const s of ['aespa Whiplash', 'Whiplash', '', '   ', null, undefined, 'A - B', '- -']) {
+    assert.equal(splitSong(s), null, `không được đoán từ ${JSON.stringify(s)}`)
+  }
+  /* Hai vế giống nhau thì tách ra cũng vô nghĩa. */
+  assert.equal(splitSong('Ditto - Ditto'), null)
+  /* Không bao giờ trả về vế rỗng hay chữ thừa ở hai đầu. */
+  const got = splitSong("  aespa   -   Whiplash  ")
+  assert.deepEqual(got, { artist: 'aespa', title: 'Whiplash' })
 })

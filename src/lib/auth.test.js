@@ -43,9 +43,15 @@ test('App trả về màn đăng nhập trước, rồi mới gọi server', () 
   // người dùng lại trong tài khoản cũ (lỗi của bản cũ .then(...)).
   assert.ok(fn.indexOf('setUser(null)') < fn.indexOf('await signOut()'))
   assert.match(fn, /try\s*\{\s*await signOut\(\)\s*\}\s*catch/)
-  // Panel admin / hồ sơ của tài khoản cũ phải đóng theo.
-  assert.match(fn, /setAdmin\(false\)/)
-  assert.match(fn, /setProfile\(false\)/)
+  /* Bảng quản trị của tài khoản cũ phải đóng theo. `admin` nay là TAB đang mở
+     trong trang /admin (null = chưa chọn), nên giá trị dọn là `null` — vẫn phải
+     có mặt, nếu không thì đăng xuất xong vẫn còn đứng trong khu vực quản trị
+     của tài khoản cũ.
+     `setProfile(false)` KHÔNG còn ở đây: vòng 12 gộp phần sửa hồ sơ vào mục
+     About me (không còn hộp thoại hồ sơ nào để đóng), nên dây đó đã bị gỡ —
+     chốt lại điều đó để nó không quay lại như một state mồ côi. */
+  assert.match(fn, /setAdmin\(null\)/)
+  assert.doesNotMatch(app, /setProfile\(/, 'hộp thoại hồ sơ đã bị gộp vào mục About me')
   // Bản cũ `signOut().then(() => setUser(null))` không được quay lại (bỏ qua
   // phần chú thích, chỉ soi mã thật).
   const code = app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')

@@ -8,11 +8,12 @@
      · không bao giờ tự ý bỏ bớt danh sách theo dõi khi chạm trần. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
-  clearInbox, diffNotices, dropNotice, markAllRead, markRead,
-  ownNotices, otherNotices, pickLadder, pushNotices, rowEvents, snapOf,
+  clearInbox, diffNotices, dropNotice, etaKey, markAllRead, markRead,
+  ownNotices, otherNotices, pickEta, pickLadder, pushNotices, rowEvents, snapOf,
   groupNotices, syncOwnRequests, toastOf, toggleWatched, unreadCount, watchedKeys,
-  DEFAULT_PREFS, INBOX_LIMIT, NEAR_GAP, WATCH_LIMIT,
+  DEFAULT_PREFS, ETA_DEFAULT_INTERVAL, ETA_MAX_RANK, INBOX_LIMIT, NEAR_GAP, WATCH_LIMIT,
 } from './watch.js'
 
 const AT = Date.UTC(2026, 8, 8, 12)
@@ -355,4 +356,78 @@ test('groupNotices: một bài chỉ xuất hiện ở MỘT nhóm, mọi tin đ
   ])
   assert.deepEqual(g.map(x => x.id), ['need', 'upnext', 'work'])
   assert.equal(g.reduce((n, x) => n + x.items.length, 0), 3)
+})
+
+/* ------------------------------------------------------------------
+   "Bao giờ tới lượt" — câu trả lời phải là SÀN, không phải lời hứa
+   ------------------------------------------------------------------ */
+const NOW = Date.UTC(2026, 8, 1, 0)
+const pickIn = (days, interval = 4) => ({
+  interval_days: interval, next_pick_at: new Date(NOW + days * DAY).toISOString(),
+})
+
+test('pickEta: đợt chốt kế tiếp cộng số chu kỳ còn phải qua', () => {
+  const eta = pickEta({ rank: 3 }, pickIn(2), NOW)
+  assert.equal(eta.days, 2 + 2 * 4)
+  assert.equal(eta.interval, 4)
+  assert.equal(eta.rank, 3)
+})
+
+test('pickEta: còn vài tiếng nữa chốt vẫn tính là MỘT ngày, không phải 0', () => {
+  const eta = pickEta({ rank: 2 }, { interval_days: 4, next_pick_at: new Date(NOW + 6 * 3600_000).toISOString() }, NOW)
+  assert.equal(eta.days, 1 + 4)
+})
+
+test('pickEta: thiếu lịch chốt thì lấy chu kỳ làm mốc, không bịa ra số 0', () => {
+  assert.equal(pickEta({ rank: 2 }, null, NOW).days, ETA_DEFAULT_INTERVAL * 2)
+  assert.equal(pickEta({ rank: 2 }, { interval_days: 0 }, NOW).days, ETA_DEFAULT_INTERVAL * 2)
+  /* mốc đã trôi qua (cron chưa chạy) thì tính như sắp tới — không ra số âm */
+  assert.equal(pickEta({ rank: 2 }, pickIn(-5), NOW).days, 4 + 4)
+})
+
+test('pickEta: im lặng ở đúng những chỗ không hứa được gì', () => {
+  assert.equal(pickEta({ rank: 1 }, pickIn(1), NOW), null, 'bài dẫn đầu đã có đồng hồ đếm ngược')
+  assert.equal(pickEta({ rank: 3, blocked: true }, pickIn(1), NOW), null, 'bị request trả tiền chặn thì đừng hứa')
+  assert.equal(pickEta({ rank: ETA_MAX_RANK + 1 }, pickIn(1), NOW), null, 'hạng quá xa thì con số chỉ là trò chơi chữ')
+  assert.equal(pickEta(null, pickIn(1), NOW), null)
+  assert.ok(pickEta({ rank: ETA_MAX_RANK }, pickIn(1), NOW), 'sát trần vẫn phải có')
+})
+
+test('etaKey: ngày → tuần → tháng, không bao giờ ra "0" hay "1 tháng"', () => {
+  assert.deepEqual(etaKey(1), { key: 'standing.etaDays', n: 1 })
+  assert.deepEqual(etaKey(11), { key: 'standing.etaDays', n: 11 })
+  assert.deepEqual(etaKey(12), { key: 'standing.etaWeeks', n: 2 })
+  assert.deepEqual(etaKey(27), { key: 'standing.etaWeeks', n: 4 })
+  assert.deepEqual(etaKey(55), { key: 'standing.etaWeeks', n: 8 })
+  assert.deepEqual(etaKey(56), { key: 'standing.etaMonths', n: 2 })
+  assert.deepEqual(etaKey(400), { key: 'standing.etaMonths', n: 13 })
+  assert.deepEqual(etaKey(0), { key: 'standing.etaDays', n: 1 }, '"0 ngày" là câu sai rõ nhất')
+})
+
+test('pickLadder: mỗi hạng tự mang theo sàn thời gian của nó', () => {
+  /* Gắn vào chính mục xếp hạng, không bắt từng chỗ gọi tự tính — nhờ vậy bảng,
+     hộp thông báo và trang Của tôi cùng một con số mà không phải luồn prop. */
+  const rows = [req('a', 'A', { votes: 9 }), req('b', 'B', { votes: 5 }), req('c', 'C', { votes: 1 })]
+  const { rank } = pickLadder(rows, pickIn(2), NOW)
+  assert.equal(rank.get(keyOf(rows[0])).eta, null, 'hạng 1 không cần sàn')
+  assert.equal(rank.get(keyOf(rows[1])).eta.days, 2 + 4)
+  assert.equal(rank.get(keyOf(rows[2])).eta.days, 2 + 8)
+  /* không truyền `pick` (bản cũ, hoặc settings chưa nạp) thì vẫn chạy như trước */
+  assert.equal(pickLadder(rows).rank.get(keyOf(rows[1])).eta.days, ETA_DEFAULT_INTERVAL * 2)
+})
+
+test('câu chữ của sàn thời gian có thật trong từ điển', () => {
+  /* i18nKeys.test.js chỉ soi được `t('literal')`; etaKey trả khoá qua BIẾN nên
+     thiếu một khoá là UI in ra nguyên "standing.etaWeeks" mà test kia im lặng. */
+  const dict = readFileSync(new URL('./i18n.jsx', import.meta.url), 'utf8')
+  for (const k of ['standing.etaDays', 'standing.etaWeeks', 'standing.etaMonths']) {
+    assert.ok(dict.includes(`'${k}':`), `thiếu ${k}`)
+  }
+  assert.match(dict, /'standing\.etaWhy':\s*'[^']*\{d\}[^']*\{c\}/, 'etaWhy phải giải thích bằng đủ {d} và {c}')
+})
+
+test('mua vote: nút chỉ gắn với tin "sát nút", không rải khắp hộp thư', () => {
+  const src = readFileSync(new URL('../components/Notifications.jsx', import.meta.url), 'utf8')
+  assert.match(src, /n\.type === 'near' && onBuy/, 'CTA mua vote phải nằm trong tin "near"')
+  assert.match(src, /onBuy = null/, 'prop onBuy phải có mặc định: chỗ nào không truyền thì nút không hiện')
 })

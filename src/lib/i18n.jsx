@@ -11,11 +11,21 @@ const S = {
   'nav.board': 'Requests',
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
-  'nav.mine': 'My requests',
+  'nav.mine': 'About me',
+  'nav.admin': 'Admin',
+  /* dòng phụ dưới tiêu đề trang: nói trang này để LÀM GÌ, không nhắc lại số
+     liệu (dải thống kê ngay dưới đã làm việc đó) */
+  'nav.boardSub': 'Vote for what gets made next',
+  'nav.spinSub': 'Two free spins a day',
+  'nav.mineSub': 'Your details, your requests, your orders',
+  'nav.adminSub': 'Review requests, pick the queue, handle orders',
 
   /* sidebar */
   'side.label': 'Main menu',
   'side.tagline': 'Request Page',
+  /* Man cho doc len cho trinh doc man hinh: phan hinh (logo, chu hieu, thanh
+     tai) da bi an khoi accessibility tree, chi con mot cau trang thai. */
+  'splash.label': 'Loading Chaereve…',
   'side.nav': 'Browse',
   'side.connect': 'Connect',
   'side.youtube': 'YouTube',
@@ -24,25 +34,22 @@ const S = {
 
   /* nut */
   'btn.newRequest': 'New request',
-  'btn.profile': 'Edit profile',
 
   /* am thanh */
   'sfx.on': 'Mute sounds',
   'sfx.off': 'Unmute sounds',
 
-  /* ho so */
-  'prof.title': 'Profile',
+  /* ho so — khối này nay nằm trong mục "About me", không còn là hộp thoại */
+  'prof.title': 'Your profile',
   'prof.name': 'Display name',
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
-  'prof.maxSize': '{mb}MB max',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',
   'prof.cancel': 'Cancel',
 
   /* cat anh */
-  'crop.title': 'Adjust the crop',
   'crop.hint': 'Drag to move · scroll to zoom',
   'crop.zoom': 'Zoom',
   'crop.apply': 'Use this image',
@@ -55,7 +62,6 @@ const S = {
   'menu.close': 'Close menu',
   'menu.settings': 'Settings',
   'menu.sound': 'Sound',
-  'menu.admin': 'Admin panel',
   'menu.signOut': 'Sign out',
 
   /* the so diem vote */
@@ -69,6 +75,8 @@ const S = {
 
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
+  'spin.legendAria': 'The four prize tiers on the wheel',
+  'spin.legendRow': '{n} slices, {pct}%',
   'spin.playLabel': 'Daily bonus wheel',
   'spin.available': 'Spins left today',
   'spin.wheelLabel': 'Wheel with {n} equal sectors: {odds} votes. Brighter sectors are rarer.',
@@ -82,7 +90,6 @@ const S = {
   'spin.refresh': 'Try again',
   'spin.deviceReset': 'Reset this browser',
   'spin.deviceResetHint': 'Clears the saved browser token, then reloads. Your spins already used today stay used.',
-  'spin.hint': 'Every sector wins something.',
   'spin.wonOne': '+1 bonus vote',
   'spin.won': '+{n} bonus votes',
   'spin.wonNote': 'Added to your vote credits.',
@@ -93,6 +100,7 @@ const S = {
   'spin.reward': '+{n} votes',
   'spin.history': 'Today’s rewards',
   'spin.historyEmpty': 'No spins yet.',
+  'spin.todayTotal': 'Today: +{n} bonus votes',
   'spin.addedAt': '{time} · GMT+7',
   'spin.rules': 'Spin rules',
   'spin.ruleLimit': '{n} spins per account and device, daily.',
@@ -117,11 +125,20 @@ const S = {
   'err.voteFpLimit': 'This browser has used its 3 free votes today. Buy votes or come back tomorrow.',
   'err.voteEdgeFp': 'Too many vote requests from this browser today. Try again tomorrow.',
 
-  /* the thong ke */
+  /* Bốn ô thống kê = BỐN GIAI ĐOẠN của bảng (xem stageCounts): cộng lại đúng
+     bằng số bài đang có. Nhãn "Paid" cũ bỏ khỏi dãy này vì nó là một nhãn chứ
+     không phải giai đoạn — nó vẫn hiện trên hàng và trong bảng Admin. */
   'stat.queued': 'In queue',
+  'stat.picked': 'Picked',
   'stat.inProgress': 'In progress',
   'stat.completed': 'Completed',
-  'stat.paid': 'Paid',
+  /* Dinh nghia cua tung con so (title) — so KHONG co dinh nghia la so nguoi
+     doc khong tin duoc, nhat la khi bon o nay nam canh bon con so khac o badge
+     tab. */
+  'stat.queuedWhy': 'Songs still waiting for votes. Nothing is being made yet.',
+  'stat.pickedWhy': 'Songs already picked for production, waiting for their turn to start.',
+  'stat.inProgressWhy': 'Songs being edited right now. The In progress tab shows these plus the picked songs still waiting for their turn.',
+  'stat.completedWhy': 'Songs finished and out on the channel.',
   'stat.submitted': 'Submitted',
   'stat.pending': 'Pending',
   'stat.votesReceived': 'Votes received',
@@ -141,6 +158,7 @@ const S = {
   'nt.aria': 'Open your notifications',
   /* so it khong dung duoc cho "1" -> dung cau "3 unread", dung cho moi n */
   'nt.ariaUnread': 'Open your notifications \u2014 {n} unread',
+  'nt.liveUnread': 'Unread notifications: {n}',
   'nt.title': 'Notifications',
   'nt.markAll': 'Mark all read',
   'nt.settings': 'Notification settings',
@@ -154,6 +172,11 @@ const S = {
   'nt.watch': 'Watch',
   'nt.open': 'Go to the request',
   'nt.voteNow': 'Vote now',
+  /* Nút mua vote nằm ngay trong tin "sát nút": lúc bài của mình chỉ còn vài
+     phiếu nữa là dẫn đầu là lúc DUY NHẤT câu "mua thêm vote" trả lời đúng
+     một câu hỏi đang có sẵn trong đầu người đọc. */
+  'nt.buyVotes': 'Get votes',
+  'nt.buyWhy': 'Only {n} to lead the queue. More votes push it up now.',
   'nt.multi': '{n} new notifications',
   'nt.multiBody': 'First one: {song}.',
   'nt.none': 'You are not following any song yet.',
@@ -212,6 +235,12 @@ const S = {
   'standing.rank': '#{n} in line',
   'standing.paidAhead': 'behind a paid request',
   'standing.rule': 'Only one song is picked at a time: paid first, then most votes, then oldest request.',
+  /* "Sớm nhất khoảng …" — đây là SÀN thời gian, không phải lời hứa: bài khác
+     vote nhiều hơn chỉ có thể đẩy nó MUỘN hơn, không bao giờ sớm hơn. */
+  'standing.etaDays': 'at least {n} days',
+  'standing.etaWeeks': 'at least {n} weeks',
+  'standing.etaMonths': 'at least {n} months',
+  'standing.etaWhy': 'Earliest {d} days from now: the next pick, then {c} more cycles at one song per cycle. More votes for another song can push it later, never earlier.',
 
   /* chuong da thanh affordance an nen tooltip la thu duy nhat giai thich no:
      noi ro "alert" va pham vi ca bai, khong goi chung la "follow" */
@@ -220,6 +249,17 @@ const S = {
   'watch.on': 'We will tell you about {song}.',
   'watch.off': 'Stopped following {song}.',
   'watch.full': 'You follow {n} songs already — drop one first.',
+  /* bài đã có trên bảng — hiện ngay dưới ô tên bài, lúc người dùng còn đang gõ */
+  'adm.credits': 'Copy credits',
+  'adm.creditsDone': 'Copied',
+  'adm.creditsHint': 'Copy the song name and everyone who requested it, ready to paste into the video description',
+  'row.share': 'Share this request',
+  'row.shareCopied': 'Link copied - send it to anyone who should vote',
+  'row.shareFailed': 'Could not copy - the link is in your address bar',
+  'req.dupMeta': '{c} requests, {n} votes on the board already',
+  'req.dupPending': '{c} request of yours is waiting for review',
+  'req.dupVote': 'Vote for it instead',
+  'req.dupWatch': 'Already done - watch it',
   'req.notifyNote': 'You will be told when this is approved, how production goes, and the moment the video is up.',
   'req.notifyDemo': 'This demo stores notifications in your browser, so they only appear while this tab is open.',
   'err.watchLimit': 'You are following too many songs.',
@@ -227,6 +267,10 @@ const S = {
   /* dang lam / tiep theo */
   'now.next': 'Up next',
   'now.votes': 'votes',
+  /* Quan he giua khoi Up next va tab In progress — noi mot cau thay vi de nguoi
+     doc tu doan vi sao mot bai nam o ca hai cho. */
+  /* Hai giai đoạn của dây chuyền, cộng lại đúng bằng con số trên nắp khối */
+  'now.split': '{a} in progress · {b} picked, not started',
   'now.nextPickLbl': 'Next pick in',
   'now.nextPick': '{d}d {h}h {m}m',
   'now.pickSoon': 'any moment…',
@@ -239,8 +283,16 @@ const S = {
   /* danh sach request */
   'board.listTitle': 'All requests',
   'board.allKinds': 'All types',
+  'board.filters': 'Filters',
+  'board.kindAria': 'Filter by type',
   'board.search': 'Title or artist',
   'board.empty': 'Nothing here yet.',
+  'board.emptyHint': 'Try another filter, or send the first request.',
+  'board.filterAria': 'Filter requests',
+  'board.clearQ': 'Clear search',
+  'board.clearAll': 'Clear filters',
+  'board.clearKind': 'Remove the type filter: {k}',
+  'board.showing': '{n} shown',
 
   /* phan trang — dung chung cho moi danh sach dai */
   'pager.label': 'Pagination',
@@ -266,6 +318,7 @@ const S = {
   'row.voteLocked': 'Already picked. Voting is closed.',
   'row.deleteReq': 'Delete request',
   'row.openVote': 'Choose how many votes',
+  'progress.label': 'Build progress',
   'row.mine': 'You voted {n}',
   'row.confirmDelete': 'Delete this request?',
 
@@ -286,6 +339,12 @@ const S = {
   'rank.sort.total': 'Requests',
   'rank.sort.completed': 'Completed',
   'rank.sort.total_votes': 'Votes earned',
+  /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js).
+     Ba câu, ba con số đếm được — bảng không còn "điểm" nào do nó tự đặt ra, nên
+     cũng không còn câu giải thích trọng số nào để mà lệch. */
+  'rank.rule.total': 'Sorted by requests sent',
+  'rank.rule.completed': 'Sorted by requests completed',
+  'rank.rule.total_votes': 'Sorted by votes earned',
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
@@ -293,8 +352,10 @@ const S = {
   /* request cua toi */
   'mine.title': 'My requests',
   'mine.empty': 'No requests yet.',
+  'mine.emptyHint': 'Send your first request — it will show up here with its status and votes.',
   'mine.orders': 'My orders',
   'mine.ordersEmpty': 'No orders yet.',
+  'mine.ordersHint': 'Vote orders you buy show up here with their status.',
 
   /* don hang */
   'order.paid': 'Paid',
@@ -318,8 +379,65 @@ const S = {
 
   /* nut */
   'btn.close': 'Close',
+  'btn.cancel': 'Cancel',
+  'btn.confirm': 'Confirm',
+  /* Hộp xác nhận trong app — thay `confirm()`/`prompt()` của trình duyệt. Chữ ở
+     đây là chữ của một HỘP, không phải của nút: tiêu đề nói việc sắp xảy ra,
+     dòng dưới nói hậu quả, và hậu quả nào cũng là "không lấy lại được" — đó
+     chính là lý do hộp này tồn tại. */
+  'dlg.cannotUndo': 'This cannot be undone.',
+  'dlg.denyTitle': 'Deny this request?',
+  'dlg.denyBody': 'The reason you type here is shown to the requester.',
+  'dlg.bulkDenyTitle': 'Deny {n} requests?',
+  'dlg.mediaTitle': 'Delete this video?',
+  'dlg.mediaBody': 'It leaves the home page, and the other videos close the gap.',
 
   /* form gui request */
+  /* Form gửi request: ba bước, lỗi từng ô, gợi ý cho từng loại bài. */
+  'req.step1': 'Pick a type',
+  'req.step2': 'Name the song',
+  'req.step3': 'Send it',
+  /* điều hướng ba bước */
+  'req.stepsAria': 'Request form steps',
+  'req.next': 'Continue',
+  'req.back': 'Back',
+  /* Nút mở ô ghi chú — ô tuỳ chọn duy nhất, mặc định gấp lại. */
+  'req.noteAdd': 'Add a note (optional)',
+  'req.kindHint.ccl': 'Colour-coded lyrics video',
+  'req.kindHint.album': 'Every track on the release',
+  'req.kindHint.loop': 'One song looping for an hour',
+  'req.kindHint.short': 'Vertical cut for Shorts',
+  'req.artistPh': 'e.g. aespa',
+  'req.titlePh': 'Song, or album name',
+  'req.notePh': 'Anything the editor should know',
+  'req.noteHint': 'Optional. Up to 500 characters.',
+  'req.warnLink': 'That does not look like a full link — it should start with http.',
+  'req.errArtist': 'Who is the artist? This one is required.',
+  'req.errTitle': 'This one is required.',
+  'req.notReady': 'Fill in the two required fields first',
+  'req.submitFix': 'Fill in the required fields',
+  'req.clear': 'Clear',
+
+  /* Thẻ XEM TRƯỚC trong form: dựng đúng cái người khác sẽ thấy trên bảng, từ
+     chính những gì đang gõ. Chỗ chưa điền hiện chữ mờ nói rõ còn thiếu gì. */
+  /* Gợi ý tách tiêu đề video dán nguyên si thành hai ô (xem `splitSong`). */
+  'req.splitLead': 'This looks like a full video title. Split it into the two fields?',
+  'req.splitGo': 'Split it',
+  'req.draftRestored': 'Draft restored from your last visit',
+  'req.draftClear': 'Discard draft',
+  /* Nhãn NGẮN của thẻ xem trước. Vòng 13 gỡ cả câu dài "Preview — this is what
+     goes on the board" (chủ dự án yêu cầu), nhưng gỡ luôn cả chữ "Preview" thì
+     thẻ mất tên: người dùng nhìn một khối có viền mà không biết nó là gì. Nay
+     giữ đúng MỘT chữ. */
+  'req.preview': 'Preview',
+  'req.previewYt': 'YouTube link recognised',
+  'req.phArtist': 'artist name…',
+  'req.phTitle': 'the {f} name…',
+  'req.phYou': 'you',
+  'req.phFresh': 'new request',
+  'req.phPaid': 'paid request',
+  'req.linkOk': 'YouTube video recognised — cover shown in the preview below.',
+  'req.linkList': 'A playlist link: the video is listed instead of the cover.',
   'req.kind': 'Video type',
   'req.kindNote.album': 'Full Album = all lyric videos of one album collected into a playlist. Only made after the channel has uploaded every colour-coded lyric video of that album.',
   'req.artist': 'Artist',
@@ -328,7 +446,6 @@ const S = {
   'req.link': 'Song / album link',
   'req.linkPh': 'https://youtu.be/…',
   'req.note': 'Notes',
-  'req.needFields': 'Artist and {f} are required.',
   'req.rulesTitle': 'Before requesting',
   'req.rule1': "If the song is already requested, vote for it — don't send it again.",
   'req.rule2': 'One song per request.',
@@ -347,7 +464,6 @@ const S = {
   'req.submit': 'Send request',
 
   /* buou vote */
-  'vote.freeToday': 'Free votes today',
   'vote.purchased': 'Purchased',
   'vote.bonus': 'Bonus',
   'vote.outBuy': 'Out of votes. Buy more to continue.',
@@ -357,17 +473,21 @@ const S = {
   'vote.empty': 'Nothing to vote on.',
   'vote.dialogTitle': 'Vote for this request',
   'vote.total': '{n} votes',
+  'vote.freeToday': 'Free votes today',
   'vote.yours': 'you voted {n}',
   'vote.qty': 'Number of votes',
-  'vote.available': '{n} left',
+  /* Hộp vote: con số lớn là KẾT QUẢ SAU khi bấm, không phải số đang có. */
+  'vote.hero': 'Votes after this',
+  'vote.heroSub': 'Currently {n} votes',
+  'vote.leftBefore': 'Your votes left',
   'vote.useAll': 'Use all {n}',
   'vote.tooMany': 'You have {n} votes left.',
   'vote.none': 'No votes left.',
   'vote.confirm': 'Vote {n}',
   'vote.locked': 'This request is already picked. Voting is closed.',
+  'vote.closed': 'Voting is closed for this request — it is no longer in the queue.',
   'vote.takeBack': 'Take back {n}',
-  'vote.backAll': 'All {n}',
-  'vote.canTakeBack': '{n} can be taken back',
+  'vote.sources': 'including {p} bought and {b} bonus',
   'vote.tooManyBack': 'You voted {n} here.',
   'vote.buyMore': 'Buy more votes',
 
@@ -415,7 +535,19 @@ const S = {
   'gate.perk2': '{n} requests per hour',
   'gate.perk3': 'Paid requests start first',
 
+
   /* bang dieu hanh */
+  'adm.pageAria': 'Admin workspace',
+  'adm.export': 'Export CSV',
+  'adm.exported': 'Saved',
+  'adm.showing': 'Showing {n} of {total}',
+  'adm.selectPage': 'Select all {n} on this page',
+  /* Hai phím tắt của bảng quản trị, in ngay chỗ dùng (tự ẩn trên máy cảm ứng). */
+  'adm.keyEsc': 'clears the selection',
+  'adm.keyAll': 'selects this page',
+  /* Vùng chỉ trình đọc màn hình đọc: đổi bộ lọc là con số đổi, nhưng mắt
+     thường không được báo. */
+  'adm.resultCount': 'Now showing {n} requests',
   'adm.pending': 'Pending',
   'adm.active': 'Active',
   'adm.orders': 'Orders',
@@ -439,7 +571,26 @@ const S = {
   'adm.confirmDelete': 'Delete this request?',
   'adm.received': 'Mark as paid',
   'adm.noOrders': 'No orders yet.',
-  'adm.emptyList': 'Nothing here.',
+  /* TRẠNG THÁI RỖNG NÓI RA LÝ DO. Bản cũ chỉ có một dòng "Nothing here." giữa
+     khung trống — người dùng đọc nó như một lỗi. Nay: một dòng đậm nói đang
+     thiếu gì, một dòng nhỏ nói vì sao, và lối thoát (bỏ bộ lọc) khi cái trống
+     là do chính bộ lọc. */
+  'adm.emptyTitle': 'No requests in this list',
+  'adm.emptyBody': 'Requests land here as soon as someone sends one. Try another list above.',
+  'adm.emptyOrdersBody': 'Vote orders appear here the moment someone buys votes.',
+  'adm.clearFilters': 'Clear filters',
+  'adm.pickMode': 'Select',
+  'adm.pickModeOff': 'Done',
+  'adm.selectRow': 'Select this request',
+  'adm.selected': '{n} selected',
+  'adm.bulkAria': 'Bulk actions',
+  'adm.bulkClear': 'Clear selection',
+  'adm.bulkConfirmDelete': 'Delete {n} requests?',
+  'adm.sortAria': 'Sort the list',
+  'adm.sortDefault': 'Tab order',
+  'adm.sortNewest': 'Newest first',
+  'adm.sortVotes': 'Most votes',
+  'adm.sortWaiting': 'Waiting longest',
   'adm.reqDeleted': '(request deleted)',
   'adm.votesShort': 'votes',
   'adm.search': 'Search song, artist or requester…',
@@ -484,6 +635,7 @@ const S = {
   'toast.repeated': '{n} identical notices merged into this one',
   'toast.updated': 'Updated.',
   'toast.updatedGroup': 'Updated · {n} requests for this song',
+  'toast.bulk': '{n} requests updated',
   'toast.removed': 'Deleted.',
   'toast.orderOk': 'Payment confirmed.',
   'toast.orderNo': 'Order rejected.',
@@ -511,6 +663,11 @@ const S = {
 
   /* loi */
   'err.signin': 'Sign in to continue.',
+  /* LƯỚI AN TOÀN của một khối (Boundary.jsx): khi một vùng ném lỗi lúc vẽ,
+     người dùng phải đọc được chuyện gì vừa xảy ra thay vì thấy trang trắng. */
+  'err.blockTitle': 'This section could not load',
+  'err.blockBody': 'The rest of the page still works. Try again — if it keeps failing, reload the page.',
+  'err.blockRetry': 'Try again',
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',

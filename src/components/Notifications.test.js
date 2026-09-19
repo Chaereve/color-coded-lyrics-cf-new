@@ -68,6 +68,27 @@ test('chuông im lặng khi không có tin, không dựng bảng', async () => {
   assert.match(html, /aria-expanded="false"/)
   assert.ok(!/nt-pop/.test(html))
   assert.ok(!/dotbadge/.test(html))
+  /* Chưa mở thì không có gì của bảng trong cây DOM — kể cả tấm chắn. */
+  assert.ok(!/nt-scrim/.test(html), 'chưa mở thì không có tấm chắn')
+  assert.ok(!/aria-controls/.test(html), 'chưa mở thì aria-controls chưa trỏ vào đâu')
+})
+
+/* ---------------- bảng: cấu trúc hộp thoại (vòng 12) ----------------
+   Bảng là một hộp thoại KHÔNG chặn trang, nhưng vẫn phải đi đúng đường của
+   một hộp thoại: nút mở nói rõ nó điều khiển cái gì, bảng nhận được tiêu điểm
+   (tabIndex=-1), có tiêu đề đọc được, và ở máy hẹp có tấm chắn để phần còn lại
+   của trang biết mình đang bị tạm gác. */
+test('bảng là hộp thoại đúng cấu trúc: aria-controls, tiêu điểm, tiêu đề h2, tấm chắn', async () => {
+  const html = await renderPanel({ notices: [] })
+  assert.match(html, /aria-controls="nt-panel"/, 'nút chuông phải nói nó điều khiển bảng nào')
+  assert.match(html, /id="nt-panel"/)
+  assert.match(html, /role="dialog"/)
+  assert.match(html, /tabindex="-1"/, 'bảng phải nhận được tiêu điểm khi mở')
+  assert.match(html, /<h2 class="nt-h2">/, 'tiêu đề bảng là một h2 thật, không phải <b>')
+  assert.match(html, /class="nt-scrim"/, 'máy hẹp cần tấm chắn (CSS ẩn ở màn rộng)')
+  /* Tấm chắn là ANH EM của bảng: con của một khối overflow:hidden thì không
+     phủ được ra ngoài khối. */
+  assert.ok(html.indexOf('nt-scrim') < html.indexOf('nt-pop'), 'tấm chắn đứng trước bảng trong DOM')
 })
 
 test('chuông đếm tin chưa đọc, quá 9 thì ghi 9+', async () => {
@@ -178,7 +199,10 @@ test('bảng không còn dòng chú thích ở chân, nhãn nút video thì ng�
   })
   const tx = plain(html)
   assert.ok(!/closing this panel/i.test(tx))
-  assert.match(tx, / Watch /)
+  /* `plain()` thay mọi thẻ bằng dấu cách rồi gộp khoảng trắng, nên khi nút
+     videoKHÔNG còn <svg> bên trong thì chữ "Watch" đứng sát nút kế bên. Pin
+     chính nhãn — thứ test này muốn giữ — thay vì pin khoảng trắng của hình. */
+  assert.match(tx, / Watch/)
   /* "Out now" da co o nhan nhom thi dong tin khong lap lai nua */
   assert.equal((tx.match(/Out now/g) || []).length, 1)
   assert.ok(!/Watch on YouTube/.test(tx), 'chu dai qua chat choet hang tin')

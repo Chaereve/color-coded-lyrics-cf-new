@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
-  spinTiers, spinShades, spinTicks, spinAverage, formatChance, spinRotation, spinCountdown,
-  demoSpinStatus, drawDemoSpin, validateSpinResult,
+  spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
+  dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
+  spinRotation, spinCountdown, sectorAtPointer,
+  demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
 const now = Date.parse('2026-09-07T12:00:00Z')
@@ -95,32 +97,86 @@ test('reset is exactly midnight Vietnam, including month/year boundaries', () =>
   }
 })
 
-test('wheel always stops at the centre of the awarded sector on repeated spins', () => {
-  const step = 360 / SPIN_REWARDS.length
+/* LỖI THẬT (vòng 13): "quay ra ko đúng phần thưởng".
+   Kim dừng ở 12 giờ, nên phép kiểm đúng không phải "đĩa quay bao nhiêu độ" mà là
+   "SAU KHI QUAY, Ô NẰM DƯỚI KIM CÓ ĐÚNG PHẦN THƯỞNG MÀ MÁY CHỦ TRẢ VỀ KHÔNG".
+   Bản trước quy góc từ CHỈ SỐ ô trong bảng rút, mà bản vẽ đã gom ô cùng thưởng
+   thành dải và dịch cả vòng — nên đĩa dừng lệch sang ô khác. Test dưới đây đi
+   hết 16 ô, và với mỗi ô kiểm bằng CHÍNH bản vẽ (sectors), không bằng công thức
+   hình học tự chế. */
+test('đĩa dừng đúng ô trúng: hết 16 ô, mỗi lần kim chỉ vào đúng phần thưởng', () => {
+  const sectors = spinSectors()
   let rotation = 0
-  for (let pass = 0; pass < 4; pass++) {
-    for (let index = 0; index < SPIN_REWARDS.length; index++) {
-      const next = spinRotation(rotation, index)
-      assert.ok(next - rotation >= 1800)
-      assert.equal((next + index * step) % 360, 0)
+  for (let pass = 0; pass < 3; pass++) {
+    for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
+      const winIndex = spinSectorIndex(segment)
+      const next = spinRotation(rotation, sectors[winIndex].angle)
+      assert.ok(next - rotation >= 1800, 'ít nhất 5 vòng mỗi lượt')
       rotation = next
+      const under = sectorAtPointer(rotation, sectors)
+      assert.ok(under, `kim không nằm trên ô nào (lượt ${segment})`)
+      assert.equal(under.reward, SPIN_REWARDS[segment],
+        `lượt ${segment}: kim chỉ +${under.reward}, đáng ra +${SPIN_REWARDS[segment]}`)
+      /* Và ô được TÔ SÁNG cũng phải là ô đó — mắt nhìn đĩa, không đọc số. */
+      assert.equal(sectors[winIndex].reward, under.reward, 'ô sáng và ô dưới kim phải là một')
     }
   }
-  for (const index of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) assert.throws(() => spinRotation(0, index))
+  for (const bad of [NaN, Infinity, null, undefined, '90']) assert.throws(() => spinRotation(0, bad))
 })
 
-test('slice shades cycle inside each prize tier, so equal neighbours differ', () => {
-  const shades = spinShades()
-  assert.equal(shades.length, SPIN_REWARDS.length)
-  assert.ok(shades.every(v => ['v1', 'v2', 'v3'].includes(v)))
-  // Two +1 slices sit side by side (index 4/5 and 9/10 style pairs): the shade
-  // must break them apart or the wheel shows one fat block again.
-  for (let i = 0; i < SPIN_REWARDS.length; i++) {
-    const j = (i + 1) % SPIN_REWARDS.length
-    if (SPIN_REWARDS[i] === SPIN_REWARDS[j]) assert.notEqual(shades[i], shades[j])
+test('bản vẽ gom ô cùng thưởng thành dải và in số MỘT lần cho mỗi dải', () => {
+  const sectors = spinSectors()
+  const step = 360 / SPIN_REWARDS.length
+  assert.equal(sectors.length, 16, 'vẫn đủ 16 ô, mỗi ô 22,5° — xác suất không đổi')
+  /* MỖI GIÁ TRỊ LÀ MỘT DẢI LIỀN: đi hết vòng, giá trị cũ không quay lại sau khi
+     đã đổi sang giá trị khác. Đây là thứ khiến "+1 ×9" đọc được thành một
+     vùng, thay vì chín số 1 rải rác (lỗi "trùng lặp số vote"). */
+  const bands = sectors.filter((s, i, all) => i === 0 || all[i - 1].reward !== s.reward)
+  assert.deepEqual(bands.map(s => s.reward), [1, 2, 3, 5], 'bốn dải, tăng dần, không cắt khúc')
+  const seen = new Map()
+  for (const s of sectors) seen.set(s.reward, (seen.get(s.reward) || 0) + 1)
+  assert.deepEqual([...seen], [[1, 9], [2, 4], [3, 2], [5, 1]], 'đúng bảng thưởng')
+  for (const s of sectors) assert.equal(s.count, seen.get(s.reward), 'số ô của dải')
+  // Tâm ô nằm trên lưới 22,5° (kim dừng ở tâm ô — xem spinRotation)
+  assert.equal(new Set(sectors.map(s => s.angle)).size, 16, 'không hai ô nào trùng tâm')
+  for (const s of sectors) {
+    assert.equal(s.angle % step, 0, `tâm ô lệch lưới: ${s.angle}`)
+    assert.ok(s.angle >= 0 && s.angle < 360)
   }
-  // Same prize keeps ONE hue: the tier, not the shade, carries the meaning.
-  assert.deepEqual(spinShades([4, 4, 4, 4]), ['v1', 'v2', 'v3', 'v1'])
+  // Giải cao nhất vẫn ở 6 giờ, như bản 16 ô trước
+  assert.equal(sectors.find(s => s.reward === 5).angle, 180)
+  // ĐÚNG BỐN nhãn: một nhãn cho một dải, đặt ở ô giữa dải
+  const labels = sectors.filter(s => s.label)
+  assert.deepEqual(labels.map(s => [s.reward, s.count]), [[1, 9], [2, 4], [3, 2], [5, 1]])
+  for (const label of labels) {
+    const band = sectors.filter(s => s.reward === label.reward)
+    assert.equal(label, band[Math.floor((band.length - 1) / 2)], 'nhãn ở ô giữa dải')
+  }
+  assert.equal(sectors.filter(s => s.label).length, new Set(SPIN_REWARDS).size,
+    'số nhãn = số mức thưởng, không phải số ô')
+})
+
+test('ô server rút được quy đổi đúng sang ô trên bản vẽ', () => {
+  const sectors = spinSectors()
+  const picked = []
+  for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
+    const i = spinSectorIndex(segment)
+    assert.equal(sectors[i].reward, SPIN_REWARDS[segment], `ô ${segment} trỏ sai dải`)
+    picked.push(i)
+  }
+  /* Mười sáu ô rút trỏ về mười sáu ô vẽ, và ô thứ mấy trong nhóm thì rơi đúng
+     ô thứ mấy của dải — nếu không, hai lượt khác nhau sẽ cùng tô sáng một ô. */
+  assert.equal(new Set(picked).size, 16)
+  const plus1 = sectors.map((s, i) => [s, i]).filter(([s]) => s.reward === 1).map(([, i]) => i)
+  assert.deepEqual(plus1, [0, 1, 2, 3, 4, 5, 6, 7, 8])
+  for (const bad of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) {
+    assert.throws(() => spinSectorIndex(bad), 'chỉ số ngoài bảng phải bị chặn')
+  }
+  /* Bảng thưởng do máy chủ trả về cũng quy đổi được: một mức thưởng duy nhất
+     thì cả vòng là MỘT dải, nên chỉ còn đúng MỘT nhãn. */
+  const custom = [2, 2, 2, 2]
+  assert.equal(spinSectors(custom).filter(s => s.label).length, 1)
+  assert.equal(spinSectorIndex(3, custom), 3)
 })
 
 test('tick track follows the CSS easing: dense at the start, sparse at the stop', () => {
@@ -221,4 +277,80 @@ test('đồng hồ đếm ngược không bao giờ in NaN', () => {
   assert.equal(spinCountdown(undefined), '00:00:00')
   assert.equal(spinCountdown(-5000), '00:00:00')
   assert.equal(spinCountdown(3_600_000 + 61_000), '01:01:01')
+})
+
+test('không lặp cùng một giải quá hai lần liên tiếp', () => {
+  assert.equal(streakBlocked([]), null)
+  assert.equal(streakBlocked([1]), null)
+  assert.equal(streakBlocked([1, 2]), null, 'hai lượt KHÁC nhau thì lượt sau tự do')
+  assert.equal(streakBlocked([3, 3]), 3)
+
+  // đang chặn +1 thì không lần rút nào được rơi vào một trong 9 ô mang số 1
+  for (let i = 0; i < 500; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [1, 1] })], 1)
+  // chặn ở ô hiếm nhất (+5, đúng một ô) cũng phải tránh
+  for (let i = 0; i < 200; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [5, 5] })], 5)
+  // chưa đủ hai lượt trùng thì rút đều như cũ: mọi ô đều có thể ra
+  const seen = new Set()
+  for (let i = 0; i < 400; i++) seen.add(drawSegment({ recent: [2, 1] }))
+  assert.equal(seen.size, SPIN_REWARDS.length, 'không được hẹp tập ô khi luật không bật')
+  // bảng thưởng một ô (mọi ô đều là số bị chặn) vẫn phải trả về một ô hợp lệ
+  assert.equal(drawSegment({ rewards: [7], recent: [7, 7] }), 0)
+})
+
+test('bản demo theo đúng luật đó', () => {
+  const base = { user_id: 'account-a', device_token: 'device-a', created_at: '2026-09-07T09:00:00Z' }
+  const twoOnes = [{ ...base, reward: 1 }, { ...base, reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  // random() => 0 luôn trỏ vào ô đầu tiên (mang số 1) — luật phải đẩy sang ô khác
+  assert.notEqual(draw(twoOnes, { random: () => 0 }).entry.reward, 1)
+  // hai lượt trước khác nhau thì ô đầu tiên vẫn hợp lệ
+  const mixed = [{ ...base, reward: 2 }, { ...base, reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  assert.equal(draw(mixed, { random: () => 0 }).entry.reward, 1)
+  // lượt của THIẾT BỊ KHÁC không được tính vào chuỗi của mình
+  const otherDevice = [{ ...base, device_token: 'device-b', reward: 1 },
+    { ...base, device_token: 'device-b', reward: 1, created_at: '2026-09-07T10:00:00Z' }]
+  assert.equal(draw(otherDevice, { random: () => 0 }).entry.reward, 1)
+})
+
+test('SQL thật giữ đúng luật, và schema.sql khớp với migration', () => {
+  for (const rel of ['../../supabase/schema.sql', '../../supabase/migrations/20261104_spin_streak.sql']) {
+    const sql = readFileSync(new URL(rel, import.meta.url), 'utf8')
+    assert.match(sql, /v_recent\[1\] = v_recent\[2\]/, `${rel}: thiếu so sánh hai lượt gần nhất`)
+    assert.match(sql, /where device_hash = v_hash/, `${rel}: chuỗi tính theo thiết bị`)
+    assert.match(sql, /256 % array_length\(v_allowed, 1\)/,
+      `${rel}: tập ô hẹp lại không chia hết 256 nên phải lấy mẫu loại bỏ`)
+    assert.match(sql, /v_prizes\[i\] <> v_block/, `${rel}: phải loại đúng số thưởng đang bị chặn`)
+  }
+})
+
+/* ---------- KÉO ĐĨA: đếm vạch để tiếng tách bám đúng tay ---------- */
+
+test('dragTicks đếm vạch theo cả hai chiều, không kêu khi chưa qua vạch nào', () => {
+  const S = DRAG_SECTOR_DEG
+  assert.equal(dragTicks(0, 5).count, 0, 'chưa qua vạch nào thì không có tiếng')
+  assert.equal(dragTicks(0, S).count, 1)
+  assert.equal(dragTicks(0, S * 2.9).count, 2)
+  assert.equal(dragTicks(S, S * 2.9).count, 1, 'đếm từ vạch đã qua, không đếm lại từ đầu')
+  assert.equal(dragTicks(S * 2.9, S).count, -1, 'kéo ngược trả về số âm')
+  assert.equal(dragTicks(-S * 2 + 3, -S * 0.5).count, 1, 'góc âm đếm y như góc dương')
+  /* Đúng MỘT ca lệch được phép: bắt đầu ngay TRÊN một vạch thì vạch đó tính
+     là đã đi qua (đang rời khỏi nó). Kéo tay không bao giờ đứng yên đúng
+     trên vạch, nên đây là quy ước chứ không phải sai số tích luỹ. */
+  assert.equal(dragTicks(-S * 2, -S * 0.5).count, 2, 'vạch xuất phát tính là đã rời')
+  assert.equal(dragTicks(10, 10).count, 0)
+
+  /* Sàn/trần của độ mạnh: kéo chậm vẫn phải nghe ra, kéo mạnh không chói thêm. */
+  assert.ok(dragTicks(0, S, { ms: 400 }).gain >= .45)
+  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain <= 1)
+  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain > dragTicks(0, S, { ms: 400 }).gain,
+    'kéo nhanh phải rõ hơn kéo chậm')
+
+  /* Đầu vào rác không được làm sập vòng quay: NaN/0 độ chia. */
+  for (const args of [[NaN, 30], [0, NaN], [0, 30, { sectorDeg: 0 }]])
+    assert.equal(dragTicks(...args).count, 0)
+
+  /* Ba hằng số dùng chung giữa JSX và CSS — đổi một chỗ mà quên chỗ kia là
+     tiếng tách lệch khỏi vạch vẽ trên đĩa. */
+  assert.equal(S, 360 / 16, 'một vạch = một ô của bản vẽ 16 ô')
+  assert.ok(DRAG_MIN_DEG > S && DRAG_MIN_DEG < 90, 'ngưỡng kéo phải lớn hơn một ô và nhỏ hơn một phần tư vòng')
+  assert.ok(DRAG_TICK_GAP_MS >= 30 && DRAG_TICK_GAP_MS <= 80, 'nhịp tách nằm trong khoảng tai nghe ra nhịp')
 })

@@ -3,3 +3,6 @@
 node_modules
 dist
 preview-am-thanh
+
+# Bản sao lưu database (scripts/backup-db.sh) — dữ liệu thật, không commit
+backup/

@@ -179,6 +179,35 @@ test('_headers: không có khối bắt-all nào đặt Cache-Control', () => {
   assert.ok(all.length <= 100, 'Cloudflare cho tối đa 100 rule')
 })
 
+test('_headers: khối /* mang bốn header an toàn, và không header nào bị khai hai lần', () => {
+  /* Cloudflare NỐI giá trị khi cùng một header khớp hai rule (xem đầu tệp
+     _headers), nên header an toàn phải nằm ở ĐÚNG MỘT khối. Khai lặp không làm
+     trang hỏng, nó chỉ nhân đôi giá trị — im lặng, và lớn dần mỗi lần có người
+     thêm rule mới. */
+  const all = parseHeaders()
+  const root = all.find(b => b.pattern === '/*')
+  assert.ok(root, 'phải có khối /* mang header an toàn')
+  const get = (n) => root.headers.find(h => h.name === n)?.value
+  assert.equal(get('x-content-type-options'), 'nosniff')
+  assert.match(get('referrer-policy') || '', /strict-origin-when-cross-origin/)
+  assert.match(get('permissions-policy') || '', /camera=\(\)/)
+  assert.match(get('strict-transport-security') || '', /max-age=\d{7,}/)
+  /* Không được kèm includeSubDomains/preload: hai thứ đó áp cho mọi miền con và
+     rất khó rút lại — không nên tự bật cho một trang chỉ cần HTTPS. */
+  assert.doesNotMatch(get('strict-transport-security') || '', /includeSubDomains|preload/i)
+
+  const names = ['x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security']
+  for (const n of names) {
+    const blocks = all.filter(b => b.headers.some(h => h.name === n))
+    assert.deepEqual(blocks.map(b => b.pattern), ['/*'],
+      `${n} chỉ được khai ở khối /*, đang có ở: ${blocks.map(b => b.pattern).join(', ')}`)
+  }
+  /* CSP: KHÔNG đặt khi chưa kiểm chứng được nguồn thật (Supabase, i.ytimg,
+     Turnstile) trên bản deploy — CSP sai một nguồn là trang trắng. */
+  assert.ok(!all.some(b => b.headers.some(h => h.name === 'content-security-policy')),
+    'chưa đặt CSP vội: phải thử trên bản deploy thật trước')
+})
+
 test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store', () => {
   const cc = (p) => parseHeaders().find(b => b.pattern === p)?.headers
     .find(h => h.name === 'cache-control')?.value
@@ -211,5 +240,9 @@ test('mọi response của 3 route API đều no-store — cả Pages lẫn Work
     assert.equal(pages.headers.get('cache-control'), 'no-store', `Pages · ${name}`)
     const wrk = await worker.fetch(make(), env)
     assert.equal(wrk.headers.get('cache-control'), 'no-store', `Workers · ${name}`)
+    /* `nosniff` phải đi ra từ chính code, không trông vào _headers: response do
+       Function/Worker sinh không chắc được _headers phủ (xem ghi chú đầu tệp). */
+    assert.equal(wrk.headers.get('x-content-type-options'), 'nosniff', `Workers · ${name}`)
+    assert.equal(pages.headers.get('x-content-type-options'), 'nosniff', `Pages · ${name}`)
   }
 })

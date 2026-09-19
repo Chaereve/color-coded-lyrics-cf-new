@@ -32,6 +32,12 @@ Copyright © @chaereve · Tự host, miễn phí 100%.
 
 Quy đổi theo tỷ giá **1 USD ≈ 26.100đ**, làm tròn đến nghìn gần nhất.
 Đổi giá: `src/lib/db.js` → `VOTE_PACKS`, `SINGLE_VOTE`, `PAID_REQUEST`, `USD_VND`.
+
+Ba chỗ đó phải khớp nhau, và nay có máy giữ: `src/lib/priceRate.test.js` kiểm
+`vnd = round(usd × USD_VND / 1000) × 1000` cho từng gói, cho mua lẻ và cho Paid Request.
+Sửa `usd` mà quên `vnd` là `npm test` đỏ ngay và in ra con số đúng — trước đây `USD_VND`
+chỉ nằm trong một câu chú thích, không dòng code nào đọc, nên hai vế lệch nhau bao lâu
+cũng không ai biết.
 Nhớ sửa cả `schema.sql` (hàm `create_request`, dòng `values (v_uid, 'paid_request', 0, 0.75, 20000, r.id)`)
 — giá Paid Request được ghi ở phía database để người dùng không sửa được bằng công cụ dev.
 
@@ -80,15 +86,21 @@ lượt còn lại kèm thanh hai vạch, số dư, ba dòng luật và bảng x
 ngay dưới bánh xe, thẻ trạng thái rồi lịch sử.
 
 Vòng quay dùng các màu surface tối, cỡ chữ/viền/nút cùng bộ giao diện của bảng request.
-**16 ô bằng nhau**, mỗi bậc thưởng một tông trung tính sáng dần — ô sáng hơn là thưởng lớn
-hơn và hiếm hơn; ô jackpot +5 dùng xanh của website với số to hơn. Vành ngoài là một dải phẳng
+**Luật rút vẫn là 16 ô bằng nhau** (server rút đều trên 16 ô, 22,5° mỗi ô), nhưng **bản vẽ gom
+các ô cùng thưởng thành một dải liền**: chín ô `+1` nằm cạnh nhau thành một vùng, và mỗi dải
+chỉ in số thưởng **một lần** ở ô giữa dải, kèm số ô của dải (`+1 ×9`, `+2 ×4`, `+3 ×2`, `+5`).
+Trước đây mỗi ô in một số nên trên đĩa có **chín số 1 giống hệt nhau** — đúng lỗi "trùng lặp
+số vote". Màu lát đi theo **mức thưởng** (một tông cho một mức, sáng dần theo độ hiếm), nên
+nhìn là biết vùng nào đáng hơn; ô jackpot +5 dùng màu nhấn của website với số to hơn và vẫn
+nằm chính giữa 6 giờ. Vành ngoài là một dải phẳng
 viền hairline, các ô ngăn nhau bằng nan tối để 16 ô mỏng vẫn tách bạch; kim chỉ đủ lớn để chạm
 vào ô đang trỏ và rung nhẹ khi các ô lướt qua. **Không có logo ở tâm**, không slogan, không đèn
 viền, không nền gradient. Khi bánh xe dừng, ô trúng được viền sáng còn các ô khác hạ sáng để
 mắt thấy ngay kết quả; ô kết quả dưới nút Spin giữ chiều cao cố định nên không đẩy bố cục.
 Thẻ trạng thái kết thúc bằng **Today's rewards** — phần thưởng hôm nay của chính người xem
-kèm nút *Use votes* ngay cạnh tiêu đề; khối xác suất dạng bảng đã ẩn khỏi giao diện vì bánh xe
-16 ô bằng nhau tự nó đã nói lên tỉ lệ (bảng số liệu đầy đủ nằm ở mục dưới của hướng dẫn này).
+kèm nút *Use votes* ngay cạnh tiêu đề, mỗi dòng mang màu của mức thưởng (dòng trúng jackpot
+nổi bật hẳn), và một dòng **tổng hôm nay** cộng từ chính danh sách đó. Khối xác suất dạng bảng
+vẫn không quay lại giao diện: bánh xe (dải + số ô) và dòng tóm tắt ở đầu khối đã nói đủ.
 Số dư/lịch sử trên trang chỉ hiện phần thưởng mới khi vòng quay dừng; database vẫn cộng thưởng
 ngay trong transaction, rời trang không mất thưởng.
 
@@ -443,6 +455,94 @@ Người dùng gửi
 queued → (admin) in_progress + % tiến độ → completed + link video
 ```
 
+### Bài đã có trên bảng? Form nói ra trước khi bạn gửi
+
+Ngay khi gõ xong **tên bài + nghệ sĩ**, nếu bài đó đã nằm trên bảng thì form hiện một dải
+gợi ý ngay dưới ô nhập: tên bài, số request và tổng số vote đã có, kèm nút **"Vote for it
+instead"** — bấm là đóng form và mở thẳng hộp vote của bài đó. Bài đã làm xong rồi thì nút
+đổi thành **"Already done - watch it"** trỏ ra video.
+
+Đây là **gợi ý, không phải chặn**: người dùng vẫn gửi được nếu họ muốn (bài cũ bị từ chối,
+hoặc họ muốn một bản khác) — quyết định là của họ.
+
+Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việc *cụm 9 vote bị xếp dưới bài 5
+vote* (xem `src/lib/board.js`) lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
+nhiều so với phát hiện rồi gộp ở tầng SQL sau khi dữ liệu đã bẩn.
+
+### Thẻ xem trước — thấy trước khi gửi
+
+Ngay dưới hai ô tên bài / nghệ sĩ có một **thẻ xem trước**: nó dựng đúng cái thẻ mà người
+khác sẽ thấy trên bảng (nhãn loại bài + *Nghệ sĩ — Tên bài* + người gửi), cập nhật theo từng
+ký tự đang gõ. Chỗ nào chưa điền thì hiện chữ mờ nói còn thiếu gì, nên tấm thẻ vừa là bản
+xem trước vừa là danh sách việc cần làm.
+
+Dán **link YouTube** vào ô link thì app nhận ra ngay và hiện **ảnh bìa của chính video đó**
+trong thẻ (lấy từ `i.ytimg.com`, không cần API key và không tốn quota của gói miễn phí). Link
+không phải YouTube thì chỉ được nhắc, **không chặn gửi** — người ta hay dán `youtu.be/abc`
+thiếu `https://`.
+
+### Bản nháp — gõ dở rồi lỡ đóng cũng không mất
+
+Form request tự lưu **bản nháp** vào `localStorage` của trình duyệt (không tốn request nào,
+không gửi gì lên server). Đóng hộp thoại, đổi tab, hay hết pin rồi mở lại thì chữ vẫn còn
+nguyên, kèm một dòng **"Draft restored from your last visit"** và nút **Bỏ nháp** để dọn
+sạch form và bắt đầu lại (bấm nút mà chữ vẫn còn thì là lỗi).
+
+Nháp nhớ cả **bước đang đứng** và **ô "bài trả phí"**: quay lại là đứng đúng chỗ đang làm
+dở, và lựa chọn trả phí hiện ra ngay ở bước 3 — chỗ nó thuộc về — chứ không phải một ô tick
+nằm sẵn mà người dùng chưa từng nhìn thấy.
+
+Ba luật của bản nháp, để không biến việc nhớ giúp thành phiền:
+
+| Luật | Vì sao |
+|---|---|
+| Gửi thành công thì **xoá nháp** | Việc đang làm dở đã thành việc đã gửi; lần sau mở form ra mà thấy lại bài vừa gửi là chuyện khó hiểu |
+| Nháp cũ hơn **7 ngày** thì bỏ | Nửa cái form từ tháng trước không phải là "việc đang làm dở" |
+| **Link mời** (`?add=1&artist=…&title=…`) thắng bản nháp | Link mời là lời mời có chủ đích; đổ đúng thứ người gửi link muốn bạn điền |
+| **Ghi ngay khi form rời màn** (đổi tab trong cùng hộp, hoặc đóng hộp), không chỉ sau 400ms ngừng gõ | Bộ đếm 400ms bị huỷ khi component bị tháo: gõ xong rồi bấm sang tab khác ngay là mất chữ vừa gõ (lỗi đã sửa — xem mục *Hộp xác nhận trong app* bên dưới, phần vòng 14) |
+
+### Dán nguyên tiêu đề video — form tự tách ra hai ô
+
+Cách nhanh nhất để điền form là copy nguyên tiêu đề video rồi dán vào ô tên bài. Nhưng như
+vậy ô tên bài chứa cả tên nghệ sĩ, còn ô nghệ sĩ thì trống. Form nhận ra hai khuôn tiêu đề
+thật và mời bạn **tách bằng một lần bấm**:
+
+| Bạn dán vào ô tên bài | Form đọc ra |
+|---|---|
+| `CHUNG HA 청하 'Algorithm' MV` | nghệ sĩ `CHUNG HA 청하`, tên bài `Algorithm` (tên bài nằm trong cặp nháy) |
+| `aespa - Whiplash (Official Video)` | nghệ sĩ `aespa`, tên bài `Whiplash` (nhãn `(Official Video)` bị bỏ) |
+| `[4K] aespa - Whiplash` | `aespa` · `Whiplash` (nhãn ở đầu cũng bị bỏ) |
+| `aespa Whiplash` | **không làm gì** — không có dấu hiệu nào thì đoán bừa còn tệ hơn để yên |
+
+Dải gợi ý in ra hai vế nó đọc được **trước khi** bạn bấm, và đổi màu khác với dải "bài này
+đã có trên bảng" để hai dải nằm cạnh nhau vẫn phân biệt được. Luật tách nằm ở
+`splitSong()` trong `src/lib/board.js` và có test riêng (`npm test`, file `board.test.js`).
+
+### Phím tắt trong form — đường đi ngắn nhất
+
+| Phím / thao tác | Kết quả |
+|---|---|
+| `Enter` ở ô **nghệ sĩ** | "Xong ô này" → nhảy sang ô tên bài (không gửi) |
+| `Enter` ở ô **tên bài** | Đã đủ hai ô thì **gửi luôn**; còn thiếu thì đưa con trỏ về ô nghệ sĩ |
+| **Dán** một link vào ô nghệ sĩ hoặc tên bài | Link **về đúng ô Link** — không nhét một URL dài vào tên bài |
+
+Mọi gợi ý phím trong app (`/`, `+ / −`) tự ẩn trên thiết bị cảm ứng: máy không có bàn phím
+vật lý thì đừng hứa.
+
+Phần còn lại của form giữ đúng ba nguyên tắc: lỗi hiện ngay tại ô sai (rời ô mới hiện, kèm
+`aria-invalid` để trình đọc màn hình đọc được), bấm Gửi khi còn thiếu thì con trỏ **nhảy vào
+ô sai đầu tiên**, và bộ đếm ký tự chỉ hiện khi đã dùng quá 70% ô.
+
+Dò trên **toàn bộ** dữ liệu (kể cả request đang chờ duyệt và đã bị từ chối), không chỉ
+những hàng đang hiện trên bảng — vì ca trùng phổ biến nhất là *chính mình gửi lại*. Gặp
+trường hợp đó, dòng phụ đổi thành "1 request of yours is waiting for review" (`req.dupPending`).
+
+Quy tắc dò **dùng đúng `groupKey`** mà bảng dùng để gom cụm (cùng tên bài + cùng nghệ sĩ,
+bỏ qua hoa/thường và khoảng trắng thừa), nên câu trả lời ở form và cách bảng cộng dồn vote
+không bao giờ nói hai chuyện khác nhau. Chưa đủ dữ liệu (tên bài dưới 3 ký tự, hoặc chưa có
+nghệ sĩ) thì **im lặng** — gõ tới đâu cũng thấy gợi ý là cách dạy người dùng phớt lờ nó.
+Luật nằm ở `findDuplicate()` trong `src/lib/board.js`, có 7 ca kiểm thử.
+
 Người dùng tự xoá được request của mình khi ở trạng thái `pending`, `queued` hoặc `denied`
 (**trừ hàng đã vào Up next** — đã chốt thì khoá cả xoá để khỏi vỡ kế hoạch làm việc).
 Admin xoá được mọi request.
@@ -459,7 +559,9 @@ Khối **Up next** trên trang Bảng yêu cầu **luôn hiện** (kể cả khi
 mốc giờ chốt tiếp theo không bao giờ biến mất. Mốc giờ lấy theo thứ tự ưu tiên:
 `settings.pick.next_pick_at` → `last_pick_at + interval_days` → cùng lắm hiện chữ
 "every N days" (`now.everyDays` trong `src/lib/i18n.jsx`). Quá mốc mà chưa có lượt chốt mới,
-chip chuyển sang trạng thái nhấp nháy nhẹ "any moment…" (chứ không đứng im), app tự hỏi lại
+chip đổi màu nhấn và hiện thêm **một chấm tĩnh** "any moment…" — đổi màu, KHÔNG nhấp nháy:
+một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1,6 giây, trong khi
+"quá mốc" đọc được bằng màu và con số là đủ. App tự hỏi lại
 `settings.pick` mỗi 30 giây — vừa có mốc mới (cron chạy, hoặc admin chốt tay khi quá hạn —
 trigger `pick_cycle_touch` ghi mốc) là đồng hồ đếm tiếp bình thường ngay trên tab đang mở.
 
@@ -551,6 +653,42 @@ Chạy `npm test` để kiểm tra luật xếp hạng này (12 ca, dùng `node:
 
 
 ---
+
+## Bảng xếp hạng — luật xếp hạng
+
+Bảng xếp hạng trả lời câu hỏi "ai đóng góp nhiều nhất", và câu trả lời nằm ở **một chỗ**:
+`src/lib/ranking.js` (hàm thuần, không React, không gọi mạng — test bằng số được). Component
+chỉ hỏi luật, không tự sắp xếp.
+
+**Ba góc nhìn**, đổi bằng ba nút ngay trên bảng — mỗi góc là **một con số đếm được**:
+
+| Cách xếp | Trả lời câu hỏi | Khoá phá hoà (theo thứ tự) |
+|---|---|---|
+| **Completed** (mặc định) | Ai có nhiều bài được làm xong nhất | tổng phiếu → số bài gửi → tỉ lệ → tên |
+| **Votes earned** | Ai được cộng đồng đòi nhiều nhất | số bài đã xong → số bài gửi → … |
+| **Requests** | Ai gửi nhiều bài nhất | số bài đã xong → tổng phiếu → … |
+
+**Không còn "điểm".** Bản trước có thêm một cột `Score` = `10 × bài đã xong + tổng phiếu`. Con
+số đó do chính bảng tự đặt ra: trọng số `10` không ứng với thứ gì trong sản phẩm (không phải
+giá của một bài, không phải mốc phiếu nào), không xuất hiện ở màn hình nào khác, nên người xem
+muốn hiểu thứ tự phải tin vào một phép nhân không giải thích được — đó là lý do nó bị gọi là
+"tiêu chí điểm kì lạ". Nay bảng chỉ xếp theo ba con số **có thật** trong view
+`requester_ranking`: `completed`, `total_votes`, `total`. Bớt được một tab, một cột, một câu
+giải thích dài, và không còn hằng số nào để lệch giữa lời nói và phép tính.
+
+**Mặc định là bài đã xong**, không phải số bài gửi: gửi 40 bài mà không bài nào lên sóng thì
+không leo hạng — cùng tinh thần với việc gom cụm bài trùng và việc bài bị từ chối không được
+tính hạng. Cộng đồng đòi thật vẫn có tiếng nói, nhưng ở **cách xếp riêng của nó**
+(*Votes earned*) và ở khoá phá hoà của mọi cách xếp.
+
+Trên màn hình: bảng có **ba cột số** (bài gửi · bài đã xong · phiếu), vạch tỉ lệ dưới tên là
+một vạch **phẳng một màu** (không gradient), và hàng của chính bạn được tô một tấm nền phẳng
+rồi dính đáy khối để không phải cuộn đi tìm.
+
+**Bài bị từ chối không tính gì** — không vào số bài, không vào phiếu, không vào hạng. Đây
+không phải một ghi chú: nó là một dòng `where r.status <> 'denied'` trong view
+`requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để leo hạng
+là vô ích.
 
 ## Theo dõi bài + thông báo (Notifications)
 
@@ -813,6 +951,7 @@ New query → dán cả file → Run**.
 | `migrations/20260909_daily_spin_edge.sql` | một lần, CHẠY SAU file prizes: cột audit `fp_hash`/`ip_hash` + `spin_daily` nhận hash từ cổng Edge (mặc định null); đã có trong schema mới |
 | `migrations/20261102_spin_fp_quota.sql` | một lần: hạn mức quay theo vân tay nằm trong Postgres (`fp_slot` + unique index), gọi thẳng RPC cũng bị chặn; đã có trong schema mới |
 | `migrations/20261103_vote_hardening.sql` | một lần, CHẠY SAU file spin_fp_quota: siết vote (khoá hàng, hạn mức vân tay, hoàn đúng ví, cổng `edge_gate`); đã có trong schema mới |
+| `migrations/20261104_spin_streak.sql` | một lần, CHẠY SAU file vote_hardening: vòng quay **không lặp quá 2 lượt liên tiếp** — hai lượt gần nhất của cùng một thiết bị đã ra cùng số thưởng thì lượt này loại số đó (ô vẫn rút đều trên 16 ô, chỉ hẹp tập hợp lệ trong đúng tình huống này); đã có trong schema mới |
 
 **Thấy đúng chữ `P0001` trên màn hình là schema chạy thiếu.** Từ bản này các hàm SQL
 `raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/i18n.jsx`
@@ -839,8 +978,48 @@ trên, không phải dữ liệu bị hỏng.
 
 Mọi thay đổi hiện ngay trên máy người khác (kể cả khách chưa đăng nhập) nhờ Realtime.
 
-Bảng Admin mở bằng nút **Bảng quản trị** trong sidebar. Muốn mở thẳng tab Videos thì gọi
-`openAdmin('media')` trong `src/App.jsx`.
+Bảng quản trị là **một trang thật** ở `/admin` (không còn là hộp thoại): mở bằng mục
+**Bảng quản trị** trong sidebar, hoặc dán thẳng địa chỉ. Mục đang mở nằm luôn trong địa chỉ
+— `/admin?tab=orders`, `/admin?tab=media` — nên F5 giữ nguyên chỗ đang làm, nút Back lùi
+đúng một bước, và gửi link cho người khác là họ mở đúng mục đó. Muốn mở thẳng một mục từ
+trong code thì gọi `openAdmin('media')` trong `src/App.jsx`.
+
+Ba thứ trong trang làm việc nhanh hơn khi có nhiều request: **chọn nhiều** để duyệt / từ
+chối / chốt / trả về hàng chờ / xoá cả loạt, **lọc theo loại bài** và **xếp thứ tự**, và
+**xuất CSV** đúng những dòng đang nhìn (file dựng ngay trong trình duyệt, mở bằng Excel hay
+Google Sheets đều đúng dấu tiếng Việt). Thanh hành động hàng loạt dính ở đáy khung nên cuộn
+tới đâu vẫn bấm được; `Esc` bỏ chọn hết; `/` nhảy vào ô tìm kiếm; `Ctrl/Cmd+A` **chọn cả
+trang đang nhìn** (chỉ khi đang ở chế độ chọn nhiều — lúc khác vẫn là "chọn hết chữ").
+
+**Bộ lọc cũng nằm ở địa chỉ.** Từ khoá, cách xếp và loại bài đi cùng mục đang mở:
+
+```
+/admin?tab=active&q=aespa&sort=votes&kind=Short
+```
+
+Mở địa chỉ đó ra là thấy **đúng danh sách đã lọc** — dán cho đồng nghiệp, ghim vào dấu
+trang, hay F5 đều giữ nguyên; nút Back lùi đúng bước. Địa chỉ chỉ ghi những tham số **khác
+mặc định**, nên một danh sách chưa lọc vẫn là `/admin` gọn gàng. Giá trị gõ tay không có
+thật (`?sort=abc`, `?kind=Không-Có`) rơi về mặc định chứ không làm trang trắng — hàm đọc
+nằm ở `src/lib/adminTabs.js` (`readAdminView` / `adminQuery`), có test riêng.
+
+**Nút Xuất CSV có ở mọi mục** — kể cả *Đơn hàng*, với đúng bộ cột của đơn (mã, loại, số
+vote, VND, USD, trạng thái, thời điểm). Nút *Chọn nhiều* thì chỉ hiện ở những mục có ô
+chọn trên từng dòng (mục Đơn hàng không có, nên không mời bật một chế độ không tick được gì).
+
+Dưới dải số liệu có **một vạch chia tỉ lệ** (5px): năm ô nói *bao nhiêu việc*, vạch
+nói *việc nào chiếm bao nhiêu phần*. Mỗi đoạn mang đúng màu của mục đó, nên không cần
+chú giải riêng — dải số liệu ngay trên đã là chú giải.
+
+Hai phím tắt của trang được in ngay cạnh dòng đếm (và tự ẩn trên điện thoại vì máy
+không có bàn phím vật lý): **`Esc`** bỏ chọn hết, **`Ctrl/Cmd + A`** chọn cả trang đang
+nhìn khi đang ở chế độ chọn nhiều. Nhịp chốt bài trong lời gợi ý của nút *Pick for Up
+next* đọc từ chính `settings.pick.interval_days` — đổi nhịp trong cấu hình là lời gợi ý
+đổi theo, không còn con số 4 viết cứng.
+
+Dải năm ô số liệu ở đầu trang lấy mục · nhãn · màu · cách đếm từ **một chỗ duy nhất**
+(`ADMIN_TAB_META` trong `src/lib/adminTabs.js`). Thêm một mục mới là thêm một dòng ở đó —
+không còn hai danh sách song song để lệch nhau (mục có địa chỉ nhưng không có ô nào bấm tới).
 
 ### Khung Sửa trên điện thoại
 
@@ -948,15 +1127,26 @@ một nhịp thay vì mỗi chỗ một kiểu:
 ```css
 --e-out:  cubic-bezier(.22,.61,.36,1);    /* vào: nhanh rồi hãm dần */
 --e-soft: cubic-bezier(.4,0,.2,1);        /* đổi màu nền, viền */
---e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — modal, nút phát */
+--e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — CHỈ lúc ăn mừng */
 --t-1: .16s;  --t-2: .28s;  --t-3: .42s;
 ```
+
+Ba tầng này chia theo **cổng tần suất**, không chia theo "hiệu ứng này đẹp hơn hiệu ứng
+kia": thao tác người dùng càng lặp nhiều thì chuyển động ở đó càng phải **ít và nhanh**
+(Emil Kowalski). Người dùng bấm vote hai chục lần một phiên; một hiệu ứng 300ms ở đó là
+sáu giây chờ trong một phiên. Vì vậy:
+
+* `--e-out` — mọi thứ **vào** trang và mọi thứ dịch chuyển. Không overshoot.
+* `--e-soft` — đổi màu nền/viền/chữ, lặp hàng trăm lần nên phải là đường thẳng không gợn.
+* `--e-pop` — **chỉ khoảnh khắc ăn mừng** (bục xếp hạng, vòng quay thưởng). Công tắc,
+  toast, nút điều hướng từng dùng nó: overshoot trên một thao tác tiện ích đọc ra thành
+  đồ chơi, không phải phản hồi.
 
 | Chỗ | Hiệu ứng |
 |---|---|
 | Đổi mục | **View Transitions**: hai màn hình trượt qua nhau theo hướng điều hướng (`src/App.jsx` → `go`). Sidebar mang `view-transition-name: sidebar` nên đứng yên, chỉ nội dung đổi. Trình duyệt không có API này (`html[data-vt]` không tồn tại) thì khối nội dung tự chạy `sectIn` như trước |
-| Tiêu đề trang | Mở bằng `clip-path` từ trên xuống; dòng mô tả trượt vào trễ hơn 0.16s |
-| Danh sách request | Mỗi hàng vào sau trễ hơn 28ms, chặn tối đa 12 nhịp để danh sách dài không phải chờ |
+| Tiêu đề trang | Mờ dần + nhích lên 6px trong 0.34s. **Không** còn `clip-path`: chữ là nội dung tĩnh, mỗi lần bấm menu lại thấy nó được "vẽ ra" là tự giới thiệu chứ không phải phản hồi |
+| Danh sách request | Mỗi hàng vào sau trễ hơn **32ms**, chặn tối đa **10 nhịp** — đây là nhịp so le duy nhất của bảng (bản trước còn cộng thêm nhịp riêng cho dải thống kê và dải video) |
 | Cuộn trang | Khối vừa vào tầm nhìn hiện dần, các khối trong một mục lệch nhau 70ms (`data-reveal` + `src/lib/useReveal.js`) |
 | Nền trang | Aurora 3 vệt cùng tông logo trôi rất chậm 36s/nhịp bằng transform (`src/components/Background.jsx`) |
 | Khối lớn (thống kê, danh sách, Vote của bạn) | Vệt sáng 9% bám vị trí con trỏ — `data-glow` + `useGlow()`: MỘT listener cho cả trang, cắt theo frame |
@@ -965,9 +1155,11 @@ một nhịp thay vì mỗi chỗ một kiểu:
 | Modal / khung phát | Mờ dần + trượt, easing nảy nhẹ; phông sau modal mờ đi 7px (`@starting-style` nên lớp blur TO ra khi mở, không bật phụt) |
 | Bỏ / thêm vote | Vòng sáng bung ra từ nút vote ngay lúc số đổi |
 | Thanh tiến độ | Chạy mượt sang % mới thay vì nhảy số |
-| Nút | Nhấc lên 1px khi rê, ấn xuống khi bấm; nút màu có vệt sáng quét |
-| Thông báo | Trượt vào theo easing nảy, có thanh đếm giờ; rê chuột vào là đồng hồ DỪNG thật (rAF, không phải setTimeout giả) |
-| Logo ở màn chờ | Một vệt sáng quét NGANG logo rồi nghỉ (`logoShimmer`, chu kỳ 2.9s trong đó chỉ 34% là quét) — không có vòng tròn xoay quanh logo: vòng xoay vô hạn nhìn như icon đang tải chứ không phải thương hiệu |
+| Nút | **Chỉ nút hành động chính** nhấc lên khi rê; nút phụ trả lời bằng màu viền/nền; mọi nút đều lún xuống `scale(.97)` khi bấm. Chỗ nào cũng nhún thì không chỗ nào là chính |
+| Thông báo | Trượt vào 0.3s bằng `--e-out` (**không nảy** — toast là thông báo, không phải phần thưởng), có thanh đếm giờ; rê chuột vào là đồng hồ DỪNG thật (rAF, không phải setTimeout giả) |
+| Số liệu đổi | Nhún nhẹ 0.26s (`tickIn`) ở đúng ô vừa đổi giá trị |
+| Việc đang chạy | Vệt sáng quét chậm 2.4s trên thanh của khối **Up next** và chỉ ở đó. Bản trước mọi hàng "đang làm" trong danh sách cũng mang vệt: mười bài cùng lúc là mười vòng lặp vô hạn |
+| Logo ở màn chờ | Một vệt sáng quét NGANG logo rồi nghỉ (`logoShimmer`, chu kỳ 1.6s trong đó 22% là quét) — không có vòng tròn xoay quanh logo: vòng xoay vô hạn nhìn như icon đang tải chứ không phải thương hiệu |
 | Bục xếp hạng | Ba thẻ nở từ dưới lên so le 90ms (`podIn`), một vệt ánh kim quét ngang rồi tắt (`podShine`, dịch −120%→+120% để vệt ra khỏi khung hẳn, không dừng giữa thẻ) |
 
 Nền trang là hai lớp trong `src/components/Background.jsx`: một tấm gradient tĩnh đứng yên,
@@ -979,12 +1171,31 @@ nháy khi cuộn) và không dùng `height: 100dvh` (giật theo thanh địa ch
 muốn nền đặc thì chặn `.bgfx { display: none }`. Người dùng bật giảm chuyển động trong hệ điều
 hành thì aurora tự đứng yên.
 
-Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả:
+### Màn chờ (splash) dài bao lâu?
+
+**Không cố định.** App chờ hai điều kiện: dữ liệu đã về (`ready`) và một **sàn 560ms** đủ
+để logo kịp "vào" — dưới ngưỡng đó thì nó chỉ là một cái nháy mắt. Bản trước ghim cứng
+1.7 giây, nên mạng nhanh thì người dùng ngồi nhìn logo thêm hơn một giây vô ích.
+
+Và màn chờ **chạy mỗi lần tải trang** — chủ dự án chốt 19/09, bỏ hẳn cờ `ccl3_splash`
+trong `sessionStorage`. Nó là câu chào thương hiệu, không phải màn hình nghi thức, nên
+nó cũng không được giữ ai lại quá **2,6 giây**: hết trần đó là vào nội dung, dù dữ liệu
+chưa về.
+
+### Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả
 
 1. **Chỉ animate `opacity` và `transform`** — hai thứ này compositor xử lý, không bắt trình
-   duyệt tính lại layout giữa chừng.
-2. **Tôn trọng `prefers-reduced-motion`** — người dùng tắt hiệu ứng trong hệ điều hành thì
-   mọi animation/transition rút về 0, nội dung vẫn hiện đầy đủ.
+   duyệt tính lại layout giữa chừng. Ba chỗ đã sửa vì vi phạm: thanh âm lượng (chạy
+   `width 0 → 64px`, làm chữ *Âm thanh* bên cạnh bị bóp rồi giãn mỗi lần rê chuột — nay
+   giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa khỏi transition),
+   và vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+2. **Tôn trọng `prefers-reduced-motion`** — có MỘT khối `*, *::before, *::after` ở
+   `src/index.css` rút mọi `animation-duration` và `transition-duration` về `.001ms`, nên
+   **không cần khai override cho từng phần tử nữa**. Hai khe hở phải nhớ khi viết code mới:
+   `animation-delay` / `transition-delay` **không** bị vô hiệu (phần tử vào trang bằng
+   `both` + delay sẽ đứng im ở trạng thái đầu — vì thế nhịp so le luôn phải chặn số nhịp),
+   và `backdrop-filter` cũng không (nó không phải chuyển động — ai không muốn kính thì có
+   khối `prefers-reduced-transparency` riêng).
 
 Muốn nhanh/chậm hơn thì sửa 3 biến `--t-*`; muốn đổi cảm giác thì sửa `--e-*`.
 
@@ -1072,7 +1283,8 @@ Ba quy tắc đã áp dụng khi rà toàn bộ UI:
    `TOAST_CAP = 3` (trước đây 4 ô 8 giây là phủ gần hết góc nhìn). Lý do ra đời: một cú tick của
    admin trên cụm 3 request sinh ba mẩu tin giống hệt nhau che màn hình.
 
-**Bảy chốt chặn tĩnh cho những lỗi mà trình duyệt mới nhìn thấy** (`npm test` chạy kèm):
+**Mười chốt chặn tĩnh cho những lỗi mà chỉ trình duyệt mới nhìn thấy** (`npm test` chạy kèm;
+   đoạn này trước ghi "bảy" trong khi liệt kê tám — đếm lại và bổ sung hai cái bị bỏ sót):
 `src/lib/cssGridRows.test.js` — mọi quy tắc lưới của `.grow` chốt cột thì phải chốt hàng,
 chuông không được quay về `position:absolute`, và các số đo nhịp phải còn nguyên;
 `src/lib/cssNotifyPitch.test.js` — một khoảng lùi 12px cho mọi khối trong popover + không
@@ -1083,7 +1295,12 @@ phải loại widget và phải nằm trong `:where()`; `src/lib/cssScroll.test.
 `flex:1` phải có `min-height: 0`; `src/lib/cssTokens.test.js` — không `var(--x)` nào vô chủ
 (`var(--body)` đã sống sót 3 quy tắc vì CSS không bao giờ báo lỗi này); `src/lib/i18nKeys.test.js`
 — không key nào thiếu/trùng và không `{x}` nào hiện nguyên; `src/lib/jsxHtml.test.js` — markup hợp
-lệ (`<div>` trong `<button>`, control lồng control, `type` của button trong form). Mỗi cái đều đã
+lệ (`<div>` trong `<button>`, control lồng control, `type` của button trong form);
+`src/lib/cssTapTarget.test.js` — **hợp đồng theo cặp** cho những nút cố tình nhỏ ở bản desktop
+(`.rowact`, `.toast-x`): đã chọn "nhỏ trên chuột, đủ to trên cảm ứng" thì cả hai vế phải còn,
+vì vế mobile là thứ bị xoá đầu tiên khi dọn CSS; `src/lib/cssSelectArrow.test.js` — mũi tên
+`<select>` phải là thứ tự vẽ, không phải do trình duyệt sơn sát mép bo góc (lỗi người dùng đã
+báo một lần). Mỗi cái đều đã
 được thử phá để chắc rằng nó đỏ thật — chốt chặn không đỏ thì còn vô dụng hơn cả không có, và
 **bản thân bộ quét cũng phải được chứng minh là đọc đúng** (test cuối của mỗi file là vậy).
 
@@ -1167,11 +1384,12 @@ Mỗi mục có đường dẫn riêng, chia sẻ link được và nút Back/Fo
 | Daily Spin | `/daily-spin` | Daily Spin · Chaereve |
 | Xếp hạng | `/ranking` | Xếp hạng — Color Coded Lyrics |
 | Của tôi | `/profile` | Của tôi — Color Coded Lyrics |
+| Bảng quản trị | `/admin` (thêm `?tab=…` để mở thẳng một mục) | Bảng quản trị — Color Coded Lyrics |
 
 Đổi đường dẫn thì sửa `ROUTES` ở đầu `src/App.jsx`:
 
 ```js
-const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
+const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 ```
 
 Đường dẫn `/videos` cũ (mục Kênh đã bỏ) mở lên vẫn ra trang chủ, thanh địa chỉ tự sửa về `/`.
@@ -1200,6 +1418,25 @@ Sidebar có 4 mục chính, mỗi mục là một trang riêng:
 Thanh trên cũ đã bỏ hẳn. Bốn mục chính và toàn bộ cài đặt nằm trong **cột sidebar
 bên trái** — xem mục *Sidebar và video lấy thẳng từ kênh YouTube* ở cuối file.
 
+### Trang Bảng yêu cầu: hai cột từ 1300px
+
+Dưới 1300px, trang là **một cột** theo đúng thứ tự đọc: thống kê → video của kênh →
+*Up next* → *Vote của bạn* → danh sách request. Từ 1300px trở lên, **video của kênh
+tách sang một cột riêng bên phải** (320px), còn cột trái giữ việc chính của trang:
+thống kê, *Up next*, *Vote của bạn*, danh sách.
+
+Con số 1300px là tính ra chứ không phải chọn cho đẹp: từ 900px trở lên `.shell` đã chừa
+252px cho sidebar, nên bề ngang thật của `.main` chỉ còn `viewport − 252`. Muốn cột nội
+dung còn ≥650px (đủ để tên bài không phải xuống dòng) thì cần khoảng 1298px. Dưới ngưỡng
+đó, hai cột sẽ **bóp** hàng request chứ không tận dụng khoảng trống.
+
+Đổi bố cục bằng `grid-template-areas`, **không** đổi thứ tự DOM — nên bản một cột và bản
+hai cột luôn là cùng một nội dung, và trình đọc màn hình đọc đúng thứ tự.
+
+Trong cột hẹp 320px, dải mục lục video xếp **dọc** (ảnh 112px bên trái, tên bên phải)
+thay vì cuộn ngang như bản rộng — cùng dạng với một danh sách video quen thuộc, đọc được
+tên dài trong bề ngang hẹp.
+
 **Vote của bạn** là khối riêng trong trang Bảng yêu cầu, đặt **ngay dưới thanh
 *Up next***: số lượt còn lại, vote miễn phí hôm nay, vote đã mua, bonus Daily Spin —
 mỗi loại một ô riêng — kèm nút *Vote ngay*, *Daily Spin* và *Mua vote*.
@@ -1211,8 +1448,159 @@ Bộ lọc, loại video và từ khoá tìm nằm trên URL (`/?f=top&k=Short&q
 320ms — Chrome/Safari chặn `replaceState` quá dày (100 lần/30s), gõ phím nào cũng ghi là trang tự
 chuốc lệnh phong toả history.
 
+**Bộ lọc còn được NHỚ cho lần ghé sau** (tab + loại video, trong `localStorage` khoá `ccl.board`,
+ghi cùng nhịp 320ms với URL). Ba nguồn xếp theo thứ tự ưu tiên rõ ràng — luật nằm ở
+`pickBoardParam()` trong `src/lib/board.js`:
+
+| Nguồn | Khi nào thắng |
+|---|---|
+| URL (`?f=`, `?k=`) | Luôn thắng — dán link là mở đúng chỗ người gửi muốn chỉ |
+| `localStorage` | Khi URL không nói gì: lần ghé trước xem tab nào thì ghé sau vẫn ở đó |
+| Mặc định (`queued` / tất cả loại) | Khi cả hai đều không có, hoặc giá trị đã lưu không còn hợp lệ |
+
+Giá trị lạ (tab đã bị đổi tên ở bản trước còn nằm trong máy người dùng, hoặc URL cũ ai đó dán vào)
+**bị bỏ qua** chứ không đẩy vào state — một tab không tồn tại sẽ làm danh sách rỗng mà không ai
+hiểu vì sao. Còn `q` (từ khoá tìm) thì **không** nhớ: mở lại web mà danh sách tự dưng rỗng vì một
+từ khoá cũ là kiểu bực mình không ai gọi được tên — tìm kiếm là chuyện của phiên hiện tại.
+
+### Link mời gửi bài — dán vào mô tả video YouTube
+
+```
+https://chaereve.pages.dev/?add=1&artist=aespa&title=Whiplash
+```
+
+Bấm link là vào thẳng form *Gửi request* với tên bài/nghệ sĩ đã điền sẵn — người xem chỉ còn bấm
+Gửi. Đây là đường ngắn nhất từ "đang xem video" tới "đã gửi request", và nó không tốn thêm dịch vụ
+nào: bộ lọc vốn đã nằm trên URL từ trước.
+
+| Tham số | Việc |
+|---|---|
+| `add` | Bắt buộc. `?add`, `?add=1`, `?add=true` đều mở form; `?add=0` / `false` / `no` thì không |
+| `artist` | Điền sẵn ô nghệ sĩ (cắt ở 120 ký tự như ô nhập) |
+| `title` | Điền sẵn ô tên bài (cắt ở 160 ký tự) |
+| `link` | Điền sẵn ô link (cắt ở 500 ký tự) |
+
+Bốn tham số được **dùng đúng một lần rồi xoá khỏi URL** (`replaceState`): để nguyên thì F5 lại mở
+form lần nữa, và đóng form xong bấm Back lại thấy nó bật lên.
+
+Nút **chia sẻ** ở cuối mỗi dòng request làm việc ngược lại: nó tạo link
+`/?f=top&q=<tên bài>` trỏ về **chính bảng** — người nhận bấm vào là vote được ngay thay vì phải
+đi tìm bài. Trên máy cảm ứng thì mở hộp chia sẻ của hệ điều hành (Zalo/Messenger/Telegram), còn
+lại thì copy link + hiện toast. Đây là vòng tăng trưởng duy nhất của app mà không cần thêm dịch vụ:
+người gửi request trở thành người đi vận động cho nó.
+
+### Ghim công người gửi — nút *Copy credits* trong bảng Admin
+
+Mở bảng Admin → một request → **Copy credits**: chép vào clipboard đúng đoạn chữ để dán vào mô tả
+video:
+
+```
+aespa - Whiplash
+Requested by: An, Bình, Chi
+```
+
+Gom **mọi dòng cùng bài** (kể cả dòng đã bị từ chối, vì người đó vẫn đã gửi) và bỏ tên trùng; quá
+8 người thì gộp đuôi thành `+3`. Trước đây việc này làm bằng tay — mở bảng, đọc từng dòng, gõ lại
+tên — nên nó thường bị bỏ. Nhãn nút đổi thành *Copied* tại chỗ trong 1,6 giây: mắt đang ở giữa
+bảng, còn toast thì ở góc màn hình.
+
 Hai phím tắt cho người dùng bàn phím: `N` mở form gửi request, `/` nhảy ô tìm kiếm
 (`Esc` ngay trong ô tìm là xoá luôn từ khoá).
+
+### Thanh lọc trên máy hẹp: chip loại bài đang lọc
+
+Khi bạn chọn một **loại bài** (Color Coded Lyrics / Full Album / 1 Hour Loop / Short) trong
+khối *Bộ lọc*, trên màn hẹp một **chip mang tên loại đó hiện ngay hàng chip chính** và bấm
+vào là bỏ lọc. Đây là chỗ duy nhất nói ra vì sao danh sách ngắn đi — trên màn hẹp khối lọc
+đã gấp lại sau nút *Bộ lọc*, nên nếu không có chip này thì bạn chỉ thấy "hình như thiếu bài".
+Từ 621px trở lên chip đó tự ẩn: khối lọc luôn hiện ở đó, nói hai lần là thừa.
+
+Trên màn hẹp thanh lọc cũng xếp lại thành **hai hàng, mỗi hàng một việc**: hàng trên là dải
+chip trạng thái (chiếm trọn bề rộng, cuộn ngang và **dừng ở từng chip**), hàng dưới là ô tìm
+kiếm + nút *Bộ lọc*. Trước đây dải chip và ô tìm kiếm chen nhau trên một hàng, nên chip bị
+bóp còn vài chục pixel — nhìn như một mẩu chip cụt.
+
+### Tìm kiếm bỏ dấu — gõ sao cũng ra
+
+**Khoảng chừa trong ô tìm kiếm tính theo bề rộng thật của hai thứ nằm đè lên nó** (kính lúp
+bên trái, nút xoá bên phải). Đây là chỗ vẫn còn hở sau lần vá trước: bên phải là con số
+`26px` viết cứng, mà trên điện thoại nút xoá được nới lên 30px cho dễ chạm — chữ gõ vào vẫn
+chui được xuống dưới nút xoá. Nay nới nút là khoảng chừa tự đi theo, và luật này áp cho **mọi**
+ô tìm kiếm, kể cả ô trong bảng quản trị.
+
+Ô tìm kiếm bỏ dấu trước khi so, nên một từ khoá khớp cả ba cách người ta gõ tên bài:
+`Chung Hạ`, `Chung Ha`, `chung ha`. `Đặng Nhập` tìm được bằng `dang nhap`: chữ **đ** là ký tự
+riêng của tiếng Việt (không phải `d` cộng dấu), nên nó phải được thay bằng tay — thiếu bước
+đó thì gõ "dang" không ra "Đặng" mà nhìn vào chẳng thấy sai ở đâu.
+
+Toàn bộ luật nằm trong **một** hàm `fold()` (`src/lib/board.js`), và bảng Admin dùng đúng hàm
+đó. Trước đây Admin có bản `norm()` riêng (không xử lý `đ`), nên cùng một từ khoá cho hai kết
+quả khác nhau ở hai màn hình — có ca kiểm thử canh riêng chuyện này.
+
+### "Sớm nhất bao lâu" — sàn thời gian, không phải lời hứa
+
+Dưới mỗi dòng request đang theo dõi, cạnh câu về hạng, nay có thêm một vế mờ hơn: *"at least
+3 weeks"*. Nó trả lời câu hỏi tốn tiền nhất của người đã gửi request — *bao giờ có video?* —
+mà bảng trước đó chỉ trả lời được "còn cách 2 vote", vốn là việc của người khác bỏ phiếu chứ
+không phải một mốc thời gian.
+
+| Thành phần | Lấy từ đâu |
+|---|---|
+| Tới đợt chốt kế tiếp | `settings.pick.next_pick_at` — **đúng** mốc mà đồng hồ đếm ngược trên đầu bảng đang chạy |
+| Số chu kỳ còn phải qua | `(hạng − 1) × interval_days` (mặc định 4 ngày; mỗi đợt chốt lấy **một** bài) |
+
+Vì sao luôn là *"sớm nhất"*: bài khác có thể vượt lên bằng vote, tức thời gian thật chỉ có
+thể **muộn hơn** con số này. Một con số kèm chữ "khoảng" mà lại có thể trễ hơn thì vẫn là nói
+thật; một con số không có gì bảo đảm thì là hứa. Con số chia theo ngày (< 12) → tuần (12–55)
+→ tháng (≥ 56), và không bao giờ hiện "0 ngày" hay "1 tháng" — còn 6 tiếng nữa chốt thì phải
+là "1 ngày".
+
+Ba chỗ **cố ý không hiện**: bài đang dẫn đầu (đồng hồ đếm ngược đã nói rồi, thêm chỉ lặp),
+bài bị một request đã trả tiền chặn trước (đang hiện *behind a paid request* — không hứa được
+gì), và hạng quá 20 (lúc đó con số chỉ còn là trò chơi chữ). Hạng 9–20 **trước đây im lặng
+hoàn toàn** (chỉ hạng ≤ 8 mới có câu), mà đó lại đúng là những người cần biết "bao giờ" nhất.
+
+Con số chỉ được tính ở **một chỗ**: `pickLadder()` gắn `eta` vào chính mục xếp hạng, nên bảng,
+hộp thông báo và trang Của tôi dùng chung một kết quả — không có ba bản tính riêng để lệch nhau.
+
+### Hộp nhập số vote — chọn nhanh, và trên điện thoại là tấm trượt từ đáy
+
+Bấm nút vote trên một bài là mở hộp nhập số phiếu. Con số **lớn nhất** trong hộp là **số phiếu
+SAU khi bạn vote** (không phải số đang có) — người bấm cần biết kết quả, không phải hiện trạng;
+dưới nó là một dòng nhỏ nói hiện tại đang bao nhiêu. Chọn bằng một trong bốn cách, cả bốn cùng
+một trục nên không mâu thuẫn nhau:
+
+| Cách chọn | Chi tiết |
+|---|---|
+| **Mức nhanh** | `1 · 5 · 10 · tất cả` — mức nào vượt quá số phiếu đang có thì **không hiện** (bấm vào rồi báo lỗi là lỗi thiết kế) |
+| **Thanh trượt** | Kéo là con số lớn chạy theo |
+| **Ô số** | Kèm nút `−` / `+`; nút **rút lại** số phiếu đã vote nằm bên trái |
+| **Bàn phím** | `+` / `−` / mũi lên / mũi xuống chỉnh số, `Esc` đóng; gợi ý `+ / −` in ngay cạnh ô số và **tự ẩn trên thiết bị cảm ứng** (không có bàn phím thì đừng hứa) |
+
+Khi con trỏ đang ở **trong ô nhập** thì app **nhường phím lại** cho ô: ở đó trình duyệt đã tự
+tăng/giảm bằng mũi lên/xuống, bắt thêm là nhân đôi.
+
+Cuối hộp là **ba ô số dư** (miễn phí hôm nay · đã mua · thưởng) để biết phiếu sắp dùng lấy từ
+đâu, và một dòng *"còn 7 → còn 3"* trả lời đúng câu hỏi *bấm nút này thì tôi mất gì*. Ngay
+dưới ba ô đó là **một vạch chia tỉ lệ**: ba đoạn của cùng một màu (đậm dần) cho biết phần nào
+là phiếu miễn phí, phần nào là phiếu mua, phần nào là thưởng — ba ô nói *số lượng*, vạch nói
+*tỉ lệ*. Con số lớn trong hộp cũng được **đọc lên** khi bạn đổi số phiếu (trình đọc màn hình),
+và ô nhập số phiếu trỏ tới dòng "còn … → còn …" để đọc tới ô là hiểu ngay sẽ mất gì.
+
+**Trên điện thoại (≤620px) hộp là một tấm trượt từ đáy lên**: bo hai góc trên, phẳng ở đáy, có
+tay nắm, và chừa `env(safe-area-inset-bottom)` cho máy có thanh home. Nút xác nhận nhờ đó rơi
+đúng vào tầm ngón cái, và bàn phím số của máy (nếu mở) không đẩy hộp lên khỏi tầm nhìn. Mức
+chọn nhanh và nút `−`/`+` trên thiết bị chạm cao **44px**.
+
+### Mua thêm vote trong tin "sát nút"
+
+Tin *"Almost picked"* (bài còn ≤ 3 vote nữa là dẫn đầu) nay có thêm nút **Get votes**, mở
+thẳng tab mua. Đây là **lúc duy nhất** con số "còn 2 vote nữa" vừa đọc được vừa làm được gì
+ngay, nên nút chỉ sống trong đúng loại tin đó: không rải khắp hộp thư, không nằm trên bảng.
+
+Nút cố ý để **lặng** (viền xám như nút *Watch*, không tô vàng như nút *Vote*): người đọc trả
+tiền khi họ muốn, không phải vì có nút vàng hét lên. Không truyền `onBuy` thì nút không tồn
+tại, nên chỗ nào không cần cũng không vỡ.
 
 ## Font chữ
 
@@ -1317,10 +1705,16 @@ của file chứ đừng ghi `normal`.
 
 Giao diện đi theo hướng **tối giản, để chữ dẫn dắt thay vì màu**:
 
-- **Một màu nhấn duy nhất** (`--a`, xanh dương) cho link, nút chính, tab đang mở và ô nhập
+- **Một màu nhấn duy nhất** (`--a`, xanh **ultramarine** `#2b22e2`, lấy đúng từ logo —
+  không còn là xanh da trời nhạt như bản cũ) cho link, nút chính, tab đang mở và ô nhập
   đang focus. Ngoài ra gần như toàn bộ trang là thang xám trung tính.
-- **Không gradient, không glow.** Cả file CSS còn đúng 2 `box-shadow`: bóng đổ của hộp
-  thoại và vòng viền avatar admin.
+- **Không gradient trang trí, không glow phát sáng.** Nói cho chính xác — bản mô tả cũ ghi
+  "cả file CSS còn đúng 2 `box-shadow`", điều đó đã sai từ lâu và càng sai sau đợt này:
+  bóng đổ *nhẹ* được dùng để tách khối khỏi nền (và thay viền ở chỗ nền phía sau sáng thay
+  đổi: ảnh bìa, avatar), thang kính có ba mức độ đục, và có đúng **hai** ngoại lệ được biện
+  minh: quầng ultramarine sau khung video chính (đánh dấu "đây là video chính", cả trang chỉ
+  một khung) và vệt sáng trên thanh tiến độ của khối *Up next*. Thêm ngoại lệ thứ ba thì
+  phải bỏ một trong hai cái đang có.
 - **Trạng thái hiện bằng chấm tròn 6px + chữ xám** (`.status`), không phải thẻ nền màu.
   Nhờ vậy một dòng request không còn 3 mảng màu chen nhau.
 - **Số liệu dùng font monospace** (`--mono`): số vote, giá tiền, số tài khoản, thời gian.
@@ -1624,6 +2018,102 @@ volume Spin/Vote còn lâu mới chạm); toàn bộ file tĩnh vẫn miễn ph�
 > `wrangler.jsonc` cho ai muốn đi đường đó (Cách B, phương án thay thế) — nhưng mọi hướng
 > dẫn lá chắn Edge trong file này viết cho Pages.
 
+### Giới hạn của các gói miễn phí — con số thật, và cách sống trong đó
+
+Cả chồng dịch vụ của app này đều đang chạy ở gói **miễn phí** (Cloudflare Pages + Pages
+Functions, Supabase, Turnstile, GitHub). Không có tính năng nào trong app cần trả tiền.
+Nhưng có năm con số phải biết, vì chúng quyết định cách viết code chứ không chỉ là chuyện
+hoá đơn:
+
+| Giới hạn | Ở đâu | Nghĩa là phải… |
+|---|---|---|
+| **10 ms CPU / request** | Cloudflare Workers & Pages Functions (free) | Đừng tính toán gì nặng trong Function. Việc nặng (chốt request, gộp thông báo, cộng vote) để **Postgres** làm — Function chỉ gọi **một** RPC rồi trả về. Thời gian chờ mạng không tính vào 10 ms, nên mô hình này thoải mái |
+| **5 cron trigger / tài khoản** | Cloudflare Workers (free) | Gộp mọi việc định kỳ vào **một** cron (đúng cách app này đang làm: một lượt chốt request). Cần thêm việc định kỳ thì nhét vào cùng lượt đó, đừng tạo cron thứ hai |
+| **50 request con / lượt gọi** | Workers free | Nếu sau này gửi thông báo ra Telegram/Discord thì phải **gộp nhiều tin vào một lần gửi** và chặn số lượng mỗi lượt (ví dụ 20 tin/lượt) |
+| **500 MB database · 5 GB băng thông · 2 triệu tin realtime/tháng · 200 kết nối realtime** | Supabase free | Đủ cho quy mô hiện tại, nhưng tin realtime là tài nguyên quý nhất trong này: mỗi lần một hàng `requests` đổi là thông tin đó được đẩy tới **mọi** người đang mở trang. Đừng thêm realtime cho việc gì không cần thiết |
+| **20.000 file mỗi lần deploy** | Cloudflare Pages/Workers free | Nếu sau này muốn sinh sẵn một trang tĩnh cho mỗi video đã làm thì được, nhưng nhớ con số này — vài trăm bài thì không sao, vài chục nghìn thì chạm trần |
+
+Hai điểm **không phải giới hạn nhưng dễ mất dữ liệu**, quan trọng hơn mọi tính năng:
+
+1. **Gói free của Supabase KHÔNG có backup tự động.** Dữ liệu thật (request, vote, đơn
+   hàng, vòng quay) chỉ nằm ở một chỗ. Cách rẻ nhất để ngủ ngon: một tác vụ định kỳ chạy
+   `pg_dump` và cất file đi — GitHub Actions có 2.000 phút/tháng miễn phí, thừa sức cho việc
+   này. Làm trước khi làm thêm bất cứ tính năng nào.
+2. **Project free của Supabase tự tạm dừng sau 7 ngày không có hoạt động**, và phải vào
+   dashboard bấm khởi động lại (mất tới ~60 giây). Site có người vào mỗi ngày thì không bao
+   giờ chạm chuyện này; nhưng nếu app im ắng (hoặc cron không gọi database), nó sẽ ngủ. Lượt
+   cron chốt request hiện tại *có* gọi database nên nó tự giữ project thức — miễn là cron còn chạy.
+
+> **Đừng dùng gói free của Vercel cho app này** — Hobby cấm mục đích sinh doanh thu, mà app có
+> bán vote. Xem bảng so sánh ngay trên.
+
+### Sao lưu database — 5 phút, làm MỘT lần
+
+Mục *Giới hạn của các gói miễn phí* ngay trên đã nói vì sao việc này quan trọng: gói free của
+Supabase **không có backup tự động**. Repo đã có sẵn một workflow tự sao lưu mỗi ngày —
+`.github/workflows/backup-db.yml` — và nó không chỉ copy file ra: sau khi dump, nó **đổ bản
+dump vào một Postgres sạch** ngay trong máy ảo của GitHub rồi so *dấu vân tay* với nguồn (số
+dòng từng bảng, số function, **policy RLS**, trigger, sequence, index và view). Lệch một dòng
+là job đỏ và GitHub gửi email cho bạn.
+
+> Vì sao phải thử phục hồi mới tính là sao lưu: một file `.dump` nằm trong thư mục trông rất
+> giống một bản sao lưu, nhưng chỉ khi dựng lại được nó mới *là* sao lưu. Cách hỏng hay gặp
+> nhất là **thiếu policy RLS** — số dòng vẫn khớp hoàn hảo mà quyền thì đã hở.
+
+**Ba bước:**
+
+1. **Lấy chuỗi kết nối.** Supabase → nút **Connect** → tab **Session pooler** → copy chuỗi
+   dạng `postgresql://postgres.abcdefghij:[MẬT KHẨU]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`.
+   **Đừng** lấy *Direct connection* (`db.<ref>.supabase.co`): địa chỉ đó chỉ có IPv6, mà máy
+   chạy của GitHub chỉ có IPv4 — sai chỗ này thì job đỏ với lỗi *Network is unreachable*.
+2. **Dán vào secret.** GitHub → repo → **Settings → Secrets and variables → Actions → New
+   repository secret**, tên đúng là `SUPABASE_DB_URL`, giá trị là chuỗi vừa copy.
+3. **Chạy thử một lần bằng tay.** Tab **Actions** → *Sao lưu database* → **Run workflow**.
+   Khoảng một phút sau: ✅ là xong; ❌ thì log in sẵn bốn nguyên nhân hay gặp (sai mật khẩu,
+   project đang ngủ, sai loại chuỗi kết nối, client cũ hơn server).
+
+Sau đó nó tự chạy lúc **02:00 giờ VN mỗi ngày**. Lợi ích phụ đáng kể: vì nó chạm database mỗi
+ngày, nó cũng là thứ **giữ project free khỏi tự ngủ** sau 7 ngày im ắng (xem mục *Giới hạn của
+các gói miễn phí*). Hai điều cần biết:
+
+- **Cron chỉ chạy trên nhánh mặc định** (`main`). Chạy tay thì nhánh nào cũng được, nhưng
+  muốn nó tự chạy hằng ngày thì phải merge.
+- Bản sao nằm trong **artifact của lượt chạy** (Actions → lượt gần nhất → mục *Artifacts*),
+  giữ **30 ngày**, mỗi lượt một gói theo ngày. Trong gói có cả `manifest.txt` (ngày, commit,
+  số dòng từng bảng) và `fingerprint.txt`.
+
+**Muốn giữ lâu hơn 30 ngày?** Thêm bốn secret để đẩy sang **Cloudflare R2** (gói free: 10 GB,
+không tính phí băng thông ra): `R2_BUCKET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY` (R2 → *Manage R2 API Tokens* → token có quyền *Object Read & Write*).
+Không khai báo gì thì bước này tự bỏ qua và **không** làm hỏng lượt sao lưu. Bản trên R2 xếp
+theo ngày và **không bao giờ ghi đè** bản cũ, nên một lần dump hỏng không xoá mất bản lành.
+
+**Khi cần phục hồi thật:**
+
+```bash
+# 1. Tạo project Supabase mới, lấy chuỗi Session pooler của nó
+# 2. Đổ bản dump vào (policy RLS, trigger, sequence đi kèm đầy đủ)
+pg_restore --no-owner --dbname "$CHUOI_CUA_PROJECT_MOI" backup/ccl-*.dump
+```
+
+Project Supabase mới đã có sẵn `anon` / `authenticated` / `service_role`, schema `auth` và
+`pgcrypto` nên bản dump vào thẳng được. Hai thứ **không** nằm trong bản dump và phải làm lại
+tay: **biến môi trường trên Pages** và **URL cấu hình trong Google/Supabase Auth** — chúng
+thuộc về nơi deploy, không thuộc database.
+
+File `auth-users.sql` (nếu có) là **lưới an toàn để đối chiếu**, không phải bản phục hồi một
+cú bấm: nó chỉ có dữ liệu bảng `auth.users` (id + email), đủ để biết ai từng đăng nhập và
+không đủ để dựng lại phiên đăng nhập. Đừng coi nó là thứ thay thế bản dump chính.
+
+Chạy tay trên máy mình (cần `postgresql-client-17`):
+
+```bash
+SUPABASE_DB_URL='postgresql://…' npm run backup:db        # dump + manifest vào ./backup/
+VERIFY_DB_URL='postgres://postgres@127.0.0.1:5432/trong' npm run backup:verify
+```
+
+Thư mục `backup/` đã nằm trong `.gitignore`: dữ liệu thật **không bao giờ** vào git.
+
 ### Cách A — Cloudflare Pages (đơn giản hơn, khuyên dùng nếu mới bắt đầu)
 
 1. Push code lên GitHub.
@@ -1882,6 +2372,9 @@ từ YouTube. Link kênh
 ## Cấu trúc
 
 ```
+docs/
+  DESIGN.md                   TOKEN + LUẬT + LÝ DO của giao diện — đọc trước khi sửa CSS
+  RA-SOAT-2026-09-08.md       biên bản soát bảo mật/logic (09/2026)
 src/
   App.jsx                     trang chính, bộ lọc, danh sách, điều phối menu
   index.css                   toàn bộ style + bộ easing chuyển động
@@ -1911,6 +2404,8 @@ src/
     Background.jsx            nền gradient tĩnh + aurora trôi chậm (transform only)
     Leaderboard.jsx           bảng xếp hạng: bục 1/2/3 + bảng + hàng của bạn
     PaymentMethods.jsx        lưới chọn phương thức + STK + QR
+    Icon.jsx                  bộ icon Lucide: một chỗ khai tên gọi, nét 1.7, cỡ 16px
+    Check.jsx                 ô đánh dấu vẽ bằng SVG (cài đặt thông báo, mốc tiến độ admin, ẩn/hiện media, yêu cầu trả phí)
     GoogleIcon.jsx
 supabase/schema.sql           chạy 1 lần trong SQL Editor
 ```
@@ -1962,6 +2457,146 @@ Người dùng vẫn xem được số dư của chính mình vì `my_vote_statu
 `security definer`. Bảng xếp hạng vẫn lấy được ảnh đại diện vì `avatar_url` nằm trong
 danh sách cho phép.
 
+## Hộp xác nhận trong app (vòng 14)
+
+### Lỗi đã sửa
+
+Bảy thao tác **không hoàn tác được** hỏi bằng hộp thoại của trình duyệt
+(`confirm()` / `prompt()`): xoá request của mình, xoá video, xoá một dòng trong bảng
+quản trị, xoá hàng loạt, từ chối một bài, từ chối hàng loạt, huỷ đơn.
+
+Nghe thì vô hại, nhưng cả bảy **hỏng theo cùng một cách, và im lặng**: khi trang chạy
+trong một iframe bị chặn hộp thoại (thiếu `allow-modals` — đúng mọi khung xem trước,
+mọi trang nhúng), `confirm()` trả về `false` và `prompt()` trả về `null` mà không báo gì.
+Trình duyệt cũng tự chặn hộp thoại sau vài lần bấm. Kết quả: bấm **Xoá** và không có gì
+xảy ra — nhìn y hệt "bảng quản trị bị hỏng", trong khi mã nguồn không có lỗi nào.
+
+### Cách sửa
+
+Một hộp xác nhận của app: `src/components/ConfirmDialog.jsx` + `src/lib/confirm.jsx`.
+
+```js
+const ask = useConfirm()                       // trong component
+if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'),
+                  confirmLabel: t('adm.delete') }))) return
+```
+
+- Hỏi xong mới làm — mọi chỗ gọi vẫn giữ nguyên dạng `if (!… ) return` cũ.
+- Hộp có **ba phần**: việc sắp xảy ra, hậu quả, hai nút; màu nút theo mức nguy hiểm.
+- Huỷ được bằng **Esc**, bằng **bấm ra ngoài**, hoặc nút **Cancel** — và huỷ thì không
+  có gì được ghi xuống.
+- Việc cần lý do (từ chối bài) có **ô lý do**: Enter là xuống dòng, Ctrl/Cmd + Enter
+  mới gửi. Lý do chỉ có khoảng trắng được coi là *không có lý do*.
+- `ConfirmProvider` bọc `App` ở `src/App.jsx`, nên mọi nơi trong app dùng được hộp này.
+
+Hai chốt giữ cho lỗi không quay lại:
+
+- `src/lib/noNativeDialogs.test.js` quét toàn bộ `src/` (bỏ chú thích) và đỏ nếu có ai
+  gọi lại `confirm()`/`prompt()`/`alert()` — kèm kiểm hộp của app còn đủ `role="dialog"`,
+  Esc, bấm-ra-ngoài và `aria-describedby` trỏ tới id có thật.
+- `tools/smoke.mjs` bấm thật qua từng đường ghi: **gửi** một request rồi **xoá** nó ở mục
+  About me (bấm Cancel trước, rồi mới Delete), **xoá một dòng** trong bảng quản trị,
+  **từ chối một bài** kèm lý do, **mở hộp từ chối hàng loạt** rồi huỷ (kiểm lời hỏi có
+  đúng số dòng và có ô lý do, mà không tiêu mất dòng cuối), **xoá hàng loạt**, **xoá
+  video** ở mục Kênh. Esc cũng được kiểm: huỷ là không được ghi gì.
+
+Còn **huỷ đơn** (`doCancelOrder`) chưa có đường bấm tự động: dữ liệu mẫu của chế độ demo
+không có đơn nào của người đang đăng nhập, mà tạo một đơn thật thì phải đi qua luồng mua
+vote. Chỗ đó được giữ bởi chốt thứ nhất (không còn `confirm()`) và bởi chính dạng gọi
+`await ask(…)` giống sáu chỗ đã kiểm.
+
+### Bài trả phí trong form request — ba lỗi im lặng (vòng 14, tiếp)
+
+Ô **"Paid request ($0.75 / 20,000₫)"** nằm ở bước 3 của form, cạnh một dòng giải thích. Nó
+từng có ba vấn đề, cả ba đều không hiện ra dưới dạng lỗi:
+
+| Chuyện gì | Vì sao người dùng thấy "ô chọn trả phí bị bỏ qua" |
+|---|---|
+| Sau khi gửi **một** request trả phí, ô tick **vẫn bật** cho các request sau | Người dùng đi qua bước 3 mà không được hỏi lại — câu trả lời cho một câu hỏi về **tiền** đã có sẵn từ lần trước, và nút gửi vẫn là nút vàng. Không có gì đỏ, chỉ có thêm một đơn hàng nữa được tạo |
+| Đổi tab trong cùng hộp (Request ↔ Vote ↔ Buy) làm **mất sạch form**: chữ, bước đang đứng, và ô tick vừa chọn | `RequestTab` bị tháo khỏi cây, bộ đếm 400ms ghi nháp bị huỷ theo → chữ vừa gõ không bao giờ được lưu. Xem bảng giá rồi quay lại là phải gõ lại từ đầu |
+| Nút **Clear** xoá chữ nhưng **không** xoá ô tick | Ở bước 1 người dùng không nhìn thấy ô đó, nên một lựa chọn về tiền còn sót lại là thứ duy nhất trong form vừa vô hình vừa có giá |
+
+Đã sửa trong `src/components/ActionModal.jsx`:
+
+- gửi xong (và bấm Clear) thì `paid` về `false` — lựa chọn trả phí thuộc về request **vừa
+  gửi**, không thuộc về cái form;
+- nháp ghi ở **hai** thời điểm: sau 400ms ngừng gõ, và **ngay khi form rời màn** (hàm ghi
+  dùng chung `writeDraft()`, giá trị mới nhất giữ trong một `ref` vì hàm dọn chỉ chạy một lần);
+- nháp mang thêm `step`, nên mở lại là đứng đúng bước đang làm dở — ô trả phí hiện ra ở
+  đúng chỗ thay vì nằm sẵn trong bóng tối.
+
+Ba nhóm kiểm mới trong `npm run smoke` (mục **10c**), và cả ba đã được thử bằng cách **gỡ
+bản sửa ra**: gỡ phần nháp/bước thì 3 mục đỏ, gỡ `setPaid(false)` thì 2 mục đỏ — tức là
+chúng bắt được lỗi thật, không phải kiểm cho có:
+
+- bấm vào **chữ** "Paid request" (đích ngón tay thật, không phải ô 16px) thì ô tick phải ăn,
+  và nút gửi phải đổi thành nút vàng có giá;
+- đổi tab Vote rồi quay lại: vẫn ở bước 3, ô tick còn, và có dòng nói form được khôi phục;
+- gửi một request trả phí thật: dữ liệu có `is_paid: true` + một đơn `awaiting` trỏ đúng
+  request, và request **kế tiếp** phải có ô tick **tắt**, nút gửi là "Send request" thường.
+
+Cùng lúc, `tools/smoke.mjs` sửa một lỗi của chính nó: mục rà DOM đóng hộp vote bằng
+`q('.vm-close, .modal .icon-btn')` — hai lớp đó **không tồn tại** (nút đóng là `.x`), nên hộp
+vote ở lại mở suốt các mục sau và mục 10c lần đầu chạy trong **sai hộp**. Nay đóng bằng `Esc`
+và có mục chốt "không còn lớp phủ nào treo lại".
+
+### Vì sao vẫn "bị bỏ qua" sau khi sửa ba lỗi trên — bấm Enter là gửi (vòng 14, tiếp)
+
+Ba lỗi trên là thật, nhưng chúng **không phải** đường mà chủ dự án gặp. Đường thật nằm ở
+chỗ khác, và nó nằm ngoài tầm nhìn của cả bộ kiểm tự động:
+
+**Trong trình duyệt, bấm Enter trong một ô nhập của form là GỬI form.** Trên điện thoại thì
+phím Enter chính là nút **"Go / Đi"** của bàn phím — bấm nó là gửi. Cả hai đều rơi vào
+`onSubmit` của `<form>` ở `ActionModal.jsx`:
+
+- màn hình không có gì đỏ, không có cảnh báo — chỉ có **một request thường được tạo**;
+- người dùng **chưa từng đi qua bước 3**, nên chưa từng thấy ô "bài trả phí": đúng nghĩa
+  "bước chọn paid request bị bỏ qua".
+
+Vì sao máy kiểm không thấy: **jsdom không mô phỏng việc gửi ngầm** — nó chỉ phát sự kiện
+`submit` khi người ta bấm **nút** gửi. Đứng ở bước 2 mà bấm Enter thì jsdom im lặng không làm
+gì, và bộ kiểm thật thà ghi nhận "không có gì xảy ra". Đây là loại lỗi mà chỉ trình duyệt
+thật mới lộ ra, nên cách kiểm phải là **tự phát đúng sự kiện mà trình duyệt sẽ phát**.
+
+Đã sửa trong `src/components/ActionModal.jsx`, bằng hai lớp:
+
+| Lớp | Việc nó làm |
+|---|---|
+| Chốt trong `submit()` | Gặp `submit` khi **chưa tới bước 3** thì đi tiếp một bước, **không gửi**. Đặt ở đây — chứ không chỉ ở từng ô nhập — vì thêm một ô mới vào form là lại có thêm một đường gửi ngầm |
+| `onKeyDown` ở `<form>` | Enter trong ô nhập ở bước 1–2 = "xong bước này": chặn trình duyệt gửi ngầm và đi tiếp. Ô ghi chú là `<textarea>` nên Enter ở đó vẫn xuống dòng; ở bước 3 thì Enter giữ nguyên nghĩa **gửi** |
+
+Kèm theo một thay đổi về **thứ tự**: trong bước 3, ô "bài trả phí" nay đứng **trước** ô ghi
+chú. Đây là màn **quyết định** — trả thêm tiền hay không là chuyện lớn nhất ở đây, còn ghi
+chú là thứ tuỳ chọn; để ô trả phí xuống dưới thì lựa chọn đắt nhất lại nằm xa mắt nhất.
+
+Bằng chứng (cả hai chiều):
+
+- **Chiều lỗi** — phát đúng sự kiện `submit` mà trình duyệt phát khi người dùng bấm Enter ở
+  bước 2, trên bản **chưa sửa**: `bước=1 | số request: 6 → 7 | msg="Request sent…" | đã thấy ô
+  trả phí chưa: false` và request được ghi là `{"artist":"XG","title":"Left Right","is_paid":false}`.
+- **Chiều đã sửa** — bốn tình huống: bước 2 + gửi ngầm → **không** tạo request, đứng ở bước 3,
+  ô trả phí hiện ra; Enter trong ô Link → sang bước 3, không gửi; Enter trong ô Nghệ sĩ → nhảy
+  sang ô Tên bài như cũ; bước 3 + gửi → tạo **đúng một** request trả phí.
+- **Gỡ chốt ra** → `npm run smoke` tụt còn **218/225** với 7 mục đỏ, trong đó có
+  "...đưa người dùng tới bước 3 — nơi có ô chọn bài trả phí" (`bước=2 paidbox=false`).
+
+Bốn mục kiểm mới nằm ngay đầu mục **10c** của `npm run smoke` (235 mục, trước vòng này: 225),
+gồm cả một mục so **thứ tự tài liệu** giữa `.paidbox` và `.note-field`, để quyết định thứ tự
+trên không bị đảo lại trong im lặng.
+
+### Header an toàn
+
+`public/_headers` có thêm khối bắt-all `/*` với `X-Content-Type-Options: nosniff`,
+`Referrer-Policy`, `Permissions-Policy` và `Strict-Transport-Security`; `worker/index.js`
+tự gắn `nosniff` cho mọi response JSON (response do Function sinh không chắc được
+`_headers` phủ). `worker/pagesRoutes.test.js` chốt: bốn header đó chỉ được khai ở **một**
+khối — Cloudflare nối giá trị khi cùng header khớp hai rule.
+
+**Chưa** đặt `Content-Security-Policy`: CSP sai một nguồn là trang trắng, mà những nguồn
+thật (Supabase, `i.ytimg.com`, `lh3.googleusercontent.com`, Turnstile) chỉ kiểm chứng
+được trên bản deploy thật. Việc còn lại: mở DevTools trên bản deploy, ghi lại danh sách
+nguồn thật, rồi mới dựng CSP.
+
 ## Danh sách kiểm tra trước khi deploy
 
 Đã soát ngày 02/09/2026, kết quả:
@@ -1981,7 +2616,9 @@ danh sách cho phép.
 
 ### Việc BẮT BUỘC làm khi deploy
 
-1. **Chạy lại toàn bộ `supabase/schema.sql`** trong SQL Editor. Bản hiện tại có nhiều thứ
+1. **Chạy lại toàn bộ `supabase/schema.sql`** trong SQL Editor. **Sau bản cập nhật vòng 14
+   (19/09/2026) thì đây không còn là việc "nên làm":** bản vá cuối cùng trong đó là
+   `migrations/20261104_spin_streak.sql` (vòng quay không lặp quá 2 lượt liên tiếp). Bản hiện tại có nhiều thứ
    mới so với lần chạy đầu: bỏ giới hạn 1 vote/người, `cast_vote` nhận số lượng bất kỳ,
    loại video `Short`, 3 cột mốc tiến độ, `update_my_profile`, `cancel_my_order`,
    Paid Request không bị chặn bởi giới hạn 3 request/giờ, và **bảng `public.media` +
@@ -1999,7 +2636,11 @@ danh sách cho phép.
 4. **Thêm domain mới vào Supabase** → Authentication → URL Configuration
    (cả *Site URL* lẫn *Redirect URLs*).
 5. **Kiểm tra Google Auth Platform → Audience** đã ở trạng thái *Published*, không phải *Testing*.
-6. **Tự cấp quyền admin** sau khi đăng nhập Google lần đầu:
+6. **Bật sao lưu database** — làm theo mục *Sao lưu database* ở dưới, mất khoảng 5 phút:
+   thêm secret `SUPABASE_DB_URL` rồi bấm **Run workflow** một lần cho chắc. Gói free của
+   Supabase không có backup tự động, nên đây là việc rẻ nhất và cũng là việc duy nhất mà bỏ
+   qua có thể mất dữ liệu thật.
+7. **Tự cấp quyền admin** sau khi đăng nhập Google lần đầu:
    ```sql
    update public.profiles set is_admin = true
     where id = (select id from auth.users where email = 'email-cua-ban@gmail.com');
@@ -2158,8 +2799,47 @@ curl -s -H "Host: 5173-$E2B_SANDBOX_ID.e2b.app" -o /dev/null -w '%{http_code}\n'
 Nếu link báo "không truy cập được" mà curl ở trên vẫn 200: nhiều khả năng sandbox vừa bị
 restore và `sandboxId` đã đổi — link preview cũ chết theo, mở link từ bảng Arena là xong.
 
+### Dựng thật cả app để soi lỗi — `npm run smoke`
+
+```bash
+npm run smoke        # ~19 giây, in ra từng mục đạt/không đạt
+```
+
+`npm test` toàn là bài kiểm **tĩnh** hoặc dựng **từng component rời**. Một nhóm lỗi khác chỉ
+lộ ra khi **cả app** chạy thật: một effect chạy sai thứ tự, một state bị đọc trước khi có, một
+`null` chỉ xuất hiện SAU khi đã đăng nhập, một thứ chỉ nằm sau điều kiện quyền admin.
+
+`tools/smoke.mjs` dựng **cả cây React thật** trong jsdom, đúng hai provider như `src/main.jsx`
+(`I18nProvider` → `NotifyProvider`), đăng nhập tài khoản demo, rồi **bấm thử như người dùng**:
+màn chờ → trang chủ → bộ lọc → ô tìm → tab Up next → **form request** (thẻ xem trước, ảnh bìa
+YouTube, dán link vào ô tên bài, bản nháp, nút bỏ nháp) → **hộp vote** (ba ô số dư cộng đúng
+bằng tổng phiếu, phím mũi lên, bấm mức nhanh, gửi thật rồi kiểm con số trên hàng tăng đúng,
+hộp tự đóng) → Daily Spin → Bảng xếp hạng → Của tôi → **cả năm mục của `/admin`** (kể cả mở
+sẵn một địa chỉ đã lọc) → chế độ chọn nhiều.
+
+Nó ghi lại **mọi thứ rơi ra console** kèm màn hình đang đứng, và rà **nhãn** ở từng màn: chỗ
+nào có từ hai nhãn cạnh nhau mà không nằm trong một cụm biết xuống dòng thì báo. Kết quả hiện
+tại: **50/50 mục đạt, 0 lỗi runtime**. Cờ môi trường có sẵn:
+
+- `SMOKE_DUMP=1` — in thêm HTML của danh sách request để soi bằng mắt khi một mục không đạt.
+- Khi thêm một màn hình mới, thêm một `check(...)` vào `tools/smoke.mjs`: công cụ này là chỗ
+  duy nhất trong repo chạm tới **đường đi thật** của người dùng.
+
 ### Nên kiểm tra bằng tay sau khi deploy
 
+Ba việc dưới đây **không máy nào kiểm được** (jsdom không mô phỏng việc gửi ngầm của
+trình duyệt, và sandbox không có bàn phím điện thoại thật) nên phải bấm bằng tay:
+
+- Trong **form request**, điền tên bài ở bước 2 rồi bấm **Enter** trong ô **Link** (trên
+  điện thoại là nút **"Go/Đi"** của bàn phím) → phải sang **bước 3** với ô *"bài trả phí"*,
+  và **không** được có request nào được gửi. Đây chính là đường đã làm bước chọn trả phí bị
+  bỏ qua ở vòng 14; nếu vẫn thấy thông báo "Request sent" thì lỗi còn nguyên.
+- Gửi một request **trả phí** thật, rồi mở form request **kế tiếp**: ô *"bài trả phí"* phải
+  **tắt**, và nút gửi phải là **"Send request"** thường (không phải nút vàng).
+- Đổi tab trong hộp request rồi quay lại (New request → Vote → New request): chữ vừa gõ,
+  bước đang đứng và ô tick phải còn, kèm dòng nói form được khôi phục.
+- Nếu vừa chạy `20261104_spin_streak.sql`: quay thử **3 lượt liền trên cùng một thiết bị** —
+  không được có ba số thưởng giống nhau liên tiếp.
 - Đăng nhập Google thật (bản demo trong sandbox dùng tài khoản giả).
 - Mở trang đã deploy, xem khối **Chaereve's Pick** có hiện video thật của kênh không —
   trong sandbox thì không, vì sandbox không có đường ra YouTube.
@@ -2221,3 +2901,171 @@ Ba thứ nên bấm bằng mắt sau khi deploy (sandbox không có trình duy�
 - Bấm một dòng tin: bảng đóng, nhảy xuống đúng hàng của bài (kể cả khi nó ở trang khác của bảng),
   hàng sáng lên ~2,6 giây, và **không** có hộp thoại nào bật lên.
 - Một cú tick 3 mốc tiến độ cho cả cụm: chỉ MỘT toast (có huy hiệu `×n`), không phải ba ô che màn hình.
+
+### Soát giao diện + chuyển động + bố cục (19/09/2026)
+
+Đợt này đọc và áp ba nguồn: `leonxlnx/taste-skill` (kỷ luật chống "giao diện do máy
+sinh"), `kylezantos/design-motion-principles` (chuyển động, theo Emil Kowalski ·
+Jakub Krehel · Jhey Tompkins), và `VoltAgent/awesome-claude-design` (cách viết một
+`DESIGN.md` giữ token + luật + lý do trong cùng một file). Kết quả gọn lại thành
+**`docs/DESIGN.md`** — đọc file đó trước khi sửa giao diện; nó trả lời *vì sao*, còn
+`HUONG-DAN.md` (file này) trả lời *cách chạy*.
+
+#### Chuyển động: bớt đi, và bớt đúng chỗ
+
+Nguyên tắc lấy từ Emil Kowalski — **cổng tần suất**: thao tác nào người dùng lặp
+càng nhiều thì chuyển động ở đó phải càng ít và càng nhanh. Áp vào đây:
+
+| Chỗ | Trước | Sau | Vì sao |
+|---|---|---|---|
+| Bốn mục sidebar | Trượt vào lệch 45ms mỗi lần mở trang | Đứng yên | Sidebar đứng yên suốt phiên; bốn mục nhấp nhô lệch nhịp là chuyển động không ai xin |
+| Bốn ô thống kê | Tự chạy `rowIn` lệch 60ms | Không chạy nữa | Khối cha đã có `[data-reveal]` lo — hai lớp chuyển động cho cùng một thứ |
+| Nhấp nhô khi rê | Nhấc/phóng ở hầu hết mọi thứ (nút phụ, thumbnail, mục toast, nút lên đầu trang, mục sidebar…) | Còn **đúng hai** thứ được nhấc: nút hành động chính và khung video chính | Chỗ nào cũng nhún thì không chỗ nào là chính; đây là mẫu chuyển động phổ biến nhất của giao diện do máy sinh |
+| `--e-pop` (easing nảy) | Công tắc, toast, mục sidebar, nút điều hướng | **Chỉ** ba khoảnh khắc người dùng tự gây ra: bục xếp hạng, vòng quay thưởng, cú tick vừa bật (0,34s) | Overshoot trên thao tác tiện ích đọc ra thành đồ chơi, không phải phản hồi. Ô đánh dấu đã tick sẵn lúc mở bảng thì đứng yên — nhịp nảy gắn vào `onChange`, không gắn vào `:checked` |
+| Tiêu đề trang | Kéo ra bằng `clip-path` mỗi lần đổi mục | Mờ dần + nhích 6px trong 0.34s | Chữ là nội dung tĩnh — mỗi lần bấm menu lại thấy nó được vẽ ra là tự giới thiệu |
+| Đồng hồ "quá mốc" | `pickPulse` nhấp nháy vô hạn 1.6s | Đổi màu + một chấm tĩnh | Một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1.6 giây |
+| Vệt sáng thanh tiến độ | Mọi hàng "đang làm" | Chỉ khối **Up next**, và chỉ khi thật sự có bài đang chạy (`nowbar.live`) | Mười bài cùng lúc là mười vòng lặp vô hạn |
+| Nhịp so le danh sách | 40ms/hàng, không chặn | **32ms/hàng, chặn ở 10 nhịp** | 12 hàng × 40ms thì hàng cuối chờ gần nửa giây — lâu hơn cả thời gian đọc |
+| Màn chờ | Ghim cứng 1.7s | Chờ dữ liệu + sàn 560ms + trần 2,6s, **mỗi lần tải trang** | Nó là câu chào thương hiệu, không phải màn hình nghi thức |
+
+#### Sửa ba chỗ animate thuộc tính layout
+
+Bề rộng/chiều cao đổi giá trị là trình duyệt phải tính lại bố cục. Ba chỗ đã sửa:
+thanh âm lượng (chạy `width 0 → 64px` làm **chữ "Âm thanh" bị bóp rồi giãn** mỗi lần
+rê chuột — nay giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa
+khỏi transition), vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+
+Ghi chú thêm: khối `prefers-reduced-motion` toàn cục **đã phủ mọi animation của
+trang**, nên đừng khai override cho từng phần tử nữa. Hai khe hở thật phải nhớ:
+`animation-delay`/`transition-delay` **không** bị vô hiệu (phần tử vào trang bằng
+`both` + delay sẽ đứng im ở trạng thái đầu), và `backdrop-filter` cũng không.
+
+#### Bố cục: trang Bảng yêu cầu thành hai cột từ 1300px
+
+Xem mục *Trang Bảng yêu cầu: hai cột từ 1300px* ở trên. Tóm lại: cột trái giữ việc
+chính của trang (thống kê, Up next, Vote của bạn, danh sách), cột phải 320px là video
+của kênh. Đổi bằng `grid-template-areas`, **không** đổi thứ tự DOM, nên bản một cột
+và bản hai cột luôn là cùng một nội dung.
+
+#### Bản hẹp: ba lỗi và ba lần trả lại chiều cao
+
+| Việc | Trước | Sau |
+|---|---|---|
+| Thanh lọc 6 tab | **Bị cắt mất tab cuối** — `.tabs` có `overflow: hidden`, nên "Completed" (và "Following" khi đang theo dõi) biến mất khỏi màn hình, không cách nào bấm tới | Dải tab **tự cuộn ngang**, không mất mục nào |
+| Dải thống kê | 4 ô cao 2 hàng (~120px) | 4 ô về **một hàng** (~62px), 60px trả lại cho danh sách |
+| Dải mục lục video | Mỗi ô 158px kèm tên (2 dòng) — hàng cao ~140px | **Chỉ còn ảnh bìa 96px** (~62px): tên video đang mở đã nằm trên sân khấu, viền sáng cho biết ô nào đang mở |
+| Nút chỉ có dấu × / ↑ ↓ | Chỉ có `title` (không đọc được bằng trình đọc màn hình trên nút bấm) | Thêm `aria-label` cùng chuỗi |
+
+#### Sửa cho khớp thực tế (những câu trong tài liệu đã sai)
+
+- `HUONG-DAN.md` ghi nhịp so le **28ms** — CSS dùng 40ms. Nay cả hai là **32ms, chặn 10 nhịp**.
+- `HUONG-DAN.md` ghi *"Không gradient, không glow. Cả file CSS còn đúng 2 `box-shadow`"* —
+  điều này đã sai từ lâu và càng sai sau đợt này. Câu đúng: không gradient **trang trí**,
+  bóng đổ nhẹ dùng để tách khối (và thay viền ở chỗ nền phía sau sáng thay đổi), và có
+  **đúng hai ngoại lệ** được biện minh: quầng sau khung video chính và vệt sáng trên
+  thanh tiến độ của Up next.
+- `HUONG-DAN.md` ghi màu nhấn là "xanh dương" — thực tế là **ultramarine `#2b22e2`**
+  lấy từ logo (đổi màu nhấn thì đổi ở `:root` của `src/index.css`).
+- `public/robots.txt`: comment nói tên miền **không phải** `chaereve.pages.dev`, trong khi
+  chính dòng `Sitemap:` ngay dưới lại trỏ vào đó. Nay comment nói đúng, kèm danh sách
+  4 chỗ phải sửa cùng nhau khi đổi tên miền.
+- `index.html`: `og:image` là đường dẫn tương đối `/logo-192.png`. Crawler của
+  Telegram/Discord/Facebook đọc HTML thô, không có "origin của trang" để ghép với đường
+  dẫn tương đối ⇒ **phần lớn nơi dán link không có ảnh xem trước**. Nay là URL tuyệt đối,
+  thêm `og:url`, `twitter:title/description/image`, kích thước và `og:image:alt`.
+- `public/privacy.html`: bản sao token lệch với app — `--a` còn là xanh dương cũ
+  (`#4f8ff7`) và `--txt-3` còn đúng màu mà app đã phải đổi vì **chỉ đạt 3.9:1**, trượt
+  WCAG AA. Nay chép đúng từ `:root` (kèm chú thích "sửa bên app rồi chép sang"), link
+  dùng `--a-2` (đủ tương phản cho chữ trên nền tối), và nạp thêm nét 500 của
+  Be Vietnam Pro mà trang vẫn đang gọi.
+- `public/manifest.webmanifest`: `background_color` là `#0b0d10` trong khi toàn app dùng
+  `#0d0f12` — lệch ở đúng chỗ người dùng thấy lúc mở app từ màn hình chính.
+
+#### Vòng bốn (cùng ngày): sao lưu tự động + ba việc rẻ cuối cùng
+
+1. **Sao lưu database chạy mỗi ngày** — `.github/workflows/backup-db.yml` + `scripts/*.sh`,
+   kèm bước **thử phục hồi** vào một Postgres sạch và so dấu vân tay. Xem *Sao lưu database*
+   ở phần Deploy.
+2. **Tìm kiếm bỏ dấu** — một `fold()` dùng chung cho bảng và Admin.
+3. **Sàn thời gian "sớm nhất bao lâu"** cho bài đang chờ.
+4. **Nút Get votes trong tin "sát nút"**.
+
+Ba điều đáng nhớ về việc sao lưu, vì chúng là *lý do* chứ không phải chi tiết kỹ thuật: (a)
+backup không được dựa vào "file có tồn tại" — nên mới có bước phục hồi thật; (b) **policy RLS
+phải nằm trong phép so**, vì thiếu một policy thì số dòng vẫn khớp trong khi bản phục hồi đã
+hở quyền; (c) **mật khẩu trong chuỗi kết nối không được rò ra log** — log CI nhiều người đọc
+được, nên script che phần `://user:pass@` trước khi in và có một ca kiểm thử canh đúng điều đó.
+
+Cũng trong lượt này, đối chiếu giới hạn gói free phát hiện một trần **chặt hơn cả trần quen
+thuộc**: **Workers KV gói free chỉ cho 1.000 lượt GHI mỗi ngày** (đọc thì 100.000). Lá chắn
+Edge đang ghi KV mỗi lượt vote và mỗi lượt quay, nên ước lượng **~300–500 lượt vote+spin mỗi
+ngày là chạm trần**; vượt thì app *không sập* (lệnh ghi nằm trong `try/catch`, người dùng vẫn
+vote bình thường) nhưng tấm khiên **ngừng đếm**, chỉ còn Postgres giữ hạn mức thật. Đường ra
+đều miễn phí: ghi cách quãng, hoặc chuyển bộ đếm sang **D1** (gói free cho 100.000 lượt
+ghi/ngày — gấp 100 lần KV). Ghi lại đầy đủ ở `docs/DA-LAM-VA-GOI-Y.md`.
+
+#### Vòng ba (cùng ngày): ba việc miễn phí — không dịch vụ mới, không chạm database
+
+1. **Link mời gửi bài** `/?add=1&artist=…&title=…` — dán vào mô tả video YouTube, người xem
+   bấm là form mở sẵn. Kèm nút **chia sẻ** trên mỗi dòng request (link về chính bảng
+   `?f=top&q=…`, cảm ứng thì mở hộp chia sẻ hệ thống).
+2. **Copy credits** trong bảng Admin — chép sẵn "tên bài + những người đã gửi" để dán vào mô
+   tả video.
+3. **Giới hạn free tier** — một mục mới trong phần Deploy (xem *Giới hạn của các gói miễn
+   phí*), kèm hai cảnh báo quan trọng hơn mọi tính năng: **Supabase free không có backup**
+   và **project free tự ngủ sau 7 ngày im ắng**.
+
+Hai nút mảnh ở cuối dòng meta (theo dõi + chia sẻ) nay dùng **chung một class `.rowact`**:
+trước đây nền của nút chuông nằm ngay trong `.followbtn`, thêm nút thứ hai là phải chép lại
+toàn bộ số đo và thế nào cũng lệch. Cỡ chạm ở bản hẹp vì thế cũng chỉ còn **một** cặp số để
+canh (`cssTapTarget.test.js`).
+
+Một lỗi tự gây ra, ghi lại vì nó suýt lọt: bản đầu của `parseRequestPrefill` đọc giá trị
+tham số `add` bằng `params.get('add')` rồi so với chuỗi rỗng — mà tham số **trần** (`?add`)
+cũng trả về chuỗi rỗng, nên nó âm thầm bỏ qua đúng loại link ngắn nhất, loại người ta hay gõ
+tay nhất. Nay đọc bằng `has()` rồi mới xét giá trị, và có ca kiểm thử riêng cho `?add` trần.
+
+#### Vòng hai (cùng ngày): ba việc trong danh sách gợi ý đã làm
+
+1. **Dò trùng ngay lúc gõ** — xem mục *Bài đã có trên bảng?* ở phần Luồng của một
+   request. `findDuplicate()` + 7 ca kiểm thử.
+2. **Nhớ bộ lọc qua các lần ghé** — xem mục *Bộ lọc, loại video và từ khoá tìm* ở phần
+   Bố cục trang. `pickBoardParam()` + 3 ca kiểm thử.
+3. **Dấu phân cách trong dòng metadata** — bỏ hẳn ký tự `·`, thay bằng vạch mảnh 1×9px
+   (`.dot`), có `aria-hidden`: mỗi hàng request có 3-4 nhóm thông tin, mỗi nhóm cách nhau
+   bằng một dấu chấm giữa là đúng mẫu văn bản do máy sinh. Dấu `·` còn lại chỉ ở những
+   dòng có đúng một dấu (tiêu đề tab trình duyệt, vài dòng tiền/thời gian).
+
+Hai gợi ý còn lại trong danh sách **cố ý không làm**, đã ghi vào `docs/DESIGN.md` §7:
+không thêm chế độ sáng (mọi bóng/kính đã tính cho nền tối), và chưa bỏ aurora nền (nó là
+chuyển động vô hạn duy nhất còn lại, nhưng rẻ và hợp lệ — sẽ là thứ đầu tiên cần tắt nếu
+có phàn nàn về pin).
+
+Một lỗi tự gây ra trong lúc làm vòng hai, ghi lại vì nó suýt lọt: chú thích đặt **giữa
+danh sách prop** của một thẻ JSX (`<Foo a={1} /* ghi chú */ b={2} />`) làm
+`propContract.test.js` đọc chữ trong comment thành tên prop và báo "dây đứt" oan. Chú
+thích giải thích prop phải đặt TRƯỚC thẻ.
+
+#### Kiểm thử
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` (`node --test`) | ✅ **239** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 44 ca mới của bốn vòng |
+| `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
+| `npm run build` (Vite) | ✅ build sạch, bundle chính 338 kB (gzip 107 kB) |
+
+Đợt này **không thể** xem bằng mắt: sandbox không có trình duyệt (thiếu thư viện NSS,
+máy chủ gói không tới được). Vì vậy mọi kết luận về bố cục đều rút ra từ đọc CSS/JSX và
+các chốt chặn tự động (`cssTokens`, `cssTapTarget`, `cssGridRows`, `cssScroll`,
+`jsxHtml`, `propContract`, `i18nKeys`, `seoContract`, và `backup` — bộ chốt mới chạy thật
+`scripts/*.sh` với `pg_dump`/`pg_restore`/`psql` giả để chứng minh "dấu vân tay lệch thì phải
+đỏ"). Ba thứ nên liếc bằng mắt sau khi
+deploy:
+
+- Thu hẹp cửa sổ qua lại quanh **1300px**: bố cục phải đổi giữa một cột và hai cột, và
+  ở cả hai bên ngưỡng, hàng request không được xuống dòng ở tên bài.
+- Trên điện thoại thật: kéo dải tab sang ngang phải tới được tab **Completed**; dải mục
+  lục video phải là một hàng ảnh bìa cao ~62px.
+- Bật *giảm chuyển động* trong hệ điều hành rồi tải lại: nội dung phải hiện **ngay**,
+  không có hàng nào đứng im ở trạng thái trong suốt (đây chính là khe hở
+  `animation-delay` đã nhắc ở trên).

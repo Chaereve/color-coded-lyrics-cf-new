@@ -29,6 +29,12 @@ const sitemap = read('../../public/sitemap.xml')
 const ROUTES = [...read('../App.jsx').match(/const ROUTES = \{([^}]*)\}/)[1]
   .matchAll(/'([^']+)'/g)].map((m) => m[1])
 
+/* ROUTE RIÊNG TƯ: tồn tại trong app nhưng KHÔNG được lọt vào sitemap (Google
+   index một trang quản trị là vừa vô nghĩa vừa hớ hênh), và phải bị robots.txt
+   chặn. Nằm ở đây chứ không nằm trong danh sách "route công khai" để không ai
+   lỡ tay thêm nó vào sitemap cho "đủ bộ". */
+const PRIVATE_ROUTES = ['/admin']
+
 /* <loc> trong sitemap, tách origin và đường dẫn để so từng phần. */
 const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim())
 const originOf = (u) => u.match(/^https:\/\/[^/]+/)?.[0] || null
@@ -38,8 +44,13 @@ test('mọi route của app đều có mặt trong sitemap, và ngược lại',
   assert.ok(ROUTES.length >= 4, `không đọc được ROUTES trong App.jsx (${ROUTES.length})`)
   const inSitemap = locs.map(pathOf)
   for (const r of ROUTES) {
-    assert.ok(inSitemap.includes(r),
+    assert.ok(PRIVATE_ROUTES.includes(r) || inSitemap.includes(r),
       `route ${r} có trong App.jsx nhưng thiếu trong sitemap.xml — Google không tự tìm ra nó`)
+  }
+  for (const r of PRIVATE_ROUTES) {
+    assert.ok(!inSitemap.includes(r), `route riêng tư ${r} không được nằm trong sitemap`)
+    assert.match(robots, new RegExp(`Disallow:\\s*${r}\\b`),
+      `robots.txt phải chặn ${r} — đây là khu vực quản trị, chỉ có một người dùng`)
   }
   for (const s of inSitemap) {
     assert.ok(ROUTES.includes(s),

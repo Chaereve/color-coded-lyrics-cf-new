@@ -23,7 +23,9 @@
       "files": [
         "supabase/tests/**/*.js",
         "functions/**/*.js",
-        "vite.config.js"
+        "tools/**/*.mjs",
+        "vite.config.js",
+        "src/lib/backup.test.js"
       ],
       "env": {
         "node": true,

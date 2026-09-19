@@ -27,6 +27,41 @@
 #  không đổi; nếu đổi thì đổi luôn tên file.
 # =========================================================
 
+# =========================================================
+#  HEADER AN TOÀN — khối bắt-all DUY NHẤT của tệp này.
+#  ---------------------------------------------------------
+#  Vì sao vẫn được đặt `/*` dù luật ở trên cấm khối bắt-all: luật đó nói về
+#  CACHE-CONTROL. Header khai hai lần thì Cloudflare NỐI giá trị bằng dấu phẩy,
+#  nên `Cache-Control` mà lặp sẽ thành hai vế ngược nhau. Bốn header dưới đây
+#  KHÔNG xuất hiện ở bất kỳ khối nào khác — worker/pagesRoutes.test.js chốt
+#  đúng điều đó, nên không có chuyện bị nối đôi.
+#
+#  · X-Content-Type-Options: nosniff — trình duyệt không được "đoán" kiểu tệp.
+#    Không có nó, một tệp người dùng tải lên lọt vào đường tĩnh có thể bị đoán
+#    là HTML và chạy như script (đúng kiểu tấn công mà bảng này không có cửa
+#    cho, nhưng vá bằng một dòng thì rẻ hơn là tin vào giả định).
+#  · Referrer-Policy: strict-origin-when-cross-origin — đi sang host khác (ảnh
+#    bìa YouTube, Supabase) chỉ gửi TÊN miền, không gửi đường dẫn kèm tham số
+#    (`?q=…` là chỗ người ta gõ tên bài, không cần đi đâu cả).
+#  · Permissions-Policy: từ chối camera/mic/vị trí/thanh toán — trang không
+#    dùng thứ nào trong số đó, và một trang không dùng thì nên nói thẳng là
+#    không dùng thay vì để mặc định.
+#  · Strict-Transport-Security: ép HTTPS cho các lần truy cập sau (Pages đã
+#    luôn phục vụ HTTPS; header này chặn lần chuyển hướng đầu tiên bị hạ cấp).
+#    KHÔNG kèm `includeSubDomains`/`preload` — hai thứ đó áp cho cả miền con và
+#    rất khó rút lại.
+#
+#  KHÔNG có Content-Security-Policy ở đây: CSP sai một nguồn là trang trắng,
+#  mà những nguồn thật (Supabase, i.ytimg.com, lh3.googleusercontent.com,
+#  challenges.cloudflare.com) chỉ kiểm chứng được trên bản deploy thật. Đặt
+#  một CSP chưa kiểm chứng lên trang đang chạy là đánh cược, không phải sửa lỗi.
+# =========================================================
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
+
 # API chống farm (Daily Spin + Vote): cache là hỏng tính năng — mỗi lượt quay
 # phải là một lần hỏi máy chủ thật.
 /api/*

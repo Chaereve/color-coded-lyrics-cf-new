@@ -19,9 +19,36 @@
 
 const ts = (v) => +new Date(v) || 0
 
+/* Chuẩn hoá một trường thành chuỗi so sánh được — kể cả khi nó không phải
+   chuỗi (số, null) hay cả dòng request là null. */
+const txt = (v) => (v == null ? '' : String(v)).trim().toLowerCase()
+
 /* Khoá gom cụm: cùng nghệ sĩ + cùng tên bài là một cụm. */
-export const groupKey = (r) =>
-  `${(r.artist || '').trim().toLowerCase()}\n${(r.title || '').trim().toLowerCase()}`
+export const groupKey = (r) => `${txt(r?.artist)}\n${txt(r?.title)}`
+
+/* Chỉ giữ lại những dòng THẬT SỰ là object.
+   Một phần tử null/rác trong mảng rows (payload realtime méo, một lần ghi
+   localStorage hỏng, câu trả lời của PostgREST bị cắt) trước đây làm cả bảng
+   ném lỗi ngay lúc render — mà render ném lỗi thì React gỡ sạch cây: cả trang
+   biến mất chỉ vì MỘT dòng. Lọc ở đây rẻ hơn nhiều so với đi kiểm tra từng
+   trường ở từng chỗ dùng. */
+const real = (rows) => (rows || []).filter((r) => r && typeof r === 'object')
+
+/* Bỏ dấu tiếng Việt để một từ khoá khớp cả ba cách người ta gõ tên bài:
+   "Chung Hạ", "Chung Ha", "chung ha". Một chỗ định nghĩa, dùng cho cả ô tìm
+   trên bảng lẫn ô tìm trong panel admin — trước đây admin có bản riêng và
+   hai bản trả lời khác nhau cho cùng một câu hỏi.
+
+   `đ` phải thay TAY: nó là ký tự riêng của tiếng Việt chứ không phải `d` +
+   dấu, nên NFD không tách ra được — thiếu dòng đó thì "dang nhap" không tìm
+   ra "Đặng Nhập" mà nhìn vào chẳng thấy sai ở đâu.
+   Gộp khoảng trắng để "chung  ha" cũng khớp, và để hai vế so sánh được cùng
+   một chuẩn. */
+export const fold = (s) => (s || '').toString().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd')
+  .replace(/\s+/g, ' ')
+  .trim()
 
 /* Nhat ra nhung request CUNG MOT BAI (cung artist + title, khong phan biet
    hoa thuong / khoang trong thua) ma van con "song" (queued | in_progress).
@@ -41,6 +68,195 @@ export const groupIds = (rows, row, statuses = ['queued', 'in_progress']) => {
   return out
 }
 
+/* =========================================================
+   BỘ LỌC ĐÃ NHỚ — URL trước, rồi tới giá trị đã lưu, cuối cùng mới mặc định
+   ---------------------------------------------------------
+   Ba nguồn, xếp theo thứ tự ưu tiên rõ ràng:
+     1. URL  — dán link là mở ĐÚNG chỗ người gửi muốn chỉ (link luôn thắng)
+     2. localStorage — lần ghé trước đang xem tab nào thì ghé sau vẫn ở đó
+     3. mặc định của app
+   Giá trị lạ (URL cũ, dữ liệu lưu từ bản trước đổi tên tab) bị bỏ qua chứ
+   không đẩy vào state: một tab không tồn tại sẽ làm danh sách rỗng mà không
+   ai hiểu vì sao.
+   ========================================================= */
+export const pickBoardParam = (fromUrl, saved, valid, dflt) => {
+  if (valid.includes(fromUrl)) return fromUrl
+  if (valid.includes(saved)) return saved
+  return dflt
+}
+
+/* =========================================================
+   BÀI ĐÃ CÓ TRÊN BẢNG? — dò trùng ngay lúc gõ, không đợi tới lúc gửi
+   ---------------------------------------------------------
+   Quy tắc dò dùng ĐÚNG `groupKey` mà bảng dùng để gom cụm (cùng tên bài +
+   cùng nghệ sĩ, bỏ qua hoa/thường và khoảng trắng thừa), nên câu trả lời ở
+   form và cách bảng cộng dồn vote không bao giờ nói hai chuyện khác nhau.
+
+   Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việc "9 vote mà xếp
+   dưới 5 vote" lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
+   nhiều so với phát hiện rồi gộp ở tầng SQL.
+
+   Trả về `null` khi CHƯA đủ để kết luận: tên bài dưới 3 ký tự mà đã báo trùng
+   thì gõ tới đâu cũng thấy gợi ý, và người dùng học được cách phớt lờ nó.
+   ========================================================= */
+/* =========================================================
+   TÁCH MỘT TIÊU ĐỀ VIDEO THÀNH HAI Ô
+   ---------------------------------------------------------
+   Cách nhanh nhất để điền form là copy NGUYÊN tiêu đề video rồi dán vào ô
+   tên bài — và đó cũng là cách chắc chắn nhất để ô tên bài chứa cả tên nghệ
+   sĩ trong khi ô nghệ sĩ trống. Hàm này đọc hai khuôn phổ biến của tiêu đề
+   nhạc (đặc biệt là nhạc Hàn/Nhật, nơi tên bài luôn nằm trong nháy):
+
+     "CHUNG HA 청하 'Algorithm' MV"          → nháy: tên bài = Algorithm
+     "aespa - Whiplash (Official Video)"     → gạch nối + nhãn ở cuối
+
+   KHÔNG đoán khi không có dấu hiệu nào: "aespa Whiplash" trả về `null`, vì
+   đoán sai thì người dùng phải sửa HAI ô thay vì một — gợi ý điền giúp mà
+   bắt sửa nhiều hơn tự điền thì không phải gợi ý.
+   Chỉ trả về khi CẢ HAI vế đều có nghĩa và khác nhau.
+   ========================================================= */
+const TAG_WORDS = [
+  'mv', 'm/v', 'video', 'lyric', 'lyrics', 'audio', 'official', 'performance',
+  'color coded', 'full album', '1 hour', 'loop', '4k', 'hd', '1080p', 'remaster',
+  'teaser', 'visualizer', 'instruments',
+]
+
+/* Một nhóm trong ngoặc chỉ là NHÃN QUẢNG CÁO khi nó ngắn và chứa một trong
+   các từ trên. Nhóm nằm GIỮA câu được giữ nguyên — "(feat. X)" là một phần
+   thật của tên bài, không phải nhãn. */
+const isTag = (inner) => {
+  const w = inner.trim().toLowerCase()
+  return w.length > 0 && w.length <= 28 && TAG_WORDS.some(x => w.includes(x))
+}
+
+function stripTags(str) {
+  let out = str.trim()
+  for (let i = 0; i < 4; i++) {
+    const lead = out.match(/^[([{]([^)\]}]*)[)\]}]\s*/)
+    const tail = out.match(/\s*[([{]([^)\]}]*)[)\]}]$/)
+    if (lead && isTag(lead[1])) { out = out.slice(lead[0].length).trim(); continue }
+    if (tail && isTag(tail[1])) { out = out.slice(0, out.length - tail[0].length).trim(); continue }
+    break
+  }
+  return out
+}
+
+const tidy = (v) => v.replace(/\s+/g, ' ').replace(/^[-–—:|\s]+|[-–—:|\s]+$/g, '').trim()
+
+export function splitSong(raw) {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim()
+  if (s.length < 4) return null
+  const cut = stripTags(s)
+
+  /* 1. Tên bài nằm trong cặp nháy — khuôn của gần như mọi MV nhạc Hàn/Nhật. */
+  const q = cut.match(/[\u2018\u2019'"\u201c\u201d]([^\u2018\u2019'"\u201c\u201d]{2,80})[\u2018\u2019'"\u201c\u201d]/)
+  if (q) {
+    const artist = tidy(cut.slice(0, q.index))
+    const title = tidy(q[1])
+    /* Một vế chỉ có MỘT ký tự thì chưa đủ để gọi là tên nghệ sĩ hay tên bài:
+       "A - B" không phải là một tiêu đề video, và đoán bừa ở đây bắt người
+       dùng sửa hai ô thay vì một. */
+    if (artist.length >= 2 && title.length >= 2 && artist.length <= 120 && title.length <= 160
+      && artist.toLowerCase() !== title.toLowerCase()) {
+      return { artist, title }
+    }
+  }
+
+  /* 2. Gạch nối giữa hai phần: lấy dấu gạch ĐẦU TIÊN, phần còn lại là tên bài. */
+  const m = cut.match(/^(.{1,120}?)\s+[-–—]\s+(.{1,160})$/)
+  if (m) {
+    const artist = tidy(m[1])
+    const title = tidy(m[2])
+    if (artist.length >= 2 && title.length >= 2 && artist.toLowerCase() !== title.toLowerCase()) {
+      return { artist, title }
+    }
+  }
+  return null
+}
+
+export function findDuplicate(rows, draft) {
+  const title = (draft?.title || '').trim()
+  const artist = (draft?.artist || '').trim()
+  if (title.length < 3 || !artist) return null
+
+  const key = groupKey({ title, artist })
+  const hit = (rows || []).filter((r) => r && groupKey(r) === key)
+  if (!hit.length) return null
+
+  const open = hit.filter((r) => r.status === 'queued' || r.status === 'in_progress')
+  /* Bài để bấm vào vote: nhiều vote nhất trong số còn sống (vote thêm vào
+     dòng yếu nhất là làm cụm mạnh thêm nhưng không đẩy hạng lên). */
+  const best = [...open].sort(byVotes)[0] || null
+  /* `pending` đếm riêng: hàng đang chờ duyệt KHÔNG hiện trên bảng nên không
+     thể "vote cho nó" được, nhưng nó vẫn là lý do để không gửi lại lần nữa —
+     gửi trùng của chính mình là ca trùng phổ biến nhất. */
+  const pending = hit.filter((r) => r.status === 'pending').length
+  return {
+    key,
+    rows: hit,
+    title: hit[0].title,
+    artist: hit[0].artist,
+    votes: hit.reduce((n, r) => n + (r.votes || 0), 0),
+    open: open.length,
+    pending,
+    best,
+    /* Video đã làm xong: gợi ý này đổi thành "xem rồi", không gợi ý vote nữa */
+    video: hit.find((r) => r.status === 'completed' && r.video_url)?.video_url || null,
+  }
+}
+
+/* =========================================================
+   LINK MỜI GỬI BÀI — `/?add=1&artist=…&title=…`
+   ---------------------------------------------------------
+   Chủ kênh dán link này vào mô tả video / ghim bình luận: người xem bấm là
+   vào thẳng form gửi request, đã điền sẵn tên bài. Đây là đường ngắn nhất từ
+   "đang xem video" tới "đã gửi request", và nó KHÔNG tốn gì: bộ lọc đã nằm
+   trên URL từ trước, chỉ cần đọc thêm ba tham số.
+
+   Cắt độ dài theo đúng `maxLength` của ô nhập: dán một URL dài ngoằng vào
+   không được tạo ra cái form mà chính nó không gửi được.
+   ========================================================= */
+export function parseRequestPrefill(params, limits = { artist: 120, title: 160, link: 500 }) {
+  /* `?add` trần, `?add=1`, `?add=true`, `?add=TRUE` đều là "mở form"; còn
+     `?add=0` / `?add=false` / `?add=no` là không. Đọc bằng `has()` chứ không
+     phải bằng giá trị: tham số trần (`?add`) trả về CHUỖI RỖNG, và chuỗi rỗng
+     là falsy — bản đầu của hàm này vì thế mà âm thầm bỏ qua đúng cái link
+     ngắn nhất, loại link người ta hay gõ tay nhất. */
+  if (!params?.has?.('add')) return null
+  const v = (params.get('add') || '').trim().toLowerCase()
+  if (v === '0' || v === 'false' || v === 'no') return null
+  const clip = (v, n) => (v || '').trim().slice(0, n)
+  return {
+    artist: clip(params.get('artist'), limits.artist),
+    title: clip(params.get('title'), limits.title),
+    link: clip(params.get('link'), limits.link),
+  }
+}
+
+/* =========================================================
+   GHIM CÔNG — chữ để dán vào mô tả video YouTube
+   ---------------------------------------------------------
+   Người gửi request là người làm nên tập phim đó; ghi tên họ vào mô tả là thứ
+   duy nhất khiến họ gửi tiếp. Việc này đang phải làm bằng tay: mở bảng, đọc
+   từng dòng, gõ lại tên — nên nó thường bị bỏ.
+   Chỉ nhận `title`/`artist` + danh sách dòng của CÙNG bài (lọc bằng groupKey
+   trước khi gọi), trả về một khối chữ thuần, dán được ngay.
+   ========================================================= */
+export function creditText(song, maxNames = 8) {
+  const title = (song?.title || '').trim()
+  const artist = (song?.artist || '').trim()
+  if (!title) return ''
+  const names = [...new Set((song.rows || [])
+    .map((r) => (r?.requester || '').trim())
+    .filter(Boolean))]
+  const head = [artist, title].filter(Boolean).join(' - ')
+  if (!names.length) return head
+  const shown = names.slice(0, maxNames)
+  const more = names.length - shown.length
+  const list = shown.join(', ') + (more > 0 ? ` +${more}` : '')
+  return `${head}\nRequested by: ${list}`
+}
+
 /* Nhiều vote hơn đứng trước; hoà vote thì bài mới hơn đứng trước. */
 export const byVotes = (a, b) => ((b.votes || 0) - (a.votes || 0)) || (ts(b.created_at) - ts(a.created_at))
 export const byNewest = (a, b) => ts(b.created_at) - ts(a.created_at)
@@ -53,8 +269,12 @@ export const byPickOrder = (a, b) =>
 /* Thứ tự từng dòng theo tab đang mở. Tab "Đang chờ" (mặc định) đẩy
    paid request lên đầu rồi mới xét tới vote, giống hệt thứ tự cũ. */
 export function sortRows(rows, filter) {
-  const out = [...rows]
+  const out = real(rows)
   if (filter === 'picked') return out.sort(byPickOrder)
+  /* Tab "In progress" là danh sách việc ĐANG CHẠY: xếp việc gần xong lên trước
+     (%, giảm dần), hoà thì theo vote. Xếp theo vote như bảng thường là sai ngữ
+     cảnh — người xem đang hỏi "còn bao lâu", không hỏi "bài nào nhiều phiếu". */
+  if (filter === 'in_progress') return out.sort((a, b) => (b.progress || 0) - (a.progress || 0) || byVotes(a, b))
   if (filter === 'newest') return out.sort(byNewest)
   if (filter === 'top') return out.sort(byVotes)
   return out.sort((a, b) => ((b.is_paid ? 1 : 0) - (a.is_paid ? 1 : 0)) || byVotes(a, b))
@@ -66,7 +286,7 @@ export function sortRows(rows, filter) {
 export function groupRows(rows) {
   const order = []
   const byKey = new Map()
-  for (const r of rows) {
+  for (const r of real(rows)) {
     const k = groupKey(r)
     let g = byKey.get(k)
     if (!g) {
@@ -87,6 +307,11 @@ export function groupRows(rows) {
 export function sortGroups(groups, filter) {
   if (filter === 'picked') return groups                 // đã theo thứ tự làm việc, không xáo
   const out = [...groups]
+  /* Cụm trong tab In progress: lấy % cao nhất trong cụm làm mốc — một bài có
+     hai dòng đang chạy thì dòng đi xa nhất mới là điều người xem cần thấy. */
+  if (filter === 'in_progress') return out.sort((a, b) =>
+    Math.max(0, ...b.rows.map(r => r.progress || 0)) - Math.max(0, ...a.rows.map(r => r.progress || 0))
+    || (b.votes - a.votes))
   if (filter === 'newest') return out.sort((a, b) => (b.newest - a.newest) || (b.votes - a.votes))
   if (filter === 'top') return out.sort((a, b) => (b.votes - a.votes) || (b.newest - a.newest))
   return out.sort((a, b) => (b.paid - a.paid) || (b.votes - a.votes) || (b.newest - a.newest))
@@ -96,7 +321,7 @@ export function sortGroups(groups, filter) {
    dòng riêng (bảng Admin chẳng hạn): key = groupKey, value = { n, total }. */
 export function voteTotals(rows) {
   const m = new Map()
-  for (const r of rows) {
+  for (const r of real(rows)) {
     const k = groupKey(r)
     const c = m.get(k) || { n: 0, total: 0 }
     c.n += 1
@@ -106,10 +331,48 @@ export function voteTotals(rows) {
   return m
 }
 
+/* Bốn GIAI ĐOẠN của bảng — không chồng nhau, cộng lại đúng tổng số bài.
+   ---------------------------------------------------------
+   Khối thống kê và badge tab phải kể cùng một câu chuyện. Trước đây không ai
+   đếm "đã chốt nhưng chưa khởi động": bài đó không nằm trong In queue (vì đã
+   chốt), không nằm trong In progress (vì chưa chạy), cũng không nằm trong
+   Completed — nó rơi vào khoảng trống, nên bốn con số cộng lại thiếu so với
+   bảng và mục Up next nhìn như thuộc hệ thống khác.
+
+   Mỗi BÀI vào đúng một giai đoạn, lấy theo dòng "cao nhất" của bài đó (một bài
+   có ba người gửi thì cả ba dòng nằm chung một thẻ, không nhân ba con số).
+   `total` là số bài — hằng đẳng thức queued + picked + in_progress + completed
+   === total được test giữ, nên không ai lặng lẽ bỏ rơi một giai đoạn nữa. */
+const STAGES = ['queued', 'picked', 'in_progress', 'completed']
+export function stageCounts(rows) {
+  const rank = new Map()
+  for (const r of rows || []) {
+    if (!r || !STAGES.includes(r.status)) continue
+    /* in_progress mà chưa có picked_at vẫn là "đang chạy" — xếp trên picked */
+    const own = r.status === 'completed' ? 3
+      : r.status === 'in_progress' ? 2
+      : (r.picked_at ? 1 : 0)
+    const key = groupKey(r)
+    const prev = rank.get(key)
+    if (prev === undefined || own > prev) rank.set(key, own)
+  }
+  const out = { queued: 0, picked: 0, in_progress: 0, completed: 0 }
+  for (const own of rank.values()) out[STAGES[own]] += 1
+  out.total = rank.size
+  return out
+}
+
+/* Số BÀI trong một tập dòng — không phải số dòng. Mọi con số đứng cạnh danh
+   sách (badge tab, ô thống kê) phải đếm theo cùng đơn vị với thứ được liệt kê:
+   bảng gom cụm theo bài, nên một bài có ba người gửi là MỘT thẻ. Đếm theo dòng
+   thì badge ghi 3 mà dưới chỉ có 1 thẻ — đó là kiểu "lệch số" người dùng nhìn
+   ra ngay mà không gọi được tên. */
+export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
+
 /* Danh sách cuối cùng để render + phân trang: cụm nhiều dòng thành một
    thẻ gập/mở được, cụm một dòng giữ nguyên hàng thường. */
 export function boardItems(rows, filter) {
-  return sortGroups(groupRows(sortRows(rows, filter)), filter)
+  return sortGroups(groupRows(sortRows(real(rows), filter)), filter)
     .map((g) => (g.rows.length > 1
       ? { type: 'group', ...g }
       : { type: 'row', key: g.key, r: g.rows[0] }))
