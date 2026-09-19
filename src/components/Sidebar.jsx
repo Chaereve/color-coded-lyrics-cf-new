@@ -72,7 +72,7 @@ export default function Sidebar({
   }, [section, collapsed, sections])
 
   const initials = (user?.name || '?').trim()[0].toUpperCase()
-  const NAV_ICON = { board: 'board', spin: 'spin', ranking: 'cup', mine: 'user' }
+  const NAV_ICON = { board: 'board', spin: 'spin', ranking: 'cup', mine: 'user', admin: 'shield' }
   const adminTotal = counts.pending + counts.orders
   const toggleLabel = collapsed ? t('side.expand') : t('side.collapse')
 
@@ -122,6 +122,10 @@ export default function Sidebar({
                   <Icon name={NAV_ICON[k]} className="sico" />
                   <span className="side-tx">{t(`nav.${k}`)}</span>
                   {k === 'mine' && counts.mine > 0 && <span className="side-n">{counts.mine}</span>}
+                  {/* Bảng quản trị: huy hiệu là số VIỆC ĐANG CHỜ (bài chờ duyệt +
+                      đơn chờ xác nhận) — con số duy nhất khiến admin phải mở
+                      mục này ngay, nên nó đứng cạnh tên mục. */}
+                  {k === 'admin' && adminTotal > 0 && <span className="dotbadge">{adminTotal}</span>}
                 </a>
               ))}
             </nav>
@@ -149,10 +153,10 @@ export default function Sidebar({
               <Icon name="ext" size={13} className="side-ext" />
             </a>
             {user?.isAdmin && (
-              <button type="button" className="side-item" onClick={fire(() => onAdmin('pending'))}
-                style={{ '--i': sections.length + 2 }} title={tip(t('menu.admin'))}>
-                <Icon name="shield" className="sico" /><span className="side-tx">{t('menu.admin')}</span>
-                {adminTotal > 0 && <span className="dotbadge">{adminTotal}</span>}
+              <button type="button" className="side-item" onClick={fire(() => onAdmin('orders'))}
+                style={{ '--i': sections.length + 2 }} title={tip(t('menu.adminOrders'))}>
+                <Icon name="note" className="sico" /><span className="side-tx">{t('menu.adminOrders')}</span>
+                {counts.orders > 0 && <span className="dotbadge">{counts.orders}</span>}
               </button>
             )}
           </div>

@@ -10,7 +10,14 @@ const MAX = 100
  * Bảng nhập số lượt vote. Mở ra khi bấm nút vote trên một request.
  * Cảnh báo ngay tại chỗ nếu nhập quá số lượt đang có.
  */
-export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, onClose, onVote, onBuy }) {
+export default function VoteModal({
+  open, request, myCount = 0, votesLeft = 0,
+  /* Ba nguồn phiếu tách riêng — hộp vote nói được "phiếu này lấy từ đâu",
+     thay vì chỉ một con số tổng. Mặc định 0 để hộp vẫn dựng được một mình
+     trong test và ở chỗ gọi chưa truyền. */
+  freeLeft = 0, purchased = 0, bonus = 0,
+  onClose, onVote, onBuy,
+}) {
   const { t } = useI18n()
   const [qty, setQty] = useState(1)
   const [busy, setBusy] = useState(false)
@@ -39,7 +46,16 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
 
   const n = Math.trunc(Number(qty)) || 0
   const invalid = n < 1 || n > MAX
-  const locked = isPicked(req)             // đã vào Up next: khóa cả vote lẫn rút
+  const picked = isPicked(req)             // đã vào Up next: khóa cả vote lẫn rút
+  /* CHỈ bài đang trong hàng mới vote được. Trước đây hộp thoại chỉ chặn bài
+     đã chốt, nên một bài đã xong / bị từ chối / còn chờ duyệt mà lọt vào được
+     (ví dụ từ link cũ hoặc từ hàng đợi vừa đổi trạng thái trong lúc hộp đang
+     mở) vẫn hiện bảng chọn phiếu và cho bấm — người dùng gửi đi một phiếu mà
+     hệ thống từ chối, và không hiểu vì sao. Cùng điều kiện với `canVote` ở
+     App.jsx: đang chờ hoặc đang làm, và chưa chốt. */
+  const openForVotes = !picked && (req.status === 'queued' || req.status === 'in_progress')
+  const locked = !openForVotes
+  const closedMsg = picked ? 'vote.locked' : 'vote.closed'
   const noVotes = votesLeft === 0
   const tooMany = n > votesLeft            // không đủ lượt để vote
   const tooManyBack = n > myCount          // chưa vote đủ để rút lại
@@ -52,15 +68,26 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
     finally { setBusy(false) }
   }
 
+  /* Dãy chọn nhanh: bốn mức người ta thật sự dùng (1 phiếu để thử, 5 và 10 là
+     hai mức phổ biến, "tất cả" cho người đã quyết). Con số nào vượt quá số
+     phiếu đang có thì KHÔNG hiện — một nút bấm vào là báo lỗi thì thà đừng có. */
+  const addMax = Math.max(1, Math.min(MAX, votesLeft))
+  const presets = [1, 5, 10, 25].filter(v => v <= addMax)
+  const after = locked ? req.votes : req.votes + n
+  const leftAfter = Math.max(0, votesLeft - n)
+  const changing = busy
+
   return (
     <div className={`overlay vote-overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal narrow${out}`} role="dialog" aria-modal="true">
+      <div className={`modal narrow${out}`} role="dialog" aria-modal="true" aria-label={t('vote.dialogTitle')}>
         <div className="modal-head">
           <div className="modal-tabs"><span className="mtab on">{t('vote.dialogTitle')}</span></div>
           <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
         </div>
 
         <div className="modal-body">
+          {/* Bài đang vote — tên bài là thứ DUY NHẤT người dùng cần xác nhận
+              trước khi bấm, nên nó đứng trên mọi con số. */}
           <div className="vm-song">
             <b>{req.title}</b>
             <span> — {req.artist}</span>
@@ -72,45 +99,80 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
             </div>
           </div>
 
-          {locked && <div className="msg err" style={{ marginTop: 16 }}>{t('vote.locked')}</div>}
-
-          {!locked && (
-          <div className="field" style={{ marginTop: 16, marginBottom: 8 }}>
-            <label htmlFor="vm-qty">{t('vote.qty')}</label>
-            <div className="vm-row">
-              <div className="qty">
-                <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}
-                  disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
-                <input id="vm-qty" type="number" min="1" max={MAX} value={qty} disabled={busy}
-                  onChange={e => setQty(e.target.value)}
-                  onBlur={() => setQty(q => Math.max(1, Math.min(MAX, Math.trunc(Number(q)) || 1)))}
-                  onKeyDown={e => { if (e.key === 'Enter' && !tooMany && !invalid && !busy) go(n) }} />
-                <button type="button" onClick={() => setQty(q => Math.min(MAX, Number(q) + 1))}
-                  disabled={busy} aria-label="+"><Icon name="plus" size={15} /></button>
+          {locked ? (
+            <div className="msg err" style={{ marginTop: 16 }}>{t(closedMsg)}</div>
+          ) : (
+            <>
+              {/* KẾT QUẢ SAU KHI BẤM — con số lớn nhất trong hộp, vì "bài này
+                  sẽ có bao nhiêu phiếu" mới là điều người dùng đang quyết.
+                  Con số cũ (tổng hiện tại) chỉ là dòng phụ bên dưới. */}
+              <div className="vm-hero" style={{ marginTop: 14 }}>
+                <span className="k">{t('vote.hero')}</span>
+                <span key={after} className={`v${changing ? '' : ' pop'}`}>{after}</span>
+                <span className="u">{t('vote.heroSub', { n: req.votes })}</span>
               </div>
-              {votesLeft > 1 && (
-                <button type="button" className="btn btn-sm" disabled={busy}
-                  onClick={() => setQty(votesLeft)}>{t('vote.useAll', { n: votesLeft })}</button>
-              )}
-              {myCount > 1 && (
-                <button type="button" className="btn btn-sm" disabled={busy}
-                  onClick={() => setQty(myCount)}>{t('vote.backAll', { n: myCount })}</button>
-              )}
-            </div>
-            <div className="vm-limits">
-              {t('vote.available', { n: votesLeft })}
-              {myCount > 0 && <> · {t('vote.canTakeBack', { n: myCount })}</>}
-            </div>
-          </div>
-          )}
 
-          {!locked && noVotes && myCount === 0 && <div className="msg err">{t('vote.none')}</div>}
-          {!locked && !invalid && (tooMany || (myCount > 0 && tooManyBack)) && (
-            <div className="msg err">
-              {tooMany && !noVotes && <div>{t('vote.tooMany', { n: votesLeft })}</div>}
-              {noVotes && <div>{t('vote.none')}</div>}
-              {myCount > 0 && tooManyBack && <div>{t('vote.tooManyBack', { n: myCount })}</div>}
-            </div>
+              <div className="vm-presets" role="group" aria-label={t('vote.qty')}>
+                {presets.map(v => (
+                  <button key={v} type="button" className={`vm-preset${n === v ? ' on' : ''}`}
+                    aria-pressed={n === v} disabled={busy} onClick={() => setQty(v)}>{v}</button>
+                ))}
+                {votesLeft > 1 && (
+                  <button type="button" className={`vm-preset${n === votesLeft ? ' on' : ''}`}
+                    aria-pressed={n === votesLeft} disabled={busy}
+                    onClick={() => setQty(votesLeft)}>{t('vote.useAll', { n: votesLeft })}</button>
+                )}
+              </div>
+
+              {/* Thanh trượt: kéo là thấy con số lớn ở trên chạy theo. Cùng một
+                  trục với dãy nút trên, nên hai cách chọn không mâu thuẫn. */}
+              <input type="range" className="vm-slide" min="1" max={addMax} value={Math.min(n, addMax)}
+                aria-label={t('vote.qty')} disabled={busy}
+                onChange={e => setQty(Number(e.target.value))} />
+
+              <div className="field" style={{ marginTop: 6, marginBottom: 0 }}>
+                <label htmlFor="vm-qty">{t('vote.qty')}</label>
+                <div className="vm-row">
+                  <div className="qty">
+                    <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}
+                      disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
+                    <input id="vm-qty" type="number" min="1" max={MAX} value={qty} disabled={busy}
+                      onChange={e => setQty(e.target.value)}
+                      onBlur={() => setQty(q => Math.max(1, Math.min(MAX, Math.trunc(Number(q)) || 1)))}
+                      onKeyDown={e => { if (e.key === 'Enter' && !tooMany && !invalid && !busy) go(n) }} />
+                    <button type="button" onClick={() => setQty(q => Math.min(MAX, Number(q) + 1))}
+                      disabled={busy} aria-label="+"><Icon name="plus" size={15} /></button>
+                  </div>
+                  {myCount > 1 && (
+                    <button type="button" className="btn btn-sm" disabled={busy}
+                      onClick={() => setQty(myCount)}>{t('vote.backAll', { n: myCount })}</button>
+                  )}
+                </div>
+                {/* TÓM TẮT TRƯỚC – SAU: "còn 7 → còn 3" là câu trả lời cho
+                    "bấm nút này thì tôi mất gì", thứ mà một dòng "bạn có 7
+                    phiếu" không nói được. */}
+                <div className="vm-after">
+                  <span>{t('vote.leftBefore', { n: votesLeft })}</span>
+                  <span className="arw" aria-hidden="true">→</span>
+                  <b className={leftAfter === 0 ? 'bad' : 'good'}>{leftAfter}</b>
+                </div>
+              </div>
+
+              <div className="vm-balance">
+                <span className="vm-chip"><span>{t('vote.freeToday')}</span><b>{Math.max(0, freeLeft)}</b></span>
+                <span className="vm-chip"><span>{t('vote.purchasedShort')}</span><b>{purchased}</b></span>
+                <span className="vm-chip"><span>{t('vote.bonusShort')}</span><b>{bonus}</b></span>
+              </div>
+
+              {noVotes && myCount === 0 && <div className="msg err">{t('vote.none')}</div>}
+              {!invalid && (tooMany || (myCount > 0 && tooManyBack)) && (
+                <div className="msg err">
+                  {tooMany && !noVotes && <div>{t('vote.tooMany', { n: votesLeft })}</div>}
+                  {noVotes && <div>{t('vote.none')}</div>}
+                  {myCount > 0 && tooManyBack && <div>{t('vote.tooManyBack', { n: myCount })}</div>}
+                </div>
+              )}
+            </>
           )}
           {err && <div className="msg err">{err}</div>}
 

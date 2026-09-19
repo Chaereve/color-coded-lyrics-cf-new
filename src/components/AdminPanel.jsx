@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
-import { isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
+import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { useI18n } from '../lib/i18n.jsx'
 import MediaAdmin from './MediaAdmin'
-import { useModalExit } from '../lib/useModalExit'
 import Pager from './Pager'
 import { usePager } from '../lib/usePager'
 
@@ -72,6 +71,14 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         )}
         {r.link && <small><a href={r.link} target="_blank" rel="noreferrer" style={{ color: 'var(--a-2)' }}>{t('adm.sourceLink')}</a></small>}
         {r.note && <small style={{ color: 'var(--txt-2)' }}>“{r.note}”</small>}
+        {/* Tiến độ đọc được TỪ HÀNG, không phải mở khung sửa: bài đang làm mà
+            không biết đã tới đâu thì admin phải mở từng dòng ra xem — đúng thứ
+            mà một bảng quản trị sinh ra để khỏi làm. Khi khung sửa đang mở thì
+            thanh này nhường chỗ cho thanh lớn (kèm ba mốc) trong khung, không
+            hiển thị cùng một con số hai lần. */}
+        {r.status === 'in_progress' && !open && (
+          <Progress pct={pct} label={t('progress.label')} color={statusColor(r.status)} />
+        )}
       </div>
 
       <div className="adm-acts">
@@ -162,14 +169,26 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   )
 }
 
+/* =========================================================
+   BẢNG QUẢN TRỊ — MỘT TRANG, KHÔNG PHẢI HỘP THOẠI
+   ---------------------------------------------------------
+   Đây là chỗ làm việc thật: soát bài mới, duyệt/từ chối, tick mốc tiến độ,
+   chốt vào Up next, xử lý đơn, quản lý video. Hộp thoại chỉ hợp với việc
+   ngắn; việc kéo dài hàng chục phút thì cần một trang có địa chỉ riêng
+   (/admin) để F5 không mất chỗ, mở được ở tab thứ hai bên cạnh trang công
+   khai, và không bị khung hộp thoại cắt mất nửa màn hình.
+
+   Thứ tự trên trang: dải số liệu (vừa là bộ chuyển mục, vì mỗi ô đã mang
+   đúng con số của mục đó nên không cần thêm một hàng tab đếm lại lần nữa)
+   → thanh công cụ (tìm, xếp, chọn nhiều, lọc loại) → danh sách → thanh hành
+   động hàng loạt dính đáy.
+   ========================================================= */
 export default function AdminPanel({
-  open, onClose, rows, orders, media = [], initialTab,
+  tab, onTab, rows, orders, media = [],
   onReview, onUpdate, onDelete, onOrder, onPick, onBulk,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
 }) {
   const { t } = useI18n()
-  /* App đổi key mỗi lần mở, nên panel dựng lại đúng với tab được gọi tới */
-  const [tab, setTab] = useState(initialTab || 'pending')
   const [busy, setBusy] = useState(false)
   /* Đơn hàng đang gửi đi: nút phải khoá NGAY, không đợi realtime tải lại danh
      sách (~400ms). Trước đây bấm "Đã nhận" hai lần trong khoảng đó là gọi
@@ -199,32 +218,42 @@ export default function AdminPanel({
      xếp theo tổng vote của cả bài) — ba lựa chọn còn lại là để TRẢ LỜI CÂU HỎI
      KHÁC: bài nào chờ lâu nhất, bài nào nhiều vote nhất, bài nào vừa gửi. */
   const [sortKey, setSortKey] = useState('default')
-  const goTab = (k) => { setTab(k); setSel(new Set()) }
+  /* Lọc theo LOẠI BÀI ngay trong bảng quản trị: admin hay phải gom một loại
+     (ví dụ soát hết Full Album trước khi chốt đợt) mà trước đây chỉ lọc được
+     bằng cách gõ tên loại vào ô tìm kiếm — gõ "Short" thì ra cả bài có chữ
+     short trong tên. */
+  const [kindF, setKindF] = useState('all')
+  const goTab = useCallback((k) => { onTab(k); setSel(new Set()) }, [onTab])
 
+  /* Bàn phím của một TRANG (không còn là hộp thoại nên Esc không đóng gì cả):
+       /  → nhảy vào ô tìm kiếm
+       Esc trong ô tìm kiếm → xoá từ khoá trước, lần nữa thì rời ô
+       Esc ngoài ô tìm kiếm → bỏ chọn hàng loạt (thao tác đang dở, nguy hiểm
+                              hơn cả việc cuộn lên đầu trang)
+       Ctrl/Cmd+A khi đang chọn nhiều → chọn cả trang đang nhìn
+     Chỉ gắn khi trang đang mở, để không cướp phím của phần còn lại của app. */
   useEffect(() => {
-    if (!open) return
+    if (tab == null) return
     const h = (e) => {
       const el = e.target
       const typing = el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable
       if (typing) {
-        /* đang gõ trong ô search: Esc xoá từ khoá trước, Esc lần nữa mới
-           đóng panel — cùng thói quen với ô search ngoài bảng request */
         if (e.key === 'Escape' && el === searchRef.current) {
           e.stopPropagation()
-          if (q) { setQ(''); el.select() } else { el.blur(); onClose() }
+          if (q) { setQ(''); el.select() } else el.blur()
         }
         return
       }
       if (e.key === '/') {
         e.preventDefault()
         searchRef.current?.focus()
-      } else if (e.key === 'Escape') {
-        onClose()
+      } else if (e.key === 'Escape' && sel.size) {
+        setSel(new Set())
       }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [open, onClose, q])
+  }, [tab, q, sel])
 
   const pending = useMemo(() => rows.filter(r => r.status === 'pending'), [rows])
   /* Tab Đang xử lý xếp theo TỔNG vote của cả bài: các request trùng tên bài +
@@ -293,8 +322,8 @@ export default function AdminPanel({
   }
   const shown = tab === 'orders' ? base.filter(matchOrder)
     : tab === 'media' ? base
-      : sortList(base.filter(matchReq))
-  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey])
+      : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
+  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
      phần đã chọn mà không còn hiện không được lặng lẽ nằm trong lệnh hàng loạt. */
   const selIds = pg.items.map(r => r.id).filter(id => sel.has(id))
@@ -312,65 +341,67 @@ export default function AdminPanel({
     finally { setBulkBusy(false) }
   }
 
+  /* DẢI SỐ LIỆU — vừa là tổng quan, vừa là bộ chuyển mục. Mỗi ô mang ĐÚNG con
+     số mà mục đó sẽ liệt kê, nên không cần thêm một hàng tab đếm lại lần nữa:
+     một thứ chỉ được đếm ở một chỗ. */
+  const kpis = useMemo(() => [
+    { k: 'pending', label: 'adm.pending', c: statusColor('pending'), n: pending.length },
+    { k: 'active', label: 'adm.active', c: statusColor('in_progress'), n: active.length },
+    { k: 'orders', label: 'adm.orders', c: 'var(--paid)', n: orderQueue.length },
+    { k: 'done', label: 'adm.done', c: statusColor('completed'), n: others.length },
+    { k: 'media', label: 'adm.media', c: 'var(--a-2)', n: media.length },
+  ], [pending.length, active.length, orderQueue.length, others.length, media.length])
+
+  /* Chọn cả trang đang nhìn: admin soát 10 dòng một lượt, tick từng ô là 10 cú
+     bấm cho một việc. Chỉ áp cho những dòng ĐANG HIỆN (giống mọi lệnh hàng loạt
+     khác) để lựa chọn không lặng lẽ chạm tới hàng ở trang khác. */
+  const pageIds = pg.items.map(r => r.id).filter(Boolean)
+  const allPage = pageIds.length > 0 && pageIds.every(id => sel.has(id))
+  const toggleAllPage = () => setSel(prev => {
+    const next = new Set(prev)
+    if (allPage) pageIds.forEach(id => next.delete(id)); else pageIds.forEach(id => next.add(id))
+    return next
+  })
+
   /* giữ nút ở trạng thái "đang lưu" cho tới khi bảng Admin được tải lại */
   const runMedia = async (fn) => {
     setBusy(true)
     try { await fn() } finally { setBusy(false) }
   }
 
-  const { mounted, closing } = useModalExit(open)
-  if (!mounted) return null
-  const out = closing ? ' out' : ''
-
   return (
-    <div className={`overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal wide${out}`}>
-        <div className="modal-head">
-          <div className="modal-tabs">
-            <button className={`mtab${tab === 'pending' ? ' on' : ''}`} onClick={() => goTab('pending')}>
-              {t('adm.pending')} <span className="c">({pending.length})</span>
-            </button>
-            <button className={`mtab${tab === 'active' ? ' on' : ''}`} onClick={() => goTab('active')}>
-              {t('adm.active')} <span className="c">({active.length})</span>
-            </button>
-            <button className={`mtab${tab === 'orders' ? ' on' : ''}`} onClick={() => goTab('orders')}>
-              {t('adm.orders')} <span className="c">({orderQueue.length})</span>
-            </button>
-            <button className={`mtab${tab === 'media' ? ' on' : ''}`} onClick={() => goTab('media')}>
-              {t('adm.media')} <span className="c">({media.length})</span>
-            </button>
-            <button className={`mtab${tab === 'done' ? ' on' : ''}`} onClick={() => goTab('done')}>
-              {t('adm.done')} <span className="c">({others.length})</span>
-            </button>
-          </div>
-          <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
-        </div>
+    <section className="adm-page" aria-label={t('adm.pageAria')}>
+      {/* DẢI SỐ LIỆU — VỪA LÀ TỔNG QUAN, VỪA LÀ BỘ CHUYỂN MỤC.
+          Ô đang mở được tô bằng đúng màu trạng thái của nó, nên "đang đứng ở
+          đâu" và "mục này có bao nhiêu việc" đọc trong cùng một cái liếc. */}
+      <div className="adm-kpis" role="group" aria-label={t('adm.pageAria')}>
+        {kpis.map(k => (
+          <button key={k.k} type="button" className={`adm-kpi${tab === k.k ? ' on' : ''}`}
+            style={{ '--sc': k.c }} aria-pressed={tab === k.k} onClick={() => goTab(k.k)}>
+            <span className="k"><i aria-hidden="true" />{t(k.label)}</span>
+            <span className="v">{k.n}</span>
+          </button>
+        ))}
+      </div>
 
-        <div className="modal-body" ref={listRef}>
-          {/* Tổng quan đường ống: mỗi chấm mang đúng màu trạng thái của .row
-              (--sc gán inline, CSS đọc qua var(--sc)) để admin quét một ánh mắt
-              là biết đang nghẽn ở đâu. */}
-          <div className="adm-sum">
-            {pipeline.map(p => (
-              <span className="adm-sum-i" key={p.s} style={{ '--sc': statusColor(p.s) }}>
-                <i aria-hidden="true" />{t(`status.${p.s}`)} <b>{p.n}</b>
-              </span>
-            ))}
-          </div>
-          {/* tab Videos có cơ chế quản lý riêng nên không lọc theo từ khoá */}
-          {tab !== 'media' && (
-            <div className="adm-search">
-              <span className="searchwrap">
-                <input ref={searchRef} className="search"
-                  placeholder={t('adm.search')} value={q}
-                  onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
-                {!q && <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-              </span>
-              {q && (
-                <button type="button" className="icon-btn adm-search-clear"
-                  title={t('adm.clearSearch')} aria-label={t('adm.clearSearch')}
-                  onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={15} /></button>
-              )}
+      <div className="adm-panel">
+        {/* THANH CÔNG CỤ: tìm kiếm → xếp thứ tự → lọc loại bài → chế độ chọn.
+            Ô tìm kiếm đứng đầu vì đó là việc admin làm nhiều nhất; nút chọn
+            nhiều đứng cuối vì nó đổi cách làm việc của cả trang. */}
+        {tab !== 'media' && (
+          <div className="adm-bar">
+            <span className="searchwrap">
+              <Icon name="search" size={14} className="search-ico" />
+              <input ref={searchRef} className="search"
+                placeholder={t('adm.search')} value={q} aria-keyshortcuts="/"
+                onChange={e => { setQ(e.target.value); setSel(new Set()) }} />
+              {q
+                ? <button type="button" className="search-x" title={t('adm.clearSearch')}
+                    aria-label={t('adm.clearSearch')}
+                    onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
+                : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+            </span>
+            <div className="adm-actions">
               <select className="sel adm-sort" value={sortKey} aria-label={t('adm.sortAria')}
                 onChange={e => { setSortKey(e.target.value); setSel(new Set()) }}>
                 <option value="default">{t('adm.sortDefault')}</option>
@@ -378,112 +409,137 @@ export default function AdminPanel({
                 <option value="votes">{t('adm.sortVotes')}</option>
                 <option value="waiting">{t('adm.sortWaiting')}</option>
               </select>
-              <button type="button" className={`btn btn-sm adm-pickbtn${pickMode ? ' on' : ''}`}
-                aria-pressed={pickMode}
-                onClick={() => { setPickMode(v => !v); setSel(new Set()) }}>
-                {pickMode ? t('adm.pickModeOff') : t('adm.pickMode')}
-              </button>
+              {tab !== 'orders' && (
+                <>
+                  <select className="sel" value={kindF} aria-label={t('board.kindAria')}
+                    onChange={e => { setKindF(e.target.value); setSel(new Set()) }}>
+                    <option value="all">{t('board.allKinds')}</option>
+                    {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <button type="button" className={`btn btn-sm adm-pickbtn${pickMode ? ' on' : ''}`}
+                    aria-pressed={pickMode}
+                    onClick={() => { setPickMode(v => !v); setSel(new Set()) }}>
+                    {pickMode ? t('adm.pickModeOff') : t('adm.pickMode')}
+                  </button>
+                </>
+              )}
             </div>
-          )}
-          {tab === 'media' ? (
-            <MediaAdmin
-              media={media} busy={busy}
-              onSave={(item) => runMedia(() => onMediaSave(item))}
-              onCommit={(p) => runMedia(() => onMediaCommit(p))}
-              onDelete={(id) => runMedia(() => onMediaDelete(id))}
-              onReorder={(ids) => runMedia(() => onMediaReorder(ids))}
-              onViewHome={onMediaViewHome}
-            />
-          ) : tab === 'orders' ? (
-            shown.length === 0
-              ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.noOrders')}</div>
-              : pg.items.map(o => (
-                <div className="adm" key={o.id}>
-                  <div className="nm">
-                    <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                    <small>
-                      {vnd(o.amount_vnd)}
-                      <span className="dot dot-inline" aria-hidden="true" />
-                      {usd(o.amount_usd)}
-                      <span className="dot dot-inline" aria-hidden="true" />
-                      {timeAgo(o.created_at, t)}
+          </div>
+        )}
+
+        {/* DÒNG ĐẾM + CHỌN CẢ TRANG: hai thứ cùng trả lời "tôi đang nhìn gì và
+            đang chọn gì", nên nằm chung một hàng. */}
+        {tab !== 'media' && (
+          <div className="adm-note">
+            <span>{t('adm.showing', { n: pg.items.length, total: shown.length })}</span>
+            {pickMode && pageIds.length > 0 && (
+              <label className="adm-all">
+                <Check checked={allPage} onChange={toggleAllPage} />
+                <span>{t('adm.selectPage', { n: pageIds.length })}</span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {tab === 'media' ? (
+          <MediaAdmin
+            media={media} busy={busy}
+            onSave={(item) => runMedia(() => onMediaSave(item))}
+            onCommit={(p) => runMedia(() => onMediaCommit(p))}
+            onDelete={(id) => runMedia(() => onMediaDelete(id))}
+            onReorder={(ids) => runMedia(() => onMediaReorder(ids))}
+            onViewHome={onMediaViewHome}
+          />
+        ) : tab === 'orders' ? (
+          shown.length === 0
+            ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.noOrders')}</div>
+            : pg.items.map(o => (
+              <div className="adm" key={o.id}>
+                <div className="nm">
+                  <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
+                  <small>
+                    {vnd(o.amount_vnd)}
+                    <span className="dot dot-inline" aria-hidden="true" />
+                    {usd(o.amount_usd)}
+                    <span className="dot dot-inline" aria-hidden="true" />
+                    {timeAgo(o.created_at, t)}
+                  </small>
+                  {o.request_id && (
+                    <small style={{ color: 'var(--txt-2)' }}>
+                      {rows.find(r => r.id === o.request_id)
+                        ? `${rows.find(r => r.id === o.request_id).artist} — ${rows.find(r => r.id === o.request_id).title}`
+                        : t('adm.reqDeleted')}
                     </small>
-                    {o.request_id && (
-                      <small style={{ color: 'var(--txt-2)' }}>
-                        {rows.find(r => r.id === o.request_id)
-                          ? `${rows.find(r => r.id === o.request_id).artist} — ${rows.find(r => r.id === o.request_id).title}`
-                          : t('adm.reqDeleted')}
-                      </small>
-                    )}
-                  </div>
-                  <div className="adm-acts">
-                    {o.status === 'awaiting' ? (
-                      <>
-                        <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
-                          onClick={() => runOrder(o.id, true)}>
-                          {orderBusy.has(o.id) ? '…' : t('adm.received')}
-                        </button>
-                        <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
-                          onClick={() => runOrder(o.id, false)}>{t('adm.deny')}</button>
-                      </>
-                    ) : (
-                      <span className={`pill ${o.status === 'paid' ? 'completed' : 'denied'}`}>
-                        {o.status === 'paid' ? t('order.paid') : t('order.rejected')}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
-              ))
-          ) : (
-            shown.length === 0
-              ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
-              : pg.items.map(r => (
-                <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))}
-                  select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
-                  /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
-                     người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
-                  songRows={rows.filter(x => groupKey(x) === groupKey(r))}
-                  onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick} />
-              ))
-          )}
-          {/* THANH HÀNH ĐỘNG HÀNG LOẠT — dính đáy khung, chỉ hiện khi đang chọn
-              nhiều VÀ có ít nhất một dòng được chọn. Nút nào cũng là .btn nên
-              thừa hưởng sẵn chiều cao chạm 40px ở bản hẹp. */}
-          {pickMode && selIds.length > 0 && (
-            <div className="adm-bulk" role="group" aria-label={t('adm.bulkAria')}>
-              <b>{t('adm.selected', { n: selIds.length })}</b>
-              <div className="adm-bulk-acts">
-                {tab === 'pending' && (
-                  <>
-                    <button type="button" className="btn btn-sm btn-ok" disabled={bulkBusy}
-                      onClick={() => runBulk('approve')}>{t('adm.approve')}</button>
-                    <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
-                      onClick={() => runBulk('deny')}>{t('adm.deny')}</button>
-                  </>
-                )}
-                {tab === 'active' && (
-                  <>
-                    <button type="button" className="btn btn-sm" disabled={bulkBusy}
-                      onClick={() => runBulk('pick')}>{t('adm.pick')}</button>
-                    <button type="button" className="btn btn-sm" disabled={bulkBusy}
-                      onClick={() => runBulk('unpick')}>{t('adm.unpick')}</button>
-                  </>
-                )}
-                {(tab === 'active' || tab === 'done') && (
-                  <button type="button" className="btn btn-sm" disabled={bulkBusy}
-                    onClick={() => runBulk('queue')}>{t('adm.backToQueue')}</button>
-                )}
-                <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
-                  onClick={() => runBulk('delete')}>{t('adm.delete')}</button>
-                <button type="button" className="btn btn-sm" disabled={bulkBusy}
-                  onClick={() => setSel(new Set())}>{t('adm.bulkClear')}</button>
+                <div className="adm-acts">
+                  {o.status === 'awaiting' ? (
+                    <>
+                      <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
+                        onClick={() => runOrder(o.id, true)}>
+                        {orderBusy.has(o.id) ? '…' : t('adm.received')}
+                      </button>
+                      <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
+                        onClick={() => runOrder(o.id, false)}>{t('adm.deny')}</button>
+                    </>
+                  ) : (
+                    <span className={`pill ${o.status === 'paid' ? 'completed' : 'denied'}`}>
+                      {o.status === 'paid' ? t('order.paid') : t('order.rejected')}
+                    </span>
+                  )}
+                </div>
               </div>
+            ))
+        ) : (
+          shown.length === 0
+            ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
+            : pg.items.map(r => (
+              <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))}
+                select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
+                /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
+                   người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
+                songRows={rows.filter(x => groupKey(x) === groupKey(r))}
+                onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick} />
+            ))
+        )}
+
+        {/* THANH HÀNH ĐỘNG HÀNG LOẠT — dính đáy khung, chỉ hiện khi đang chọn
+            nhiều VÀ có ít nhất một dòng được chọn. */}
+        {pickMode && selIds.length > 0 && (
+          <div className="adm-bulk" role="group" aria-label={t('adm.bulkAria')}>
+            <b>{t('adm.selected', { n: selIds.length })}</b>
+            <div className="adm-bulk-acts">
+              {tab === 'pending' && (
+                <>
+                  <button type="button" className="btn btn-sm btn-ok" disabled={bulkBusy}
+                    onClick={() => runBulk('approve')}>{t('adm.approve')}</button>
+                  <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
+                    onClick={() => runBulk('deny')}>{t('adm.deny')}</button>
+                </>
+              )}
+              {tab === 'active' && (
+                <>
+                  <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                    onClick={() => runBulk('pick')}>{t('adm.pick')}</button>
+                  <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                    onClick={() => runBulk('unpick')}>{t('adm.unpick')}</button>
+                </>
+              )}
+              {(tab === 'active' || tab === 'done') && (
+                <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                  onClick={() => runBulk('queue')}>{t('adm.backToQueue')}</button>
+              )}
+              <button type="button" className="btn btn-sm btn-no" disabled={bulkBusy}
+                onClick={() => runBulk('delete')}>{t('adm.delete')}</button>
+              <button type="button" className="btn btn-sm" disabled={bulkBusy}
+                onClick={() => setSel(new Set())}>{t('adm.bulkClear')}</button>
             </div>
-          )}
-          {/* tab media tự quản lý thứ tự (kéo thả) nên không cắt trang */}
-          {tab !== 'media' && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
-        </div>
+          </div>
+        )}
+
+        {/* tab media tự quản lý thứ tự (kéo thả) nên không cắt trang */}
+        {tab !== 'media' && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
-    </div>
+    </section>
   )
 }

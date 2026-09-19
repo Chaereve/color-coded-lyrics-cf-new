@@ -4,6 +4,7 @@ import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
 import { groupKey } from './board'
+import { rankDemo } from './ranking.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -421,18 +422,10 @@ export async function performDailySpin(requestId, userId) {
 }
 
 export async function fetchRanking() {
-  if (!hasSupabase) {
-    const m = {}
-    for (const r of demoRows()) {
-      if (r.status === 'denied') continue
-      const k = `${r.user_id}::${r.requester}`
-      m[k] ??= { user_id: r.user_id, key: k, name: r.requester, avatar_url: null, total: 0, completed: 0, total_votes: 0 }
-      m[k].total++
-      if (r.status === 'completed') m[k].completed++
-      m[k].total_votes += r.votes
-    }
-    return Object.values(m)
-  }
+  /* Chế độ demo dùng CHUNG luật gom với view thật (`rankDemo`, có test riêng):
+     một `user_id` là một dòng. Bản cũ khoá theo `user_id::requester` nên người
+     đổi tên hiển thị bị tách thành hai dòng — hai dòng cùng được tô "bạn". */
+  if (!hasSupabase) return rankDemo(demoRows())
   const { data, error } = await supabase.from('requester_ranking').select('*')
   if (!error) {
     cacheWrite(CACHE.ranking, data)

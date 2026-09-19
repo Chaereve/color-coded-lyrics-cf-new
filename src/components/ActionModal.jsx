@@ -5,6 +5,7 @@ import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../li
 import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
 import { findDuplicate } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
+import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { useModalExit } from '../lib/useModalExit'
 import PaymentMethods from './PaymentMethods'
@@ -23,19 +24,35 @@ function RulesGate({ onAgree }) {
     <div className="rules">
       <h4>{t('req.rulesTitle')}</h4>
       <ol>
-        <li>{t('req.rule1')}</li>
-        <li>{t('req.rule2')}</li>
-        <li>{t('req.rule3')}</li>
-        <li>{t('req.rule4')}</li>
-        <li>{t('req.rule5')}</li>
+        <li><b>1</b><span>{t('req.rule1')}</span></li>
+        <li><b>2</b><span>{t('req.rule2')}</span></li>
+        <li><b>3</b><span>{t('req.rule3')}</span></li>
+        <li><b>4</b><span>{t('req.rule4')}</span></li>
+        <li><b>5</b><span>{t('req.rule5')}</span></li>
       </ol>
       <button className="btn btn-primary" onClick={onAgree}>{t('req.agree')}</button>
     </div>
   )
 }
 
-/* ------------------------- TAB: GỬI REQUEST ------------------------- */
-function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting, prefill }) {
+/* ------------------------- TAB: GỬI REQUEST -------------------------
+   Ba nguyên tắc của bản này:
+   1. NÓI RA CHỖ SAI NGAY TẠI CHỖ ĐÓ. Ô bắt buộc được kiểm tra theo từng ô:
+      rời ô (blur) mà còn trống thì hiện câu giải thích ngay dưới ô, ô được
+      đánh dấu `aria-invalid` và trỏ tới câu đó bằng `aria-describedby`. Bấm Gửi
+      khi còn thiếu thì con trỏ NHẢY vào ô sai đầu tiên — trước đây chỉ có một
+      dòng lỗi chung ở cuối form, người dùng phải tự đoán ô nào.
+   2. MỘT FORM, MỘT ĐƯỜNG ĐI. Dải 3 bước ở trên cùng (chọn loại → điền tên →
+      gửi) sáng dần theo việc đã làm; mỗi bước là một việc, không phải một
+      trang riêng. Không có bước ẩn nào để người dùng phát hiện ra muộn.
+   3. CHỌN LOẠI BÀI LÀ MỘT QUYẾT ĐỊNH, KHÔNG PHẢI BỐN CÁI NHÃN. Mỗi loại có
+      một dòng giải thích nó khác gì ba loại kia — "Full Album" với "Short"
+      là hai sản phẩm khác hẳn nhau, còn bốn chữ trần thì không nói gì.
+   Giữ nguyên mọi hành vi cũ: dò trùng khi đang gõ, bảng luật 1 lần, ghim
+   prefill từ link mời, nút gửi bám đáy. */
+const URL_RE = /^https?:\/\/\S+$/i
+
+function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting, prefill, userName = '' }) {
   const { t } = useI18n()
   /* Link mời (`?add=1&artist=…&title=…`) đổ sẵn vào form: người bấm link từ mô
      tả video chỉ còn phải bấm Gửi. Giá trị đã được cắt theo maxLength của ô
@@ -51,9 +68,14 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const [paid, setPaid] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
+  /* Ô nào đã được RỜI khỏi: chỉ hiện lỗi sau khi người dùng đi qua ô đó, không
+     hiện ngay từ ký tự đầu tiên — form mở ra đã đỏ là form bị lỗi. */
+  const [touched, setTouched] = useState({})
   const [agreed, setAgreed] = useState(() => {
     try { return localStorage.getItem(RULES_KEY) === RULES_V } catch { return false }
   })
+  const artistRef = useRef(null)
+  const titleRef = useRef(null)
 
   /* Tra bảng loại bài LUÔN phải có kết quả: `form.kind` đi qua state nên về lý
      thuyết chỉ nhận bốn giá trị của KINDS, nhưng tra trượt ở đây là TypeError
@@ -62,6 +84,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const meta = KIND_META[form.kind] || KIND_META[KINDS[0]]
   const titleLabel = t(meta.titleKey)
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+  const blur = (k) => () => setTouched(s => ({ ...s, [k]: true }))
 
   /* Dò trùng NGAY LÚC GÕ, không đợi tới lúc bấm Gửi. Một bài do ba người gửi
      lẻ là gốc của cả việc cụm 9 vote bị xếp dưới bài 5 vote lẫn việc farm vote
@@ -73,6 +96,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      "tôi vừa gửi bài này rồi" ngay cả khi nó chưa được duyệt. */
   const dup = useMemo(() => findDuplicate(allRows || rows, form), [allRows, rows, form])
 
+  /* LINK YOUTUBE: nhận ra ngay khi dán, và nói ra bằng ẢNH BÌA của chính video
+     đó (i.ytimg.com, không cần API key, không tốn quota). Trước đây ô link chỉ
+     có một câu nhắc chung chung nên dán đúng hay sai cũng nhìn giống nhau. */
+  const yt = useMemo(() => parseYoutube(form.link), [form.link])
+  const ytId = yt?.id || null
+
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
     setAgreed(true)
@@ -80,15 +109,30 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 
   const paidPrice = `${usd(PAID_REQUEST.usd)} / ${vnd(PAID_REQUEST.vnd)}`
 
+  /* Lỗi chặn gửi (hai ô bắt buộc) và cảnh báo không chặn (link sai dạng —
+     người ta hay dán "youtu.be/abc" nên đây chỉ là nhắc, không phải cửa chặn). */
+  const errArtist = !form.artist.trim() ? t('req.errArtist') : ''
+  const errTitle = !form.title.trim() ? t('req.errTitle', { f: titleLabel.toLowerCase() }) : ''
+  const warnLink = form.link.trim() && !URL_RE.test(form.link.trim()) ? t('req.warnLink') : ''
+  const err = { artist: errArtist, title: errTitle }
+  const showErr = (k) => (touched[k] ? err[k] : '')
+  const ready = !errArtist && !errTitle
+  const step2 = !!(form.artist.trim() && form.title.trim())
+
   const submit = async (e) => {
     e.preventDefault()
-    if (!form.artist.trim() || !form.title.trim()) {
-      setMsg({ t: 'err', m: t('req.needFields', { f: titleLabel.toLowerCase() }) }); return
+    /* Thiếu ô nào thì đánh dấu ô đó rồi đưa con trỏ tới nó — câu trả lời nằm
+       ngay chỗ cần sửa, không phải một dòng chữ ở cuối form. */
+    if (!ready) {
+      setTouched(s => ({ ...s, artist: true, title: true }))
+      ;(errArtist ? artistRef : titleRef).current?.focus()
+      return
     }
     setBusy(true); setMsg(null)
     try {
       await onSubmit(form, paid)
       setForm({ ...form, artist: '', title: '', link: '', note: '' })
+      setTouched({})
       setMsg({ t: 'ok', m: paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
     finally { setBusy(false) }
@@ -96,17 +140,31 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 
   if (!agreed) return <RulesGate onAgree={agree} />
 
+  /* Bộ đếm ký tự chỉ hiện khi đã dùng gần hết ô (70%) — một con số "0/120"
+     thường trực chỉ làm hàng nhập thêm chữ. */
+  const left = (k, max) => (form[k].length > max * 0.7
+    ? <span className="fcount">{form[k].length}/{max}</span> : null)
+
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} noValidate>
+      {/* DẢI BƯỚC: cho biết còn phải làm gì, và đang ở đâu. Ba bước ứng với
+          đúng ba việc — không có bước ẩn nào xuất hiện sau khi bấm Gửi. */}
+      <ol className="req-steps">
+        <li className="on"><b>1</b>{t('req.step1')}</li>
+        <li className={step2 ? 'on' : ''}><b>2</b>{t('req.step2')}</li>
+        <li className={ready ? 'on' : ''}><b>3</b>{t('req.step3')}</li>
+      </ol>
+
       <div className="field">
-        <label>{t('req.kind')}</label>
-        <div className="kindpick">
+        <label id="kind-label">{t('req.kind')}</label>
+        <div className="kindpicks" role="group" aria-labelledby="kind-label">
           {KINDS.map(k => (
             <button type="button" key={k}
-              className={`kbtn ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
-              title={KIND_META[k]?.noteKey ? t(KIND_META[k].noteKey) : undefined}
+              className={`kcard ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
+              aria-pressed={form.kind === k}
               onClick={() => setForm(f => ({ ...f, kind: k }))}>
-              {k}
+              <span className={`kind ${kindCls(k)}`}>{k}</span>
+              <small>{t(`req.kindHint.${kindCls(k)}`)}</small>
             </button>
           ))}
         </div>
@@ -121,12 +179,66 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 
       <div className="field-row">
         <div className="field">
-          <label>{t('req.artist')} *</label>
-          <input value={form.artist} onChange={set('artist')} maxLength={120} />
+          <label htmlFor="rq-artist">{t('req.artist')} <span aria-hidden="true">*</span></label>
+          <div className="fin">
+            <input id="rq-artist" ref={artistRef} value={form.artist} onChange={set('artist')}
+              onBlur={blur('artist')} maxLength={120} autoComplete="off"
+              aria-invalid={showErr('artist') ? 'true' : undefined}
+              aria-describedby={showErr('artist') ? 'err-artist' : undefined}
+              placeholder={t('req.artistPh')} />
+            {left('artist', 120)}
+          </div>
+          {showErr('artist') && <p className="ferr" id="err-artist" role="alert">{showErr('artist')}</p>}
         </div>
         <div className="field">
-          <label>{titleLabel} *</label>
-          <input value={form.title} onChange={set('title')} maxLength={160} />
+          <label htmlFor="rq-title">{titleLabel} <span aria-hidden="true">*</span></label>
+          <div className="fin">
+            <input id="rq-title" ref={titleRef} value={form.title} onChange={set('title')}
+              onBlur={blur('title')} maxLength={160} autoComplete="off"
+              aria-invalid={showErr('title') ? 'true' : undefined}
+              aria-describedby={showErr('title') ? 'err-title' : undefined}
+              placeholder={t('req.titlePh')} />
+            {left('title', 160)}
+          </div>
+          {showErr('title') && <p className="ferr" id="err-title" role="alert">{showErr('title')}</p>}
+        </div>
+      </div>
+
+      {/* XEM TRƯỚC: đúng cái thẻ mà người khác sẽ thấy trên bảng, dựng từ
+          chính những gì đang gõ. Đây là phần trả lời câu hỏi "tôi vừa gửi cái
+          gì" TRƯỚC khi bấm Gửi — trước đây phải gửi xong mới biết, và nếu sai
+          thì sửa lại tốn thêm một vòng duyệt của admin.
+          Chỗ nào chưa điền thì hiện chữ mờ nói rõ còn thiếu gì, nên tấm thẻ này
+          vừa là bản xem trước, vừa là danh sách việc cần làm.
+          Đứng NGAY DƯỚI hai ô tên bài/nghệ sĩ: đó là chỗ mắt đang ở sau khi gõ
+          xong tên bài, và trên màn hình đầu của form — để dưới đáy thì phần lớn
+          người dùng không bao giờ cuộn tới nó. */}
+      <div className="req-preview">
+        <div className="rp-bar">
+          <Icon name="preview" size={13} />
+          <span>{t('req.preview')}</span>
+          {ytId && <span className="rp-yt">{t('req.previewYt')}</span>}
+        </div>
+        <div className="rp-row">
+          <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
+          <div className="rp-tx">
+            <b className={form.artist.trim() ? '' : 'ph'}>
+              {form.artist.trim() || t('req.phArtist')}
+            </b>
+            <span className="rp-dash" aria-hidden="true">—</span>
+            <span className={form.title.trim() ? '' : 'ph'}>
+              {form.title.trim() || t('req.phTitle', { f: titleLabel.toLowerCase() })}
+            </span>
+            <small className="rp-meta">
+              {userName || t('req.phYou')}
+              <span className="dot dot-inline" aria-hidden="true" />
+              {paid ? t('req.phPaid') : t('req.phFresh')}
+            </small>
+          </div>
+          {ytId && (
+            <img className="rp-thumb" src={thumbUrl(ytId, 'mq')} alt=""
+              loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+          )}
         </div>
       </div>
 
@@ -143,28 +255,40 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
                 : t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
             </span>
           </span>
-          {dup.best && onVoteExisting && (
-            <button type="button" className="btn btn-sm btn-primary"
-              onClick={() => onVoteExisting(dup.best)}>
-              {t('req.dupVote')}
-            </button>
-          )}
-          {!dup.best && dup.video && (
-            <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
-              {t('req.dupWatch')}
-            </a>
-          )}
+          <span className="tags">
+            {dup.best && onVoteExisting && (
+              <button type="button" className="btn btn-sm btn-primary"
+                onClick={() => onVoteExisting(dup.best)}>
+                {t('req.dupVote')}
+              </button>
+            )}
+            {!dup.best && dup.video && (
+              <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
+                {t('req.dupWatch')}
+              </a>
+            )}
+          </span>
         </div>
       )}
 
       <div className="field">
-        <label>{t('req.link')}</label>
-        <input value={form.link} onChange={set('link')} placeholder={t('req.linkPh')} maxLength={500} />
+        <label htmlFor="rq-link">{t('req.link')}</label>
+        <input id="rq-link" value={form.link} onChange={set('link')} onBlur={blur('link')}
+          placeholder={t('req.linkPh')} maxLength={500}
+          aria-invalid={warnLink ? 'true' : undefined}
+          aria-describedby="req-link-hint" />
+        {/* Gợi ý và cảnh báo dùng CHUNG một chỗ: bình thường là câu giải thích
+            "để trống cũng được", khi link sai dạng thì đổi thành câu nhắc. */}
+        <p className={warnLink ? 'ferr warn' : ytId ? 'fhint ok' : 'fhint'} id="req-link-hint">
+          {warnLink || (ytId ? t('req.linkOk') : yt?.kind === 'playlist' ? t('req.linkList') : t('req.linkHint'))}
+        </p>
       </div>
 
       <div className="field">
-        <label>{t('req.note')}</label>
-        <textarea value={form.note} onChange={set('note')} maxLength={500} />
+        <label htmlFor="rq-note">{t('req.note')}</label>
+        <textarea id="rq-note" value={form.note} onChange={set('note')} maxLength={500}
+          placeholder={t('req.notePh')} />
+        <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
       </div>
 
       <div className="paidbox">
@@ -184,18 +308,22 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       </p>
 
       {/* `type="submit"` vi day la nut DUY NHAT phai gui form; cac nut khac trong
-          form (loai bai, switch tra phi) deu `type="button"` — de nguyen mac
-          dinh la mot cai sau them cung gui form luc nguoi dung khong ngo. */}
-      {/* Nút gửi BÁM ĐÁY KHUNG (sticky trong .overlay): form này dài hơn màn
-          hình điện thoại, mà câu hỏi "gửi được chưa" chỉ trả lời được khi nhìn
-          thấy nút. Câu xác nhận/ lỗi nằm ngay dưới nút nên cũng luôn trong tầm
-          mắt — trước đây cả hai nằm cuối một cuộn dài. */}
+          form (loai bai, switch tra phi) deu `type="button"`.
+          Nút gửi BÁM ĐÁY KHUNG (sticky trong .overlay) và nhãn của nó nói rõ
+          còn thiếu gì trước khi bấm, thay vì để nút xám im lặng. */}
       <div className="req-actions">
-        <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`} style={{ width: '100%' }} disabled={busy}>
+        <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
+          style={{ flex: 1 }} disabled={busy}
+          title={ready ? undefined : t('req.notReady')}>
           {busy ? t('req.sending')
             : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
-              : t('req.submit')}
+              : ready ? t('req.submit') : t('req.submitFix')}
         </button>
+        <button type="button" className="btn" disabled={busy}
+          onClick={() => {
+            setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
+            setTouched({}); setMsg(null); artistRef.current?.focus()
+          }}>{t('req.clear')}</button>
         {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
       </div>
     </form>
@@ -426,7 +554,7 @@ export default function ActionModal({
         <div className="modal-body">
           {tab === 'request' && (
             <RequestTab onSubmit={onSubmit} live={live} rows={rows} allRows={allRows}
-              prefill={prefill} onVoteExisting={onVoteExisting} />
+              prefill={prefill} userName={userName} onVoteExisting={onVoteExisting} />
           )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}

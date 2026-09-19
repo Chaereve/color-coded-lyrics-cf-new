@@ -80,3 +80,53 @@ test('lần đầu mở modal: form bị chặn bằng bảng luật, không ph�
   assert.match(tx, /Before requesting/)
   assert.ok(!/Send request/.test(tx), 'le ra form phai an sau bang luat')
 })
+
+test('thẻ XEM TRƯỚC dựng theo đúng việc đang gõ, và nói ra chỗ còn thiếu', async () => {
+  alreadyAgreed()
+  const empty = plain(await render({ ...base, live: false }))
+  assert.match(empty, /Preview — this is what goes on the board/, 'phải có thẻ xem trước')
+  assert.match(empty, /artist name…/, 'ô chưa điền phải hiện chữ mờ nói còn thiếu gì')
+
+  const filled = plain(await render({
+    ...base, live: false,
+    prefill: { artist: 'aespa', title: 'Whiplash' },
+  }))
+  assert.match(filled, /aespa/, 'tên nghệ sĩ vừa gõ phải hiện trong thẻ xem trước')
+  assert.match(filled, /Whiplash/, 'tên bài vừa gõ phải hiện trong thẻ xem trước')
+  assert.ok(!/artist name…/.test(filled), 'đã điền rồi thì không còn chữ mờ')
+})
+
+test('dán link YouTube: nhận ra ngay và hiện ảnh bìa của chính video đó', async () => {
+  alreadyAgreed()
+  const html = await render({
+    ...base, live: false,
+    prefill: { artist: 'aespa', title: 'Whiplash', link: 'https://youtu.be/dQw4w9WgXcQ' },
+  })
+  assert.match(html, /i\.ytimg\.com\/vi\/dQw4w9WgXcQ/, 'ảnh bìa lấy từ chính ID trong link')
+  assert.match(plain(html), /YouTube video recognised/)
+})
+
+test('link không phải YouTube thì chỉ nhắc, không chặn gửi', async () => {
+  alreadyAgreed()
+  const tx = plain(await render({
+    ...base, live: false,
+    prefill: { artist: 'aespa', title: 'Whiplash', link: 'khong-phai-link' },
+  }))
+  assert.match(tx, /does not look like a full link/, 'link sai dạng phải được nhắc')
+  assert.ok(!/i\.ytimg\.com/.test(tx), 'không có ảnh bìa cho link không nhận ra')
+})
+
+test('bài đã có trên bảng: form chỉ cho vote cho bài cũ, và luôn cho gửi tiếp', async () => {
+  alreadyAgreed()
+  const existing = {
+    id: 'x1', kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash',
+    status: 'queued', votes: 4, requester: 'minji',
+  }
+  const tx = plain(await render({
+    ...base, live: false, allRows: [existing], rows: [existing],
+    onVoteExisting: () => {},
+    prefill: { artist: 'aespa', title: 'Whiplash' },
+  }))
+  assert.match(tx, /already on the board|Vote for/i, 'bài trùng phải được nói ra kèm lối vote')
+  assert.match(tx, /Send request|Fill in the required fields/, 'gợi ý không được biến thành cửa chặn')
+})

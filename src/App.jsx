@@ -43,8 +43,12 @@ import {
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
 } from './lib/db'
 
-/* Mục chính của trang */
+/* Mục chính của trang. Bảng Admin là MỘT MỤC có địa chỉ riêng (`/admin`) chứ
+   không phải hộp thoại: nó là nơi làm việc thật (soát bài, duyệt, sửa mốc tiến
+   độ, xử lý đơn) nên phải vào được bằng link, F5 không mất chỗ đang đứng, và
+   mở được ở tab trình duyệt thứ hai bên cạnh trang công khai. */
 const SECTIONS = ['board', 'spin', 'ranking', 'mine']
+const ADMIN_ONLY = 'admin'
 
 /* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
 const SPLASH_MS = 560
@@ -56,7 +60,7 @@ const PER_PAGE_ORDERS = 10
 /* khối Up next hiện tối đa bao nhiêu request, còn lại nằm sau nút "View all" */
 const NOW_SHOW = 2
 
-const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
+const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
@@ -144,9 +148,15 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
       {i != null && <div className="idx">{i + 1}</div>}
       <div className="body">
         <div className="title">
-          {r.title} <span className="artist">— {r.artist}</span>{' '}
-          {r.is_paid && <span className="pill gold">PAID</span>}
-          {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
+          {r.title} <span className="artist">— {r.artist}</span>
+          {/* Nhãn nằm trong .tags: hộp này tự xuống dòng và giữ khoảng cách
+              hàng-dọc, nên "PAID" với "Up next" không bao giờ dán vào nhau. */}
+          {(r.is_paid || isPicked(r)) && (
+            <span className="tags">
+              {r.is_paid && <span className="pill gold">PAID</span>}
+              {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
+            </span>
+          )}
         </div>
         <div className="meta">
           <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
@@ -321,6 +331,12 @@ export default function App() {
   const [kindFilter, setKindFilter] = useState(board.k)
   const [q, setQ] = useState(board.q)
   const [showTop, setShowTop] = useState(false)
+  /* Bộ lọc trên máy hẹp nằm trong một khối gấp/mở, và thanh lọc tự dính lên
+     đầu khi cuộn qua — hai thứ này chỉ để phục vụ việc CHỌN, không phải dữ
+     liệu, nên không lưu vào localStorage. */
+  const [fbarOpen, setFbarOpen] = useState(false)
+  const [fbarStuck, setFbarStuck] = useState(false)
+  const fbarRef = useRef(null)
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
@@ -336,12 +352,21 @@ export default function App() {
     parseRequestPrefill(new URLSearchParams(window.location.search)))
   const [modal, setModal] = useState(!!prefill)
   const [modalTab, setModalTab] = useState('request')
-  const [admin, setAdmin] = useState(false)
+  /* `admin` cũ là boolean của hộp thoại; nay là TAB đang mở trong trang
+     /admin (null = chưa chọn thì lấy tab đầu). Giữ nguyên tên biến để mọi chỗ
+     gọi openAdmin/đóng panel không phải đổi theo. */
+  const [admin, setAdmin] = useState(null)
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(readSide)
   useEffect(() => { try { localStorage.setItem(SIDE_KEY, collapsed ? 'min' : 'full') } catch { /* ignore */ } }, [collapsed])
   const toggleSide = useCallback(() => setCollapsed(c => !c), [])
   const scrollTop = useCallback(() => window.scrollTo({ top: 0, behavior: REDUCED() ? 'auto' : 'smooth' }), [])
+
+  /* Thứ tự mục để tính hướng chuyển cảnh: admin nằm cuối, và CHỈ có mặt khi
+     người đang xem là admin — người thường không thấy mục này ở đâu cả. */
+  const navOrder = useCallback(
+    () => (user?.isAdmin ? [...SECTIONS, ADMIN_ONLY] : SECTIONS),
+    [user?.isAdmin])
 
   const go = useCallback((k) => {
     const run = () => {
@@ -355,7 +380,8 @@ export default function App() {
       }
     }
     if (VT && !REDUCED()) {
-      const dir = SECTIONS.indexOf(k) >= SECTIONS.indexOf(section) ? 'fwd' : 'back'
+      const order = navOrder()
+      const dir = order.indexOf(k) >= order.indexOf(section) ? 'fwd' : 'back'
       document.documentElement.dataset.nav = dir
       document.startViewTransition(run)
       return
@@ -452,12 +478,35 @@ export default function App() {
     return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
 
+  /* Thanh lọc dính đầu trang: chỉ hỏi "mép trên của thanh đã chạm mép trên
+     khung nhìn chưa" — đúng một lần đọc hình học mỗi khung hình khi đang cuộn,
+     và setState cùng giá trị thì React tự bỏ qua nên không có vòng render. */
+  useEffect(() => {
+    const el = fbarRef.current
+    if (!el || section !== 'board') return
+    let raf = 0
+    const onScroll = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => setFbarStuck(el.getBoundingClientRect().top <= 1))
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
+  }, [section])
+
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
     if (!Object.values(ROUTES).includes(clean)) {
       window.history.replaceState(null, '', ROUTES.board + window.location.search)
     }
   }, [])
+
+  /* /admin chỉ tồn tại với người có quyền. Gõ tay địa chỉ đó mà không phải
+     admin thì bị đưa về bảng request ngay — địa chỉ không phải là chỗ để dò
+     xem mình có quyền gì, nhưng cũng không được để trang trắng. */
+  useEffect(() => {
+    if (section === ADMIN_ONLY && !user?.isAdmin) go('board')
+  }, [section, user?.isAdmin, go])
 
   useEffect(() => {
     if (window.location.hash) {
@@ -1184,19 +1233,21 @@ export default function App() {
     catch (e) { flash('err', errMsg(t, e)) }
   }
   const viewMediaHome = useCallback(() => {
-    setAdmin(false)
+    setAdmin(null)
     go('board')
     requestAnimationFrame(() => {
       setTimeout(() => document.getElementById('home-media')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120)
     })
   }, [go])
-  const openAdmin = (tab = 'pending') => setAdmin(tab)
+  /* Mở bảng quản trị = ĐI TỚI một mục, không bật hộp thoại. `null` nghĩa là
+     không chỉ định tab (panel tự chọn tab đầu). */
+  const openAdmin = useCallback((tab = null) => { setAdmin(tab); go(ADMIN_ONLY) }, [go])
   /* Dang xuat phai LUON tra ve man dang nhap. Truoc day dung
      signOut().then(() => setUser(null)): mang loi la promise reject, setUser
      khong bao gio chay, va nguoi dung ket lai trong tai khoan cu. Don state
      cuc bo truoc, roi moi bao cho server. */
   const doSignOut = useCallback(async () => {
-    setUser(null); setAdmin(false); setProfile(false); setModal(false); setMenu(false)
+    setUser(null); setAdmin(null); setProfile(false); setModal(false); setMenu(false)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
   const openModal = (t) => { setModalTab(t); setModal(true) }
@@ -1210,7 +1261,7 @@ export default function App() {
         if (e.key === 'Escape' && el.tagName === 'INPUT') { setQ(''); el.blur() }
         return
       }
-      if (modal || admin || profile || voteFor || menu) return
+      if (modal || profile || voteFor || menu || section === ADMIN_ONLY) return
       if (e.key === '/') {
         e.preventDefault()
         if (section !== 'board') go('board')
@@ -1239,7 +1290,7 @@ export default function App() {
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
-        sections={SECTIONS} routes={ROUTES} section={section} onNavigate={go}
+        sections={navOrder()} routes={ROUTES} section={section} onNavigate={go}
         user={user} counts={counts}
         open={menu} onClose={() => setMenu(false)}
         collapsed={collapsed} onToggle={toggleSide}
@@ -1344,9 +1395,13 @@ export default function App() {
                       return (
                         <div className={`now-item${g.rows.length > 1 ? ' now-group' : ''}`} key={g.key} style={{ '--i': i }}>
                           <h3>
-                            {g.title} <span>— {g.artist}</span>
-                            {g.paid && <span className="pill gold">PAID</span>}
-                            {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
+                            <span className="tx">{g.title} <span>— {g.artist}</span></span>
+                            {(g.paid || g.rows.length > 1) && (
+                              <span className="tags">
+                                {g.paid && <span className="pill gold">PAID</span>}
+                                {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
+                              </span>
+                            )}
                           </h3>
                           <div className="sub">
                             <span className="status" style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
@@ -1426,42 +1481,69 @@ export default function App() {
               {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
                   đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
                   cuộn ngang chứ không xuống dòng. */}
-              <div className="fbar">
-                <div className="fchips" role="group" aria-label={t('board.filterAria')}>
-                  {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
-                    <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
-                      style={{ '--c': f.c }} aria-pressed={filter === f.k}
-                      onClick={() => setFilter(f.k)}>
-                      <i className="fdot" aria-hidden="true" />{t(`filter.${f.k}`)}
-                      <b className="fnum">{counts[f.k]}</b>
-                    </button>
-                  ))}
-                </div>
-                <div className="fbar-side">
-                  <select className="sel" value={kindFilter} onChange={e => setKindFilter(e.target.value)}
-                    aria-label={t('board.allKinds')}>
-                    <option value="all">{t('board.allKinds')}</option>
-                    {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                  <span className="searchwrap">
-                    <Icon name="search" size={14} className="search-ico" />
-                    <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
-                      onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
-                    {q
-                      ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
-                          onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
-                      : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-                  </span>
-                </div>
-                {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu
-                    bài và lối thoát về trạng thái đầy đủ. */}
-                {(kindFilter !== 'all' || !!q) && (
-                  <div className="fbar-meta">
-                    <span>{t('board.showing', { n: boardItems.length })}</span>
-                    <button type="button" className="lnk"
-                      onClick={() => { setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
+              {/* THANH LỌC — hai hàng, một nguyên tắc: mỗi thứ chỉ có MỘT ô
+                  điều khiển. Hàng trên là trạng thái + tìm kiếm (luôn hiện),
+                  hàng dưới là loại bài + tóm tắt. Máy hẹp thì hàng dưới gấp
+                  vào sau nút "Bộ lọc" — nhồi bốn thứ vào một hàng 340px là mỗi
+                  thứ một mẩu, còn để nguyên bốn hàng thì danh sách bị đẩy khỏi
+                  màn hình đầu. Thanh dính đầu trang khi cuộn qua. */}
+              <div className={`fbar${fbarStuck ? ' stuck' : ''}${fbarOpen ? ' open' : ''}`} ref={fbarRef}>
+                <div className="fbar-top">
+                  <div className="fchips" role="group" aria-label={t('board.filterAria')}>
+                    {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
+                      <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
+                        style={{ '--c': f.c }} aria-pressed={filter === f.k}
+                        onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
+                        <i className="fdot" aria-hidden="true" />{t(`filter.${f.k}`)}
+                        <b className="fnum">{counts[f.k]}</b>
+                      </button>
+                    ))}
                   </div>
-                )}
+                  <div className="fbar-side">
+                    <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
+                    <button type="button" className={`fmore${fbarOpen ? ' on' : ''}`}
+                      aria-expanded={fbarOpen} aria-controls="fbar-more"
+                      onClick={() => setFbarOpen(v => !v)}>
+                      <Icon name="settings" size={14} />{t('board.filters')}
+                      {(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0) > 0 && (
+                        <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
+                      )}
+                    </button>
+                    <span className="searchwrap">
+                      <Icon name="search" size={14} className="search-ico" />
+                      <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
+                        onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
+                      {q
+                        ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
+                            onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
+                        : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="fbar-more" id="fbar-more">
+                  <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
+                    <button type="button" className={`fchip kind${kindFilter === 'all' ? ' on' : ''}`}
+                      aria-pressed={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
+                      {t('board.allKinds')}
+                    </button>
+                    {Object.keys(KIND_META).map(k => (
+                      <button key={k} type="button"
+                        className={`fchip kind${kindFilter === k ? ' on' : ''}`}
+                        style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilter === k}
+                        onClick={() => setKindFilter(k)}>{k}</button>
+                    ))}
+                  </div>
+                  {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu
+                      bài và lối thoát về trạng thái đầy đủ. */}
+                  {(kindFilter !== 'all' || !!q) && (
+                    <div className="fbar-meta">
+                      <span>{t('board.showing', { n: boardItems.length })}</span>
+                      <button type="button" className="lnk"
+                        onClick={() => { setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="list" data-glow key={filter} ref={listRef}>
@@ -1601,6 +1683,9 @@ export default function App() {
         open={!!voteFor} request={voteFor}
         myCount={voteFor ? (myVotes.get(voteFor.id) || 0) : 0}
         votesLeft={votesLeft}
+        freeLeft={freeLeft}
+        purchased={voteStatus.purchased ?? 0}
+        bonus={voteStatus.bonus ?? 0}
         onClose={() => setVoteFor(null)}
         onVote={doVote}
         onBuy={() => { setVoteFor(null); openModal('buy') }}
@@ -1628,11 +1713,14 @@ export default function App() {
         />
       </Suspense>
 
-      {user.isAdmin && (
-        <Suspense fallback={null}>
+      {/* ======= MỤC 5: BẢNG QUẢN TRỊ (chỉ admin thấy) =======
+          Là MỘT MỤC của trang, không phải hộp thoại: có địa chỉ riêng, F5 giữ
+          nguyên tab đang mở, và mở được song song ở tab trình duyệt thứ hai.
+          `tab` truyền xuống là tab đang mở (null = để panel tự chọn). */}
+      {user.isAdmin && section === ADMIN_ONLY && (
+        <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
           <AdminPanel
-            key={String(admin)} open={!!admin} initialTab={admin || 'pending'}
-            onClose={() => setAdmin(false)}
+            tab={admin || 'pending'} onTab={setAdmin}
             rows={rows} orders={orders} media={featuredRows}
             onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
             onPick={doAdminPick} onBulk={doBulk}

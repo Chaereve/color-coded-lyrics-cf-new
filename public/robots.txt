@@ -14,6 +14,10 @@
 
 User-agent: *
 Allow: /
+# /admin là khu vực quản trị: chỉ có một người dùng đăng nhập, nội dung không
+# dành cho người đọc và cũng không nên nằm trong kết quả tìm kiếm. Chặn ở đây
+# là lớp thứ hai — lớp thứ nhất là /admin tự đá người không có quyền về bảng.
 Disallow: /api/
+Disallow: /admin
 
 Sitemap: https://chaereve.pages.dev/sitemap.xml

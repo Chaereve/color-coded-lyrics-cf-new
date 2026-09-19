@@ -12,12 +12,14 @@ const S = {
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
   'nav.mine': 'My requests',
+  'nav.admin': 'Admin',
   /* dòng phụ dưới tiêu đề trang: nói trang này để LÀM GÌ, không nhắc lại số
      liệu (dải thống kê ngay dưới đã làm việc đó) */
   'nav.boardSub': 'Vote for what gets made next',
   'nav.spinSub': 'One free spin a day',
   'nav.rankingSub': 'Who requests the most, who gets finished',
   'nav.mineSub': 'Your requests, orders and standing',
+  'nav.adminSub': 'Review requests, pick the queue, handle orders',
 
   /* sidebar */
   'side.label': 'Main menu',
@@ -64,7 +66,8 @@ const S = {
   'menu.close': 'Close menu',
   'menu.settings': 'Settings',
   'menu.sound': 'Sound',
-  'menu.admin': 'Admin panel',
+  'menu.admin': 'Admin workspace',
+  'menu.adminOrders': 'Order queue',
   'menu.signOut': 'Sign out',
 
   /* the so diem vote */
@@ -285,6 +288,8 @@ const S = {
   /* danh sach request */
   'board.listTitle': 'All requests',
   'board.allKinds': 'All types',
+  'board.filters': 'Filters',
+  'board.kindAria': 'Filter by type',
   'board.search': 'Title or artist',
   'board.empty': 'Nothing here yet.',
   'board.emptyHint': 'Try another filter, or send the first request.',
@@ -338,6 +343,10 @@ const S = {
   'rank.sort.total': 'Requests',
   'rank.sort.completed': 'Completed',
   'rank.sort.total_votes': 'Votes earned',
+  /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js). */
+  'rank.rule.total': 'Sorted by requests sent · ties go to more completed, then more votes',
+  'rank.rule.completed': 'Sorted by requests completed · ties go to more votes, then more requests',
+  'rank.rule.total_votes': 'Sorted by votes earned · ties go to more completed, then more requests',
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
@@ -372,6 +381,37 @@ const S = {
   'btn.close': 'Close',
 
   /* form gui request */
+  /* Form gửi request: ba bước, lỗi từng ô, gợi ý cho từng loại bài. */
+  'req.step1': 'Pick a type',
+  'req.step2': 'Name the song',
+  'req.step3': 'Send it',
+  'req.kindHint.ccl': 'Colour-coded lyrics video',
+  'req.kindHint.album': 'Every track on the release',
+  'req.kindHint.loop': 'One song looping for an hour',
+  'req.kindHint.short': 'Vertical cut for Shorts and TikTok',
+  'req.artistPh': 'e.g. aespa',
+  'req.titlePh': 'Song, or album name',
+  'req.notePh': 'Anything the editor should know',
+  'req.noteHint': 'Optional. Up to 500 characters.',
+  'req.linkHint': 'Optional. Paste the YouTube link if you have one.',
+  'req.warnLink': 'That does not look like a full link — it should start with http.',
+  'req.errArtist': 'Who is the artist? This one is required.',
+  'req.errTitle': 'This one is required.',
+  'req.notReady': 'Fill in the two required fields first',
+  'req.submitFix': 'Fill in the required fields',
+  'req.clear': 'Clear',
+
+  /* Thẻ XEM TRƯỚC trong form: dựng đúng cái người khác sẽ thấy trên bảng, từ
+     chính những gì đang gõ. Chỗ chưa điền hiện chữ mờ nói rõ còn thiếu gì. */
+  'req.preview': 'Preview — this is what goes on the board',
+  'req.previewYt': 'YouTube link recognised',
+  'req.phArtist': 'artist name…',
+  'req.phTitle': 'the {f} name…',
+  'req.phYou': 'you',
+  'req.phFresh': 'new request',
+  'req.phPaid': 'paid request',
+  'req.linkOk': 'YouTube video recognised — cover shown in the preview below.',
+  'req.linkList': 'A playlist link: the video is listed instead of the cover.',
   'req.kind': 'Video type',
   'req.kindNote.album': 'Full Album = all lyric videos of one album collected into a playlist. Only made after the channel has uploaded every colour-coded lyric video of that album.',
   'req.artist': 'Artist',
@@ -412,11 +452,18 @@ const S = {
   'vote.yours': 'you voted {n}',
   'vote.qty': 'Number of votes',
   'vote.available': '{n} left',
+  /* Hộp vote: con số lớn là KẾT QUẢ SAU khi bấm, không phải số đang có. */
+  'vote.hero': 'Votes after this',
+  'vote.heroSub': 'Currently {n} votes',
+  'vote.leftBefore': 'Your votes left',
+  'vote.purchasedShort': 'Purchased',
+  'vote.bonusShort': 'Bonus',
   'vote.useAll': 'Use all {n}',
   'vote.tooMany': 'You have {n} votes left.',
   'vote.none': 'No votes left.',
   'vote.confirm': 'Vote {n}',
   'vote.locked': 'This request is already picked. Voting is closed.',
+  'vote.closed': 'Voting is closed for this request — it is no longer in the queue.',
   'vote.takeBack': 'Take back {n}',
   'vote.backAll': 'All {n}',
   'vote.canTakeBack': '{n} can be taken back',
@@ -469,6 +516,9 @@ const S = {
 
 
   /* bang dieu hanh */
+  'adm.pageAria': 'Admin workspace',
+  'adm.showing': 'Showing {n} of {total}',
+  'adm.selectPage': 'Select all {n} on this page',
   'adm.pending': 'Pending',
   'adm.active': 'Active',
   'adm.orders': 'Orders',

@@ -164,6 +164,61 @@ Luật:
 - Bản `wide` (bảng Admin) bỏ con số vì số tổng đã in ở `.steps-pct` ngay trên —
   cùng một dữ liệu không in hai lần trong một khối.
 
+**Màu của vạch** (chốt 19/09 sau khi chủ dự án nói "màu thanh progress chưa
+đẹp"): vạch không tô phẳng một màu, và cũng **không** lấy màu ngoài hệ:
+
+1. ruột là dải **hai điểm cùng một huệ** — `color-mix(--sc 68%, --bg)` ở đầu vạch
+   rồi tới `--sc` nguyên bản ở cuối. Cùng huệ nên không sinh ra bảng màu thứ hai,
+   còn hướng chạy thì mắt tự đọc ra;
+2. một vệt sáng `inset 0 1px 0 rgba(255,255,255,.16)` ở mép trên, và rãnh có bóng
+   lõm `inset 0 1px 2px rgba(0,0,0,.45)`: vạch đọc ra như một thanh mảnh có mặt
+   bắt sáng, thay vì một dải băng dính dán ngang hàng;
+3. `min-width: 6px` — bằng đúng đường kính bo tròn. Nhỏ hơn thì 1% biến mất và
+   người dùng đọc ra "chưa bắt đầu", trong khi việc đã bắt đầu rồi.
+
+**Hàng trong bảng quản trị** hiện cùng thanh đó ngay trên hàng (`!open`), không
+bắt admin mở khung sửa mới biết bài đang tới đâu; khung sửa đang mở thì thanh
+lớn kèm ba mốc trong khung đảm nhiệm, không in hai lần.
+
+### 2.6 Nhãn và cụm nhãn — một khuôn, một hộp
+
+Chủ dự án báo "các nhãn tag đôi lúc bị chồng hoặc vướng vào nhau". Nguyên nhân
+không nằm ở nhãn nào cụ thể mà ở chỗ **mỗi nhãn tự ứng xử một kiểu**:
+
+- `.pill` (trạng thái, PAID, trùng bài) và `.kind` (loại video) dùng **chung một
+  khuôn**: `inline-flex`, `flex: none`, `white-space: nowrap`, `line-height: 1`.
+  `flex: none` là điều kiện để nhãn không bị bóp; `nowrap` để một nhãn không bao
+  giờ tự xuống dòng giữa chữ; `line-height: 1` để chiều cao nhãn không phụ thuộc
+  chữ bên trong nó.
+- Cứ **từ hai nhãn trở lên** thì cả cụm nằm trong `.tags` — hộp `flex-wrap` có
+  `gap: 6px` và `min-width: 0`. Nhãn không có khe là nhãn dính chữ vào nhau, còn
+  chỗ xuống dòng phải do hộp quyết định chứ không do ngắt dòng tự phát.
+- Bề rộng dòng chữ đứng cạnh nhãn thuộc về `.tags .tx` (ellipsis), không thuộc
+  nhãn: chữ dài phải bị cắt, nhãn phải còn nguyên.
+
+Có `src/lib/cssFilterBar.test.js` canh hợp đồng này.
+
+### 2.7 Bảng xếp hạng — luật tính nằm một chỗ, và có test
+
+Luật xếp hạng ở `src/lib/ranking.js` (thuần, không React, không mạng — test bằng
+số được). Component chỉ hỏi luật. Ba điều đã sửa:
+
+1. **Khoá phá hoà không bao giờ trùng khoá chính.** Bản cũ sắp bằng một chuỗi `||`
+   trong component; xếp theo phiếu thì khoá phá hoà đầu tiên cũng là phiếu, xếp
+   theo số bài thì khoá thứ hai cũng là số bài — khoá trùng khoá chính là khoá
+   chết, thứ tự rơi xuống so theo tên. Nay chuỗi là *đã xong → tổng phiếu → số
+   bài → tỉ lệ → tên*, và khoá đang xếp bị loại khỏi chuỗi.
+2. **Tỉ lệ hoàn thành chỉ có tiếng nói khi số bài đã bằng nhau.** 6/6 trên 6/30,
+   nhưng 30 bài đã xong không bị 1 bài đã xong đè.
+3. **Một danh tính là một dòng.** Bản demo gom theo `user_id::requester` nên người
+   đổi tên hiển thị hiện thành hai dòng, cả hai đều được tô "bạn". Nay `rankDemo()`
+   gom đúng như view `requester_ranking` bên Postgres (`user_id`, tên dùng nhiều
+   nhất), và dòng `null` không làm sập bảng.
+
+Trên màn hình, mỗi cách xếp in ra **câu nói rõ luật đang chạy** (`.lb-rule`): thứ
+tự nhảy khi đổi cách xếp mà không có câu nào giải thích là thứ tự trông như ngẫu
+nhiên.
+
 ---
 
 ## 3. Chuyển động
@@ -294,6 +349,11 @@ Ngoài ra `scroll-behavior: smooth` của app tự chuyển thành `auto` (xem
   video đang mở đã nằm ngay trên khung.
 - **Thanh lọc**: 6 tab kèm số đếm không vừa 390px, và `.tabs` có `overflow: hidden`
   nên **tab cuối bị cắt mất** — không có cách nào bấm tới. Nay dải tab cuộn ngang.
+- **Thanh lọc trên máy hẹp** (chốt 19/09): hàng chip trạng thái cuộn ngang, dòng
+  đếm nhường chỗ cho nút **Bộ lọc** kèm số điều kiện đang bật; khối lọc thứ hai
+  (chip loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
+  `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) chip cao ≥40px
+  — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
 - Không có `hover` thật ⇒ khối `@media (hover: none)` trả lại mọi thứ đọc được
   khi rê chuột. Trạng thái "đang mở" luôn phải đọc được **mà không cần rê**.
 
@@ -334,6 +394,11 @@ Ghi lại để lần sau không ai "sửa" ngược:
   bàn phím muốn tốc độ, không muốn một màn trình diễn.
 - **Không** đặt một bảng thông số dài trong modal mua vote: người dùng đang cân
   nhắc chi tiền, họ cần ba lựa chọn đọc được trong một lần liếc (xem `.pack`).
+- **Không** đưa bảng quản trị trở lại thành hộp thoại. Nó là một **trang** ở
+  `/admin` (mục trong sidebar, vào được bằng link, quay lại bằng nút của trình
+  duyệt): quản trị là một việc người ta làm liên tục trong nhiều phút, và một
+  hộp thoại vừa chặn phần còn lại của trang vừa mất hết trạng thái khi bấm ra
+  ngoài. Đường dẫn riêng cũng là thứ duy nhất để gửi cho người khác.
 - **Không** chặn việc gửi một bài đã có trên bảng. Form chỉ *báo* (`findDuplicate`)
   rồi mời đi vote cho bài đó; người gửi vẫn toàn quyền gửi tiếp. Chặn là quyết định
   thay người dùng ở chỗ mình không có đủ thông tin (bài cũ có thể đã bị từ chối, hoặc
@@ -361,3 +426,12 @@ Ghi lại để lần sau không ai "sửa" ngược:
       (`src/components/Progress.test.js` đỏ nếu ai dựng lại `.bar` bằng tay).
 - [ ] Màu nhấn vẫn dưới ~10% diện tích một khung nhìn: thêm một khối nền màu
       nhấn nữa thì phải bỏ một khối cũ.
+- [ ] Thêm một nhãn mới? Nó phải là `.pill`/`.kind` theo khuôn ở §2.6, và mọi cụm
+      từ hai nhãn trở lên phải nằm trong `.tags` (`src/lib/cssFilterBar.test.js`
+      đỏ nếu nhãn mất `nowrap`/`flex: none`).
+- [ ] Màn hình mới là **trang** hay **hộp thoại**? Bảng quản trị là trang ở
+      `/admin` (§7 cấm quay lại popup) — `src/components/AdminPanel.test.js` dựng
+      thật cả năm mục và đỏ nếu có lớp modal quay lại.
+- [ ] Đụng vào thứ tự bảng xếp hạng thì luật phải sửa ở `src/lib/ranking.js` và
+      `src/lib/ranking.test.js` phải xanh — không sắp bằng `||` trong component
+      (xem §2.7).

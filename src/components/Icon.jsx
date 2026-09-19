@@ -18,8 +18,8 @@
 import {
   ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
   CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Pencil, Play,
-  Plus, Search, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2,
-  VolumeX, X,
+  Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User,
+  Volume2, VolumeX, X,
 } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
@@ -51,6 +51,7 @@ const SET = {
   mute: VolumeX,
   note: Music4,                   /* âm thanh trong sidebar */
   share: Share2,                  /* copy link của một bài */
+  preview: Eye,                   /* xem trước bài mình sắp gửi */
 }
 
 export default function Icon({ name, size = 16, className = '', fill = null }) {

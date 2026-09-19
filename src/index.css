@@ -474,8 +474,6 @@ select {
    dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
    xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
    thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
-.fbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
-  animation: rise .42s var(--e-out) .05s both; }
 .fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 2px; margin: -2px; }
 .fchips::-webkit-scrollbar { display: none; }
@@ -484,6 +482,15 @@ select {
   color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
     color var(--t-1) var(--e-soft); }
+/* Trên thiết bị CHẠM, chip lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
+   bản desktop (khuôn viên thuốc, chữ 12.5px) và chỉ nâng chiều cao tối thiểu,
+   nới hai bên một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản
+   cũ — không phải hai bản CSS, chỉ là một luật cho thiết bị khác. */
+@media (pointer: coarse) {
+  .fchip { min-height: 40px; padding-left: 14px; padding-right: 14px }
+  .fchip.kind { min-height: 38px }
+  .fmore { height: 40px }
+}
 .fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
 .fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
   font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
@@ -498,7 +505,11 @@ select {
 .fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
   font-size: 11.5px; color: var(--txt-3); }
 .fbar .searchwrap { flex: none; }
-.search-ico { position: absolute; left: 9px; color: var(--txt-3); pointer-events: none; }
+/* Kính lúp của ô tìm kiếm. LỖI CŨ: thiếu `top` nên phần tử absolute rơi về
+   ĐIỂM TĨNH ĐẦU TIÊN của hộp (góc trên-trái), tức là icon nằm lệch lên trên và
+   lòi ra ngoài viền ô nhập. Nay neo đúng giữa theo chiều dọc. */
+.search-ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--txt-3); pointer-events: none; }
 .fbar .search { padding-left: 28px; }
 .search-x { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center;
   border: 0; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
@@ -548,8 +559,21 @@ select {
 .status { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2); }
 .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--txt-3)); }
 
-.pill { display: inline-block; padding: 2px 7px; border-radius: var(--r-pill); font-size: 10.5px;
-  letter-spacing: .3px; text-transform: uppercase; line-height: 1.5; border: 1px solid var(--line-2); color: var(--txt-2); }
+/* NHÃN (tag) — một nguyên mẫu duy nhất cho .pill và .kind.
+   Ba tính chất bắt buộc để nhãn không chồng/vướng vào nhau:
+     · `flex: none`    — nhãn KHÔNG co lại khi hàng chật; co lại là chữ bên
+                         trong bị bóp và tràn ra ngoài khung bo góc;
+     · `white-space: nowrap` — "UP NEXT" không bao giờ bị bẻ đôi thành hai dòng
+                         nằm đè lên nhãn kế bên;
+     · `vertical-align: middle` + `line-height: 1` — nhãn nằm giữa dòng chữ
+                         thay vì lệch lên trên theo baseline.
+   Mọi chỗ đặt nhãn cạnh nhau phải nằm trong một hộp `.tags` (xem bên dưới) để
+   có `flex-wrap` + `row-gap`; nhãn nằm trần trong một dòng chữ thì không có gì
+   bảo đảm khoảng cách khi xuống dòng. */
+.pill, .kind { display: inline-flex; align-items: center; flex: none; white-space: nowrap;
+  vertical-align: middle; line-height: 1; }
+.pill { padding: 3px 8px; border-radius: var(--r-pill); font-size: 10.5px;
+  letter-spacing: .3px; text-transform: uppercase; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
 .pill.in_progress{ color: var(--progress); }
@@ -559,7 +583,7 @@ select {
 
 /* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
    với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
-.kind { font-size: 11px; letter-spacing: .2px; padding: 2px 7px; border-radius: var(--r-pill);
+.kind { font-size: 11px; letter-spacing: .2px; padding: 3px 8px; border-radius: var(--r-pill);
   border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
   background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
@@ -582,11 +606,30 @@ select {
 /* Bề rộng đã đúng ngay từ khung hình đầu (không animate `width` — đó là thuộc
    tính layout), nhưng cho nó MỌC ra bằng scaleX: thanh tiến độ đọc ra như đang
    chạy chứ không phải một vạch đã in sẵn. Chỉ transform, chỉ một lần. */
+/* MÀU CỦA VẠCH. Bản trước tô phẳng đúng màu trạng thái: trên nền xanh đen,
+   một dải phẳng màu hổ phách trông như miếng băng dính dán ngang hàng — không
+   có chiều sâu, và ở 100% nó vẫn xỉn như ở 10%.
+   Cách tô mới, vẫn KHÔNG dùng màu ngoài hệ:
+     1. dải màu hai điểm CÙNG MỘT HUỆ: từ 72% màu trạng thái (đầu vạch, tối
+        hơn) tới màu trạng thái nguyên bản ở cuối — mắt đọc ra hướng chạy;
+     2. một vệt sáng 1px ở mép trên (inset box-shadow) — mặt vạch bắt sáng như
+        một thanh kim loại mảnh, thay vì một dải màu dán phẳng;
+     3. đầu vạch tròn sáng hơn một bậc: đánh dấu chỗ tiến độ đang đứng.
+   Đây là gradient trong CÙNG một huệ (hai điểm, không ba), không phải gradient
+   trang trí nhiều màu — thứ mà bộ quy tắc chống "giao diện máy vẽ" cấm. */
 .prog-track > i {
   display: block; height: 100%; width: var(--w, 0%);
-  border-radius: inherit; background: var(--sc, var(--progress));
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--sc, var(--progress)) 68%, var(--bg)) 0%,
+    var(--sc, var(--progress)) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16);
   transform-origin: left center; animation: barGrow .6s var(--e-out) both;
 }
+/* 1% vẫn phải NHÌN THẤY: bề rộng nhỏ hơn chính bán kính bo tròn thì vạch biến
+   mất, người dùng đọc ra "chưa bắt đầu". */
+.prog-track > i { min-width: 6px; }
+.prog-track { box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45); }
 /* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên
    cả cột không nhảy khi tiến độ đổi. */
 .prog-num {
@@ -781,7 +824,6 @@ select {
   animation: pop .16s ease;
 }
 @keyframes pop { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-.modal.wide { max-width: 780px; }
 .modal.narrow { max-width: 420px; }
 .modal-head { display: flex; align-items: stretch; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .modal-tabs { display: flex; flex-wrap: wrap; min-width: 0; flex: 1; gap: 2px; }
@@ -829,17 +871,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 }
 .msg.info { border-color: var(--line-2); color: var(--txt-2); }
 
-.kindpick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
-.kbtn {
-  padding: 8px 6px; border-radius: var(--radius); cursor: pointer;
-  border: 1px solid var(--line-2); background: none; color: var(--txt-2);
-  font-size: 12.5px; font-family: inherit; transition: .13s;
-}
-.kbtn:hover { color: var(--txt); border-color: #3c4550; }
-.kbtn.on.ccl   { color: var(--k-ccl);   border-color: var(--k-ccl);   background: rgba(171,143,224,.09); }
-.kbtn.on.album { color: var(--k-album); border-color: var(--k-album); background: rgba(79,176,173,.09); }
-.kbtn.on.loop  { color: var(--k-loop);  border-color: var(--k-loop);  background: rgba(209,139,95,.09); }
-.kbtn.on.short { color: var(--k-short); border-color: var(--k-short); background: rgba(209,120,157,.09); }
 
 .paidbox { margin: 14px 0; padding: 11px 13px; border: 1px solid var(--line-2); border-radius: var(--radius); }
 .paidbox .t { font-size: 13px; font-weight: 600; color: var(--paid); }
@@ -1008,17 +1039,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 /* cụm trùng bài trong bảng admin: hạng tính theo tổng vote của cả bài */
 .pill.dup { color: var(--a-2); border-color: rgba(169,164,255,.35); background: var(--a-soft); }
 
-/* thanh tìm kiếm trong panel admin: bám trên đầu danh sách mọi tab, ô search
-   chiếm trọn bề rộng như trên bảng request ngoài trang chủ */
-.adm-search { display: flex; align-items: center; gap: 8px; padding-bottom: 11px; margin-bottom: 2px;
-  border-bottom: 1px solid var(--line); }
-.adm-search .searchwrap { flex: 1; min-width: 0; }
-.adm-search .search { max-width: none; width: 100%; }
-/* nút × xoá từ khoá chỉ mang màu cảnh báo khi rê chuột — mặc định trung tính
-   cho đỡ lẫn với nút xoá request bên dưới */
-.adm-search-clear { flex: 0 0 auto; width: 28px; height: 28px; font-size: 16px; }
-.adm-search-clear:hover { color: var(--txt); border-color: var(--line-2); }
-
 /* ---- CHỌN NHIỀU TRONG BẢNG ADMIN -----------------------------------------
    Ô chọn đứng trước nội dung hàng; hàng đang chọn được nhuộm nền nhấn để mắt
    còn bám được danh sách trước khi bấm nút hàng loạt. Nút nào cũng là `.btn`
@@ -1157,7 +1177,7 @@ img { max-width: 100%; }
 
 /* ================= MÀN HÌNH HẸP ================= */
 @media (max-width: 620px) {
-  .field-row, .kindpick, .packs { grid-template-columns: 1fr; }
+  .field-row, .packs { grid-template-columns: 1fr; }
   .search, .sel { max-width: none; flex: 1; }
   .row .idx { display: none; }
   /* cụm trùng bài: bỏ số thứ tự, thẻ card ôm sát mép cho vừa màn hẹp */
@@ -1216,7 +1236,7 @@ img { max-width: 100%; }
    lời bằng màu viền/nền, còn mọi nút đều lún xuống khi bấm. Nhấc-cả-lên ở mọi
    nút là mẫu chuyển động phổ biến nhất của giao diện do máy sinh: chỗ nào cũng
    nhún thì không chỗ nào là chính. */
-.btn, .tab, .votebtn, .kbtn, .copy, .icon-btn, .sfxbtn, .mtab,
+.btn, .tab, .votebtn, .kcard, .copy, .icon-btn, .sfxbtn, .mtab,
 .side-item, .side-row, .side-user, .pvrow {
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
@@ -2119,6 +2139,10 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-kicker { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--a-2) }
 .lb-title { margin: 3px 0 0; font-family: var(--display); font-weight: 700; font-size: 16.5px; letter-spacing: .1px }
+/* Luật đang chạy, viết ra thành câu. Chữ nhỏ, xám, KHÔNG phải một dòng chú
+   thích trang trí: nó trả lời câu "vì sao thứ tự này" mà trước đây người xem
+   phải tự đoán khi đổi cách sắp xếp. */
+.lb-rule { margin: 4px 0 0; font-size: 11.5px; line-height: 1.35; color: var(--txt-3); max-width: 46ch }
 
 /* nhóm nút sắp xếp dạng viên thuốc — một lựa chọn, một chỗ sáng */
 .lb-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
@@ -2418,7 +2442,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* chọn loại request: thẻ được chọn đổi màu + viền, không nhấc cũng không nảy
    — đây là ô chọn trong form, phản hồi nằm ở trạng thái chứ không ở chuyển động */
-.kbtn { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
+.kcard { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
   background var(--t-1) var(--e-soft) }
 
 /* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
@@ -2454,7 +2478,7 @@ html[data-section="spin"] .bgfx { display: none; }
     background: var(--surface-2); }
   .grow:hover { border-color: rgba(169,164,255,.35); }
   .stat:hover::after { transform: scaleX(0) }
-  .pack:hover, .kbtn:hover, .to-top:hover { transform: none; box-shadow: none }
+  .pack:hover, .kcard:hover, .to-top:hover { transform: none; box-shadow: none }
   .pack:hover { box-shadow: none }
   .lb-table tbody tr:hover { background: none }
   .lb-table tbody tr.me:hover { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
@@ -2468,7 +2492,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stat::after, .watch::after, .votebtn.on::before, .kbtn.on { animation: none }
+  .stat::after, .watch::after, .votebtn.on::before, .kcard.on { animation: none }
   .stat:hover::after, .watch:hover::after { transition: none }
 }
 
@@ -2942,18 +2966,9 @@ html[data-section="spin"] .bgfx { display: none; }
    ADMIN — tổng quan đường ống + hàng dạng thẻ
    ---------------------------------------------------------
    Trước: danh sách phẳng ngăn cách bằng border-bottom, quét lâu mới biết
-   trạng thái. Nay: dải chấm màu (.adm-sum) cho cái nhìn toàn cục, và mỗi
-   hàng là một thẻ riêng có hover để mắt không trôi giữa hai chục dòng.
+   trạng thái. Nay: dải số liệu ở đầu trang (vừa tổng quan vừa chuyển mục), và
+   mỗi hàng là một thẻ riêng có hover để mắt không trôi giữa hai chục dòng.
    ========================================================= */
-.adm-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
-.adm-sum-i {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--r-pill);
-  background: var(--surface-2); font-size: 11.5px; color: var(--txt-2);
-}
-/* chấm màu lấy đúng màu trạng thái gán inline (--sc) và tỏa nhẹ cho dễ quét */
-.adm-sum-i i { width: 7px; height: 7px; border-radius: 50%; background: var(--sc); box-shadow: 0 0 8px var(--sc); }
-.adm-sum-i b { font-family: var(--mono); font-weight: 600; color: var(--txt); }
 
 .adm {
   flex-wrap: wrap; padding: 12px 14px; margin-bottom: 8px;
@@ -3052,3 +3067,254 @@ html[data-section="spin"] .bgfx { display: none; }
    ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
    nhiều thông báo nổi. */
 .adm-copy.done { color: var(--done); border-color: rgba(76,186,136,.4); }
+
+/* =========================================================================
+   VÒNG 8 — NHÃN, THANH LỌC, HỘP VOTE, VÀ BẢNG ADMIN THÀNH TRANG RIÊNG
+   ========================================================================= */
+
+/* ---- NHÃN nằm trong hộp .tags ------------------------------------------
+   Nhãn đặt trần trong một dòng chữ thì khi xuống hàng chúng dính vào nhau:
+   không có `row-gap`, và `line-height` của dòng văn bản không phải khoảng cách
+   thiết kế. Mọi cụm nhãn đi qua .tags để có wrap + hai trục gap. */
+.tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.tags.wide { display: flex; width: 100%; }
+/* dòng chữ đứng cạnh nhãn phải co được, nếu không nhãn bị đẩy ra ngoài khung */
+.tags .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { row-gap: 6px; }
+.row .title { line-height: 1.45; }
+.row .title .tags { margin-left: 2px; }
+.nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
+
+/* ---- THANH LỌC v2 ------------------------------------------------------
+   Thêm ba thứ mà bản cũ thiếu:
+     1. CON SỐ KẾT QUẢ luôn hiện (trước chỉ hiện khi đang lọc) — người dùng
+        cần biết mình đang nhìn bao nhiêu bài ngay cả lúc không lọc;
+     2. nút "Bộ lọc" trên máy hẹp: mở một khối chứa ô chọn loại bài + dòng
+        tóm tắt + nút xoá lọc, thay vì nhồi bốn thứ vào một hàng 340px;
+     3. dính trên đầu khi cuộn danh sách: bảng 20 hàng dài hơn màn hình, cuộn
+        tới hàng 15 mà muốn đổi bộ lọc thì phải cuộn ngược lên tận nắp trang. */
+.fbar {
+  position: sticky; top: 0; z-index: 22;
+  animation: rise .42s var(--e-out) .05s both;
+  padding: 9px 10px; margin: 0 -10px 12px;
+  border-radius: var(--r-md); border: 1px solid transparent;
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
+  display: grid; gap: 8px;
+}
+.fbar-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* chip loại bài: cùng khuôn với chip trạng thái nhưng KHÔNG đếm số — con số
+   đó phụ thuộc trạng thái đang lọc nên nếu in ra sẽ mâu thuẫn với danh sách
+   ngay bên dưới nó. Chip loại chỉ để chọn, không để đếm. */
+.fchips.kinds { flex: 1 1 auto; }
+.fchip.kind { padding: 6px 11px; font-size: 12px; }
+.fchip.kind.on { background: color-mix(in srgb, var(--c) 16%, var(--surface-2)); }
+@supports not (backdrop-filter: blur(2px)) { .fbar { background: var(--bg); } }
+.fbar.stuck { border-color: var(--line); box-shadow: var(--sh-1), var(--ring); }
+.fcount { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
+.fcount b { font-family: var(--mono); font-weight: 600; color: var(--txt-2); }
+/* nút mở khối lọc trên máy hẹp — chỉ hiện ở đó */
+.fmore { display: none; flex: none; align-items: center; gap: 7px; padding: 0 12px; height: 34px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--txt-2); font: 500 12.5px/1 var(--font); cursor: pointer; }
+.fmore b { min-width: 16px; padding: 2px 5px; border-radius: var(--r-pill); background: var(--a-soft);
+  color: var(--a-2); font-family: var(--mono); font-size: 10.5px; }
+.fmore.on { color: var(--txt); border-color: var(--a-dim); background: var(--surface-3); }
+.fbar-more { display: none; }
+.fbar-more .row2 { display: flex; align-items: center; gap: 8px; width: 100%; }
+.fbar-more .sel { flex: 1 1 auto; max-width: none; }
+
+@media (max-width: 620px) {
+  .fcount { display: none; }
+  .fmore { display: inline-flex; }
+  /* máy hẹp: hàng dưới gấp lại, chỉ mở khi bấm nút Bộ lọc */
+  .fbar:not(.open) .fbar-more { display: none; }
+  .fbar.open .fbar-more {
+    display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+    flex: 1 1 100%; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line);
+  }
+  /* ô chọn loại bài rời khỏi hàng chính, nằm trong khối lọc trên máy hẹp */
+  .fbar-side > .sel { display: none; }
+  .fbar-side { flex: 1 1 auto; }
+  .fbar .searchwrap { flex: 1 1 auto; min-width: 0; }
+}
+
+/* ---- HỘP NHẬP SỐ VOTE (VoteModal) -------------------------------------- */
+.vm-hero { display: grid; gap: 3px; padding: 14px 16px; border-radius: var(--r-md);
+  border: 1px solid var(--line-2); background: var(--surface-2); text-align: center; }
+.vm-hero .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-3); }
+.vm-hero .v { font-family: var(--mono); font-size: 34px; font-weight: 600; line-height: 1.05;
+  color: var(--txt); font-variant-numeric: tabular-nums; }
+.vm-hero .u { font-size: 11.5px; color: var(--txt-3); }
+.vm-hero .v.pop { animation: vmPop .34s var(--e-pop) both; }
+@keyframes vmPop { 0% { opacity: .4; transform: scale(.9) } 100% { opacity: 1; transform: none } }
+/* dãy chọn nhanh: 1 · 5 · 10 · tất cả */
+.vm-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.vm-preset { min-width: 46px; height: 32px; padding: 0 11px; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  color: var(--txt-2); font: 500 12.5px/1 var(--mono); transition: .13s; }
+.vm-preset:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
+.vm-preset.on { color: var(--txt); border-color: var(--a-dim); background: var(--a-soft); }
+.vm-preset:disabled { opacity: .4; cursor: not-allowed; }
+/* thanh trượt: cùng một trục với dãy số ở trên, kéo là thấy con số chạy */
+.vm-slide { width: 100%; margin: 12px 0 2px; accent-color: var(--a-2); cursor: pointer; }
+.vm-slide:focus-visible { outline: 2px solid var(--a-2); outline-offset: 3px; }
+/* tóm tắt "trước → sau": người dùng thấy hậu quả trước khi bấm */
+.vm-after { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 11px;
+  font-size: 12px; color: var(--txt-3); }
+.vm-after b { font-family: var(--mono); font-size: 13px; color: var(--txt); }
+.vm-after .arw { color: var(--txt-3); }
+.vm-after .good { color: var(--done); }
+.vm-after .bad { color: var(--denied); }
+.vm-balance { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.vm-chip { flex: 1 1 90px; display: grid; gap: 2px; padding: 9px 11px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface-2); }
+.vm-chip span { font-size: 10.5px; color: var(--txt-3); }
+.vm-chip b { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--txt); }
+.vm-song { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+
+/* ---- BẢNG ADMIN — TRANG RIÊNG ------------------------------------------ */
+.adm-page { display: grid; gap: 14px; }
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 8px; }
+.adm-kpi {
+  display: grid; gap: 3px; padding: 11px 13px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  font-family: inherit; transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.adm-kpi:hover { border-color: var(--line-2); background: var(--surface-3); }
+.adm-kpi.on { border-color: color-mix(in srgb, var(--sc) 55%, transparent);
+  background: color-mix(in srgb, var(--sc) 12%, var(--surface-2)); }
+.adm-kpi .k { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--txt-2); }
+.adm-kpi .k i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--sc); }
+.adm-kpi .v { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--txt);
+  font-variant-numeric: tabular-nums; }
+.adm-kpi.on .v { color: var(--sc); }
+.adm-kpi:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+
+.adm-panel { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel);
+  box-shadow: var(--sh-1), var(--ring); padding: 12px 14px 14px; }
+.adm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 10px;
+  border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.adm-bar .searchwrap { flex: 1 1 200px; min-width: 0; }
+.adm-bar .search { max-width: none; width: 100%; }
+.adm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-note { display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+  font-size: 11.5px; color: var(--txt-3); }
+
+@media (max-width: 620px) {
+  .adm-panel { padding: 11px 11px 13px; }
+  .adm-bar .sel, .adm-bar .adm-pickbtn { flex: 1 1 auto; }
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- FORM GỬI REQUEST --------------------------------------------------- */
+
+/* Dải ba bước. Bước chưa xong là chữ xám + số rỗng; bước xong thì số được tô
+   và có dấu kiểm bằng chính màu nhấn. Đây là bản đồ của form — người dùng biết
+   còn phải làm gì mà không phải cuộn xuống xem còn ô nào trống. */
+.req-steps { display: flex; gap: 6px; margin: 0 0 14px; padding: 0; list-style: none; flex-wrap: wrap; }
+.req-steps li {
+  flex: 1 1 0; min-width: 96px; display: flex; align-items: center; gap: 8px;
+  padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--txt-3); font-size: 11.5px; line-height: 1.3;
+  transition: border-color var(--t-2) var(--e-soft), color var(--t-2) var(--e-soft);
+}
+.req-steps b {
+  flex: none; width: 18px; height: 18px; display: grid; place-items: center;
+  border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface);
+  font: 600 10.5px/1 var(--mono); color: var(--txt-3);
+}
+.req-steps li.on { color: var(--txt-2); border-color: var(--line-2); }
+.req-steps li.on b { color: var(--a-2); border-color: var(--a-dim); background: var(--a-soft); }
+
+/* Chọn loại bài: bốn THẺ có tên + một dòng giải thích, thay cho bốn nút chữ.
+   Hai loại khác nhau phải đọc ra là khác nhau ngay ở bước chọn. */
+.kindpicks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.kcard {
+  display: grid; gap: 6px; align-content: start; padding: 10px 11px; text-align: left;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--surface-2); cursor: pointer; font-family: inherit;
+  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.kcard small { font-size: 11px; line-height: 1.45; color: var(--txt-3); }
+.kcard:hover { border-color: var(--line-2); background: var(--surface-3); }
+.kcard.on { border-color: color-mix(in srgb, currentColor 46%, transparent); }
+.kcard.on.ccl   { background: color-mix(in srgb, var(--k-ccl) 12%, var(--surface-2)); }
+.kcard.on.album { background: color-mix(in srgb, var(--k-album) 12%, var(--surface-2)); }
+.kcard.on.loop  { background: color-mix(in srgb, var(--k-loop) 12%, var(--surface-2)); }
+.kcard.on.short { background: color-mix(in srgb, var(--k-short) 12%, var(--surface-2)); }
+.kcard.on small { color: var(--txt-2); }
+.kcard:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+/* Ô nhập có bộ đếm ký tự ở mép phải. Bộ đếm nằm TRONG khung nhập (absolute)
+   nên không làm ô cao lên khi nó xuất hiện ở ký tự thứ 85. */
+.fin { position: relative; }
+.fin .fcount {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  font: 400 10.5px/1 var(--mono); color: var(--txt-3); pointer-events: none;
+  background: var(--bg-2); padding: 1px 3px; border-radius: 3px;
+}
+.fin input { padding-right: 52px; }
+.fhint { margin: 5px 0 0; font-size: 11px; line-height: 1.5; color: var(--txt-3); }
+.ferr { margin: 5px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--denied); }
+.ferr.warn { color: var(--progress); }
+/* Link đã nhận ra: cùng chỗ với gợi ý, chỉ đổi màu — một dòng chữ, hai trạng
+   thái, không thêm dòng nào vào form. */
+.fhint.ok { color: var(--done) }
+
+/* =========================================================
+   THẺ XEM TRƯỚC TRONG FORM REQUEST
+   ---------------------------------------------------------
+   Dựng theo ĐÚNG cấu trúc một hàng trên bảng (nhãn loại bài + "Nghệ sĩ — Bài")
+   để người gửi nhận ra ngay mình đang tạo ra cái gì. Khác một chỗ: đây là khối
+   TĨNH, chữ mờ thay cho chỗ chưa điền — nên nó không tranh sự chú ý với các ô
+   nhập phía trên, chỉ đứng dưới làm điểm tựa.
+   Ảnh bìa YouTube bên phải: i.ytimg.com, không API key, không tốn quota free.
+   ========================================================= */
+.req-preview {
+  margin-top: 14px; padding: 10px 11px 11px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: rgba(255, 255, 255, .015);
+}
+.rp-bar {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--txt-3);
+}
+.rp-bar .rp-yt { margin-left: auto; color: var(--done); letter-spacing: .4px; text-transform: none }
+.rp-row { display: flex; align-items: flex-start; gap: 9px; }
+.rp-row > .kind { flex: none; margin-top: 1px }
+.rp-tx { min-width: 0; flex: 1; font-size: 13px; line-height: 1.45 }
+.rp-tx b { font-weight: 600 }
+.rp-dash { margin: 0 5px; color: var(--txt-3) }
+.rp-tx .ph { color: var(--txt-3) }
+.rp-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px;
+  font-size: 11px; color: var(--txt-3) }
+.rp-thumb {
+  flex: none; width: 84px; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--bg-2);
+}
+/* Ô đang sai: viền đỏ + một vạch mảnh bên trái. Viền một mình đủ để mắt thấy
+   nhưng không đủ để thấy khi đang nhìn giữa form. */
+.field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: rgba(226,110,105,.6); }
+.field input[aria-invalid="true"]:focus { border-color: var(--denied); }
+
+/* Bảng nội quy: đánh số bằng vòng tròn để mỗi điều là một mục đọc được, thay
+   vì một khối chữ 5 dòng. */
+.rules ol { padding-left: 0; list-style: none; }
+.rules ol li { display: flex; gap: 9px; align-items: flex-start; }
+.rules ol li b {
+  flex: none; width: 19px; height: 19px; display: grid; place-items: center; margin-top: 1px;
+  border-radius: 50%; background: var(--surface-3); color: var(--txt-2);
+  font: 600 10.5px/1 var(--mono);
+}
+
+@media (max-width: 620px) {
+  /* hai ô tên bài cạnh nhau trên máy hẹp thì mỗi ô còn ~150px — xuống một cột */
+  .field-row { grid-template-columns: minmax(0, 1fr); }
+  .kindpicks { grid-template-columns: minmax(0, 1fr); }
+  .req-steps li { min-width: 0; padding: 7px 9px; }
+  .rp-thumb { width: 68px; }
+}
