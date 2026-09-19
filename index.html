@@ -49,6 +49,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Lưới an toàn ở tầng HTML. Nếu module không nạp được (tab cũ sau khi
+         vite nạp lại dependency, mạng chặn, file hỏng) thì React không bao giờ
+         dựng, `#root` ở lại TRỐNG — mà nền `html` đã tối sẵn từ thẻ <style> ở
+         trên, nên người dùng chỉ thấy một trang ĐEN không một lời giải thích.
+         Sau 8 giây vẫn trống thì thay bằng một dòng chữ + nút tải lại: "đen"
+         không còn là câu trả lời duy nhất. `src/main.jsx` bật cờ
+         `window.__cclBoot` ngay khi render xong, nên lưới này im lặng khi mọi
+         thứ bình thường. -->
+    <script>
+      window.__cclBoot = false
+      window.setTimeout(function () {
+        if (window.__cclBoot) return
+        var el = document.getElementById('root')
+        if (!el || el.childElementCount) return
+        el.innerHTML = '<div class="bootfail"><b>This page did not finish loading.</b>'
+          + '<p>Reload usually fixes it. If it stays like this, press Ctrl+Shift+R '
+          + '(Cmd+Shift+R on a Mac) to clear a stale cache.</p>'
+          + '<button type="button" onclick="location.reload()">Reload</button></div>'
+      }, 8000)
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

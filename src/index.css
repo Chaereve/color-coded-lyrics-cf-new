@@ -1260,6 +1260,18 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .medit textarea:focus { outline: 2px solid var(--a-2); outline-offset: 1px; }
 .medit-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
+/* Lưới an toàn tầng HTML (index.html): chỉ hiện khi app không dựng nổi. Dùng
+   chữ sáng trên nền tối để đọc được kể cả khi index.css chưa kịp nạp. */
+.bootfail { max-width: 430px; margin: 18vh auto 0; padding: 18px; text-align: center;
+  border: 1px solid var(--line-2, #2a3138); border-radius: var(--r-md, 8px);
+  background: var(--panel-2, #191d23); color: var(--txt, #e8ecf1);
+  font: 400 13px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.bootfail b { display: block; margin-bottom: 8px; font-size: 14px; }
+.bootfail p { margin: 0 0 14px; color: var(--txt-2, #a8b0ba); }
+.bootfail button { padding: 7px 14px; border-radius: var(--r-md, 8px); cursor: pointer;
+  border: 1px solid var(--a-dim, #211aad); background: var(--a, #2b22e2); color: #fff;
+  font: 600 13px/1.2 inherit; }
+
 /* ================= LƯỚI AN TOÀN KHI RENDER NÉM LỖI ================= */
 /* Màn hình này thay cho "trang đen" — xem components/ErrorBoundary.jsx. Nằm
    trên cả toast (95) vì nó là thứ duy nhất còn lại trên trang lúc đó. */

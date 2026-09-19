@@ -59,6 +59,19 @@ test('màn lỗi chịu được thứ không phải Error', async () => {
   }
 })
 
+test('lưới an toàn tầng HTML: #root trống 8 giây thì phải có chữ, không im lặng đen', () => {
+  const html = readFileSync(at('../../index.html'), 'utf8')
+  assert.match(html, /window\.__cclBoot = false/, 'index.html phải đặt cờ boot trước khi nạp module')
+  assert.match(html, /getElementById\('root'\)/, 'lưới phải soi đúng #root')
+  assert.match(html, /class="bootfail"/, 'phải có khối chữ thay cho trang đen')
+  assert.match(html, /location\.reload\(\)/, 'phải có đường tải lại')
+  const main = readFileSync(at('../../src/main.jsx'), 'utf8')
+  assert.match(main, /window\.__cclBoot = true/,
+    'main.jsx phải bật cờ khi đã dựng — không thì lưới thay cả trang sau 8 giây')
+  assert.ok(main.indexOf('root.render(') < main.indexOf('window.__cclBoot = true'),
+    'cờ phải bật SAU lệnh render')
+})
+
 test('main.jsx bọc cả app trong lưới — thiếu là lưới vô dụng', () => {
   const src = readFileSync(at('../../src/main.jsx'), 'utf8')
   assert.match(src, /import ErrorBoundary from '\.\/components\/ErrorBoundary\.jsx'/)

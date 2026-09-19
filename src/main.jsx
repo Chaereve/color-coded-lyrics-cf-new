@@ -16,7 +16,8 @@ if (typeof document.startViewTransition === 'function') {
   document.documentElement.dataset.vt = 'on'
 }
 
-createRoot(document.getElementById('root')).render(
+const root = createRoot(document.getElementById('root'))
+root.render(
   <StrictMode>
     <I18nProvider>
       <NotifyProvider>
@@ -33,3 +34,6 @@ createRoot(document.getElementById('root')).render(
     </I18nProvider>
   </StrictMode>
 )
+/* Đã dựng xong: tắt lưới an toàn trong index.html (nếu không nó sẽ thay cả
+   trang bằng dòng chữ sau 8 giây, kể cả khi app đang chạy tốt). */
+window.__cclBoot = true
