@@ -601,3 +601,78 @@ Trước khi đổi, đã kiểm và loại trừ (đều **sạch**, không tì
 Nếu vẫn chưa lên: xem tab có đang mở địa chỉ cũ từ phiên trước không (mở lại địa chỉ xem trước), và
 nếu màn hình vẫn trắng thì gửi giúp **địa chỉ đang mở + dòng lỗi đỏ trong Console** (F12 → Console) —
 có hai thứ đó là khoanh được ngay, còn đoán thì chỉ tốn thời gian.
+
+## Phần N — vòng 13 (tiếp): nền khung vẽ, và chín chỗ CSS tự ghi đè
+
+### N1. "Flash trắng" — dòng khai báo bị thiếu, chỉ có chú thích
+
+Cách tìm ra: **soi bản DỰNG, không soi mã nguồn**. Trong `dist/assets/index-*.css`, khối `html`
+chỉ có `color-scheme`, `scrollbar-gutter`, `scroll-behavior` — **không có `background`**. Trong
+`src/index.css` thì khối `html` có nguyên một đoạn chú thích dài giải thích vì sao phải đặt
+`background: var(--bg)` ở đó, và ngay dưới chú thích là... `scrollbar-gutter`. Dòng khai báo chưa
+bao giờ được ghi vào tệp, dù vòng 13 đã báo là đã sửa.
+
+Hậu quả: mọi khe hở trong lúc chuyển cảnh vẫn lộ khung vẽ của trình duyệt. `index.html` có một bản
+sao nội tuyến (`html{background:#0a0c10}`) cứu được khung hình đầu, nhưng đó là **hai chỗ nói cùng
+một chuyện** — sửa màu nền ở một chỗ là chỗ kia lệch, và nếu tệp HTML bị thay bằng bản khác thì
+không còn gì đỡ.
+
+Đã sửa: khai báo có mặt trong `src/index.css`, và **đã kiểm trong bản dựng**
+(`html{…;background:var(--bg);…}`). Thêm `src/lib/cssNoFlash.test.js` — 4 ca:
+
+1. luật `html` trong `index.css` **phải** có `background: var(--bg)`;
+2. `index.html` phải có nền nội tuyến, và **mã màu phải trùng token `--bg`** (lệch là lại thấy một
+   nháy màu cũ);
+3. lớp phủ `html[data-vt="on"]::view-transition` phải được tô nền;
+4. **không luật nào tự ghi đè chính nó** (xem N2).
+
+### N2. Chín chỗ khai báo bị luật sau ghi đè — còn 0
+
+Công cụ: một bộ đọc CSS nhỏ đi qua tệp theo từng khối, ghi lại `(ngữ cảnh, bộ chọn, thuộc tính)`,
+và báo mỗi lần cùng khoá đó được khai lại với giá trị khác. Trước: **12 chỗ**. Sau: **0**.
+
+Đã gỡ hẳn (những dòng chưa bao giờ có tác dụng, nhưng vẫn nằm đó chờ người sau sửa nhầm):
+
+| Chỗ | Chuyện gì |
+|---|---|
+| `.overlay` · `.modal` | `animation: fade` / `animation: pop` cũ vẫn còn trong khi khối cuối tệp đã đặt `fadeIn` / `popIn`; gỡ luôn **hai `@keyframes` không còn ai gọi** |
+| `.row.paid` | một luật phẳng ở đầu tệp, một cặp **gradient** ở cuối tệp đè lên — nay còn **một cặp phẳng** (thường + hover), tức hàng paid thôi đổi tính cách khi rê chuột, và bớt một gradient |
+| `.pack.best` | **hai nền gradient xếp lên nhau** (một tím `--a-soft`, một vàng) — lớp dưới không bao giờ hiện; nay một sắc vàng nhạt phẳng |
+| `.pack` | `transition: border-color .13s` bị luật đầy đủ ở dưới thay |
+| `.adm` | `padding: 10px 0` của bản danh sách phẳng cũ, trong khi hàng đã là **thẻ** có đệm riêng |
+| `.pick-cd` (3 dòng) | định nghĩa cũ (căn trái, cỡ 12,5px) bị định nghĩa mới (nhãn trên · số mono căn phải) thay hoàn toàn |
+| `.kchip` | `transition` khai hai lần với **cùng một danh sách chỉ khác thứ tự** |
+| `::-webkit-scrollbar-thumb:hover` | hai sắc xám khác nhau cho cùng một trạng thái |
+| `.rules ol` | `padding-left: 20px` chết vì luật sau chuyển danh sách sang **bộ đếm tự vẽ** (`list-style: none` + `<b>` hình tròn) |
+
+Và **một lỗi thật nằm trong CÙNG một luật**: ở khối `≤620px`, `.pick-cd` khai `align-items` hai lần
+(`flex-start` rồi `baseline`) — dòng đầu vô nghĩa, mà đọc lên thì tưởng hàng đang căn trên. Đã gộp.
+Tương tự, `.grow-rows-in > .row` khai **hai cạnh ở hai chỗ** (`padding-right` khai lại ở khối thẻ) —
+nay mỗi cạnh một chỗ.
+
+### N3. Số của lượt này
+
+`npm test` → **356 ca / 355 đạt / 0 lỗi / 1 skip** (trước: 352; thêm 4 ca chống flash). `npm run smoke`
+→ **172/172**. `npx oxlint` → **0 lỗi**. `npm run build` → OK, và **đã kiểm bản dựng**: khối `html`
+trong `dist` nay có `background: var(--bg)`.
+
+### N4. "Phần paid request" — kiểm tra và kết luận còn treo
+
+Trước khi sửa gì, đã **dựng thật cả app trong jsdom** rồi đi hết đường của một paid request: mở form →
+bước 1 → bước 2 (điền tên bài) → bước 3. Kết quả trong DOM:
+
+```
+<div class="paidbox">
+  <label class="switch"><span class="chk"><input type="checkbox">…</span>
+  <span class="t">Paid request ($0.75 / 20,000₫)</span></label>
+  <p>Approved and started <b>immediately</b>, no voting needed. Send the payment after submitting.</p>
+</div>
+```
+
+Và trên bảng còn nguyên `<span class="pill gold">PAID</span>`. Bốn mặt của tính năng đều còn trong mã:
+ô chọn ở **bước 3** của form · nhãn **PAID** trên hàng (kèm luật xếp *paid đứng trước*) · mục
+**Orders** của `/admin` (nút "Mark as paid") · mục **My orders** trong *About me*. Không có mã CSS
+hay chuỗi i18n nào của paid bị thiếu (đã quét chéo CSS ↔ JSX và chuỗi ↔ khoá).
+
+→ Kết luận: **không tìm thấy chỗ nào bị xoá**. Cần chủ dự án chỉ đúng chỗ đang nhìn để sửa trúng,
+thay vì đoán rồi sửa nhầm ba bốn chỗ khác.
