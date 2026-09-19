@@ -18,14 +18,17 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-md);
   overflow: hidden;
-  /* Ba tông của bánh xe — tất cả đều là token của trang:
-       --w-1 / --w-2   hai tông nền xen kẽ, để mắt đếm được 16 lát
-       --w-4           ô giải cao nhất: màu nhấn, và CHỈ một ô mang nó
-     Bản trước dựng 12 sắc độ (4 bậc thưởng × 3 sắc) trộn từ --a: nhìn như đèn
-     chùm, và người dùng phải học một bảng màu chỉ để đọc một con số. Một điểm
-     nhấn đúng chỗ đọc ra chuyên nghiệp hơn mười hai sắc thái. */
+  /* Bốn tông của bánh xe — MỘT tông cho MỘT mức thưởng, tất cả là token:
+       --w-1  +1 vote  (9 ô — nền, tối nhất)
+       --w-2  +2 votes (4 ô)
+       --w-3  +3 votes (2 ô)
+       --w-4  +5 votes (1 ô — màu nhấn, và chỉ một ô mang nó)
+     Sáng dần theo độ hiếm, nên mắt đọc được "ô nào đáng hơn" trước cả khi đọc
+     số. Bản trước tô xen kẽ theo chẵn/lẻ nên hai ô cùng thưởng nằm cạnh nhau
+     vẫn khác màu — nhìn không suy ra được ô nào là ô nào. */
   --w-1: var(--surface-2);
-  --w-2: color-mix(in oklab, var(--surface-2) 86%, var(--txt));
+  --w-2: color-mix(in oklab, var(--surface-2) 82%, var(--txt));
+  --w-3: color-mix(in oklab, var(--surface-3) 74%, var(--txt));
   --w-4: var(--a);
 }
 
@@ -41,6 +44,9 @@
   display: flex; align-items: center; gap: 8px; margin: 4px 0 0;
   font-size: 11.5px; color: var(--txt-2);
 }
+/* Một câu tóm tắt luật chơi ở đầu khối. Bản thật (không có nhãn demo) từng để
+   trống chỗ này. */
+.spin-sum { color: var(--txt-2); }
 .spin-demo {
   padding: 2px 8px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
   font: 400 10px/1.6 var(--mono); color: var(--txt-2); white-space: nowrap;
@@ -80,18 +86,29 @@
 /* Vành: một dải phẳng + một đường tóc ngoài — "khung máy" của đĩa. */
 .spin-wheel-rim { fill: none; stroke: var(--surface-3); stroke-width: 9; }
 .spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
-/* 16 lát, hai tông xen kẽ; ô giải cao nhất là ô DUY NHẤT mang màu nhấn. */
-.spin-sector { fill: var(--w-1); transition: opacity .35s var(--e-soft); }
-.spin-sector.alt { fill: var(--w-2); }
-.spin-sector.jackpot { fill: var(--w-4); }
+/* Lát tô theo MỨC THƯỞNG (xem --w-1..--w-4 ở khối .daily-spin). Ô lẻ trong
+   mỗi dải nhạt hơn một chút (.weave) để vẫn đếm được từng ô 22,5° — đường kẻ
+   giữa các ô đã bị gỡ từ trước và không quay lại. */
+.spin-sector { fill: var(--wc, var(--w-1)); transition: opacity .35s var(--e-soft); }
+.spin-sector.t1 { --wc: var(--w-1); }
+.spin-sector.t2 { --wc: var(--w-2); }
+.spin-sector.t3 { --wc: var(--w-3); }
+.spin-sector.t4 { --wc: var(--w-4); }
+.spin-sector.weave { fill: color-mix(in oklab, var(--wc) 86%, var(--txt)); }
 .spin-wheel-number {
-  font-family: var(--mono); font-size: 21px; font-weight: 600; letter-spacing: -.4px;
+  font-family: var(--mono); font-size: 24px; font-weight: 600; letter-spacing: -.4px;
   fill: var(--txt); opacity: .94; transition: opacity .35s var(--e-soft);
 }
-.spin-wheel-plus { font-size: 14px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
+.spin-wheel-plus { font-size: 15px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
+/* "×9" — số ô của dải. Chín ô cùng thưởng được in MỘT lần, kèm số ô, thay vì
+   chín số 1 giống hệt nhau rải quanh đĩa. */
+.spin-wheel-times {
+  font-size: 12.5px; font-weight: 500; letter-spacing: 0;
+  fill: color-mix(in oklab, var(--txt) 58%, transparent);
+}
 /* Ô giải cao nhất: chữ trắng trên nền --a (6,35:1) và lớn hơn một bậc — đây là
    lý do cả cái bánh xe tồn tại. */
-.spin-wheel-number.jackpot { fill: #fff; font-size: 26px; }
+.spin-wheel-number.jackpot { fill: #fff; font-size: 29px; }
 .spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(255, 255, 255, .75); }
 /* Trục: MỘT đĩa phẳng nhỏ. Không mũi chỉ, không chấm — con trỏ ở vành đã trả
    lời "kim đang chỉ đâu", thêm hai chi tiết nữa là nói lại lần thứ ba. */
@@ -230,8 +247,20 @@
   border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface);
 }
 .spin-history b { font: 600 12px var(--mono); color: var(--txt); }
+/* Dòng trúng giải cao nhất: cùng màu với dải trên đĩa — lịch sử đọc được
+   bằng mắt trước khi đọc bằng số. */
+.spin-history li.t4 { border-color: color-mix(in oklab, var(--a) 60%, transparent); background: var(--a-soft); }
+.spin-history li.t4 b { color: var(--a-2); }
 .spin-history time { font: 400 10.5px var(--mono); color: var(--txt-2); }
 .spin-history p { margin: 0; font-size: 11.5px; color: var(--txt-3); }
+/* Tổng của chính danh sách bên trên — con số duy nhất trên trang được cộng từ
+   dữ liệu thật, không phải một câu chữ trang trí. */
+/* Hai lớp selector để thắng luật `margin: 0` của `.spin-history p` ở trên —
+   thay vì `!important`, thứ sẽ chặn mọi lần chỉnh sau này. */
+.spin-history .spin-total {
+  margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line);
+  font-family: var(--mono); color: var(--txt-2);
+}
 
 /* ---- narrow screens: one column, wheel first, action right under it ---- */
 @media (max-width: 1020px) {

@@ -21,7 +21,7 @@ export const SPIN_TIME_ZONE = 'Asia/Ho_Chi_Minh'
 const DAY = 86_400_000
 const VN_OFFSET = 7 * 3_600_000
 const TIERS = ['t1', 't2', 't3', 't4']
-const SHADES = ['v1', 'v2', 'v3']
+const mod360 = n => ((n % 360) + 360) % 360
 
 export function spinDay(now = Date.now()) {
   return new Date(+new Date(now) + VN_OFFSET).toISOString().slice(0, 10)
@@ -64,16 +64,65 @@ export function spinTier(reward, rewards = SPIN_REWARDS) {
   return TIERS[Math.min(TIERS.length - 1, Math.max(0, values.indexOf(reward)))]
 }
 
-/* Sắc độ trong cùng một hạng: các ô cùng giá trị không tô y hệt nhau, mà xoay
-   vòng qua 3 sắc độ để 16 ô trông đa dạng mà vẫn đọc được "cùng màu = cùng
-   giải". Trả về mảng 'v1'|'v2'|'v3' theo đúng thứ tự ô trên vòng quay. */
-export function spinShades(rewards = SPIN_REWARDS) {
-  const seen = new Map()
-  return rewards.map(reward => {
-    const n = seen.get(reward) || 0
-    seen.set(reward, n + 1)
-    return SHADES[n % SHADES.length]
-  })
+/* THỨ TỰ VẼ — khác thứ tự RÚT.
+   -----------------------------------------------------------
+   Bảng rút vẫn là 16 ô bằng nhau (server rút đều trên 16 ô, xem SPIN_REWARDS)
+   nhưng THỨ TỰ VẼ thì khác: các ô cùng giá trị được gom thành MỘT DẢI LIỀN, và
+   mỗi dải chỉ in số thưởng MỘT lần ở ô giữa dải, kèm số ô của dải ("×9").
+
+   Vì sao: vẽ đúng thứ tự rút thì chín ô "+1" nằm rải rác và mỗi ô in một số 1 —
+   trên đĩa có chín số 1 giống hệt nhau, đúng thứ bị báo là "trùng lặp số vote".
+   Xác suất KHÔNG đổi (vẫn 16 ô bằng nhau, 22,5° mỗi ô); chỉ có cách bày biến
+   đổi, nên góc nhìn vẫn là xác suất thật: dải nào dài gấp đôi thì khả năng
+   trúng gấp đôi.
+
+   Dải giải cao nhất được đặt nằm chính giữa 6 giờ như trước. */
+export function spinSectors(rewards = SPIN_REWARDS) {
+  const total = rewards.length
+  const step = 360 / total
+  const groups = rewardOdds(rewards)                       // tăng dần theo giá trị
+  const last = groups[groups.length - 1]
+  const before = groups.slice(0, -1).reduce((n, g) => n + g.count, 0)
+  /* TÂM ô giữa của dải cuối rơi vào 180° (6 giờ). Khung gốc đặt tâm ô thứ
+     `slot` ở đúng `slot × 22,5°`, nên phần dịch được tính bằng SỐ Ô rồi mới
+     nhân với bước — trộn hai đơn vị vào nhau là lệch nửa ô, và kim sẽ dừng
+     ngay trên đường kẻ giữa hai ô thay vì giữa ô trúng. */
+  const shift = 180 / step - (before + (last.count - 1) / 2)
+  const sectors = []
+  let slot = 0
+  for (const group of groups) {
+    for (let k = 0; k < group.count; k++, slot++) {
+      sectors.push({
+        reward: group.reward,
+        count: group.count,
+        tier: spinTier(group.reward, rewards),
+        slot: k,                                  // ô thứ mấy TRONG dải (0..n-1)
+        // nhãn in ở ô giữa dải; dải lẻ thì lệch về ô giữa-trái một ô
+        label: k === Math.floor((group.count - 1) / 2),
+        angle: mod360((slot + shift) * step),     // tâm ô, độ, 0° = 12 giờ
+      })
+    }
+  }
+  return sectors
+}
+
+/* Ô TRÚNG theo thứ tự VẼ: server trả về chỉ số ô trong bảng rút (0..15), ở đó
+   các ô cùng giá trị nằm rải rác. Bản vẽ gom chúng lại nên phải quy đổi: đếm
+   xem ô trúng là ô thứ mấy trong NHÓM của nó, rồi tìm đúng ô đó trong dải. */
+export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
+  if (!Number.isInteger(segment) || segment < 0 || segment >= rewards.length) {
+    throw new Error('err.spinResponse')
+  }
+  const reward = rewards[segment]
+  const nth = rewards.slice(0, segment + 1).filter(r => r === reward).length - 1
+  let seen = -1
+  const sectors = spinSectors(rewards)
+  for (let i = 0; i < sectors.length; i++) {
+    if (sectors[i].reward !== reward) continue
+    if (++seen === nth) return i
+  }
+  /* Không tới được: mọi ô trúng đều có mặt trong bản vẽ. */
+  throw new Error('err.spinResponse')
 }
 
 export function spinTiers(rewards = SPIN_REWARDS) {

@@ -452,6 +452,11 @@ Luật lấy từ taste-skill §9:
   trình đọc màn hình đọc lên. Dấu `·` còn lại trong app chỉ ở những dòng **một**
   dấu (tiêu đề tab trình duyệt, một số dòng tiền/thời gian) — đúng ngưỡng cho phép.
 - Số liệu phải **thật**. Không "1.000+ người dùng" khi con số lấy từ đâu không rõ.
+- **Không `text-transform: uppercase`** — không ở nhãn lọc, không ở tiêu đề mục, không ở
+  pill, không ở đầu bảng. Chữ in hoa toàn bộ đọc ra như một nhãn dán của máy và làm mất dấu
+  tiếng Việt; muốn một nhãn nổi thì dùng **màu, đậm, và khoảng cách chữ** (đều đã có token),
+  không dùng phím CapsLock. Trong toàn bộ `src/index.css` chỉ còn đúng một chỗ
+  `text-transform` và nó là `none` (để reset một thành phần nhúng).
 
 ---
 
@@ -465,6 +470,9 @@ Ghi lại để lần sau không ai "sửa" ngược:
 - **Không** thêm bóng đổ/viền cho từng hàng danh sách (xem §1.3).
 - **Không** thêm animation cho thao tác bàn phím (`/`, `n`, `Esc`): người dùng
   bàn phím muốn tốc độ, không muốn một màn trình diễn.
+- **Không** vẽ 16 ô của vòng quay theo đúng thứ tự rút rồi in một số lên mỗi ô: chín ô `+1`
+  sẽ thành chín số `1` giống hệt nhau rải quanh đĩa. Bản vẽ gom ô cùng thưởng thành **dải** và
+  in số **một lần cho mỗi dải** kèm số ô (`+1 ×9`); luật rút và xác suất không đổi.
 - **Không** đặt một bảng thông số dài trong modal mua vote: người dùng đang cân
   nhắc chi tiền, họ cần ba lựa chọn đọc được trong một lần liếc (xem `.pack`).
 - **Không** đưa bảng quản trị trở lại thành hộp thoại. Nó là một **trang** ở

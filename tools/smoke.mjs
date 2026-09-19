@@ -253,7 +253,9 @@ if (addBtn) {
   dump('form request', '.modal .req, .modal')
   check('có thẻ xem trước', !!q('.req-preview'))
   check('có dải 3 bước', qa('.req-steps li').length === 3)
-  check('đủ 4 thẻ loại bài', qa('.kcard').length === 4)
+  check('đủ 4 chip loại bài', qa('.kchip').length === 4)
+  check('có đúng MỘT dòng giải thích loại đang chọn', qa('.kind-note').length === 1)
+  check('ô ghi chú gấp lại khi chưa dùng', !q('#rq-note') && !!q('.note-add'))
   const artist = q('#rq-artist'), title = q('#rq-title')
   if (artist && title) {
     await type(artist, 'aespa')

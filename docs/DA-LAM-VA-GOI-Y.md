@@ -429,3 +429,67 @@ của repo, đúng gói miễn phí.
 bài đang lọc (hiện + bỏ), vạch nguồn phiếu cộng đúng 100%, vạch chia tỉ lệ của bảng quản
 trị). `npx oxlint` → **0 lỗi**, 21 cảnh báo (đều là mẫu có sẵn của repo: `set-state-in-effect`,
 `only-export-components`). Bản dựng: `index-BxQ09EV7.js` 359 kB, CSS 114.9 kB.
+
+## L. Vòng 11 — lỗi trang quản trị, chữ in hoa, bánh xe trùng số, và luật xếp hạng (19/09/2026)
+
+### L1. Lỗi nghiêm trọng trước, giao diện sau
+
+Trang quản trị bị báo là "lỗi toàn bộ". Lần theo thì ra **ba lỗi thật**, không phải một:
+
+| Lỗi | Vì sao nó làm cả trang hỏng |
+|---|---|
+| **Ghi địa chỉ không bọc lỗi** | Sáu chỗ gọi thẳng `window.history.pushState/replaceState`. Trong iframe bị sandbox (bản xem trước của nền tảng, `file://`, chế độ riêng tư) ba hàm này **ném `SecurityError`**; vì chúng nằm ngay trong handler React nên cú bấm của người dùng chạy được nửa đầu rồi lỗi bắn ngược lên. Nay mọi lần ghi địa chỉ đi qua `src/lib/history.js` — ba hàm `pushUrl`/`putUrl`/`here` **không bao giờ ném**, địa chỉ vẫn đúng khi môi trường cho phép và tự bỏ qua khi không. |
+| **Không có lưới an toàn nào** | Không có `ErrorBoundary` ở đâu cả, nên **bất kỳ** lỗi nào lúc vẽ cũng gỡ sạch cả trang — một khối hỏng thành "trang lỗi toàn bộ", đúng như báo cáo. Nay `src/components/Boundary.jsx` bọc vùng quản trị (và đây là chỗ đầu tiên nên bọc, vì nó là vùng nhiều state nhất): khối nào lỗi thì chỉ khối đó hiện thông báo kèm nút dựng lại, phần còn lại của trang vẫn dùng được. |
+| **Dữ liệu demo sai** (nhỏ nhưng thật) | Hàng demo là `Pop Off Pop Off` — tên lặp, và nó làm mọi so khớp theo tên bài lệch theo. Sửa về `Pop Off`. |
+
+Phép thử mới trong smoke mô phỏng đúng môi trường thù địch: **chặn** `pushState`/`replaceState`
+cho ném lỗi, rồi bấm nút Admin trong menu — bảng quản trị vẫn phải mở, vẫn phải đổi được mục,
+và không được sinh lỗi mới trong console.
+
+### L2. Không viết hoa, thanh tiến độ phẳng, hộp vote gọn
+
+- **Gỡ toàn bộ 13 chỗ `text-transform: uppercase`** (nhãn loại bài, pill, tiêu đề mục, đầu
+  bảng, nhãn sidebar, kicker, thông báo, hộp vote). Trong `src/index.css` giờ chỉ còn đúng một
+  chỗ và nó là `text-transform: none`.
+- **Thanh tiến độ phẳng** theo khuôn Preline: rãnh bo tròn 6px + ruột **một màu** + số ở cuối.
+  Gỡ gradient, quầng sáng, bóng lõm, mũi sáng ở đầu vạch, và vệt sáng quét trên thanh của khối
+  *Up next* — đúng thứ bị gọi là "gradient progress bar nhìn kì cục và AI quá".
+- **Hộp vote**: gỡ thanh trượt, viên gợi ý phím, ba ô số dư có viền, vạch chia tỉ lệ nguồn
+  phiếu. Quỹ phiếu nay là **một dòng** `còn 7 → còn 3`, kèm phần mua/thưởng nếu có.
+
+### L3. Bánh xe không còn trùng số
+
+Lỗi "trùng lặp số vote" là thật và nhìn thấy được: mỗi ô in một số, mà 9 trong 16 ô là `+1`
+→ trên đĩa có **chín số 1 giống hệt nhau**. Bản vẽ nay gom các ô cùng thưởng thành **dải liền**
+và in số **một lần cho mỗi dải** ở ô giữa, kèm số ô (`+1 ×9`, `+2 ×4`, `+3 ×2`, `+5`). Luật
+rút, xác suất, và vị trí giải cao nhất (6 giờ) **không đổi**; `spinSectorIndex()` quy đổi chỉ
+số ô của server sang ô trên bản vẽ nên kim vẫn dừng đúng ô được tô sáng (có test khoá cả 16 ô).
+Màu lát nay đi theo **mức thưởng** thay vì xen kẽ chẵn/lẻ, đầu trang có một câu nói rõ luật
+chơi (trước đây chỗ đó trống ở bản thật), và lịch sử có thêm **dòng tổng hôm nay** cùng màu
+của mức thưởng.
+
+### L4. Luật xếp hạng: bỏ con số tự đặt
+
+Cột `Score` = `10 × bài đã xong + phiếu` đã bị gỡ cùng hai hằng số của nó. Trọng số `10`
+không ứng với thứ gì trong sản phẩm, nên thứ tự trên bảng luôn cần một câu giải thích — và
+vẫn đọc ra "kì lạ". Bảng nay xếp theo **ba con số đếm được**: **Completed** (mặc định) ·
+**Votes earned** · **Requests**, đúng ba cột có thật trong view `requester_ranking`. Vạch tỉ
+lệ dưới tên và nền hàng "của bạn" cũng về **một màu phẳng** (trước là gradient).
+
+### L5. Cấp bậc tiêu đề, và form request gọn lại
+
+- **Cấp bậc tiêu đề** được soát bằng một bài kiểm mới (`src/lib/headings.test.js`): mỗi màn
+  hình đúng **một** `h1`, không nhảy cóc cấp, tiêu đề khối phải là **thẻ tiêu đề** chứ không
+  phải `<div class="section-title">`. Theo đó: tiêu đề khối *Up next* thành `h2`, tiêu đề các
+  khối trong bảng thành `h2`, tên bài trong khối *Up next* và trong bảng quản trị là `h3`, và
+  hộp Request/Buy có thêm một `h2` (ẩn về mặt thị giác) làm tên cho hộp thoại — trước đây nó
+  là `role="dialog"` **không có tên**, trình đọc màn hình chỉ đọc "hộp thoại".
+- **Form request bớt rối**: bốn tấm thẻ loại bài (mỗi thẻ kèm một câu giải thích) → **một hàng
+  chip + một dòng giải thích cho loại đang chọn**; ô **ghi chú** (ô tuỳ chọn duy nhất) gấp lại
+  sau một nút "Add a note" và tự mở nếu đã có chữ từ nháp/link mời.
+
+### L6. Số của vòng này
+
+`npm test` → **339 ca / 338 đạt / 0 lỗi / 1 skip** (trước vòng này: 333). `npm run smoke`
+→ **63/63** (trước: 58). `npx oxlint` → 0 lỗi. CSS chính 3 507 dòng, cân bằng ngoặc, và
+`lightningcss` đọc được toàn bộ tệp.

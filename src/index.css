@@ -393,7 +393,8 @@ button { font-family: inherit; }
    cộng bo góc 8px thì hai đầu đường kẻ bị vát lệch, nhìn rất lộ */
 .nowbar > .nbar { position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
   background: linear-gradient(180deg, var(--a-2), var(--a)) }
-.nowbar .lbl { font-size: 11.5px; color: var(--txt-3); margin-bottom: 5px; }
+.nowbar .lbl { display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
+  font-size: 13.5px; font-weight: 600; color: var(--txt); }
 .nowbar h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1px; }
 .nowbar .sub { font-size: 12.5px; color: var(--txt-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
@@ -403,8 +404,8 @@ button { font-family: inherit; }
    đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
 .section-title {
   display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
-  font-size: 12.5px; font-weight: 600; letter-spacing: .1px;
-  color: var(--txt-2);
+  font-size: 13.5px; font-weight: 600; letter-spacing: .1px;
+  color: var(--txt);
   animation: rise .42s var(--e-out) both;
 }
 .section-title::after { content: ''; flex: 1; height: 1px; background: var(--line); }
@@ -477,11 +478,12 @@ select {
    dải chip CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh sách
    xuống dưới màn hình đầu. Không nhấc chip khi rê: cả trang chỉ còn đúng hai
    thứ được nhấc, thêm một thứ nữa là bắt đầu mất chỗ nào là chính. */
-.fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
-  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 2px; margin: -2px; }
+.fchips { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px;
+  padding: 3px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .fchips::-webkit-scrollbar { display: none; }
 .fchip { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
-  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  border: 1px solid transparent; border-radius: var(--r-pill); background: none;
   color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
     color var(--t-1) var(--e-soft); }
@@ -503,11 +505,15 @@ select {
 .fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
 .fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
   font-family: var(--mono); font-size: 10.5px; line-height: 1; color: var(--txt-3); }
-.fchip:hover { color: var(--txt); background: var(--surface-3); }
+/* Chip đang chọn là VIÊN NỔI trong rãnh, không phải một viên thuốc có viền
+   sáng quanh: quầng sáng trên chấm màu đã bị gỡ (vòng 11) — một điểm màu phát
+   sáng là thứ trang trí đọc ra "AI", còn viên nổi + chữ đậm đã nói đủ "đang
+   chọn cái này". */
+.fchip:hover { color: var(--txt); background: var(--hover); }
 .fchip.on { color: var(--txt); font-weight: 600;
-  border-color: color-mix(in srgb, var(--c) 52%, transparent);
-  background: color-mix(in srgb, var(--c) 15%, var(--surface-2)); }
-.fchip.on .fdot { opacity: 1; box-shadow: 0 0 9px var(--c); }
+  border-color: color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 18%, var(--surface-3)); }
+.fchip.on .fdot { opacity: 1; }
 .fchip.on .fnum { color: var(--txt); background: color-mix(in srgb, var(--c) 24%, transparent); }
 .fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 .fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
@@ -1275,7 +1281,7 @@ img { max-width: 100%; }
    lời bằng màu viền/nền, còn mọi nút đều lún xuống khi bấm. Nhấc-cả-lên ở mọi
    nút là mẫu chuyển động phổ biến nhất của giao diện do máy sinh: chỗ nào cũng
    nhún thì không chỗ nào là chính. */
-.btn, .tab, .votebtn, .kcard, .copy, .icon-btn, .sfxbtn, .mtab,
+.btn, .tab, .votebtn, .kchip, .copy, .icon-btn, .sfxbtn, .mtab,
 .side-item, .side-row, .side-user, .pvrow {
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
@@ -2259,33 +2265,24 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-table tbody tr { position: relative; animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 8) * 24ms);
   transition: background var(--t-1) var(--e-soft) }
 .lb-table tbody tr:hover { background: rgba(255,255,255,.03) }
-.lb-table tbody tr.me { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
-.lb-table tbody tr.me:hover { background: linear-gradient(90deg, rgba(77,64,240,.2), rgba(255,255,255,.03) 65%) }
+.lb-table tbody tr.me { background: var(--a-soft) }
+.lb-table tbody tr.me:hover { background: color-mix(in oklab, var(--a) 26%, var(--surface-3)) }
 .lb-table td.c-rk b { font-family: var(--mono); font-size: 12px; color: var(--txt-3) }
 .lb-table td.c-pl { position: relative; min-width: 0 }
 .lb-pl-in { display: flex; align-items: center; gap: 9px; min-width: 0 }
 /* (.lb-nm đã định nghĩa đầy đủ ở khối trên — ellipsis để chịu tên dài) */
 .lb-you { font-size: 10px; color: var(--a-2); border: 1px solid var(--line-2); padding: 0 5px; border-radius: var(--r-sm) }
-/* CỘT ĐIỂM. Khi bảng xếp theo điểm thì con số quyết định thứ tự phải có CỘT
-   của nó — trước đây nó là một chip nằm trong ô tên người, nên hàng tiêu đề
-   không giải thích được vì sao các hàng nằm theo thứ tự đó. Chữ mono + chữ số
-   đều để cột số không nhảy bề rộng khi điểm lên hàng trăm. */
-.lb-table td.lb-score b, .lb-table th.lb-score, .lb-me-pts {
-  font-family: var(--mono); font-variant-numeric: tabular-nums;
-}
-.lb-table td.lb-score b { font-weight: 600; color: var(--a-2) }
-.lb-table th.lb-score { cursor: help }
-/* vạch dưới tên = tỉ lệ so với người dẫn đầu, đọc được cả một cột nhanh */
+/* Vạch dưới tên = tỉ lệ so với người dẫn đầu: đọc được cả một cột trong một
+   cái lướt. Vạch PHẲNG một màu — bản trước cho nó chạy gradient sang trong
+   suốt, đúng kiểu "thanh chỉ báo có gradient" mà vòng 11 đã gỡ ở thanh tiến
+   độ; cùng một loại chi tiết thì cùng một luật. */
 .lb-underline { position: absolute; left: 14px; bottom: 0; height: 2px; max-width: 60%; border-radius: 2px;
-  background: linear-gradient(90deg, var(--a-2), transparent); transform-origin: left;
+  background: var(--a-2); transform-origin: left;
   animation: barGrow .8s var(--e-out) both }
 .lb-table td.num { font-family: var(--mono); font-size: 12.5px; color: var(--txt-2) }
 .lb-table td.num b { font-weight: 600; color: var(--txt) }
 .lb-rate { display: block; font-size: 10px; color: var(--txt-3); margin-top: 1px }
 .lb-table td.lb-votes b { color: var(--a-2) }
-/* Điểm trong khối "hạng của bạn": cũng là con số quyết định thứ tự nên cùng
-   một tông với cột điểm trong bảng, không phải một màu thứ ba. */
-.lb-me-pts { color: var(--a-2); font-weight: 600 }
 
 /* ---- hàng của bạn, dính đáy khối ---- */
 .lb-me { display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-top: 0;
@@ -2485,7 +2482,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* chọn loại request: thẻ được chọn đổi màu + viền, không nhấc cũng không nảy
    — đây là ô chọn trong form, phản hồi nằm ở trạng thái chứ không ở chuyển động */
-.kcard { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
+.kchip { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
   background var(--t-1) var(--e-soft) }
 
 /* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
@@ -2521,7 +2518,7 @@ html[data-section="spin"] .bgfx { display: none; }
     background: var(--surface-2); }
   .grow:hover { border-color: rgba(169,164,255,.35); }
   .stat:hover::after { transform: scaleX(0) }
-  .pack:hover, .kcard:hover, .to-top:hover { transform: none; box-shadow: none }
+  .pack:hover, .kchip:hover, .to-top:hover { transform: none; box-shadow: none }
   .pack:hover { box-shadow: none }
   .lb-table tbody tr:hover { background: none }
   .lb-table tbody tr.me:hover { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
@@ -2535,7 +2532,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stat::after, .watch::after, .votebtn.on::before, .kcard.on { animation: none }
+  .stat::after, .watch::after, .votebtn.on::before, .kchip.on { animation: none }
   .stat:hover::after, .watch:hover::after { transition: none }
 }
 
@@ -2588,14 +2585,16 @@ html[data-section="spin"] .bgfx { display: none; }
    là "để tôi điền giúp ô bên cạnh". */
 .split-note { border-left-color: var(--queued); background: color-mix(in srgb, var(--queued) 10%, transparent); }
 
+/* Chú thích của hàng chip: MỘT dòng, không khung, không nền — nó thuộc về hàng
+   chip ngay trên chứ không phải một khối thứ hai trong form. Nhãn màu đứng
+   trước để mắt nối được "tôi vừa chọn cái nào" mà không phải đọc lại câu. */
 .kind-note {
-  margin: 10px 0 0; padding: 9px 12px;
-  font-size: 12.5px; line-height: 1.55; color: var(--txt-2);
-  border-radius: var(--radius); border: 1px solid var(--line);
-  border-left: 2px solid var(--k-album);
-  background: rgba(79,176,173,.07);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 9px 0 0; font-size: 12px; line-height: 1.5; color: var(--txt-2);
   animation: kn-in .26s var(--e-out) both;
 }
+.kind-note b { font-weight: 500; color: var(--txt); }
+.kind-note-sub { padding-left: 9px; border-left: 1px solid var(--line-2); color: var(--txt-3); }
 .kind-note .kind { font-weight: 600; }
 @keyframes kn-in { from { opacity: 0; transform: translateY(-3px) } to { opacity: 1; transform: none } }
 
@@ -3181,6 +3180,18 @@ html[data-section="spin"] .bgfx { display: none; }
    điều — đúng thứ bị bỏ ở vòng 8. */
 @media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; } }
 
+/* MÁY TÍNH BẢNG (621–899px): dải bảy chip trạng thái không còn vừa một hàng với
+   ô tìm kiếm — trước đây dải chip bị bóp lại và tự cuộn trong khi ô tìm kiếm
+   chiếm chỗ. Nay cùng luật với điện thoại: chip một hàng, ô tìm kiếm + dòng đếm
+   xuống hàng dưới. Khác điện thoại ở chỗ khối lọc loại bài VẪN hiện sẵn (màn
+   đủ rộng để thấy, không cần gấp lại sau nút). */
+@media (max-width: 899px) {
+  .fbar-top { flex-wrap: wrap; row-gap: 8px; }
+  .fchips { flex: 1 1 100%; }
+  .fbar-side { flex: 1 1 100%; }
+  .fbar .searchwrap { flex: 1 1 auto; min-width: 0; }
+}
+
 @media (max-width: 620px) {
   .fcount { display: none; }
   .fmore { display: inline-flex; }
@@ -3371,22 +3382,39 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* Chọn loại bài: bốn THẺ có tên + một dòng giải thích, thay cho bốn nút chữ.
    Hai loại khác nhau phải đọc ra là khác nhau ngay ở bước chọn. */
-.kindpicks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; min-width: 0; }
-.kcard {
-  display: grid; gap: 6px; align-content: start; padding: 10px 11px; text-align: left;
-  border: 1px solid var(--line-2); border-radius: var(--r-md);
-  background: var(--surface-2); cursor: pointer; font-family: inherit;
-  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+/* CHỌN LOẠI BÀI: một hàng chip, không phải bốn tấm thẻ.
+   Bốn thẻ kèm bốn câu giải thích chiếm gần một phần ba chiều cao form và bắt
+   mắt đọc bốn câu để chọn một. Chip giữ nguyên màu của từng loại (cùng token
+   với nhãn `.kind` trên bảng) nên vẫn nhận ra loại bằng màu, còn lời giải thích
+   dồn xuống MỘT dòng bên dưới, đổi theo lựa chọn. */
+.kindpicks { display: flex; flex-wrap: wrap; gap: 7px; min-width: 0; }
+.kchip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--txt-2);
+  font: 500 12.5px/1 var(--font); font-family: inherit; cursor: pointer;
+  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
+    color var(--t-1) var(--e-soft);
 }
-.kcard small { font-size: 11px; line-height: 1.45; color: var(--txt-3); }
-.kcard:hover { border-color: var(--line-2); background: var(--surface-3); }
-.kcard.on { border-color: color-mix(in srgb, currentColor 46%, transparent); }
-.kcard.on.ccl   { background: color-mix(in srgb, var(--k-ccl) 12%, var(--surface-2)); }
-.kcard.on.album { background: color-mix(in srgb, var(--k-album) 12%, var(--surface-2)); }
-.kcard.on.loop  { background: color-mix(in srgb, var(--k-loop) 12%, var(--surface-2)); }
-.kcard.on.short { background: color-mix(in srgb, var(--k-short) 12%, var(--surface-2)); }
-.kcard.on small { color: var(--txt-2); }
-.kcard:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.kchip:hover { background: var(--surface-3); color: var(--txt); }
+.kchip.on { color: var(--txt); font-weight: 600; }
+.kchip.on.ccl   { border-color: color-mix(in srgb, var(--k-ccl) 52%, transparent);   background: color-mix(in srgb, var(--k-ccl) 15%, var(--surface-2)); }
+.kchip.on.album { border-color: color-mix(in srgb, var(--k-album) 52%, transparent); background: color-mix(in srgb, var(--k-album) 15%, var(--surface-2)); }
+.kchip.on.loop  { border-color: color-mix(in srgb, var(--k-loop) 52%, transparent);  background: color-mix(in srgb, var(--k-loop) 15%, var(--surface-2)); }
+.kchip.on.short { border-color: color-mix(in srgb, var(--k-short) 52%, transparent); background: color-mix(in srgb, var(--k-short) 15%, var(--surface-2)); }
+.kchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+/* Nút mở ô ghi chú — ô TUỲ CHỌN duy nhất của form. Nét đứt, chữ nhạt: nó là
+   một lời mời, không phải một ô nhập đang chờ bị bỏ trống. */
+.note-add {
+  display: inline-flex; align-items: center; gap: 7px; align-self: start;
+  padding: 8px 13px; border: 1px dashed var(--line-2); border-radius: var(--r-pill);
+  background: none; color: var(--txt-3); font: 500 12.5px/1 var(--font);
+  cursor: pointer; transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+}
+.note-add:hover { color: var(--txt); border-color: var(--a-dim); }
+.note-add:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.note-field { gap: 0 }
 
 /* Ô nhập có bộ đếm ký tự ở mép phải. Bộ đếm nằm TRONG khung nhập (absolute)
    nên không làm ô cao lên khi nó xuất hiện ở ký tự thứ 85. */

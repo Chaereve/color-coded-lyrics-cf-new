@@ -80,15 +80,21 @@ lượt còn lại kèm thanh hai vạch, số dư, ba dòng luật và bảng x
 ngay dưới bánh xe, thẻ trạng thái rồi lịch sử.
 
 Vòng quay dùng các màu surface tối, cỡ chữ/viền/nút cùng bộ giao diện của bảng request.
-**16 ô bằng nhau**, mỗi bậc thưởng một tông trung tính sáng dần — ô sáng hơn là thưởng lớn
-hơn và hiếm hơn; ô jackpot +5 dùng xanh của website với số to hơn. Vành ngoài là một dải phẳng
+**Luật rút vẫn là 16 ô bằng nhau** (server rút đều trên 16 ô, 22,5° mỗi ô), nhưng **bản vẽ gom
+các ô cùng thưởng thành một dải liền**: chín ô `+1` nằm cạnh nhau thành một vùng, và mỗi dải
+chỉ in số thưởng **một lần** ở ô giữa dải, kèm số ô của dải (`+1 ×9`, `+2 ×4`, `+3 ×2`, `+5`).
+Trước đây mỗi ô in một số nên trên đĩa có **chín số 1 giống hệt nhau** — đúng lỗi "trùng lặp
+số vote". Màu lát đi theo **mức thưởng** (một tông cho một mức, sáng dần theo độ hiếm), nên
+nhìn là biết vùng nào đáng hơn; ô jackpot +5 dùng màu nhấn của website với số to hơn và vẫn
+nằm chính giữa 6 giờ. Vành ngoài là một dải phẳng
 viền hairline, các ô ngăn nhau bằng nan tối để 16 ô mỏng vẫn tách bạch; kim chỉ đủ lớn để chạm
 vào ô đang trỏ và rung nhẹ khi các ô lướt qua. **Không có logo ở tâm**, không slogan, không đèn
 viền, không nền gradient. Khi bánh xe dừng, ô trúng được viền sáng còn các ô khác hạ sáng để
 mắt thấy ngay kết quả; ô kết quả dưới nút Spin giữ chiều cao cố định nên không đẩy bố cục.
 Thẻ trạng thái kết thúc bằng **Today's rewards** — phần thưởng hôm nay của chính người xem
-kèm nút *Use votes* ngay cạnh tiêu đề; khối xác suất dạng bảng đã ẩn khỏi giao diện vì bánh xe
-16 ô bằng nhau tự nó đã nói lên tỉ lệ (bảng số liệu đầy đủ nằm ở mục dưới của hướng dẫn này).
+kèm nút *Use votes* ngay cạnh tiêu đề, mỗi dòng mang màu của mức thưởng (dòng trúng jackpot
+nổi bật hẳn), và một dòng **tổng hôm nay** cộng từ chính danh sách đó. Khối xác suất dạng bảng
+vẫn không quay lại giao diện: bánh xe (dải + số ô) và dòng tóm tắt ở đầu khối đã nói đủ.
 Số dư/lịch sử trên trang chỉ hiện phần thưởng mới khi vòng quay dừng; database vẫn cộng thưởng
 ngay trong transaction, rời trang không mất thưởng.
 
@@ -637,56 +643,41 @@ Chạy `npm test` để kiểm tra luật xếp hạng này (12 ca, dùng `node:
 
 ---
 
-## Bảng xếp hạng — luật tính điểm
+## Bảng xếp hạng — luật xếp hạng
 
 Bảng xếp hạng trả lời câu hỏi "ai đóng góp nhiều nhất", và câu trả lời nằm ở **một chỗ**:
 `src/lib/ranking.js` (hàm thuần, không React, không gọi mạng — test bằng số được). Component
 chỉ hỏi luật, không tự sắp xếp.
 
-**Bốn góc nhìn**, đổi bằng bốn nút ngay trên bảng:
+**Ba góc nhìn**, đổi bằng ba nút ngay trên bảng — mỗi góc là **một con số đếm được**:
 
 | Cách xếp | Trả lời câu hỏi | Khoá phá hoà (theo thứ tự) |
 |---|---|---|
-| **Score** (mặc định) | Ai đóng góp nhiều nhất | số bài đã xong → tổng phiếu → số bài gửi → tỉ lệ → tên |
-| **Requests** | Ai gửi nhiều bài nhất | số bài đã xong → tổng phiếu → … |
-| **Completed** | Ai có nhiều bài được làm xong nhất | tổng phiếu → số bài gửi → … |
+| **Completed** (mặc định) | Ai có nhiều bài được làm xong nhất | tổng phiếu → số bài gửi → tỉ lệ → tên |
 | **Votes earned** | Ai được cộng đồng đòi nhiều nhất | số bài đã xong → số bài gửi → … |
+| **Requests** | Ai gửi nhiều bài nhất | số bài đã xong → tổng phiếu → … |
 
-**Công thức của cách xếp mặc định:**
+**Không còn "điểm".** Bản trước có thêm một cột `Score` = `10 × bài đã xong + tổng phiếu`. Con
+số đó do chính bảng tự đặt ra: trọng số `10` không ứng với thứ gì trong sản phẩm (không phải
+giá của một bài, không phải mốc phiếu nào), không xuất hiện ở màn hình nào khác, nên người xem
+muốn hiểu thứ tự phải tin vào một phép nhân không giải thích được — đó là lý do nó bị gọi là
+"tiêu chí điểm kì lạ". Nay bảng chỉ xếp theo ba con số **có thật** trong view
+`requester_ranking`: `completed`, `total_votes`, `total`. Bớt được một tab, một cột, một câu
+giải thích dài, và không còn hằng số nào để lệch giữa lời nói và phép tính.
 
-> **điểm = 10 × số bài đã xong + tổng phiếu**
+**Mặc định là bài đã xong**, không phải số bài gửi: gửi 40 bài mà không bài nào lên sóng thì
+không leo hạng — cùng tinh thần với việc gom cụm bài trùng và việc bài bị từ chối không được
+tính hạng. Cộng đồng đòi thật vẫn có tiếng nói, nhưng ở **cách xếp riêng của nó**
+(*Votes earned*) và ở khoá phá hoà của mọi cách xếp.
 
-Hai tính chất là chủ ý, và cả hai đều để chống một cách leo hạng:
+Trên màn hình: bảng có **ba cột số** (bài gửi · bài đã xong · phiếu), vạch tỉ lệ dưới tên là
+một vạch **phẳng một màu** (không gradient), và hàng của chính bạn được tô một tấm nền phẳng
+rồi dính đáy khối để không phải cuộn đi tìm.
 
-- **Bài chưa xong không có điểm.** Gửi 40 bài mà không bài nào được làm thì không leo hạng —
-  cùng tinh thần với việc gom cụm bài trùng và việc bài bị từ chối không được tính hạng.
-- **Một bài xong đáng giá bằng 10 phiếu.** Cộng đồng đòi thật vẫn có tiếng nói (một bài được
-  40 phiếu còn hơn bốn bài xong lẻ tẻ), nhưng phiếu không mua được hạng một mình.
-
-Hai trọng số là **hằng số công khai** trong `src/lib/ranking.js`:
-
-```js
-export const POINT_DONE = 10   // mỗi bài đã làm xong
-export const POINT_VOTE = 1    // mỗi phiếu cộng đồng
-export const pointsOf = (p) => POINT_DONE * n(p?.completed) + POINT_VOTE * n(p?.total_votes)
-```
-
-Câu nói rõ luật trên bảng **ghép số từ chính hai hằng số đó**, nên đổi trọng số là đổi cả câu
-chữ — không thể có chuyện bảng tính một đằng, lời giải thích một nẻo. Muốn đổi luật (ví dụ
-một bài xong đáng 5 phiếu), sửa `POINT_DONE` rồi chạy `npm test`: `src/lib/ranking.test.js`
-khoá luật bằng số và sẽ đỏ nếu câu chữ lệch khỏi phép tính.
-
-Trên màn hình: **điểm có một cột riêng** (`Score`) — đó là con số quyết định thứ tự của cách
-xếp mặc định, nên nó phải có tên cột chứ không thể là một nhãn phụ nằm trong ô tên người;
-mỗi hàng trong bảng có ô điểm kèm lời giải thích (rê chuột vào là hiện "Score 190 = 10 ×
-completed requests + votes earned"); ba người dẫn đầu nằm trên **bục** với con số lớn là điểm
-của chính họ; **hàng của bạn** in luôn điểm của mình ("40 points") và dính đáy khối để không
-phải cuộn đi tìm.
-
-**Bài bị từ chối không tính gì** — không vào số bài, không vào điểm, không vào phiếu. Đây
+**Bài bị từ chối không tính gì** — không vào số bài, không vào phiếu, không vào hạng. Đây
 không phải một ghi chú: nó là một dòng `where r.status <> 'denied'` trong view
-`requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để farm
-điểm là vô ích.
+`requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để leo hạng
+là vô ích.
 
 ## Theo dõi bài + thông báo (Notifications)
 

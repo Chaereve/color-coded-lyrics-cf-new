@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
-  spinCountdown, spinRotation, spinTicks, spinTiers,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds, spinAverage,
+  spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
 } from '../lib/dailySpin'
 import {
   SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,
@@ -20,10 +20,12 @@ const point = (angle, radius) => {
   const rad = angle * Math.PI / 180
   return [round(C + radius * Math.sin(rad)), round(C - radius * Math.cos(rad))]
 }
-const sectorPath = (index, count, radius = FACE) => {
-  const step = 360 / count
-  const [sx, sy] = point((index - .5) * step, radius)
-  const [ex, ey] = point((index + .5) * step, radius)
+/* Lát vẽ theo TÂM Ô, không theo chỉ số: bản vẽ đã xoay cả vòng để dải giải cao
+   nhất nằm ở 6 giờ (xem spinSectors), nên chỉ số ô không còn suy ra góc được. */
+const sectorAt = (centre, count, radius = FACE) => {
+  const half = 180 / count
+  const [sx, sy] = point(centre - half, radius)
+  const [ex, ey] = point(centre + half, radius)
   return `M${C} ${C} L${sx} ${sy} A${radius} ${radius} 0 0 1 ${ex} ${ey} Z`
 }
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -59,10 +61,8 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
    logo trong trục. */
 const HUB = 21             // bán kính trục
 
-function Wheel({ rewards, rotation, duration, spinning, won, label, pointerRef }) {
-  const count = rewards.length
-  const step = 360 / count
-  const tiers = spinTiers(rewards)
+function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef }) {
+  const count = sectors.length
   return (
     <div className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}`}
       role="img" aria-label={label}>
@@ -70,22 +70,30 @@ function Wheel({ rewards, rotation, duration, spinning, won, label, pointerRef }
         style={{ transform: `rotate(${rotation}deg)`, transitionDuration: `${duration}ms` }}>
         <circle cx={C} cy={C} r="195" className="spin-wheel-rim" />
         <circle cx={C} cy={C} r="199.5" className="spin-wheel-edge" />
-        {rewards.map((reward, i) => (
+        {sectors.map((s, i) => (
+          /* Màu = MỨC THƯỞNG (cùng dải cùng màu), kẻ ô bằng sắc nhạt hơn ở ô
+             lẻ trong dải — nên mắt vẫn đếm được từng ô mà vẫn đọc ra "vùng
+             nào là +1", thứ mà cách tô xen kẽ theo chẵn/lẻ không nói được. */
           <path key={i}
-            className={`spin-sector ${i % 2 ? 'alt' : 'base'}${tiers[i] === 't4' ? ' jackpot' : ''}${won === i ? ' is-won' : ''}`}
-            d={sectorPath(i, count)} />
+            className={`spin-sector ${s.tier}${s.slot % 2 ? ' weave' : ''}${won === i ? ' is-won' : ''}`}
+            d={sectorAt(s.angle, count)} />
         ))}
-        {rewards.map((reward, i) => {
-          const [x, y] = point(i * step, LABEL)
+        {sectors.map((s, i) => {
+          /* MỘT nhãn cho MỘT dải, in ở ô giữa dải, kèm số ô của dải ("×9") —
+             chín ô +1 thì đọc là "+1 ×9", không phải chín lần số 1. */
+          if (!s.label) return null
+          const [x, y] = point(s.angle, LABEL)
           // Turn the lower half upright so no prize number hangs upside down.
-          const flip = i * step > 90 && i * step < 270 ? 180 : 0
-          return <text key={i} className={`spin-wheel-number${tiers[i] === 't4' ? ' jackpot' : ''}${won === i ? ' is-won' : ''}`}
-            x={x} y={y} transform={`rotate(${i * step + flip} ${x} ${y})`}
+          const flip = s.angle > 90 && s.angle < 270 ? 180 : 0
+          const lit = won !== null && sectors[won].reward === s.reward
+          return <text key={i} className={`spin-wheel-number${s.tier === 't4' ? ' jackpot' : ''}${lit ? ' is-won' : ''}`}
+            x={x} y={y} transform={`rotate(${s.angle + flip} ${x} ${y})`}
             textAnchor="middle" dominantBaseline="central">
-            <tspan className="spin-wheel-plus">+</tspan>{reward}
+            <tspan className="spin-wheel-plus">+</tspan>{s.reward}
+            {s.count > 1 && <tspan className="spin-wheel-times" x={x} dy="19">×{s.count}</tspan>}
           </text>
         })}
-        {won !== null && <path className="spin-wheel-marker" d={sectorPath(won, count)} />}
+        {won !== null && <path className="spin-wheel-marker" d={sectorAt(sectors[won].angle, count)} />}
         <circle cx={C} cy={C} r={HUB} className="spin-wheel-hub" />
       </svg>
       <span className="spin-wheel-pointer" aria-hidden="true">
@@ -264,7 +272,10 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
          TypeError giữa lúc quay, người dùng mất lượt mà không thấy gì. Thiếu
          thì rơi về đúng 16 ô mặc định. */
       const rewards = data.status?.rewards?.length ? data.status.rewards : SPIN_REWARDS
-      const next = spinRotation(angle.current, data.spin.segment, rewards.length)
+      /* Chỉ số server trả về thuộc BẢNG RÚT; bản vẽ gom ô cùng thưởng thành
+         dải nên phải quy đổi sang ô trên bản vẽ, kẻo kim dừng ở ô khác với ô
+         được tô sáng. */
+      const next = spinRotation(angle.current, spinSectorIndex(data.spin.segment, rewards), rewards.length)
       const travel = next - angle.current
       angle.current = next
       setRotation(next)
@@ -305,6 +316,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   }
 
   const rewards = status?.rewards || SPIN_REWARDS
+  const sectors = useMemo(() => spinSectors(rewards), [rewards])
   const remaining = status?.remaining ?? 0
   const limit = status?.limit || DAILY_SPIN_LIMIT
   const active = phase !== 'idle'
@@ -319,7 +331,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
     purchased: status?.purchased ?? purchased ?? 0,
     bonus: status?.bonus ?? bonus ?? 0,
   }
-  const won = result ? result.segment : null
+  const won = result ? spinSectorIndex(result.segment, rewards) : null
   const buttonLabel = phase === 'requesting' ? 'spin.requesting'
     : phase === 'spinning' ? 'spin.spinning'
     : loading ? 'spin.loading' : pending ? 'spin.recover'
@@ -332,6 +344,10 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
           <h2>{t('spin.playLabel')}</h2>
           <p>
             {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
+            {/* Bản thật không có nhãn demo nên dòng này từng TRỐNG: đầu trang chỉ
+                có mỗi tiêu đề. Luật chơi rút gọn thành một câu, kèm con số trung
+                bình tính từ CHÍNH bảng thưởng — đổi bảng là đổi luôn câu này. */}
+            <span className="spin-sum">{t('spin.summary', { n: spinAverage(rewards) })}</span>
           </p>
         </div>
         <div className="spin-reset" title={t('spin.ruleReset')}>
@@ -342,7 +358,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
 
       <div className="spin-stage">
         <div className="spin-dial">
-          <Wheel rewards={rewards} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
+          <Wheel sectors={sectors} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
             pointerRef={pointerRef}
             won={won} label={t('spin.wheelLabel', {
               n: rewards.length,
@@ -412,11 +428,21 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
               </button>
             </div>
             {history.length ? <ul>
-              {history.map(item => <li key={item.request_id}>
+              {/* Mỗi dòng mang HẠNG của phần thưởng (cùng tông với dải trên
+                  đĩa): nhìn lịch sử là thấy ngay hôm nay có trúng giải cao
+                  nhất hay không, không phải đọc từng con số. */}
+              {history.map(item => <li key={item.request_id} className={spinTier(item.reward, rewards)}>
                 <b>{t(item.reward === 1 ? 'spin.rewardOne' : 'spin.reward', { n: item.reward })}</b>
                 <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
               </li>)}
             </ul> : <p>{t('spin.historyEmpty')}</p>}
+            {/* Tổng của chính danh sách bên trên — con số duy nhất trên trang
+                cộng từ dữ liệu thật, và là câu trả lời cho "hôm nay được gì". */}
+            {history.length > 0 && (
+              <p className="spin-total">{t('spin.todayTotal', {
+                n: history.reduce((sum, item) => sum + item.reward, 0),
+              })}</p>
+            )}
           </div>
         </aside>
       </div>

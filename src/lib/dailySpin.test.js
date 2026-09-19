@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
-  spinTiers, spinShades, spinTicks, spinAverage, formatChance, spinRotation, spinCountdown,
+  spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
+  spinRotation, spinCountdown,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
@@ -109,18 +110,59 @@ test('wheel always stops at the centre of the awarded sector on repeated spins',
   for (const index of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) assert.throws(() => spinRotation(0, index))
 })
 
-test('slice shades cycle inside each prize tier, so equal neighbours differ', () => {
-  const shades = spinShades()
-  assert.equal(shades.length, SPIN_REWARDS.length)
-  assert.ok(shades.every(v => ['v1', 'v2', 'v3'].includes(v)))
-  // Two +1 slices sit side by side (index 4/5 and 9/10 style pairs): the shade
-  // must break them apart or the wheel shows one fat block again.
-  for (let i = 0; i < SPIN_REWARDS.length; i++) {
-    const j = (i + 1) % SPIN_REWARDS.length
-    if (SPIN_REWARDS[i] === SPIN_REWARDS[j]) assert.notEqual(shades[i], shades[j])
+test('bản vẽ gom ô cùng thưởng thành dải và in số MỘT lần cho mỗi dải', () => {
+  const sectors = spinSectors()
+  const step = 360 / SPIN_REWARDS.length
+  assert.equal(sectors.length, 16, 'vẫn đủ 16 ô, mỗi ô 22,5° — xác suất không đổi')
+  /* MỖI GIÁ TRỊ LÀ MỘT DẢI LIỀN: đi hết vòng, giá trị cũ không quay lại sau khi
+     đã đổi sang giá trị khác. Đây là thứ khiến "+1 ×9" đọc được thành một
+     vùng, thay vì chín số 1 rải rác (lỗi "trùng lặp số vote"). */
+  const bands = sectors.filter((s, i, all) => i === 0 || all[i - 1].reward !== s.reward)
+  assert.deepEqual(bands.map(s => s.reward), [1, 2, 3, 5], 'bốn dải, tăng dần, không cắt khúc')
+  const seen = new Map()
+  for (const s of sectors) seen.set(s.reward, (seen.get(s.reward) || 0) + 1)
+  assert.deepEqual([...seen], [[1, 9], [2, 4], [3, 2], [5, 1]], 'đúng bảng thưởng')
+  for (const s of sectors) assert.equal(s.count, seen.get(s.reward), 'số ô của dải')
+  // Tâm ô nằm trên lưới 22,5° (kim dừng ở tâm ô — xem spinRotation)
+  assert.equal(new Set(sectors.map(s => s.angle)).size, 16, 'không hai ô nào trùng tâm')
+  for (const s of sectors) {
+    assert.equal(s.angle % step, 0, `tâm ô lệch lưới: ${s.angle}`)
+    assert.ok(s.angle >= 0 && s.angle < 360)
   }
-  // Same prize keeps ONE hue: the tier, not the shade, carries the meaning.
-  assert.deepEqual(spinShades([4, 4, 4, 4]), ['v1', 'v2', 'v3', 'v1'])
+  // Giải cao nhất vẫn ở 6 giờ, như bản 16 ô trước
+  assert.equal(sectors.find(s => s.reward === 5).angle, 180)
+  // ĐÚNG BỐN nhãn: một nhãn cho một dải, đặt ở ô giữa dải
+  const labels = sectors.filter(s => s.label)
+  assert.deepEqual(labels.map(s => [s.reward, s.count]), [[1, 9], [2, 4], [3, 2], [5, 1]])
+  for (const label of labels) {
+    const band = sectors.filter(s => s.reward === label.reward)
+    assert.equal(label, band[Math.floor((band.length - 1) / 2)], 'nhãn ở ô giữa dải')
+  }
+  assert.equal(sectors.filter(s => s.label).length, new Set(SPIN_REWARDS).size,
+    'số nhãn = số mức thưởng, không phải số ô')
+})
+
+test('ô server rút được quy đổi đúng sang ô trên bản vẽ', () => {
+  const sectors = spinSectors()
+  const picked = []
+  for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
+    const i = spinSectorIndex(segment)
+    assert.equal(sectors[i].reward, SPIN_REWARDS[segment], `ô ${segment} trỏ sai dải`)
+    picked.push(i)
+  }
+  /* Mười sáu ô rút trỏ về mười sáu ô vẽ, và ô thứ mấy trong nhóm thì rơi đúng
+     ô thứ mấy của dải — nếu không, hai lượt khác nhau sẽ cùng tô sáng một ô. */
+  assert.equal(new Set(picked).size, 16)
+  const plus1 = sectors.map((s, i) => [s, i]).filter(([s]) => s.reward === 1).map(([, i]) => i)
+  assert.deepEqual(plus1, [0, 1, 2, 3, 4, 5, 6, 7, 8])
+  for (const bad of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) {
+    assert.throws(() => spinSectorIndex(bad), 'chỉ số ngoài bảng phải bị chặn')
+  }
+  /* Bảng thưởng do máy chủ trả về cũng quy đổi được: một mức thưởng duy nhất
+     thì cả vòng là MỘT dải, nên chỉ còn đúng MỘT nhãn. */
+  const custom = [2, 2, 2, 2]
+  assert.equal(spinSectors(custom).filter(s => s.label).length, 1)
+  assert.equal(spinSectorIndex(3, custom), 3)
 })
 
 test('tick track follows the CSS easing: dense at the start, sparse at the stop', () => {

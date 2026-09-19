@@ -9,7 +9,7 @@
    Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { POINT_DONE, POINT_VOTE, RANK_SORTS, pointsOf, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
+import { RANK_SORTS, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
 
 const P = (name, total, completed, total_votes) => ({ name, total, completed, total_votes })
 
@@ -91,40 +91,46 @@ test('bài bị từ chối không vào hạng, và dòng méo không làm sập
   assert.equal(out.find(p => p.user_id === 'v').total_votes, 0, 'votes null thành 0, không thành NaN')
 })
 
-test('luật tính điểm: 10 × bài đã xong + phiếu, và bài chưa xong KHÔNG có điểm', () => {
-  /* Ba người này là ba kiểu leo hạng cũ: gửi thật nhiều, làm ra ít, hoặc được
-     cộng đồng đòi thật nhiều. Xếp theo số bài thì `spam` nhất; xếp theo điểm
-     thì `star` nhất và `spam` — 40 bài mà chưa bài nào xong — xuống cuối. */
+test('xếp MẶC ĐỊNH theo bài đã xong: gửi nhiều mà không bài nào lên sóng thì không leo hạng', () => {
+  /* Ba người này là ba kiểu leo hạng: gửi thật nhiều, làm ra ít, và được cộng
+     đồng đòi thật nhiều. Bản trước cộng cả ba vào một con số "điểm" do chính
+     bảng tự đặt ra (10 × bài xong + phiếu) — người xem muốn hiểu thứ tự phải
+     tin vào một phép nhân không giải thích được. Nay xếp theo đúng số bài ĐÃ
+     LÀM XONG, và không con số nào tự đặt. */
   const out = rankRows([
     P('spam', 40, 0, 20),
     P('maker', 4, 2, 3),
     P('star', 1, 1, 40),
   ])
-  assert.deepEqual(out.map(p => p.name), ['star', 'maker', 'spam'])
-  assert.deepEqual(out.map(p => p.points), [50, 23, 20])
+  assert.deepEqual(out.map(p => p.name), ['maker', 'star', 'spam'])
   assert.deepEqual(out.map(p => p.place), [1, 2, 3])
-  assert.equal(out[0].share, 1, 'người dẫn đầu điểm luôn có tỉ lệ 1')
+  assert.equal(out[0].share, 1, 'người dẫn đầu luôn có tỉ lệ 1')
+  /* Dòng trả về KHÔNG có khoá `points`: bỏ con số tự đặt là bỏ hẳn, không để
+     lại một trường chết mà lần sau ai đó lại đọc. */
+  for (const p of out) assert.ok(!('points' in p), 'không còn trường điểm')
 })
 
-test('điểm bằng nhau thì ai XONG NHIỀU HƠN đứng trước (khoá phá hoà chạy thật)', () => {
-  const out = rankRows([P('votes', 6, 3, 10), P('done', 4, 4, 0)], 'points')
-  assert.equal(out[0].name, 'done', '3×10+10 = 40 = 4×10 → 4 bài xong phải trên 3 bài xong')
+test('cùng số bài đã xong thì ai có nhiều phiếu hơn đứng trước (khoá phá hoà chạy thật)', () => {
+  const out = rankRows([P('few-votes', 6, 3, 10), P('many-votes', 6, 3, 44)])
+  assert.equal(out[0].name, 'many-votes', 'cùng 3 bài xong: 44 phiếu trên 10 phiếu')
 })
 
-test('trọng số điểm là hằng số công khai, không rải trong component', () => {
-  /* Câu nói rõ luật trên bảng xếp hạng đọc thẳng từ hai hằng số này, nên đổi
-     luật ở đây là đổi cả câu chữ — không thể có chuyện bảng tính một đằng,
-     lời giải thích một nẻo. */
-  assert.equal(POINT_DONE, 10)
-  assert.equal(POINT_VOTE, 1)
-  assert.equal(pointsOf({ completed: 3, total_votes: 7 }), 37)
-  assert.equal(pointsOf(null), 0, 'dòng rỗng có 0 điểm, không ném lỗi')
-  assert.equal(pointsOf({ completed: 'abc', total_votes: null }), 0, 'dữ liệu méo vẫn ra số')
+test('bảng chỉ xếp theo BA con số có thật trong dữ liệu trả về', () => {
+  /* Không còn hằng số trọng số nào để lệch: mỗi cách xếp là một khoá có thật
+     trong view `requester_ranking` (total, completed, total_votes). */
+  assert.deepEqual(RANK_SORTS.map(s => s.field), ['completed', 'total_votes', 'total'])
+  const shape = new Set(['total', 'completed', 'total_votes'])
+  for (const s of RANK_SORTS) assert.ok(shape.has(s.field), `${s.k} phải là một cột có thật`)
+  /* Mặc định là bài đã xong, không phải số bài gửi. */
+  assert.equal(RANK_SORTS[0].k, 'completed')
+  assert.equal(rankRows([P('x', 9, 0, 90)])[0].place, 1)
 })
 
 test('mỗi cách xếp có màu riêng và khoá chính nằm trong dữ liệu nhận về', () => {
-  assert.equal(RANK_SORTS.length, 4)
-  assert.equal(RANK_SORTS[0].k, 'points', 'mặc định là luật tính điểm')
+  /* Ba cách xếp = ba câu hỏi. Cột "điểm" thứ tư đã bị gỡ cùng con số tự đặt
+     của nó, nên bảng cũng bớt được một tab và một cột. */
+  assert.equal(RANK_SORTS.length, 3)
+  assert.equal(RANK_SORTS[0].k, 'completed', 'mặc định là số bài đã xong')
   for (const s of RANK_SORTS) {
     assert.ok(s.tone.startsWith('var(--'), `${s.k} phải có màu theo token`)
     assert.equal(s.minis.length, 2, `${s.k}: bục chỉ in hai chỉ báo phụ`)
@@ -133,5 +139,6 @@ test('mỗi cách xếp có màu riêng và khoá chính nằm trong dữ liệu
     assert.equal(out[0].place, 1)
     assert.equal(typeof out[0][s.field], 'number', `${s.k}: khoá chính phải có trong dòng trả về`)
   }
-  assert.equal(rankRows([P('x', 1, 1, 1)], 'total')[0].points, 11, 'điểm có mặt ở mọi cách xếp')
+  /* Không cách xếp nào sinh ra trường điểm nữa — bỏ là bỏ hẳn. */
+  for (const s of RANK_SORTS) assert.ok(!('points' in rankRows([P('x', 1, 1, 1)], s.k)[0]))
 })

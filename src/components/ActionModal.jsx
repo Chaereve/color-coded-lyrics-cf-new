@@ -44,7 +44,7 @@ function RulesGate({ onAgree }) {
   const { t } = useI18n()
   return (
     <div className="rules">
-      <h4>{t('req.rulesTitle')}</h4>
+      <h3>{t('req.rulesTitle')}</h3>
       <ol>
         <li><b>1</b><span>{t('req.rule1')}</span></li>
         <li><b>2</b><span>{t('req.rule2')}</span></li>
@@ -99,6 +99,11 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   /* Ô nào đã được RỜI khỏi: chỉ hiện lỗi sau khi người dùng đi qua ô đó, không
      hiện ngay từ ký tự đầu tiên — form mở ra đã đỏ là form bị lỗi. */
   const [touched, setTouched] = useState({})
+  /* Ô GHI CHÚ: ô tuỳ chọn duy nhất của form, và cũng là ô cao nhất (textarea
+     ba dòng). Để nó mở sẵn là bắt MỌI người trả lời một câu mà phần lớn không
+     cần trả lời. Gấp khi chưa có chữ; đã có chữ (nháp, link mời) thì mở sẵn —
+     lúc đó nó là việc đang làm dở, không phải một lời mời. */
+  const [noteOpen, setNoteOpen] = useState(() => !!(draft?.note || prefill?.note || '').trim())
   const [agreed, setAgreed] = useState(() => {
     try { return localStorage.getItem(RULES_KEY) === RULES_V } catch { return false }
   })
@@ -258,24 +263,30 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 
       <div className="field">
         <label id="kind-label">{t('req.kind')}</label>
+        {/* MỘT hàng chip, và MỘT dòng giải thích cho loại ĐANG chọn.
+            Bản trước là bốn tấm thẻ, mỗi thẻ kèm một câu giải thích: muốn chọn
+            một loại thì mắt phải đọc bốn câu, và cả khối chiếm gần một phần ba
+            chiều cao form — đúng thứ bị gọi là "rối mắt". Câu giải thích vẫn
+            còn nguyên, chỉ chuyển tới chỗ nó có ích: dưới lựa chọn đang bấm. */}
         <div className="kindpicks" role="group" aria-labelledby="kind-label">
           {KINDS.map(k => (
             <button type="button" key={k}
-              className={`kcard ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
+              className={`kchip ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
               aria-pressed={form.kind === k}
+              title={t(`req.kindHint.${kindCls(k)}`)}
               onClick={() => setForm(f => ({ ...f, kind: k }))}>
-              <span className={`kind ${kindCls(k)}`}>{k}</span>
-              <small>{t(`req.kindHint.${kindCls(k)}`)}</small>
+              {form.kind === k && <Icon name="check" size={13} />}
+              <span>{k}</span>
             </button>
           ))}
         </div>
-        {/* chú thích chỉ hiện với loại có noteKey (hiện tại: Full Album) */}
-        {meta.noteKey && (
-          <p className="kind-note" key={form.kind}>
-            <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>{' '}
-            {t(meta.noteKey)}
-          </p>
-        )}
+        {/* Dòng này ĐỔI theo lựa chọn nên nó vừa giải thích vừa xác nhận, chứ
+            không phải một dải chữ tĩnh nằm đó suốt buổi. */}
+        <p className="kind-note" key={form.kind}>
+          <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
+          <b>{t(`req.kindHint.${kindCls(form.kind)}`)}</b>
+          {meta.noteKey && <span className="kind-note-sub">{t(meta.noteKey)}</span>}
+        </p>
       </div>
 
       {/* HAI Ô CHÍNH — hai lối tắt ở đây đều là đường đi ngắn nhất của người
@@ -414,11 +425,21 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         </p>
       </div>
 
-      <div className="field">
-        <label htmlFor="rq-note">{t('req.note')}</label>
-        <textarea id="rq-note" value={form.note} onChange={set('note')} maxLength={500}
-          placeholder={t('req.notePh')} />
-        <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
+      <div className="field note-field">
+        {noteOpen ? (
+          <>
+            <label htmlFor="rq-note">{t('req.note')}</label>
+            <textarea id="rq-note" value={form.note} onChange={set('note')} maxLength={500}
+              placeholder={t('req.notePh')} />
+            <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
+          </>
+        ) : (
+          <button type="button" className="note-add" aria-expanded="false" aria-controls="rq-note"
+            onClick={() => setNoteOpen(true)}>
+            <Icon name="plus" size={13} />
+            {t('req.noteAdd')}
+          </button>
+        )}
       </div>
 
       <div className="paidbox">
@@ -571,7 +592,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 
   return (
     <>
-      <div className="section-title">{t('buy.packs')}</div>
+      <h3 className="section-title">{t('buy.packs')}</h3>
       <div className="packs">
         {VOTE_PACKS.map(p => (
           <div className={`pack${p.id === best.id ? ' best' : ''}`} key={p.id}>
@@ -588,7 +609,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
         ))}
       </div>
 
-      <div className="section-title" style={{ marginTop: 20 }}>{t('buy.single')}</div>
+      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.single')}</h3>
       <div className="buyone">
         <div className="buyone-info">
           <div className="buyone-rate">{usd(SINGLE_VOTE.usd)} <span>{t('buy.perVote')}</span></div>
@@ -613,13 +634,13 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 
       {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
 
-      <div className="section-title" style={{ marginTop: 20 }}>{t('buy.payment')}</div>
+      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.payment')}</h3>
       <div className="pay-note">
         {t('buy.payNote1')}<b>{t('buy.payNoteB')}</b>{t('buy.payNote2')}
       </div>
       <PaymentMethods amountVnd={lastOrder?.vnd ?? 0} amountUsd={lastOrder?.usd ?? 0} content={userName} />
 
-      <div className="section-title" style={{ marginTop: 20 }}>{t('buy.yourOrders')}</div>
+      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.yourOrders')}</h3>
       <div className="support">
         {t('support.line')}{' '}
         <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
@@ -670,8 +691,15 @@ export default function ActionModal({
 
   return (
     <div className={`overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal${out}`} role="dialog" aria-modal="true">
+      <div className={`modal${out}`} role="dialog" aria-modal="true" aria-labelledby="am-title">
         <div className="modal-head">
+          {/* Hộp này TRƯỚC ĐÂY không có tên: `role="dialog"` mà không có
+              `aria-labelledby`/`aria-label` thì trình đọc màn hình chỉ nói
+              "hộp thoại" rồi đọc nội dung, người dùng không biết mình vừa mở
+              cái gì. Tên lấy từ chính tab đang mở — thứ đang hiện trên màn
+              hình — nên không phải đặt thêm một dòng chữ nào. Đây cũng là
+              tiêu đề cấp 2 của hộp, để các mục bên trong (h3) có cấp trên. */}
+          <h2 className="sr-only" id="am-title">{t(`tab.${tab}`)}</h2>
           <div className="modal-tabs">
             <button className={`mtab${tab === 'request' ? ' on' : ''}`} onClick={() => setTab('request')}>{t('tab.request')}</button>
             <button className={`mtab${tab === 'vote' ? ' on' : ''}`} onClick={() => setTab('vote')}>

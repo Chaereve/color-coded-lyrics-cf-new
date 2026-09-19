@@ -95,6 +95,9 @@ const S = {
   'spin.deviceReset': 'Reset this browser',
   'spin.deviceResetHint': 'Clears the saved browser token, then reloads. Your spins already used today stay used.',
   'spin.hint': 'Every sector wins something.',
+  /* Một câu cho cả luật chơi, ở đầu trang — số trung bình tính từ chính bảng
+     thưởng nên không bao giờ lệch với vòng quay. */
+  'spin.summary': 'Every spin wins — {n} bonus votes on average.',
   'spin.wonOne': '+1 bonus vote',
   'spin.won': '+{n} bonus votes',
   'spin.wonNote': 'Added to your vote credits.',
@@ -105,6 +108,7 @@ const S = {
   'spin.reward': '+{n} votes',
   'spin.history': 'Today’s rewards',
   'spin.historyEmpty': 'No spins yet.',
+  'spin.todayTotal': 'Today: +{n} bonus votes',
   'spin.addedAt': '{time} · GMT+7',
   'spin.rules': 'Spin rules',
   'spin.ruleLimit': '{n} spins per account and device, daily.',
@@ -337,7 +341,6 @@ const S = {
   'rank.empty': 'No data yet.',
   'rank.you': 'you',
   'rank.requests': 'requests',
-  'rank.points': 'points',
   'rank.completed': 'completed',
   'rank.votes': 'votes',
   'rank.kicker': 'Latest update',
@@ -345,13 +348,9 @@ const S = {
   'rank.sort.total': 'Requests',
   'rank.sort.completed': 'Completed',
   'rank.sort.total_votes': 'Votes earned',
-  /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js). */
-  /* Luật tính điểm: hai trọng số được ghép vào câu từ chính hằng số dùng để
-     tính (`POINT_DONE`, `POINT_VOTE` trong ranking.js) nên câu chữ không thể
-     lệch khỏi phép tính. */
-  'rank.rule.points': 'Sorted by score: {d} points per completed request + {v} per vote · ties go to more completed, then more votes',
-  'rank.ptsTip': 'Score {n} = {d} × completed requests + votes earned',
-  'rank.sort.points': 'Score',
+  /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js).
+     Ba câu, ba con số đếm được — bảng không còn "điểm" nào do nó tự đặt ra, nên
+     cũng không còn câu giải thích trọng số nào để mà lệch. */
   'rank.rule.total': 'Sorted by requests sent · ties go to more completed, then more votes',
   'rank.rule.completed': 'Sorted by requests completed · ties go to more votes, then more requests',
   'rank.rule.total_votes': 'Sorted by votes earned · ties go to more completed, then more requests',
@@ -393,6 +392,8 @@ const S = {
   'req.step1': 'Pick a type',
   'req.step2': 'Name the song',
   'req.step3': 'Send it',
+  /* Nút mở ô ghi chú — ô tuỳ chọn duy nhất, mặc định gấp lại. */
+  'req.noteAdd': 'Add a note (optional)',
   'req.kindHint.ccl': 'Colour-coded lyrics video',
   'req.kindHint.album': 'Every track on the release',
   'req.kindHint.loop': 'One song looping for an hour',

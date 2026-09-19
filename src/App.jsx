@@ -1386,7 +1386,10 @@ export default function App() {
                 data-reveal data-glow>
                 <span className="nbar" aria-hidden="true" />
                 <div className="now-head">
-                  <div className="lbl">
+                  {/* Tiêu đề khối Up next là h2: trong khối này còn h3 cho từng
+                      bài, mà h3 nhảy cóc từ h1 là cấp bậc sai — trình đọc màn
+                      hình đọc một mạch không có chỗ ngắt. */}
+                  <h2 className="lbl">
                     {t('now.next')}
                     {pickedGroups.length > 0 && <span className="now-n" title={t('now.why')}>{pickedGroups.length}</span>}
                     {/* Tách đôi con số trên thành hai giai đoạn: việc đang chạy
@@ -1398,7 +1401,7 @@ export default function App() {
                         {t('now.split', { a: working, b: pickedGroups.length - working })}
                       </span>
                     )}
-                  </div>
+                  </h2>
                   <Countdown pick={pick} />
                 </div>
 
@@ -1499,7 +1502,7 @@ export default function App() {
             </section>
 
             <div className="board-list">
-              <div className="section-title">{t('board.listTitle')}</div>
+              <h2 className="section-title">{t('board.listTitle')}</h2>
               {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
                   đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
                   cuộn ngang chứ không xuống dòng. */}
@@ -1641,7 +1644,7 @@ export default function App() {
               <Stat c="var(--a-2)" v={myStats?.total_votes ?? 0} label={t('stat.votesReceived')} />
             </div>
 
-            <div className="section-title">{t('mine.title')}</div>
+            <h2 className="section-title">{t('mine.title')}</h2>
             <div className="list" data-glow ref={mineRef}>
               {mineRows.length === 0
                 ? <div className="empty">{t('mine.empty')}</div>
@@ -1657,7 +1660,7 @@ export default function App() {
             </div>
             <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />
 
-            <div className="section-title" style={{ marginTop: 26 }}>{t('mine.orders')}</div>
+            <h2 className="section-title" style={{ marginTop: 26 }}>{t('mine.orders')}</h2>
             <div className="list" ref={ordersRef}>
               {myOrders.length === 0
                 ? <div className="empty">{t('mine.ordersEmpty')}</div>
