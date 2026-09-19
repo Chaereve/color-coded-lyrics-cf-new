@@ -46,12 +46,21 @@ test('.fbar dính mép trên khi cuộn, và dấu hiệu "đang dính" chỉ th
   assert.match(bar, /position:\s*sticky/)
   assert.match(bar, /top:\s*0/)
   assert.match(bar, /z-index:\s*\d+/)
-  /* nền mờ để chữ bên dưới không lộ qua; máy không có backdrop-filter vẫn phải đục */
-  const fallback = bodies('.fbar').join(' ')
-  assert.match(fallback, /backdrop-filter/)
-  assert.match(css, /@supports not \(backdrop-filter/, 'phải có đường lui cho máy không hỗ trợ')
+  /* LỖI NGƯỜI DÙNG CHỈ RA (vòng 12 — "filter bar floating đang bị lỗi giao diện"):
+     nền bán trong suốt + backdrop-filter khiến hàng request cuộn ngay dưới thanh
+     hiện XUYÊN QUA nó: chữ của thanh và chữ của hàng chồng lên nhau, hàng đầu
+     bị cắt cụt. Nay thanh là một khối ĐỤC — nền --panel lúc nằm trong dòng,
+     --float (đục 97%) khi đã dính — nên không còn gì lộ qua. */
+  assert.match(bar, /background:\s*var\(--panel\)/)
+  assert.doesNotMatch(bodies('.fbar').join(' '), /backdrop-filter/,
+    'thanh lọc không được dùng nền mờ nữa (đó là nguyên nhân chữ chồng lên nhau)')
+  assert.match(anchor('.fbar.stuck', /background:\s*var\(--float\)/, 'nền đục khi dính'),
+    /background:\s*var\(--float\)/)
   assert.match(anchor('.fbar.stuck', /border-color/), /border-color/)
   assert.match(anchor('.fbar.stuck', /box-shadow/), /box-shadow/)
+  /* Mép thanh phải TRÙNG mép danh sách: lề âm làm thanh thò ra ngoài cột nội
+     dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
+  assert.doesNotMatch(bar, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')
 })
 
 test('màn rộng vẫn với tới được bộ lọc loại bài (lỗi cũ: hàng đó chỉ mở trên máy hẹp)', () => {
@@ -76,15 +85,18 @@ test('máy hẹp: nút Bộ lọc hiện ra, khối lọc thứ hai gấp lại 
   assert.match(mq, /\.fmore \{ display: inline-flex/, 'nút Bộ lọc phải hiện trên máy hẹp')
   assert.match(mq, /\.fbar:not\(\.open\) \.fbar-more \{ display: none/, 'khối lọc phải gấp lại mặc định')
   assert.match(mq, /\.fbar\.open \.fbar-more/, 'bấm thì khối lọc phải mở ra')
-  assert.match(mq, /\.fcount \{ display: none/, 'dòng đếm nhường chỗ cho nút Bộ lọc')
+  assert.match(mq, /\.fbar \.fcount \{ display: none/, 'dòng đếm nhường chỗ cho nút Bộ lọc')
 })
 
 test('máy hẹp: mỗi hàng một việc — dải chip trọn một hàng, ô tìm kiếm trọn hàng dưới', () => {
   /* Trước đây dải chip (co được tới 0) và ô tìm kiếm chen nhau trên một hàng,
      nên chip bị bóp còn vài chục pixel: người dùng chỉ thấy một mẩu chip cụt. */
+  /* Luật "chip trọn một hàng" nay nằm ở mốc 899px — đúng mốc mà dải bảy chip
+     hết chỗ chen với ô tìm kiếm; ≤620px chỉ còn việc gấp khối lọc. */
+  const narrow = css.slice(css.indexOf('.fbar-top { flex-wrap: wrap'))
+  assert.match(narrow, /\.fchips \{ flex: 1 1 100%/, 'dải chip phải chiếm trọn một hàng')
+  assert.match(narrow, /\.fbar-top > \.searchwrap \{ flex: 1 1 auto/, 'ô tìm kiếm co giãn ở hàng trên')
   const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
-  assert.match(mq, /\.fchips \{ flex: 1 1 100%/, 'dải chip phải chiếm trọn một hàng')
-  assert.match(mq, /\.fbar-side \{ flex: 1 1 100%/, 'ô tìm kiếm + nút Bộ lọc xuống hàng dưới')
   /* Dải chip vẫn cuộn ngang được (không xuống dòng): thanh lọc không được cao
      thêm ở màn hình vốn đã hẹp, nhưng phải biết DỪNG ở từng chip. */
   assert.match(mq, /scroll-snap-type: x proximity/, 'cuộn ngang có điểm dừng ở mỗi chip')

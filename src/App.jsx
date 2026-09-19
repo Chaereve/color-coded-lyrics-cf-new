@@ -1517,6 +1517,22 @@ export default function App() {
                   màn hình đầu. Thanh dính đầu trang khi cuộn qua. */}
               <div className={`fbar${fbarStuck ? ' stuck' : ''}${fbarOpen ? ' open' : ''}`} ref={fbarRef}>
                 <div className="fbar-top">
+                  {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — một thứ tự cho cả hai bố cục.
+                      Bàn phím đi từ trái sang phải, mắt cũng vậy: ô nhập là
+                      việc chính của thanh này nên nó đứng trước, dải chip theo
+                      sau, con số đếm đóng hàng. Máy hẹp thì đúng thứ tự đó
+                      xuống dòng (ô tìm + nút Bộ lọc ở hàng trên, chip ở hàng
+                      dưới) — không có chỗ nào phải đảo thứ tự bằng `order`. */}
+                  <span className="searchwrap">
+                    <Icon name="search" size={14} className="search-ico" />
+                    <input ref={searchRef} className="search" placeholder={t('board.search')}
+                      aria-label={t('board.search')} value={q}
+                      onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
+                    {q
+                      ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
+                          onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
+                      : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+                  </span>
                   <div className="fchips" role="group" aria-label={t('board.filterAria')}>
                     {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
                       <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
@@ -1552,16 +1568,6 @@ export default function App() {
                         <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
                       )}
                     </button>
-                    <span className="searchwrap">
-                      <Icon name="search" size={14} className="search-ico" />
-                      <input ref={searchRef} className="search" placeholder={t('board.search')}
-                        aria-label={t('board.search')} value={q}
-                        onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
-                      {q
-                        ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
-                            onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
-                        : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-                    </span>
                   </div>
                 </div>
 

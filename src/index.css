@@ -523,10 +523,10 @@ select {
 .fchip.on .fdot { opacity: 1; }
 .fchip.on .fnum { color: var(--txt); background: color-mix(in srgb, var(--c) 24%, transparent); }
 .fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-.fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
-.fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
-  font-size: 11.5px; color: var(--txt-3); }
-.fbar .searchwrap { flex: none; }
+/* Ba luật .fbar* từng nằm ở đây đã dời về khối THANH LỌC ở cuối file — một
+   chỗ duy nhất định hình thanh này. Hai bản khai cùng tên thì bản sau thắng
+   một cách âm thầm, và đó chính là kiểu lỗi đã làm thanh lọc không đọc ra
+   được luật nào ở màn hẹp. */
 /* Kính lúp của ô tìm kiếm. LỖI CŨ: thiếu `top` nên phần tử absolute rơi về
    ĐIỂM TĨNH ĐẦU TIÊN của hộp (góc trên-trái), tức là icon nằm lệch lên trên và
    lòi ra ngoài viền ô nhập. Nay neo đúng giữa theo chiều dọc. */
@@ -556,9 +556,10 @@ select {
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .search-x:hover { color: var(--txt); background: var(--hover-2); }
 @media (max-width: 620px) {
-  .fbar-side { flex: 1 1 100%; }
-  .fbar .searchwrap { flex: 1 1 auto; }
-  .fbar .search { max-width: none; }
+  /* Màn hẹp: ô chọn chỉ còn một cột hẹp — cắt bề rộng để nó không đẩy hàng.
+     Bốn luật .fbar* từng nằm ở đây đã được gỡ: chúng là bản CŨ của thanh lọc,
+     trùng tên với khối v3 ở cuối file, nên màn hẹp phải chịu hai bộ luật chồng
+     nhau — đúng thứ làm bố cục thanh lọc không đọc ra được luật nào. */
   .sel { max-width: 132px; }
   .fchip { height: 34px; padding: 0 12px; }
 }
@@ -3150,35 +3151,53 @@ html[data-section="spin"] .bgfx { display: none; }
 .row .title .tags { margin-left: 2px; }
 .nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
 
-/* ---- THANH LỌC v2 ------------------------------------------------------
-   Thêm ba thứ mà bản cũ thiếu:
-     1. CON SỐ KẾT QUẢ luôn hiện (trước chỉ hiện khi đang lọc) — người dùng
-        cần biết mình đang nhìn bao nhiêu bài ngay cả lúc không lọc;
-     2. nút "Bộ lọc" trên máy hẹp: mở một khối chứa ô chọn loại bài + dòng
-        tóm tắt + nút xoá lọc, thay vì nhồi bốn thứ vào một hàng 340px;
-     3. dính trên đầu khi cuộn danh sách: bảng 20 hàng dài hơn màn hình, cuộn
-        tới hàng 15 mà muốn đổi bộ lọc thì phải cuộn ngược lên tận nắp trang. */
+/* ---- THANH LỌC -----------------------------------------------------------
+   MỘT thanh, HAI hàng, MỘT thứ tự cho mọi bề rộng:
+     · hàng 1 — ô tìm kiếm (việc chính, đứng trước theo thứ tự bàn phím), dải
+       chip trạng thái (đi ngang được, mỗi chip mang màu giai đoạn nó lọc), và
+       con số đếm kết quả;
+     · hàng 2 — chip loại bài + lối thoát "Bỏ hết lọc", luôn hiện từ 621px.
+   Máy hẹp KHÔNG có bố cục thứ hai: đúng thứ tự đó xuống dòng — ô tìm + nút
+   Bộ lọc ở hàng trên, dải chip ở hàng dưới, hàng 2 gấp sau nút Bộ lọc. Trước
+   đây thanh này có hai bộ luật chồng nhau (bản cũ ≤620px và bản v3), nên mỗi
+   bề rộng lại ra một hình dạng khác, mép không thẳng hàng với danh sách.
+
+   Thanh là một KHỐI CÓ VIỀN nằm trong cột nội dung (không tràn ra ngoài bằng
+   lề âm) — mép trái của nó trùng mép trái của danh sách request ngay dưới.
+   Khi dính lên đỉnh khung nhìn, nền đổi sang màu ĐỤC: nền trong suốt là lý do
+   hàng request hiện xuyên qua thanh và chữ hai lớp chồng lên nhau. */
 .fbar {
   position: sticky; top: 0; z-index: 22;
   animation: rise .42s var(--e-out) .05s both;
-  padding: 9px 10px; margin: 0 -10px 12px;
-  border-radius: var(--r-md); border: 1px solid transparent;
-  background: color-mix(in oklab, var(--bg) 82%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
-  display: grid; gap: 8px;
+  display: grid; gap: 9px;
+  padding: 10px 12px; margin: 0 0 12px;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel);
+  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft),
+    box-shadow var(--t-2) var(--e-soft), border-radius var(--t-2) var(--e-soft);
 }
-.fbar-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fbar.stuck {
+  padding-top: 12px;
+  background: var(--float);
+  border-color: var(--line-2); border-top-color: transparent;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  box-shadow: var(--sh-2), var(--ring);
+}
+.fbar-top { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
+.fbar .search { width: 100%; max-width: none; }
+.fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
 /* chip loại bài: cùng khuôn với chip trạng thái nhưng KHÔNG đếm số — con số
    đó phụ thuộc trạng thái đang lọc nên nếu in ra sẽ mâu thuẫn với danh sách
    ngay bên dưới nó. Chip loại chỉ để chọn, không để đếm. */
 .fchips.kinds { flex: 1 1 auto; }
 .fchip.kind { padding: 6px 11px; font-size: 12px; }
 .fchip.kind.on { background: color-mix(in srgb, var(--c) 16%, var(--surface-2)); }
-@supports not (backdrop-filter: blur(2px)) { .fbar { background: var(--bg); } }
-.fbar.stuck { border-color: var(--line); box-shadow: var(--sh-1), var(--ring); }
-.fcount { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
-.fcount b { font-family: var(--mono); font-weight: 600; color: var(--txt-2); }
+/* Con số đếm kết quả của THANH LỌC. Phải gọi đúng tên `.fbar .fcount`: trong
+   form request cũng có một `.fcount` (bộ đếm ký tự nằm trong ô nhập, khác hẳn
+   về vị trí lẫn ý nghĩa). Một luật trần `.fcount` ở đây sẽ kéo theo bộ đếm của
+   form — đúng kiểu hai thứ khác nhau dùng chung một cái tên. */
+.fbar .fcount { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
 /* nút mở khối lọc trên máy hẹp — chỉ hiện ở đó */
 .fmore { display: none; flex: none; align-items: center; gap: 7px; padding: 0 12px; height: 34px;
   border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
@@ -3186,38 +3205,33 @@ html[data-section="spin"] .bgfx { display: none; }
 .fmore b { min-width: 16px; padding: 2px 5px; border-radius: var(--r-pill); background: var(--a-soft);
   color: var(--a-2); font-family: var(--mono); font-size: 10.5px; }
 .fmore.on { color: var(--txt); border-color: var(--a-dim); background: var(--surface-3); }
-/* HÀNG LỌC THỨ HAI — LỖI THẬT CỦA BẢN TRƯỚC: khối này chỉ được mở trong
-   `@media (max-width: 620px)`, mà nút mở nó (`.fmore`) cũng chỉ hiện ở đó.
-   Nghĩa là trên desktop KHÔNG có cách nào chọn loại bài: cả hàng chip "All types
-   / Color Coded Lyrics / Full Album / Loop / Short" nằm sau một cánh cửa không
-   có tay nắm — tính năng có mà không tới được. Nay nó là hàng thứ hai LUÔN hiện
-   của thanh lọc; máy hẹp mới gấp lại sau nút "Bộ lọc". */
+/* HÀNG LỌC THỨ HAI — trước đây chỉ được mở trong `@media (max-width: 620px)`,
+   mà nút mở nó (`.fmore`) cũng chỉ hiện ở đó: trên desktop KHÔNG có cách nào
+   chọn loại bài. Nay nó là hàng thứ hai LUÔN hiện của thanh lọc; máy hẹp mới
+   gấp lại sau nút "Bộ lọc". */
 .fbar-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* Trên màn rộng, con số kết quả đã in ở hàng trên (`.fcount`); dòng tóm tắt chỉ
-   còn để giữ lối thoát "Bỏ hết lọc". In lại con số ở đây là hai chỗ nói cùng một
-   điều — đúng thứ bị bỏ ở vòng 8. */
-@media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; } }
+/* Trên màn rộng, con số kết quả đã in ở hàng trên (`.fcount`); dòng tóm tắt
+   chỉ còn để giữ lối thoát. In lại con số ở đây là hai chỗ nói cùng một điều. */
+.fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
+  font-size: 11.5px; color: var(--txt-3); }
+@media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; } }
 
-/* MÁY TÍNH BẢNG (621–899px): dải bảy chip trạng thái không còn vừa một hàng với
-   ô tìm kiếm — trước đây dải chip bị bóp lại và tự cuộn trong khi ô tìm kiếm
-   chiếm chỗ. Nay cùng luật với điện thoại: chip một hàng, ô tìm kiếm + dòng đếm
-   xuống hàng dưới. Khác điện thoại ở chỗ khối lọc loại bài VẪN hiện sẵn (màn
-   đủ rộng để thấy, không cần gấp lại sau nút). */
+/* TỪ 899px TRỞ XUỐNG: đúng một thứ tự, chỉ đổi chỗ xuống dòng. Dải chip cần
+   trọn một hàng (7 chip không còn chỗ chen với ô tìm), còn ô tìm + số đếm ở
+   hàng trên. Không dùng `order` — thứ tự nhìn phải trùng thứ tự Tab. */
 @media (max-width: 899px) {
   .fbar-top { flex-wrap: wrap; row-gap: 8px; }
+  .fbar-top > .searchwrap { flex: 1 1 auto; min-width: 0; }
   .fchips { flex: 1 1 100%; }
-  .fbar-side { flex: 1 1 100%; }
-  .fbar .searchwrap { flex: 1 1 auto; min-width: 0; }
+  .fbar-side { flex: none; }
 }
 
 @media (max-width: 620px) {
-  .fcount { display: none; }
+  /* Ở màn hẹp, nút Bộ lọc đã mang con số "đang lọc mấy thứ", và chỗ của con
+     số đếm kết quả là hàng dưới của danh sách — ẩn nó ở đây, không ẩn bộ đếm
+     ký tự của form (xem chú thích ở khối THANH LỌC). */
+  .fbar .fcount { display: none; }
   .fmore { display: inline-flex; }
-  /* Điện thoại: hàng trên phải XUỐNG DÒNG được. Thiếu `flex-wrap` thì dải chip
-     (co được tới 0) bị bóp lại còn vài chục pixel trong khi ô tìm kiếm chiếm hết
-     chỗ — người dùng chỉ thấy một mẩu chip cụt. Nay: hàng 1 là dải chip trạng
-     thái, hàng 2 là ô tìm kiếm + nút Bộ lọc. */
-  .fbar-top { flex-wrap: wrap; row-gap: 8px; }
   /* chip loại bài trong khối gấp: xuống dòng cho thấy HẾT, không bắt người dùng
      đoán là còn nữa phía sau một dải cuộn ngang */
   .fchips.kinds { flex-wrap: wrap; overflow: visible; }
@@ -3227,15 +3241,10 @@ html[data-section="spin"] .bgfx { display: none; }
     display: flex; flex-direction: column; align-items: stretch; gap: 9px;
     flex: 1 1 100%; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line);
   }
-  /* HAI HÀNG, mỗi hàng một việc: hàng 1 là dải chip trạng thái (cuộn ngang,
-     chiếm trọn bề rộng nên thấy được nhiều chip hơn), hàng 2 là ô tìm kiếm +
-     nút Bộ lọc. Trước đây dải chip (co được tới 0) và ô tìm kiếm chen nhau
-     trên một hàng, nên chip bị bóp còn vài chục pixel — người dùng chỉ thấy
-     một mẩu chip cụt mà không hiểu vì sao. */
-  .fchips { flex: 1 1 100%; scroll-snap-type: x proximity; }
+  /* dải chip trạng thái đi ngang, snap từng chip — ngón tay vuốt là dừng đúng
+     một chip, không dừng giữa hai chip */
+  .fchips { scroll-snap-type: x proximity; }
   .fchip { scroll-snap-align: start; }
-  .fbar-side { flex: 1 1 100%; }
-  .fbar .searchwrap { flex: 1 1 auto; min-width: 0; }
   /* chip loại bài đang lọc: chỉ có nghĩa trên máy hẹp (khối lọc gấp lại) */
   .fchip.onkind { display: inline-flex; }
 }

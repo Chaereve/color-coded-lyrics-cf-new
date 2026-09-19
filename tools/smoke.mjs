@@ -210,6 +210,12 @@ where = 'trang chủ'
 const rows = qa('.row, .grow')
 check('bảng request có hàng', rows.length > 0, `${rows.length} hàng`)
 check('thanh lọc có chip trạng thái', qa('.fchip').length >= 4, `${qa('.fchip').length} chip`)
+/* THỨ TỰ TRONG THANH LỌC (vòng 12): ô tìm kiếm đứng ĐẦU, rồi dải chip, rồi con
+   số đếm — một thứ tự cho cả desktop lẫn máy hẹp, nên thứ tự nhìn luôn trùng
+   thứ tự Tab. Đảo lại là bố cục hai bên lệch nhau như bản cũ. */
+const topKids = [...(q('.fbar-top')?.children || [])].map(el => el.className.split(' ')[0])
+check('ô tìm kiếm đứng đầu thanh lọc', topKids[0] === 'searchwrap', topKids.join(' · '))
+check('dải chip đứng sau ô tìm kiếm', topKids[1] === 'fchips', topKids.join(' · '))
 check('có dòng đếm kết quả', !!q('.fcount'), q('.fcount')?.textContent)
 check('icon ô tìm kiếm nằm trong ô', !!q('.searchwrap .search-ico'))
 const enabledVotes = qa('.votebtn:not([disabled])')
