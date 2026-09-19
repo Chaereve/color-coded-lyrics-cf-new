@@ -85,3 +85,60 @@ test('bài đã xong / bị từ chối / chờ duyệt thì hộp thoại nói 
 test('đóng thì không dựng gì cả', async () => {
   assert.equal(await render({ ...base, open: false }), '')
 })
+
+test('bàn phím chỉnh được số phiếu, và trên điện thoại hộp là tấm trượt từ đáy', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(fileURLToPath(new URL('./VoteModal.jsx', import.meta.url)), 'utf8')
+  const css = readFileSync(fileURLToPath(new URL('../index.css', import.meta.url)), 'utf8')
+
+  /* +/− và mũi lên/xuống chỉnh số phiếu — nhưng phải NHƯỜNG phím khi con trỏ
+     đang ở trong ô nhập (ở đó trình duyệt đã tự tăng/giảm, bắt thêm là nhân đôi) */
+  assert.match(src, /e\.key === '\+'/, 'phải bắt phím +')
+  assert.match(src, /e\.key === '-'/, 'phải bắt phím −')
+  assert.match(src, /ArrowUp/, 'mũi lên cũng phải chỉnh được số')
+  assert.match(src, /el\?\.tagName === 'INPUT'/, 'phải nhường phím khi đang gõ trong ô nhập')
+
+  /* gợi ý phím chỉ có nghĩa ở nơi có bàn phím */
+  const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
+  assert.match(css, /\.vm-keys \{/, 'thiếu gợi ý phím cạnh ô số')
+  assert.match(coarse, /\.vm-keys \{ display: none/, 'máy cảm ứng không có bàn phím — đừng hứa')
+
+  /* tấm trượt đáy trên máy hẹp: nút xác nhận nằm trong tầm ngón cái */
+  const narrow = css.slice(css.indexOf('@media (max-width: 620px)'))
+  assert.match(narrow, /\.vote-overlay \{ align-items: flex-end/, 'hộp phải neo xuống đáy trên máy hẹp')
+  assert.match(narrow, /\.modal\.narrow \{[^}]*border-radius: var\(--r-lg\) var\(--r-lg\) 0 0/,
+    'tấm trượt phải bo hai góc trên, phẳng ở đáy')
+  assert.match(narrow, /\.modal\.narrow::before \{/, 'thiếu tay nắm của tấm trượt')
+
+  /* ngón tay: mức chọn nhanh và nút tăng/giảm đủ to */
+  assert.match(coarse, /\.vm-preset \{ min-width: 54px; height: 44px/, 'mức chọn nhanh phải đủ 44px khi chạm')
+})
+
+test('nguồn phiếu: ba ô số lượng + một vạch tỉ lệ cùng màu, và con số lớn được đọc lên', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(fileURLToPath(new URL('./VoteModal.jsx', import.meta.url)), 'utf8')
+  const css = readFileSync(fileURLToPath(new URL('../index.css', import.meta.url)), 'utf8')
+
+  /* Ba ô số nói SỐ LƯỢNG; vạch chia tỉ lệ nói TỈ LỆ. Vạch phải vẽ từ đúng ba
+     con số đang hiện (cộng ba ô) chứ không lấy `votesLeft` — lệch một cái là
+     người dùng thấy hai chỗ nói khác nhau về cùng một quỹ phiếu. */
+  assert.match(src, /const leftTotal = Math\.max\(0, freeLeft\) \+ Math\.max\(0, purchased\) \+ Math\.max\(0, bonus\)/,
+    'tổng của vạch phải là tổng ba ô đang hiển thị')
+  assert.match(src, /className=\"vm-mix\"/, 'thiếu vạch nguồn phiếu')
+  assert.match(src, /m\.v \/ leftTotal/, 'bề rộng mỗi đoạn phải theo tỉ lệ thật')
+  assert.match(src, /m\.v > 0 \? \(/, 'nguồn có 0 phiếu thì không vẽ một đoạn rỗng')
+
+  /* Ba đoạn là BA SẮC CỦA CÙNG MỘT MÀU: một bảng màu thứ tư trong hộp vote là
+     đúng thứ làm giao diện rối thêm. */
+  const mixAt = css.indexOf('.vm-mix')
+  const mix = css.slice(mixAt, mixAt + 700)   /* khối .vm-mix + ba đoạn của nó */
+  assert.match(mix, /background: color-mix\(in oklab, var\(--a-2\) 92%/, 'đoạn chính dùng màu nhấn')
+  assert.ok((mix.match(/--a-2/g) || []).length === 3, 'cả ba đoạn phải cùng một huệ, chỉ khác độ đậm')
+
+  /* Con số lớn đổi theo từng lần chọn — trình đọc màn hình cũng phải biết. */
+  assert.match(src, /className=\{\`v\$\{changing \? '' : ' pop'\}\`\} aria-live="polite"/,
+    'con số kết quả phải được đọc lên khi đổi')
+  /* Ô nhập số phiếu trỏ tới dòng "còn 7 → còn 3": đọc tới ô là hiểu ngay sẽ mất gì. */
+  assert.match(src, /aria-describedby="vm-after"/, 'ô số phiếu phải trỏ tới dòng trước–sau')
+  assert.match(src, /className="vm-after" id="vm-after"/, 'dòng trước–sau phải có id để trỏ tới')
+})

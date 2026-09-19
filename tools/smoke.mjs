@@ -178,6 +178,28 @@ check('có dòng đếm kết quả', !!q('.fcount'), q('.fcount')?.textContent)
 check('icon ô tìm kiếm nằm trong ô', !!q('.searchwrap .search-ico'))
 const enabledVotes = qa('.votebtn:not([disabled])')
 check('có bài bấm vote được', enabledVotes.length > 0, `${enabledVotes.length}/${qa('.votebtn').length} nút mở`)
+/* LỌC THEO LOẠI BÀI: chọn một loại thì hàng chip chính phải hiện chip "đang lọc"
+   (trên màn hẹp khối lọc gấp lại, nên đây là chỗ duy nhất NÓI RA vì sao danh
+   sách ngắn đi), và bấm vào chip đó là bỏ lọc. */
+const kindChip = qa('.fbar-more .fchip.kind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
+if (kindChip) {
+  const kindName = (kindChip.textContent || '').trim()
+  await click(kindChip)
+  await tick()
+  const onkind = q('.fchip.onkind')
+  check('chọn loại bài thì hàng chính hiện chip loại đang lọc', !!onkind, onkind?.textContent?.trim())
+  if (onkind) {
+    await click(onkind)
+    await tick()
+    check('bấm chip loại đang lọc là bỏ lọc đó', !q('.fchip.onkind'),
+      `còn ${q('.fchip.onkind')?.textContent?.trim()}`)
+  }
+  check('bỏ lọc xong danh sách trở lại', qa('.row, .grow').length > 0, `${qa('.row, .grow').length} hàng`)
+  void kindName
+} else {
+  check('thanh lọc có chip loại bài', false, 'không thấy chip loại bài nào trong khối lọc')
+}
+
 const lone1 = loneTagClusters()
 check('trang chủ: không có cụm nhãn rời', lone1.length === 0, lone1.join(' | '))
 
@@ -223,8 +245,52 @@ if (addBtn) {
       await type(link, 'https://youtu.be/dQw4w9WgXcQ')
       check('link YouTube hiện ảnh bìa', !!q('.rp-thumb'))
     }
+    /* DÁN LINK vào ô tên bài: link phải về ô Link, không thành tên bài */
+    await act(async () => {
+      const ev = new window.Event('paste', { bubbles: true, cancelable: true })
+      ev.clipboardData = { getData: () => 'https://youtu.be/abcdefghijk' }
+      title.dispatchEvent(ev)
+    })
+    await tick()
+    /* DÁN NGUYÊN TIÊU ĐỀ VIDEO: form phải đọc ra hai vế và mời tách; bấm một
+       lần là hai ô được điền đúng. */
+    const titleBox = q('#rq-title')
+    if (titleBox) {
+      await type(titleBox, "CHUNG HA 청하 'Algorithm' MV")
+      const note = q('.split-note')
+      check('tiêu đề video dán vào thì hiện gợi ý tách', !!note, note?.textContent?.trim()?.slice(0, 80))
+      const goSplit = qa('.split-note button')[0]
+      if (goSplit) {
+        await click(goSplit)
+        await tick()
+        check('bấm gợi ý là hai ô được điền đúng',
+          q('#rq-artist')?.value === 'CHUNG HA 청하' && q('#rq-title')?.value === 'Algorithm',
+          `${q('#rq-artist')?.value} / ${q('#rq-title')?.value}`)
+      }
+      await type(titleBox, 'Whiplash')
+      await type(q('#rq-artist'), 'aespa')
+    }
+
+    check('dán link vào ô tên bài thì link về đúng ô Link', q('#rq-link')?.value === 'https://youtu.be/abcdefghijk',
+      `link=${q('#rq-link')?.value} title=${q('#rq-title')?.value}`)
   }
   await click(q('.modal .x'))
+  /* NHÁP: gõ dở rồi đóng hộp thoại, mở lại phải còn chữ + có dòng nói ra */
+  await tick(500)
+  const addBtn2 = qa('button').find(b => /New request|Request a|Gửi/i.test(b.textContent || ''))
+  if (addBtn2) {
+    await click(addBtn2)
+    await tick(150)
+    check('gõ dở rồi đóng, mở lại vẫn còn chữ', q('#rq-artist')?.value === 'aespa' && q('#rq-title')?.value === 'Whiplash',
+      `artist="${q('#rq-artist')?.value}" title="${q('#rq-title')?.value}"`)
+    check('có dòng nói rõ form được khôi phục từ nháp', !!q('.draft-note'), q('.draft-note')?.textContent)
+    const drop = q('.draft-note .lnk')
+    if (drop) {
+      await click(drop)
+      check('bỏ nháp thì form trắng lại', !q('#rq-artist')?.value && !q('#rq-title')?.value)
+    }
+    await click(q('.modal .x'))
+  }
 } else {
   check('mở được form request', false, 'không thấy nút')
 }
@@ -236,6 +302,15 @@ if (voteBtn) {
   await click(voteBtn)
   check('hộp vote mở ra', !!q('.vm-hero'))
   check('có ba ô số dư', qa('.vm-chip').length >= 3, `${qa('.vm-chip').length} ô`)
+  /* BÀN PHÍM: mũi lên / dấu + phải chỉnh được số phiếu mà không cần tới ô nhập */
+  const qtyBox = q('#vm-qty')
+  if (qtyBox) {
+    const before = Number(qtyBox.value)
+    await act(async () => { window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })) })
+    await tick()
+    check('phím mũi lên chỉnh được số phiếu', Number(q('#vm-qty')?.value) === before + 1,
+      `${before} → ${q('#vm-qty')?.value}`)
+  }
   const preset = qa('.vm-preset')[1]
   if (preset) {
     const before = q('.vm-hero .v')?.textContent
@@ -250,6 +325,15 @@ if (voteBtn) {
   const slideMax = Number(q('.vm-slide')?.getAttribute('max') || 0)
   check('ba ô số dư cộng đúng bằng tổng phiếu', chips.reduce((a, b) => a + b, 0) === slideMax,
     `${chips.join(' + ')} = ${chips.reduce((a, b) => a + b, 0)} vs max ${slideMax}`)
+
+  /* VẠCH NGUỒN PHIẾU: ba đoạn của cùng một màu, cộng lại đúng 100% bề rộng —
+     đọc ra được phần nào là phiếu miễn phí, phần nào là phiếu mua. */
+  const mix = qa('.vm-mix i')
+  const mixW = mix.map(i => parseFloat((i.style.getPropertyValue('--w') || '').replace('%', '')) || 0)
+  check('có vạch tỉ lệ nguồn phiếu', mix.length >= 1 && mixW.length === mix.length,
+    `${mix.length} đoạn · ${mixW.join(' + ')}`)
+  check('ba đoạn cộng lại đúng 100%', Math.abs(mixW.reduce((a, b) => a + b, 0) - 100) < 0.6,
+    `${mixW.reduce((a, b) => a + b, 0).toFixed(1)}%`)
 
   /* Bấm gửi thật: con số trên hàng phải tăng đúng bằng số vừa chọn, và hộp
      phải tự đóng. Đây là phép thử duy nhất chứng minh đường ray vote chạy.
@@ -294,7 +378,21 @@ await waitFor(() => !!q('.adm-page'))
 check('trang quản trị dựng ra', !!q('.adm-page'))
 check('có dải số liệu chuyển mục', qa('.adm-kpi').length === 5, `${qa('.adm-kpi').length} ô`)
 check('có thanh công cụ', !!q('.adm-bar'))
+/* Vạch chia tỉ lệ: năm ô số liệu nói "bao nhiêu", vạch nói "chiếm bao nhiêu
+   phần" — và số đoạn phải khớp số mục đang có việc. */
+const admMix = qa('.adm-mix i')
+check('có vạch chia tỉ lệ khối lượng việc', admMix.length >= 1, `${admMix.length} đoạn`)
 check('nút xuất CSV có mặt', qa('button').some(b => /Export CSV/.test(b.textContent || '')))
+
+/* Bộ lọc của bảng quản trị nằm ở ĐỊA CHỈ: mở một địa chỉ đã lọc sẵn thì ô tìm
+   kiếm phải có sẵn từ khoá, và thẻ <option> sắp xếp phải đúng lựa chọn. */
+window.history.pushState({}, '', '/admin?tab=active&q=aespa&sort=votes')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(400)
+check('mở địa chỉ đã lọc sẵn: ô tìm kiếm có sẵn từ khoá', q('.adm-bar .search')?.value === 'aespa',
+  `q="${q('.adm-bar .search')?.value}"`)
+check('mở địa chỉ đã lọc sẵn: cách xếp đúng lựa chọn', q('.adm-sort')?.value === 'votes',
+  `sort="${q('.adm-sort')?.value}"`)
 
 for (const k of ['pending', 'active', 'orders', 'done', 'media']) {
   where = `trang quản trị · ${k}`

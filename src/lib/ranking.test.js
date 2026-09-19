@@ -9,7 +9,7 @@
    Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RANK_SORTS, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
+import { POINT_DONE, POINT_VOTE, RANK_SORTS, pointsOf, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
 
 const P = (name, total, completed, total_votes) => ({ name, total, completed, total_votes })
 
@@ -91,11 +91,47 @@ test('bài bị từ chối không vào hạng, và dòng méo không làm sập
   assert.equal(out.find(p => p.user_id === 'v').total_votes, 0, 'votes null thành 0, không thành NaN')
 })
 
+test('luật tính điểm: 10 × bài đã xong + phiếu, và bài chưa xong KHÔNG có điểm', () => {
+  /* Ba người này là ba kiểu leo hạng cũ: gửi thật nhiều, làm ra ít, hoặc được
+     cộng đồng đòi thật nhiều. Xếp theo số bài thì `spam` nhất; xếp theo điểm
+     thì `star` nhất và `spam` — 40 bài mà chưa bài nào xong — xuống cuối. */
+  const out = rankRows([
+    P('spam', 40, 0, 20),
+    P('maker', 4, 2, 3),
+    P('star', 1, 1, 40),
+  ])
+  assert.deepEqual(out.map(p => p.name), ['star', 'maker', 'spam'])
+  assert.deepEqual(out.map(p => p.points), [50, 23, 20])
+  assert.deepEqual(out.map(p => p.place), [1, 2, 3])
+  assert.equal(out[0].share, 1, 'người dẫn đầu điểm luôn có tỉ lệ 1')
+})
+
+test('điểm bằng nhau thì ai XONG NHIỀU HƠN đứng trước (khoá phá hoà chạy thật)', () => {
+  const out = rankRows([P('votes', 6, 3, 10), P('done', 4, 4, 0)], 'points')
+  assert.equal(out[0].name, 'done', '3×10+10 = 40 = 4×10 → 4 bài xong phải trên 3 bài xong')
+})
+
+test('trọng số điểm là hằng số công khai, không rải trong component', () => {
+  /* Câu nói rõ luật trên bảng xếp hạng đọc thẳng từ hai hằng số này, nên đổi
+     luật ở đây là đổi cả câu chữ — không thể có chuyện bảng tính một đằng,
+     lời giải thích một nẻo. */
+  assert.equal(POINT_DONE, 10)
+  assert.equal(POINT_VOTE, 1)
+  assert.equal(pointsOf({ completed: 3, total_votes: 7 }), 37)
+  assert.equal(pointsOf(null), 0, 'dòng rỗng có 0 điểm, không ném lỗi')
+  assert.equal(pointsOf({ completed: 'abc', total_votes: null }), 0, 'dữ liệu méo vẫn ra số')
+})
+
 test('mỗi cách xếp có màu riêng và khoá chính nằm trong dữ liệu nhận về', () => {
-  assert.equal(RANK_SORTS.length, 3)
+  assert.equal(RANK_SORTS.length, 4)
+  assert.equal(RANK_SORTS[0].k, 'points', 'mặc định là luật tính điểm')
   for (const s of RANK_SORTS) {
     assert.ok(s.tone.startsWith('var(--'), `${s.k} phải có màu theo token`)
+    assert.equal(s.minis.length, 2, `${s.k}: bục chỉ in hai chỉ báo phụ`)
+    assert.ok(!s.minis.includes(s.field), `${s.k}: chỉ báo phụ không được lặp lại khoá chính`)
     const out = rankRows([P('x', 1, 1, 1)], s.k)
     assert.equal(out[0].place, 1)
+    assert.equal(typeof out[0][s.field], 'number', `${s.k}: khoá chính phải có trong dòng trả về`)
   }
+  assert.equal(rankRows([P('x', 1, 1, 1)], 'total')[0].points, 11, 'điểm có mặt ở mọi cách xếp')
 })

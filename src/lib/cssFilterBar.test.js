@@ -54,6 +54,23 @@ test('.fbar dính mép trên khi cuộn, và dấu hiệu "đang dính" chỉ th
   assert.match(anchor('.fbar.stuck', /box-shadow/), /box-shadow/)
 })
 
+test('màn rộng vẫn với tới được bộ lọc loại bài (lỗi cũ: hàng đó chỉ mở trên máy hẹp)', () => {
+  /* Khối lọc thứ hai từng chỉ có mặt trong `@media (max-width: 620px)`, còn nút
+     mở nó cũng chỉ hiện ở đó — trên desktop không có cách nào chọn loại bài. */
+  assert.match(css, /\.fbar-more \{ display: flex/, 'hàng lọc thứ hai phải hiện mặc định')
+  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
+  assert.match(mq, /\.fbar:not\(\.open\) \.fbar-more \{ display: none/,
+    'máy hẹp vẫn phải gấp được (hai vế của cùng một luật)')
+  /* Điện thoại: hàng trên xuống dòng được, nếu không dải chip bị bóp còn vài
+     chục pixel trong khi ô tìm kiếm chiếm hết chỗ. */
+  assert.match(mq, /\.fbar-top \{ flex-wrap: wrap/, 'hàng trên phải xuống dòng trên máy hẹp')
+  assert.match(mq, /\.fchips\.kinds \{ flex-wrap: wrap/,
+    'chip loại bài trong khối gấp phải xuống dòng để thấy hết')
+  /* và con số kết quả chỉ được in MỘT lần trên màn rộng */
+  assert.match(css, /@media \(min-width: 621px\) \{ \.fbar-meta > span:first-child \{ display: none/,
+    'màn rộng không in con số kết quả hai lần')
+})
+
 test('máy hẹp: nút Bộ lọc hiện ra, khối lọc thứ hai gấp lại cho tới khi bấm', () => {
   const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
   assert.match(mq, /\.fmore \{ display: inline-flex/, 'nút Bộ lọc phải hiện trên máy hẹp')
@@ -62,10 +79,40 @@ test('máy hẹp: nút Bộ lọc hiện ra, khối lọc thứ hai gấp lại 
   assert.match(mq, /\.fcount \{ display: none/, 'dòng đếm nhường chỗ cho nút Bộ lọc')
 })
 
+test('máy hẹp: mỗi hàng một việc — dải chip trọn một hàng, ô tìm kiếm trọn hàng dưới', () => {
+  /* Trước đây dải chip (co được tới 0) và ô tìm kiếm chen nhau trên một hàng,
+     nên chip bị bóp còn vài chục pixel: người dùng chỉ thấy một mẩu chip cụt. */
+  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
+  assert.match(mq, /\.fchips \{ flex: 1 1 100%/, 'dải chip phải chiếm trọn một hàng')
+  assert.match(mq, /\.fbar-side \{ flex: 1 1 100%/, 'ô tìm kiếm + nút Bộ lọc xuống hàng dưới')
+  /* Dải chip vẫn cuộn ngang được (không xuống dòng): thanh lọc không được cao
+     thêm ở màn hình vốn đã hẹp, nhưng phải biết DỪNG ở từng chip. */
+  assert.match(mq, /scroll-snap-type: x proximity/, 'cuộn ngang có điểm dừng ở mỗi chip')
+  assert.match(mq, /\.fchip \{ scroll-snap-align: start/, 'chip phải là điểm dừng')
+})
+
+test('loại bài đang lọc hiện thành chip bỏ được — chỉ trên máy hẹp', () => {
+  /* Trên màn hẹp khối lọc gấp sau nút Bộ lọc, nên nếu không có chip này thì
+     không có chỗ nào NÓI RA là danh sách đang bị lọc theo loại bài: người dùng
+     chỉ thấy danh sách thiếu bài. Trên màn rộng khối lọc luôn hiện nên chip đó
+     là chỗ thứ hai nói cùng một điều. */
+  assert.match(app, /className="fchip kind on onkind"/, 'thiếu chip loại bài đang lọc')
+  assert.match(app, /kindFilter !== 'all' && \(/, 'chip chỉ hiện khi ĐANG lọc theo loại bài')
+  assert.match(app, /board\.clearKind/, 'chip phải có nhãn đọc được, không chỉ một dấu ×')
+  assert.match(app, /onClick=\{\(\) => setKindFilter\('all'\)\}/, 'bấm chip là bỏ lọc đó')
+  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
+  assert.match(mq, /\.fchip\.onkind \{ display: inline-flex/, 'máy hẹp phải thấy chip này')
+  assert.match(css, /@media \(min-width: 621px\) \{ \.fchip\.onkind \{ display: none; \} \}/,
+    'màn rộng không nói lại điều khối lọc đang nói')
+})
+
 test('chip lọc đủ to để chạm trên thiết bị cảm ứng, bản desktop không đổi', () => {
   assert.ok(/@media \(pointer: coarse\)/.test(css), 'phải có một luật riêng cho thiết bị chạm')
   const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
   assert.match(coarse, /\.fchip \{ min-height: 4\dpx/, 'chip phải cao ≥40px trên cảm ứng')
+  /* Ô tìm kiếm và nút Bộ lọc là hai thứ ngón tay chạm nhiều nhất trong thanh —
+     34px là dưới ngưỡng chạm thoải mái. */
+  assert.match(coarse, /min-height: 44px/, 'ô tìm kiếm / nút Bộ lọc phải đủ 44px khi chạm')
   assert.match(anchor('.fchip', /white-space:\s*nowrap/, 'không ngắt dòng'),
     /white-space:\s*nowrap/, 'nhãn chip không được tự xuống dòng')
 })
@@ -105,6 +152,28 @@ test('icon kính lúp nằm TRONG ô: canh giữa theo chiều dọc, không nh�
   assert.match(ico, /pointer-events:\s*none/, 'bấm vào icon vẫn phải vào được ô nhập')
   assert.ok(/className="search-ico"/.test(app), 'bảng phải thật sự dùng lớp này')
   assert.ok(has('.searchwrap', /position:\s*relative/), 'icon absolute cần mốc canh')
+  /* và mọi ô tìm kiếm phải CHỪA CHỖ cho icon — không chỉ ô ở trang chủ. Lỗi cũ:
+     luật `padding-left` chỉ áp cho `.fbar .search`, nên ô tìm trong bảng quản
+     trị (cùng lớp .search, cùng icon) có chữ nằm ngay dưới kính lúp. */
+  const pad = anchor('.searchwrap .search', /padding-left:/, 'chừa chỗ cho icon')
+  assert.match(pad, /padding-left:\s*calc\(var\(--ico-x\) \+ var\(--ico-w\)/,
+    'khoảng chừa cho icon phải áp cho MỌI ô tìm kiếm và tính theo bề rộng icon')
+  assert.ok(has('.searchwrap', /--ico-w:/), 'bề rộng icon phải là biến, để đổi icon là khoảng chừa đi theo')
+
+  /* BÊN PHẢI CŨNG PHẢI CHỪA CHỖ: nút xoá trên thiết bị chạm được nới lên 30px,
+     còn khoảng chừa từng là 26px viết cứng — chữ gõ vào chui xuống dưới nút. */
+  assert.match(pad, /padding-right:\s*calc\(var\(--x-x\) \+ var\(--x-w\)/,
+    'khoảng chừa bên phải phải tính từ bề rộng nút xoá, không viết cứng')
+  assert.ok(has('.searchwrap', /--x-w:/), 'bề rộng nút xoá phải là biến')
+  const x = anchor('.search-x', /position:\s*absolute/, 'nằm đè trong ô')
+  assert.match(x, /right:\s*var\(--x-x\)/, 'nút xoá phải neo theo cùng biến')
+  assert.match(x, /width:\s*var\(--x-w\)/, 'bề rộng nút xoá phải lấy từ biến — nới nút là khoảng chừa tự theo')
+  const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
+  assert.match(coarse, /\.searchwrap \{ --x-w: 30px; --x-x: 5px; \}/,
+    'trên thiết bị chạm nút xoá to hơn, và khoảng chừa phải đi theo')
+  /* Nhãn đọc được cho trình đọc màn hình: placeholder không phải nhãn. */
+  assert.match(app, /className="search" placeholder=\{t\('board\.search'\)\}[\s\S]{0,80}aria-label=\{t\('board\.search'\)\}/,
+    'ô tìm kiếm của bảng phải có nhãn đọc được')
 })
 
 /* ---------- 4. thanh tiến độ ---------- */

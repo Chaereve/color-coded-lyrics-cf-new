@@ -489,7 +489,13 @@ select {
 @media (pointer: coarse) {
   .fchip { min-height: 40px; padding-left: 14px; padding-right: 14px }
   .fchip.kind { min-height: 38px }
-  .fmore { height: 40px }
+  /* nút mở khối lọc và ô tìm kiếm là hai thứ ngón tay chạm nhiều nhất trong
+     thanh này — 34px là dưới ngưỡng chạm thoải mái */
+  .fmore { height: 44px; padding-left: 14px; padding-right: 14px }
+  .fbar .search, .fbar .fmore { min-height: 44px; }
+  /* Nút xoá to hơn cho ngón tay — và khoảng chừa bên phải tự đi theo, vì nó
+     tính từ chính hai biến này. */
+  .searchwrap { --x-w: 30px; --x-x: 5px; }
 }
 .fchip .fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .8; }
 .fchip .fnum { padding: 2px 6px; border-radius: var(--r-pill); background: var(--hover-2);
@@ -508,10 +514,28 @@ select {
 /* Kính lúp của ô tìm kiếm. LỖI CŨ: thiếu `top` nên phần tử absolute rơi về
    ĐIỂM TĨNH ĐẦU TIÊN của hộp (góc trên-trái), tức là icon nằm lệch lên trên và
    lòi ra ngoài viền ô nhập. Nay neo đúng giữa theo chiều dọc. */
-.search-ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+/* HAI BÊN Ô TÌM KIẾM, CÙNG MỘT LUẬT: khoảng chừa được TÍNH từ bề rộng thật
+   của thứ nằm đè lên ô (kính lúp bên trái, nút xoá bên phải). Bản trước chỉ
+   chừa chỗ bên trái; bên phải là con số 26px viết cứng, mà trên thiết bị chạm
+   nút xoá được nới lên 30px — thành ra chữ gõ vào vẫn có thể chui xuống dưới
+   nút xoá, đúng kiểu "icon chồng chữ" người dùng nhìn ra. */
+.searchwrap { --ico-x: 10px; --ico-w: 14px; --x-x: 4px; --x-w: 22px; }
+.search-ico { position: absolute; left: var(--ico-x); top: 50%; transform: translateY(-50%);
   color: var(--txt-3); pointer-events: none; }
-.fbar .search { padding-left: 28px; }
-.search-x { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center;
+/* CHỪA CHỖ CHO ICON — MỌI ô tìm kiếm, không riêng ô ở trang chủ.
+   LỖI THẬT: luật cũ chỉ là `.fbar .search { padding-left: 28px }`, nên ô tìm
+   kiếm trong BẢNG QUẢN TRỊ (cùng lớp `.search`, cùng icon) không được chừa chỗ:
+   chữ và dấu nháy của ô nằm ngay dưới kính lúp — đúng lỗi "icon lòi ra/chồng
+   chữ" người dùng chỉ ra, chỉ khác màn hình. Nay khoảng chừa tính từ chính bề
+   rộng icon + lề của nó, nên đổi cỡ icon là khoảng chừa tự đi theo. */
+.searchwrap .search {
+  padding-left: calc(var(--ico-x) + var(--ico-w) + 4px);
+  padding-right: calc(var(--x-x) + var(--x-w) + 4px);
+}
+/* Ô đang được gõ: kính lúp sáng lên cùng màu nhấn — dấu hiệu "đang tìm ở đây"
+   rẻ hơn một nhãn chữ. */
+.searchwrap:focus-within .search-ico { color: var(--a-2); }
+.search-x { position: absolute; right: var(--x-x); width: var(--x-w); height: var(--x-w); display: grid; place-items: center;
   border: 0; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .search-x:hover { color: var(--txt); background: var(--hover-2); }
@@ -539,7 +563,10 @@ select {
 .row.paid { background: rgba(215,166,63,.045); }
 .row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
 .row .body { flex: 1; min-width: 0; }
-.row .title { font-size: 14.5px; font-weight: 600; letter-spacing: .1px; margin-bottom: 4px; }
+/* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
+   rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
+   đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
+.row .title { font-size: 14.5px; font-weight: 600; letter-spacing: .1px; margin-bottom: 4px; line-height: 1.45; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
@@ -572,6 +599,19 @@ select {
    bảo đảm khoảng cách khi xuống dòng. */
 .pill, .kind { display: inline-flex; align-items: center; flex: none; white-space: nowrap;
   vertical-align: middle; line-height: 1; }
+/* MỘT NHÃN KHÔNG BAO GIỜ RỘNG HƠN CHỖ NÓ NẰM (vòng 10). `flex: none` ở trên
+   giữ nhãn khỏi bị bóp méo, nhưng nếu cả chuỗi bên trong dài hơn hộp thì nhãn
+   vẫn tràn ra ngoài khung bo góc và đè lên thứ bên cạnh: một `kind` dài, một
+   cái tên do người dùng nhập, hay chỉ là cỡ chữ của máy người xem. Kẹp bề rộng
+   theo hộp cha rồi cắt bằng dấu ba chấm — nhãn cụt còn hơn hai nhãn chồng nhau. */
+.pill, .kind { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* NHÃN DÀI NHẤT TRONG HỆ: "3 requests for this song · 9 votes in total". Luật
+   `text-overflow: ellipsis` ở trên KHÔNG chạy trên hộp `inline-flex`: chữ trong
+   đó là một flex item ẩn, mà dấu ba chấm chỉ vẽ được cho dòng chữ nằm TRỰC TIẾP
+   trong hộp. Hệ quả: nhãn này bị cắt ngang chữ mà không có dấu hiệu gì — đúng
+   kiểu "nhãn chồng/cụt" người dùng nhìn ra. Về `inline-block` thì chữ nằm ngay
+   trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
+.pill.dup { display: inline-block; vertical-align: bottom; }
 .pill { padding: 3px 8px; border-radius: var(--r-pill); font-size: 10.5px;
   letter-spacing: .3px; text-transform: uppercase; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
@@ -583,7 +623,10 @@ select {
 
 /* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
    với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
+/* `.kind` viết HOA toàn bộ để phân biệt với chữ thường của tên bài — cùng khuôn
+   chữ với `.pill` nên mắt đọc ra ngay "đây là thẻ, không phải tên" (vòng 10). */
 .kind { font-size: 11px; letter-spacing: .2px; padding: 3px 8px; border-radius: var(--r-pill);
+  text-transform: uppercase;
   border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
   background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
@@ -597,39 +640,63 @@ select {
    chuyện mà mắt phải tự nối, con số thì nằm lệch trái so với vạch, và vạch chỉ
    3px nên khó thấy nó đang ở đâu. Nay vạch dày 6px, bo tròn hai đầu, tô theo
    trạng thái của bài (--sc) — số và vạch cùng một hàng, đọc là hiểu ngay. */
-.prog { display: flex; align-items: center; gap: 10px; margin-top: 9px; max-width: 340px; }
+.prog { display: flex; align-items: center; gap: 10px; margin-top: 9px; max-width: 340px;
+  /* MÀU CỦA VẠCH do CSS quyết: đây là "màu đang làm", và tick hết mốc thì
+     `.prog-full` đổi nó sang màu xong. Không có prop màu — mỗi chỗ gọi tự tô một
+     màu chính là cách cùng một bài có hai màu vạch ở hai màn hình khác nhau. */
+  --sc: var(--progress); }
+.prog-full { --sc: var(--done); }
 .prog-wide { max-width: none; }
 .prog-track {
-  flex: 1 1 auto; min-width: 56px; height: 6px; border-radius: var(--r-pill);
+  flex: 1 1 auto; min-width: 56px; height: 7px; border-radius: var(--r-pill);
   background: var(--line); overflow: hidden;
+  /* BÓNG LÕM CỦA RÃNH — khai ngay tại luật của rãnh, không tách ra một luật
+     rời nằm cách đó hai trăm dòng (bản trước có cả hai, đọc mãi mới thấy). */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
 }
 /* Bề rộng đã đúng ngay từ khung hình đầu (không animate `width` — đó là thuộc
    tính layout), nhưng cho nó MỌC ra bằng scaleX: thanh tiến độ đọc ra như đang
    chạy chứ không phải một vạch đã in sẵn. Chỉ transform, chỉ một lần. */
-/* MÀU CỦA VẠCH. Bản trước tô phẳng đúng màu trạng thái: trên nền xanh đen,
-   một dải phẳng màu hổ phách trông như miếng băng dính dán ngang hàng — không
-   có chiều sâu, và ở 100% nó vẫn xỉn như ở 10%.
-   Cách tô mới, vẫn KHÔNG dùng màu ngoài hệ:
-     1. dải màu hai điểm CÙNG MỘT HUỆ: từ 72% màu trạng thái (đầu vạch, tối
-        hơn) tới màu trạng thái nguyên bản ở cuối — mắt đọc ra hướng chạy;
-     2. một vệt sáng 1px ở mép trên (inset box-shadow) — mặt vạch bắt sáng như
-        một thanh kim loại mảnh, thay vì một dải màu dán phẳng;
-     3. đầu vạch tròn sáng hơn một bậc: đánh dấu chỗ tiến độ đang đứng.
-   Đây là gradient trong CÙNG một huệ (hai điểm, không ba), không phải gradient
-   trang trí nhiều màu — thứ mà bộ quy tắc chống "giao diện máy vẽ" cấm. */
 .prog-track > i {
+  position: relative;
   display: block; height: 100%; width: var(--w, 0%);
   border-radius: inherit;
-  background: linear-gradient(90deg,
-    color-mix(in oklab, var(--sc, var(--progress)) 68%, var(--bg)) 0%,
-    var(--sc, var(--progress)) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16);
+  /* MÀU ĐÃ ĐƯỢC PHA LẠI (vòng 10). Bản trước trộn màu trạng thái với NỀN ở
+     đầu vạch rồi mới tới màu gốc ở cuối: trên nền xanh đen, một đầu vạch bị kéo
+     về phía màu nền đọc ra như vệt bẩn chứ không ra chiều sâu — đúng lý do
+     người dùng vẫn thấy "màu thanh tiến độ chưa đẹp".
+     Nay vạch là MỘT màu sạch, chỉ nâng nhẹ độ sáng bằng một chút trắng (nâng
+     sáng thì vẫn ra màu của chính nó, trộn với nền thì ra màu bùn), cộng một
+     đầu vạch sáng và quầng sáng nhỏ ở ::before để mắt thấy được "đang chạy tới
+     đâu". */
+  background: color-mix(in oklab, var(--sc, var(--progress)) 88%, #fff);
+  /* Hai vệt bóng trong lòng vạch: sáng ở mép TRÊN, tối ở mép DƯỚI — cùng một
+     huệ, chỉ là ánh sáng, nên vạch đọc ra như một thanh mảnh có mặt cong thay
+     vì một dải màu dán phẳng. Cộng quầng sáng rất nhẹ ở đầu vạch. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22),
+              inset 0 -1px 0 rgba(0, 0, 0, .28),
+              0 0 10px -3px color-mix(in oklab, var(--sc, var(--progress)) 70%, transparent);
   transform-origin: left center; animation: barGrow .6s var(--e-out) both;
 }
+/* ĐẦU VẠCH: một mũi sáng 3px ở mép phải, đúng chỗ tiến độ đang đứng. Là
+   `::before` chứ không phải `::after` vì `::after` đã là vệt sáng quét của
+   khối Up next (`.nowbar .prog-track > i::after`). */
+.prog-track > i::before {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--sc, var(--progress)) 55%, #fff);
+}
+/* TICK HẾT MỐC: vạch chuyển sang màu "xong". Không phải trang trí — 100% là
+   trạng thái thật (ba mốc Layout/Lyrics/Edit đã tick hết, chỉ còn chờ chốt),
+   và admin nhìn một lượt cả bảng là thấy ngay bài nào đã tới đích. */
+/* (đổi sang màu xong chỉ là đổi `--sc` ở khối .prog phía trên — vạch, đầu vạch
+   và con số đều đi theo, không phải chép lại ba luật) */
 /* 1% vẫn phải NHÌN THẤY: bề rộng nhỏ hơn chính bán kính bo tròn thì vạch biến
    mất, người dùng đọc ra "chưa bắt đầu". */
+/* 1% chỉ rộng 0.56px trên rãnh 56px — nhỏ hơn chính bán kính bo tròn thì vạch
+   biến mất và người dùng đọc ra "chưa bắt đầu". Phần tử này chỉ tồn tại khi
+   pct > 0 (xem Progress.jsx), nên `min-width` không sinh ra que thừa ở 0%. */
 .prog-track > i { min-width: 6px; }
-.prog-track { box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45); }
 /* Số dùng chữ mono + chữ số đều (tabular-nums): 9% và 100% rộng như nhau nên
    cả cột không nhảy khi tiến độ đổi. */
 .prog-num {
@@ -637,7 +704,14 @@ select {
   font: 600 12.5px/1 var(--mono); color: var(--txt-2);
   font-variant-numeric: tabular-nums; letter-spacing: -.2px;
 }
-.prog-num span { margin-left: 1px; font-size: 10px; color: var(--txt-3); }
+/* Dấu `%` mờ đi bằng chính độ mờ của số (opacity) chứ không đổi sang màu xám:
+   số màu hổ phách mà dấu % màu xám là hai giọng chữ trong cùng một cụm. */
+.prog-num span { margin-left: 1px; font-size: 10px; opacity: .55; }
+/* Con số phải thuộc về vạch: nó lấy đúng tông của vạch (sáng hơn một bậc để
+   đọc được trên nền), thay vì một màu xám không liên quan gì tới thanh bên
+   cạnh nó. */
+.prog .prog-num { color: color-mix(in oklab, var(--sc, var(--progress)) 78%, #fff); }
+/* con số cũng ăn theo --sc, nên không cần luật riêng cho trạng thái xong */
 @keyframes barGrow { from { transform: scaleX(0) } to { transform: none } }
 
 .watch { display: inline-block; margin-top: 6px; font-size: 12.5px; color: var(--a-2); text-decoration: none; }
@@ -2237,6 +2311,15 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-pl-in { display: flex; align-items: center; gap: 9px; min-width: 0 }
 /* (.lb-nm đã định nghĩa đầy đủ ở khối trên — ellipsis để chịu tên dài) */
 .lb-you { font-size: 10px; color: var(--a-2); border: 1px solid var(--line-2); padding: 0 5px; border-radius: var(--r-sm) }
+/* CỘT ĐIỂM. Khi bảng xếp theo điểm thì con số quyết định thứ tự phải có CỘT
+   của nó — trước đây nó là một chip nằm trong ô tên người, nên hàng tiêu đề
+   không giải thích được vì sao các hàng nằm theo thứ tự đó. Chữ mono + chữ số
+   đều để cột số không nhảy bề rộng khi điểm lên hàng trăm. */
+.lb-table td.lb-score b, .lb-table th.lb-score, .lb-me-pts {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.lb-table td.lb-score b { font-weight: 600; color: var(--a-2) }
+.lb-table th.lb-score { cursor: help }
 /* vạch dưới tên = tỉ lệ so với người dẫn đầu, đọc được cả một cột nhanh */
 .lb-underline { position: absolute; left: 14px; bottom: 0; height: 2px; max-width: 60%; border-radius: 2px;
   background: linear-gradient(90deg, var(--a-2), transparent); transform-origin: left;
@@ -2245,6 +2328,9 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-table td.num b { font-weight: 600; color: var(--txt) }
 .lb-rate { display: block; font-size: 10px; color: var(--txt-3); margin-top: 1px }
 .lb-table td.lb-votes b { color: var(--a-2) }
+/* Điểm trong khối "hạng của bạn": cũng là con số quyết định thứ tự nên cùng
+   một tông với cột điểm trong bảng, không phải một màu thứ ba. */
+.lb-me-pts { color: var(--a-2); font-weight: 600 }
 
 /* ---- hàng của bạn, dính đáy khối ---- */
 .lb-me { display: flex; align-items: center; gap: 10px; padding: 11px 14px; margin-top: 0;
@@ -2309,6 +2395,8 @@ html[data-section="spin"] .bgfx { display: none; }
   border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: var(--r-sm);
   transition: opacity var(--t-1) var(--e-soft) }
 .searchwrap:focus-within .search-kbd, .search:not(:placeholder-shown) + .search-kbd { opacity: 0 }
+/* Máy cảm ứng không có bàn phím vật lý: gợi ý "/" chỉ tổ chiếm chỗ trong ô hẹp */
+@media (pointer: coarse) { .search-kbd { display: none } }
 
 /* vote được tính: một vòng sáng bung ra khỏi nút rồi tan */
 .votefx { position: absolute; inset: -1px; border-radius: inherit; border: 1px solid var(--a-2);
@@ -2539,6 +2627,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .dup-tx b { font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dup-sub { color: var(--txt-2); font-size: 11.5px; }
 .dup-note .btn { flex: none; }
+/* Dải gợi ý TÁCH TIÊU ĐỀ VIDEO dùng chung khuôn với dải "bài đã có" (cùng là
+   một lời gợi ý kèm một nút), nhưng đổi sắc: hai dải có thể đứng cạnh nhau, và
+   lúc đó người dùng phải phân biệt được cái nào là "bài này có rồi", cái nào
+   là "để tôi điền giúp ô bên cạnh". */
+.split-note { border-left-color: var(--queued); background: color-mix(in srgb, var(--queued) 10%, transparent); }
 
 .kind-note {
   margin: 10px 0 0; padding: 9px 12px;
@@ -3076,12 +3169,12 @@ html[data-section="spin"] .bgfx { display: none; }
    Nhãn đặt trần trong một dòng chữ thì khi xuống hàng chúng dính vào nhau:
    không có `row-gap`, và `line-height` của dòng văn bản không phải khoảng cách
    thiết kế. Mọi cụm nhãn đi qua .tags để có wrap + hai trục gap. */
-.tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0;
+  max-width: 100%; }
 .tags.wide { display: flex; width: 100%; }
 /* dòng chữ đứng cạnh nhãn phải co được, nếu không nhãn bị đẩy ra ngoài khung */
 .tags .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { row-gap: 6px; }
-.row .title { line-height: 1.45; }
 .row .title .tags { margin-left: 2px; }
 .nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
 
@@ -3121,26 +3214,88 @@ html[data-section="spin"] .bgfx { display: none; }
 .fmore b { min-width: 16px; padding: 2px 5px; border-radius: var(--r-pill); background: var(--a-soft);
   color: var(--a-2); font-family: var(--mono); font-size: 10.5px; }
 .fmore.on { color: var(--txt); border-color: var(--a-dim); background: var(--surface-3); }
-.fbar-more { display: none; }
-.fbar-more .row2 { display: flex; align-items: center; gap: 8px; width: 100%; }
-.fbar-more .sel { flex: 1 1 auto; max-width: none; }
+/* HÀNG LỌC THỨ HAI — LỖI THẬT CỦA BẢN TRƯỚC: khối này chỉ được mở trong
+   `@media (max-width: 620px)`, mà nút mở nó (`.fmore`) cũng chỉ hiện ở đó.
+   Nghĩa là trên desktop KHÔNG có cách nào chọn loại bài: cả hàng chip "All types
+   / Color Coded Lyrics / Full Album / Loop / Short" nằm sau một cánh cửa không
+   có tay nắm — tính năng có mà không tới được. Nay nó là hàng thứ hai LUÔN hiện
+   của thanh lọc; máy hẹp mới gấp lại sau nút "Bộ lọc". */
+.fbar-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Trên màn rộng, con số kết quả đã in ở hàng trên (`.fcount`); dòng tóm tắt chỉ
+   còn để giữ lối thoát "Bỏ hết lọc". In lại con số ở đây là hai chỗ nói cùng một
+   điều — đúng thứ bị bỏ ở vòng 8. */
+@media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; } }
 
 @media (max-width: 620px) {
   .fcount { display: none; }
   .fmore { display: inline-flex; }
+  /* Điện thoại: hàng trên phải XUỐNG DÒNG được. Thiếu `flex-wrap` thì dải chip
+     (co được tới 0) bị bóp lại còn vài chục pixel trong khi ô tìm kiếm chiếm hết
+     chỗ — người dùng chỉ thấy một mẩu chip cụt. Nay: hàng 1 là dải chip trạng
+     thái, hàng 2 là ô tìm kiếm + nút Bộ lọc. */
+  .fbar-top { flex-wrap: wrap; row-gap: 8px; }
+  /* chip loại bài trong khối gấp: xuống dòng cho thấy HẾT, không bắt người dùng
+     đoán là còn nữa phía sau một dải cuộn ngang */
+  .fchips.kinds { flex-wrap: wrap; overflow: visible; }
   /* máy hẹp: hàng dưới gấp lại, chỉ mở khi bấm nút Bộ lọc */
   .fbar:not(.open) .fbar-more { display: none; }
   .fbar.open .fbar-more {
     display: flex; flex-direction: column; align-items: stretch; gap: 9px;
     flex: 1 1 100%; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line);
   }
-  /* ô chọn loại bài rời khỏi hàng chính, nằm trong khối lọc trên máy hẹp */
-  .fbar-side > .sel { display: none; }
-  .fbar-side { flex: 1 1 auto; }
+  /* HAI HÀNG, mỗi hàng một việc: hàng 1 là dải chip trạng thái (cuộn ngang,
+     chiếm trọn bề rộng nên thấy được nhiều chip hơn), hàng 2 là ô tìm kiếm +
+     nút Bộ lọc. Trước đây dải chip (co được tới 0) và ô tìm kiếm chen nhau
+     trên một hàng, nên chip bị bóp còn vài chục pixel — người dùng chỉ thấy
+     một mẩu chip cụt mà không hiểu vì sao. */
+  .fchips { flex: 1 1 100%; scroll-snap-type: x proximity; }
+  .fchip { scroll-snap-align: start; }
+  .fbar-side { flex: 1 1 100%; }
   .fbar .searchwrap { flex: 1 1 auto; min-width: 0; }
+  /* chip loại bài đang lọc: chỉ có nghĩa trên máy hẹp (khối lọc gấp lại) */
+  .fchip.onkind { display: inline-flex; }
 }
 
-/* ---- HỘP NHẬP SỐ VOTE (VoteModal) -------------------------------------- */
+/* Từ 621px khối lọc thứ hai LUÔN hiện, nên chip "loại đang lọc" ở hàng chính
+   là chỗ thứ hai nói cùng một điều — ẩn nó đi. */
+@media (min-width: 621px) { .fchip.onkind { display: none; } }
+
+/* Ô đang được gõ: cả HỘP sáng lên, không chỉ con trỏ — cùng một tín hiệu với
+   kính lúp đổi màu, và là thứ duy nhất nhìn thấy được khi ô đã có chữ. */
+.searchwrap:focus-within .search { border-color: var(--a-2); }
+
+/* ---- HỘP NHẬP SỐ VOTE (VoteModal) --------------------------------------
+   Trên ĐIỆN THOẠI hộp này là tấm trượt từ đáy lên, không phải một hộp thoại
+   lơ lửng giữa màn hình: nút xác nhận rơi đúng vào vùng ngón cái với tới, và
+   bàn phím số của máy (nếu mở) không đẩy hộp lên khỏi tầm nhìn. Vẫn là cùng
+   một hộp, cùng thứ tự nội dung — chỉ khác chỗ neo và hình dáng trên máy hẹp. */
+@media (max-width: 620px) {
+  .vote-overlay { align-items: flex-end; padding: 0; }
+  .modal.narrow {
+    position: relative;
+    max-width: none; width: 100%;
+    border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheetUp .22s var(--e-out) both;
+  }
+  /* Tay nắm: dấu hiệu "tấm này trượt được", và cũng là chỗ chừa cho phần đầu
+     hộp không bị sát mép trên */
+  .modal.narrow::before {
+    content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: var(--r-pill); background: var(--line-2);
+  }
+  .modal.narrow .modal-head { padding-top: 16px; }
+}
+@keyframes sheetUp { from { opacity: .7; transform: translateY(16px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .modal.narrow { animation: none } }
+/* Máy cảm ứng: mức chọn nhanh và nút tăng/giảm phải đủ to cho ngón tay */
+@media (pointer: coarse) {
+  .vm-preset { min-width: 54px; height: 44px; }
+  .qty button { min-width: 44px; height: 44px; }
+  .vm-slide { height: 28px; }
+}
+
+/* ---- HỘP NHẬP SỐ VOTE (VoteModal) — phần thân --------------------------- */
 .vm-hero { display: grid; gap: 3px; padding: 14px 16px; border-radius: var(--r-md);
   border: 1px solid var(--line-2); background: var(--surface-2); text-align: center; }
 .vm-hero .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-3); }
@@ -3156,6 +3311,11 @@ html[data-section="spin"] .bgfx { display: none; }
   color: var(--txt-2); font: 500 12.5px/1 var(--mono); transition: .13s; }
 .vm-preset:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
 .vm-preset.on { color: var(--txt); border-color: var(--a-dim); background: var(--a-soft); }
+/* Gợi ý hai phím chỉnh số, đứng cạnh ô nhập. Nhỏ và mờ: nó là chỉ dẫn, không
+   phải một điều khiển — bấm vào nó không có gì xảy ra. */
+.vm-keys { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px 6px; }
+@media (pointer: coarse) { .vm-keys { display: none } }
 .vm-preset:disabled { opacity: .4; cursor: not-allowed; }
 /* thanh trượt: cùng một trục với dãy số ở trên, kéo là thấy con số chạy */
 .vm-slide { width: 100%; margin: 12px 0 2px; accent-color: var(--a-2); cursor: pointer; }
@@ -3172,6 +3332,13 @@ html[data-section="spin"] .bgfx { display: none; }
   border: 1px solid var(--line); background: var(--surface-2); }
 .vm-chip span { font-size: 10.5px; color: var(--txt-3); }
 .vm-chip b { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--txt); }
+/* VẠCH NGUỒN PHIẾU: ba đoạn của cùng một màu, đậm dần về bên trái. Khe 2px lấy
+   nền của hộp làm vách ngăn — đọc ra ba phần mà không cần thêm màu nào. */
+.vm-mix { display: flex; gap: 2px; margin-top: 8px; height: 4px; }
+.vm-mix i { display: block; width: var(--w, 0%); min-width: 4px; border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--a-2) 92%, #fff); }
+.vm-mix .s-b { background: color-mix(in oklab, var(--a-2) 58%, var(--surface-2)); }
+.vm-mix .s-c { background: color-mix(in oklab, var(--a-2) 30%, var(--surface-2)); }
 .vm-song { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 
 /* ---- BẢNG ADMIN — TRANG RIÊNG ------------------------------------------ */
@@ -3191,6 +3358,11 @@ html[data-section="spin"] .bgfx { display: none; }
   font-variant-numeric: tabular-nums; }
 .adm-kpi.on .v { color: var(--sc); }
 .adm-kpi:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+/* Vạch chia tỉ lệ của cả khối lượng việc: năm mục, năm màu lấy từ chính dải
+   số liệu ngay trên nó. Khe 2px lấy nền trang làm vách ngăn. */
+.adm-mix { display: flex; gap: 2px; height: 5px; margin-top: -6px; }
+.adm-mix i { display: block; width: var(--w, 0%); min-width: 4px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--sc) 70%, var(--surface-2)); }
 
 
 .adm-panel { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel);
@@ -3202,11 +3374,24 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .adm-note { display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
   font-size: 11.5px; color: var(--txt-3); }
+/* HAI PHÍM TẮT CỦA TRANG, in ngay chỗ dùng. `Esc` và `Ctrl/Cmd+A` là hai thứ
+   nhanh nhất trong bảng này, mà trước đây chỉ có trong tài liệu — phím tắt
+   không ai biết thì không phải phím tắt. Đẩy về cuối hàng, và tự ẩn trên thiết
+   bị cảm ứng: máy không có bàn phím vật lý thì đừng hứa. */
+.adm-keys { margin-left: auto; white-space: nowrap; }
+@media (pointer: coarse) { .adm-keys { display: none } }
 
 @media (max-width: 620px) {
   .adm-panel { padding: 11px 11px 13px; }
+  /* Ô tìm kiếm chiếm trọn một hàng, các ô chọn xuống hàng dưới — cùng luật với
+     thanh lọc ngoài trang chủ: trên máy hẹp, ô nhập là việc chính nên nó không
+     chia hàng với ba control khác. */
+  .adm-bar .searchwrap { flex: 1 1 100%; }
   .adm-bar .sel, .adm-bar .adm-pickbtn { flex: 1 1 auto; }
   .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* NĂM ô số liệu trong HAI cột để lại một hàng thừa nửa bên phải — một lỗ
+     hổng ở cuối dải trông như thiếu dữ liệu. Ô lẻ cuối cùng kéo dài hết hàng. */
+  .adm-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 
 /* ---- FORM GỬI REQUEST --------------------------------------------------- */
@@ -3214,6 +3399,17 @@ html[data-section="spin"] .bgfx { display: none; }
 /* Dải ba bước. Bước chưa xong là chữ xám + số rỗng; bước xong thì số được tô
    và có dấu kiểm bằng chính màu nhấn. Đây là bản đồ của form — người dùng biết
    còn phải làm gì mà không phải cuộn xuống xem còn ô nào trống. */
+/* NHÁP ĐƯỢC KHÔI PHỤC — một dòng, không phải một hộp thoại hỏi han. Nó nói ra
+   vì sao form đã có sẵn chữ (nếu im lặng thì người dùng tưởng trình duyệt tự
+   điền bừa), và lối bỏ nằm ngay cuối dòng vì đó là việc duy nhất còn lại. */
+.draft-note {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 8px 11px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  font-size: 12px; color: var(--txt-2);
+}
+.draft-note .lnk { margin-left: auto; flex: none; font-size: 12px; }
+
 .req-steps { display: flex; gap: 6px; margin: 0 0 14px; padding: 0; list-style: none; flex-wrap: wrap; }
 .req-steps li {
   flex: 1 1 0; min-width: 96px; display: flex; align-items: center; gap: 8px;
@@ -3231,7 +3427,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* Chọn loại bài: bốn THẺ có tên + một dòng giải thích, thay cho bốn nút chữ.
    Hai loại khác nhau phải đọc ra là khác nhau ngay ở bước chọn. */
-.kindpicks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.kindpicks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; min-width: 0; }
 .kcard {
   display: grid; gap: 6px; align-content: start; padding: 10px 11px; text-align: left;
   border: 1px solid var(--line-2); border-radius: var(--r-md);

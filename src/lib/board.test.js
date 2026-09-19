@@ -8,7 +8,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { boardItems, creditText, findDuplicate, fold, groupIds, groupKey, groupRows, parseRequestPrefill,
-  pickBoardParam, sortGroups, sortRows, voteTotals } from './board.js'
+  pickBoardParam, sortGroups, sortRows, splitSong, voteTotals } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -336,4 +336,34 @@ test('bỏ dấu: chỉ MỘT chỗ định nghĩa, không bản sao thứ hai',
     assert.doesNotMatch(src, /normalize\('NFD'\)/, `${f} tự chuẩn hoá lại — phải dùng fold()`)
     assert.match(src, /\bfold\(/, `${f} phải lọc bằng fold()`)
   }
+})
+
+/* =========================================================
+   TÁCH TIÊU ĐỀ VIDEO — người dùng dán nguyên tiêu đề vào ô tên bài
+   ---------------------------------------------------------
+   Hai khuôn thật của tiêu đề nhạc: tên bài nằm trong cặp nháy (nhạc Hàn/Nhật)
+   và "Nghệ sĩ - Tên bài" kèm nhãn quảng cáo ở cuối. Cả hai đều phải ra đúng
+   hai vế, và thứ KHÔNG đoán được thì phải trả về `null` — một gợi ý sai bắt
+   người dùng sửa hai ô thay vì một.
+   ========================================================= */
+test('tách tiêu đề video: tên bài trong nháy, dấu gạch nối, và nhãn quảng cáo ở hai đầu', () => {
+  assert.deepEqual(splitSong("CHUNG HA 청하 'Algorithm' MV"), { artist: 'CHUNG HA 청하', title: 'Algorithm' })
+  assert.deepEqual(splitSong('Billie Eilish - "Birds of a Feather"'), { artist: 'Billie Eilish', title: 'Birds of a Feather' })
+  assert.deepEqual(splitSong('aespa - Whiplash (Official Video)'), { artist: 'aespa', title: 'Whiplash' })
+  assert.deepEqual(splitSong('[4K] (Official) aespa - Whiplash'), { artist: 'aespa', title: 'Whiplash' })
+  assert.deepEqual(splitSong('Artist - Title - Extra'), { artist: 'Artist', title: 'Title - Extra' },
+    'dấu gạch nối ĐẦU TIÊN mới là chỗ tách — phần còn lại là tên bài')
+  /* Nhãn nằm GIỮA câu là một phần thật của tên bài, không phải nhãn quảng cáo. */
+  assert.deepEqual(splitSong('IU - Love wins all (feat. someone)'), { artist: 'IU', title: 'Love wins all (feat. someone)' })
+})
+
+test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {
+  for (const s of ['aespa Whiplash', 'Whiplash', '', '   ', null, undefined, 'A - B', '- -']) {
+    assert.equal(splitSong(s), null, `không được đoán từ ${JSON.stringify(s)}`)
+  }
+  /* Hai vế giống nhau thì tách ra cũng vô nghĩa. */
+  assert.equal(splitSong('Ditto - Ditto'), null)
+  /* Không bao giờ trả về vế rỗng hay chữ thừa ở hai đầu. */
+  const got = splitSong("  aespa   -   Whiplash  ")
+  assert.deepEqual(got, { artist: 'aespa', title: 'Whiplash' })
 })

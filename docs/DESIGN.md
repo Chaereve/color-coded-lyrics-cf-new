@@ -159,22 +159,39 @@ Luật:
   component**; không chỗ gọi nào phải tự kiểm tra.
 - `role="progressbar"` + `aria-valuenow/min/max` + nhãn `t('progress.label')`:
   máy đọc được "Build progress, 47 percent" thay vì một con số lơ lửng.
-- Vạch tô theo **màu trạng thái của bài** (`--sc`, mặc định `--progress`), nên
-  nhìn màu là biết bài đang ở giai đoạn nào.
+- Vạch tô theo `--sc` (mặc định `--progress`), khai **trên `.prog` trong CSS** —
+  không phải prop. Màu là chuyện của cả hệ, không phải của từng chỗ gọi: khi mỗi
+  chỗ gọi tự truyền một màu thì *cùng một bài* có hai màu vạch ở trang chủ và
+  bảng quản trị (đã từng xảy ra, vòng 10 gỡ hẳn prop `color`).
 - Bản `wide` (bảng Admin) bỏ con số vì số tổng đã in ở `.steps-pct` ngay trên —
   cùng một dữ liệu không in hai lần trong một khối.
 
 **Màu của vạch** (chốt 19/09 sau khi chủ dự án nói "màu thanh progress chưa
 đẹp"): vạch không tô phẳng một màu, và cũng **không** lấy màu ngoài hệ:
 
-1. ruột là dải **hai điểm cùng một huệ** — `color-mix(--sc 68%, --bg)` ở đầu vạch
-   rồi tới `--sc` nguyên bản ở cuối. Cùng huệ nên không sinh ra bảng màu thứ hai,
-   còn hướng chạy thì mắt tự đọc ra;
-2. một vệt sáng `inset 0 1px 0 rgba(255,255,255,.16)` ở mép trên, và rãnh có bóng
-   lõm `inset 0 1px 2px rgba(0,0,0,.45)`: vạch đọc ra như một thanh mảnh có mặt
-   bắt sáng, thay vì một dải băng dính dán ngang hàng;
-3. `min-width: 6px` — bằng đúng đường kính bo tròn. Nhỏ hơn thì 1% biến mất và
-   người dùng đọc ra "chưa bắt đầu", trong khi việc đã bắt đầu rồi.
+1. ruột là **một màu sạch**: `color-mix(in oklab, var(--sc) 88%, #fff)`. Vòng 9
+   trộn về phía **màu nền** ở đầu vạch; trên nền xanh đen, trộn với nền thì ra
+   **màu bùn** — trộn với trắng chỉ **nâng sáng**, nên vẫn đúng màu của chính nó;
+2. **đầu vạch sáng 3px** (`::before`, `right: 0`) ở đúng chỗ tiến độ đang đứng,
+   cộng quầng sáng nhỏ `0 0 10px -3px`; mép trên vẫn có vệt sáng `inset` và rãnh
+   vẫn có bóng lõm. Chọn `::before` chứ không phải `::after` vì `::after` đã là
+   vệt sáng quét của khối Up next — hai thứ đó sẽ đè nhau;
+3. con số phần trăm **ăn theo tông của vạch** (`--sc` pha trắng 22%) thay vì một
+   màu xám không liên quan gì tới thanh bên cạnh nó;
+4. **tick hết ba mốc thì đổi màu xong**: `.prog-full { --sc: var(--done) }` — chỉ
+   một biến đổi chỗ, vạch + đầu vạch + con số cùng đi theo, không chép ba luật.
+   Đây là trạng thái thật (Layout/Lyrics/Edit đã tick hết, chỉ còn chờ chốt), và
+   admin nhìn một lượt cả bảng là thấy ngay bài nào đã tới đích;
+5. `min-width: 6px` — bằng đúng đường kính bo tròn. Nhỏ hơn thì 1% biến mất và
+   người dùng đọc ra "chưa bắt đầu", trong khi việc đã bắt đầu rồi. Nhưng vạch
+   chỉ được DỰNG khi `pct > 0`: trước đây nó luôn tồn tại (để giữ `min-width`
+   cho 1%), nên ở 0% vẫn có một que màu nằm trong rãnh trong khi con số ngay
+   cạnh ghi "0%" — hai chỗ nói ngược nhau. `Progress.jsx` không vẽ vạch ở 0%,
+   `min-width` chỉ còn nghĩa khi phần tử có mặt.
+6. rãnh cao 7px với bóng lõm khai **ngay trong luật của rãnh** (bản trước có hai
+   luật rời nhau cách xa nhau trong file), ruột vạch có vế bóng tối ở mép dưới
+   nên đọc ra một thanh mảnh có mặt cong, và dấu `%` **ăn theo tông của con số**
+   bằng `opacity` thay vì một màu xám thứ ba.
 
 **Hàng trong bảng quản trị** hiện cùng thanh đó ngay trên hàng (`!open`), không
 bắt admin mở khung sửa mới biết bài đang tới đâu; khung sửa đang mở thì thanh
@@ -215,9 +232,40 @@ số được). Component chỉ hỏi luật. Ba điều đã sửa:
    gom đúng như view `requester_ranking` bên Postgres (`user_id`, tên dùng nhiều
    nhất), và dòng `null` không làm sập bảng.
 
+**4. Có CÔNG THỨC, không chỉ có thứ tự (vòng 10).** Ba cách xếp đầu là ba phép đếm,
+nên mỗi cách chỉ trả lời được câu hỏi hẹp của nó: xếp theo số bài thì người gửi 40
+bài không bài nào được làm đứng trên người có 3 bài đã lên sóng, còn xếp theo phiếu
+thì người gom phiếu từ bài bị từ chối vẫn leo hạng. Cách xếp **mặc định** nay là
+**điểm**:
+
+> **điểm = 10 × số bài đã xong + tổng phiếu**
+
+- **Bài chưa xong không có điểm.** Gửi nhiều mà không bài nào được làm thì không leo
+  hạng — cùng tinh thần với việc gom cụm trùng và việc bài bị từ chối không tính hạng.
+- **Một bài xong đáng giá bằng 10 phiếu.** Cộng đồng đòi thật vẫn có tiếng nói, nhưng
+  phiếu không mua được hạng một mình.
+- Hai trọng số là **hằng số công khai** (`POINT_DONE`, `POINT_VOTE` trong
+  `src/lib/ranking.js`), và câu nói rõ luật trên bảng **ghép số từ chính hai hằng số
+  đó** (`t('rank.rule.points', { d: POINT_DONE, v: POINT_VOTE })`) — đổi luật là đổi
+  cả câu chữ, không thể có chuyện bảng tính một đằng, lời giải thích một nẻo.
+- Điểm được **tính một lần** trong `rankRows` rồi gắn vào từng dòng (`p.points`), nên
+  cột điểm và thứ tự đang sắp không thể lệch nhau. Mỗi hàng trong bảng in chip điểm
+  kèm lời giải thích trong `title`; bục 1-2-3 in hai chỉ báo phụ do **chính cách xếp
+  khai** (`minis` trong `RANK_SORTS`) — bục chỉ đủ chỗ cho hai con số, và hai con số
+  đáng đọc nhất là hai đầu vào của câu hỏi đang xem.
+
+**5. Điểm phải có CỘT của nó (vòng 10).** Điểm từng chỉ là một chip nằm trong ô
+tên người, nên khi bảng đang xếp theo điểm thì con số **quyết định thứ tự** không
+có cột, và hàng tiêu đề không giải thích được vì sao các hàng nằm theo thứ tự đó.
+Nay có `<th>Score</th>` kèm lời giải thích công thức trong `title`, mỗi hàng một ô
+điểm, và hàng của chính người xem cũng in điểm (`.lb-me-pts`) — đó là con số trả
+lời "vì sao tôi đứng ở đây".
+
 Trên màn hình, mỗi cách xếp in ra **câu nói rõ luật đang chạy** (`.lb-rule`): thứ
 tự nhảy khi đổi cách xếp mà không có câu nào giải thích là thứ tự trông như ngẫu
-nhiên.
+nhiên. Luật phụ của cách xếp theo điểm nói luôn một điều người xem cần biết để
+không farm: **bài bị từ chối không tính gì** (khớp với `where r.status <> 'denied'`
+của view `requester_ranking` và với `rankDemo()`).
 
 ---
 
@@ -354,8 +402,33 @@ Ngoài ra `scroll-behavior: smooth` của app tự chuyển thành `auto` (xem
   (chip loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
   `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) chip cao ≥40px
   — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
+- **Thanh lọc trên máy hẹp: mỗi hàng một việc** (vòng 10, tiếp). Hàng 1 là dải
+  chip trạng thái — **chiếm trọn bề rộng** và cuộn ngang có điểm dừng
+  (`scroll-snap-type: x proximity`, mỗi chip một điểm dừng); hàng 2 là ô tìm kiếm
+  + nút Bộ lọc. Bản trước để hai thứ đó chen nhau trên một hàng: dải chip co được
+  tới 0 nên bị bóp còn vài chục pixel, người dùng chỉ thấy một mẩu chip cụt mà
+  không hiểu vì sao. Phép kiểm `cssFilterBar.test.js` chốt cả hai vế (máy hẹp hai
+  hàng, màn rộng một hàng).
+- **Loại bài đang lọc phải NHÌN THẤY** (vòng 10, tiếp). Trên màn hẹp khối lọc gấp
+  sau nút Bộ lọc, nên nếu không có gì khác thì không có chỗ nào nói ra là danh sách
+  đang bị lọc theo loại bài — người dùng chỉ thấy danh sách thiếu bài. Nay có
+  `.fchip.onkind` trên hàng chính, mang tên loại và bỏ được bằng một lần bấm; từ
+  621px trở lên nó bị ẩn vì khối lọc đã luôn hiện.
 - Không có `hover` thật ⇒ khối `@media (hover: none)` trả lại mọi thứ đọc được
   khi rê chuột. Trạng thái "đang mở" luôn phải đọc được **mà không cần rê**.
+
+---
+
+### 5.1 Ô tìm kiếm — chừa chỗ theo bề rộng THẬT của thứ nằm đè
+
+Ô tìm kiếm có hai thứ nằm đè lên nó: kính lúp bên trái, nút xoá bên phải. Khoảng
+chừa của **cả hai** bên được tính từ bề rộng của chính chúng
+(`calc(var(--ico-x) + var(--ico-w) + 4px)` và `calc(var(--x-x) + var(--x-w) + 4px)`)
+— bản trước chỉ tính bên trái, còn bên phải là `26px` viết cứng, nên khi thiết bị
+chạm nới nút xoá lên 30px thì chữ gõ vào vẫn chui được xuống dưới nút xoá. Luật
+này áp cho **mọi** ô tìm kiếm (bảng công khai **và** bảng quản trị — chúng dùng
+chung lớp `.search`). Hộp sáng viền lên khi đang gõ (`:focus-within`), và cả hai ô
+đều có `aria-label` vì placeholder không phải là nhãn.
 
 ---
 
@@ -399,6 +472,20 @@ Ghi lại để lần sau không ai "sửa" ngược:
   duyệt): quản trị là một việc người ta làm liên tục trong nhiều phút, và một
   hộp thoại vừa chặn phần còn lại của trang vừa mất hết trạng thái khi bấm ra
   ngoài. Đường dẫn riêng cũng là thứ duy nhất để gửi cho người khác.
+- **Không** để bộ lọc của bảng quản trị sống trong state (vòng 10). Từ khoá, cách
+  xếp và loại bài nằm ở **địa chỉ** (`/admin?tab=active&q=aespa&sort=votes&kind=Short`)
+  — đọc bằng `readAdminView` (giá trị lạ rơi về mặc định, không làm trang trắng),
+  ghi bằng `adminQuery` (chỉ ghi tham số **khác mặc định**, nên danh sách chưa lọc
+  vẫn là `/admin`). Một mục đã lọc sẵn là thứ admin muốn đưa cho người khác và muốn
+  giữ khi F5; để trong state thì mở thư viện khác là mất, dán link là người kia thấy
+  danh sách trần.
+- **Không** truyền màu vào thanh tiến độ từ chỗ gọi (vòng 10), và **không** để một
+  nút hành động nằm trong nhánh tab mà nó không dùng được: nút Xuất CSV từng ở trong
+  nhóm `tab !== 'orders'` nên mục Đơn hàng không xuất được dù hàm xuất đã có nhánh
+  cột riêng, còn nút "Chọn nhiều" từng hiện ở mục Đơn hàng — nơi không vẽ ô chọn nào,
+  bật lên chỉ để bấm vào chỗ không có gì. Cùng loại lỗi: một tính năng **chỉ tồn tại
+  trong ghi chú** (`Ctrl/Cmd+A` chọn cả trang) — nay ghi chú nào hứa thì thân hàm
+  phải có.
 - **Không** chặn việc gửi một bài đã có trên bảng. Form chỉ *báo* (`findDuplicate`)
   rồi mời đi vote cho bài đó; người gửi vẫn toàn quyền gửi tiếp. Chặn là quyết định
   thay người dùng ở chỗ mình không có đủ thông tin (bài cũ có thể đã bị từ chối, hoặc
@@ -437,6 +524,26 @@ Ghi lại để lần sau không ai "sửa" ngược:
       Back và việc dán link cho người khác đều dựa vào đó.
 - [ ] Có thêm nút tải dữ liệu ra? Dùng `src/lib/csv.js` (bọc ô theo RFC 4180 +
       BOM cho Excel) và xuất **đúng những gì đang nhìn**, không phải cả bảng.
+- [ ] Thêm một ô tìm kiếm mới? Nó phải nằm trong `.searchwrap` và **chừa chỗ cho
+      cả hai thứ nằm đè, theo bề rộng thật của chúng**
+      (`calc(var(--ico-x) + var(--ico-w) + 4px)` và `calc(var(--x-x) + var(--x-w) + 4px)`)
+      — luật cũ chỉ áp cho `.fbar .search`, nên ô tìm trong bảng quản trị có chữ nằm
+      dưới kính lúp, còn nút xoá trên thiết bị chạm thì đè lên chữ.
+      `src/lib/cssFilterBar.test.js` đỏ nếu mất `calc(`.
+- [ ] Thêm một con số "tổng quan" mới (số liệu, tỉ lệ, nguồn)? Nó phải đi kèm **một
+      vạch chia tỉ lệ** nếu tỉ lệ là điều người xem cần — `.adm-mix` (năm mục việc)
+      và `.vm-mix` (ba nguồn phiếu) là hai ví dụ: cùng dữ liệu, khác câu hỏi, 4–5px.
+- [ ] Thêm nút/hành động vào một mục của bảng quản trị? Kiểm nó có dùng được ở
+      **chính mục đó** không (nút xuất CSV từng không có ở mục Đơn hàng), và nếu nó
+      chỉ có nghĩa với một số mục thì nằm trong nhánh của các mục đó.
+- [ ] Thêm một nhãn vào chỗ mới? Cụm từ hai nhãn trở lên phải nằm trong `.tags`, và
+      nhãn phải kẹp được theo hộp cha — `src/lib/tagLayout.test.js` quét toàn bộ JSX.
+- [ ] Thêm thứ "nhớ giúp" người dùng (nháp, bộ lọc, mục đang mở)? Phải có **đường
+      thoát**: nháp request tự xoá sau khi gửi và sau 7 ngày, có nút Bỏ nháp dọn form
+      (`src/components/ActionModal.jsx`); trạng thái nào đáng dán cho người khác thì
+      phải nằm ở **địa chỉ**, không chỉ trong state.
+- [ ] Trước khi báo xong: chạy **`npm run smoke`** (dựng thật cả app, ~19 giây) —
+      nó bắt được loại lỗi mà bài kiểm tĩnh không thấy, và in ra mọi thứ rơi ra console.
 - [ ] Đụng vào thứ tự bảng xếp hạng thì luật phải sửa ở `src/lib/ranking.js` và
       `src/lib/ranking.test.js` phải xanh — không sắp bằng `||` trong component
       (xem §2.7).

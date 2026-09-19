@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../lib/db'
 import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
-import { findDuplicate } from '../lib/board'
+import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
@@ -17,6 +17,28 @@ const VOTE_PER_PAGE = 8
 /* Rules chỉ hiện 1 lần duy nhất — bấm Agree là nhớ vào localStorage. */
 const RULES_KEY = 'ccl.reqRules'
 const RULES_V = 'v1'
+
+/* BẢN NHÁP CỦA FORM REQUEST.
+   ---------------------------------------------------------
+   Một request mất ba ô chữ (tên bài, nghệ sĩ, link) — người dùng hay đi tìm
+   link rồi quay lại tab, hoặc bấm nhầm ra ngoài hộp thoại. Không có nháp thì
+   mọi thứ vừa gõ biến mất, và việc gửi request trở thành việc phải làm một hơi.
+   Nháp nằm trong localStorage (không tốn request nào, không cần đăng nhập lại),
+   tự xoá sau khi gửi thành công, và tự bỏ nếu cũ quá 7 ngày — nửa cái form từ
+   tháng trước không phải là "việc đang làm dở". */
+const DRAFT_KEY = 'ccl.reqDraft'
+const DRAFT_V = 1
+const DRAFT_TTL = 7 * 24 * 60 * 60 * 1000
+
+function readDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
+    if (!d || d.v !== DRAFT_V) return null
+    if (Date.now() - (d.at || 0) > DRAFT_TTL) return null
+    const txt = `${d.artist || ''}${d.title || ''}${d.link || ''}${d.note || ''}`.trim()
+    return txt ? d : null
+  } catch { return null }   /* chặn storage / JSON hỏng: coi như không có nháp */
+}
 
 function RulesGate({ onAgree }) {
   const { t } = useI18n()
@@ -57,15 +79,21 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   /* Link mời (`?add=1&artist=…&title=…`) đổ sẵn vào form: người bấm link từ mô
      tả video chỉ còn phải bấm Gửi. Giá trị đã được cắt theo maxLength của ô
      nhập ở `parseRequestPrefill` nên không có chuyện chữ từ URL dài hơn ô. */
+  /* Link mời (`?add=1&…`) là một lời mời có chủ đích nên nó THẮNG bản nháp;
+     chỉ khi không có link mời mới dựng lại việc đang làm dở. */
+  const [draft] = useState(() => (prefill ? null : readDraft()))
+  const [restored, setRestored] = useState(!!draft)
   const [form, setForm] = useState(() => ({
-    kind: KINDS[0],
-    artist: prefill?.artist || '', title: prefill?.title || '',
-    link: prefill?.link || '', note: '',
+    kind: KINDS.includes(draft?.kind) ? draft.kind : KINDS[0],
+    artist: draft?.artist || prefill?.artist || '',
+    title: draft?.title || prefill?.title || '',
+    link: draft?.link || prefill?.link || '',
+    note: draft?.note || '',
   }))
   /* O "bai tra phi" luon bat dau tat. Tung co prop `paidDefault` de mo form dang
      tick san, nhung khong mot ai truyen no — xoa di con hon de nguoi doc tuong
      la co loi tat. */
-  const [paid, setPaid] = useState(false)
+  const [paid, setPaid] = useState(() => !!draft?.paid)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   /* Ô nào đã được RỜI khỏi: chỉ hiện lỗi sau khi người dùng đi qua ô đó, không
@@ -96,11 +124,57 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      "tôi vừa gửi bài này rồi" ngay cả khi nó chưa được duyệt. */
   const dup = useMemo(() => findDuplicate(allRows || rows, form), [allRows, rows, form])
 
+  /* TIÊU ĐỀ VIDEO DÁN NGUYÊN SI: gợi ý tách thành hai ô (xem `splitSong`).
+     Người dùng copy tiêu đề video là cách nhanh nhất để điền form — và cũng là
+     cách chắc chắn nhất để ô tên bài chứa cả tên nghệ sĩ. Gợi ý này KHÔNG tự
+     sửa gì: nó nói ra hai vế đã đọc được, người dùng bấm một lần là xong.
+     Chỉ hiện khi hai vế thật sự KHÁC điều đang có trong form, nếu không thì
+     đây chỉ là một dải chữ nhắc lại đúng những gì đang nhìn thấy. */
+  const split = useMemo(() => {
+    const got = splitSong(form.title)
+    if (!got) return null
+    if (got.artist === form.artist.trim() && got.title === form.title.trim()) return null
+    return got
+  }, [form.title, form.artist])
+  const applySplit = () => {
+    if (!split) return
+    setForm(f => ({ ...f, artist: split.artist, title: split.title }))
+    setTouched(s2 => ({ ...s2, artist: true, title: true }))
+  }
+
   /* LINK YOUTUBE: nhận ra ngay khi dán, và nói ra bằng ẢNH BÌA của chính video
      đó (i.ytimg.com, không cần API key, không tốn quota). Trước đây ô link chỉ
      có một câu nhắc chung chung nên dán đúng hay sai cũng nhìn giống nhau. */
   const yt = useMemo(() => parseYoutube(form.link), [form.link])
   const ytId = yt?.id || null
+
+  /* Ghi nháp hoãn 400ms: mỗi ký tự gõ vào không phải một lần ghi ổ quang. Form
+     trống thì xoá nháp luôn, kẻo lần sau mở lên lại thấy một cái form "khôi phục"
+     mà chẳng có gì trong đó. */
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const empty = !(form.artist.trim() || form.title.trim() || form.link.trim() || form.note.trim())
+      try {
+        if (empty) localStorage.removeItem(DRAFT_KEY)
+        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: DRAFT_V, at: Date.now(), ...form, paid }))
+      } catch { /* chặn storage thì form vẫn chạy, chỉ là không nhớ được */ }
+    }, 400)
+    return () => clearTimeout(id)
+  }, [form, paid])
+
+  /* Hai việc khác nhau, đừng gộp: QUÊN nháp là chỉ xoá bản lưu (dùng sau khi
+     gửi xong — chữ trong form đã được dọn ở đường gửi), còn BỎ nháp là quên +
+     dọn form, vì nút "Bỏ nháp" nằm ngay cạnh câu "form được khôi phục từ nháp":
+     bấm vào mà chữ vẫn còn nguyên thì người dùng vừa bấm cái gì? */
+  const forgetDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* không xoá được thì thôi */ }
+    setRestored(false)
+  }
+  const discardDraft = () => {
+    forgetDraft()
+    setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
+    setTouched({}); setMsg(null); artistRef.current?.focus()
+  }
 
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
@@ -119,8 +193,9 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const ready = !errArtist && !errTitle
   const step2 = !!(form.artist.trim() && form.title.trim())
 
-  const submit = async (e) => {
-    e.preventDefault()
+  /* Thân của việc gửi, tách khỏi sự kiện submit để phím Enter trong ô tên bài
+     gọi được cùng một đường (một luật gửi, hai lối vào). */
+  const goSubmit = async () => {
     /* Thiếu ô nào thì đánh dấu ô đó rồi đưa con trỏ tới nó — câu trả lời nằm
        ngay chỗ cần sửa, không phải một dòng chữ ở cuối form. */
     if (!ready) {
@@ -128,14 +203,29 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       ;(errArtist ? artistRef : titleRef).current?.focus()
       return
     }
+    if (busy) return
     setBusy(true); setMsg(null)
     try {
       await onSubmit(form, paid)
       setForm({ ...form, artist: '', title: '', link: '', note: '' })
       setTouched({})
+      forgetDraft()   /* gửi xong thì việc đang làm dở đã thành việc đã gửi */
       setMsg({ t: 'ok', m: paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
     finally { setBusy(false) }
+  }
+  const submit = (e) => { e.preventDefault(); goSubmit() }
+
+  /* DÁN LINK Ở ĐÂU CŨNG ĐƯỢC: người dùng copy link video rồi dán vào ô đang mở
+     — thường là ô tên bài. Nếu chuỗi vừa dán CHÍNH LÀ một link thì đưa nó về
+     đúng ô Link thay vì nhét một URL dài vào tên bài; còn câu trộn chữ với link
+     thì để nguyên, người dùng tự cắt. */
+  const pasteLink = (e) => {
+    const txt = (e.clipboardData?.getData('text') || '').trim()
+    if (!URL_RE.test(txt)) return
+    e.preventDefault()
+    setForm(f => ({ ...f, link: txt }))
+    setTouched(s => ({ ...s, link: true }))
   }
 
   if (!agreed) return <RulesGate onAgree={agree} />
@@ -154,6 +244,17 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         <li className={step2 ? 'on' : ''}><b>2</b>{t('req.step2')}</li>
         <li className={ready ? 'on' : ''}><b>3</b>{t('req.step3')}</li>
       </ol>
+
+      {/* Nháp được khôi phục: nói ra, kèm lối bỏ — người dùng phải biết vì sao
+          form đã có sẵn chữ, và phải có cách xoá nếu đó là việc của người khác
+          trên cùng máy. */}
+      {restored && (
+        <p className="draft-note" role="status">
+          <Icon name="info" size={13} />
+          {t('req.draftRestored')}
+          <button type="button" className="lnk" onClick={discardDraft}>{t('req.draftClear')}</button>
+        </p>
+      )}
 
       <div className="field">
         <label id="kind-label">{t('req.kind')}</label>
@@ -177,12 +278,19 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         )}
       </div>
 
+      {/* HAI Ô CHÍNH — hai lối tắt ở đây đều là đường đi ngắn nhất của người
+          đã biết mình muốn gì:
+            · Enter ở ô nghệ sĩ là "xong ô này" → nhảy sang ô tên bài;
+            · Enter ở ô tên bài (khi đã đủ hai ô) là GỬI luôn;
+            · dán một link vào BẤT KỲ ô nào trong hai ô → link về đúng ô Link,
+              không nhét một URL dài vào tên bài. */}
       <div className="field-row">
         <div className="field">
           <label htmlFor="rq-artist">{t('req.artist')} <span aria-hidden="true">*</span></label>
           <div className="fin">
             <input id="rq-artist" ref={artistRef} value={form.artist} onChange={set('artist')}
-              onBlur={blur('artist')} maxLength={120} autoComplete="off"
+              onBlur={blur('artist')} onPaste={pasteLink} maxLength={120} autoComplete="off"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); titleRef.current?.focus() } }}
               aria-invalid={showErr('artist') ? 'true' : undefined}
               aria-describedby={showErr('artist') ? 'err-artist' : undefined}
               placeholder={t('req.artistPh')} />
@@ -194,7 +302,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           <label htmlFor="rq-title">{titleLabel} <span aria-hidden="true">*</span></label>
           <div className="fin">
             <input id="rq-title" ref={titleRef} value={form.title} onChange={set('title')}
-              onBlur={blur('title')} maxLength={160} autoComplete="off"
+              onBlur={blur('title')} onPaste={pasteLink} maxLength={160} autoComplete="off"
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                if (ready) goSubmit(); else artistRef.current?.focus()
+              }}
               aria-invalid={showErr('title') ? 'true' : undefined}
               aria-describedby={showErr('title') ? 'err-title' : undefined}
               placeholder={t('req.titlePh')} />
@@ -213,6 +326,23 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           Đứng NGAY DƯỚI hai ô tên bài/nghệ sĩ: đó là chỗ mắt đang ở sau khi gõ
           xong tên bài, và trên màn hình đầu của form — để dưới đáy thì phần lớn
           người dùng không bao giờ cuộn tới nó. */}
+      {/* TÁCH TIÊU ĐỀ VIDEO: đứng ngay dưới hai ô vừa gõ (chỗ mắt đang ở),
+          TRƯỚC thẻ xem trước — vì đây là việc sửa dữ liệu, không phải việc
+          xem lại. */}
+      {split && (
+        <div className="dup-note split-note" role="status">
+          <span className="dup-tx">
+            <b>{split.artist} — {split.title}</b>
+            <span className="dup-sub">{t('req.splitLead')}</span>
+          </span>
+          <span className="tags">
+            <button type="button" className="btn btn-sm btn-primary" onClick={applySplit}>
+              {t('req.splitGo')}
+            </button>
+          </span>
+        </div>
+      )}
+
       <div className="req-preview">
         <div className="rp-bar">
           <Icon name="preview" size={13} />
@@ -322,7 +452,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         <button type="button" className="btn" disabled={busy}
           onClick={() => {
             setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
-            setTouched({}); setMsg(null); artistRef.current?.focus()
+            setTouched({}); setMsg(null); forgetDraft(); artistRef.current?.focus()
           }}>{t('req.clear')}</button>
         {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
       </div>

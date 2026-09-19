@@ -99,6 +99,81 @@ export const pickBoardParam = (fromUrl, saved, valid, dflt) => {
    Trả về `null` khi CHƯA đủ để kết luận: tên bài dưới 3 ký tự mà đã báo trùng
    thì gõ tới đâu cũng thấy gợi ý, và người dùng học được cách phớt lờ nó.
    ========================================================= */
+/* =========================================================
+   TÁCH MỘT TIÊU ĐỀ VIDEO THÀNH HAI Ô
+   ---------------------------------------------------------
+   Cách nhanh nhất để điền form là copy NGUYÊN tiêu đề video rồi dán vào ô
+   tên bài — và đó cũng là cách chắc chắn nhất để ô tên bài chứa cả tên nghệ
+   sĩ trong khi ô nghệ sĩ trống. Hàm này đọc hai khuôn phổ biến của tiêu đề
+   nhạc (đặc biệt là nhạc Hàn/Nhật, nơi tên bài luôn nằm trong nháy):
+
+     "CHUNG HA 청하 'Algorithm' MV"          → nháy: tên bài = Algorithm
+     "aespa - Whiplash (Official Video)"     → gạch nối + nhãn ở cuối
+
+   KHÔNG đoán khi không có dấu hiệu nào: "aespa Whiplash" trả về `null`, vì
+   đoán sai thì người dùng phải sửa HAI ô thay vì một — gợi ý điền giúp mà
+   bắt sửa nhiều hơn tự điền thì không phải gợi ý.
+   Chỉ trả về khi CẢ HAI vế đều có nghĩa và khác nhau.
+   ========================================================= */
+const TAG_WORDS = [
+  'mv', 'm/v', 'video', 'lyric', 'lyrics', 'audio', 'official', 'performance',
+  'color coded', 'full album', '1 hour', 'loop', '4k', 'hd', '1080p', 'remaster',
+  'teaser', 'visualizer', 'instruments',
+]
+
+/* Một nhóm trong ngoặc chỉ là NHÃN QUẢNG CÁO khi nó ngắn và chứa một trong
+   các từ trên. Nhóm nằm GIỮA câu được giữ nguyên — "(feat. X)" là một phần
+   thật của tên bài, không phải nhãn. */
+const isTag = (inner) => {
+  const w = inner.trim().toLowerCase()
+  return w.length > 0 && w.length <= 28 && TAG_WORDS.some(x => w.includes(x))
+}
+
+function stripTags(str) {
+  let out = str.trim()
+  for (let i = 0; i < 4; i++) {
+    const lead = out.match(/^[([{]([^)\]}]*)[)\]}]\s*/)
+    const tail = out.match(/\s*[([{]([^)\]}]*)[)\]}]$/)
+    if (lead && isTag(lead[1])) { out = out.slice(lead[0].length).trim(); continue }
+    if (tail && isTag(tail[1])) { out = out.slice(0, out.length - tail[0].length).trim(); continue }
+    break
+  }
+  return out
+}
+
+const tidy = (v) => v.replace(/\s+/g, ' ').replace(/^[-–—:|\s]+|[-–—:|\s]+$/g, '').trim()
+
+export function splitSong(raw) {
+  const s = String(raw ?? '').replace(/\s+/g, ' ').trim()
+  if (s.length < 4) return null
+  const cut = stripTags(s)
+
+  /* 1. Tên bài nằm trong cặp nháy — khuôn của gần như mọi MV nhạc Hàn/Nhật. */
+  const q = cut.match(/[\u2018\u2019'"\u201c\u201d]([^\u2018\u2019'"\u201c\u201d]{2,80})[\u2018\u2019'"\u201c\u201d]/)
+  if (q) {
+    const artist = tidy(cut.slice(0, q.index))
+    const title = tidy(q[1])
+    /* Một vế chỉ có MỘT ký tự thì chưa đủ để gọi là tên nghệ sĩ hay tên bài:
+       "A - B" không phải là một tiêu đề video, và đoán bừa ở đây bắt người
+       dùng sửa hai ô thay vì một. */
+    if (artist.length >= 2 && title.length >= 2 && artist.length <= 120 && title.length <= 160
+      && artist.toLowerCase() !== title.toLowerCase()) {
+      return { artist, title }
+    }
+  }
+
+  /* 2. Gạch nối giữa hai phần: lấy dấu gạch ĐẦU TIÊN, phần còn lại là tên bài. */
+  const m = cut.match(/^(.{1,120}?)\s+[-–—]\s+(.{1,160})$/)
+  if (m) {
+    const artist = tidy(m[1])
+    const title = tidy(m[2])
+    if (artist.length >= 2 && title.length >= 2 && artist.toLowerCase() !== title.toLowerCase()) {
+      return { artist, title }
+    }
+  }
+  return null
+}
+
 export function findDuplicate(rows, draft) {
   const title = (draft?.title || '').trim()
   const artist = (draft?.artist || '').trim()

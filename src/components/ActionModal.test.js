@@ -7,6 +7,7 @@
    Chạy: npm test */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -129,4 +130,50 @@ test('bài đã có trên bảng: form chỉ cho vote cho bài cũ, và luôn ch
   }))
   assert.match(tx, /already on the board|Vote for/i, 'bài trùng phải được nói ra kèm lối vote')
   assert.match(tx, /Send request|Fill in the required fields/, 'gợi ý không được biến thành cửa chặn')
+})
+test('form nhớ việc đang làm dở, và Enter/ dán link đều có đường đi ngắn', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { fileURLToPath } = await import('node:url')
+  const src = readFileSync(fileURLToPath(new URL('./ActionModal.jsx', import.meta.url)), 'utf8')
+
+  /* BẢN NHÁP: gõ dở rồi lỡ đóng hộp thoại thì không mất chữ. Ba vế phải cùng
+     có, thiếu một vế là nháp biến thành lỗi: có chỗ GHI, có chỗ ĐỌC, và có chỗ
+     XOÁ sau khi gửi (không thì lần sau mở form ra lại thấy bài vừa gửi). */
+  assert.match(src, /const DRAFT_KEY = 'ccl\.reqDraft'/, 'thiếu khoá nháp')
+  assert.match(src, /JSON\.stringify\(\{ v: DRAFT_V/, 'phải có chỗ ghi nháp')
+  assert.match(src, /const \[draft\] = useState\(\(\) => \(prefill \? null : readDraft\(\)\)\)/,
+    'phải đọc nháp lúc mở form — trừ khi có link mời (link mời thắng)')
+  assert.match(src, /forgetDraft\(\)\s*\/\* gửi xong/, 'gửi xong phải xoá nháp')
+  /* và nút "Bỏ nháp" phải DỌN FORM, không chỉ xoá bản lưu: bấm vào mà chữ vẫn
+     còn thì người dùng vừa bấm cái gì? */
+  const discard = src.match(/const discardDraft = \(\) => \{([\s\S]*?)\n  \}/)[1]
+  assert.match(discard, /forgetDraft\(\)/, 'bỏ nháp phải xoá bản lưu')
+  assert.match(discard, /artist: '', title: '', link: '', note: ''/, 'bỏ nháp phải dọn form')
+  assert.match(src, /draft-note/, 'phải NÓI RA là form được khôi phục từ nháp')
+
+  /* ENTER: ô nghệ sĩ là đi tiếp, ô tên bài là gửi (đủ điều kiện). */
+  assert.match(src, /if \(e\.key === 'Enter'\) \{ e\.preventDefault\(\); titleRef\.current\?\.focus\(\) \}/,
+    'Enter ở ô nghệ sĩ phải nhảy sang ô tên bài')
+  assert.match(src, /if \(ready\) goSubmit\(\); else artistRef\.current\?\.focus\(\)/,
+    'Enter ở ô cuối phải gửi được khi form đã đủ')
+
+  /* DÁN LINK vào ô tên bài: link phải về ô Link, không thành tên bài. */
+  assert.match(src, /const pasteLink = \(e\) => \{/, 'thiếu bộ bắt dán link')
+  assert.match(src, /link: txt/, 'link vừa dán phải vào ô Link')
+})
+
+test('dán NGUYÊN tiêu đề video: form đọc ra hai vế và mời tách bằng một lần bấm', async () => {
+  const html = await render({ ...base, tab: 'request', live: false,
+    prefill: { artist: '', title: "CHUNG HA 청하 'Algorithm' MV" } })
+  assert.match(html, /split-note/, 'phải có dải gợi ý tách tiêu đề')
+  assert.ok(html.includes('CHUNG HA 청하 — Algorithm'),
+    'hai vế đọc được phải in ra cho người dùng xem TRƯỚC khi bấm')
+  const src = readFileSync(`${root}src/components/ActionModal.jsx`, 'utf8')
+  assert.match(src, /splitSong\(form\.title\)/, 'luật tách phải nằm ở lib dùng chung, không viết lại trong component')
+  assert.match(src, /const applySplit/, 'nút gợi ý phải thật sự điền vào hai ô')
+  /* Tiêu đề bình thường thì KHÔNG được hiện dải gợi ý — một dải chữ xuất hiện
+     ở mọi lần gõ chỉ làm form dài thêm mà không nói gì. */
+  const plainHtml = await render({ ...base, tab: 'request', live: false,
+    prefill: { artist: 'aespa', title: 'Whiplash' } })
+  assert.doesNotMatch(plainHtml, /split-note/, 'tiêu đề không có dấu hiệu tách thì không hiện gợi ý')
 })

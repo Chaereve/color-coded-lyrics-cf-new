@@ -7,6 +7,7 @@
    Chạy: npm test */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -81,6 +82,15 @@ test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê —
   const nums = [...kpi.matchAll(/<span class="v">(\d+)<\/span>/g)].map(m => m[1])
   assert.deepEqual(nums, ['2', '1', '1', '2', '1'],
     'chờ duyệt 2 · đang xử lý 1 · đơn chờ 1 · đã xong/từ chối 2 · video 1')
+
+  /* VẠCH CHIA TỈ LỆ: năm ô nói "bao nhiêu", vạch nói "chiếm bao nhiêu phần".
+     Nó phải vẽ từ chính dải số liệu (một nguồn), và chỉ có MỘT vạch trên trang. */
+  assert.equal((html.match(/adm-mix/g) || []).length, 1, 'đúng một vạch chia tỉ lệ, không lặp ở nơi khác')
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /const kpiTotal = useMemo\(\(\) => kpis\.reduce/, 'tổng của vạch phải tính từ chính dải số liệu')
+  assert.match(src, /kpis\.filter\(k => k\.n > 0\)/, 'mục có 0 việc thì không vẽ một đoạn rỗng')
+  const css = readFileSync(`${root}src/index.css`, 'utf8')
+  assert.match(css, /\.adm-mix i \{[^}]*var\(--sc\)/, 'mỗi đoạn mang đúng màu của mục đó (không cần chú giải riêng)')
 })
 
 test('mục Chờ duyệt có thanh công cụ, dòng đếm, ô tìm kiếm và hai nút duyệt/từ chối', async () => {
@@ -109,6 +119,64 @@ test('mục Đơn hàng đọc ra đúng đơn đang chờ và nút xác nhận'
   const html = await render({ ...base, tab: 'orders' })
   assert.ok(html.includes('awaiting') || html.includes('btn-ok'), 'đơn đang chờ phải có nút xác nhận')
   assert.ok(html.includes('20'), 'đơn phải hiện số tiền')
+})
+
+test('mục nào cũng xuất được CSV — kể cả Đơn hàng (lỗi cũ: nút nằm trong nhóm không-đơn-hàng)', async () => {
+  for (const tab of ['pending', 'active', 'orders', 'done']) {
+    const html = await render({ ...base, tab })
+    assert.ok(html.includes('adm-export'), `mục ${tab}: thiếu nút xuất CSV`)
+  }
+  const orders = await render({ ...base, tab: 'orders' })
+  assert.ok(!orders.includes('adm-pickbtn'),
+    'mục Đơn hàng không vẽ ô chọn trên từng dòng nên không được mời bật chế độ chọn nhiều')
+  const pending = await render({ ...base, tab: 'pending' })
+  assert.ok(pending.includes('adm-pickbtn'), 'mục có ô chọn thì vẫn phải có nút chọn nhiều')
+})
+
+test('dải số liệu đi theo đúng danh sách mục dùng chung (một nguồn, một thứ tự)', async () => {
+  const { ADMIN_TAB_META } = await import('../lib/adminTabs.js')
+  const html = await render({ ...base, tab: 'pending' })
+  const keys = [...html.matchAll(/<button type="button" class="adm-kpi[^"]*"/g)]
+  assert.equal(keys.length, ADMIN_TAB_META.length, 'số ô phải bằng số mục')
+  /* thứ tự ô trên màn hình = thứ tự trong ADMIN_TAB_META; nhãn lấy từ i18n
+     nên chỉ chốt được số lượng, màu và vị trí mục đang mở */
+  const tones = [...html.matchAll(/--sc:(var\(--[a-z0-9-]+\))/g)].map(m => m[1])
+  assert.deepEqual(tones.slice(0, ADMIN_TAB_META.length), ADMIN_TAB_META.map(m => m.tone))
+  assert.ok(/adm-kpi on/.test(html) || /class="adm-kpi on"/.test(html), 'mục đang mở phải được đánh dấu')
+})
+
+test('hai phím tắt của trang được in ra chỗ dùng, và có vùng thông báo cho trình đọc màn hình', async () => {
+  const html = await render({ ...base, tab: 'pending' })
+  /* `Esc` và `Ctrl/Cmd+A` là hai phím nhanh nhất của trang này; nếu chỉ nằm
+     trong tài liệu thì không ai biết mà dùng. */
+  assert.ok(html.includes('adm-keys'), 'thiếu dòng gợi ý phím tắt')
+  assert.ok(/Esc/.test(html) && /Ctrl\/Cmd/.test(html), 'dòng gợi ý phải nói ra đúng hai phím')
+  /* Đổi bộ lọc là con số đổi; mắt thường không được báo, trình đọc màn hình thì phải. */
+  assert.match(html, /role="status"/, 'thiếu vùng thông báo cho trình đọc màn hình')
+  /* `aria-busy` chỉ có mặt khi đang chạy thao tác hàng loạt, mà trạng thái đó
+     không dựng được từ ngoài bằng SSR — nên soi ở mã nguồn. */
+  assert.match(readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8'), /aria-busy=\{bulkBusy/,
+    'lúc chạy thao tác hàng loạt, danh sách phải được đánh dấu đang bận')
+
+  /* Ba luật CSS đi cùng: gợi ý phím tự ẩn trên thiết bị cảm ứng, ô tìm kiếm của
+     bảng quản trị chiếm trọn một hàng trên máy hẹp, và ô số liệu lẻ cuối cùng
+     kéo dài hết hàng thay vì để lại một lỗ hổng. */
+  const css = readFileSync(`${root}src/index.css`, 'utf8')
+  assert.match(css, /@media \(pointer: coarse\) \{ \.adm-keys \{ display: none/,
+    'máy không có bàn phím thì đừng hứa phím tắt')
+  assert.match(css, /@media \(max-width: 620px\) \{[\s\S]{0,400}\.adm-bar \.searchwrap \{ flex: 1 1 100%/,
+    'trên máy hẹp, ô tìm kiếm phải chiếm trọn một hàng')
+  assert.match(css, /\.adm-kpis > :last-child:nth-child\(odd\) \{ grid-column: 1 \/ -1/,
+    'năm ô số liệu trong hai cột để lại một hàng thừa nửa bên phải — ô lẻ cuối phải kéo dài hết hàng')
+})
+
+test('nhịp chốt bài trong lời gợi ý lấy từ cấu hình, không viết cứng', async () => {
+  const html = await render({ ...base, tab: 'active', pickInterval: 6 })
+  assert.ok(/6 ngày|6 days|6/.test(html), 'lời gợi ý phải nói ra nhịp thật')
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.doesNotMatch(src, /now\.pickRule', \{ n: 4 \}/,
+    'viết cứng `n: 4` là cách lời giải thích lệch khỏi lịch thật ngay khi đổi nhịp')
+  assert.match(src, /pickInterval/, 'nhịp chốt bài phải đi vào từ prop')
 })
 
 test('mục Videos đưa sang bảng quản trị video, không lặp thanh công cụ của request', async () => {

@@ -1518,6 +1518,21 @@ export default function App() {
                         <b className="fnum">{counts[f.k]}</b>
                       </button>
                     ))}
+                    {/* LOẠI BÀI ĐANG LỌC, hiện thành chip bỏ được ngay trên hàng
+                        chính. Trên màn rộng khối lọc thứ hai luôn hiện nên chip
+                        này là thừa (CSS ẩn nó từ 621px); trên máy hẹp khối đó
+                        gấp sau nút "Bộ lọc", nên đây là chỗ DUY NHẤT cho biết
+                        "danh sách này đang bị lọc theo một loại bài" — người
+                        dùng cuộn xuống thấy thiếu bài mà không hiểu vì sao. */}
+                    {kindFilter !== 'all' && (
+                      <button type="button" className="fchip kind on onkind"
+                        style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
+                        aria-label={t('board.clearKind', { k: kindFilter })}
+                        title={t('board.clearKind', { k: kindFilter })}
+                        onClick={() => setKindFilter('all')}>
+                        {kindFilter}<Icon name="close" size={12} />
+                      </button>
+                    )}
                   </div>
                   <div className="fbar-side">
                     <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
@@ -1531,7 +1546,8 @@ export default function App() {
                     </button>
                     <span className="searchwrap">
                       <Icon name="search" size={14} className="search-ico" />
-                      <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
+                      <input ref={searchRef} className="search" placeholder={t('board.search')}
+                        aria-label={t('board.search')} value={q}
                         onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
                       {q
                         ? <button type="button" className="search-x" aria-label={t('board.clearQ')}
@@ -1747,6 +1763,7 @@ export default function App() {
             onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
             onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
             onMediaViewHome={viewMediaHome}
+            pickInterval={pick?.interval_days || 4}
           />
         </Suspense>
       )}

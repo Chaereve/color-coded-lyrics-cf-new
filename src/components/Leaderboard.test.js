@@ -51,7 +51,30 @@ const rows = [
 test('bảng dựng được và nêu luật đang chạy thành câu', async () => {
   const html = await render({ rows, meId: 'me' })
   assert.ok(html.includes('lb-rule'), 'thiếu câu nói rõ luật xếp hạng')
-  assert.ok(html.includes('Sorted by requests sent'), 'câu luật phải nói ra khoá đang xếp')
+  assert.ok(html.includes('Sorted by score'), 'luật mặc định là luật tính điểm')
+})
+
+test('luật mặc định là ĐIỂM, và trọng số trong câu chữ đọc thẳng từ hằng số của luật', async () => {
+  const { POINT_DONE, POINT_VOTE } = await import('../lib/ranking.js')
+  const html = await render({ rows, meId: 'me' })
+  /* Câu chữ phải nói đúng con số mà bảng đang tính — đổi POINT_DONE mà câu
+     không đổi thì bài này đỏ. */
+  assert.ok(html.includes(`${POINT_DONE} points per completed request`), 'câu luật phải in trọng số thật')
+  assert.ok(html.includes(`${POINT_VOTE} per vote`), 'câu luật phải in trọng số phiếu')
+  /* Người dẫn đầu: 10 bài xong × 10 + 90 phiếu = 190 điểm, in ngay trên bục. */
+  assert.ok(html.includes('>190<'), 'số lớn trên bục phải là ĐIỂM của người dẫn đầu')
+  /* Điểm cũng phải đọc được ở từng hàng trong bảng, nếu không thứ tự nhảy mà
+     người xem không biết vì sao. */
+  /* Ba người đầu đã có con số lớn trên bục; phần BẢNG còn lại mỗi hàng một ô
+     điểm, cộng một ô tiêu đề — con số quyết định thứ tự phải có CỘT riêng. */
+  assert.equal((html.match(/lb-score/g) || []).length, rows.length - 3 + 1,
+    'cột điểm: một ô tiêu đề + mỗi hàng trong bảng một ô')
+  assert.match(html, /<th class="num lb-score"[^>]*>Score<\/th>/, 'cột điểm phải có tên cột')
+  assert.match(html, /Score \d+ = 10 × completed requests \+ votes earned/,
+    'ô điểm phải giải thích được nó từ đâu ra')
+  /* Hàng của chính người xem cũng in điểm: xếp mặc định theo điểm thì đó là
+     con số trả lời "vì sao tôi đứng ở đây". */
+  assert.match(html, /lb-me-pts[^>]*>\s*40 points/, 'hàng của bạn phải in điểm của mình')
 })
 
 test('hai người cùng số bài thì ai XONG NHIỀU HƠN đứng trên (khoá phá hoà thật sự chạy)', async () => {
@@ -64,7 +87,8 @@ test('đúng một dòng được đánh dấu là "bạn", và khối cuối đ
   const html = await render({ rows, meId: 'me' })
   assert.equal((html.match(/lb-you/g) || []).length, 1, 'chỉ một nhãn "you" cho một người')
   assert.equal((html.match(/class="me"/g) || []).length, 1, 'chỉ một hàng được tô là hàng của mình')
-  assert.ok(/Rank 6 of 7/.test(html), 'khối "hạng của bạn" phải hiện đúng vị trí')
+  /* Xếp theo điểm: 190 · 150 · 110 · 60 · me(2×10+20=40) · 20 · 0 → hạng 5/7 */
+  assert.ok(/Rank 5 of 7/.test(html), 'khối "hạng của bạn" phải hiện đúng vị trí theo luật điểm')
 })
 
 test('tỉ lệ hoàn thành tính theo bài đã xong trên bài đã gửi', async () => {

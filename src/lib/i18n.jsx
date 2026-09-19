@@ -296,6 +296,7 @@ const S = {
   'board.filterAria': 'Filter requests',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
+  'board.clearKind': 'Remove the type filter: {k}',
   'board.showing': '{n} shown',
 
   /* phan trang — dung chung cho moi danh sach dai */
@@ -336,6 +337,7 @@ const S = {
   'rank.empty': 'No data yet.',
   'rank.you': 'you',
   'rank.requests': 'requests',
+  'rank.points': 'points',
   'rank.completed': 'completed',
   'rank.votes': 'votes',
   'rank.kicker': 'Latest update',
@@ -344,6 +346,12 @@ const S = {
   'rank.sort.completed': 'Completed',
   'rank.sort.total_votes': 'Votes earned',
   /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js). */
+  /* Luật tính điểm: hai trọng số được ghép vào câu từ chính hằng số dùng để
+     tính (`POINT_DONE`, `POINT_VOTE` trong ranking.js) nên câu chữ không thể
+     lệch khỏi phép tính. */
+  'rank.rule.points': 'Sorted by score: {d} points per completed request + {v} per vote · ties go to more completed, then more votes',
+  'rank.ptsTip': 'Score {n} = {d} × completed requests + votes earned',
+  'rank.sort.points': 'Score',
   'rank.rule.total': 'Sorted by requests sent · ties go to more completed, then more votes',
   'rank.rule.completed': 'Sorted by requests completed · ties go to more votes, then more requests',
   'rank.rule.total_votes': 'Sorted by votes earned · ties go to more completed, then more requests',
@@ -404,6 +412,11 @@ const S = {
   /* Thẻ XEM TRƯỚC trong form: dựng đúng cái người khác sẽ thấy trên bảng, từ
      chính những gì đang gõ. Chỗ chưa điền hiện chữ mờ nói rõ còn thiếu gì. */
   'req.preview': 'Preview — this is what goes on the board',
+  /* Gợi ý tách tiêu đề video dán nguyên si thành hai ô (xem `splitSong`). */
+  'req.splitLead': 'This looks like a full video title. Split it into the two fields?',
+  'req.splitGo': 'Split it',
+  'req.draftRestored': 'Draft restored from your last visit',
+  'req.draftClear': 'Discard draft',
   'req.previewYt': 'YouTube link recognised',
   'req.phArtist': 'artist name…',
   'req.phTitle': 'the {f} name…',
@@ -521,6 +534,11 @@ const S = {
   'adm.exported': 'Saved',
   'adm.showing': 'Showing {n} of {total}',
   'adm.selectPage': 'Select all {n} on this page',
+  /* Hai phím tắt của bảng quản trị, in ngay chỗ dùng (tự ẩn trên máy cảm ứng). */
+  'adm.keys': 'Esc clears the selection · Ctrl/Cmd + A selects this page',
+  /* Vùng chỉ trình đọc màn hình đọc: đổi bộ lọc là con số đổi, nhưng mắt
+     thường không được báo. */
+  'adm.resultCount': 'Now showing {n} requests',
   'adm.pending': 'Pending',
   'adm.active': 'Active',
   'adm.orders': 'Orders',

@@ -3,7 +3,7 @@ import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { useCountUp } from '../lib/motion'
 import { usePager } from '../lib/usePager'
-import { RANK_SORTS, rankRows } from '../lib/ranking.js'
+import { POINT_DONE, POINT_VOTE, RANK_SORTS, rankRows } from '../lib/ranking.js'
 import Pager from './Pager'
 
 /* Bục 1-2-3 đã chiếm sẵn ba hạng đầu, phần bảng bên dưới cắt 25 dòng
@@ -45,13 +45,16 @@ function Face({ p, size = 'md' }) {
 
 /* số to theo góc nhìn đang chọn, hai dòng nhỏ dưới là hai chỉ báo còn lại
    — không lặp lại đúng một con số hai lần trong cùng một thẻ */
-const NUM_LABEL = { total: 'requests', completed: 'completed', total_votes: 'votes' }
+const NUM_LABEL = { total: 'requests', completed: 'completed', total_votes: 'votes', points: 'points' }
 
 function PodiumFace({ p, place, max, sort }) {
   const { t } = useI18n()
   const n = useCountUp(p[sort.field], 620)
   const pct = max ? Math.round((p[sort.field] / max) * 100) : 0
-  const minis = SORTS.filter(s => s.k !== sort.k)
+  /* Hai chỉ báo phụ do chính cách xếp khai (`minis` trong RANK_SORTS): bục chỉ
+     đủ chỗ cho hai con số, và hai con số đáng đọc nhất là hai đầu vào của câu
+     hỏi đang xem. */
+  const minis = sort.minis
   return (
     <div className={`lb-pod p${place}`} style={{ '--i': place - 1 }}>
       <span className="lb-medal" aria-hidden="true">
@@ -66,7 +69,7 @@ function PodiumFace({ p, place, max, sort }) {
       </div>
       <div className="lb-pod-bar"><i style={{ width: `${pct}%` }} /></div>
       <div className="lb-pod-mini">
-        {minis.map(m => <span key={m.k}>{p[m.field]} {t(`rank.${NUM_LABEL[m.field]}`)}</span>)}
+        {minis.map(f => <span key={f}>{p[f] ?? 0} {t(`rank.${NUM_LABEL[f]}`)}</span>)}
       </div>
     </div>
   )
@@ -99,7 +102,14 @@ export default function Leaderboard({ rows, meId }) {
           <h2 className="lb-title">{t('rank.title')}</h2>
           {/* luật đang chạy, viết ra thành câu — người xem đổi cách xếp thì
               biết ngay vì sao thứ tự nhảy, thay vì đoán */}
-          <p className="lb-rule">{t(`rank.rule.${sort.k}`)}</p>
+          {/* Câu nói rõ luật đang chạy. Riêng luật tính điểm thì đọc thẳng trọng
+              số từ `ranking.js` và ghép vào câu — bảng tính bằng số nào thì lời
+              giải thích nói đúng số đó, không thể lệch. */}
+          <p className="lb-rule">
+            {sort.k === 'points'
+              ? t('rank.rule.points', { d: POINT_DONE, v: POINT_VOTE })
+              : t(`rank.rule.${sort.k}`)}
+          </p>
         </div>
         <div className="lb-seg" role="group" aria-label={t('rank.sortLabel')}>
           {SORTS.map((s, i) => (
@@ -128,6 +138,13 @@ export default function Leaderboard({ rows, meId }) {
             <tr>
               <th className="c-rk" scope="col">#</th>
               <th scope="col">{t('rank.player')}</th>
+              {/* ĐIỂM có cột riêng. Trước đây nó chỉ là một chip nằm trong ô
+                  tên người: khi bảng đang xếp theo điểm thì con số QUYẾT ĐỊNH
+                  thứ tự lại không có cột, nên hàng tiêu đề không giải thích
+                  được vì sao các hàng nằm theo thứ tự đó. */}
+              <th className="num lb-score" scope="col" title={t('rank.rule.points', { d: POINT_DONE, v: POINT_VOTE })}>
+                {t('rank.sort.points')}
+              </th>
               <th className="num" scope="col">{t('rank.requests')}</th>
               <th className="num hide-sm" scope="col">{t('rank.completed')}</th>
               <th className="num" scope="col">{t('rank.votes')}</th>
@@ -150,6 +167,11 @@ export default function Leaderboard({ rows, meId }) {
                     </span>
                     {/* vạch tỉ lệ so với người dẫn đầu — một cái lướt là thấy khoảng cách */}
                     <i className="lb-underline" style={{ width: `${Math.round(p.share * 100)}%` }} aria-hidden="true" />
+                  </td>
+                  {/* Điểm đi kèm lời giải thích trong `title`: con số nào cũng
+                      phải trả lời được "tính từ đâu ra". */}
+                  <td className="num lb-score" title={t('rank.ptsTip', { n: p.points, d: POINT_DONE })}>
+                    <b>{p.points}</b>
                   </td>
                   <td className="num">{p.total}</td>
                   <td className="num hide-sm">
@@ -175,6 +197,12 @@ export default function Leaderboard({ rows, meId }) {
             <span className="lb-me-nm">{me.name}</span>
             <span className="lb-me-stats">
               <span>{t('rank.position', { n: me.place, total: ranked.length })}</span>
+              <span className="dot" aria-hidden="true" />
+              {/* Điểm đứng trước số bài và số phiếu: đó là con số quyết định thứ
+                  tự đang xem, còn hai số kia là hai đầu vào của nó. */}
+              <span className="lb-me-pts" title={t('rank.ptsTip', { n: me.points, d: POINT_DONE })}>
+                {me.points} {t('rank.points')}
+              </span>
               <span className="dot" aria-hidden="true" />
               <span>{me.total} {t('rank.requests')}</span>
               <span className="dot" aria-hidden="true" />

@@ -11,9 +11,10 @@
    Bản này gom luật vào một module thuần (không React, không mạng) để test
    được bằng số, và khai rõ từng khoá phá hoà theo thứ tự:
 
-     1. `total`        — số BÀI đã gửi, nhiều hơn đứng trước
-     2. `completed`    — số bài đã xong, nhiều hơn đứng trước
-     3. `total_votes`  — tổng phiếu mà các bài của người đó nhận được
+     1. `points`       — ĐIỂM: 10 × bài đã xong + phiếu (mặc định, xem dưới)
+     2. `total`        — số BÀI đã gửi, nhiều hơn đứng trước
+     3. `completed`    — số bài đã xong, nhiều hơn đứng trước
+     4. `total_votes`  — tổng phiếu mà các bài của người đó nhận được
 
    Mọi cách xếp dùng CÙNG một chuỗi phá hoà (trừ chính khoá đang xếp): bài đã
    xong → tổng phiếu → số bài → tỉ lệ hoàn thành → tên. Ba điều đáng nói:
@@ -29,12 +30,41 @@
      30 bài xong không bị 7/7 đè — số lượng thật vẫn là sự thật chính.
    ========================================================= */
 
-/* Ba góc nhìn, mỗi góc một câu hỏi. `field` là khoá chính; `tone` là màu của
-   núm chọn (khớp màu chữ của cột tương ứng trong bảng). */
+/* =========================================================
+   LUẬT TÍNH ĐIỂM — con số duy nhất trả lời "ai đóng góp nhiều nhất"
+   ---------------------------------------------------------
+   Bốn góc nhìn, ba trong số đó là một phép ĐẾM (gửi bao nhiêu, xong bao nhiêu,
+   được bao nhiêu phiếu) nên chúng chỉ trả lời được câu hỏi hẹp của mình: người
+   gửi 40 bài không bài nào được làm đứng trên người có 3 bài đã lên sóng nếu
+   xếp theo số bài, còn xếp theo phiếu thì người gom phiếu từ bài bị từ chối
+   vẫn leo hạng. Góc nhìn thứ tư thay chỗ cho việc người xem tự cộng nhẩm ba
+   cột: ĐIỂM.
+
+     điểm = 10 × số bài đã xong + tổng phiếu
+
+   Hai tính chất, cả hai đều là chủ ý:
+     · BÀI CHƯA XONG KHÔNG CÓ ĐIỂM. Gửi nhiều mà không bài nào được làm thì
+       không leo hạng — đúng thứ tự cả phần còn lại của app đang bảo vệ (gom
+       cụm trùng, bài bị từ chối không tính hạng).
+     · MỘT BÀI XONG ĐÁNG GIÁ BẰNG 10 PHIẾU. Phiếu vẫn có tiếng nói — một bài
+       được cả cộng đồng đòi 40 phiếu còn hơn bốn bài xong lẻ tẻ — nhưng phải
+       là đòi thật, không phải đòi bằng cách gửi trùng.
+
+   Trọng số nằm ở hai hằng số dưới đây, KHÔNG rải trong component: đổi luật thì
+   đổi ở đây, `ranking.test.js` khoá bằng số, và câu nói rõ luật trên bảng xếp
+   hạng đọc thẳng từ hai hằng số đó nên không thể lệch khỏi phép tính.
+   ========================================================= */
+export const POINT_DONE = 10
+export const POINT_VOTE = 1
+
+/* Bốn góc nhìn, mỗi góc một câu hỏi. `field` là khoá chính; `tone` là màu của
+   núm chọn (khớp màu chữ của cột tương ứng trong bảng); `minis` là hai con số
+   phụ in dưới bục — hai chỉ báo quan trọng nhất của góc nhìn đó. */
 export const RANK_SORTS = [
-  { k: 'total', field: 'total', tone: 'var(--a-2)' },
-  { k: 'completed', field: 'completed', tone: 'var(--done)' },
-  { k: 'total_votes', field: 'total_votes', tone: 'var(--paid)' },
+  { k: 'points', field: 'points', tone: 'var(--a-2)', minis: ['completed', 'total_votes'] },
+  { k: 'total', field: 'total', tone: 'var(--queued)', minis: ['completed', 'total_votes'] },
+  { k: 'completed', field: 'completed', tone: 'var(--done)', minis: ['total', 'total_votes'] },
+  { k: 'total_votes', field: 'total_votes', tone: 'var(--paid)', minis: ['completed', 'total'] },
 ]
 
 /* Số nguyên an toàn từ dữ liệu có thể méo (chuỗi, null, NaN) — bảng xếp hạng
@@ -43,6 +73,10 @@ const n = (v) => {
   const x = Number(v)
   return Number.isFinite(x) ? x : 0
 }
+
+/* Điểm của một người. Dữ liệu méo (null, chữ) đi qua `n()` nên không bao giờ
+   ra NaN — NaN trong phép so sánh thì thứ tự sắp xếp thành ngẫu nhiên. */
+export const pointsOf = (p) => POINT_DONE * n(p?.completed) + POINT_VOTE * n(p?.total_votes)
 
 export const rateOf = (p) => {
   const total = n(p?.total)
@@ -109,10 +143,13 @@ export function rankDemo(rows) {
    vì dòng `null` (payload bị cắt, một lần ghi localStorage hỏng) từng làm cả
    bảng xếp hạng ném lỗi ngay trong lúc sắp — mà ném lỗi trong render thì React
    gỡ cả cây. */
-export function rankRows(rows, sortKey = 'total') {
+export function rankRows(rows, sortKey = 'points') {
   const field = (RANK_SORTS.find(s => s.k === sortKey) || RANK_SORTS[0]).field
-  const max = (rows || []).reduce((m, p) => Math.max(m, n(p?.[field])), 0)
-  return [...(rows || [])]
+  /* Điểm được TÍNH Ở ĐÂY rồi gắn vào từng dòng, không tính lúc vẽ: bảng và bục
+     đọc cùng một con số, và cột điểm không thể lệch khỏi thứ tự đang sắp. */
+  const withPoints = (rows || []).map(p => ({ ...p, points: pointsOf(p) }))
+  const max = withPoints.reduce((m, p) => Math.max(m, n(p?.[field])), 0)
+  return withPoints
     .sort((a, b) => (n(b?.[field]) - n(a?.[field])) || tieBreak(a, b, field))
     .map((p, i) => ({
       ...p,

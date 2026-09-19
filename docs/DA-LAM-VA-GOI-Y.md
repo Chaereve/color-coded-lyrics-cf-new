@@ -1,7 +1,9 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
 Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
-So với mốc đầu phiên (`bc65c01`): **65 file, +5224 dòng**, `npm test` **257 đạt / 0 lỗi / 1 skip** (258 ca).
+So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
+`npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
+`npx oxlint` **0 lỗi**. Bản dựng hiện tại: `index-BxQ09EV7.js` 359 kB.
 
 > **Đã làm tiếp (cùng ngày):** mục **C1-1 (sao lưu database)** và **cả ba việc ở C1-2/3/4** nay đã
 > xong — xem phần *F. Đã làm tiếp* ở cuối file.
@@ -317,3 +319,113 @@ mới trong danh sách kiểm trước khi ship ở §8.
 `README.md` để đọc thẳng — cần liệt kê cây thư mục trước khi lấy được gì từ đó, và
 `untitledui.com/react/components`, `mui.com`, `reactbits.dev`, `primereact.dev` vẫn
 chưa xem hết.
+
+---
+
+## J. Vòng 10 — tám việc đó gửi lại một lần nữa, và lần này tìm ra bốn lỗi thật (19/09/2026)
+
+Bạn gửi lại **đúng tám việc của vòng 9** ngay sau khi vòng 9 báo xong. Đó là tín hiệu
+đúng: nếu mọi thứ đã ổn thì tám dòng đó không quay lại. Nên vòng này **không đánh bóng
+lại vòng 9** — nó đi tìm chỗ vòng 9 còn SÓT, và tìm được **bốn lỗi thật** (ba trong số
+đó là loại "tính năng có mà không tới được", tức là nhìn từ ngoài y hệt như chưa làm gì).
+
+### J0. Bốn lỗi thật tìm được trong vòng này
+
+| Lỗi | Ai thấy, khi nào | Vì sao vòng 9 không bắt được |
+|---|---|---|
+| **Lọc theo loại bài KHÔNG tới được trên desktop** | Khối lọc thứ hai (chip *All types · Color Coded Lyrics · Full Album · 1 Hour Loop · Short*) chỉ được mở trong `@media (max-width: 620px)`, mà nút mở nó (`.fmore`) **cũng** chỉ hiện ở đó. Trên máy tính: tính năng có trong mã, có trong HTML, mà không có cách nào bấm tới | Vòng 9 kiểm bằng SSR — trong HTML tĩnh thì khối đó **vẫn có mặt**; chỉ CSS mới giấu nó đi, và bài kiểm cũ chỉ chốt "máy hẹp gấp lại được", không chốt "màn rộng phải với tới được" |
+| **Nút Xuất CSV không có ở mục Đơn hàng** | Nút nằm trong nhóm `tab !== 'orders'`, trong khi hàm xuất **đã có sẵn nhánh cột riêng cho đơn hàng** — tức là đường xuất đơn viết ra rồi không ai bấm tới được | Không ai thử bấm vào thứ chỉ hiện ở một nhánh; bài kiểm cũ chỉ chốt "đơn hàng hiện đúng đơn đang chờ" |
+| **Ô tìm kiếm của bảng quản trị có chữ nằm dưới kính lúp** | Luật chừa chỗ (`padding-left: 28px`) chỉ áp cho `.fbar .search`; ô tìm trong bảng quản trị dùng **cùng lớp `.search`, cùng icon** nhưng không được chừa chỗ | Đây là **cùng một lỗi** bạn chỉ ra ở trang chủ (việc 8), chỉ khác màn hình; vá một chỗ rồi tưởng đã hết |
+| **Phím "chọn cả trang" của bảng quản trị chỉ tồn tại trong ghi chú** | Ghi chú trong mã hứa `Ctrl/Cmd+A` = chọn cả trang; phần thân của bộ bắt phím **chưa bao giờ viết** vế đó | Ghi chú đọc rất thuyết phục; chỉ khi đọc từng nhánh `if` mới thấy thiếu |
+
+Ba việc còn lại của bạn (form request · luật xếp hạng · hộp vote) không có "lỗi ẩn" —
+chúng đã chạy — nên vòng này **thêm thứ mới** thay vì sửa lại:
+
+### J1. Tám việc bạn yêu cầu — vòng này làm gì thêm
+
+| Việc bạn yêu cầu | Vòng này thêm gì (vòng 9 đã có: trang `/admin`, địa chỉ `?tab=`, CSV, chọn nhiều, xem trước, luật phá hoà…) |
+|---|---|
+| **1. Bảng quản trị đầy đủ tính năng** | **(a)** Nút **Xuất CSV ra ngoài nhóm** chỉ-dành-cho-request: mục nào cũng xuất được, đúng cột của mục đó (lỗi ở J0). **(b)** Nút **Chọn nhiều bị gỡ khỏi mục Đơn hàng** — mục đó không vẽ ô chọn trên từng dòng, nên nút cũ bật một chế độ không tick được gì, mà đường "xoá hàng loạt" lại nhận **id đơn** rồi gọi xoá request. **(c)** Dải số liệu **không tự chép lại danh sách mục** nữa: mục · nhãn · màu · cách đếm nằm cùng một chỗ (`ADMIN_TAB_META` trong `src/lib/adminTabs.js`), thêm mục mới là thêm một dòng, và `AdminPanel.test.js` chốt "dải số liệu đi đúng thứ tự đó". **(d)** **`Ctrl/Cmd+A` chọn cả trang** nay chạy thật (chỉ chặn khi đang ở chế độ chọn nhiều — các trường hợp khác vẫn là "chọn hết chữ" của trình duyệt). **(e)** **Bộ lọc nằm ở địa chỉ**: `/admin?tab=active&q=aespa&sort=votes&kind=Short` mở ra đúng danh sách đã lọc, F5 không mất, nút Back lùi đúng bước, dán link cho người khác là họ thấy đúng thứ mình đang nhìn. **(f)** Gỡ khối `pipeline` chết (tính năm con số mà không chỗ nào đọc). |
+| **2. Form request — vượt bậc** | **(a) BẢN NHÁP.** Gõ dở rồi lỡ đóng hộp thoại, đổi tab, hay hết pin thì chữ vẫn còn: form lưu vào `localStorage`, **tự xoá sau khi gửi thành công**, **tự bỏ nếu cũ quá 7 ngày** (nửa cái form từ tháng trước không phải là việc đang làm dở), và khi khôi phục thì **nói ra** — một dòng "Draft restored from your last visit" kèm nút **Bỏ nháp** dọn sạch form (bấm nút mà chữ vẫn còn thì là lỗi). Link mời (`?add=1&…`) thắng bản nháp, vì đó là lời mời có chủ đích. **(b) Dán link ở đâu cũng được**: dán một link vào ô tên bài hay ô nghệ sĩ thì link về **đúng ô Link**, không nhét một URL dài vào tên bài. **(c) Enter đi tiếp**: Enter ở ô nghệ sĩ là "xong ô này" → nhảy sang tên bài; Enter ở ô tên bài (khi đã đủ hai ô) là **gửi luôn**. |
+| **3. Tinh chỉnh quy luật tính của leaderboard** | Nay **có công thức**, không chỉ có thứ tự: **điểm = 10 × số bài đã xong + tổng phiếu**, và đây là cách xếp **mặc định** (ba cách cũ vẫn còn, đổi bằng ba nút). Hai tính chất là chủ ý: **bài chưa xong không có điểm** (gửi 40 bài mà không bài nào được làm thì không leo hạng), và **một bài xong đáng giá bằng 10 phiếu** (cộng đồng đòi thật vẫn có tiếng nói). Trên màn hình: câu nói rõ luật in **hai trọng số đọc thẳng từ hằng số** `POINT_DONE`/`POINT_VOTE` trong `src/lib/ranking.js` nên câu chữ không thể lệch khỏi phép tính; mỗi hàng trong bảng có **chip điểm** kèm lời giải thích ("Score 190 = 10 × completed requests + votes earned"); bục 1-2-3 in hai chỉ báo phụ do **chính cách xếp khai**, không còn lấy hai chỉ báo bất kỳ. |
+| **4. Thanh filter tích hợp cho các thiết bị** | Lỗi ở J0 đã sửa: hàng lọc thứ hai **luôn hiện trên màn rộng** (nó là một hàng công cụ, không phải một ngăn bí mật), máy hẹp mới gấp sau nút Bộ lọc. Thêm ba thứ cho bản hẹp: hàng trên **xuống dòng được** (trước đây dải chip bị bóp còn vài chục pixel trong khi ô tìm chiếm hết chỗ), chip loại bài trong khối gấp **xuống dòng cho thấy hết** thay vì cuộn ngang, và con số kết quả **không in hai lần** trên màn rộng. Trên thiết bị chạm, ô tìm kiếm và nút Bộ lọc cao **44px**. |
+| **5. Hộp vote hiện đại hơn** | **Bàn phím**: `+` / `−` / mũi lên / mũi xuống chỉnh số phiếu mà không phải rời mắt khỏi con số lớn — nhưng **nhường phím khi con trỏ đang ở trong ô nhập** (ở đó trình duyệt đã tự tăng/giảm, bắt thêm là nhân đôi). Gợi ý `+ / −` nằm ngay cạnh ô số và **tự ẩn trên máy cảm ứng** (không có bàn phím thì đừng hứa). **Trên điện thoại hộp là tấm trượt từ đáy**: bo hai góc trên, phẳng ở đáy, có tay nắm, chừa `env(safe-area-inset-bottom)` — nút xác nhận rơi đúng vào tầm ngón cái; mức chọn nhanh và nút ± đủ **44px**. |
+| **6. Nhãn chồng / vướng nhau** | Thêm hai bảo đảm cứng ở tầng khuôn: nhãn **không bao giờ rộng hơn hộp cha** (`max-width: 100%` + cắt ba chấm — `flex: none` giữ nhãn khỏi bị bóp, nhưng thiếu vế này thì một nhãn dài vẫn tràn ra ngoài khung bo góc), và `.tags` cũng `max-width: 100%`. Tiêu đề hàng gộp `line-height` về **một** luật (trước đây tách hai chỗ, đọc mãi mới thấy). **Bài kiểm mới `src/lib/tagLayout.test.js`**: quét **toàn bộ** JSX, chỗ nào có từ hai nhãn trở lên mà không nằm trong `.tags` là **đỏ**, kèm hợp đồng CSS cho `.pill`/`.kind`/`.tags`/`.meta`/`.vm-sub` — đây là bản dịch "nhãn đừng chồng nhau" thành thứ máy kiểm được, thay cho việc soi ảnh chụp. |
+| **7. Màu thanh progress** | Bản vòng 9 trộn màu trạng thái **về phía màu nền** ở đầu vạch; trên nền xanh đen, trộn với nền thì ra **màu bùn** — đúng lý do vẫn thấy "chưa đẹp". Nay vạch là **một màu sạch**, chỉ nâng nhẹ độ sáng bằng chút trắng (nâng sáng thì vẫn ra màu của chính nó), cộng **đầu vạch sáng 3px** ở đúng chỗ tiến độ đang đứng và một quầng sáng nhỏ; con số phần trăm **ăn theo tông của vạch** thay vì một màu xám không liên quan. Tick hết ba mốc thì **cả vạch, đầu vạch và con số** chuyển sang màu "xong" — chỉ bằng **một biến `--sc`** đổi chỗ, không chép ba luật. Và màu **là việc của CSS**: bỏ hẳn prop `color` (mỗi chỗ gọi tự tô một màu chính là lý do **cùng một bài có hai màu vạch** ở trang chủ và bảng quản trị). |
+| **8. Ô search bị icon lòi ra** | Lỗi ở J0 đã sửa, và sửa **cho mọi ô tìm kiếm**: khoảng chừa bên trái tính từ **bề rộng icon** (`calc(var(--ico-x) + var(--ico-w) + 4px)`) nên đổi cỡ icon là khoảng chừa tự đi theo, không còn con số 28px đoán tay chỉ áp cho một chỗ. Thêm: kính lúp **sáng lên khi ô đang được gõ** (dấu hiệu "đang tìm ở đây" rẻ hơn một nhãn chữ), và máy cảm ứng **không hiện gợi ý `/`** (không có bàn phím vật lý thì nó chỉ chiếm chỗ). |
+
+### J2. Công cụ mới: `npm run smoke` — dựng thật cả app rồi bấm thử
+
+`npm test` toàn là bài kiểm **tĩnh** hoặc dựng **từng component rời**. Loại lỗi bạn gặp
+lại nằm ở chỗ khác: một effect chạy sai thứ tự, một state bị đọc trước khi có, một `null`
+chỉ xuất hiện SAU khi đã đăng nhập. `tools/smoke.mjs` (chạy bằng `npm run smoke`, ~19 giây)
+dựng **cả cây React thật** trong jsdom với đúng hai provider như `src/main.jsx`, đăng nhập
+tài khoản demo, rồi **đi qua toàn bộ app**: màn chờ → trang chủ → bộ lọc → ô tìm → tab
+Up next → **form request** (thẻ xem trước, ảnh bìa YouTube, dán link, bản nháp, nút bỏ
+nháp) → **hộp vote** (ba ô số dư cộng đúng bằng tổng phiếu, phím mũi lên, bấm mức nhanh,
+**gửi thật rồi kiểm con số trên hàng tăng đúng**) → Daily Spin → Xếp hạng → Của tôi →
+**cả năm mục của `/admin`** (kể cả mở sẵn một địa chỉ đã lọc) → chế độ chọn nhiều.
+
+Nó ghi lại **mọi thứ rơi ra console** kèm màn hình đang đứng, và rà **nhãn** ở từng màn:
+chỗ nào có từ hai nhãn cạnh nhau mà không nằm trong một cụm biết xuống dòng thì báo. Kết
+quả hiện tại: **50/50 mục đạt, 0 lỗi runtime**.
+
+### J3. Kiểm thử và tài liệu của vòng 10
+
+`npm test` → **324 ca / 323 đạt / 1 skip / 0 lỗi** (vòng 9: 309 ca). `npx oxlint` →
+**0 lỗi**, 17 cảnh báo (vòng 9: 18 — bớt ba cảnh báo nhờ gỡ khối `pipeline` chết và đồng
+bộ ref trong effect thay vì trong lúc render). Thêm mới: `tagLayout.test.js` (3 ca),
+`ranking.test.js` +3 ca cho luật tính điểm, `AdminPanel.test.js` +2 ca, `adminTabs.test.js`
++3 ca cho địa chỉ mang bộ lọc, `VoteModal.test.js` +1, `ActionModal.test.js` +1,
+`Progress.test.js` +3 vế. `docs/DESIGN.md` cập nhật §2.5 (màu vạch), §2.7 (luật tính
+điểm), §5 (thanh lọc theo thiết bị, hộp vote trên điện thoại), §7 (bộ lọc ở địa chỉ),
+§8 (bốn dòng mới trong danh sách kiểm trước khi ship). `HUONG-DAN.md` thêm mục **Công cụ:
+`npm run smoke`** và các mục tính năng mới.
+
+---
+
+## K. Vòng 10 (tiếp) — tám việc gửi lại lần thứ ba, cộng nguồn tham khảo 21st.dev (19/09/2026)
+
+Bạn gửi lại đúng tám việc đó lần nữa, kèm một nguồn tham khảo mới:
+**21st.dev/community/components**. Đây là vòng đi **sâu vào chi tiết** — mỗi mục dưới
+đây là một thứ *nhìn thấy được*, không phải một lần đổi tên lớp CSS.
+
+### K1. Tham khảo 21st.dev: lấy KHUÔN, không lấy mã
+
+21st.dev là chợ component React (shadcn/Tailwind/framer-motion). Trang này không dùng
+Tailwind, không dùng framer-motion và có hệ token riêng, nên chép mã vào là phá hệ —
+đúng điều bạn đã dặn ở vòng 6 ("nếu sử dụng thì đảm bảo thích hợp và tinh chỉnh sao cho
+đồng bộ với trang"). Vòng này lấy **năm khuôn** đã thành chuẩn ở đó và dựng lại bằng
+CSS của repo:
+
+| Khuôn trên 21st.dev (nhóm) | Lấy gì | Dựng lại thành |
+|---|---|---|
+| *Search Bars* → "The Input with clear button", "Input Group" | ô nhập có icon dẫn đường + nút xoá, hai bên đều **chừa chỗ theo bề rộng thật của thứ nằm đè** | `--ico-x/--ico-w/--x-x/--x-w` trong `.searchwrap`; nút xoá to lên trên thiết bị chạm thì khoảng chừa **tự đi theo** (chỗ này bản cũ vẫn hở: 26px viết cứng) |
+| *Search Bars* → "Expandable Search Bar", "Expanding Search Dock" | trên màn hẹp, ô tìm kiếm **chiếm trọn một hàng** thay vì chen với dải chip | `.fchips { flex: 1 1 100% }` + `.fbar-side { flex: 1 1 100% }` ở ≤620px |
+| *Search Bars* → "Advanced Data Table Filter Builder", "Toolbar" | **chip của bộ lọc đang bật, bỏ được bằng một lần bấm** | `.fchip.onkind` (chỉ hiện trên máy hẹp, nơi khối lọc đã gấp lại) |
+| *Stats & KPIs*, *Dashboard*, *Progress* | con số + **một vạch chia tỉ lệ** cho cả khối | `.adm-mix` (5 mục) và `.vm-mix` (3 nguồn phiếu) |
+| *Tags/chip*, *Badges* | nhãn phải **kẹp và cắt được** | `.pill.dup` về `inline-block` để `text-overflow` chạy thật + `title` cho phần bị cắt |
+
+Không có dòng mã nào chép từ 21st.dev, và không thêm thư viện nào: vẫn là React + CSS
+của repo, đúng gói miễn phí.
+
+### K2. Tám việc bạn yêu cầu — vòng này sửa gì thêm
+
+| Việc | Vòng này thêm |
+|---|---|
+| **1. Bảng quản trị** | **Vạch chia tỉ lệ khối lượng việc** dưới dải số liệu (`.adm-mix`): năm ô nói "bao nhiêu", vạch nói "chiếm bao nhiêu phần", mỗi đoạn mang màu của mục đó nên không cần chú giải riêng. **Hai phím tắt in ra chỗ dùng** (`Esc` bỏ chọn · `Ctrl/Cmd+A` chọn cả trang — trước đây chỉ nằm trong tài liệu, mà phím tắt không ai biết thì không phải phím tắt), tự ẩn trên thiết bị cảm ứng. **Nhịp chốt bài đọc từ cấu hình** (`pickInterval` từ `settings.pick.interval_days`) thay cho số `4` viết cứng — lời gợi ý không còn có thể lệch khỏi lịch thật. **Ô tìm kiếm chiếm trọn một hàng trên máy hẹp**, và **ô số liệu lẻ cuối cùng kéo dài hết hàng** (năm ô trong hai cột để lại một lỗ hổng nửa bên phải). Thêm `aria-busy` khi chạy thao tác hàng loạt và một vùng `role="status"` cho trình đọc màn hình. |
+| **2. Form request** | **TÁCH TIÊU ĐỀ VIDEO** — cách nhanh nhất để điền form là copy nguyên tiêu đề video, và đó cũng là cách chắc chắn nhất để ô tên bài chứa cả tên nghệ sĩ. Hàm thuần `splitSong()` trong `src/lib/board.js` đọc hai khuôn thật (tên bài trong cặp nháy — `CHUNG HA 청하 'Algorithm' MV`; và gạch nối — `aespa - Whiplash (Official Video)`), bỏ nhãn quảng cáo ở hai đầu `(Official Video)`, `[4K]`, **không đoán khi không có dấu hiệu** (`aespa Whiplash` → không làm gì), và form mời bạn bấm một lần để điền cả hai ô. Kèm: dải gợi ý đổi sắc so với dải "bài đã có" để hai dải đứng cạnh nhau vẫn phân biệt được. |
+| **3. Luật tính của leaderboard** | **Cột ĐIỂM có cột riêng**: trước đây điểm chỉ là một chip nằm trong ô tên người, nên khi bảng xếp theo điểm thì con số quyết định thứ tự **không có cột**, và hàng tiêu đề không giải thích được vì sao thứ tự như vậy. Nay có `<th>Score</th>` với lời giải thích công thức, mỗi hàng một ô điểm, và **hàng của bạn cũng in điểm** ("40 points"). Luật phụ nói thêm: **bài bị từ chối không tính gì** (view `requester_ranking` lọc `status <> 'denied'`, bản demo gom đúng như vậy — đã kiểm lại vế SQL). |
+| **4. Thanh filter theo thiết bị** | Máy hẹp: **mỗi hàng một việc** — dải chip trạng thái chiếm trọn một hàng (thấy được nhiều chip hơn thay vì bị bóp còn vài chục pixel), ô tìm kiếm + nút Bộ lọc xuống hàng dưới. Dải chip thêm **điểm dừng khi cuộn** (`scroll-snap`). **Chip loại bài đang lọc** hiện ngay trên hàng chính và bỏ được bằng một lần bấm (chỉ ở ≤620px, nơi khối lọc đã gấp lại — trên màn rộng khối lọc luôn hiện nên chip đó là chỗ thứ hai nói cùng một điều). |
+| **5. Hộp nhập số vote** | **Vạch nguồn phiếu** dưới ba ô số dư: ba đoạn của **cùng một màu, đậm dần**, cho biết phiếu sắp dùng lấy từ đâu — ba ô số nói SỐ LƯỢNG, vạch nói TỈ LỆ. Con số lớn thêm `aria-live="polite"` (đổi số là được đọc lên), và ô nhập số phiếu trỏ tới dòng "còn 7 → còn 3" bằng `aria-describedby`. |
+| **6. Nhãn chồng / vướng** | **LỖI THẬT còn sót**: `text-overflow: ellipsis` **không chạy trên hộp `inline-flex`** — chữ trong đó là một flex item ẩn, nên nhãn dài nhất của hệ ("3 requests for this song · 9 votes in total") bị **cắt ngang chữ mà không có dấu ba chấm**. Nay nhãn đó về `inline-block` (chữ nằm trực tiếp trong hộp nên dấu ba chấm vẽ được) và câu đầy đủ nằm ở `title`. Thêm `src/lib/tagLayout.test.js` (4 ca): quét toàn bộ JSX tìm cụm từ hai nhãn trở lên mà không nằm trong `.tags`, chốt hợp đồng kẹp nhãn, chốt hộp chứa nhãn phải có khe + biết xuống dòng, và chặn một "hệ nhãn thứ hai" mọc ra. |
+| **7. Màu thanh progress** | **LỖI THẬT**: thanh luôn được vẽ và luôn giữ `min-width: 6px` (để 1% nhìn thấy được), nên ở **0% vẫn có một que màu nằm trong rãnh** trong khi con số ngay cạnh ghi "0%" — hai chỗ nói ngược nhau. Nay `Progress` **không dựng vạch khi `pct = 0`**, còn `min-width` giữ nguyên cho 1%. Rãnh nâng lên 7px với **bóng lõm khai ngay trong luật của rãnh** (bản trước có hai luật rời nhau), ruột vạch thêm **vế bóng tối ở mép dưới** nên đọc ra một thanh mảnh có mặt cong thay vì một dải màu dán phẳng, và **dấu `%` ăn theo tông của con số** (`opacity` thay vì một màu xám thứ ba). |
+| **8. Ô search bị icon lòi ra** | Vá nốt vế **bên phải**: khoảng chừa bên phải từng là `26px` viết cứng, trong khi trên thiết bị chạm nút xoá được nới lên `30px` — chữ gõ vào vẫn chui được xuống dưới nút xoá. Nay **cả hai bên tính từ bề rộng thật** của thứ nằm đè (`--ico-w`, `--x-w`), nên nới nút xoá là khoảng chừa tự theo. Thêm: **cả hộp sáng lên khi đang gõ** (không chỉ con trỏ), và hai ô tìm kiếm có `aria-label` (placeholder không phải nhãn cho trình đọc màn hình). |
+
+### K3. Kiểm thử và con số của vòng này
+
+`npm test` → **333 ca / 332 đạt / 0 lỗi / 1 skip** (trước vòng này: 324). `npm run smoke`
+→ **58/58** (trước: 50; thêm bốn phép thử *bấm thật*: gợi ý tách tiêu đề video, chip loại
+bài đang lọc (hiện + bỏ), vạch nguồn phiếu cộng đúng 100%, vạch chia tỉ lệ của bảng quản
+trị). `npx oxlint` → **0 lỗi**, 21 cảnh báo (đều là mẫu có sẵn của repo: `set-state-in-effect`,
+`only-export-components`). Bản dựng: `index-BxQ09EV7.js` 359 kB, CSS 114.9 kB.

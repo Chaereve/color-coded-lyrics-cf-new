@@ -23,16 +23,37 @@ export default function VoteModal({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
+  /* Trần số phiếu chọn được: số phiếu đang có, tối đa 100. Tính ở ĐẦU thân hàm
+     vì bộ bắt phím ngay dưới cần nó — để cuối thì effect chạm vào biến chưa tới
+     lượt khai báo và cả hộp vote ném lỗi ngay khi mở. */
+  const addMax = Math.max(1, Math.min(MAX, votesLeft))
+
   useEffect(() => {
     if (!open) return
     setQty(1); setErr(null); setBusy(false)
   }, [open, request])
 
+  /* BÀN PHÍM của hộp vote: Esc đóng (đã có), và `+` / `-` (hoặc mũi lên/xuống)
+     chỉnh số phiếu mà không phải rời mắt khỏi con số lớn. Người gửi nhiều bài
+     liên tiếp làm việc này hàng chục lần một buổi — mỗi lần với tay xuống ô nhập
+     là một lần chậm. Khi con trỏ đang ở TRONG ô nhập thì nhường phím lại cho ô
+     (mũi lên/xuống ở đó đã là tăng/giảm của trình duyệt, bắt thêm là nhân đôi). */
   useEffect(() => {
-    const h = (e) => e.key === 'Escape' && onClose()
-    if (open) window.addEventListener('keydown', h)
+    if (!open) return
+    const h = (e) => {
+      if (e.key === 'Escape') { onClose(); return }
+      const el = e.target
+      if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable) return
+      const up = e.key === '+' || e.key === '=' || e.key === 'ArrowUp'
+      const down = e.key === '-' || e.key === '_' || e.key === 'ArrowDown'
+      if (!up && !down) return
+      e.preventDefault()
+      setErr(null)
+      setQty(q => Math.max(1, Math.min(addMax, (Math.trunc(Number(q)) || 1) + (up ? 1 : -1))))
+    }
+    window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [open, onClose])
+  }, [open, onClose, addMax])
 
   /* App xoá prop request ngay khi đóng — giữ bản chụp cuối để animation
      đóng còn có nội dung mà mờ đi (adjust state khi prop đổi, ngay trong render) */
@@ -71,8 +92,10 @@ export default function VoteModal({
   /* Dãy chọn nhanh: bốn mức người ta thật sự dùng (1 phiếu để thử, 5 và 10 là
      hai mức phổ biến, "tất cả" cho người đã quyết). Con số nào vượt quá số
      phiếu đang có thì KHÔNG hiện — một nút bấm vào là báo lỗi thì thà đừng có. */
-  const addMax = Math.max(1, Math.min(MAX, votesLeft))
   const presets = [1, 5, 10, 25].filter(v => v <= addMax)
+  /* Ba nguồn phiếu — cộng lại để vẽ vạch tỉ lệ. Dùng tổng của BA Ô đang hiển
+     thị chứ không dùng `votesLeft`: vạch phải khớp với ba con số ngay trên nó. */
+  const leftTotal = Math.max(0, freeLeft) + Math.max(0, purchased) + Math.max(0, bonus)
   const after = locked ? req.votes : req.votes + n
   const leftAfter = Math.max(0, votesLeft - n)
   const changing = busy
@@ -108,7 +131,10 @@ export default function VoteModal({
                   Con số cũ (tổng hiện tại) chỉ là dòng phụ bên dưới. */}
               <div className="vm-hero" style={{ marginTop: 14 }}>
                 <span className="k">{t('vote.hero')}</span>
-                <span key={after} className={`v${changing ? '' : ' pop'}`}>{after}</span>
+                {/* Con số này đổi theo từng lần bấm mức nhanh / kéo thanh trượt,
+                    và nó là KẾT QUẢ của việc đang làm — nên phải được đọc lên,
+                    không chỉ đổi màu. */}
+                <span key={after} className={`v${changing ? '' : ' pop'}`} aria-live="polite">{after}</span>
                 <span className="u">{t('vote.heroSub', { n: req.votes })}</span>
               </div>
 
@@ -137,6 +163,7 @@ export default function VoteModal({
                     <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}
                       disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
                     <input id="vm-qty" type="number" min="1" max={MAX} value={qty} disabled={busy}
+                      aria-describedby="vm-after"
                       onChange={e => setQty(e.target.value)}
                       onBlur={() => setQty(q => Math.max(1, Math.min(MAX, Math.trunc(Number(q)) || 1)))}
                       onKeyDown={e => { if (e.key === 'Enter' && !tooMany && !invalid && !busy) go(n) }} />
@@ -147,11 +174,14 @@ export default function VoteModal({
                     <button type="button" className="btn btn-sm" disabled={busy}
                       onClick={() => setQty(myCount)}>{t('vote.backAll', { n: myCount })}</button>
                   )}
+                  {/* Gợi ý phím nằm ngay cạnh ô số: máy cảm ứng (không bàn phím)
+                      tự ẩn nó bằng CSS, nên không có lời hứa suông. */}
+                  <kbd className="vm-keys" aria-hidden="true">+ / −</kbd>
                 </div>
                 {/* TÓM TẮT TRƯỚC – SAU: "còn 7 → còn 3" là câu trả lời cho
                     "bấm nút này thì tôi mất gì", thứ mà một dòng "bạn có 7
                     phiếu" không nói được. */}
-                <div className="vm-after">
+                <div className="vm-after" id="vm-after">
                   <span>{t('vote.leftBefore', { n: votesLeft })}</span>
                   <span className="arw" aria-hidden="true">→</span>
                   <b className={leftAfter === 0 ? 'bad' : 'good'}>{leftAfter}</b>
@@ -163,6 +193,20 @@ export default function VoteModal({
                 <span className="vm-chip"><span>{t('vote.purchasedShort')}</span><b>{purchased}</b></span>
                 <span className="vm-chip"><span>{t('vote.bonusShort')}</span><b>{bonus}</b></span>
               </div>
+              {/* NGUỒN PHIẾU, vẽ thành một vạch chia tỉ lệ. Ba ô số ở trên nói
+                  SỐ LƯỢNG; vạch này nói TỈ LỆ — cùng dữ liệu nhưng trả lời câu
+                  hỏi khác, và chỉ tốn 4px. Ba đoạn là BA SẮC CỦA CÙNG MỘT MÀU
+                  (đậm tới nhạt) nên đọc ra ngay đâu là phần chính, và không
+                  sinh ra bảng màu thứ tư trong hộp. */}
+              {leftTotal > 0 && (
+                <div className="vm-mix" aria-hidden="true">
+                  {[{ k: 'a', v: Math.max(0, freeLeft) },
+                    { k: 'b', v: Math.max(0, purchased) },
+                    { k: 'c', v: Math.max(0, bonus) }].map(m => (m.v > 0 ? (
+                      <i key={m.k} className={`s-${m.k}`} style={{ '--w': `${(m.v / leftTotal) * 100}%` }} />
+                    ) : null))}
+                </div>
+              )}
 
               {noVotes && myCount === 0 && <div className="msg err">{t('vote.none')}</div>}
               {!invalid && (tooMany || (myCount > 0 && tooManyBack)) && (

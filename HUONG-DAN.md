@@ -469,6 +469,49 @@ trong thẻ (lấy từ `i.ytimg.com`, không cần API key và không tốn quo
 không phải YouTube thì chỉ được nhắc, **không chặn gửi** — người ta hay dán `youtu.be/abc`
 thiếu `https://`.
 
+### Bản nháp — gõ dở rồi lỡ đóng cũng không mất
+
+Form request tự lưu **bản nháp** vào `localStorage` của trình duyệt (không tốn request nào,
+không gửi gì lên server). Đóng hộp thoại, đổi tab, hay hết pin rồi mở lại thì chữ vẫn còn
+nguyên, kèm một dòng **"Draft restored from your last visit"** và nút **Bỏ nháp** để dọn
+sạch form và bắt đầu lại (bấm nút mà chữ vẫn còn thì là lỗi).
+
+Ba luật của bản nháp, để không biến việc nhớ giúp thành phiền:
+
+| Luật | Vì sao |
+|---|---|
+| Gửi thành công thì **xoá nháp** | Việc đang làm dở đã thành việc đã gửi; lần sau mở form ra mà thấy lại bài vừa gửi là chuyện khó hiểu |
+| Nháp cũ hơn **7 ngày** thì bỏ | Nửa cái form từ tháng trước không phải là "việc đang làm dở" |
+| **Link mời** (`?add=1&artist=…&title=…`) thắng bản nháp | Link mời là lời mời có chủ đích; đổ đúng thứ người gửi link muốn bạn điền |
+
+### Dán nguyên tiêu đề video — form tự tách ra hai ô
+
+Cách nhanh nhất để điền form là copy nguyên tiêu đề video rồi dán vào ô tên bài. Nhưng như
+vậy ô tên bài chứa cả tên nghệ sĩ, còn ô nghệ sĩ thì trống. Form nhận ra hai khuôn tiêu đề
+thật và mời bạn **tách bằng một lần bấm**:
+
+| Bạn dán vào ô tên bài | Form đọc ra |
+|---|---|
+| `CHUNG HA 청하 'Algorithm' MV` | nghệ sĩ `CHUNG HA 청하`, tên bài `Algorithm` (tên bài nằm trong cặp nháy) |
+| `aespa - Whiplash (Official Video)` | nghệ sĩ `aespa`, tên bài `Whiplash` (nhãn `(Official Video)` bị bỏ) |
+| `[4K] aespa - Whiplash` | `aespa` · `Whiplash` (nhãn ở đầu cũng bị bỏ) |
+| `aespa Whiplash` | **không làm gì** — không có dấu hiệu nào thì đoán bừa còn tệ hơn để yên |
+
+Dải gợi ý in ra hai vế nó đọc được **trước khi** bạn bấm, và đổi màu khác với dải "bài này
+đã có trên bảng" để hai dải nằm cạnh nhau vẫn phân biệt được. Luật tách nằm ở
+`splitSong()` trong `src/lib/board.js` và có test riêng (`npm test`, file `board.test.js`).
+
+### Phím tắt trong form — đường đi ngắn nhất
+
+| Phím / thao tác | Kết quả |
+|---|---|
+| `Enter` ở ô **nghệ sĩ** | "Xong ô này" → nhảy sang ô tên bài (không gửi) |
+| `Enter` ở ô **tên bài** | Đã đủ hai ô thì **gửi luôn**; còn thiếu thì đưa con trỏ về ô nghệ sĩ |
+| **Dán** một link vào ô nghệ sĩ hoặc tên bài | Link **về đúng ô Link** — không nhét một URL dài vào tên bài |
+
+Mọi gợi ý phím trong app (`/`, `+ / −`) tự ẩn trên thiết bị cảm ứng: máy không có bàn phím
+vật lý thì đừng hứa.
+
 Phần còn lại của form giữ đúng ba nguyên tắc: lỗi hiện ngay tại ô sai (rời ô mới hiện, kèm
 `aria-invalid` để trình đọc màn hình đọc được), bấm Gửi khi còn thiếu thì con trỏ **nhảy vào
 ô sai đầu tiên**, và bộ đếm ký tự chỉ hiện khi đã dùng quá 70% ô.
@@ -593,6 +636,57 @@ Chạy `npm test` để kiểm tra luật xếp hạng này (12 ca, dùng `node:
 
 
 ---
+
+## Bảng xếp hạng — luật tính điểm
+
+Bảng xếp hạng trả lời câu hỏi "ai đóng góp nhiều nhất", và câu trả lời nằm ở **một chỗ**:
+`src/lib/ranking.js` (hàm thuần, không React, không gọi mạng — test bằng số được). Component
+chỉ hỏi luật, không tự sắp xếp.
+
+**Bốn góc nhìn**, đổi bằng bốn nút ngay trên bảng:
+
+| Cách xếp | Trả lời câu hỏi | Khoá phá hoà (theo thứ tự) |
+|---|---|---|
+| **Score** (mặc định) | Ai đóng góp nhiều nhất | số bài đã xong → tổng phiếu → số bài gửi → tỉ lệ → tên |
+| **Requests** | Ai gửi nhiều bài nhất | số bài đã xong → tổng phiếu → … |
+| **Completed** | Ai có nhiều bài được làm xong nhất | tổng phiếu → số bài gửi → … |
+| **Votes earned** | Ai được cộng đồng đòi nhiều nhất | số bài đã xong → số bài gửi → … |
+
+**Công thức của cách xếp mặc định:**
+
+> **điểm = 10 × số bài đã xong + tổng phiếu**
+
+Hai tính chất là chủ ý, và cả hai đều để chống một cách leo hạng:
+
+- **Bài chưa xong không có điểm.** Gửi 40 bài mà không bài nào được làm thì không leo hạng —
+  cùng tinh thần với việc gom cụm bài trùng và việc bài bị từ chối không được tính hạng.
+- **Một bài xong đáng giá bằng 10 phiếu.** Cộng đồng đòi thật vẫn có tiếng nói (một bài được
+  40 phiếu còn hơn bốn bài xong lẻ tẻ), nhưng phiếu không mua được hạng một mình.
+
+Hai trọng số là **hằng số công khai** trong `src/lib/ranking.js`:
+
+```js
+export const POINT_DONE = 10   // mỗi bài đã làm xong
+export const POINT_VOTE = 1    // mỗi phiếu cộng đồng
+export const pointsOf = (p) => POINT_DONE * n(p?.completed) + POINT_VOTE * n(p?.total_votes)
+```
+
+Câu nói rõ luật trên bảng **ghép số từ chính hai hằng số đó**, nên đổi trọng số là đổi cả câu
+chữ — không thể có chuyện bảng tính một đằng, lời giải thích một nẻo. Muốn đổi luật (ví dụ
+một bài xong đáng 5 phiếu), sửa `POINT_DONE` rồi chạy `npm test`: `src/lib/ranking.test.js`
+khoá luật bằng số và sẽ đỏ nếu câu chữ lệch khỏi phép tính.
+
+Trên màn hình: **điểm có một cột riêng** (`Score`) — đó là con số quyết định thứ tự của cách
+xếp mặc định, nên nó phải có tên cột chứ không thể là một nhãn phụ nằm trong ô tên người;
+mỗi hàng trong bảng có ô điểm kèm lời giải thích (rê chuột vào là hiện "Score 190 = 10 ×
+completed requests + votes earned"); ba người dẫn đầu nằm trên **bục** với con số lớn là điểm
+của chính họ; **hàng của bạn** in luôn điểm của mình ("40 points") và dính đáy khối để không
+phải cuộn đi tìm.
+
+**Bài bị từ chối không tính gì** — không vào số bài, không vào điểm, không vào phiếu. Đây
+không phải một ghi chú: nó là một dòng `where r.status <> 'denied'` trong view
+`requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để farm
+điểm là vô ích.
 
 ## Theo dõi bài + thông báo (Notifications)
 
@@ -891,7 +985,38 @@ Ba thứ trong trang làm việc nhanh hơn khi có nhiều request: **chọn nh
 chối / chốt / trả về hàng chờ / xoá cả loạt, **lọc theo loại bài** và **xếp thứ tự**, và
 **xuất CSV** đúng những dòng đang nhìn (file dựng ngay trong trình duyệt, mở bằng Excel hay
 Google Sheets đều đúng dấu tiếng Việt). Thanh hành động hàng loạt dính ở đáy khung nên cuộn
-tới đâu vẫn bấm được; `Esc` bỏ chọn hết; `/` nhảy vào ô tìm kiếm.
+tới đâu vẫn bấm được; `Esc` bỏ chọn hết; `/` nhảy vào ô tìm kiếm; `Ctrl/Cmd+A` **chọn cả
+trang đang nhìn** (chỉ khi đang ở chế độ chọn nhiều — lúc khác vẫn là "chọn hết chữ").
+
+**Bộ lọc cũng nằm ở địa chỉ.** Từ khoá, cách xếp và loại bài đi cùng mục đang mở:
+
+```
+/admin?tab=active&q=aespa&sort=votes&kind=Short
+```
+
+Mở địa chỉ đó ra là thấy **đúng danh sách đã lọc** — dán cho đồng nghiệp, ghim vào dấu
+trang, hay F5 đều giữ nguyên; nút Back lùi đúng bước. Địa chỉ chỉ ghi những tham số **khác
+mặc định**, nên một danh sách chưa lọc vẫn là `/admin` gọn gàng. Giá trị gõ tay không có
+thật (`?sort=abc`, `?kind=Không-Có`) rơi về mặc định chứ không làm trang trắng — hàm đọc
+nằm ở `src/lib/adminTabs.js` (`readAdminView` / `adminQuery`), có test riêng.
+
+**Nút Xuất CSV có ở mọi mục** — kể cả *Đơn hàng*, với đúng bộ cột của đơn (mã, loại, số
+vote, VND, USD, trạng thái, thời điểm). Nút *Chọn nhiều* thì chỉ hiện ở những mục có ô
+chọn trên từng dòng (mục Đơn hàng không có, nên không mời bật một chế độ không tick được gì).
+
+Dưới dải số liệu có **một vạch chia tỉ lệ** (5px): năm ô nói *bao nhiêu việc*, vạch
+nói *việc nào chiếm bao nhiêu phần*. Mỗi đoạn mang đúng màu của mục đó, nên không cần
+chú giải riêng — dải số liệu ngay trên đã là chú giải.
+
+Hai phím tắt của trang được in ngay cạnh dòng đếm (và tự ẩn trên điện thoại vì máy
+không có bàn phím vật lý): **`Esc`** bỏ chọn hết, **`Ctrl/Cmd + A`** chọn cả trang đang
+nhìn khi đang ở chế độ chọn nhiều. Nhịp chốt bài trong lời gợi ý của nút *Pick for Up
+next* đọc từ chính `settings.pick.interval_days` — đổi nhịp trong cấu hình là lời gợi ý
+đổi theo, không còn con số 4 viết cứng.
+
+Dải năm ô số liệu ở đầu trang lấy mục · nhãn · màu · cách đếm từ **một chỗ duy nhất**
+(`ADMIN_TAB_META` trong `src/lib/adminTabs.js`). Thêm một mục mới là thêm một dòng ở đó —
+không còn hai danh sách song song để lệch nhau (mục có địa chỉ nhưng không có ô nào bấm tới).
 
 ### Khung Sửa trên điện thoại
 
@@ -1379,7 +1504,26 @@ bảng, còn toast thì ở góc màn hình.
 Hai phím tắt cho người dùng bàn phím: `N` mở form gửi request, `/` nhảy ô tìm kiếm
 (`Esc` ngay trong ô tìm là xoá luôn từ khoá).
 
+### Thanh lọc trên máy hẹp: chip loại bài đang lọc
+
+Khi bạn chọn một **loại bài** (Color Coded Lyrics / Full Album / 1 Hour Loop / Short) trong
+khối *Bộ lọc*, trên màn hẹp một **chip mang tên loại đó hiện ngay hàng chip chính** và bấm
+vào là bỏ lọc. Đây là chỗ duy nhất nói ra vì sao danh sách ngắn đi — trên màn hẹp khối lọc
+đã gấp lại sau nút *Bộ lọc*, nên nếu không có chip này thì bạn chỉ thấy "hình như thiếu bài".
+Từ 621px trở lên chip đó tự ẩn: khối lọc luôn hiện ở đó, nói hai lần là thừa.
+
+Trên màn hẹp thanh lọc cũng xếp lại thành **hai hàng, mỗi hàng một việc**: hàng trên là dải
+chip trạng thái (chiếm trọn bề rộng, cuộn ngang và **dừng ở từng chip**), hàng dưới là ô tìm
+kiếm + nút *Bộ lọc*. Trước đây dải chip và ô tìm kiếm chen nhau trên một hàng, nên chip bị
+bóp còn vài chục pixel — nhìn như một mẩu chip cụt.
+
 ### Tìm kiếm bỏ dấu — gõ sao cũng ra
+
+**Khoảng chừa trong ô tìm kiếm tính theo bề rộng thật của hai thứ nằm đè lên nó** (kính lúp
+bên trái, nút xoá bên phải). Đây là chỗ vẫn còn hở sau lần vá trước: bên phải là con số
+`26px` viết cứng, mà trên điện thoại nút xoá được nới lên 30px cho dễ chạm — chữ gõ vào vẫn
+chui được xuống dưới nút xoá. Nay nới nút là khoảng chừa tự đi theo, và luật này áp cho **mọi**
+ô tìm kiếm, kể cả ô trong bảng quản trị.
 
 Ô tìm kiếm bỏ dấu trước khi so, nên một từ khoá khớp cả ba cách người ta gõ tên bài:
 `Chung Hạ`, `Chung Ha`, `chung ha`. `Đặng Nhập` tìm được bằng `dang nhap`: chữ **đ** là ký tự
@@ -1415,6 +1559,35 @@ hoàn toàn** (chỉ hạng ≤ 8 mới có câu), mà đó lại đúng là nh�
 
 Con số chỉ được tính ở **một chỗ**: `pickLadder()` gắn `eta` vào chính mục xếp hạng, nên bảng,
 hộp thông báo và trang Của tôi dùng chung một kết quả — không có ba bản tính riêng để lệch nhau.
+
+### Hộp nhập số vote — chọn nhanh, và trên điện thoại là tấm trượt từ đáy
+
+Bấm nút vote trên một bài là mở hộp nhập số phiếu. Con số **lớn nhất** trong hộp là **số phiếu
+SAU khi bạn vote** (không phải số đang có) — người bấm cần biết kết quả, không phải hiện trạng;
+dưới nó là một dòng nhỏ nói hiện tại đang bao nhiêu. Chọn bằng một trong bốn cách, cả bốn cùng
+một trục nên không mâu thuẫn nhau:
+
+| Cách chọn | Chi tiết |
+|---|---|
+| **Mức nhanh** | `1 · 5 · 10 · tất cả` — mức nào vượt quá số phiếu đang có thì **không hiện** (bấm vào rồi báo lỗi là lỗi thiết kế) |
+| **Thanh trượt** | Kéo là con số lớn chạy theo |
+| **Ô số** | Kèm nút `−` / `+`; nút **rút lại** số phiếu đã vote nằm bên trái |
+| **Bàn phím** | `+` / `−` / mũi lên / mũi xuống chỉnh số, `Esc` đóng; gợi ý `+ / −` in ngay cạnh ô số và **tự ẩn trên thiết bị cảm ứng** (không có bàn phím thì đừng hứa) |
+
+Khi con trỏ đang ở **trong ô nhập** thì app **nhường phím lại** cho ô: ở đó trình duyệt đã tự
+tăng/giảm bằng mũi lên/xuống, bắt thêm là nhân đôi.
+
+Cuối hộp là **ba ô số dư** (miễn phí hôm nay · đã mua · thưởng) để biết phiếu sắp dùng lấy từ
+đâu, và một dòng *"còn 7 → còn 3"* trả lời đúng câu hỏi *bấm nút này thì tôi mất gì*. Ngay
+dưới ba ô đó là **một vạch chia tỉ lệ**: ba đoạn của cùng một màu (đậm dần) cho biết phần nào
+là phiếu miễn phí, phần nào là phiếu mua, phần nào là thưởng — ba ô nói *số lượng*, vạch nói
+*tỉ lệ*. Con số lớn trong hộp cũng được **đọc lên** khi bạn đổi số phiếu (trình đọc màn hình),
+và ô nhập số phiếu trỏ tới dòng "còn … → còn …" để đọc tới ô là hiểu ngay sẽ mất gì.
+
+**Trên điện thoại (≤620px) hộp là một tấm trượt từ đáy lên**: bo hai góc trên, phẳng ở đáy, có
+tay nắm, và chừa `env(safe-area-inset-bottom)` cho máy có thanh home. Nút xác nhận nhờ đó rơi
+đúng vào tầm ngón cái, và bàn phím số của máy (nếu mở) không đẩy hộp lên khỏi tầm nhìn. Mức
+chọn nhanh và nút `−`/`+` trên thiết bị chạm cao **44px**.
 
 ### Mua thêm vote trong tin "sát nút"
 
@@ -2480,6 +2653,32 @@ curl -s -H "Host: 5173-$E2B_SANDBOX_ID.e2b.app" -o /dev/null -w '%{http_code}\n'
 
 Nếu link báo "không truy cập được" mà curl ở trên vẫn 200: nhiều khả năng sandbox vừa bị
 restore và `sandboxId` đã đổi — link preview cũ chết theo, mở link từ bảng Arena là xong.
+
+### Dựng thật cả app để soi lỗi — `npm run smoke`
+
+```bash
+npm run smoke        # ~19 giây, in ra từng mục đạt/không đạt
+```
+
+`npm test` toàn là bài kiểm **tĩnh** hoặc dựng **từng component rời**. Một nhóm lỗi khác chỉ
+lộ ra khi **cả app** chạy thật: một effect chạy sai thứ tự, một state bị đọc trước khi có, một
+`null` chỉ xuất hiện SAU khi đã đăng nhập, một thứ chỉ nằm sau điều kiện quyền admin.
+
+`tools/smoke.mjs` dựng **cả cây React thật** trong jsdom, đúng hai provider như `src/main.jsx`
+(`I18nProvider` → `NotifyProvider`), đăng nhập tài khoản demo, rồi **bấm thử như người dùng**:
+màn chờ → trang chủ → bộ lọc → ô tìm → tab Up next → **form request** (thẻ xem trước, ảnh bìa
+YouTube, dán link vào ô tên bài, bản nháp, nút bỏ nháp) → **hộp vote** (ba ô số dư cộng đúng
+bằng tổng phiếu, phím mũi lên, bấm mức nhanh, gửi thật rồi kiểm con số trên hàng tăng đúng,
+hộp tự đóng) → Daily Spin → Bảng xếp hạng → Của tôi → **cả năm mục của `/admin`** (kể cả mở
+sẵn một địa chỉ đã lọc) → chế độ chọn nhiều.
+
+Nó ghi lại **mọi thứ rơi ra console** kèm màn hình đang đứng, và rà **nhãn** ở từng màn: chỗ
+nào có từ hai nhãn cạnh nhau mà không nằm trong một cụm biết xuống dòng thì báo. Kết quả hiện
+tại: **50/50 mục đạt, 0 lỗi runtime**. Cờ môi trường có sẵn:
+
+- `SMOKE_DUMP=1` — in thêm HTML của danh sách request để soi bằng mắt khi một mục không đạt.
+- Khi thêm một màn hình mới, thêm một `check(...)` vào `tools/smoke.mjs`: công cụ này là chỗ
+  duy nhất trong repo chạm tới **đường đi thật** của người dùng.
 
 ### Nên kiểm tra bằng tay sau khi deploy
 

@@ -8,6 +8,7 @@ import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useI18n } from '../lib/i18n.jsx'
+import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import MediaAdmin from './MediaAdmin'
 import Pager from './Pager'
 import { usePager } from '../lib/usePager'
@@ -16,9 +17,19 @@ import { usePager } from '../lib/usePager'
    ít dòng hơn — 10 là vừa một khung modal mà không phải cuộn lâu. */
 const PER_PAGE = 10
 
+/* Loại bài có thật — dùng cho cả ô chọn lẫn phép kiểm khi đọc bộ lọc từ địa chỉ
+   (một `?kind=…` gõ tay không được làm bảng lọc ra rỗng). */
+const KIND_KEYS = Object.keys(KIND_META)
+
+/* Bộ lọc đang mở đọc từ địa chỉ MỘT lần lúc dựng. Test dựng component bằng SSR
+   (không có `window`) nên đây phải là hàm thuần có đường lui. */
+const initialView = () => (typeof window === 'undefined'
+  ? { q: '', sort: 'default', kind: 'all' }
+  : readAdminView(window.location.search, KIND_KEYS))
+
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
-  select = false, selected = false, onSelect }) {
+  select = false, selected = false, onSelect, pickInterval = 4 }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
@@ -68,7 +79,13 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         </small>
         {/* bài này còn request trùng: vote của cả bài đã được cộng dồn khi xếp hạng */}
         {dup && dup.n > 1 && (
-          <small><span className="pill dup">{t('adm.dupTotal', { n: dup.n, v: dup.total })}</span></small>
+          /* Nhãn dài nhất trong hệ và có thể bị cắt bằng ba chấm trên máy hẹp
+             (xem `.pill.dup` trong index.css) — nên câu đầy đủ nằm ở `title`. */
+          <small>
+            <span className="pill dup" title={t('adm.dupTotal', { n: dup.n, v: dup.total })}>
+              {t('adm.dupTotal', { n: dup.n, v: dup.total })}
+            </span>
+          </small>
         )}
         {r.link && <small><a href={r.link} target="_blank" rel="noreferrer" style={{ color: 'var(--a-2)' }}>{t('adm.sourceLink')}</a></small>}
         {r.note && <small style={{ color: 'var(--txt-2)' }}>“{r.note}”</small>}
@@ -78,7 +95,10 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             thanh này nhường chỗ cho thanh lớn (kèm ba mốc) trong khung, không
             hiển thị cùng một con số hai lần. */}
         {r.status === 'in_progress' && !open && (
-          <Progress pct={pct} label={t('progress.label')} color={statusColor(r.status)} />
+          /* Không truyền màu: vạch tự lấy tông của mình (và tự chuyển màu khi
+             tick hết mốc). Truyền màu trạng thái vào đây từng làm cho CÙNG MỘT
+             bài có hai màu vạch khác nhau ở trang chủ và trong bảng quản trị. */
+          <Progress pct={pct} label={t('progress.label')} />
         )}
       </div>
 
@@ -94,9 +114,13 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         ) : (
           <>
             <span className="status" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>
+            {/* Nhịp chốt bài đọc từ CÙNG nguồn với dòng "Next pick" ở trang
+                chủ (`settings.pick.interval_days`). Viết cứng `n: 4` ở đây là
+                cách lời giải thích lệch khỏi lịch thật ngay khi admin đổi nhịp
+                — chú thích một đằng, máy chạy một nẻo. */}
             {(r.status === 'queued' || r.status === 'in_progress') && onPick && (
               <button className="btn btn-sm" onClick={() => onPick(r.id, !picked)}
-                title={t('now.pickRule', { n: 4 })}>
+                title={t('now.pickRule', { n: pickInterval })}>
                 {picked ? t('adm.unpick') : t('adm.pick')}
               </button>
             )}
@@ -150,7 +174,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </div>
           {/* Số tổng đã in ở .steps-pct ngay trên nên thanh này không lặp lại
               con số: nó trả lời "còn bao xa", tô theo trạng thái của bài. */}
-          <Progress pct={pct} label={t('progress.label')} color={statusColor(r.status)} wide />
+          <Progress pct={pct} label={t('progress.label')} wide />
           <div className="inline-form">
             <button type="button" className="btn btn-sm" onClick={() => onUpdate(r.id, { status: 'queued' })}>{t('adm.backToQueue')}</button>
             <button type="button" className={`btn btn-sm adm-copy${copied ? ' done' : ''}`}
@@ -188,8 +212,18 @@ export default function AdminPanel({
   tab, onTab, rows, orders, media = [],
   onReview, onUpdate, onDelete, onOrder, onPick, onBulk,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
+  pickInterval = 4,
 }) {
   const { t } = useI18n()
+  /* Chốt ngay lúc dựng: dải số liệu và bảng mã mục là HAI cách nhìn của một
+     danh sách. Nếu một ngày ai đó sửa `ADMIN_TAB_META` lệch khỏi `ADMIN_TABS`,
+     mục mới sẽ có địa chỉ mà không có ô bấm tới — nói ra ở đây rẻ hơn nhiều so
+     với việc tự phát hiện. Chỉ chạy ở chế độ phát triển. */
+  if (import.meta.env?.DEV) {
+    const a = ADMIN_TAB_META.map(m => m.k).join()
+    const b = ADMIN_TABS.join()
+    if (a !== b) console.warn(`[admin] ADMIN_TAB_META lệch ADMIN_TABS: ${a} ≠ ${b}`)
+  }
   const [busy, setBusy] = useState(false)
   /* Đơn hàng đang gửi đi: nút phải khoá NGAY, không đợi realtime tải lại danh
      sách (~400ms). Trước đây bấm "Đã nhận" hai lần trong khoảng đó là gọi
@@ -206,7 +240,10 @@ export default function AdminPanel({
   }
   /* Từ khoá tìm kiếm dùng chung cho cả 4 tab danh sách (tab Videos tự quản);
      đổi tab vẫn giữ từ khoá để soát bài ở mọi trạng thái mà không phải gõ lại */
-  const [q, setQ] = useState('')
+  /* Bộ lọc là MỘT phần của địa chỉ trang: dán địa chỉ cho đồng nghiệp là họ
+     thấy đúng danh sách đã lọc, F5 không mất, Back lùi đúng bước. */
+  const [init] = useState(initialView)
+  const [q, setQ] = useState(init.q)
   const searchRef = useRef(null)
   /* CHỌN NHIỀU ĐỂ XỬ LÝ HÀNG LOẠT — duyệt 10 request trong một lượt bấm thay vì
      mười vòng bấm-nút-chờ-tải-lại. Chỉ bật khi cần; đổi tab / đổi cách xếp /
@@ -218,13 +255,47 @@ export default function AdminPanel({
   /* Thứ tự danh sách. 'default' = đúng thứ tự từng tab vốn có (tab Đang xử lý
      xếp theo tổng vote của cả bài) — ba lựa chọn còn lại là để TRẢ LỜI CÂU HỎI
      KHÁC: bài nào chờ lâu nhất, bài nào nhiều vote nhất, bài nào vừa gửi. */
-  const [sortKey, setSortKey] = useState('default')
+  const [sortKey, setSortKey] = useState(init.sort)
   /* Lọc theo LOẠI BÀI ngay trong bảng quản trị: admin hay phải gom một loại
      (ví dụ soát hết Full Album trước khi chốt đợt) mà trước đây chỉ lọc được
      bằng cách gõ tên loại vào ô tìm kiếm — gõ "Short" thì ra cả bài có chữ
      short trong tên. */
-  const [kindF, setKindF] = useState('all')
+  const [kindF, setKindF] = useState(init.kind)
   const goTab = useCallback((k) => { onTab(k); setSel(new Set()) }, [onTab])
+  /* Hai việc dưới đây (chọn cả trang, và phím Ctrl/Cmd+A) phụ thuộc những giá
+     trị chỉ tính được ở cuối phần thân — cất chúng vào ref để bộ bắt phím khai
+     báo TRƯỚC vẫn gọi được bản mới nhất, thay vì phải chép lại phép tính. */
+  const pageIdsRef = useRef([])
+  const toggleAllPageRef = useRef(null)
+
+  /* GHI BỘ LỌC VÀO ĐỊA CHỈ — hoãn 260ms như ô tìm của bảng công khai, để mỗi ký
+     tự gõ vào không tạo một lần ghi lịch sử. Mục Videos không có ba bộ lọc này
+     nên địa chỉ của nó chỉ mang `tab`. */
+  useEffect(() => {
+    if (tab == null || typeof window === 'undefined') return
+    const id = setTimeout(() => {
+      const qs = adminQuery({
+        tab,
+        q: tab === 'media' ? '' : q, sort: tab === 'media' ? 'default' : sortKey,
+        kind: tab === 'media' ? 'all' : kindF,
+      })
+      const here = window.location.pathname + window.location.search
+      const next = window.location.pathname + qs
+      if (next !== here) window.history.replaceState({ s: 'admin' }, '', next)
+    }, 260)
+    return () => clearTimeout(id)
+  }, [tab, q, sortKey, kindF])
+
+  /* BACK/FORWARD: đọc lại bộ lọc từ địa chỉ, cùng lúc App đọc lại mục đang mở —
+     không thì địa chỉ nói một đằng, bảng đang lọc một nẻo. */
+  useEffect(() => {
+    const onPop = () => {
+      const v = readAdminView(window.location.search, KIND_KEYS)
+      setQ(v.q); setSortKey(v.sort); setKindF(v.kind)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   /* Bàn phím của một TRANG (không còn là hộp thoại nên Esc không đóng gì cả):
        /  → nhảy vào ô tìm kiếm
@@ -250,11 +321,18 @@ export default function AdminPanel({
         searchRef.current?.focus()
       } else if (e.key === 'Escape' && sel.size) {
         setSel(new Set())
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && pickMode && pageIdsRef.current.length) {
+        /* CHỌN CẢ TRANG BẰNG BÀN PHÍM — ghi chú của đoạn này vẫn hứa có phím
+           này từ đầu, nhưng phần thân thì chưa bao giờ viết: một tính năng chỉ
+           tồn tại trong ghi chú. Chỉ chặn Ctrl/Cmd+A khi đang ở chế độ chọn
+           nhiều, các trường hợp khác vẫn phải là "chọn hết chữ" của trình duyệt. */
+        e.preventDefault()
+        toggleAllPageRef.current?.()
       }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [tab, q, sel])
+  }, [tab, q, sel, pickMode])
 
   const pending = useMemo(() => rows.filter(r => r.status === 'pending'), [rows])
   /* Tab Đang xử lý xếp theo TỔNG vote của cả bài: các request trùng tên bài +
@@ -274,19 +352,8 @@ export default function AdminPanel({
     }),
     [activeRows, totals])
   const orderQueue = useMemo(() => orders.filter(o => o.status === 'awaiting'), [orders])
-  /* Dải tổng quan: admin mở panel là thấy ngay đường ống đang nghẽn ở đâu
-     (chờ duyệt / hàng đợi / đang làm / xong / từ chối) mà không phải lướt tab.
-     Dẫn lại từ `rows` nên luôn khớp các con số trong tab. */
-  const pipeline = useMemo(() => {
-    const c = (s) => rows.filter(r => r.status === s).length
-    return [
-      { s: 'pending', n: c('pending') },
-      { s: 'queued', n: c('queued') },
-      { s: 'in_progress', n: c('in_progress') },
-      { s: 'completed', n: c('completed') },
-      { s: 'denied', n: c('denied') },
-    ]
-  }, [rows])
+  /* (Khối `pipeline` cũ đã bị gỡ: nó tính năm con số mà không chỗ nào đọc —
+     dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
@@ -345,13 +412,14 @@ export default function AdminPanel({
   /* DẢI SỐ LIỆU — vừa là tổng quan, vừa là bộ chuyển mục. Mỗi ô mang ĐÚNG con
      số mà mục đó sẽ liệt kê, nên không cần thêm một hàng tab đếm lại lần nữa:
      một thứ chỉ được đếm ở một chỗ. */
-  const kpis = useMemo(() => [
-    { k: 'pending', label: 'adm.pending', c: statusColor('pending'), n: pending.length },
-    { k: 'active', label: 'adm.active', c: statusColor('in_progress'), n: active.length },
-    { k: 'orders', label: 'adm.orders', c: 'var(--paid)', n: orderQueue.length },
-    { k: 'done', label: 'adm.done', c: statusColor('completed'), n: others.length },
-    { k: 'media', label: 'adm.media', c: 'var(--a-2)', n: media.length },
-  ], [pending.length, active.length, orderQueue.length, others.length, media.length])
+  const counts = useMemo(() => ({
+    pending: pending.length, active: active.length, orders: orderQueue.length,
+    done: others.length, media: media.length,
+  }), [pending.length, active.length, orderQueue.length, others.length, media.length])
+  const kpis = useMemo(
+    () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
+    [counts])
+  const kpiTotal = useMemo(() => kpis.reduce((sum, k) => sum + k.n, 0), [kpis])
 
   /* Chọn cả trang đang nhìn: admin soát 10 dòng một lượt, tick từng ô là 10 cú
      bấm cho một việc. Chỉ áp cho những dòng ĐANG HIỆN (giống mọi lệnh hàng loạt
@@ -362,6 +430,13 @@ export default function AdminPanel({
     const next = new Set(prev)
     if (allPage) pageIds.forEach(id => next.delete(id)); else pageIds.forEach(id => next.add(id))
     return next
+  })
+  /* Đồng bộ vào ref SAU khi vẽ, không ghi trong lúc render: ghi ref trong render
+     là việc phụ trong một hàm phải thuần, và React có quyền vẽ lại mà bỏ qua nó.
+     Bộ bắt phím chỉ đọc ref khi có người bấm phím — luôn sau lần vẽ gần nhất. */
+  useEffect(() => {
+    pageIdsRef.current = pageIds
+    toggleAllPageRef.current = toggleAllPage
   })
 
   /* XUẤT CSV — cột khác nhau theo mục: đơn hàng có tiền, request có tiến độ
@@ -416,14 +491,28 @@ export default function AdminPanel({
       <div className="adm-kpis" role="group" aria-label={t('adm.pageAria')}>
         {kpis.map(k => (
           <button key={k.k} type="button" className={`adm-kpi${tab === k.k ? ' on' : ''}`}
-            style={{ '--sc': k.c }} aria-pressed={tab === k.k} onClick={() => goTab(k.k)}>
+            style={{ '--sc': k.tone }} aria-pressed={tab === k.k} onClick={() => goTab(k.k)}>
             <span className="k"><i aria-hidden="true" />{t(k.label)}</span>
             <span className="v">{k.n}</span>
           </button>
         ))}
       </div>
 
-      <div className="adm-panel">
+      {/* CẢ KHỐI LƯỢNG VIỆC TRONG MỘT VẠCH. Năm ô số liệu trả lời "bao nhiêu";
+          vạch này trả lời "chiếm bao nhiêu phần" — cùng dữ liệu, khác câu hỏi,
+          và chỉ tốn 5px. Mỗi đoạn mang đúng màu của mục đó, nên không cần chú
+          giải: ô số liệu ngay trên đã là chú giải rồi. */}
+      {kpiTotal > 0 && (
+        <div className="adm-mix" aria-hidden="true">
+          {kpis.filter(k => k.n > 0).map(k => (
+            <i key={k.k} style={{ '--sc': k.tone, '--w': `${(k.n / kpiTotal) * 100}%` }} />
+          ))}
+        </div>
+      )}
+
+      {/* `aria-busy` trong lúc chạy thao tác hàng loạt: trình đọc màn hình phải
+          biết danh sách đang được ghi, không phải "bảng trống". */}
+      <div className="adm-panel" aria-busy={bulkBusy || undefined}>
         {/* THANH CÔNG CỤ: tìm kiếm → xếp thứ tự → lọc loại bài → chế độ chọn.
             Ô tìm kiếm đứng đầu vì đó là việc admin làm nhiều nhất; nút chọn
             nhiều đứng cuối vì nó đổi cách làm việc của cả trang. */}
@@ -432,7 +521,8 @@ export default function AdminPanel({
             <span className="searchwrap">
               <Icon name="search" size={14} className="search-ico" />
               <input ref={searchRef} className="search"
-                placeholder={t('adm.search')} value={q} aria-keyshortcuts="/"
+                placeholder={t('adm.search')} aria-label={t('adm.search')}
+                value={q} aria-keyshortcuts="/"
                 onChange={e => { setQ(e.target.value); setSel(new Set()) }} />
               {q
                 ? <button type="button" className="search-x" title={t('adm.clearSearch')}
@@ -455,19 +545,28 @@ export default function AdminPanel({
                     <option value="all">{t('board.allKinds')}</option>
                     {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
                   </select>
+                  {/* CHỌN NHIỀU chỉ có nghĩa ở các mục có ô chọn trên từng dòng.
+                      Mục Đơn hàng không vẽ ô chọn (mỗi dòng là một đơn, không
+                      gộp lệnh hàng loạt được), nên nút này từng bật một chế độ
+                      KHÔNG có gì để chọn: bấm vào chỉ thấy giao diện đổi mà
+                      không tick được dòng nào. */}
                   <button type="button" className={`btn btn-sm adm-pickbtn${pickMode ? ' on' : ''}`}
                     aria-pressed={pickMode}
                     onClick={() => { setPickMode(v => !v); setSel(new Set()) }}>
                     {pickMode ? t('adm.pickModeOff') : t('adm.pickMode')}
                   </button>
-                  {/* XUẤT CSV: dữ liệu của bảng phải ra được khỏi bảng, và cách
-                      không tốn request nào là dựng file ngay trong trình duyệt. */}
-                  <button type="button" className="btn btn-sm adm-export"
-                    onClick={exportCsv}>
-                    {exported ? t('adm.exported') : t('adm.export')}
-                  </button>
                 </>
               )}
+              {/* XUẤT CSV: dữ liệu của bảng phải ra được khỏi bảng, và cách không
+                  tốn request nào là dựng file ngay trong trình duyệt.
+                  Nút này TRƯỚC ĐÂY nằm trong nhóm `tab !== 'orders'`, trong khi
+                  hàm xuất đã có sẵn nhánh cột riêng cho đơn hàng — tức là đường
+                  xuất đơn hàng viết ra rồi không ai bấm tới được. Nay nó đứng
+                  ngoài nhóm đó: mục nào cũng xuất được, đúng cột của mục đó. */}
+              <button type="button" className="btn btn-sm adm-export"
+                onClick={exportCsv}>
+                {exported ? t('adm.exported') : t('adm.export')}
+              </button>
             </div>
           </div>
         )}
@@ -483,7 +582,16 @@ export default function AdminPanel({
                 <span>{t('adm.selectPage', { n: pageIds.length })}</span>
               </label>
             )}
+            {/* Hai phím tắt của trang này chỉ có trong tài liệu là hai phím
+                tắt không ai biết. Dòng gợi ý nằm ngay chỗ dùng, và tự ẩn trên
+                thiết bị cảm ứng (không có bàn phím thì đừng hứa). */}
+            <span className="adm-keys">{t('adm.keys')}</span>
           </div>
+        )}
+        {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không
+            được báo. Chỉ trình đọc màn hình đọc dòng này. */}
+        {tab !== 'media' && (
+          <p className="sr-only" role="status">{t('adm.resultCount', { n: shown.length })}</p>
         )}
 
         {tab === 'media' ? (
@@ -539,7 +647,7 @@ export default function AdminPanel({
           shown.length === 0
             ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
             : pg.items.map(r => (
-              <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))}
+              <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))} pickInterval={pickInterval}
                 select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
                 /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
