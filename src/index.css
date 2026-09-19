@@ -1235,7 +1235,9 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 img { max-width: 100%; }
 .applogo { display: inline-block; overflow: hidden; flex: none; padding: 0; border: 0; background: none; box-shadow: none; animation: none; line-height: 0; font-size: 0; }
 .applogo > img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.applogo.lg-nav    { width: 22px; height: 22px; border-radius: var(--r-sm); }
+/* Logo ở đầu sidebar: kích thước thật nằm ở khối SIDEBAR bên dưới (30px, khớp
+   đúng width/height ghi trên thẻ <img> trong Sidebar.jsx). Dòng 22px cũ ở đây
+   đã bị luật sau ghi đè hoàn toàn — gỡ để không còn hai chỗ nói hai cỡ khác nhau. */
 .applogo.lg-foot   { width: 28px; height: 28px; border-radius: var(--radius); }
 .applogo.lg-splash { width: 64px; height: 64px; border-radius: var(--r-xl); }
 .applogo.lg-gate   { width: 52px; height: 52px; border-radius: var(--r-lg); }
@@ -2572,7 +2574,6 @@ html[data-section="spin"] .bgfx { display: none; }
 /* logo ở đầu sidebar: vòng sáng viền ngoài khi rê vào */
 .side-brand .applogo { transition: box-shadow var(--t-2) var(--e-soft); box-shadow: 0 0 0 0 var(--a-glow) }
 .side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(77,64,240,.18) }
-.applogo.lg-nav { border-radius: var(--radius) }
 
 
 /* chữ không bao giờ xuống dòng lổn nhổn */
