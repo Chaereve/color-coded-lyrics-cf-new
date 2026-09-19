@@ -2483,10 +2483,21 @@ if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'),
   mới gửi. Lý do chỉ có khoảng trắng được coi là *không có lý do*.
 - `ConfirmProvider` bọc `App` ở `src/App.jsx`, nên mọi nơi trong app dùng được hộp này.
 
-Hai chốt giữ cho lỗi không quay lại: `src/lib/noNativeDialogs.test.js` quét toàn bộ
-`src/` và đỏ nếu có ai gọi lại `confirm()`/`prompt()`/`alert()`; `tools/smoke.mjs` bấm
-thật qua cả năm đường ghi (gửi request → xoá ở mục About me, xoá một dòng quản trị, từ
-chối có lý do, từ chối hàng loạt, xoá hàng loạt, xoá video).
+Hai chốt giữ cho lỗi không quay lại:
+
+- `src/lib/noNativeDialogs.test.js` quét toàn bộ `src/` (bỏ chú thích) và đỏ nếu có ai
+  gọi lại `confirm()`/`prompt()`/`alert()` — kèm kiểm hộp của app còn đủ `role="dialog"`,
+  Esc, bấm-ra-ngoài và `aria-describedby` trỏ tới id có thật.
+- `tools/smoke.mjs` bấm thật qua từng đường ghi: **gửi** một request rồi **xoá** nó ở mục
+  About me (bấm Cancel trước, rồi mới Delete), **xoá một dòng** trong bảng quản trị,
+  **từ chối một bài** kèm lý do, **mở hộp từ chối hàng loạt** rồi huỷ (kiểm lời hỏi có
+  đúng số dòng và có ô lý do, mà không tiêu mất dòng cuối), **xoá hàng loạt**, **xoá
+  video** ở mục Kênh. Esc cũng được kiểm: huỷ là không được ghi gì.
+
+Còn **huỷ đơn** (`doCancelOrder`) chưa có đường bấm tự động: dữ liệu mẫu của chế độ demo
+không có đơn nào của người đang đăng nhập, mà tạo một đơn thật thì phải đi qua luồng mua
+vote. Chỗ đó được giữ bởi chốt thứ nhất (không còn `confirm()`) và bởi chính dạng gọi
+`await ask(…)` giống sáu chỗ đã kiểm.
 
 ### Header an toàn
 
