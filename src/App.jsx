@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
@@ -105,15 +105,29 @@ const readBoard = () => {
 const VT = typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
 const REDUCED = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+/* BA NHÓM, ĐÚNG THỨ TỰ NGƯỜI TA ĐỌC BẢNG.
+   `c` là màu VẠCH của mục (CSS đọc qua biến `--c`), `ax` là nhóm — mục đầu
+   tiên của một nhóm mới mở đầu bằng một vạch ngăn dọc trong dải (xem
+   `.fchips .dot` trong index.css).
+
+     · pipe — bốn GIAI ĐOẠN của dây chuyền, xếp theo đúng thứ tự công việc
+       chạy (Queue → Up next → In progress → Done). Bản cũ để "In progress"
+       đứng sau "Top voted": dây chuyền bị cắt làm hai khúc.
+     · view — hai CÁCH NHÌN cả bảng. Cùng một màu nhấn (`--a-2`, sắc độ dùng
+       được cho chữ/icon trên nền tối) vì đây không phải hai giai đoạn khác
+       nhau; `--a` nguyên bản ở đây sẽ là một vạch gần như vô hình (3px màu
+       hue 242 ở 40% opacity trên nền #10141a).
+     · you  — việc của riêng người đang xem. Chỉ hiện khi có ít nhất một bài
+       đang theo dõi (rỗng thì mục này vô nghĩa), nên nhóm này có thể vắng
+       mặt — vạch ngăn của nó cũng phải biến mất theo (xem chỗ dựng dải). */
 const FILTERS = [
-  { k: 'queued',      c: 'var(--queued)' },
-  { k: 'picked',      c: 'var(--queued)' },
-  { k: 'newest',      c: 'var(--a)' },
-  { k: 'top',         c: 'var(--a-2)' },
-  { k: 'in_progress', c: 'var(--progress)' },
-  { k: 'completed',   c: 'var(--done)' },
-  /* Chỉ hiện khi đang theo dõi ≥1 bài — rỗng thì tab vô nghĩa. */
-  { k: 'watch',       c: 'var(--a-2)' },
+  { k: 'queued',      c: 'var(--queued)',   ax: 'pipe' },
+  { k: 'picked',      c: 'var(--queued)',   ax: 'pipe' },
+  { k: 'in_progress', c: 'var(--progress)', ax: 'pipe' },
+  { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
+  { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
+  { k: 'top',         c: 'var(--a-2)',      ax: 'view' },
+  { k: 'watch',       c: 'var(--a-2)',      ax: 'you' },
 ]
 const FILTER_KEYS = FILTERS.map(f => f.k)
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
@@ -358,8 +372,6 @@ function AppInner() {
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
-  /* vạch tiến độ cuộn: ghi thẳng style qua ref để không setState mỗi frame */
-  const progressRef = useRef(null)
 
   const [voteFor, setVoteFor] = useState(null)
   /* Link mời gửi bài (`/?add=1&artist=…&title=…`) do chủ kênh dán vào mô tả
@@ -485,30 +497,20 @@ function AppInner() {
     return () => io.disconnect()
   }, [])
 
-  /* Vạch tiến độ cuộn: trình duyệt nào có CSS scroll-driven animations thì
-     việc vẽ vạch do CSS lo (xem `.scroll-progress` trong index.css) — ở đây
-     KHÔNG gắn listener nào cả. Chỉ khi thiếu tính năng mới chạy bản dự phòng
-     bằng rAF, đúng như hành vi trước đây. */
-  useEffect(() => {
-    const native = typeof CSS !== 'undefined' && CSS.supports
-      && CSS.supports('(animation-timeline: scroll())')
-    if (native) return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        /* vạch tiến độ chỉ co giãn bằng transform (scaleX), không đụng layout;
-           ghi thẳng vào ref để cuộn không kéo theo một lần setState nào */
-        const max = document.documentElement.scrollHeight - window.innerHeight
-        if (progressRef.current) {
-          progressRef.current.style.transform = `scaleX(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`
-        }
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
-  }, [])
+  /* VẠCH TIẾN ĐỘ CUỘN ĐÃ BỊ GỠ (vòng 16).
+     Nó là một vạch 2px gradient chạy ngang đỉnh màn hình, và có hai lý do để
+     đi:
+       · TRÙNG CHỨC NĂNG: thanh cuộn của trình duyệt đã nói đúng con số đó, ở
+         đúng chỗ người dùng tìm nó. Vạch thứ hai không thêm thông tin nào, chỉ
+         thêm một thứ chuyển động chạy suốt lúc cuộn — mà cuộn là thao tác lặp
+         nhiều nhất trên trang;
+       · TRÙNG MÀU: nó là gradient `--a → --a-2`, đúng cặp màu của thứ duy nhất
+         được phép nổi bật (nút hành động chính và mục đang chọn). Một vạch màu
+         nhấn chạy ngang đỉnh màn hình suốt phiên làm màu nhấn mất nghĩa
+         "chỗ này bấm được".
+     Đây cũng là lời nhắc cho lần sau: một thứ vừa trùng chức năng vừa trùng
+     màu thì không phải chi tiết nhỏ — nó là thứ làm cả trang trông như có
+     nhiều lớp trang trí hơn là một công cụ. */
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
@@ -1325,7 +1327,6 @@ function AppInner() {
   return (
     <>
       <Splash hide />
-      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
@@ -1553,13 +1554,20 @@ function AppInner() {
                     </button>
                   </div>
                   <div className="fchips" role="group" aria-label={t('board.filterAria')}>
-                    {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
-                      <button key={f.k} type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
-                        style={{ '--c': f.c }} aria-pressed={filter === f.k}
-                        onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
-                        <i className="fdot" aria-hidden="true" />{t(`filter.${f.k}`)}
-                        <b className="fnum">{counts[f.k]}</b>
-                      </button>
+                    {/* Mỗi mục = VẠCH MÀU + nhãn + số (xem khối THANH LỌC trong
+                        index.css). Vạch ngăn chỉ mọc lên ở mục đầu tiên của
+                        một nhóm MỚI, và nhóm "đang theo dõi" vắng mặt thì vạch
+                        ngăn của nó cũng không được ở lại một mình. */}
+                    {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
+                      <Fragment key={f.k}>
+                        {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
+                        <button type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
+                          style={{ '--c': f.c }} aria-pressed={filter === f.k}
+                          onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
+                          <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
+                          <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
+                        </button>
+                      </Fragment>
                     ))}
                     {/* LOẠI BÀI ĐANG LỌC, hiện thành chip bỏ được ngay trên hàng
                         chính. Trên màn rộng khối lọc thứ hai luôn hiện nên chip
@@ -1568,28 +1576,41 @@ function AppInner() {
                         "danh sách này đang bị lọc theo một loại bài" — người
                         dùng cuộn xuống thấy thiếu bài mà không hiểu vì sao. */}
                     {kindFilter !== 'all' && (
-                      <button type="button" className="fchip kind on onkind"
+                      <button type="button" className="fchip fkind on onkind"
                         style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
                         aria-label={t('board.clearKind', { k: kindFilter })}
                         title={t('board.clearKind', { k: kindFilter })}
                         onClick={() => setKindFilter('all')}>
-                        {kindFilter}<Icon name="close" size={12} />
+                        <i className="kswatch" aria-hidden="true" />{kindFilter}<Icon name="close" size={12} />
                       </button>
                     )}
                   </div>
                 </div>
 
                 <div className="fbar-more" id="fbar-more">
+                  {/* MỤC LỌC LOẠI BÀI KHÔNG PHẢI THẺ. Bốn nút dưới đây từng mang
+                      lớp `kind` — lớp của THẺ loại bài nằm trên từng hàng request.
+                      Thẻ đó khoá cứng `color: var(--k-ccl)`, nên cả bốn nút (kể
+                      cả "All types") đều hiện đúng một màu TÍM CCL, bất kể
+                      `--c` của chúng: bốn thẻ loại khác nhau mà mắt thấy cùng
+                      một màu, còn nền của nút đang chọn lại lấy `--c` — nên nút
+                      "Full Album" đang chọn có CHỮ TÍM trên NỀN XANH TEAL.
+                      Nay chúng mang lớp riêng `.fkind` và tự mang màu của mình.
+                      Dấu hiệu để nhận ra lỗi này từ đầu: một lớp CSS mang tên
+                      dữ liệu (`kind`) được dùng cho cả thứ hiển thị dữ liệu lẫn
+                      control để lọc dữ liệu đó. */}
                   <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
-                    <button type="button" className={`fchip kind${kindFilter === 'all' ? ' on' : ''}`}
+                    <button type="button" className={`fchip fkind${kindFilter === 'all' ? ' on' : ''}`}
                       aria-pressed={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
-                      {t('board.allKinds')}
+                      <i className="kswatch any" aria-hidden="true" />{t('board.allKinds')}
                     </button>
                     {Object.keys(KIND_META).map(k => (
                       <button key={k} type="button"
-                        className={`fchip kind${kindFilter === k ? ' on' : ''}`}
+                        className={`fchip fkind${kindFilter === k ? ' on' : ''}`}
                         style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilter === k}
-                        onClick={() => setKindFilter(k)}>{k}</button>
+                        onClick={() => setKindFilter(k)}>
+                        <i className="kswatch" aria-hidden="true" />{k}
+                      </button>
                     ))}
                   </div>
                   {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu

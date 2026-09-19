@@ -153,8 +153,36 @@ Luật:
 - Vạch và con số nằm **cùng một hàng**, số sát mép phải vạch. Không bao giờ in
   con số trần rồi để cái vạch rời ở dưới: mắt phải tự nối hai thứ, và con số
   luôn lệch trái so với vạch.
-- Số dùng `--mono` + `tabular-nums` (9% và 100% rộng như nhau) nên cột số không
-  nhảy sang trái phải mỗi lần tiến độ đổi.
+- Số dùng `--mono` + `tabular-nums` **và có bề rộng chừa sẵn** (vòng 16). Chỉ
+  `tabular-nums` là chưa đủ: "9%" và "100%" vẫn khác nhau một con số, mà con số
+  nằm **sau** vạch (`flex: 1`), nên mỗi lần tiến độ qua hàng chục hay tới 100%
+  thì **vạch tự ngắn lại đúng bằng một con số**. Chừa 30px + canh phải thì mép
+  vạch đứng yên tuyệt đối (mono 10,5px: "100%" ≈ 25px < 30px).
+- **Kích thước là một quyết định thiết kế, không phải chỗ để nới** (vòng 17).
+  Chủ dự án gửi ảnh một hàng request: *"thanh progress đang bị bự và xấu quá"*.
+  Bốn thứ cùng lúc làm nó bự, và cả bốn đều là hệ quả của việc mỗi thứ được nới
+  một nhịp mà **không ai nhìn tổng thể cái khối**:
+
+  | | Trước | Sau | Vì sao |
+  |---|---|---|---|
+  | Rãnh | 6px | **4px** | 6px là độ dày của một dải băng; 4px vẫn đọc được ở 1x mà đọc ra là "một đường" |
+  | Khối vạch + số | 340px | **220px** | Cột danh sách trên màn hai cột chỉ ~740px → 340px là gần **nửa** bề ngang hàng, thành thứ to nhất sau tiêu đề |
+  | Con số | 11,5px nét **600**, màu vạch pha trắng | **10,5px nét 500**, pha 72% màu vạch + 28% `--txt-2` | Một chữ số in đậm màu bão hoà to hơn cả tên người gửi là chỗ to tiếng nhất trong hàng |
+  | Hai vạch mốc | `rgba(0,0,0,.42)`, rãnh 6px | `rgba(0,0,0,.34)`, rãnh 4px | Ở 6px chúng đọc ra như vạch chia của một thanh ba khúc; ở 4px chúng là đường nối trong lòng vạch |
+
+  Bài học cho lần sau, ghi lại vì đây là lần thứ hai cùng một khối bị chỉ:
+  **khi thanh tiến độ nằm trong một HÀNG danh sách, mọi con số của nó phải nhỏ
+  hơn con số nhỏ nhất của hàng đó.** Vạch có thể mang màu trạng thái, nhưng kích
+  cỡ và độ đậm thì phải xếp dưới chữ — nó là chi tiết phụ, không phải số liệu.
+- **Hai vạch mốc chia ở 40% và 80%** (vòng 16): con số này không trừu tượng,
+  sau nó là đúng ba việc có tên (Layout 40 · Lyrics 40 · Edit 20 — `MILESTONES`
+  trong `db.js`, cũng là ba ô tick admin nhìn thấy). Nhờ vậy "42%" đọc ra "xong
+  Layout, đang làm Lyrics". Vị trí mốc do JS đặt qua `--m`, **suy từ
+  `MILESTONES`** chứ không viết cứng 40/80 trong CSS: đổi trọng số ba mốc ở
+  `db.js` là vạch chia đi theo, không có hai chỗ khai cùng một con số. Mốc là
+  vạch **chìm** (xem bảng ở mục dưới) nên đọc được cả khi ruột màu đã chạy qua;
+  cấu trúc ba mốc nằm trong `title` của cả khối, còn hai vạch mốc là
+  `aria-hidden` (đọc lại chỉ thành tiếng ồn).
 - Giá trị rác (`undefined`, `"abc"`, `150`, `-3`) bị kẹp về `0..100` **trong
   component**; không chỗ gọi nào phải tự kiểm tra.
 - `role="progressbar"` + `aria-valuenow/min/max` + nhãn `t('progress.label')`:
@@ -267,6 +295,96 @@ nhiên. Luật phụ của cách xếp theo điểm nói luôn một điều ng�
 không farm: **bài bị từ chối không tính gì** (khớp với `where r.status <> 'denied'`
 của view `requester_ranking` và với `rankDemo()`).
 
+### 2.8 Dải chế độ xem — thanh lọc không phải một hàng chip
+
+Chủ dự án chỉ ra đúng ba chữ: **"phần hiện status xấu quá"**, và khi được hỏi nó
+xấu ở đâu thì câu trả lời là **"nhìn AI"**. Đây là chỗ dễ mắc nhất của cả trang,
+vì dải lọc là thứ được vẽ **bảy lần liên tiếp** trên cùng một hàng — mọi quyết
+định trang trí ở đó bị nhân lên bảy lần.
+
+Bốn thứ đã bị gỡ, kèm lý do (bản đầy đủ nằm ở khối *THANH LỌC — DẢI CHẾ ĐỘ XEM*
+trong `src/index.css`):
+
+| Thứ bị gỡ | Vì sao nó đọc ra "do máy sinh" |
+|---|---|
+| **Rãnh bo tròn** bao quanh dải chip | Hai lớp bo tròn lồng nhau (rãnh thuốc → chip thuốc). Lớp ngoài không mang thông tin nào; nó chỉ tồn tại để "cho giống một control" |
+| **Chấm tròn màu** trước mỗi nhãn | Hàng chip có chấm màu là khuôn mẫu của mọi bảng điều khiển máy sinh |
+| **Huy hiệu số** bo tròn | Lớp bo tròn thứ ba, cộng với chấm là thứ tư. Con số không cần một cái hộp |
+| **Tô nền** cho mục đang chọn | Một viên thuốc phết màu nhạt là thứ ai cũng vẽ được |
+
+Hình dáng mới, và điều nó mua được:
+
+- Một mục = **vạch màu 3×15px + nhãn + số**. Vạch đọc ra "một chặng của dây
+  chuyền", không ra "một đèn báo"; nó lấy đúng màu chấm trạng thái của hàng
+  request (`STATUS_META` → biến `--c`), nên **màu ở đây vẫn là dữ liệu**, không
+  phải trang trí.
+- **Đang chọn = chữ trắng + vạch đầy màu + số mang màu của mục đó.** Không đổi
+  độ đậm: chữ đậm lên làm cả hàng nhích một nhịp mỗi lần bấm, mà đã có ba tín
+  hiệu khác rồi.
+- **Số là số**: mono, `tabular-nums`, không nền. Số `0` lùi lại một nhịp
+  (`.fnum.zero`) — mục không có gì thì không được nói to bằng mục đang có việc.
+- **Ba nhóm, hai vạch ngăn** (dùng lại đúng lớp `.dot` của dòng meta, không
+  dựng khuôn vạch thứ hai):
+  `Queue · Up next · In progress · Done` — bốn **giai đoạn**, theo đúng thứ tự
+  dây chuyền chạy; rồi `Newest · Top voted` — hai **cách nhìn** cả bảng; rồi
+  `Following` — việc của riêng người đang xem. Bản cũ để `In progress` đứng
+  **sau** `Top voted`: một trục khác chen vào giữa bốn giai đoạn của cùng một
+  dây chuyền, và mắt không biết mình đang ở trục nào. Nhóm `Following` vắng mặt
+  (chưa theo dõi bài nào) thì **vạch ngăn của nó cũng biến mất** — không để lại
+  một vạch lẻ giữa hai mục.
+- **Màu của hai cách nhìn** là `--a-2`, không phải `--a`: đây là những sắc độ
+  dùng được cho chữ/icon trên nền tối, còn `--a` nguyên bản (hue 242) ở 40%
+  opacity trên nền `#10141a` là một vạch gần như vô hình.
+
+**PC và máy hẹp: cùng một hình dáng, khác nhịp.** Hình dáng trên không phụ thuộc
+bề rộng, nhưng **nhịp** thì phải khác — chuột trỏ chính xác và màn rộng là hai
+điều kiện khác hẳn ngón tay trên màn 390px:
+
+| | PC (`≥900px` + `hover: hover`) | Thiết bị chạm (`pointer: coarse`) |
+|---|---|---|
+| Chiều cao mục | **32px** — 25px (đúng chiều cao chữ) trên màn 27" đọc ra như một dòng phụ, không như hàng điều khiển | **≥40px** — ngưỡng ngón tay, giữ nguyên pixel bản desktop về hình dáng |
+| Rê chuột | Nền nhấc lên một nhịp đậm hơn (`--hover-2`) — đây là thao tác **chỉ có** trên PC | Không có hover; `@media (hover: none)` ở cuối tệp trả lại mọi thứ đọc được |
+| Dải tràn | Hiện **thanh cuộn mảnh 5px** (chỉ khi thật sự tràn — cửa sổ 900–1010px là bề rộng duy nhất bảy mục không vừa một hàng) | Cuộn bằng ngón tay, có điểm dừng (`scroll-snap`) — thanh cuộn bị ẩn |
+| Ô tìm kiếm | **Chặn 360px** + con số đếm đẩy về mép phải: để nó co giãn hết hàng thì trên màn 27" nó rộng ~1000px, và phím tắt `/` neo ở mép phải ô sẽ cách chỗ gõ gần một mét | Chiếm trọn một hàng (màn hẹp thì không có chỗ cho hai thứ cạnh nhau) |
+
+Khối PC cố ý đặt **trước** khối thiết bị chạm trong `index.css`: một thiết bị lạ
+(máy tính bảng cắm chuột) đôi khi khớp cả hai vế, và khi đó **vế chạm phải thắng**
+— 40px cho ngón tay quan trọng hơn 32px cho chuột. Điều đó được chốt bằng một
+phép kiểm so **thứ tự**, không phải bằng cảm nhận (xem `cssFilterBar.test.js`).
+
+Hai phép kiểm giữ hình dáng này: `src/lib/cssFilterBar.test.js` chốt *không có*
+nền/viền/bo góc trên dải, *không còn* luật `.fdot`, thứ tự bốn giai đoạn, vạch
+ngăn theo nhóm, và **thứ tự khối PC/máy hẹp**; `npm run smoke` chốt trên DOM thật
+(mỗi mục có vạch, **đúng một** mục đang chọn, số vạch ngăn khớp số nhóm đang hiện).
+
+#### Hàng lọc loại bài — cùng ngôn ngữ, khác hình dấu (vòng 16)
+
+Chủ dự án chỉ tiếp: **"chỗ lọc type quá AI"**. Hàng đó (`.fbar-more`) có một **lỗi
+thật** đứng sau cảm giác đó:
+
+> Bốn nút lọc mang `className="fchip kind"` — `kind` là lớp của **thẻ loại bài**
+> trên từng hàng request, và thẻ đó khoá cứng `color: var(--k-ccl)`. Nên **cả bốn
+> nút** (kể cả "All types") hiện đúng một màu tím CCL, bất kể `--c` của chúng;
+> riêng nút đang chọn lấy `--c` cho **nền** — thành ra "Full Album" đang chọn có
+> **chữ tím trên nền xanh teal**. Bốn thẻ khác nhau mà mắt thấy cùng một màu.
+
+Dấu hiệu của lỗi này, ghi lại để lần sau nhận ra sớm: **một lớp CSS mang tên DỮ
+LIỆU được dùng cho cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó.** Nay
+mục lọc có lớp riêng `.fkind`.
+
+Hình dáng mới — cùng ngôn ngữ với dải chế độ xem (chữ + dấu màu, không viền,
+không nền, không bo tròn), nhưng **dấu đổi hình cho đúng loại dữ liệu**:
+
+| | Dải chế độ xem | Hàng lọc loại bài |
+|---|---|---|
+| Dấu | **Vạch đứng 3×15px** — trạng thái là một *chặng* của dây chuyền | **Ô vuông 9×9px bo 2px** — loại bài là một *nhãn dán* trên hàng (`.kind` cũng bo góc) |
+| Màu chữ khi chọn | **Trắng** — một màu trạng thái được nhiều mục chia nhau (`Queue` và `Up next` cùng `--queued`) | **Màu của chính loại đó** — màu loại bài là *danh tính của riêng một mục*, và tô chữ bằng đúng màu đó thì nối thẳng được với thẻ loại trên hàng request |
+| "Không lọc gì" | (không có mục này — "Newest" là mặc định) | **Ô RỖNG viền mảnh** (`.kswatch.any`): đọc ra "chưa chọn màu nào", vẫn giữ đúng nhịp dấu ở đầu hàng |
+
+Khác hình dấu còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau và
+hai bảng màu có vài sắc na ná (`--queued #8f94ff` với `--k-ccl #ab8fe0`,
+`--done #4cba88` với `--k-album #4fb0ad`).
+
 ---
 
 ## 3. Chuyển động
@@ -341,7 +459,13 @@ cục. Ba chỗ đã sửa:
   giãn** mỗi lần rê chuột vào. Nay thanh giữ nguyên 64px, chỉ đổi `opacity`.
 - Ô sáng sidebar: bỏ `height` khỏi transition (mọi mục đều cao 36px — nó không
   bao giờ đổi, chỉ tốn một kênh theo dõi).
-- Vạch tiến độ cuộn: `transform: scaleX()` (compositor), không phải `width`.
+- ~~Vạch tiến độ cuộn: `transform: scaleX()`~~ — **đã gỡ hẳn (vòng 16)**. Nó
+  từng là ví dụ đúng về kỹ thuật (compositor thay vì layout), nhưng kỹ thuật
+  đúng không cứu được một thứ **trùng chức năng**: thanh cuộn của trình duyệt đã
+  nói đúng con số đó, ở đúng chỗ người dùng tìm nó. Thêm nữa nó là gradient
+  `--a → --a-2`, đúng cặp màu của thứ duy nhất được phép nổi bật — một vạch màu
+  nhấn chạy ngang đỉnh màn hình suốt phiên làm màu nhấn mất nghĩa "chỗ này bấm
+  được".
 
 ### 3.4 Người dùng tắt chuyển động
 
@@ -397,22 +521,25 @@ Ngoài ra `scroll-behavior: smooth` của app tự chuyển thành `auto` (xem
   video đang mở đã nằm ngay trên khung.
 - **Thanh lọc**: 6 tab kèm số đếm không vừa 390px, và `.tabs` có `overflow: hidden`
   nên **tab cuối bị cắt mất** — không có cách nào bấm tới. Nay dải tab cuộn ngang.
-- **Thanh lọc trên máy hẹp** (chốt 19/09): hàng chip trạng thái cuộn ngang, dòng
+- **Thanh lọc trên máy hẹp** (chốt 19/09): dải chế độ xem cuộn ngang, dòng
   đếm nhường chỗ cho nút **Bộ lọc** kèm số điều kiện đang bật; khối lọc thứ hai
-  (chip loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
-  `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) chip cao ≥40px
-  — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
+  (thẻ loại bài + dòng tổng kết) gấp lại cho tới khi bấm (`aria-expanded` +
+  `aria-controls`). Trên thiết bị chạm (`@media (pointer: coarse)`) mỗi mục lọc
+  cao ≥40px — bản desktop giữ nguyên pixel vì chuột trỏ chính xác.
 - **Thanh lọc trên máy hẹp: mỗi hàng một việc** (vòng 10, tiếp). Hàng 1 là dải
-  chip trạng thái — **chiếm trọn bề rộng** và cuộn ngang có điểm dừng
-  (`scroll-snap-type: x proximity`, mỗi chip một điểm dừng); hàng 2 là ô tìm kiếm
-  + nút Bộ lọc. Bản trước để hai thứ đó chen nhau trên một hàng: dải chip co được
-  tới 0 nên bị bóp còn vài chục pixel, người dùng chỉ thấy một mẩu chip cụt mà
+  chế độ xem (xem §2.8) — **chiếm trọn bề rộng** và cuộn ngang có điểm dừng
+  (`scroll-snap-type: x proximity`, mỗi mục một điểm dừng); hàng 2 là ô tìm kiếm
+  + nút Bộ lọc. Bản trước để hai thứ đó chen nhau trên một hàng: dải co được
+  tới 0 nên bị bóp còn vài chục pixel, người dùng chỉ thấy một mẩu cụt mà
   không hiểu vì sao. Phép kiểm `cssFilterBar.test.js` chốt cả hai vế (máy hẹp hai
   hàng, màn rộng một hàng).
 - **Loại bài đang lọc phải NHÌN THẤY** (vòng 10, tiếp). Trên màn hẹp khối lọc gấp
   sau nút Bộ lọc, nên nếu không có gì khác thì không có chỗ nào nói ra là danh sách
   đang bị lọc theo loại bài — người dùng chỉ thấy danh sách thiếu bài. Nay có
-  `.fchip.onkind` trên hàng chính, mang tên loại và bỏ được bằng một lần bấm; từ
+  `.fchip.onkind` ở cuối dải chế độ xem, mang tên loại và bỏ được bằng một lần
+  bấm. Nó vẫn là một **thẻ** (viền + nền cùng màu chữ) chứ không phải một mục chữ
+  trần như các mục cạnh nó: một điều kiện đang bật phải đọc ra là *bỏ được*, và
+  khuôn thẻ đó chính là khuôn mà thẻ loại bài mang trên từng hàng request. Từ
   621px trở lên nó bị ẩn vì khối lọc đã luôn hiện.
 - Không có `hover` thật ⇒ khối `@media (hover: none)` trả lại mọi thứ đọc được
   khi rê chuột. Trạng thái "đang mở" luôn phải đọc được **mà không cần rê**.
@@ -498,6 +625,19 @@ Ghi lại để lần sau không ai "sửa" ngược:
   rồi mời đi vote cho bài đó; người gửi vẫn toàn quyền gửi tiếp. Chặn là quyết định
   thay người dùng ở chỗ mình không có đủ thông tin (bài cũ có thể đã bị từ chối, hoặc
   họ muốn một bản khác).
+- **Không** dựng lại rãnh/chip cho dải chế độ xem (vòng 15, xem §2.8) và **không**
+  thêm "vạch trượt" chạy theo mục đang chọn. Vạch trượt là một chuyển động trang
+  trí đứng trên một control được bấm **nhiều lần mỗi phiên** — đúng chỗ cổng tần
+  suất (§3) cấm; trạng thái đang chọn ở đây đọc được ngay mà không cần chuyển động
+  nào.
+- **Không** dựng lại vạch tiến độ cuộn ở đỉnh trang (vòng 16, xem §3.3). Nếu có
+  người muốn "cho vui mắt" thì câu trả lời nằm ở §0: người dùng vào đây để **đọc
+  và bấm vote**, không phải để ngắm một vạch chạy. Chưa kể nó là thứ lấy màu
+  nhấn — màu dành cho "chỗ này bấm được".
+- **Không** dùng lại lớp `.kind` (thẻ loại bài trên hàng request) cho các **mục
+  lọc** loại bài (vòng 16, xem §2.8). Hai thứ khác nhau về bản chất: một cái *nói*
+  loại của dòng, một cái *lọc* theo loại — và vì `.kind` khoá cứng `color:
+  var(--k-ccl)`, dùng chung lớp làm cả bốn nút lọc cùng hiện một màu tím.
 
 ---
 

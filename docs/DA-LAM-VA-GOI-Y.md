@@ -831,3 +831,214 @@ là đồ tạm, đã xoá sau khi lấy xong bằng chứng.
    Đã thêm bốn việc phải bấm tay — Enter/"Go" ở bước 2 phải ra bước 3, request kế tiếp phải
    tắt ô trả phí, đổi tab phải giữ form, và ba lượt quay liền không được trùng số — vì đây
    đúng là những thứ jsdom không mô phỏng được (lý do cả bộ kiểm đi qua lỗi này ở vòng 14).
+
+## Phần S — vòng 15: "phần hiện status xấu quá … nhìn AI"
+
+### S1. Truy đúng chỗ, không đoán
+
+Báo cáo vào repo chỉ có một câu: *"phần hiện status xấu quá à"*. Chỗ hiện trạng thái trên
+trang này có bốn nơi (nhãn trong từng hàng request, dải chip lọc, ô trạng thái trong bảng
+quản trị, thẻ trong khối Up next). Đã hỏi lại đúng hai câu trước khi sửa: **chỗ nào**, và
+**xấu ở điểm nào**. Câu trả lời: **dải chip lọc trạng thái**, và nó xấu ở chỗ **"nhìn AI"**.
+
+Đây là điểm đáng ghi lại về quy trình: ba chữ "nhìn AI" không nói ra được một dòng CSS nào.
+Nó chỉ thành việc làm được sau khi mình tự trả lời câu hỏi *"cụ thể thì thứ gì ở đó đọc ra
+do máy sinh?"* — và câu trả lời phải là một **danh sách đếm được**, không phải một cảm nhận.
+Bốn thứ trong danh sách đó (rãnh bo tròn, chấm tròn, huy hiệu số, nền tô khi chọn) nay nằm
+nguyên văn ở khối *THANH LỌC — DẢI CHẾ ĐỘ XEM* trong `src/index.css` và ở §2.8 `DESIGN.md`.
+
+### S2. Đã sửa gì
+
+| Trước | Sau |
+|---|---|
+| Hai lớp bo tròn lồng nhau: rãnh thuốc bao quanh bảy chip thuốc | **Bỏ rãnh** — các mục nằm thẳng trên mặt thanh lọc |
+| Chấm tròn màu 7px trước mỗi nhãn | **Vạch đứng 3×15px** (đọc ra "một chặng", không ra "đèn báo") |
+| Số nằm trong huy hiệu bo tròn có nền | Số chỉ là **số**: mono, `tabular-nums`, không nền; số `0` lùi lại một nhịp |
+| Mục đang chọn = viên thuốc **tô nền** + viền màu | Mục đang chọn = **chữ trắng + vạch đầy màu + số mang màu của mục đó**; không tô nền, không đổi độ đậm (đổi độ đậm làm cả hàng nhích một nhịp mỗi lần bấm) |
+| Bảy mục cùng khuôn, xen kẽ hai trục: `Queue · Up next · Newest · Top voted · In progress · Done · Following` | **Ba nhóm, hai vạch ngăn**: `Queue · Up next · In progress · Done` (đúng thứ tự dây chuyền) │ `Newest · Top voted` (cách nhìn cả bảng) │ `Following` (việc của riêng bạn) |
+| `--a` làm màu của "Newest" | `--a-2` cho cả hai cách nhìn: `--a` (hue 242) ở 40% opacity trên nền `#10141a` là một vạch gần như vô hình |
+
+### S3. Vì sao "Newest" và "Top voted" vẫn nằm trong dải
+
+Đã cân nhắc chuyển hai mục đó ra một control "sắp xếp" riêng ở hàng trên, rồi **không làm**:
+`top` không chỉ là một cách sắp — nó *lọc* (bài đã xong hoặc đã vào dây chuyền không còn xin
+phiếu, xem `visible` trong `App.jsx`), nên nó là một **cách nhìn**, cùng loại với bốn giai
+đoạn. Đẩy nó vào một nút "sắp xếp" là nói sai bản chất của nó. Cách sửa đúng là **một vạch
+ngăn**: hai trục vẫn nằm cạnh nhau, nhưng mắt đọc ra được là hai trục.
+
+### S4. Kiểm chứng
+
+- `src/lib/cssFilterBar.test.js`: ba phép kiểm mới chốt *không có* nền/viền/bo góc trên dải,
+  *không còn* luật `.fdot` (và JSX không dựng lại chấm tròn), số không có nền, mục đang chọn
+  **không được tô nền**, thứ tự bốn giai đoạn trong `FILTERS`, và vạch ngăn mọc theo **nhóm**
+  (nhóm vắng thì vạch ngăn biến mất).
+- `npm run smoke`: năm mục mới chốt trên DOM thật — mỗi mục có vạch, **đúng một** mục đang
+  chọn, bốn giai đoạn đứng liền nhau đúng thứ tự, số vạch ngăn khớp số nhóm đang hiện.
+- **Hai phép kiểm cũ đang đỏ sẵn và đã được sửa cho đúng thực tế** (không phải do vòng này):
+  1. *"dải chip đứng sau ô tìm kiếm"* đòi `.fbar-top` có thứ tự `searchwrap · fchips`, trong
+     khi bản hiện tại (từ vòng 12) xếp `searchwrap · fbar-side · fchips` — tức con số đếm và
+     nút **Bộ lọc** đã được đưa lên hàng trên. Phép kiểm báo đỏ một thứ tự **đã cố ý**.
+  2. *"chú giải in ra số ô và tỉ lệ"* đòi chú giải bốn tầng thưởng của vòng quay in `N slices
+     … %`, trong khi chú giải đã cố ý bỏ số ô và tỉ lệ (tỉ lệ thật nằm ở `aria-label` của
+     chính đĩa) — bản in đầy đủ biến chú giải thành bảng dữ liệu dưới một trò chơi.
+  Cả hai nay chốt đúng điều đang có, kèm một dòng ghi lại vì sao phép kiểm cũ sai. **Một
+  công cụ còn màu đỏ vĩnh viễn là một công cụ dạy người ta cách phớt lờ màu đỏ.**
+
+### S5. Số của vòng này
+
+`npm test` → **372 ca / 371 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **240/240** (trước vòng
+này: 233/235, hai mục đỏ có sẵn đã sửa). `npx oxlint` → **0 lỗi, 13 cảnh báo** (không đổi).
+`npm run build` → OK, `index-CrJfrDJz.js` 294,7 kB (gzip 91,7 kB), CSS 118,7 kB.
+
+### S6. Tinh chỉnh cho PC (bổ sung cùng vòng)
+
+Chủ dự án hỏi lại đúng một câu: *"bạn có tinh chỉnh cho trên pc chưa"*. Câu trả lời lúc đó
+là **chưa**: vòng S2 mới áp một hình dáng dùng chung cho mọi bề rộng. Đã đo lại cột nội dung
+trên PC (từ 900px `.main` = `min(bề rộng − 252, 1060) − 52`, nên cột hẹp nhất khoảng 596px)
+và thêm bốn nhịp riêng, cùng một chỗ sửa ở hàng trên:
+
+| Chỗ | Trước | Sau (chỉ trên PC) | Vì sao |
+|---|---|---|---|
+| Chiều cao mục lọc | 25px (đúng chiều cao chữ + đệm) | **32px** | Trên màn 27", 25px đọc ra như một dòng phụ, không như một hàng điều khiển; 32px bằng nút Bộ lọc ở hàng trên |
+| Nền khi rê chuột | `--hover` (5,5%) | `--hover-2` (8,5%) | Rê là thao tác **chỉ có** trên PC — nơi nó tồn tại thì nó phải đọc ra "chỗ này bấm được" |
+| Dải tràn ở cửa sổ 900–1010px | Thanh cuộn bị ẩn (`scrollbar-width: none`) → mục cuối bị cắt mà không có cách nào lăn tới bằng chuột | **Thanh cuộn mảnh 5px**, chỉ hiện khi thật sự tràn | Cửa sổ nửa màn hình là ca rất thật, mà lăn chuột ngang thì không phải ai cũng biết |
+| Ô tìm kiếm | `flex: 1 1 210px` → rộng ~1000px trên màn lớn | **chặn 360px**, con số đếm đẩy về mép phải | Phím tắt `/` neo ở mép phải ô (`.search-kbd { right: 6px }`) nên nó bị đẩy cách chỗ gõ gần một mét; một ô nhập rộng bằng cả trang đọc ra như form, không như ô tra cứu |
+| Vạch của mục đầu | thụt vào 10px so với mép ô tìm kiếm và mép danh sách | **0** (`.fchips > .fchip:first-child`) | Trên màn rộng, một khoảng thụt 10px đọc ra là "lệch", không ra là "đệm" |
+
+Một chi tiết về thứ tự trong `index.css`: khối PC đặt **trước** khối `@media (pointer: coarse)`
+là có chủ ý — thiết bị lạ (máy tính bảng cắm chuột) có thể khớp cả hai vế, và khi đó **vế chạm
+phải thắng** (40px cho ngón tay quan trọng hơn 32px cho chuột). Đây là loại lỗi cascade im
+lặng, nên nó được chốt bằng một phép kiểm **so vị trí hai khối trong tệp**, không phải bằng
+một dòng ghi chú.
+
+## Phần T — vòng 16: bỏ vạch tiến độ cuộn · thanh tiến độ request · chỗ lọc type
+
+Ba việc, ba loại: một thứ **bị gỡ**, một thứ **được sửa lỗi thật**, một thứ **được làm lại cho
+cùng ngôn ngữ với chỗ bên cạnh**.
+
+### T1. Bỏ vạch tiến độ cuộn ở đỉnh trang
+
+Gỡ cả dây: `<div className="scroll-progress">`, khối CSS (kèm `@supports
+(animation-timeline: scroll())` và `@keyframes progressGrow`), và cả effect rAF dự phòng trong
+`App.jsx` — component không còn gì để cập nhật thì listener cũng không có lý do tồn tại.
+
+Vì sao gỡ (không phải vì nó "xấu", mà vì nó thừa và nó lấy mất thứ khác):
+
+- **Trùng chức năng**: thanh cuộn của trình duyệt đã nói đúng con số đó, ở đúng chỗ người
+  dùng tìm nó. Vạch thứ hai không thêm thông tin nào;
+- **Trùng màu**: nó là gradient `--a → --a-2`, đúng cặp màu của thứ duy nhất được phép nổi
+  bật (nút hành động chính, mục đang chọn). Một vạch màu nhấn chạy ngang đỉnh màn hình suốt
+  phiên làm màu nhấn mất nghĩa "chỗ này bấm được";
+- **Đắt về chuyển động**: nó chạy suốt lúc cuộn — mà cuộn là thao tác lặp nhiều nhất trên
+  trang. Kỹ thuật thì đúng (compositor, không layout), nhưng kỹ thuật đúng không cứu được một
+  thứ không cần có.
+
+### T2. Thanh tiến độ của request
+
+| Sửa | Trước | Sau |
+|---|---|---|
+| **Số kéo vạch** | `tabular-nums` mà không chừa bề rộng: "9%" và "100%" khác nhau một con số, mà con số nằm **sau** vạch (`flex: 1`) → mỗi lần tiến độ qua hàng chục hay chạm 100%, **vạch tự ngắn lại đúng bằng một con số** | Chừa sẵn **34px** + canh phải: mép vạch đứng yên tuyệt đối |
+| **Một khai báo chết** | `.prog-num { color: var(--txt-2) }` bị luật `.prog .prog-num` ngay dưới đè — hai chỗ khai cùng một thuộc tính | Một luật màu duy nhất, lấy tông của chính vạch |
+| **Con số trừu tượng** | Vạch chỉ có một con số, không nói gì về việc còn lại là gì | **Hai vạch mốc ở 40% và 80%** — biên của ba việc có tên (Layout 40 · Lyrics 40 · Edit 20, xem `MILESTONES`) |
+
+Hai vạch mốc là loại chi tiết mình thích nhất trong vòng này, vì nó **không thêm dữ liệu mới**
+— nó chỉ nói ra cấu trúc đã có sẵn từ đầu: sau `progress` không phải một thang liên tục mà là
+ba ô tick của admin. "47%" từ chỗ đọc ra "gần nửa đường, không rõ tới đâu" nay đọc ra "xong
+Layout, đang làm Lyrics". Vị trí mốc **suy từ `MILESTONES`** (JS đặt qua `--m`) chứ không viết
+cứng `40%`/`80%` trong CSS — đổi trọng số ba mốc ở `db.js` là vạch chia đi theo. Cấu trúc đó
+đọc được bằng `title`, hai vạch mốc để `aria-hidden` (đọc lại chỉ thành tiếng ồn).
+
+### T3. Chỗ lọc type — có một LỖI THẬT đứng sau cảm giác "quá AI"
+
+Lỗi: bốn nút lọc mang `className="fchip kind"`, mà `kind` là lớp của **thẻ loại bài** trên
+từng hàng request — và thẻ đó **khoá cứng** `color: var(--k-ccl)`. Nên:
+
+- cả bốn nút (kể cả "All types") hiện **đúng một màu tím CCL**, bất kể `--c` của chúng:
+  bốn thẻ loại khác nhau mà mắt thấy cùng một màu;
+- riêng nút đang chọn lấy `--c` cho **nền**, nên "Full Album" đang chọn có **chữ tím trên nền
+  xanh teal**.
+
+Đây là lỗi thuộc loại khó nhìn ra bằng mắt vì nó *trông có vẻ* đã đúng (mỗi nút có một màu,
+chỉ là cùng một màu). Dấu hiệu để nhận ra sớm: **một lớp CSS mang tên DỮ LIỆU (`kind`) được
+dùng cho cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó.** Nay mục lọc có lớp riêng
+`.fkind`.
+
+Sửa xong thì làm luôn phần "quá AI" cho cùng ngôn ngữ với dải chế độ xem ở hàng trên (chữ +
+dấu màu, không viền/không nền/không bo tròn), nhưng **dấu đổi hình cho đúng loại dữ liệu**:
+
+| | Dải chế độ xem | Hàng lọc loại bài |
+|---|---|---|
+| Dấu | **Vạch đứng 3×15px** — trạng thái là một *chặng* của dây chuyền | **Ô vuông 9×9px bo 2px** — loại bài là một *nhãn dán* trên hàng (`.kind` cũng bo góc) |
+| Màu chữ khi chọn | **Trắng** — một màu trạng thái được nhiều mục chia nhau | **Màu của chính loại đó** — nối thẳng với thẻ loại trên hàng request |
+| "Không lọc gì" | — | **Ô RỖNG viền mảnh** (`.kswatch.any`): "chưa chọn màu nào" |
+
+Khác hình dấu còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau, mà hai bảng màu
+có vài sắc na ná (`--queued #8f94ff` với `--k-ccl #ab8fe0`, `--done #4cba88` với
+`--k-album #4fb0ad`).
+
+### T4. Kiểm chứng
+
+- `src/lib/cssFilterBar.test.js` thêm hai phép kiểm: (1) mục lọc loại bài **không** mang lớp
+  `.kind`, có lớp `.fkind` + dấu riêng, "All types" là ô rỗng, mục đang chọn lấy màu của chính
+  nó và **không** tô nền; (2) số của thanh tiến độ có `min-width` + canh phải, **đúng một**
+  luật màu, vạch mốc do JS đặt qua `--m` và suy từ `MILESTONES`, có `title`.
+- `npm run smoke` thêm 9 mục, trong đó có mục đáng giá nhất: kiểm thanh tiến độ **trong danh
+  sách** sau khi bấm sang tab *In progress* (mặc định là tab Queue — nơi chưa có bài nào đang
+  làm, nên phép kiểm cũ chỉ chạm được thanh trong khối Up next). DOM thật lấy ra:
+  `<b class="prog-mile" style="--m: 40%">` · `--m: 80%` · `title="Layout 40% · Lyrics 40% · Edit 20%"`.
+- `npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
+  → **0 lỗi, 13 cảnh báo** (không đổi). `npm run build` → OK: `index-7SWXOV2s.js` 294,5 kB
+  (gzip 91,6 kB — **nhỏ hơn** bản trước vì vạch cuộn đã bị gỡ), CSS 119,0 kB.
+
+## Phần U — vòng 17: "thanh progress đang bị bự và xấu quá"
+
+Chủ dự án gửi **ảnh chụp một hàng request** kèm đúng bốn chữ đó. Ảnh là dữ liệu quý: nó
+biến một câu cảm nhận thành bốn con số cụ thể, và cả bốn đều **đúng như những gì đã được
+viết ra trong tài liệu ở vòng trước** — nghĩa là lỗi không nằm ở chỗ làm sai, mà ở chỗ mỗi
+thứ được nới một nhịp mà không ai nhìn tổng thể cái khối.
+
+### U1. Bốn thứ cùng lúc làm nó bự
+
+| | Trước | Sau | Vì sao |
+|---|---|---|---|
+| Rãnh | 6px | **4px** | Sáu pixel là độ dày của một dải băng. Cạnh một con số in đậm, trong một khối rộng 340px, nó đúng là dải băng chứ không phải thanh |
+| Khối vạch + số | 340px | **220px** | Cột danh sách trên màn hai cột chỉ ~740px → 340px là gần **NỬA** bề ngang hàng: thành thứ to nhất sau tiêu đề. 220px ≈ 30% — đúng cỡ một chi tiết phụ dưới dòng meta |
+| Con số | 11,5px nét **600**, màu vạch pha 78% trắng | **10,5px nét 500**, pha 72% màu vạch + 28% `--txt-2` | Một chữ số in đậm màu bão hoà **to hơn cả tên người gửi** là chỗ to tiếng nhất trong hàng |
+| Hai vạch mốc | `rgba(0,0,0,.42)`, rãnh 6px | `rgba(0,0,0,.34)`, rãnh 4px | Ở 6px chúng đọc ra như vạch chia của một thanh **ba khúc**; ở 4px chúng là đường nối trong lòng vạch |
+
+Một chi tiết đáng nói: **lý do của bản 6px vẫn nằm trong tài liệu** — *"đủ dày để đọc được
+mà không thành một dải băng"*. Câu đó không sai khi viết ra; nó sai khi đứng cạnh ba thứ
+kia (con số đậm, khối 340px, hai vạch chia). Đây là lần thứ hai cùng một khối bị chỉ vì một
+con số được chọn riêng lẻ, nên luật cho lần sau đã được ghi thẳng vào `DESIGN.md` §2.5:
+
+> **Khi thanh tiến độ nằm trong một HÀNG danh sách, mọi con số của nó phải nhỏ hơn con số
+> nhỏ nhất của hàng đó.** Vạch có thể mang màu trạng thái, nhưng kích cỡ và độ đậm thì phải
+> xếp **dưới** chữ — nó là chi tiết phụ, không phải số liệu.
+
+### U2. Số cụ thể (đo, không đoán)
+
+Màu của con số được tính lại bằng tay theo đúng công thức `color-mix(in oklab, …)` rồi đo
+tương phản trên nền `--panel`:
+
+| Trạng thái | Số cũ | Số mới |
+|---|---|---|
+| Đang làm (`--progress #e0a93e`) | `#e7bc71` · **10,45:1** | `#cda96a` · **8,33:1** |
+| Xong 100% (`--done #4cba88`) | `#7acaa1` · 9,46:1 | `#69b494` · **7,55:1** |
+
+Vẫn trên ngưỡng WCAG AA (4,5:1 cho chữ nhỏ) khá xa, nhưng độ chói giảm một bậc — và quan
+trọng hơn: độ **đậm** (600 → 500) và cỡ (11,5 → 10,5px) mới là hai thứ làm nó thôi hét.
+
+Vạch vẫn không mất thông tin nào sau bốn lần siết: đúng hai mốc, số ở cuối, `min-width` chừa
+sẵn nên mép vạch vẫn đứng yên tuyệt đối khi số từ 9% lên 100% (30px đủ chứa "100%" ở mono
+10,5px ≈ 25px).
+
+### U3. Kiểm chứng
+
+`src/components/Progress.test.js` (phép kiểm "không còn thanh tiến độ nào dựng bằng tay")
+nay chốt **cả bốn vế của lần siết này** — vì đây là loại thay đổi dễ bị nới ngược khi có
+người "sửa cho dễ nhìn": rãnh 4px, khối ≤ 220px, số 10,5px nét 500, và số phải pha với
+`--txt-2`. Kèm một dòng ghi lại vì sao con số cũ (6px) từng được chọn.
+
+`npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
+→ **0 lỗi, 13 cảnh báo**. `npm run build` → OK: `index-B5awy9PP.js` 294,6 kB (gzip 91,7 kB),
+CSS 119,0 kB.

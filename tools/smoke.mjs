@@ -209,21 +209,91 @@ where = 'sidebar'
 where = 'trang chủ'
 const rows = qa('.row, .grow')
 check('bảng request có hàng', rows.length > 0, `${rows.length} hàng`)
-check('thanh lọc có chip trạng thái', qa('.fchip').length >= 4, `${qa('.fchip').length} chip`)
-/* THỨ TỰ TRONG THANH LỌC (vòng 12): ô tìm kiếm đứng ĐẦU, rồi dải chip, rồi con
-   số đếm — một thứ tự cho cả desktop lẫn máy hẹp, nên thứ tự nhìn luôn trùng
-   thứ tự Tab. Đảo lại là bố cục hai bên lệch nhau như bản cũ. */
+check('thanh lọc có mục lọc trạng thái', qa('.fchip').length >= 4, `${qa('.fchip').length} mục`)
+/* THỨ TỰ TRONG THANH LỌC (vòng 12, cập nhật vòng 14): ô tìm kiếm đứng ĐẦU,
+   rồi tới tóm tắt + nút Bộ lọc, rồi mới tới dải chế độ xem. Một thứ tự cho cả
+   desktop lẫn máy hẹp, nên thứ tự nhìn luôn trùng thứ tự Tab.
+   (Bài kiểm này từng đòi dải chip đứng NGAY SAU ô tìm kiếm — đúng với bản
+   vòng 12 khi con số đếm nằm ở hàng dưới; bản hiện tại đưa tóm tắt + nút Bộ lọc
+   lên hàng trên, nên phép kiểm cũ báo đỏ một thứ tự đã cố ý. Đỏ oan cũng là
+   lỗi: nó dạy người chạy công cụ cách phớt lờ màu đỏ.) */
 const topKids = [...(q('.fbar-top')?.children || [])].map(el => el.className.split(' ')[0])
 check('ô tìm kiếm đứng đầu thanh lọc', topKids[0] === 'searchwrap', topKids.join(' · '))
-check('dải chip đứng sau ô tìm kiếm', topKids[1] === 'fchips', topKids.join(' · '))
+check('dải chế độ xem đứng sau ô tìm kiếm và tóm tắt', topKids[2] === 'fchips', topKids.join(' · '))
 check('có dòng đếm kết quả', !!q('.fcount'), q('.fcount')?.textContent)
 check('icon ô tìm kiếm nằm trong ô', !!q('.searchwrap .search-ico'))
+/* DẢI CHẾ ĐỘ XEM (vòng 15) — người dùng chỉ ra đúng ba chữ: "phần hiện status
+   xấu quá", "nhìn AI". Bốn vế dưới đây là hình dáng MỚI của dải đó, mỗi vế là
+   một thứ đã bị gỡ hoặc đã được sắp lại:
+     · mỗi mục có vạch màu riêng (chấm tròn đã bị gỡ);
+     · đúng MỘT mục đang chọn, và mục đó vẫn còn vạch của nó;
+     · bốn giai đoạn đứng liền nhau, đúng thứ tự dây chuyền;
+     · có vạch ngăn giữa hai nhóm, và nhóm "đang theo dõi" vắng thì vạch ngăn
+       của nó cũng phải vắng theo. */
+{
+  const rail = [...(q('.fchips')?.children || [])]
+  const items = rail.filter(el => el.classList.contains('fchip'))
+  const gaps = rail.filter(el => el.className === 'dot')
+  check('mỗi mục lọc có vạch màu riêng', items.length > 0 && items.every(el => el.querySelector('.ftick')),
+    `${items.filter(el => el.querySelector('.ftick')).length}/${items.length} mục có vạch`)
+  const lit = items.filter(el => el.classList.contains('on'))
+  check('dải chế độ xem có đúng một mục đang chọn', lit.length === 1, `${lit.length} mục đang chọn`)
+  const labels = items.map(el => (el.textContent || '').replace(/\d+/g, '').trim())
+  const pipe = labels.filter(l => ['Queue', 'Up next', 'In progress', 'Done'].includes(l))
+  check('bốn giai đoạn đứng liền nhau, đúng thứ tự dây chuyền',
+    pipe.join(' · ') === 'Queue · Up next · In progress · Done', labels.join(' · '))
+  const want = labels.includes('Following') ? 2 : 1
+  check('số vạch ngăn khớp số nhóm đang hiện (nhóm vắng thì vạch ngăn cũng vắng)',
+    gaps.length === want, `${gaps.length} vạch ngăn, ${labels.join(' · ')}`)
+}
 const enabledVotes = qa('.votebtn:not([disabled])')
 check('có bài bấm vote được', enabledVotes.length > 0, `${enabledVotes.length}/${qa('.votebtn').length} nút mở`)
 /* LỌC THEO LOẠI BÀI: chọn một loại thì hàng chip chính phải hiện chip "đang lọc"
    (trên màn hẹp khối lọc gấp lại, nên đây là chỗ duy nhất NÓI RA vì sao danh
    sách ngắn đi), và bấm vào chip đó là bỏ lọc. */
-const kindChip = qa('.fbar-more .fchip.kind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
+/* VÒNG 16 — ba thứ vừa sửa, chốt trên DOM thật: */
+check('không còn vạch tiến độ cuộn ở đỉnh trang', !q('.scroll-progress'),
+  q('.scroll-progress') ? 'phần tử vẫn được dựng' : '')
+/* Mục lọc loại bài: KHÔNG mang lớp `.kind` của thẻ (lỗi cũ làm cả bốn nút cùng
+   một màu tím), và mỗi mục có dấu màu của chính nó. */
+{
+  const kindItems = qa('.fbar-more .fchips.kinds .fchip')
+  check('mục lọc loại bài không mang lớp thẻ .kind', !qa('.fchip.kind').length,
+    `${qa('.fchip.kind').length} phần tử còn lớp .kind`)
+  check('mục lọc loại bài có dấu màu riêng', kindItems.length >= 5 && kindItems.every(el => el.querySelector('.kswatch')),
+    `${kindItems.filter(el => el.querySelector('.kswatch')).length}/${kindItems.length} mục có dấu`)
+  const onKind = q('.fbar-more .fchip.fkind.on')
+  check('đúng một mục loại đang chọn', kindItems.filter(el => el.classList.contains('on')).length === 1,
+    (onKind?.textContent || '').trim())
+}
+/* Thanh tiến độ của request: số được chừa chỗ, và vạch có hai mốc chia (suy từ
+   ba mốc Layout/Lyrics/Edit — 40 · 40 · 20).
+   Bài kiểm này phải đứng ở tab "In progress" mới thấy thanh tiến độ TRONG DANH
+   SÁCH (mặc định của bảng là tab Queue, nơi chưa có bài nào đang làm — chỉ khối
+   Up next mới có). Kiểm đúng chỗ người dùng nhìn thấy nó. */
+{
+  const chip = qa('.fchip').find(c => /In progress/i.test(c.textContent || ''))
+  if (chip) await click(chip)
+  const bars = qa('.list .prog')
+  check('tab In progress: mỗi hàng đang làm có thanh tiến độ', bars.length > 0, `${bars.length} thanh`)
+  const bar = bars[0]
+  const marks = bar ? [...bar.querySelectorAll('.prog-mile')] : []
+  check('vạch tiến độ có hai mốc chia', marks.length === 2, `${marks.length} mốc`)
+  check('vạch mốc nằm ở 40% và 80%', marks.map(m => m.style.getPropertyValue('--m')).join(' · ') === '40% · 80%',
+    marks.map(m => m.style.getPropertyValue('--m')).join(' · '))
+  check('thanh tiến độ có nhãn đọc được cho cả ba mốc',
+    /Layout 40% · Lyrics 40% · Edit 20%/.test(bar?.getAttribute('title') || ''),
+    bar?.getAttribute('title'))
+  const num = bar?.querySelector('.prog-num')
+  check('thanh tiến độ giữ nguyên khối "vạch + số"', !!num && !!bar.querySelector('.prog-track'),
+    num ? `${num.textContent.trim()}` : 'không thấy .prog-num')
+  dump('thanh tiến độ của request', '.list .prog')
+  /* trả bảng về tab Queue cho các mục kiểm phía sau */
+  const back = qa('.fchip').find(c => /^Queue/.test((c.textContent || '').trim()))
+  if (back) await click(back)
+}
+
+const kindChip = qa('.fbar-more .fchip.fkind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
 if (kindChip) {
   const kindName = (kindChip.textContent || '').trim()
   await click(kindChip)
@@ -463,12 +533,21 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
       wheelLabels.join(' · '))
     check('không còn nhãn "×N" trên đĩa', !q('.spin-wheel-times'))
     /* VÒNG 13: "vòng quay cx ko clear và colorful cho người dùng". Bốn tầng
-       thưởng nay là BỐN MÀU khác nhau trên đĩa, và có một chú giải nói lại
-       bằng chữ: mỗi dải một dòng, kèm số ô và tỉ lệ thật. */
+       thưởng nay là BỐN MÀU khác nhau trên đĩa, và chú giải nói lại đúng bốn
+       tầng đó.
+       VÒNG 15 (soát lại): chú giải CỐ Ý không in số ô và tỉ lệ — bản in đầy đủ
+       biến dải này thành một bảng dữ liệu nằm dưới một trò chơi; tỉ lệ thật đã
+       đi vào `aria-label` của chính đĩa (n: số ô, odds: từng mức thưởng), chỗ
+       duy nhất cần con số chính xác. Phép kiểm cũ đòi "N slices … %" nên báo
+       đỏ một điều đã cố ý — nay nó chốt đúng điều đang có. */
     check('đĩa có chú giải bốn dải thưởng', qa('.spin-legend li').length === 4,
       `${qa('.spin-legend li').length} dòng`)
-    check('chú giải in ra số ô và tỉ lệ', /\d+\s*slices?.{0,12}\d/.test(q('.spin-legend')?.textContent || ''),
-      q('.spin-legend')?.textContent?.replace(/\s+/g, ' ').slice(0, 90))
+    check('chú giải giữ bốn tầng màu, không in số ô / tỉ lệ',
+      qa('.spin-legend li').every(li => li.querySelector('i') && /^\+\d+$/.test((li.textContent || '').trim())),
+      qa('.spin-legend li').map(li => (li.textContent || '').trim()).join(' · '))
+    check('tỉ lệ thật vẫn đọc được ở nhãn của đĩa', /\d+×\s*\+\d+/.test(
+      q('.spin-wheel-wrap')?.getAttribute('aria-label') || ''),
+    q('.spin-wheel-wrap')?.getAttribute('aria-label'))
     /* Không còn note thừa: dòng "mỗi lượt thắng trung bình 1,75 vote" ở đầu
        khối và câu "ô nào cũng có thưởng" dưới nút đều đã bị gỡ. */
     /* KÉO ĐĨA — thao tác vừa được thêm. Ba điều phải đúng, và điều thứ ba
