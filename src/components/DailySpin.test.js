@@ -58,6 +58,15 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
       ['v1', 'v2', 'v3', 'v1', 'v2', 'v3', 'v1', 'v2', 'v3'])
     assert.deepEqual(shades.filter(([t]) => t === 't2').map(([, v]) => v), ['v1', 'v2', 'v3', 'v1'])
     assert.equal((html.match(/class="spin-wheel-spoke"/g) || []).length, 16)
+    /* Vành chia độ + mũi chỉ trên trục: hai chi tiết trả lời câu "vòng quay còn
+       sơ sài". 48 vạch, cứ 5 vạch có một vạch giờ (16 lát × 3 vạch) — mất một
+       trong hai thứ này là bánh xe quay về trạng thái trơn như trước. */
+    assert.equal((html.match(/class="spin-wheel-tick"/g) || []).length, 32, '32 vạch phút')
+    assert.equal((html.match(/class="spin-wheel-tick major"/g) || []).length, 16, 'mỗi lát một vạch giờ')
+    assert.equal((html.match(/class="spin-wheel-hub-mark"/g) || []).length, 1, 'mũi chỉ trên trục')
+    assert.equal((html.match(/class="spin-wheel-seam"/g) || []).length, 1, 'đường tóc giữa lát và vành')
+    /* Chưa có kết quả thì không được có dấu hiệu ăn mừng nào */
+    assert.doesNotMatch(html, /spin-burst|spin-wheel-win-arc|spin-won-num/)
     assert.match(html, /aria-label="Wheel with 16 equal sectors: 9× \+1, 4× \+2, 2× \+3, 1× \+5 votes/)
     // Nothing is highlighted before a result exists.
     assert.doesNotMatch(html, /has-won|is-won|spin-wheel-marker/)

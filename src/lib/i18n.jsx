@@ -22,6 +22,9 @@ const S = {
   /* sidebar */
   'side.label': 'Main menu',
   'side.tagline': 'Request Page',
+  /* Man cho doc len cho trinh doc man hinh: phan hinh (logo, chu hieu, thanh
+     tai) da bi an khoi accessibility tree, chi con mot cau trang thai. */
+  'splash.label': 'Loading Chaereve…',
   'side.nav': 'Browse',
   'side.connect': 'Connect',
   'side.youtube': 'YouTube',
@@ -123,11 +126,20 @@ const S = {
   'err.voteFpLimit': 'This browser has used its 3 free votes today. Buy votes or come back tomorrow.',
   'err.voteEdgeFp': 'Too many vote requests from this browser today. Try again tomorrow.',
 
-  /* the thong ke */
+  /* Bốn ô thống kê = BỐN GIAI ĐOẠN của bảng (xem stageCounts): cộng lại đúng
+     bằng số bài đang có. Nhãn "Paid" cũ bỏ khỏi dãy này vì nó là một nhãn chứ
+     không phải giai đoạn — nó vẫn hiện trên hàng và trong bảng Admin. */
   'stat.queued': 'In queue',
+  'stat.picked': 'Picked',
   'stat.inProgress': 'In progress',
   'stat.completed': 'Completed',
-  'stat.paid': 'Paid',
+  /* Dinh nghia cua tung con so (title) — so KHONG co dinh nghia la so nguoi
+     doc khong tin duoc, nhat la khi bon o nay nam canh bon con so khac o badge
+     tab. */
+  'stat.queuedWhy': 'Songs still waiting for votes. Nothing is being made yet.',
+  'stat.pickedWhy': 'Songs already picked for production, waiting for their turn to start.',
+  'stat.inProgressWhy': 'Songs being edited right now. The In progress tab shows these plus the picked songs still waiting for their turn.',
+  'stat.completedWhy': 'Songs finished and out on the channel.',
   'stat.submitted': 'Submitted',
   'stat.pending': 'Pending',
   'stat.votesReceived': 'Votes received',
@@ -147,6 +159,7 @@ const S = {
   'nt.aria': 'Open your notifications',
   /* so it khong dung duoc cho "1" -> dung cau "3 unread", dung cho moi n */
   'nt.ariaUnread': 'Open your notifications \u2014 {n} unread',
+  'nt.liveUnread': 'Unread notifications: {n}',
   'nt.title': 'Notifications',
   'nt.markAll': 'Mark all read',
   'nt.settings': 'Notification settings',
@@ -255,6 +268,11 @@ const S = {
   /* dang lam / tiep theo */
   'now.next': 'Up next',
   'now.votes': 'votes',
+  /* Quan he giua khoi Up next va tab In progress — noi mot cau thay vi de nguoi
+     doc tu doan vi sao mot bai nam o ca hai cho. */
+  'now.why': 'Everything already picked for production: songs being edited plus songs waiting for their turn.',
+  /* Hai giai đoạn của dây chuyền, cộng lại đúng bằng con số trên nắp khối */
+  'now.split': '{a} in progress · {b} picked, not started',
   'now.nextPickLbl': 'Next pick in',
   'now.nextPick': '{d}d {h}h {m}m',
   'now.pickSoon': 'any moment…',
@@ -442,6 +460,12 @@ const S = {
   'gate.perk1': '{n} free votes per day',
   'gate.perk2': '{n} requests per hour',
   'gate.perk3': 'Paid requests start first',
+
+  /* man hinh khi render nem loi (components/ErrorBoundary.jsx) */
+  'crash.title': 'This page hit an error while drawing.',
+  'crash.body': 'Nothing was lost. Reloading fixes it almost every time — if it comes back, tell Chaereve what you were doing.',
+  'crash.details': 'What the error says',
+  'crash.reload': 'Reload',
 
   /* bang dieu hanh */
   'adm.pending': 'Pending',

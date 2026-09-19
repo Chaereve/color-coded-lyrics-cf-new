@@ -178,7 +178,10 @@ test('bảng không còn dòng chú thích ở chân, nhãn nút video thì ng�
   })
   const tx = plain(html)
   assert.ok(!/closing this panel/i.test(tx))
-  assert.match(tx, / Watch /)
+  /* `plain()` thay mọi thẻ bằng dấu cách rồi gộp khoảng trắng, nên khi nút
+     videoKHÔNG còn <svg> bên trong thì chữ "Watch" đứng sát nút kế bên. Pin
+     chính nhãn — thứ test này muốn giữ — thay vì pin khoảng trắng của hình. */
+  assert.match(tx, / Watch/)
   /* "Out now" da co o nhan nhom thi dong tin khong lap lai nua */
   assert.equal((tx.match(/Out now/g) || []).length, 1)
   assert.ok(!/Watch on YouTube/.test(tx), 'chu dai qua chat choet hang tin')

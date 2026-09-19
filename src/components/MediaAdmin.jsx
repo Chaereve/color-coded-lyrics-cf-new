@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import Check from './Check'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { timeAgo } from '../lib/meta'
@@ -45,7 +47,7 @@ function MediaForm({ initial, busy, onSave, onCancel }) {
 
       <div className="mform-foot">
         <label className="switch" style={{ marginBottom: 0 }}>
-          <input type="checkbox" checked={!!f.is_hidden} onChange={set('is_hidden')} />
+          <Check checked={!!f.is_hidden} onChange={set('is_hidden')} />
           <span>{t('adm.mediaHide')}</span>
         </label>
         <div className="spacer" />
@@ -192,7 +194,7 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
         <button className="btn btn-sm" onClick={() => onEdit(m)}>{t('adm.edit')}</button>
         <button className="btn btn-sm" onClick={toggleHide}>{m.is_hidden ? t('adm.mediaShow') : t('adm.mediaHide')}</button>
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => onDelete(m.id)}>×</button>
+          onClick={() => onDelete(m.id)}><Icon name="close" size={15} /></button>
       </div>
     </div>
   )

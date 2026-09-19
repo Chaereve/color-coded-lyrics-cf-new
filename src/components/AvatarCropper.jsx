@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 
 const VIEW = 224          // cạnh khung xem trước (px)
@@ -102,12 +103,12 @@ export default function AvatarCropper({ img, onChange }) {
 
       <div className="crop-ctrl">
         <button type="button" className="crop-z" onClick={() => changeZoom(zoom - 0.25)}
-          disabled={zoom <= 1} aria-label="−">−</button>
+          disabled={zoom <= 1} aria-label="−"><Icon name="minus" size={14} /></button>
         <input type="range" className="crop-range" min="1" max={MAX_ZOOM} step="0.02"
           value={zoom} onChange={e => changeZoom(Number(e.target.value))}
           aria-label={t('crop.zoom')} />
         <button type="button" className="crop-z" onClick={() => changeZoom(zoom + 0.25)}
-          disabled={zoom >= MAX_ZOOM} aria-label="+">+</button>
+          disabled={zoom >= MAX_ZOOM} aria-label="+"><Icon name="plus" size={14} /></button>
       </div>
       <div className="crop-hint">{t('crop.hint')}</div>
     </div>

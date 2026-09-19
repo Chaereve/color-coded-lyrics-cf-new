@@ -33,7 +33,36 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
 
 /* Sector order and the twelve-o'clock alignment come from the server's array.
    Fills are the site's flat surfaces, one tone per prize tier: the brighter the
-   slice, the rarer and bigger the reward. The centre is only a pin, no logo. */
+   slice, the rarer and bigger the reward. The centre is only a pin, no logo.
+
+   Wheel anatomy, from outside in: tick dial on the bezel band (60 ticks, the
+   12 "hour" ones longer) → disc → slice separators → prize numbers → hub with
+   an arrow that turns with the disc. On a landed result: outline on the winning
+   slice, arc on the rim outside it, winning number pops once (CSS), everything
+   else dims to 45%. Every one of those is a flat fill or a hairline stroke —
+   the wheel still has no gradient, no glow and no image inside it. */
+/* Vòng chia độ của vành: 60 vạch, mỗi vạch thứ 5 dài và đậm hơn (12 mốc giờ).
+   ---------------------------------------------------------
+   Đây là thứ khiến cái đĩa đọc ra là MỘT VÒNG QUAY chứ không phải một cái bánh
+   chia 16 lát: vạch cho mắt một mốc để ước lượng đĩa đang quay nhanh cỡ nào,
+   đúng lúc con trỏ đang gõ liên tục ở trên. Vẽ bằng <line> rẻ hơn mọi thứ khác
+   (không gradient, không filter), và tất cả nằm trong dải vành nên không chen
+   vào chỗ đọc số. Bản cũ chỉ có vành trơn + nan hoa -> nhìn "sơ sài" như người
+   dùng nói. */
+function Ticks() {
+  /* 48 vạch = 3 vạch cho mỗi lát, và vạch DÀI rơi đúng vào ranh giới lát
+     (22,5°). Bản đầu tôi vẽ 60 vạch kiểu đồng hồ (mỗi 6°, vạch giờ mỗi 30°) —
+     nhưng 30° không chia hết cho 22,5°, nên các vạch dài cắt ngang lát ở chỗ
+     chẳng có nghĩa gì. Vành chia độ phải giải thích CẤU TRÚC của bánh xe, chứ
+     không phải kể chuyện cái đồng hồ. */
+  return Array.from({ length: 48 }, (_, i) => {
+    const major = i % 3 === 0
+    const [x1, y1] = point(i * 7.5, major ? 187 : 189.5)
+    const [x2, y2] = point(i * 7.5, major ? 198.5 : 196.5)
+    return <line key={i} className={`spin-wheel-tick${major ? ' major' : ''}`} x1={x1} y1={y1} x2={x2} y2={y2} />
+  })
+}
+
 function Wheel({ rewards, rotation, duration, spinning, won, label }) {
   const count = rewards.length
   const step = 360 / count
@@ -46,7 +75,11 @@ function Wheel({ rewards, rotation, duration, spinning, won, label }) {
         style={{ transform: `rotate(${rotation}deg)`, transitionDuration: `${duration}ms` }}>
         {/* flat bezel band + hairlines: gives the disc an edge without a gradient */}
         <circle cx={C} cy={C} r="193" className="spin-wheel-bezel" />
+        <Ticks />
         <circle cx={C} cy={C} r="198.5" className="spin-wheel-edge" />
+        {/* Vành trong: nơi lát cắt chạm vành — một đường tóc để hai lớp không
+            dính vào nhau thành một khối dày */}
+        <circle cx={C} cy={C} r={FACE - .5} className="spin-wheel-seam" />
         {rewards.map((reward, i) => (
           <path key={i} className={`spin-sector ${tiers[reward]} ${shades[i]}${won === i ? ' is-won' : ''}`}
             d={sectorPath(i, count)} />
@@ -68,15 +101,32 @@ function Wheel({ rewards, rotation, duration, spinning, won, label }) {
           </text>
         })}
         {won !== null && <path className="spin-wheel-marker" d={sectorPath(won, count)} />}
+        {/* Ô trúng còn được đánh dấu Ở NGOÀI vành: một cung đậm chạy đúng cung
+            của lát đó. Khi đĩa đã dừng, mắt tìm được kết quả từ mép ngoài của
+            vòng thay vì phải dò vào giữa. */}
+        {won !== null && <path className="spin-wheel-win-arc" d={sectorPath(won, count, 201.5)} />}
         <circle cx={C} cy={C} r={FACE} className="spin-wheel-rim" />
         <circle cx={C} cy={C} r="26" className="spin-wheel-pin" />
+        {/* Mũi chỉ trên trục: quay CÙNG đĩa nên sau khi dừng nó luôn chúc vào
+            đúng lát trúng — trục không còn là một cái chấm câm. */}
+        <path className="spin-wheel-hub-mark" d="M200 161 206.5 172.5h-13Z" />
         <circle cx={C} cy={C} r="8" className="spin-wheel-pin-dot" />
       </svg>
       <span className="spin-wheel-pointer" aria-hidden="true">
-        <svg width="24" height="30" viewBox="0 0 24 30">
-          <path d="M12 27 2.6 5.4Q1 2 4.6 2h14.8Q23 2 21.4 5.4Z" />
+        <svg width="28" height="34" viewBox="0 0 28 34">
+          <path d="M14 31 3 7.2Q1.2 3.4 5.2 3.4h17.6q4 0 2.2 3.8Z" />
         </svg>
       </span>
+      {/* Mười hai hạt bắn ra từ trục khi kết quả đã an vị: đây là KHOẢNH KHẮC
+          ăn mừng duy nhất của trang, và là lý do `--e-pop` tồn tại. Vẽ bằng
+          span + transform (không canvas, không ảnh), mỗi hạt một góc qua
+          `--ang`; cả chùm chạy đúng một lần rồi biến mất, không đụng bố cục.
+          Nhịp này theo transitions.dev 23-like-button (burst chỉ nổ lúc THẮng). */}
+      {won !== null && !spinning && (
+        <span className="spin-burst" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, i) => <i key={i} style={{ '--ang': `${i * 30}deg` }} />)}
+        </span>
+      )}
     </div>
   )
 }
@@ -284,7 +334,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
 
             <div className={`spin-result${result ? ' won' : ''}`} role="status" aria-live="polite" aria-atomic="true">
               {result
-                ? <><strong>{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
+                ? <><strong key={result.reward} className="spin-won-num">{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
                   <small>{t('spin.wonNote')}</small></>
                 : <span className="spin-hint">{t('spin.hint')}</span>}
             </div>

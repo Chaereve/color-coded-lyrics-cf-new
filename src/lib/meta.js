@@ -22,6 +22,13 @@ export const kindCls = (k) => KIND_META[k]?.cls || 'ccl'
 export const isPicked = (r) =>
   !!r?.picked_at && (r.status === 'queued' || r.status === 'in_progress')
 
+/* Nhãn trạng thái của MỘT dòng, dùng chung cho hàng trên bảng, cho thẻ trong
+   khối Up next và cho ô trạng thái ở bảng Admin: bài đã chốt mà chưa khởi động
+   hiện "Up next", còn lại theo status. Ba nơi tự viết lại biểu thức này là ba
+   nơi sẽ lệch nhau sau một lần sửa — nên chỉ có một hàm. */
+export const statusLabel = (r, t) =>
+  (isPicked(r) && r.status === 'queued' ? t('now.next') : t(`status.${r.status}`))
+
 /* Cần truyền hàm t vào để dịch */
 export const timeAgo = (iso, t) => {
   const s = (Date.now() - new Date(iso).getTime()) / 1000

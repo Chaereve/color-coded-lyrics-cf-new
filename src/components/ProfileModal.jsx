@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from './Icon'
 import { updateProfile } from '../lib/db'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { loadImage, centerCrop, processAvatar, checkFile, MAX_FILE_MB } from '../lib/avatar'
@@ -89,7 +90,7 @@ export default function ProfileModal({ open, user, onClose, onSaved }) {
           <div className="modal-tabs">
             <span className="mtab on">{editing ? t('crop.title') : t('prof.title')}</span>
           </div>
-          <button className="x" onClick={editing ? reset : onClose} aria-label={t('btn.close')}>×</button>
+          <button className="x" onClick={editing ? reset : onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
         </div>
 
         <div className="modal-body">

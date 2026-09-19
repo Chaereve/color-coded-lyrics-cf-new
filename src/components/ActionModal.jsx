@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Check from './Check'
+import Icon from './Icon'
 import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../lib/db'
 import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
 import { findDuplicate } from '../lib/board'
@@ -163,7 +165,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 
       <div className="paidbox">
         <label className="switch" style={{ margin: 0 }}>
-          <input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)} />
+          <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
           <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
         </label>
         <p style={{ marginTop: 8 }}>
@@ -325,11 +327,11 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
           <div className="buyone-sub">{t('buy.each', { v: vnd(SINGLE_VOTE.vnd) })}</div>
         </div>
         <div className="qty">
-          <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}>−</button>
+          <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
           <input type="number" min="1" max="100" value={qty}
             onChange={e => setQty(e.target.value)}
             onBlur={() => setQty(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
-          <button type="button" onClick={() => setQty(q => Math.min(100, Number(q) + 1))}>+</button>
+          <button type="button" onClick={() => setQty(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
         </div>
         <div className="buyone-total">
           <b>{usd(custom.usd)}</b>
@@ -367,7 +369,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             </span>
             {o.status === 'awaiting' && onCancelOrder && (
               <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                onClick={() => onCancelOrder(o)}>×</button>
+                onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
             )}
           </div>
         ))}
@@ -409,7 +411,7 @@ export default function ActionModal({
             </button>
             <button className={`mtab${tab === 'buy' ? ' on' : ''}`} onClick={() => setTab('buy')}>{t('tab.buy')}</button>
           </div>
-          <button className="x" onClick={onClose} aria-label={t('btn.close')}>×</button>
+          <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
         </div>
         <div className="modal-body">
           {tab === 'request' && (

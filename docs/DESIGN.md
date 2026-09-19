@@ -68,6 +68,12 @@ Kết luận đó quyết định bố cục ở §2.
   cứ dùng viền thì viền biến mất; ở đó dùng bóng — xem §4.
 - Danh sách là **một khối** có đường kẻ phân hàng, không phải mỗi hàng một thẻ:
   20 tấm thẻ rời trong một cột là 20 lần mắt phải "vào khối" lại từ đầu.
+- **Icon dùng chung một bộ: Lucide** (`components/Icon.jsx`), nét 1.7 và cỡ 16px
+  khai ở đúng một chỗ; tên gọi đặt theo *việc* (`close`, `prev`, `bellOn`), không
+  theo hình. Ba thứ cố ý vẽ tay: logo thương hiệu (Lucide không vẽ logo), hình
+  của vòng quay thưởng, và **ô đánh dấu** — hộp tick do hệ điều hành vẽ một nửa
+  (`accent-color`), nửa còn lại mỗi máy một khác, nên nó được vẽ bằng SVG trong
+  `components/Check.jsx`, lấy màu trạng thái của từng khu qua `--chk`.
 
 ---
 
@@ -116,7 +122,9 @@ cho mọi thứ "nhớ trạng thái" trong app này:
    rỗng mà không ai hiểu vì sao.
 4. **Thứ mang tính phiên thì không nhớ.** Từ khoá tìm kiếm không được nhớ: mở lại
    web mà danh sách tự dưng rỗng vì một từ khoá cũ là kiểu bực mình không ai gọi
-   được tên. Cùng lý do, màn chờ chỉ chạy một lần mỗi phiên tab (§3.2).
+   được tên. Riêng **màn chờ thì ngược lại**: nó không nhớ gì và chạy mỗi lần
+   tải trang (§3.2) — bản "một lần mỗi phiên tab" đã bị bỏ (chủ dự án chốt
+   19/09) vì F5 là thao tác thường gặp nhất của người đang chờ app cập nhật.
 
 ### 2.4 Thứ tự đọc và thứ tự DOM
 
@@ -157,6 +165,12 @@ trên 420ms ngoài vòng quay thưởng.
 - Thanh tiến độ đổi bề rộng khi admin cập nhật: chính là dữ liệu.
 - Nút lún xuống `scale(.97)` khi bấm: xác nhận cú bấm đã vào.
 - Toast trượt vào khi có thông báo mới: nói rằng *vừa* có chuyện gì đó.
+- **Kết quả vòng quay an vị**: số trúng nảy một nhịp, cung đậm chạy ngoài vành
+  đúng lát trúng, 12 hạt bắn ra từ trục. Chạy **một lần** cho mỗi kết quả — đây
+  là khoảnh khắc ăn mừng duy nhất của trang, và là lý do `--e-pop` còn tồn tại.
+- **Ô đánh dấu** (thông báo, mốc tiến độ, ẩn/hiện media): dấu tick *vẽ ra* trong
+  0,18 giây + hộp nảy nhẹ. Chỉ chạy khi **người dùng tự bấm** — hộp đã tick sẵn
+  lúc mở bảng mà cũng nảy thì đó là trang tự biểu diễn, không phải phản hồi.
 
 **Không** — đã xoá hẳn trong đợt rà này:
 
@@ -172,6 +186,12 @@ trên 420ms ngoài vòng quay thưởng.
   thật sự có bài đang chạy (`nowbar.live`).
 - Tiêu đề được "kéo ra" bằng `clip-path` mỗi lần đổi mục: **chữ là nội dung tĩnh**
   — mỗi lần bấm menu lại thấy nó được vẽ lại là tự giới thiệu, không phải phản hồi.
+
+**Màn chờ (nhịp riêng, không nằm trong thang trên):** hiện **mỗi lần tải trang**,
+sàn **560 ms** (dưới ngưỡng đó logo chỉ kịp nháy mắt) và trần **2,6 giây** (dữ
+liệu chậm thì vẫn phải vào được nội dung). Không có cờ `sessionStorage` nào —
+bản "một lần mỗi phiên tab" đã bị bỏ vì nó làm đúng thao tác người dùng hay làm
+nhất (F5) lại không thấy gì cả.
 
 ### 3.3 Không animate thuộc tính layout
 

@@ -1,4 +1,5 @@
 import { pageWindow } from '../lib/usePager'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 
 /* =========================================================
@@ -57,9 +58,7 @@ export default function Pager({ page, pages, from, to, total, onChange, scrollTo
       <div className="pager-ctrl">
         <button type="button" className="pager-btn" onClick={() => go(page - 1)}
           disabled={page === 1} aria-label={t('pager.prev')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14.7 5.6 8.3 12l6.4 6.4 1.4-1.4-5-5 5-5-1.4-1.4Z" fill="currentColor" />
-          </svg>
+          <Icon name="prev" size={14} />
           <span className="pager-btn-tx">{t('pager.prev')}</span>
         </button>
 
@@ -84,9 +83,7 @@ export default function Pager({ page, pages, from, to, total, onChange, scrollTo
         <button type="button" className="pager-btn" onClick={() => go(page + 1)}
           disabled={page === pages} aria-label={t('pager.next')}>
           <span className="pager-btn-tx">{t('pager.next')}</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9.3 5.6 7.9 7l5 5-5 5 1.4 1.4L15.7 12 9.3 5.6Z" fill="currentColor" />
-          </svg>
+          <Icon name="next" size={14} />
         </button>
       </div>
     </nav>

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Background from './components/Background'
 import Toaster from './components/Toaster'
 import { I18nProvider } from './lib/i18n.jsx'
@@ -19,10 +20,15 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <I18nProvider>
       <NotifyProvider>
-        {/* nền loang nằm sau mọi thứ, toaster nằm trước mọi thứ */}
-        <Background />
-        <App />
-        <Toaster />
+        {/* Lưới an toàn bọc NGOÀI cùng: một component ném lỗi trong lúc render
+            thì React gỡ sạch cây DOM, để lại trang đen không một chữ — lưới
+            này đổi thành câu giải thích + nút tải lại. */}
+        <ErrorBoundary>
+          {/* nền loang nằm sau mọi thứ, toaster nằm trước mọi thứ */}
+          <Background />
+          <App />
+          <Toaster />
+        </ErrorBoundary>
       </NotifyProvider>
     </I18nProvider>
   </StrictMode>

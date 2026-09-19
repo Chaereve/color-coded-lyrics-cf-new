@@ -1,7 +1,7 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
 Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
-So với mốc đầu phiên (`bc65c01`): **28 file, +2.900 dòng**, `npm test` **239 đạt / 0 lỗi / 1 skip**.
+So với mốc đầu phiên (`bc65c01`): **60 file, +3.900 dòng**, `npm test` **250 đạt / 0 lỗi / 1 skip** (251 ca).
 
 > **Đã làm tiếp (cùng ngày):** mục **C1-1 (sao lưu database)** và **cả ba việc ở C1-2/3/4** nay đã
 > xong — xem phần *F. Đã làm tiếp* ở cuối file.
@@ -25,6 +25,9 @@ So với mốc đầu phiên (`bc65c01`): **28 file, +2.900 dòng**, `npm test` 
 | `HUONG-DAN.md` ghi nhịp so le **28ms** (CSS là 40ms), ghi *"còn đúng 2 box-shadow"*, ghi màu nhấn là "xanh dương" | Tài liệu dạy sai người sửa sau | Sửa cả ba; nay là **32ms, chặn 10 nhịp**, ultramarine `#2b22e2` |
 | Lỗi tự gây ra: chú thích đặt **giữa danh sách prop** JSX | `propContract.test.js` đọc chữ trong comment thành tên prop → báo "dây đứt" oan | Chuyển chú thích lên TRƯỚC thẻ, ghi lại trong tài liệu |
 | Lỗi tự gây ra: `params.get('add')` so với chuỗi rỗng | Tham số **trần** (`?add`) trả về chuỗi rỗng → âm thầm bỏ qua đúng loại link người ta hay gõ tay nhất | Đọc bằng `has()` rồi mới xét giá trị; thêm ca kiểm thử cho `?add` trần |
+| `[plugin:vite:oxc]` báo lỗi ở `src/App.jsx:836` | Cả trang dev **không mở được** (overlay đỏ) sau một lần sửa khối `counts` | Thừa một dấu `)` ở đuôi `useMemo` + một dep đã cũ (`stage`) còn sót; sửa, và ghi lại mẹo: sau mỗi lần sửa khối đó phải soi đúng đuôi `}), [deps])` |
+| Huy hiệu **In progress** đếm một đằng, tab liệt kê một nẻo | Người dùng thấy số **1** mà danh sách có **2** bài — sai ngay ở chỗ họ đang nhìn | Cả bốn giai đoạn đi qua **một** hàm `stageCounts()`; huy hiệu lấy đúng tập mà tab liệt kê, ô thống kê lấy đúng con số giai đoạn; `src/lib/boardSync.test.js` chốt lại cả hai |
+| Render ném lỗi → **trang đen** | React 19 gỡ sạch cây DOM: người dùng chỉ còn nền tối, không biết app hỏng hay mạng hỏng, và cũng không có gì để báo lại | Thêm **lưới an toàn** (`components/ErrorBoundary.jsx`): một câu giải thích + nút *Reload* + thông điệp lỗi thật (gấp trong `<details>`) |
 
 ### A2. Chuyển động — bớt đi, và bớt đúng chỗ
 
@@ -40,7 +43,9 @@ Theo `kylezantos/design-motion-principles` (cổng tần suất của Emil Kowal
 | Đồng hồ "quá mốc" | Nhấp nháy vô hạn 1,6s | Đổi màu + một chấm tĩnh |
 | Vệt sáng thanh tiến độ | **Mọi** hàng "đang làm" (10 bài = 10 vòng lặp vô hạn) | Chỉ khối Up next, và chỉ khi thật sự có bài đang chạy (`nowbar.live`) |
 | Nhịp so le danh sách | 40ms/hàng, không chặn (hàng 12 phải chờ ~0,5s) | **32ms/hàng, chặn ở 10 nhịp** |
-| Màn chờ | Ghim cứng 1,7 giây | Chờ dữ liệu + sàn 560ms, và **một lần mỗi phiên tab** |
+| Khoảnh khắc ăn mừng của vòng quay | Không có gì ngoài cái đĩa quay rồi dừng | **Một** nhịp ngắn khi kết quả an vị: số trúng nảy lên, cung đậm chạy ngoài vành, 12 hạt bắn ra từ trục — chạy đúng một lần rồi tắt, không lặp |
+| Ô đánh dấu | Hộp tick do hệ điều hành vẽ (`accent-color` chỉ với tới phần tô) | Ô vẽ bằng SVG: dấu tick vẽ ra trong 0,18 giây, hộp nảy nhẹ + vòng loang — và **chỉ khi người dùng tự bấm**, hộp đã tick sẵn lúc mở bảng thì đứng yên |
+| Màn chờ | Ghim cứng 1,7 giây, rồi bỏ hẳn bằng cờ `sessionStorage` | **Chạy mỗi lần tải trang** (chủ dự án chốt 19/09): sàn 560 ms để logo kịp "vào", trần 2,6 giây để không ai bị giữ lại |
 
 ### A3. Bố cục
 
@@ -50,6 +55,8 @@ Theo `kylezantos/design-motion-principles` (cổng tần suất của Emil Kowal
 | Trong cột 320px | Dải mục lục video xếp **dọc** (ảnh 112px trái, tên phải) thay vì cuộn ngang |
 | Bản hẹp | Thống kê 4 ô về **một hàng** (tiết kiệm ~60px); dải mục lục video còn **ảnh bìa 96px** (tiết kiệm ~80px) |
 | Dòng phụ dưới tiêu đề trang | Tiêu đề đứng một mình ở góc để lại khoảng trống không rõ chức năng; thêm một dòng nói trang này để **làm gì** |
+| **Bốn ô thống kê = bốn giai đoạn** | Queued · Picked · In progress · Completed chia nhau **toàn bộ** bài trên bảng — không đè lên nhau, không sót bài nào. Lưới `auto-fit` với vách ngăn 1px thay cho bốn khối rời rạc |
+| **Khối Up next nói cả dây chuyền** | Thêm một dòng nhỏ dưới tiêu đề: *"2 in progress · 3 picked, not started"* — con số trên huy hiệu tab và số trong khối là **cùng một tập**, nên không còn cảnh đếm một đằng liệt kê một nẻo |
 
 ### A4. Tính năng mới (tất cả miễn phí, không cần dịch vụ nào)
 
@@ -71,7 +78,15 @@ Theo `kylezantos/design-motion-principles` (cổng tần suất của Emil Kowal
 
 ### A6. Kiểm thử
 
-`npm test` **214 đạt / 0 lỗi / 1 skip** (195 nền + **19 ca mới**) · `npx oxlint` **0 lỗi, 14 cảnh báo — đúng bằng nền, không thêm cảnh báo nào** · `npm run build` sạch, bundle 333 kB (gzip 106 kB).
+`npm test` **250 đạt / 0 lỗi / 1 skip** (251 ca) · `npx oxlint` **0 lỗi, 15 cảnh báo** — toàn bộ là hai loại đã có từ trước (fast-refresh, set-state-in-effect), không có cảnh báo mới nào · `npm run build` sạch, bundle ~345 kB (gzip ~110 kB): bộ icon Lucide thêm khoảng 5 kB thô / 2 kB gzip.
+
+### A7. Bộ icon, ô đánh dấu, lưới an toàn (đợt hai trong ngày)
+
+| Việc | Chi tiết |
+|---|---|
+| **Toàn bộ icon chuyển sang Lucide** | `components/Icon.jsx` là **một** chỗ khai duy nhất: tên gọi theo *việc* (`close`, `prev`, `bellOn`, `share`…) → icon Lucide, nét **1.7** cho khớp nét viền 1px của trang, `aria-hidden` sẵn, và `fill` chỉ truyền khi thật cần (nút play đặc). Mọi `<svg>` vẽ tay lẫn mọi glyph chữ (`× − + ✓ ‹ › ↗ ▶`) đã bị thay. Còn đúng ba thứ vẽ tay — logo thương hiệu (YouTube/Telegram/Google: Lucide cố ý không vẽ logo) và hình của vòng quay |
+| **Ô đánh dấu vẽ bằng SVG** | Lấy ý từ element `plastic-moth-91` trên uiverse.io: `input` thật bị làm trong suốt (bàn phím, trình đọc màn hình, `:checked` vẫn nguyên), phần hình do SVG vẽ, dấu tick *vẽ ra* khi bật. Bốn họ checkbox của trang — cài đặt thông báo, 3 mốc tiến độ admin, "ẩn khỏi trang chủ", "yêu cầu trả phí" — dùng chung một component, mỗi nơi giữ màu trạng thái của mình qua biến `--chk` |
+| **Lưới an toàn** | `components/ErrorBoundary.jsx` bọc cả app trong `main.jsx`; render ném lỗi thì thay vì trang đen là câu giải thích + nút tải lại + thông điệp lỗi thật |
 
 ---
 
@@ -115,30 +130,28 @@ Cột **"Trần free"** là giới hạn liên quan nhất của gợi ý đó.
 | 4 | **Tìm kiếm không dấu cho bảng công khai** | Hàm `norm()` đã có sẵn trong `AdminPanel.jsx` (bỏ dấu tiếng Việt) — "chung ha" tìm ra "Chung Hạ" | Rẻ | Không |
 | 5 | **Lịch sử vote / sổ credit của người dùng** | Bảng `credit_ledger` + `votes` đã có trong schema; chỉ cần view + một khối trong trang *Của tôi*. Người trả tiền có quyền thấy tiền mình đi đâu | Rẻ–vừa | Không |
 | 6 | **Copy credits cho CẢ video (nhiều bài một lượt)** | Mở rộng việc đã làm: chọn nhiều bài đã xong → một khối chữ để dán mô tả | Rẻ | Không |
-| 7 | **Báo cáo tuần cho admin qua Telegram** | Tổng request/vote/đơn/top bài — một tin mỗi tuần, đọc trong 10 giây | Rẻ | 1 cron (đã dùng 1 cho chốt request → nhét chung vào lượt đó); Telegram bot free |
+| 7 | **Báo cáo tuần cho admin** | Tổng request/vote/đơn/top bài gom thành **một khối trong bảng Admin** (một tệp JSON kèm lượt cron đang chạy) — đọc trong 10 giây, không cần thêm dịch vụ nào | Rẻ | 1 cron (đã dùng 1 cho chốt request → nhét chung vào lượt đó); không tốn gì thêm |
 
 ### C2. Đáng làm, cần bạn chốt vài quyết định
 
 | # | Việc | Được gì | Công | Trần free |
 |---|---|---|---|---|
-| 8 | **Nối `watches`/`notifications` xuống database** | Thông báo theo **tài khoản** thay vì theo trình duyệt: đổi máy vẫn còn, và **tắt tab vẫn nhận được tin** — đúng lúc cần nhất. Schema + trigger + RLS **đã viết sẵn** trong `supabase/schema.sql`; chỉ cần thay 4 hàm `load*/save*` trong `src/lib/watch.js` | Vừa (SQL đã xong, chỉ nối frontend) | 2 triệu tin realtime/tháng, 200 kết nối đồng thời. Việc **gộp tin phải chạy trong Postgres** (trần 10 ms CPU ở Function). Chốt trước: bỏ công tắc `auto`? prefs xuống DB? |
-| 9 | **Gửi thông báo ra ngoài: Telegram bot hoặc Discord webhook** | Người dùng nhận tin khi **không mở web** — đây mới là lý do thật của cả tính năng theo dõi | Vừa | Cả hai **miễn phí thật**, không giới hạn thực tế. Ưu điểm lớn: **không cần thu email** → không vướng quyền riêng tư, không cần form đăng ký |
-| 10 | **Chuyển bộ đếm lá chắn từ KV sang D1** | Gỡ đúng cái trần chặt nhất (1.000 ghi/ngày → 100.000 ghi/ngày) | Vừa | D1 free: 5 GB, 5 triệu lượt đọc dòng/ngày, 100.000 lượt ghi dòng/ngày |
-| 11 | **Trang lưu trữ "đã làm"** (mỗi bài một trang, hoặc một trang theo tháng) | SEO: mỗi video thành một trang trả lời *"Chaereve đã làm bài X chưa?"*; cũng là bằng chứng cho người mới thấy kênh làm thật | Vừa–lớn | 20.000 file/deploy — vài trăm bài thì thoải mái |
-| 12 | **RSS/JSON feed "vừa lên sóng"** | Người hâm mộ cắm vào app đọc tin của họ; không tốn gì | Vừa | Một Pages Function trả XML nằm trong 100.000 request/ngày, hoặc sinh tĩnh lúc build |
-| 13 | **Hợp nhất cụm trùng ở tầng dữ liệu (admin)** | Dọn gốc rễ của việc farm vote và của dữ liệu bẩn | Vừa | Không. Cân nhắc: mất lịch sử vote từng dòng |
-| 14 | **Nhập hàng loạt từ bình luận (admin dán text)** | Chủ kênh dán một đoạn bình luận có 20 tên bài → thành 20 dòng request chờ duyệt. Dạng "sửa cả danh sách một lượt" đã có tiền lệ cho media | Vừa | Không |
-| 15 | **PWA cài được lên màn hình chính** | Mở như app, có icon riêng. Manifest đã có sẵn | Vừa (thêm service worker) | Không tốn tiền, nhưng **tăng diện bảo trì**: cache sai là người dùng kẹt ở bản cũ. Nếu làm thì chỉ precache vỏ app |
+| 8 | **Chuyển bộ đếm lá chắn từ KV sang D1** | Gỡ đúng cái trần chặt nhất (1.000 ghi/ngày → 100.000 ghi/ngày) | Vừa | D1 free: 5 GB, 5 triệu lượt đọc dòng/ngày, 100.000 lượt ghi dòng/ngày |
+| 9 | **Trang lưu trữ "đã làm"** (mỗi bài một trang, hoặc một trang theo tháng) | SEO: mỗi video thành một trang trả lời *"Chaereve đã làm bài X chưa?"*; cũng là bằng chứng cho người mới thấy kênh làm thật | Vừa–lớn | 20.000 file/deploy — vài trăm bài thì thoải mái |
+| 10 | **RSS/JSON feed "vừa lên sóng"** | Người hâm mộ cắm vào app đọc tin của họ; không tốn gì | Vừa | Một Pages Function trả XML nằm trong 100.000 request/ngày, hoặc sinh tĩnh lúc build |
+| 11 | **Hợp nhất cụm trùng ở tầng dữ liệu (admin)** | Dọn gốc rễ của việc farm vote và của dữ liệu bẩn | Vừa | Không. Cân nhắc: mất lịch sử vote từng dòng |
+| 12 | **Nhập hàng loạt từ bình luận (admin dán text)** | Chủ kênh dán một đoạn bình luận có 20 tên bài → thành 20 dòng request chờ duyệt. Dạng "sửa cả danh sách một lượt" đã có tiền lệ cho media | Vừa | Không |
+| 13 | **PWA cài được lên màn hình chính** | Mở như app, có icon riêng. Manifest đã có sẵn | Vừa (thêm service worker) | Không tốn tiền, nhưng **tăng diện bảo trì**: cache sai là người dùng kẹt ở bản cũ. Nếu làm thì chỉ precache vỏ app |
 
 ### C3. Để sau, hoặc chỉ khi có lý do
 
 | # | Việc | Ghi chú |
 |---|---|---|
-| 16 | Bảng "top người gửi theo tháng" / mùa giải | Vui, nhưng khuyến khích đúng kiểu chạy đua số lượng mà bảng đang phải chống |
-| 17 | Giao diện tiếng Việt | Từ điển `i18n.jsx` đã tách sẵn nên về mặt kỹ thuật là làm được, nhưng hiện app **cố ý** chỉ có tiếng Anh. Làm thì miễn phí, chỉ tốn công dịch và gấp đôi số chuỗi phải giữ |
-| 18 | Phím tắt mở rộng (`j`/`k` di chuyển, `v` vote) | Miễn phí, hợp với người dùng bàn phím — nhưng số người dùng thật được lợi thì ít |
-| 19 | Kiểm tra bằng trình đọc màn hình thật | Miễn phí. Đã có `aria-label` cho mọi nút, nhưng chỉ người dùng thật mới nói được còn vướng gì |
-| 20 | Chế độ onboarding 3 bước cho người mới | Miễn phí; chỉ nên làm nếu thấy người mới bỏ đi ngay |
+| 14 | Bảng "top người gửi theo tháng" / mùa giải | Vui, nhưng khuyến khích đúng kiểu chạy đua số lượng mà bảng đang phải chống |
+| 15 | Giao diện tiếng Việt | Từ điển `i18n.jsx` đã tách sẵn nên về mặt kỹ thuật là làm được, nhưng hiện app **cố ý** chỉ có tiếng Anh. Làm thì miễn phí, chỉ tốn công dịch và gấp đôi số chuỗi phải giữ |
+| 16 | Phím tắt mở rộng (`j`/`k` di chuyển, `v` vote) | Miễn phí, hợp với người dùng bàn phím — nhưng số người dùng thật được lợi thì ít |
+| 17 | Kiểm tra bằng trình đọc màn hình thật | Miễn phí. Đã có `aria-label` cho mọi nút, nhưng chỉ người dùng thật mới nói được còn vướng gì |
+| 18 | Chế độ onboarding 3 bước cho người mới | Miễn phí; chỉ nên làm nếu thấy người mới bỏ đi ngay |
 
 ---
 
@@ -149,7 +162,7 @@ Cột **"Trần free"** là giới hạn liên quan nhất của gợi ý đó.
 | **Supabase Pro** (backup tự động + không bị tạm dừng + 8 GB) | ~25 USD/tháng | Là lý do duy nhất để lên gói. Cách miễn phí để sống thiếu nó: `pg_dump` định kỳ + giữ cron chạy đều |
 | **Vercel Hobby** | Miễn phí nhưng **cấm dùng cho mục đích sinh doanh thu** | App có bán vote → dùng là vi phạm điều khoản. Pro là 20 USD/tháng |
 | **Durable Objects** (Cloudflare) | Chỉ có ở gói trả tiền | Đừng thiết kế tính năng nào dựa vào nó |
-| **Email số lượng lớn** | SMTP có sẵn của Supabase chỉ dùng cho email xác thực | Cần email thật thì Resend free 3.000 thư/tháng (100/ngày) — nhưng Telegram/Discord webhook vừa miễn phí vừa không cần thu email |
+| **Email số lượng lớn** | SMTP có sẵn của Supabase chỉ dùng cho email xác thực | Cần email thật thì Resend free 3.000 thư/tháng (100/ngày) |
 | **Workers Paid** | 5 USD/tháng | Chỉ cần khi vượt 100.000 request/ngày hoặc 10 ms CPU — còn xa |
 | **Lưu ảnh/video của chính mình** | — | Hiện ảnh bìa lấy thẳng từ `i.ytimg.com`, và đó là lựa chọn đúng: tự host là tự trả băng thông |
 
@@ -159,12 +172,12 @@ Cột **"Trần free"** là giới hạn liên quan nhất của gợi ý đó.
 
 1. ~~**Sao lưu database** (C1-1)~~ — ✅ **đã làm**, xem phần F.
 2. ~~**Ba việc rẻ ở C1**~~ — ✅ **đã làm cả ba**, xem phần F.
-3. **Nối database cho theo dõi + gửi ra Telegram/Discord** (C2-8, C2-9) — giá trị lớn nhất còn lại, và lý do duy nhất cần bạn chốt ba quyết định.
-4. **Gỡ trần KV bằng D1** (C2-10) — xem cảnh báo ở B-1: làm trước khi lượng vote chạm ~500/ngày, không phải sau.
+3. **Gỡ trần KV bằng D1** (C2-8) — xem cảnh báo ở B-1: làm trước khi lượng vote chạm ~500/ngày, không phải sau.
+4. **Trang lưu trữ "đã làm"** (C2-9) — giá trị SEO lớn nhất còn lại, và là bằng chứng cho người mới thấy kênh làm thật.
 
-**Ba câu hỏi cần bạn trả lời để tôi làm được bước 3:** (a) trigger có tự theo dõi bài của mình và bỏ hẳn công tắc `auto` không; (b) bốn công tắc thông báo có chuyển xuống database không; (c) gửi ra ngoài bằng **Telegram** hay **Discord** (hoặc cả hai).
-
----
+**Hai việc đã bị bỏ (chủ dự án chốt 19/09):** nối `watches`/`notifications` xuống database
+và gửi thông báo ra Telegram/Discord. Không làm nữa, không hỏi lại — thông báo ở lại
+trong trình duyệt như hiện tại, và bảng C đã được đánh số lại sau khi xoá hai dòng đó.
 
 ## F. Đã làm tiếp (cùng ngày) — sao lưu, và ba việc rẻ
 
@@ -214,5 +227,9 @@ cảnh báo / 0 lỗi).
 
 ### F3. Còn lại
 
-Đúng như bảng C: **C2-8/9 (nối database + gửi ra Telegram/Discord)**, **C2-10 (gỡ trần KV bằng
-D1)**, và các việc C2 khác. Ba câu hỏi chốt cho C2-8/9 vẫn nằm ở cuối phần E.
+Đúng như bảng C: **C2-8 (gỡ trần KV bằng D1)**, **C2-9…13 (trang lưu trữ, RSS, hợp nhất cụm
+trùng, nhập hàng loạt, PWA)** và các việc C3.
+
+**Đã bỏ khỏi danh sách:** nối database cho theo dõi + gửi ra Telegram/Discord (C2-8/9 bản cũ).
+Chủ dự án chốt 19/09 là không làm — không hỏi lại, và bảng C đã đánh số lại sau khi xoá hai
+dòng đó (nay 18 gợi ý).

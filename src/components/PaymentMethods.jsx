@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Icon from './Icon'
 import QRCode from 'qrcode'
 import { PAYMENT, vietQRPayload, paypalPayload, cleanContent } from '../lib/payment'
 import { vnd, usd } from '../lib/meta'
@@ -46,7 +47,7 @@ function CopyRow({ k, v, mono }) {
       <span className="pay-k">{k}</span>
       <span className={`pay-v${mono ? ' mono' : ''}`}>{v}</span>
       <button type="button" className={`copy${done ? ' done' : ''}`} onClick={copy}>
-        {done ? '✓' : t('pay.copy')}
+        {done ? <Icon name="check" size={14} /> : t('pay.copy')}
       </button>
     </div>
   )

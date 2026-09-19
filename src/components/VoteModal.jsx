@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Icon from './Icon'
 import { useModalExit } from '../lib/useModalExit'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { isPicked, kindCls } from '../lib/meta'
@@ -56,7 +57,7 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
       <div className={`modal narrow${out}`} role="dialog" aria-modal="true">
         <div className="modal-head">
           <div className="modal-tabs"><span className="mtab on">{t('vote.dialogTitle')}</span></div>
-          <button className="x" onClick={onClose} aria-label={t('btn.close')}>×</button>
+          <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
         </div>
 
         <div className="modal-body">
@@ -79,13 +80,13 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
             <div className="vm-row">
               <div className="qty">
                 <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}
-                  disabled={busy} aria-label="−">−</button>
+                  disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
                 <input id="vm-qty" type="number" min="1" max={MAX} value={qty} disabled={busy}
                   onChange={e => setQty(e.target.value)}
                   onBlur={() => setQty(q => Math.max(1, Math.min(MAX, Math.trunc(Number(q)) || 1)))}
                   onKeyDown={e => { if (e.key === 'Enter' && !tooMany && !invalid && !busy) go(n) }} />
                 <button type="button" onClick={() => setQty(q => Math.min(MAX, Number(q) + 1))}
-                  disabled={busy} aria-label="+">+</button>
+                  disabled={busy} aria-label="+"><Icon name="plus" size={15} /></button>
               </div>
               {votesLeft > 1 && (
                 <button type="button" className="btn btn-sm" disabled={busy}

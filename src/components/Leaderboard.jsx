@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { useCountUp } from '../lib/motion'
 import { usePager } from '../lib/usePager'
@@ -50,10 +51,7 @@ function PodiumFace({ p, place, max, sort }) {
   return (
     <div className={`lb-pod p${place}`} style={{ '--i': place - 1 }}>
       <span className="lb-medal" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="16" height="16">
-          <path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9L12 2.6Z"
-            fill="currentColor" />
-        </svg>
+        <Icon name="star" size={16} />
         <b>{place}</b>
       </span>
       <Face p={p} size="lg" />

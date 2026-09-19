@@ -1,9 +1,17 @@
 /* Daily Spin — same surfaces, type and controls as the request list, and every
    fill stays FLAT: no gradient, no halo, no logo in the hub. The wheel is made
-   readable with structure instead of decoration: a bezel band, one tone per
-   prize tier (brighter slice = rarer, bigger prize), separators between the
-   16 slices, numbers that never hang upside down, and a pointer that reaches
-   into the disc.
+   readable with structure instead of decoration: a bezel band with a 48-tick
+   ring aligned to the slices (a long tick sits on every slice boundary, two
+   short ones in between, so the ring explains the 16 slices instead of
+   telling the time), one tone per prize tier
+   (brighter slice = rarer, bigger prize), separators between the 16 slices,
+   numbers that never hang upside down, a machined double hairline where the
+   slices meet the bezel, a hub whose small arrow turns with the disc, and a
+   pointer that reaches into the disc. When a result lands, the winning slice
+   is marked twice — outline inside, arc on the rim outside — and its number
+   pops once; everything else steps back. Still 100% flat: no gradient, no
+   glow, no logo. Vòng chia độ + mũi chỉ trên trục là hai thứ trả lời câu
+   "vòng quay còn sơ sài" mà vẫn ở trong ngôn ngữ phẳng của app.
 
    Three bands: head (what this is + when the day resets) · stage (wheel and the
    Spin button on the left, the status card on the right) · footer (today's
@@ -106,6 +114,14 @@
 .spin-wheel-bezel { fill: none; stroke: var(--surface-3); stroke-width: 9; }
 .spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
 .spin-wheel-rim { fill: none; stroke: var(--line-2); stroke-width: 1; }
+/* Đường tóc giữa lát cắt và vành: hai lớp không dính thành một khối dày. */
+.spin-wheel-seam { fill: none; stroke: var(--bg); stroke-width: 1; opacity: .55; }
+/* Vạch chia độ trên vành: 60 vạch mảnh, 12 vạch giờ dài và đậm hơn. Cả hai
+   đều là màu trộn từ --txt nên chỉnh tông chữ là vành đổi theo, không có hex
+   lạ nào ở đây. */
+/* 48 vạch: cứ 3 vạch có một vạch dài đúng ranh giới lát (xem Ticks()) */
+.spin-wheel-tick { stroke: color-mix(in oklab, var(--txt) 22%, transparent); stroke-width: 1; }
+.spin-wheel-tick.major { stroke: color-mix(in oklab, var(--txt) 46%, transparent); stroke-width: 1.5; }
 /* One flat tone per prize tier; t1 is the base (darkest) step. */
 .spin-sector { fill: var(--w-1); transition: opacity .35s var(--e-soft); }
 .spin-sector.t2 { fill: var(--w-2); }
@@ -131,16 +147,33 @@
 /* The hub is a pin, nothing else. */
 .spin-wheel-pin { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }
 .spin-wheel-pin-dot { fill: var(--line-2); }
+/* Mũi chỉ trên trục, quay cùng đĩa: một chi tiết máy móc nhỏ, màu chữ mờ nên
+   không tranh chỗ với kết quả. */
+.spin-wheel-hub-mark { fill: var(--txt-2); }
 /* Winner: an outline drawn above the separators while the other slices step back. */
 .spin-wheel-marker { fill: none; stroke: var(--txt); stroke-width: 2.5; stroke-linejoin: round; }
+/* Cung đậm ngoài vành, đúng cung của lát trúng */
+.spin-wheel-win-arc { fill: none; stroke: var(--txt); stroke-width: 3; stroke-linejoin: round; }
+/* Số của lát trúng nảy MỘT nhịp khi đĩa dừng (nhịp lấy từ transitions.dev
+   02-number-pop-in: vào bằng scale + blur, không phải bằng cách đổi cỡ chữ —
+   đổi cỡ chữ là layout, còn transform-box: fill-box giữ nó quanh chính nó). */
+.has-won .spin-wheel-number.is-won {
+  transform-box: fill-box; transform-origin: 50% 50%;
+  animation: spinWinNumber .5s var(--e-pop) both;
+}
+@keyframes spinWinNumber {
+  0%   { opacity: 0; transform: scale(.72); filter: blur(2px) }
+  100% { opacity: 1; transform: none; filter: none }
+}
 .has-won .spin-sector:not(.is-won),
-.has-won .spin-wheel-number:not(.is-won) { opacity: .45; }
+.has-won .spin-wheel-number:not(.is-won),
+.has-won .spin-wheel-tick { opacity: .45; }
 /* Pointer: on top of the disc, tip reaching just inside the rim. */
 .spin-wheel-pointer {
   position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
   pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
 }
-.spin-wheel-pointer svg { display: block; transform-origin: 50% 10%; }
+.spin-wheel-pointer svg { display: block; transform-origin: 50% 12%; }
 .spin-wheel-pointer path { fill: var(--txt); stroke: var(--surface); stroke-width: 2.5; stroke-linejoin: round; }
 /* A light flutter while slices pass the pointer — motion only, no extra colour. */
 .is-spinning .spin-wheel-pointer svg { animation: spinPointerTick .15s linear infinite; }
@@ -148,6 +181,24 @@
   0%, 100% { transform: rotate(-5deg); }
   50% { transform: rotate(5deg); }
 }
+
+/* Chùm hạt ăn mừng: neo ở trục bánh xe, mỗi hạt bay theo `--ang` của nó bằng
+   transform (compositor lo), mờ dần rồi tắt hẳn. Chỉ chạy MỘT lần cho mỗi kết
+   quả — vòng quay dừng là nổ, không lặp. */
+.spin-burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.spin-burst i {
+  position: absolute; left: -3px; top: -3px; width: 6px; height: 6px;
+  border-radius: 2px; background: var(--a-2);
+  animation: spinBurst .72s var(--e-out) both;
+}
+.spin-burst i:nth-child(3n) { background: var(--done); }
+.spin-burst i:nth-child(3n + 1) { background: var(--queued); }
+@keyframes spinBurst {
+  0%   { opacity: 0; transform: rotate(var(--ang)) translateY(-14px) scale(.4) }
+  25%  { opacity: 1 }
+  100% { opacity: 0; transform: rotate(var(--ang)) translateY(-150px) scale(1) }
+}
+@media (prefers-reduced-motion: reduce) { .spin-burst { display: none; } }
 
 /* ---- call to action ---- */
 .spin-cta { width: min(100%, 360px); display: grid; gap: 10px; }
@@ -167,6 +218,14 @@
 }
 .spin-result.won { border-color: var(--a); background: var(--a-soft); }
 .spin-result strong { font: 600 16px/1.25 var(--mono); color: var(--txt); }
+/* Số vừa trúng vào bằng dịch chuyển + mờ dần (không đổi cỡ chữ — đổi cỡ là
+   layout), khoá theo `key={result.reward}` nên mỗi kết quả mới nảy đúng một
+   lần. Nhịp lấy từ transitions.dev 02-number-pop-in. */
+.spin-result .spin-won-num { animation: wonNum .5s var(--e-pop) both; }
+@keyframes wonNum {
+  0%   { opacity: 0; transform: translateY(9px) scale(.9); filter: blur(2px) }
+  100% { opacity: 1; transform: none; filter: none }
+}
 .spin-result small { font-size: 11px; color: var(--txt-2); }
 .spin-hint { font-size: 11.5px; color: var(--txt-3); }
 .spin-pending {

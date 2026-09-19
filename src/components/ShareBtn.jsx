@@ -1,4 +1,5 @@
 import { useI18n } from '../lib/i18n.jsx'
+import Icon from './Icon'
 
 /* =========================================================
    CHIA SẺ MỘT BÀI — nút mảnh ở cuối dòng meta, cạnh chuông theo dõi
@@ -27,13 +28,7 @@ export default function ShareBtn({ onShare }) {
   return (
     <button type="button" className="rowact sharebtn" title={text} aria-label={text}
       onClick={(e) => { e.stopPropagation(); onShare?.() }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9.5 14.5 14.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        <path d="M11.2 6.6 12.6 5.2a4.1 4.1 0 0 1 5.8 5.8l-1.4 1.4" fill="none"
-          stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        <path d="M12.8 17.4 11.4 18.8a4.1 4.1 0 0 1-5.8-5.8l1.4-1.4" fill="none"
-          stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </svg>
+      <Icon name="share" size={15} />
     </button>
   )
 }

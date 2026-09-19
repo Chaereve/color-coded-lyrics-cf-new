@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import Check from './Check'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { isPicked, timeAgo } from '../lib/meta'
 import { groupNotices, ownNotices, otherNotices, unreadCount } from '../lib/watch'
@@ -71,15 +73,20 @@ export default function Notifications({
     <div className="nt" ref={box}>
       <button type="button" className={`nt-btn${unread ? ' has' : ''}`} onClick={onToggle}
         aria-expanded={open} aria-haspopup="dialog" aria-label={label} title={label}>
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-          <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7Z" />
-            <path d="M10.3 19a2 2 0 0 0 3.4 0" />
-            {unread > 0 && <path d="M12 2v2" />}
-          </g>
-        </svg>
-        {unread > 0 && <span className="dotbadge">{unread > 9 ? '9+' : unread}</span>}
+        <Icon name={unread > 0 ? 'bellOn' : 'bell'} size={16} />
+        {/* `key={unread}` để con số MỌC LÊN mỗi lần số tin đổi (animation ở
+            .nt-btn .dotbadge) — nếu không, React dùng lại đúng thẻ đó và nhịp
+            nảy chỉ chạy một lần duy nhất trong cả phiên. */}
+        {unread > 0 && <span className="dotbadge" key={unread}>{unread > 9 ? '9+' : unread}</span>}
       </button>
+
+      {/* Vùng live DUY NHẤT của chuông: số tin chưa đọc tự báo khi nó đổi (nhãn
+          của nút chỉ được đọc lúc người dùng focus vào nút). Luôn có mặt trong
+          DOM — trình đọc màn hình chỉ thông báo nội dung THAY ĐỔI bên trong một
+          vùng đã tồn tại, nên đừng mount nó cùng lúc với con số. */}
+      <span className="sr-only" role="status" aria-atomic="true">
+        {unread ? t('nt.liveUnread', { n: unread }) : ''}
+      </span>
 
       {open && (
         <div className="nt-pop" role="dialog" aria-label={t('nt.title')}>
@@ -87,16 +94,16 @@ export default function Notifications({
             <>
               <header className="nt-head">
                 <button type="button" className="nt-back" onClick={() => setTab('list')} aria-label={t('nt.back')}>
-                  <span aria-hidden="true">‹</span>{t('nt.backShort')}
+                  <Icon name="prev" size={14} />{t('nt.backShort')}
                 </button>
                 <span className="nt-hbtns">
-                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}>×</button>
+                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
                 </span>
               </header>
               <div className="nt-list nt-prefs">
                 {PREF_ROWS.map(([k, name, note]) => (
                   <label className="nt-pref" key={k}>
-                    <input type="checkbox" checked={!!prefs?.[k]}
+                    <Check checked={!!prefs?.[k]}
                       onChange={e => onPrefs?.({ [k]: e.target.checked })} />
                     <span className="nt-pref-tx">
                       <b>{t(name)}</b>
@@ -117,14 +124,9 @@ export default function Notifications({
                   )}
                   <button type="button" className="icon-btn" aria-label={t('nt.settings')} title={t('nt.settings')}
                     onClick={() => setTab('prefs')}>
-<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-                      <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                        <path d="M3 8h9M17.5 8H21M3 16h4M12.5 16H21" />
-                        <circle cx="14.5" cy="8" r="2.4" /><circle cx="9.5" cy="16" r="2.4" />
-                      </g>
-                    </svg>
+                    <Icon name="settings" size={15} />
                   </button>
-                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}>×</button>
+                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
                 </span>
               </header>
 
@@ -230,7 +232,7 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
             title={t('row.watch')}>{t('nt.watch')}</a>
         )}
         <button type="button" className="icon-btn" title={t('nt.drop')} aria-label={t('nt.drop')}
-          onClick={() => onDrop?.(n.id)}>×</button>
+          onClick={() => onDrop?.(n.id)}><Icon name="close" size={15} /></button>
       </span>
     </div>
   )

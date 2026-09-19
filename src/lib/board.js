@@ -185,6 +185,10 @@ export const byPickOrder = (a, b) =>
 export function sortRows(rows, filter) {
   const out = [...rows]
   if (filter === 'picked') return out.sort(byPickOrder)
+  /* Tab "In progress" là danh sách việc ĐANG CHẠY: xếp việc gần xong lên trước
+     (%, giảm dần), hoà thì theo vote. Xếp theo vote như bảng thường là sai ngữ
+     cảnh — người xem đang hỏi "còn bao lâu", không hỏi "bài nào nhiều phiếu". */
+  if (filter === 'in_progress') return out.sort((a, b) => (b.progress || 0) - (a.progress || 0) || byVotes(a, b))
   if (filter === 'newest') return out.sort(byNewest)
   if (filter === 'top') return out.sort(byVotes)
   return out.sort((a, b) => ((b.is_paid ? 1 : 0) - (a.is_paid ? 1 : 0)) || byVotes(a, b))
@@ -217,6 +221,11 @@ export function groupRows(rows) {
 export function sortGroups(groups, filter) {
   if (filter === 'picked') return groups                 // đã theo thứ tự làm việc, không xáo
   const out = [...groups]
+  /* Cụm trong tab In progress: lấy % cao nhất trong cụm làm mốc — một bài có
+     hai dòng đang chạy thì dòng đi xa nhất mới là điều người xem cần thấy. */
+  if (filter === 'in_progress') return out.sort((a, b) =>
+    Math.max(0, ...b.rows.map(r => r.progress || 0)) - Math.max(0, ...a.rows.map(r => r.progress || 0))
+    || (b.votes - a.votes))
   if (filter === 'newest') return out.sort((a, b) => (b.newest - a.newest) || (b.votes - a.votes))
   if (filter === 'top') return out.sort((a, b) => (b.votes - a.votes) || (b.newest - a.newest))
   return out.sort((a, b) => (b.paid - a.paid) || (b.votes - a.votes) || (b.newest - a.newest))
@@ -235,6 +244,44 @@ export function voteTotals(rows) {
   }
   return m
 }
+
+/* Bốn GIAI ĐOẠN của bảng — không chồng nhau, cộng lại đúng tổng số bài.
+   ---------------------------------------------------------
+   Khối thống kê và badge tab phải kể cùng một câu chuyện. Trước đây không ai
+   đếm "đã chốt nhưng chưa khởi động": bài đó không nằm trong In queue (vì đã
+   chốt), không nằm trong In progress (vì chưa chạy), cũng không nằm trong
+   Completed — nó rơi vào khoảng trống, nên bốn con số cộng lại thiếu so với
+   bảng và mục Up next nhìn như thuộc hệ thống khác.
+
+   Mỗi BÀI vào đúng một giai đoạn, lấy theo dòng "cao nhất" của bài đó (một bài
+   có ba người gửi thì cả ba dòng nằm chung một thẻ, không nhân ba con số).
+   `total` là số bài — hằng đẳng thức queued + picked + in_progress + completed
+   === total được test giữ, nên không ai lặng lẽ bỏ rơi một giai đoạn nữa. */
+const STAGES = ['queued', 'picked', 'in_progress', 'completed']
+export function stageCounts(rows) {
+  const rank = new Map()
+  for (const r of rows || []) {
+    if (!r || !STAGES.includes(r.status)) continue
+    /* in_progress mà chưa có picked_at vẫn là "đang chạy" — xếp trên picked */
+    const own = r.status === 'completed' ? 3
+      : r.status === 'in_progress' ? 2
+      : (r.picked_at ? 1 : 0)
+    const key = groupKey(r)
+    const prev = rank.get(key)
+    if (prev === undefined || own > prev) rank.set(key, own)
+  }
+  const out = { queued: 0, picked: 0, in_progress: 0, completed: 0 }
+  for (const own of rank.values()) out[STAGES[own]] += 1
+  out.total = rank.size
+  return out
+}
+
+/* Số BÀI trong một tập dòng — không phải số dòng. Mọi con số đứng cạnh danh
+   sách (badge tab, ô thống kê) phải đếm theo cùng đơn vị với thứ được liệt kê:
+   bảng gom cụm theo bài, nên một bài có ba người gửi là MỘT thẻ. Đếm theo dòng
+   thì badge ghi 3 mà dưới chỉ có 1 thẻ — đó là kiểu "lệch số" người dùng nhìn
+   ra ngay mà không gọi được tên. */
+export const songCount = (rows) => new Set((rows || []).map(groupKey)).size
 
 /* Danh sách cuối cùng để render + phân trang: cụm nhiều dòng thành một
    thẻ gập/mở được, cụm một dòng giữ nguyên hàng thường. */

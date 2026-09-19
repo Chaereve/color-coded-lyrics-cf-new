@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isPicked, kindCls, STATUS_META, timeAgo, vnd, usd } from '../lib/meta'
+import Check from './Check'
+import Icon from './Icon'
+import { isPicked, kindCls, statusLabel, STATUS_META, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
 import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
@@ -73,7 +75,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         ) : (
           <>
-            <span className="status" style={{ '--c': STATUS_META[r.status].c }}>{t(`status.${r.status}`)}</span>
+            <span className="status" style={{ '--c': STATUS_META[r.status].c }}>{statusLabel(r, t)}</span>
             {(r.status === 'queued' || r.status === 'in_progress') && onPick && (
               <button className="btn btn-sm" onClick={() => onPick(r.id, !picked)}
                 title={t('now.pickRule', { n: 4 })}>
@@ -84,7 +86,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         )}
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
-          onClick={() => confirm(t('adm.confirmDelete')) && onDelete(r.id)}>×</button>
+          onClick={() => confirm(t('adm.confirmDelete')) && onDelete(r.id)}><Icon name="close" size={15} /></button>
       </div>
 
       {/* Khung sửa nằm NGOÀI hàng tên + nút: xuống dòng thành một dải riêng
@@ -120,7 +122,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           <div className="steps" title={groupSize ? t('adm.mileGroup', { n: groupSize }) : undefined}>
             {MILESTONES.map(m => (
               <label key={m.k} className={`step${r[m.k] ? ' on' : ''}`}>
-                <input type="checkbox" checked={!!r[m.k]}
+                <Check checked={!!r[m.k]}
                   onChange={e => onUpdate(r.id, { [m.k]: e.target.checked, status: 'in_progress' }, { group: true })} />
                 <span>{m.label}</span>
                 <em>{m.pct}%</em>
@@ -293,7 +295,7 @@ export default function AdminPanel({
               {t('adm.done')} <span className="c">({others.length})</span>
             </button>
           </div>
-          <button className="x" onClick={onClose} aria-label={t('btn.close')}>×</button>
+          <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
         </div>
 
         <div className="modal-body" ref={listRef}>
@@ -319,7 +321,7 @@ export default function AdminPanel({
               {q && (
                 <button type="button" className="icon-btn adm-search-clear"
                   title={t('adm.clearSearch')} aria-label={t('adm.clearSearch')}
-                  onClick={() => { setQ(''); searchRef.current?.focus() }}>×</button>
+                  onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={15} /></button>
               )}
             </div>
           )}

@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Icon from './components/Icon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
@@ -17,12 +18,12 @@ import Standing from './components/Standing'
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
-import { KIND_META, STATUS_META, isPicked, kindCls, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, STATUS_META, isPicked, kindCls, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { usePager } from './lib/usePager'
-import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam } from './lib/board'
+import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
@@ -43,6 +44,10 @@ import {
 
 /* Mục chính của trang */
 const SECTIONS = ['board', 'spin', 'ranking', 'mine']
+
+/* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
+const SPLASH_MS = 560
+const SPLASH_MAX_MS = 2600
 
 const PER_PAGE = 20
 const PER_PAGE_ORDERS = 10
@@ -100,9 +105,12 @@ function Num({ v }) {
   return <b key={v} className="tick">{n}</b>
 }
 
-function Stat({ c, v, label }) {
+/* Ô thống kê: `why` là định nghĩa của con số, dán vào `title` — người đọc tự
+   đối chiếu được "In progress" ở đây nghĩa là gì (dây chuyền đã chốt) thay vì
+   đoán theo nhãn. Con số không có định nghĩa là con số người ta không tin. */
+function Stat({ c, v, label, why }) {
   return (
-    <div className="stat" style={{ '--c': c }}>
+    <div className="stat" style={{ '--c': c }} title={why}>
       <Num v={v} />
       <span>{label}</span>
     </div>
@@ -137,9 +145,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
           {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
         </div>
         <div className="meta">
-          <span className="status" style={{ '--c': sm.c }}>
-            {isPicked(r) && r.status === 'queued' ? t('now.next') : t(`status.${r.status}`)}
-          </span>
+          <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
           <span className="dot" aria-hidden="true" /><span>{r.requester}</span>
           <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
@@ -159,7 +165,14 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
           {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
           {onShare && <ShareBtn onShare={() => onShare(r)} />}
         </div>
-        {r.status === 'in_progress' && <div className="bar"><i style={{ width: `${r.progress}%` }} /></div>}
+        {/* Việc đang chạy: phần trăm đi CẠNH thanh, vì thanh 3px không đọc ra
+            số. Khối Up next in đúng con số này — một bài, một con số. */}
+        {r.status === 'in_progress' && (
+          <>
+            <span className="status" style={{ '--c': STATUS_META.in_progress.c }}>{r.progress}%</span>
+            <div className="bar"><i style={{ width: `${r.progress}%` }} /></div>
+          </>
+        )}
         {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
@@ -173,7 +186,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
       </button>
       {showDelete && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
-          onClick={() => onDelete(r.id)}>×</button>
+          onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
       )}
     </div>
   )
@@ -235,17 +248,17 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
   )
 }
 
-/** Khoá sessionStorage: đánh dấu tab này đã xem màn chờ một lần. */
-const SPLASH_KEY = 'ccl3_splash'
-/** Lần đầu trong tab này? Đọc NGAY lúc khởi tạo state — không setState trong
-    effect, vì như vậy là thêm một vòng render nữa để nói điều đã biết. */
-const firstVisit = () => { try { return sessionStorage.getItem(SPLASH_KEY) !== '1' } catch { return true } }
-
+/* Màn chờ hiện MỖI LẦN tải trang (chủ dự án chốt 19/09). Bản trước ghim một
+   khoá sessionStorage để nó chỉ chạy một lần mỗi tab — tải lại là không thấy
+   nữa, và người dùng đọc đúng hiện tượng đó: "màn hình splash mất tiêu".
+   Không đọc/ghi storage nữa: thứ quyết định màn chờ là NHỊP KHỞI ĐỘNG, không
+   phải lịch sử duyệt web. */
 export default function App() {
   const { t } = useI18n()
   const { push } = useNotify()
   useGlow()
-  const [booting, setBooting] = useState(firstVisit)
+  const [booting, setBooting] = useState(true)
+  const readyRef = useRef(false)
   const [ready, setReady] = useState(false)
   const [user, setUser] = useState(null)
   const currentUserId = useRef(null)
@@ -465,19 +478,22 @@ export default function App() {
     window.history.replaceState(null, '', u.pathname + (qs ? `?${qs}` : '') + u.hash)
   }, [])
 
-  /* Màn chờ: sàn 560ms cho logo kịp "vào" (dưới ngưỡng đó chỉ là một cái nháy
-     mắt), còn lại chờ dữ liệu. Bản trước ghim cứng 1.7s — mạng nhanh thì
-     người dùng nhìn logo thêm hơn một giây vô ích.
-     Và màn chờ này CHỈ chạy một lần mỗi phiên tab: nó là câu chào thương
-     hiệu, không phải màn hình nghi thức. Tải lại trang trong cùng tab mà vẫn
-     phải xem lại từ đầu là thứ duy nhất người dùng gọi đúng tên: chậm. */
+  /* Màn chờ chạy theo HAI mốc, không phải một con số cứng:
+       · SÀN 560ms — dưới ngưỡng đó logo chỉ kịp nháy một cái, đọc ra là lỗi;
+       · DỮ LIỆU đã xong (getUser) — để không mở ra một bảng rỗng rồi mới nhảy;
+       · TRẦN 2,6s — mạng hỏng thì màn chờ cũng phải mở, đừng giữ người dùng
+         trong tấm ảnh chào.
+     Bản trước hẹn giờ 560ms là setBooting(false) bất kể dữ liệu: mạng chậm là
+     màn chờ tan ra trước khi app sẵn sàng — đúng lúc nó cần nhất.
+     `readyRef` thay vì đưa `ready` vào deps: nếu không, mỗi lần `ready` đổi là
+     đồng hồ sàn chạy lại từ đầu. */
   useEffect(() => {
-    try { sessionStorage.setItem(SPLASH_KEY, '1') } catch { /* chặn storage thì thôi */ }
     if (!booting) return
-    const t = setTimeout(() => setBooting(false), 560)
-    return () => clearTimeout(t)
+    const cap = setTimeout(() => setBooting(false), SPLASH_MAX_MS)
+    const floor = setTimeout(() => { if (readyRef.current) setBooting(false) }, SPLASH_MS)
+    return () => { clearTimeout(cap); clearTimeout(floor) }
   }, [booting])
-  useEffect(() => { getUser().then(u => { setUser(u); setReady(true) }); return onAuthChange(setUser) }, [])
+  useEffect(() => { getUser().then(u => { setUser(u); readyRef.current = true; setReady(true) }); return onAuthChange(setUser) }, [])
 
   const loadMedia = useCallback(async () => {
     try { setMedia(await fetchMedia()) } catch { /* ignore */ }
@@ -791,17 +807,34 @@ export default function App() {
     return order
   }, [picked])
 
+  /* Bốn giai đoạn của bảng — nguồn DUY NHẤT cho khối thống kê (xem
+     stageCounts). Bốn số này cộng lại đúng bằng số bài đang có trên bảng, nên
+     người đọc đối chiếu được; trước đây "đã chốt nhưng chưa khởi động" không
+     được đếm ở đâu, khiến mục Up next và In progress như hai hệ thống rời. */
+  const stage = useMemo(() => stageCounts(pub), [pub])
+
+  /* Số bài đang chạy, đếm trên CHÍNH mảng dựng ra khối Up next (rep =
+     in_progress nếu bài đó có dòng đang chạy) — nhờ vậy hai số nhỏ trong dòng
+     chú thích luôn cộng đúng bằng con số lớn trên nắp khối. */
+  const working = useMemo(() => pickedGroups.filter(g => g.rep.status === 'in_progress').length, [pickedGroups])
+
   const counts = useMemo(() => ({
-    queued: pub.filter(r => r.status === 'queued' && !r.picked_at).length,
+    /* badge tab = số THẺ mà tab đó sắp hiện ra, không phải số dòng: bảng gom
+       cụm theo bài nên một bài gửi ba lần vẫn là một thẻ (songCount). */
+    queued: songCount(pub.filter(r => r.status === 'queued' && !r.picked_at)),
+    /* Tab "Up next" liệt kê cả dây chuyền đã chốt (việc đang chạy + việc chờ
+       tới lượt), nên badge của nó = đúng số bài trong pickedGroups, bằng con số
+       trên nắp khối Up next và bằng nút "View all". */
     picked: pickedGroups.length,
-    newest: pub.length,
-    top: pub.filter(r => r.status !== 'completed' && !isPicked(r)).length,
-    /* Bài đang làm mà ĐÃ chốt vẫn được đếm vào In progress: chủ dự án muốn
-       mọi thứ đang chạy phải hiện ở đó, kể cả cái đã lên Up next. Hệ quả là
-       một bài có thể nằm ở CẢ Up next lẫn In progress — chấp nhận chồng nhau
-       thay vì "giấu" trạng thái đang làm. */
-    in_progress: pub.filter(r => r.status === 'in_progress').length,
-    completed: pub.filter(r => r.status === 'completed').length,
+    newest: songCount(pub),
+    top: songCount(pub.filter(r => r.status !== 'completed' && !isPicked(r))),
+    /* Tab "In progress" hiện CÙNG tập dòng với tab Up next (cả dây chuyền đã
+       chốt, chỉ khác cách sắp) — nên badge của nó phải bằng ĐÚNG số thẻ mà nó
+       liệt kê, tức bằng con số trên nắp khối Up next. Trước đây ô này lấy
+       stage.in_progress (chỉ bài đang chạy) nên badge ghi 1 mà dưới hiện 2
+       thẻ — đúng kiểu "chưa đồng bộ" mà chủ dự án đã báo. */
+    in_progress: pickedGroups.length,
+    completed: songCount(pub.filter(r => r.status === 'completed')),
     pending: rows.filter(r => r.status === 'pending').length,
     watch: new Set(rows.filter(r => watchedSet.has(groupKey(r))).map(groupKey)).size,
     mine: rows.filter(r => r.user_id === user?.id).length,
@@ -817,10 +850,11 @@ export default function App() {
     let base = pub
     if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
     if (filter === 'picked') base = picked
-    /* In progress hiện CẢ bài đã chốt (Up next) đang chạy — xem comment ở
-       counts.in_progress. Bài đã chốt vẫn giữ pill "Up next" trên dòng để
+    /* In progress hiện CẢ dây chuyền đã chốt — cùng tập dòng với tab Up next,
+       chỉ khác thứ tự (tab này để thứ tự mặc định của bảng, tab Up next xếp
+       theo thứ tự làm việc). Bài đã chốt vẫn giữ pill "Up next" trên dòng để
        người xem biết nó đã được chọn, không nhầm với bài thường. */
-    if (filter === 'in_progress') base = base.filter(r => r.status === 'in_progress')
+    if (filter === 'in_progress') base = picked
     if (filter === 'completed') base = base.filter(r => r.status === 'completed')
     if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !isPicked(r))
     /* Đang theo dõi thì muốn thấy CẢ bài pending/bị từ chối, không riêng
@@ -1155,7 +1189,9 @@ export default function App() {
   }, [modal, admin, profile, voteFor, menu, section, go])
 
   /* ---------------- render ---------------- */
-  if (booting || !ready) return <Splash hide={!booting && ready} />
+  /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
+     vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
+  if (booting) return <Splash />
   if (!user) return (<><Splash hide /><LoginGate onDemoLogin={setUser} /></>)
 
   const myStats = fullRanking.find(p => p.user_id === user.id)
@@ -1220,10 +1256,14 @@ export default function App() {
              đọc: thống kê → video → Up next → vote → danh sách. */
           <div className="board">
             <div className="stats" data-reveal data-glow>
-              <Stat c="var(--queued)" v={counts.queued} label={t('stat.queued')} />
-              <Stat c="var(--progress)" v={counts.in_progress} label={t('stat.inProgress')} />
-              <Stat c="var(--done)" v={counts.completed} label={t('stat.completed')} />
-              <Stat c="var(--paid)" v={pub.filter(r => r.is_paid).length} label={t('stat.paid')} />
+              {/* Bốn giai đoạn, cộng lại đúng tổng số bài trên bảng. Ô "Paid"
+                  cũ bị bỏ: nó là một NHÃN (bài trả phí) chứ không phải giai
+                  đoạn, nằm trong dãy này thì phá vỡ phép cộng — nhãn đó vẫn
+                  hiện nguyên trên hàng (pill vàng) và trong bảng Admin. */}
+              <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} why={t('stat.queuedWhy')} />
+              <Stat c="var(--a-2)" v={stage.picked} label={t('stat.picked')} why={t('stat.pickedWhy')} />
+              <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} why={t('stat.inProgressWhy')} />
+              <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} why={t('stat.completedWhy')} />
             </div>
 
             <MediaShowcase featured={featured} videos={latest}
@@ -1239,10 +1279,24 @@ export default function App() {
                 <div className="now-head">
                   <div className="lbl">
                     {t('now.next')}
-                    {pickedGroups.length > 0 && <span className="now-n">{pickedGroups.length}</span>}
+                    {pickedGroups.length > 0 && <span className="now-n" title={t('now.why')}>{pickedGroups.length}</span>}
+                    {/* Tách đôi con số trên thành hai giai đoạn: việc đang chạy
+                        và việc đã chốt nhưng chờ tới lượt. Hai số này là hai ô
+                        thống kê ngay phía trên, nên mắt nối được các con số mà
+                        không phải đoán mục nào đếm cái gì. */}
+                    {pickedGroups.length > 0 && (
+                      <span className="now-split">
+                        {t('now.split', { a: working, b: pickedGroups.length - working })}
+                      </span>
+                    )}
                   </div>
                   <Countdown pick={pick} />
                 </div>
+
+                {/* Một câu nói rõ quan hệ giữa khối này và tab In progress —
+                    hai mục nói cùng một dây chuyền, người đọc không phải tự
+                    suy ra vì sao bài đang làm nằm ở cả hai chỗ. */}
+                {pickedGroups.length > 0 && <p className="now-why">{t('now.why')}</p>}
 
                 {pickedGroups.length === 0 ? (
                   <h3 className="now-empty">{t('now.noPick')}</h3>
@@ -1259,7 +1313,7 @@ export default function App() {
                             {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
                           </h3>
                           <div className="sub">
-                            <span className="status" style={{ '--c': STATUS_META[rep.status].c }}>{t(`status.${rep.status}`)}</span>
+                            <span className="status" style={{ '--c': STATUS_META[rep.status].c }}>{statusLabel(rep, t)}</span>
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot" aria-hidden="true" /><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
@@ -1270,7 +1324,7 @@ export default function App() {
                             <ul className="now-members">
                               {g.rows.map(rr => (
                                 <li key={rr.id}>
-                                  <span className="status" style={{ '--c': STATUS_META[rr.status].c }}>{t(`status.${rr.status}`)}</span>
+                                  <span className="status" style={{ '--c': STATUS_META[rr.status].c }}>{statusLabel(rr, t)}</span>
                                   {rr.is_paid && <span className="pill gold">PAID</span>}
                                   <span>{rr.votes} {t('now.votes')}</span>
                                 </li>
@@ -1438,7 +1492,7 @@ export default function App() {
                     </span>
                     {o.status === 'awaiting' && (
                       <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                        onClick={() => doCancelOrder(o)}>×</button>
+                        onClick={() => doCancelOrder(o)}><Icon name="close" size={15} /></button>
                     )}
                   </div>
                 ))}
@@ -1451,9 +1505,7 @@ export default function App() {
 
         <button type="button" className={`to-top${showTop ? ' on' : ''}`} onClick={scrollTop}
           aria-label={t('top.label')} aria-hidden={!showTop} tabIndex={showTop ? 0 : -1}>
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5.6 5.3 12.4 6.7 13.8 11 9.5V19h2V9.5l4.3 4.3 1.4-1.4L12 5.6Z" fill="currentColor" />
-          </svg>
+          <Icon name="up" size={16} />
         </button>
 
         <footer className="site-footer">

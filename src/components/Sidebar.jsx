@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import SoundToggle from './SoundToggle'
 import { CHANNEL } from '../lib/youtube'
@@ -17,21 +18,16 @@ import { SUPPORT } from '../lib/payment'
    lại — icon đứng yên, không giật.
    ========================================================= */
 
-const I = {
-  spin: <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2" /><path d="M12 4v6m0 4v6M4 12h6m4 0h6M6.4 6.4l4.2 4.2m2.8 2.8 4.2 4.2m0-11.2-4.2 4.2m-2.8 2.8-4.2 4.2M10 2h4l-2 3Z" /></g>,
-  board: <path d="M4 5h16v3H4V5Zm0 5.5h16v3H4v-3ZM4 16h10v3H4v-3Z" fill="currentColor" />,
-  cup: <path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.4A5 5 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5 5 0 0 1 8.4 12H8a4 4 0 0 1-4-4V5h3V3Zm0 4H6v1a2 2 0 0 0 1 1.7V7Zm10 0v2.7A2 2 0 0 0 18 8V7h-1Z" fill="currentColor" />,
-  user: <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4 0-7 2-7 4.5V20h14v-1.5C19 16 16 14 12 14Z" fill="currentColor" />,
+/* Hai nhãn hiệu bên ngoài: Lucide cố ý không vẽ logo thương hiệu, mà logo
+   thì phải đúng logo — nên hai đường dẫn này ở lại đây, ngay cạnh chỗ dùng.
+   Mọi icon chức năng khác đi qua component Icon (src/components/Icon.jsx) —
+   viết tên không kèm dấu ngoặc nhọn vì propContract.test.js quét cả văn bản
+   nguồn và sẽ tưởng đây là một chỗ dựng component thiếu prop. */
+const BRAND = {
   yt: <path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8ZM10 15V9l5.2 3L10 15Z" fill="currentColor" />,
   tg: <path d="M21.5 4.3 2.9 11.5c-.9.3-.9 1.6.1 1.9l4.6 1.4 1.8 5.4c.3.8 1.3 1 1.9.4l2.5-2.5 4.6 3.4c.7.5 1.7.1 1.9-.7l3-14.6c.2-1-.7-1.8-1.8-1.4ZM9.4 14.2l8.4-5.3-6.7 6.5-.3 3.4-1.4-4.6Z" fill="currentColor" />,
-  shield: <path d="M12 2.5 4.5 5.4v5.9c0 4.4 3 8.3 7.5 10.2 4.5-1.9 7.5-5.8 7.5-10.2V5.4L12 2.5Zm0 5.2 1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5L12 7.7Z" fill="currentColor" />,
-  out: <path d="M10 3H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h5v-2H6V5h4V3Zm4.3 4.3-1.4 1.4L15.5 11H8v2h7.5l-2.6 2.6 1.4 1.4L19.4 12l-5.1-4.7Z" fill="currentColor" />,
-  edit: <path d="M4 17.2V20h2.8l8.6-8.6-2.8-2.8L4 17.2Zm14.7-8.1a1 1 0 0 0 0-1.4l-1.4-1.4a1 1 0 0 0-1.4 0l-1.4 1.4 2.8 2.8 1.4-1.4Z" fill="currentColor" />,
-  chev: <path d="M14.5 6 8.5 12l6 6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />,
-  note: <path d="M9 18.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM9 18.5V6l11-2.5V16M20 16a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />,
 }
-
-const Ico = ({ d, size = 16 }) => (
+const BrandIco = ({ d, size = 16 }) => (
   <svg className="sico" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">{d}</svg>
 )
 
@@ -76,7 +72,7 @@ export default function Sidebar({
   }, [section, collapsed, sections])
 
   const initials = (user?.name || '?').trim()[0].toUpperCase()
-  const NAV_ICO = { board: I.board, spin: I.spin, ranking: I.cup, mine: I.user }
+  const NAV_ICON = { board: 'board', spin: 'spin', ranking: 'cup', mine: 'user' }
   const adminTotal = counts.pending + counts.orders
   const toggleLabel = collapsed ? t('side.expand') : t('side.collapse')
 
@@ -93,7 +89,7 @@ export default function Sidebar({
       <aside className={`side${open ? ' open' : ''}${collapsed ? ' min' : ''}`} aria-label={t('side.label')}>
         <button type="button" className="side-toggle" onClick={onToggle}
           aria-expanded={!collapsed} aria-label={toggleLabel} title={toggleLabel}>
-          <Ico d={I.chev} size={14} />
+          <Icon name="prev" size={14} className="sico" />
         </button>
 
         <div className="side-brand">
@@ -102,12 +98,12 @@ export default function Sidebar({
             <div className="side-brand-name">Chaereve</div>
             <div className="side-brand-sub">{t('side.tagline')}</div>
           </div>
-          <button className="side-x only-narrow" ref={closeRef} onClick={onClose} aria-label={t('menu.close')}>×</button>
+          <button className="side-x only-narrow" ref={closeRef} onClick={onClose} aria-label={t('menu.close')}><Icon name="close" size={15} /></button>
         </div>
 
         <div className="side-scroll">
           <button type="button" className="side-cta" onClick={fire(onNewRequest)} title={tip(t('btn.newRequest'))}>
-            <Ico d={I.edit} size={15} /><span className="side-tx">{t('btn.newRequest')}</span>
+            <Icon name="edit" size={15} className="sico" /><span className="side-tx">{t('btn.newRequest')}</span>
           </button>
 
           <div className="side-group">
@@ -123,7 +119,7 @@ export default function Sidebar({
                     if (e.metaKey || e.ctrlKey || e.button === 1) return
                     e.preventDefault(); go(k)
                   }}>
-                  <Ico d={NAV_ICO[k]} />
+                  <Icon name={NAV_ICON[k]} className="sico" />
                   <span className="side-tx">{t(`nav.${k}`)}</span>
                   {k === 'mine' && counts.mine > 0 && <span className="side-n">{counts.mine}</span>}
                 </a>
@@ -134,7 +130,7 @@ export default function Sidebar({
           <div className="side-group">
             <div className="side-label"><span>{t('menu.settings')}</span></div>
             <div className="side-row">
-              <Ico d={I.note} />
+              <Icon name="note" className="sico" />
               <span className="side-tx">{t('menu.sound')}</span>
               <SoundToggle />
             </div>
@@ -144,18 +140,18 @@ export default function Sidebar({
             <div className="side-label"><span>{t('side.connect')}</span></div>
             <a className="side-item ext" href={CHANNEL.url} target="_blank" rel="noreferrer"
               style={{ '--i': sections.length }} title={tip(t('side.youtube', { h: CHANNEL.handle }))}>
-              <Ico d={I.yt} /><span className="side-tx">{t('side.youtube', { h: CHANNEL.handle })}</span>
-              <span className="side-ext" aria-hidden="true">↗</span>
+              <BrandIco d={BRAND.yt} /><span className="side-tx">{t('side.youtube', { h: CHANNEL.handle })}</span>
+              <Icon name="ext" size={13} className="side-ext" />
             </a>
             <a className="side-item ext" href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer"
               style={{ '--i': sections.length + 1 }} title={tip('Telegram')}>
-              <Ico d={I.tg} /><span className="side-tx">Telegram</span>
-              <span className="side-ext" aria-hidden="true">↗</span>
+              <BrandIco d={BRAND.tg} /><span className="side-tx">Telegram</span>
+              <Icon name="ext" size={13} className="side-ext" />
             </a>
             {user?.isAdmin && (
               <button type="button" className="side-item" onClick={fire(() => onAdmin('pending'))}
                 style={{ '--i': sections.length + 2 }} title={tip(t('menu.admin'))}>
-                <Ico d={I.shield} /><span className="side-tx">{t('menu.admin')}</span>
+                <Icon name="shield" className="sico" /><span className="side-tx">{t('menu.admin')}</span>
                 {adminTotal > 0 && <span className="dotbadge">{adminTotal}</span>}
               </button>
             )}
@@ -173,7 +169,7 @@ export default function Sidebar({
             </span>
           </button>
           <button type="button" className="side-out" onClick={fire(onSignOut)} title={tip(t('menu.signOut'))}>
-            <Ico d={I.out} size={15} /><span className="side-tx">{t('menu.signOut')}</span>
+            <Icon name="out" size={15} className="sico" /><span className="side-tx">{t('menu.signOut')}</span>
           </button>
           <div className="side-copy side-tx">© {new Date().getFullYear()} CHAEREVE</div>
         </div>

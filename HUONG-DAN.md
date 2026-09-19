@@ -1024,8 +1024,10 @@ hành thì aurora tự đứng yên.
 để logo kịp "vào" — dưới ngưỡng đó thì nó chỉ là một cái nháy mắt. Bản trước ghim cứng
 1.7 giây, nên mạng nhanh thì người dùng ngồi nhìn logo thêm hơn một giây vô ích.
 
-Và màn chờ **chỉ chạy một lần mỗi phiên tab** (cờ `ccl3_splash` trong `sessionStorage`),
-F5 lại thì vào thẳng nội dung. Nó là câu chào thương hiệu, không phải màn hình nghi thức.
+Và màn chờ **chạy mỗi lần tải trang** — chủ dự án chốt 19/09, bỏ hẳn cờ `ccl3_splash`
+trong `sessionStorage`. Nó là câu chào thương hiệu, không phải màn hình nghi thức, nên
+nó cũng không được giữ ai lại quá **2,6 giây**: hết trần đó là vào nội dung, dù dữ liệu
+chưa về.
 
 ### Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả
 
@@ -2200,6 +2202,9 @@ src/
     Background.jsx            nền gradient tĩnh + aurora trôi chậm (transform only)
     Leaderboard.jsx           bảng xếp hạng: bục 1/2/3 + bảng + hàng của bạn
     PaymentMethods.jsx        lưới chọn phương thức + STK + QR
+    Icon.jsx                  bộ icon Lucide: một chỗ khai tên gọi, nét 1.7, cỡ 16px
+    Check.jsx                 ô đánh dấu vẽ bằng SVG (cài đặt thông báo, mốc tiến độ admin, ẩn/hiện media, yêu cầu trả phí)
+    ErrorBoundary.jsx         lưới an toàn: render ném lỗi thì hiện câu giải thích + nút tải lại, thay cho trang đen
     GoogleIcon.jsx
 supabase/schema.sql           chạy 1 lần trong SQL Editor
 ```
@@ -2539,7 +2544,7 @@ càng nhiều thì chuyển động ở đó phải càng ít và càng nhanh. �
 | Đồng hồ "quá mốc" | `pickPulse` nhấp nháy vô hạn 1.6s | Đổi màu + một chấm tĩnh | Một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1.6 giây |
 | Vệt sáng thanh tiến độ | Mọi hàng "đang làm" | Chỉ khối **Up next**, và chỉ khi thật sự có bài đang chạy (`nowbar.live`) | Mười bài cùng lúc là mười vòng lặp vô hạn |
 | Nhịp so le danh sách | 40ms/hàng, không chặn | **32ms/hàng, chặn ở 10 nhịp** | 12 hàng × 40ms thì hàng cuối chờ gần nửa giây — lâu hơn cả thời gian đọc |
-| Màn chờ | Ghim cứng 1.7s | Chờ dữ liệu + sàn 560ms, **một lần mỗi phiên tab** | Nó là câu chào thương hiệu, không phải màn hình nghi thức |
+| Màn chờ | Ghim cứng 1.7s | Chờ dữ liệu + sàn 560ms + trần 2,6s, **mỗi lần tải trang** | Nó là câu chào thương hiệu, không phải màn hình nghi thức |
 
 #### Sửa ba chỗ animate thuộc tính layout
 

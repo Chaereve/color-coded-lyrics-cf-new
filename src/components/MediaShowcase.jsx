@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { thumbUrl } from '../lib/youtube'
 
@@ -49,7 +50,7 @@ function Thumb({ item, eager = false }) {
             ref={el => { if (el?.complete && el.naturalWidth > 0) setReady(true) }}
             onLoad={() => setReady(true)}
             onError={() => setIdx(i => i + 1)} />
-        : <span className="mthumb-ph" aria-hidden="true">▶</span>}
+        : <span className="mthumb-ph" aria-hidden="true"><Icon name="play" size={18} /></span>}
     </span>
   )
 }
@@ -57,19 +58,13 @@ function Thumb({ item, eager = false }) {
 /* Nút phát chỉ là dấu hiệu "bấm được", không phát trong trang */
 const Play = ({ sm }) => (
   <span className={`playbtn${sm ? ' sm' : ''}`} aria-hidden="true">
-    <svg width={sm ? 13 : 17} height={sm ? 13 : 17} viewBox="0 0 24 24">
-      <path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" />
-    </svg>
+    <Icon name="play" size={sm ? 13 : 17} fill="currentColor" />
   </span>
 )
 
 /* Mũi tên qua lại của sân khấu */
 const Chev = ({ dir }) => (
-  <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
-    {dir < 0
-      ? <path d="M14.7 5.6 8.3 12l6.4 6.4 1.4-1.4-5-5 5-5-1.4-1.4Z" fill="currentColor" />
-      : <path d="M9.3 5.6 7.9 7l5 5-5 5 1.4 1.4L15.7 12 9.3 5.6Z" fill="currentColor" />}
-  </svg>
+  <Icon name={dir < 0 ? 'prev' : 'next'} size={17} />
 )
 
 const ytLink = (v) => v.url || (v.id ? `https://youtu.be/${v.id}` : null)
