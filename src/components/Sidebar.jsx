@@ -35,7 +35,7 @@ export default function Sidebar({
   sections, routes, section, onNavigate,
   user, counts,
   open, onClose, collapsed, onToggle,
-  onNewRequest, onProfile, onSignOut,
+  onNewRequest, onAbout, onSignOut,
 }) {
   const { t } = useI18n()
   const closeRef = useRef(null)
@@ -171,13 +171,16 @@ export default function Sidebar({
         </div>
 
         <div className="side-foot">
-          <button type="button" className="side-user" onClick={fire(onProfile)} title={collapsed ? user?.name : t('btn.profile')}>
+          {/* Ảnh đại diện ở chân sidebar KHÔNG mở hộp thoại nữa: nó đưa về mục
+              About me, nơi có cả hồ sơ lẫn request của mình. Một việc, một
+              đường. */}
+          <button type="button" className="side-user" onClick={fire(onAbout)} title={collapsed ? user?.name : t('prof.title')}>
             {user?.avatar
               ? <img className={`avatar lg${user.isAdmin ? ' admin' : ''}`} src={user.avatar} alt="" referrerPolicy="no-referrer" />
               : <span className={`avatar lg${user?.isAdmin ? ' admin' : ''}`}>{initials}</span>}
             <span className="side-user-tx side-tx">
               <b>{user?.name}</b>
-              <small>{t('btn.profile')}</small>
+              <small>{t('nav.mine')}</small>
             </span>
           </button>
           <button type="button" className="side-out" onClick={fire(onSignOut)} title={tip(t('menu.signOut'))}>

@@ -7,6 +7,7 @@ import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
+import { sfx } from '../lib/sfx'
 import { useModalExit } from '../lib/useModalExit'
 import PaymentMethods from './PaymentMethods'
 import Pager from './Pager'
@@ -213,19 +214,33 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   /* Điều hướng ba bước. `goStep` cho bấm thẳng trong dải bước, nhưng bước GỬI
      chỉ mở khi hai ô bắt buộc đã có chữ — nếu không, "sang bước 3" và "bấm Gửi"
      là hai câu trả lời khác nhau cho cùng một câu hỏi. */
-  const goStep = (n) => { if (n === 3 && !ready) return; setStep(n) }
+  /* Tiếng đi kèm việc đổi bước: tiến và lùi là HAI tiếng khác hướng, nên tai
+     nghe ra mình vừa đi đâu. `goStep` phát tiếng theo hướng bước đích. */
+  const goStep = (n) => {
+    /* Bước GỬI chưa mở thì không đi, và tiếng là tiếng LỖI — im lặng thì người
+       bấm không biết mình vừa bấm hụt. */
+    if (n === 3 && !ready) { sfx.error(); return }
+    if (n === step) return
+    sfx[n > step ? 'step' : 'back']()
+    setStep(n)
+  }
   const next = () => {
-    if (step === 1) { setStep(2); return }
+    if (step === 1) { sfx.step(); setStep(2); return }
     if (step === 2) {
+      /* Bấm Continue khi còn ô trống: tiếng lỗi + mở lỗi + trỏ vào ô đầu tiên.
+         Ba dấu hiệu cho cùng một việc, nhưng ở ba giác quan khác nhau — mắt
+         nhìn thấy lỗi, tay thấy con trỏ, tai nghe ra "chưa được". */
       if (!ready) {
+        sfx.error()
         setTouched(s2 => ({ ...s2, artist: true, title: true }))
         ;(errArtist ? artistRef : titleRef).current?.focus()
         return
       }
+      sfx.step()
       setStep(3)
     }
   }
-  const back = () => setStep(s2 => Math.max(1, s2 - 1))
+  const back = () => { sfx.back(); setStep(s2 => Math.max(1, s2 - 1)) }
   /* Đổi bước là đổi màn: đưa khung cuộn của hộp thoại về đỉnh, nếu không thì
      bước mới mở ra ở giữa chừng vì khung còn đứng nguyên chỗ cuộn cũ. */
   useEffect(() => {
@@ -250,7 +265,6 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const err = { artist: errArtist, title: errTitle }
   const showErr = (k) => (touched[k] ? err[k] : '')
   const ready = !errArtist && !errTitle
-  const step2 = !!(form.artist.trim() && form.title.trim())
 
   /* Thân của việc gửi, tách khỏi sự kiện submit để phím Enter trong ô tên bài
      gọi được cùng một đường (một luật gửi, hai lối vào). */

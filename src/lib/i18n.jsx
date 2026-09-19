@@ -34,18 +34,17 @@ const S = {
 
   /* nut */
   'btn.newRequest': 'New request',
-  'btn.profile': 'Edit profile',
 
   /* am thanh */
   'sfx.on': 'Mute sounds',
   'sfx.off': 'Unmute sounds',
 
-  /* ho so */
-  'prof.title': 'Profile',
+  /* ho so — khối này nay nằm trong mục "About me", không còn là hộp thoại */
+  'prof.title': 'Your profile',
   'prof.name': 'Display name',
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
-  'prof.maxSize': '{mb}MB max',
+  'prof.avatarNote': 'Square crop, up to {mb}MB',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',

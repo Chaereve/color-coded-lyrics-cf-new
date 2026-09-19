@@ -48,8 +48,49 @@ export default function Notifications({
   const { t } = useI18n()
   const [tab, setTab] = useState(startTab)
   const box = useRef(null)
+  const pop = useRef(null)
+  const bell = useRef(null)
   const unread = unreadCount(notices)
   const label = unread ? t('nt.ariaUnread', { n: unread }) : t('nt.aria')
+
+  /* TIÊU ĐIỂM ĐI THEO BẢNG (vòng 12).
+     Bảng là một hộp thoại (role="dialog") nhưng trước đây tiêu điểm ở lại trên
+     nút chuông: người dùng bàn phím mở bảng xong vẫn đang đứng ngoài bảng, Tab
+     tiếp theo đi tiếp trong trang chứ không vào danh sách tin. Nay: mở thì đưa
+     tiêu điểm vào chính bảng, đóng thì TRẢ VỀ NÚT CHUÔNG — đúng đường đi của
+     một hộp thoại không chặn trang (pattern disclosure của preline: trigger giữ
+     aria-expanded + aria-controls, panel nhận tiêu điểm khi mở). */
+  useEffect(() => {
+    if (!open) return
+    /* Giữ phần tử ở biến cục bộ: trong hàm dọn, `bell.current` có thể đã trỏ
+       sang phần tử khác (hoặc null) — chỗ cần trả tiêu điểm về là nút ĐÃ mở
+       bảng này, không phải nút nào đang ở đó lúc đóng. */
+    const back = bell.current
+    pop.current?.focus()
+    const onKey = (e) => {
+      if (e.key !== 'Tab' || !pop.current) return
+      /* Vòng Tab khép kín trong bảng: bảng nổi trên trang, để Tab đi ra ngoài
+         là người dùng lạc khỏi chỗ vừa mở. */
+      const f = pop.current.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')
+      if (!f.length) return
+      const first = f[0]
+      const last = f[f.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && (active === first || active === pop.current)) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    /* Máy hẹp: bảng là tấm trải kín đáy màn hình, nên nền KHÔNG được cuộn sau
+       lưng nó (cuộn nền sau một tấm kín là lỗi ai cũng gặp mà ít ai gọi tên).
+       Chỉ khoá ở máy hẹp — màn rộng bảng chỉ là một khối nhỏ cạnh chuông. */
+    const narrow = window.matchMedia?.('(max-width: 620px)')
+    if (narrow?.matches) document.body.classList.add('nt-sheet-open')
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.classList.remove('nt-sheet-open')
+      back?.focus()
+    }
+  }, [open])
 
   /* Esc + click ra ngoài là đóng. Bảng chỉ là lớp phủ: tin vẫn còn nguyên
      trong hộp thư, mở lại lúc nào cũng còn (bản đầu làm ngược lại). */
@@ -71,8 +112,9 @@ export default function Notifications({
 
   return (
     <div className="nt" ref={box}>
-      <button type="button" className={`nt-btn${unread ? ' has' : ''}`} onClick={onToggle}
-        aria-expanded={open} aria-haspopup="dialog" aria-label={label} title={label}>
+      <button type="button" className={`nt-btn${unread ? ' has' : ''}`} ref={bell} onClick={onToggle}
+        aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? 'nt-panel' : undefined}
+        aria-label={label} title={label}>
         <Icon name={unread > 0 ? 'bellOn' : 'bell'} size={16} />
         {/* `key={unread}` để con số MỌC LÊN mỗi lần số tin đổi (animation ở
             .nt-btn .dotbadge) — nếu không, React dùng lại đúng thẻ đó và nhịp
@@ -88,8 +130,14 @@ export default function Notifications({
         {unread ? t('nt.liveUnread', { n: unread }) : ''}
       </span>
 
+      {/* TẤM CHẮN chỉ hiện ở máy hẹp (CSS ẩn ở màn rộng): bảng trải kín đáy màn
+          hình thì phải có gì đó nói rằng phần còn lại của trang đang tạm gác, và
+          bấm vào đó là đóng. Nó là ANH EM của bảng, không phải con — con của một
+          khối `overflow: hidden` thì không phủ được ra ngoài khối. */}
+      {open && <div className="nt-scrim" aria-hidden="true" onMouseDown={() => onClose?.()} />}
       {open && (
-        <div className="nt-pop" role="dialog" aria-label={t('nt.title')}>
+        <div className="nt-pop" id="nt-panel" role="dialog" aria-label={t('nt.title')}
+          ref={pop} tabIndex={-1}>
           {tab === 'prefs' ? (
             <>
               <header className="nt-head">
@@ -116,7 +164,7 @@ export default function Notifications({
           ) : (
             <>
               <header className="nt-head">
-                <b>{t('nt.title')}</b>
+                <h2 className="nt-h2">{t('nt.title')}</h2>
                 {unread > 0 && <span className="nt-count">{unread}</span>}
                 <span className="nt-hbtns">
                   {unread > 0 && (

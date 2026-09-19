@@ -458,6 +458,34 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     check('không còn câu ghi chú "ô nào cũng có thưởng"',
       !/Every sector wins/i.test(text()))
   }
+  if (name === 'Của tôi') {
+    /* GỘP HỒ SƠ VÀO MỤC "ABOUT ME" (vòng 12): sửa hồ sơ nay là một KHỐI của
+       trang, không còn là hộp thoại nổi mở từ ảnh đại diện ở chân sidebar. */
+    check('mục About me có khối hồ sơ ngay trong trang', !!q('.prof-card') && !!q('#prof-name'))
+    check('khối hồ sơ có nút Lưu và nút đổi ảnh', qa('.prof-head-acts button').length >= 1 && !!q('.prof-av-acts button'))
+    check('hồ sơ không còn là hộp thoại nổi', !q('.overlay .modal.narrow'))
+    check('mục About me vẫn liệt kê request của mình', !!q('.list') && !!q('.section-title'))
+  }
+}
+
+/* ---------- 8b. bảng thông báo (vòng 12) ---------- */
+where = 'bảng thông báo'
+window.history.pushState({}, '', '/')
+window.dispatchEvent(new window.Event('popstate'))
+await waitFor(() => !!q('.nt-btn'))
+if (q('.nt-btn')) {
+  check('chuông chưa mở thì không dựng bảng', !q('#nt-panel') && !q('.nt-scrim'))
+  await click(q('.nt-btn'))
+  await tick(220)
+  const panel = q('#nt-panel')
+  check('bấm chuông là bảng hiện ra', !!panel)
+  check('bảng nhận được tiêu điểm khi mở', window.document.activeElement === panel,
+    window.document.activeElement?.className)
+  check('bảng có tiêu đề h2', !!q('#nt-panel .nt-h2'), q('#nt-panel .nt-h2')?.textContent)
+  check('bảng có tấm chắn cho máy hẹp', !!q('.nt-scrim'))
+  await click(q('.nt-btn'))
+  await tick(120)
+  check('bấm lần nữa là bảng đóng', !q('#nt-panel'))
 }
 
 /* ---------- 9. trang quản trị ---------- */

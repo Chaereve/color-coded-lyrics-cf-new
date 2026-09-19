@@ -1045,6 +1045,28 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .prof-av-note { width: 100%; font-size: 11px; color: var(--txt-3); line-height: 1.55; }
 .prof-acts { display: flex; justify-content: flex-end; gap: 7px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 
+/* KHỐI HỒ SƠ TRONG MỤC "ABOUT ME" (vòng 12) — trước đây là hộp thoại riêng.
+   Nó là một khối cùng họ với các thẻ khác của trang (viền 1px, nền --panel,
+   bán kính --r-md) chứ không phải một cái hộp nổi: người dùng đang ở trong
+   trang nói về mình, không cần thêm một lớp phủ nào nữa.
+   Hàng tiêu đề: tên khối bên trái, nút Lưu + Huỷ bên phải — Lưu chỉ sáng khi
+   có gì để lưu, nên chỗ đứng của nó vừa là trạng thái vừa là hành động. */
+.prof-card { margin-bottom: 18px; padding: 15px 17px 17px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); }
+.prof-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.prof-h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0;
+  font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--txt); }
+.prof-h2 svg { color: var(--txt-3); }
+.prof-head-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+@media (max-width: 620px) {
+  .prof-card { padding: 13px 13px 15px; }
+  /* máy hẹp: ảnh đại diện và hai nút xếp dọc, không còn chỗ cho hàng ngang */
+  .prof-av { flex-wrap: wrap; gap: 11px; }
+  .prof-av-img { width: 56px; height: 56px; }
+  .prof-head { align-items: flex-start; }
+  .prof-head-acts { width: 100%; margin-left: 0; justify-content: space-between; }
+}
+
 /* ---- bảng nhập số lượt vote ---- */
 .vote-overlay { z-index: 70; }
 .vm-song b { font-size: 14.5px; font-weight: 600; }
@@ -2760,7 +2782,10 @@ html[data-section="spin"] .bgfx { display: none; }
 @keyframes ntIn { from { opacity: 0; transform: translateY(-7px) scale(.985) } to { opacity: 1; transform: none } }
 
 .nt-head { display: flex; align-items: center; gap: 8px; padding: 11px 12px; border-bottom: 1px solid var(--line); flex: none; }
-.nt-head b { font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .3px; }
+/* Tiêu đề bảng là một h2 THẬT (vòng 12): trước đây là <b>, tức là trong cây
+   tiêu đề của trang nó không tồn tại — trình đọc màn hình đọc "dialog · Thông
+   báo" rồi nhảy thẳng vào danh sách. Chữ giữ nguyên cỡ; chỉ cấp bậc đổi. */
+.nt-h2 { margin: 0; font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--txt); }
 .nt-count {
   padding: 1px 6px; border-radius: var(--r-pill); background: var(--paid); color: #1a1206;
   font-family: var(--mono); font-size: 10.5px; font-weight: 700;
@@ -2888,8 +2913,21 @@ html[data-section="spin"] .bgfx { display: none; }
 .standing-eta { font-style: normal; font-size: 10px; color: var(--txt-3) }
 
 
+/* Tấm chắn của bảng thông báo: chỉ có nghĩa ở máy hẹp (bảng trải kín đáy màn
+   hình). Ở màn rộng bảng chỉ là một khối nhỏ cạnh chuông — che cả trang bằng
+   một lớp mờ ở đó là nặng tay. Nền KHÔNG cuộn sau lưng tấm kín: xem
+   `body.nt-sheet-open` bên dưới. */
+.nt-scrim { display: none; }
+
 @media (max-width: 620px) {
   /* tren mobile: day len thanh sheet sat day man hinh, de mot tay bam */
+  .nt-scrim { display: block; position: fixed; inset: 0; z-index: 39;
+    background: rgba(6, 8, 12, .58); animation: ntFade .18s var(--e-soft) both; }
+  @keyframes ntFade { from { opacity: 0 } to { opacity: 1 } }
+  /* Cuộn nền sau một tấm trải kín đáy màn hình là lỗi ai cũng gặp: người dùng
+     vuốt trong bảng mà trang phía sau lại chạy. Khoá cuộn nền khi tấm đang mở
+     — chỉ ở máy hẹp, và tự nhả khi bảng đóng (Notifications.jsx). */
+  body.nt-sheet-open { overflow: hidden; }
   .nt-pop {
     position: fixed; left: 0; right: 0; top: auto; bottom: 0; width: 100%;
     max-height: 82vh; border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 0;

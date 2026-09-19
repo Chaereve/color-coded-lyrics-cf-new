@@ -49,6 +49,21 @@ export const VOICES = {
   spinJackpot: [[N.C6, 0.000, 0.18, 0.150], [N.E6, 0.070, 0.20, 0.145], [N.G6, 0.140, 0.22, 0.140],
                 [N.C7, 0.210, 0.30, 0.115], [N.G6, 0.290, 0.26, 0.090], [N.C7, 0.360, 0.60, 0.110],
                 [N.E6, 0.360, 0.62, 0.060]],
+
+  /* ---- ba tiếng thêm ở vòng 12 (form ba bước + chép link) ----------------
+     Bước tiếp và bước lùi là MỘT CẶP: đi lên thì cao dần, đi xuống thì thấp
+     dần. Cùng một quãng, khác hướng — người dùng nghe là biết mình vừa tiến
+     hay vừa lùi, điều mà hai tiếng "tap" giống hệt nhau không nói được. Cả hai
+     đều rất khẽ: đổi bước là việc lặp vài lần trong một form, không phải một
+     sự kiện đáng mừng. */
+  step:   [[N.C6, 0.000, 0.09, 0.070], [N.G6, 0.040, 0.13, 0.055]],
+  back:   [[N.G6, 0.000, 0.09, 0.060], [N.C6, 0.045, 0.13, 0.050]],
+  // chép link chia sẻ — hai nốt đi lên, gọn, khác hẳn tiếng "thông báo"
+  copy:   [[N.E6, 0.000, 0.10, 0.075], [N.C7, 0.055, 0.16, 0.055]],
+  /* Tin TRẢ TIỀN (đơn đã thanh toán, bài vừa được chốt) nghe khác tin thường:
+     quãng bốn đúng đi lên rồi ngân dài hơn — cùng họ với tiếng thông báo
+     thường nhưng ấm hơn, để tai tách được hai loại tin trong một đợt. */
+  gold:   [[N.C6, 0.000, 0.16, 0.110], [N.G6, 0.080, 0.26, 0.095], [N.C7, 0.160, 0.40, 0.060]],
 }
 
 /* ---------- vật liệu dùng chung, tạo một lần cho mỗi AudioContext ---------- */
@@ -187,6 +202,16 @@ function live() {
   } catch { return null }
 }
 
+/* NHIỄU CAO ĐỘ RẤT NHỎ — ±0.4% (khoảng ±7 cent).
+   Tai người nhận ra ngay một chuỗi nốt GIỐNG HỆT NHAU lặp lại (bấm liên tiếp
+   vài lần là nghe như máy in). Lệch vài cent mỗi lần phát là đủ để tai nghe ra
+   "nhiều lần bấm" thay vì "một tiếng bị lặp", mà không ai nghe ra là sai nhạc.
+   Bản nhạc gốc (VOICES) vẫn nguyên vẹn — `schedule` là hàm thuần, chỉ bản sao
+   truyền vào nó mới bị lệch, nên phép kiểm nào đọc thẳng VOICES vẫn đúng. */
+const JITTER = 0.004
+const jittered = (seq) => seq.map(([f, at, dur, peak]) =>
+  [f * (1 + (Math.random() * 2 - 1) * JITTER), at, dur, peak])
+
 /* Cùng một tiếng không phát lại trong 45ms (double-click, spam) */
 const last = new Map()
 const play = (name) => {
@@ -196,7 +221,7 @@ const play = (name) => {
   if (now - (last.get(name) || 0) < 45) return
   last.set(name, now)
   const dest = live()
-  if (dest) schedule(ctx, dest, seq, ctx.currentTime + 0.005)
+  if (dest) schedule(ctx, dest, jittered(seq), ctx.currentTime + 0.005)
 }
 
 /* ---- tiếng "tách" của kim vòng quay ----------------------------------------
@@ -248,6 +273,13 @@ function playTicks(ticks) {
 }
 
 export const sfx = {
+  /* `notify(tone)` — tiếng thông báo đi theo TONE của tin: tin thường, tin trả
+     tiền ('gold'), tin lỗi. Trước đây mọi loại tin đều kêu đúng một tiếng, nên
+     tai không phân biệt được "có bài vừa được chốt" với "có người vừa vote". */
+  notify:  tone => play(tone === 'gold' ? 'gold' : tone === 'err' ? 'error' : 'notify'),
+  step:    () => play('step'),
+  back:    () => play('back'),
+  copy:    () => play('copy'),
   vote:    () => play('vote'),
   unvote:  () => play('unvote'),
   submit:  () => play('submit'),
@@ -256,7 +288,6 @@ export const sfx = {
   off:     () => play('off'),
   open:    () => play('open'),
   close:   () => play('close'),
-  notify:  () => play('notify'),
   delete:  () => play('delete'),
   error:   () => play('error'),
   preview: () => play('vote'),

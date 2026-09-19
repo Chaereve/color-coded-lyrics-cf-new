@@ -3,7 +3,7 @@ import Icon from './components/Icon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
-import ProfileModal from './components/ProfileModal'
+import ProfilePanel from './components/ProfilePanel'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
@@ -24,7 +24,7 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { here, pushUrl, putUrl } from './lib/history'
+import { pushUrl, putUrl } from './lib/history'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
@@ -280,8 +280,11 @@ export default function App() {
   const { push } = useNotify()
   useGlow()
   const [booting, setBooting] = useState(true)
+  /* `readyRef` chứ không phải state: cờ này chỉ được ĐỌC trong một timeout lúc
+     mở trang, không vẽ ra gì cả. Bản trước giữ thêm một `useState(false)` và gọi
+     `setReady(true)` khi tải xong — một lần render lại toàn trang chỉ để đặt một
+     giá trị không ai đọc. */
   const readyRef = useRef(false)
-  const [ready, setReady] = useState(false)
   const [user, setUser] = useState(null)
   const currentUserId = useRef(null)
   useLayoutEffect(() => { currentUserId.current = user?.id }, [user?.id])
@@ -355,7 +358,6 @@ export default function App() {
   /* vạch tiến độ cuộn: ghi thẳng style qua ref để không setState mỗi frame */
   const progressRef = useRef(null)
 
-  const [profile, setProfile] = useState(false)
   const [voteFor, setVoteFor] = useState(null)
   /* Link mời gửi bài (`/?add=1&artist=…&title=…`) do chủ kênh dán vào mô tả
      video: đọc MỘT lần lúc khởi tạo state nên form mở ngay từ khung hình đầu,
@@ -566,7 +568,7 @@ export default function App() {
     const floor = setTimeout(() => { if (readyRef.current) setBooting(false) }, SPLASH_MS)
     return () => { clearTimeout(cap); clearTimeout(floor) }
   }, [booting])
-  useEffect(() => { getUser().then(u => { setUser(u); readyRef.current = true; setReady(true) }); return onAuthChange(setUser) }, [])
+  useEffect(() => { getUser().then(u => { setUser(u); readyRef.current = true }); return onAuthChange(setUser) }, [])
 
   const loadMedia = useCallback(async () => {
     try { setMedia(await fetchMedia()) } catch { /* ignore */ }
@@ -810,10 +812,13 @@ export default function App() {
     const { n, first } = toastOf(found)
     const song = `${first.title} — ${first.artist}`
     const vars = { song, pct: first.pct ?? 0, votes: first.votes ?? 0, n: first.gap ?? n }
-    sfx.notify()
+    /* Tone của toast và tone của TIẾNG phải là một: tin trả tiền (bài vừa được
+       chốt) kêu tiếng ấm hơn tin thường, tin bị từ chối kêu tiếng lỗi. */
+    const tone = first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err'
+      : first.type === 'near' ? 'gold' : 'ok'
+    sfx.notify(tone)
     push({
-      tone: first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err'
-        : first.type === 'near' ? 'gold' : 'ok',
+      tone,
       title: n > 1 ? t('nt.multi', { n }) : t(`nt.tag.${first.type}`),
       body: n > 1 ? t('nt.multiBody', { song })
         : t('nt.toast', { song, msg: t(`nt.n.${first.type}`, vars) }),
@@ -1051,6 +1056,7 @@ export default function App() {
       try { await navigator.share({ title: 'Chaereve', text, url }); return } catch { return }
     }
     const ok = await copyText(url)
+    if (ok) sfx.copy()
     flash(ok ? 'ok' : 'err', t(ok ? 'row.shareCopied' : 'row.shareFailed'))
   }, [flash, t])
 
@@ -1278,7 +1284,7 @@ export default function App() {
      khong bao gio chay, va nguoi dung ket lai trong tai khoan cu. Don state
      cuc bo truoc, roi moi bao cho server. */
   const doSignOut = useCallback(async () => {
-    setUser(null); setAdmin(null); setProfile(false); setModal(false); setMenu(false)
+    setUser(null); setAdmin(null); setModal(false); setMenu(false)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
   const openModal = (t) => { setModalTab(t); setModal(true) }
@@ -1292,7 +1298,7 @@ export default function App() {
         if (e.key === 'Escape' && el.tagName === 'INPUT') { setQ(''); el.blur() }
         return
       }
-      if (modal || profile || voteFor || menu || section === ADMIN_ONLY) return
+      if (modal || voteFor || menu || section === ADMIN_ONLY) return
       if (e.key === '/') {
         e.preventDefault()
         if (section !== 'board') go('board')
@@ -1304,7 +1310,7 @@ export default function App() {
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [modal, admin, profile, voteFor, menu, section, go])
+  }, [modal, admin, voteFor, menu, section, go])
 
   /* ---------------- render ---------------- */
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
@@ -1326,7 +1332,7 @@ export default function App() {
         open={menu} onClose={() => setMenu(false)}
         collapsed={collapsed} onToggle={toggleSide}
         onNewRequest={() => openModal('request')}
-        onProfile={() => setProfile(true)}
+        onAbout={() => go('mine')}
         onSignOut={doSignOut}
       />
 
@@ -1646,6 +1652,15 @@ export default function App() {
         {/* ======= MỤC 3: CỦA TÔI ======= */}
         {section === 'mine' && (
           <>
+            {/* HỒ SƠ NẰM NGAY ĐẦU MỤC "ABOUT ME" (vòng 12). Trước đây sửa hồ sơ
+                là một hộp thoại riêng, mở từ ảnh đại diện ở chân sidebar — hai
+                đường cho một việc, và hộp thoại che mất chính trang nói về
+                mình. Nay nó là khối đầu tiên của mục này: nhìn thấy mình là ai,
+                sửa được ngay tại chỗ, rồi đọc tiếp danh sách request bên dưới. */}
+            <ProfilePanel
+              user={user}
+              onSaved={async () => { const u = await getUser(); setUser(u); await load(u); flash('ok', t('toast.profSaved')) }}
+            />
             <div className="stats" data-glow>
               <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />
@@ -1772,11 +1787,6 @@ export default function App() {
         onClose={() => setVoteFor(null)}
         onVote={doVote}
         onBuy={() => { setVoteFor(null); openModal('buy') }}
-      />
-
-      <ProfileModal
-        open={profile} user={user} onClose={() => setProfile(false)}
-        onSaved={async () => { const u = await getUser(); setUser(u); await load(u); flash('ok', t('toast.profSaved')) }}
       />
 
       <Suspense fallback={null}>
