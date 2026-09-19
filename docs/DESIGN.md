@@ -153,8 +153,20 @@ Luật:
 - Vạch và con số nằm **cùng một hàng**, số sát mép phải vạch. Không bao giờ in
   con số trần rồi để cái vạch rời ở dưới: mắt phải tự nối hai thứ, và con số
   luôn lệch trái so với vạch.
-- Số dùng `--mono` + `tabular-nums` (9% và 100% rộng như nhau) nên cột số không
-  nhảy sang trái phải mỗi lần tiến độ đổi.
+- Số dùng `--mono` + `tabular-nums` **và có bề rộng chừa sẵn** (vòng 16). Chỉ
+  `tabular-nums` là chưa đủ: "9%" và "100%" vẫn khác nhau một con số, mà con số
+  nằm **sau** vạch (`flex: 1`), nên mỗi lần tiến độ qua hàng chục hay tới 100%
+  thì **vạch tự ngắn lại đúng bằng một con số**. Chừa 34px + canh phải thì mép
+  vạch đứng yên tuyệt đối.
+- **Hai vạch mốc chia ở 40% và 80%** (vòng 16): con số này không trừu tượng,
+  sau nó là đúng ba việc có tên (Layout 40 · Lyrics 40 · Edit 20 — `MILESTONES`
+  trong `db.js`, cũng là ba ô tick admin nhìn thấy). Nhờ vậy "42%" đọc ra "xong
+  Layout, đang làm Lyrics". Vị trí mốc do JS đặt qua `--m`, **suy từ
+  `MILESTONES`** chứ không viết cứng 40/80 trong CSS: đổi trọng số ba mốc ở
+  `db.js` là vạch chia đi theo, không có hai chỗ khai cùng một con số. Mốc là
+  vạch **chìm** (`rgba(0,0,0,.42)`) nên đọc được cả khi ruột màu đã chạy qua;
+  cấu trúc ba mốc nằm trong `title` của cả khối, còn hai vạch mốc là
+  `aria-hidden` (đọc lại chỉ thành tiếng ồn).
 - Giá trị rác (`undefined`, `"abc"`, `150`, `-3`) bị kẹp về `0..100` **trong
   component**; không chỗ gọi nào phải tự kiểm tra.
 - `role="progressbar"` + `aria-valuenow/min/max` + nhãn `t('progress.label')`:
@@ -329,6 +341,34 @@ nền/viền/bo góc trên dải, *không còn* luật `.fdot`, thứ tự bốn
 ngăn theo nhóm, và **thứ tự khối PC/máy hẹp**; `npm run smoke` chốt trên DOM thật
 (mỗi mục có vạch, **đúng một** mục đang chọn, số vạch ngăn khớp số nhóm đang hiện).
 
+#### Hàng lọc loại bài — cùng ngôn ngữ, khác hình dấu (vòng 16)
+
+Chủ dự án chỉ tiếp: **"chỗ lọc type quá AI"**. Hàng đó (`.fbar-more`) có một **lỗi
+thật** đứng sau cảm giác đó:
+
+> Bốn nút lọc mang `className="fchip kind"` — `kind` là lớp của **thẻ loại bài**
+> trên từng hàng request, và thẻ đó khoá cứng `color: var(--k-ccl)`. Nên **cả bốn
+> nút** (kể cả "All types") hiện đúng một màu tím CCL, bất kể `--c` của chúng;
+> riêng nút đang chọn lấy `--c` cho **nền** — thành ra "Full Album" đang chọn có
+> **chữ tím trên nền xanh teal**. Bốn thẻ khác nhau mà mắt thấy cùng một màu.
+
+Dấu hiệu của lỗi này, ghi lại để lần sau nhận ra sớm: **một lớp CSS mang tên DỮ
+LIỆU được dùng cho cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó.** Nay
+mục lọc có lớp riêng `.fkind`.
+
+Hình dáng mới — cùng ngôn ngữ với dải chế độ xem (chữ + dấu màu, không viền,
+không nền, không bo tròn), nhưng **dấu đổi hình cho đúng loại dữ liệu**:
+
+| | Dải chế độ xem | Hàng lọc loại bài |
+|---|---|---|
+| Dấu | **Vạch đứng 3×15px** — trạng thái là một *chặng* của dây chuyền | **Ô vuông 9×9px bo 2px** — loại bài là một *nhãn dán* trên hàng (`.kind` cũng bo góc) |
+| Màu chữ khi chọn | **Trắng** — một màu trạng thái được nhiều mục chia nhau (`Queue` và `Up next` cùng `--queued`) | **Màu của chính loại đó** — màu loại bài là *danh tính của riêng một mục*, và tô chữ bằng đúng màu đó thì nối thẳng được với thẻ loại trên hàng request |
+| "Không lọc gì" | (không có mục này — "Newest" là mặc định) | **Ô RỖNG viền mảnh** (`.kswatch.any`): đọc ra "chưa chọn màu nào", vẫn giữ đúng nhịp dấu ở đầu hàng |
+
+Khác hình dấu còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau và
+hai bảng màu có vài sắc na ná (`--queued #8f94ff` với `--k-ccl #ab8fe0`,
+`--done #4cba88` với `--k-album #4fb0ad`).
+
 ---
 
 ## 3. Chuyển động
@@ -403,7 +443,13 @@ cục. Ba chỗ đã sửa:
   giãn** mỗi lần rê chuột vào. Nay thanh giữ nguyên 64px, chỉ đổi `opacity`.
 - Ô sáng sidebar: bỏ `height` khỏi transition (mọi mục đều cao 36px — nó không
   bao giờ đổi, chỉ tốn một kênh theo dõi).
-- Vạch tiến độ cuộn: `transform: scaleX()` (compositor), không phải `width`.
+- ~~Vạch tiến độ cuộn: `transform: scaleX()`~~ — **đã gỡ hẳn (vòng 16)**. Nó
+  từng là ví dụ đúng về kỹ thuật (compositor thay vì layout), nhưng kỹ thuật
+  đúng không cứu được một thứ **trùng chức năng**: thanh cuộn của trình duyệt đã
+  nói đúng con số đó, ở đúng chỗ người dùng tìm nó. Thêm nữa nó là gradient
+  `--a → --a-2`, đúng cặp màu của thứ duy nhất được phép nổi bật — một vạch màu
+  nhấn chạy ngang đỉnh màn hình suốt phiên làm màu nhấn mất nghĩa "chỗ này bấm
+  được".
 
 ### 3.4 Người dùng tắt chuyển động
 
@@ -568,6 +614,14 @@ Ghi lại để lần sau không ai "sửa" ngược:
   trí đứng trên một control được bấm **nhiều lần mỗi phiên** — đúng chỗ cổng tần
   suất (§3) cấm; trạng thái đang chọn ở đây đọc được ngay mà không cần chuyển động
   nào.
+- **Không** dựng lại vạch tiến độ cuộn ở đỉnh trang (vòng 16, xem §3.3). Nếu có
+  người muốn "cho vui mắt" thì câu trả lời nằm ở §0: người dùng vào đây để **đọc
+  và bấm vote**, không phải để ngắm một vạch chạy. Chưa kể nó là thứ lấy màu
+  nhấn — màu dành cho "chỗ này bấm được".
+- **Không** dùng lại lớp `.kind` (thẻ loại bài trên hàng request) cho các **mục
+  lọc** loại bài (vòng 16, xem §2.8). Hai thứ khác nhau về bản chất: một cái *nói*
+  loại của dòng, một cái *lọc* theo loại — và vì `.kind` khoá cứng `color:
+  var(--k-ccl)`, dùng chung lớp làm cả bốn nút lọc cùng hiện một màu tím.
 
 ---
 

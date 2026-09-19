@@ -910,3 +910,82 @@ là có chủ ý — thiết bị lạ (máy tính bảng cắm chuột) có th�
 phải thắng** (40px cho ngón tay quan trọng hơn 32px cho chuột). Đây là loại lỗi cascade im
 lặng, nên nó được chốt bằng một phép kiểm **so vị trí hai khối trong tệp**, không phải bằng
 một dòng ghi chú.
+
+## Phần T — vòng 16: bỏ vạch tiến độ cuộn · thanh tiến độ request · chỗ lọc type
+
+Ba việc, ba loại: một thứ **bị gỡ**, một thứ **được sửa lỗi thật**, một thứ **được làm lại cho
+cùng ngôn ngữ với chỗ bên cạnh**.
+
+### T1. Bỏ vạch tiến độ cuộn ở đỉnh trang
+
+Gỡ cả dây: `<div className="scroll-progress">`, khối CSS (kèm `@supports
+(animation-timeline: scroll())` và `@keyframes progressGrow`), và cả effect rAF dự phòng trong
+`App.jsx` — component không còn gì để cập nhật thì listener cũng không có lý do tồn tại.
+
+Vì sao gỡ (không phải vì nó "xấu", mà vì nó thừa và nó lấy mất thứ khác):
+
+- **Trùng chức năng**: thanh cuộn của trình duyệt đã nói đúng con số đó, ở đúng chỗ người
+  dùng tìm nó. Vạch thứ hai không thêm thông tin nào;
+- **Trùng màu**: nó là gradient `--a → --a-2`, đúng cặp màu của thứ duy nhất được phép nổi
+  bật (nút hành động chính, mục đang chọn). Một vạch màu nhấn chạy ngang đỉnh màn hình suốt
+  phiên làm màu nhấn mất nghĩa "chỗ này bấm được";
+- **Đắt về chuyển động**: nó chạy suốt lúc cuộn — mà cuộn là thao tác lặp nhiều nhất trên
+  trang. Kỹ thuật thì đúng (compositor, không layout), nhưng kỹ thuật đúng không cứu được một
+  thứ không cần có.
+
+### T2. Thanh tiến độ của request
+
+| Sửa | Trước | Sau |
+|---|---|---|
+| **Số kéo vạch** | `tabular-nums` mà không chừa bề rộng: "9%" và "100%" khác nhau một con số, mà con số nằm **sau** vạch (`flex: 1`) → mỗi lần tiến độ qua hàng chục hay chạm 100%, **vạch tự ngắn lại đúng bằng một con số** | Chừa sẵn **34px** + canh phải: mép vạch đứng yên tuyệt đối |
+| **Một khai báo chết** | `.prog-num { color: var(--txt-2) }` bị luật `.prog .prog-num` ngay dưới đè — hai chỗ khai cùng một thuộc tính | Một luật màu duy nhất, lấy tông của chính vạch |
+| **Con số trừu tượng** | Vạch chỉ có một con số, không nói gì về việc còn lại là gì | **Hai vạch mốc ở 40% và 80%** — biên của ba việc có tên (Layout 40 · Lyrics 40 · Edit 20, xem `MILESTONES`) |
+
+Hai vạch mốc là loại chi tiết mình thích nhất trong vòng này, vì nó **không thêm dữ liệu mới**
+— nó chỉ nói ra cấu trúc đã có sẵn từ đầu: sau `progress` không phải một thang liên tục mà là
+ba ô tick của admin. "47%" từ chỗ đọc ra "gần nửa đường, không rõ tới đâu" nay đọc ra "xong
+Layout, đang làm Lyrics". Vị trí mốc **suy từ `MILESTONES`** (JS đặt qua `--m`) chứ không viết
+cứng `40%`/`80%` trong CSS — đổi trọng số ba mốc ở `db.js` là vạch chia đi theo. Cấu trúc đó
+đọc được bằng `title`, hai vạch mốc để `aria-hidden` (đọc lại chỉ thành tiếng ồn).
+
+### T3. Chỗ lọc type — có một LỖI THẬT đứng sau cảm giác "quá AI"
+
+Lỗi: bốn nút lọc mang `className="fchip kind"`, mà `kind` là lớp của **thẻ loại bài** trên
+từng hàng request — và thẻ đó **khoá cứng** `color: var(--k-ccl)`. Nên:
+
+- cả bốn nút (kể cả "All types") hiện **đúng một màu tím CCL**, bất kể `--c` của chúng:
+  bốn thẻ loại khác nhau mà mắt thấy cùng một màu;
+- riêng nút đang chọn lấy `--c` cho **nền**, nên "Full Album" đang chọn có **chữ tím trên nền
+  xanh teal**.
+
+Đây là lỗi thuộc loại khó nhìn ra bằng mắt vì nó *trông có vẻ* đã đúng (mỗi nút có một màu,
+chỉ là cùng một màu). Dấu hiệu để nhận ra sớm: **một lớp CSS mang tên DỮ LIỆU (`kind`) được
+dùng cho cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó.** Nay mục lọc có lớp riêng
+`.fkind`.
+
+Sửa xong thì làm luôn phần "quá AI" cho cùng ngôn ngữ với dải chế độ xem ở hàng trên (chữ +
+dấu màu, không viền/không nền/không bo tròn), nhưng **dấu đổi hình cho đúng loại dữ liệu**:
+
+| | Dải chế độ xem | Hàng lọc loại bài |
+|---|---|---|
+| Dấu | **Vạch đứng 3×15px** — trạng thái là một *chặng* của dây chuyền | **Ô vuông 9×9px bo 2px** — loại bài là một *nhãn dán* trên hàng (`.kind` cũng bo góc) |
+| Màu chữ khi chọn | **Trắng** — một màu trạng thái được nhiều mục chia nhau | **Màu của chính loại đó** — nối thẳng với thẻ loại trên hàng request |
+| "Không lọc gì" | — | **Ô RỖNG viền mảnh** (`.kswatch.any`): "chưa chọn màu nào" |
+
+Khác hình dấu còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau, mà hai bảng màu
+có vài sắc na ná (`--queued #8f94ff` với `--k-ccl #ab8fe0`, `--done #4cba88` với
+`--k-album #4fb0ad`).
+
+### T4. Kiểm chứng
+
+- `src/lib/cssFilterBar.test.js` thêm hai phép kiểm: (1) mục lọc loại bài **không** mang lớp
+  `.kind`, có lớp `.fkind` + dấu riêng, "All types" là ô rỗng, mục đang chọn lấy màu của chính
+  nó và **không** tô nền; (2) số của thanh tiến độ có `min-width` + canh phải, **đúng một**
+  luật màu, vạch mốc do JS đặt qua `--m` và suy từ `MILESTONES`, có `title`.
+- `npm run smoke` thêm 9 mục, trong đó có mục đáng giá nhất: kiểm thanh tiến độ **trong danh
+  sách** sau khi bấm sang tab *In progress* (mặc định là tab Queue — nơi chưa có bài nào đang
+  làm, nên phép kiểm cũ chỉ chạm được thanh trong khối Up next). DOM thật lấy ra:
+  `<b class="prog-mile" style="--m: 40%">` · `--m: 80%` · `title="Layout 40% · Lyrics 40% · Edit 20%"`.
+- `npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
+  → **0 lỗi, 13 cảnh báo** (không đổi). `npm run build` → OK: `index-7SWXOV2s.js` 294,5 kB
+  (gzip 91,6 kB — **nhỏ hơn** bản trước vì vạch cuộn đã bị gỡ), CSS 119,0 kB.

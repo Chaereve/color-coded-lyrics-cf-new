@@ -372,8 +372,6 @@ function AppInner() {
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
-  /* vạch tiến độ cuộn: ghi thẳng style qua ref để không setState mỗi frame */
-  const progressRef = useRef(null)
 
   const [voteFor, setVoteFor] = useState(null)
   /* Link mời gửi bài (`/?add=1&artist=…&title=…`) do chủ kênh dán vào mô tả
@@ -499,30 +497,20 @@ function AppInner() {
     return () => io.disconnect()
   }, [])
 
-  /* Vạch tiến độ cuộn: trình duyệt nào có CSS scroll-driven animations thì
-     việc vẽ vạch do CSS lo (xem `.scroll-progress` trong index.css) — ở đây
-     KHÔNG gắn listener nào cả. Chỉ khi thiếu tính năng mới chạy bản dự phòng
-     bằng rAF, đúng như hành vi trước đây. */
-  useEffect(() => {
-    const native = typeof CSS !== 'undefined' && CSS.supports
-      && CSS.supports('(animation-timeline: scroll())')
-    if (native) return
-    let raf = 0
-    const onScroll = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        /* vạch tiến độ chỉ co giãn bằng transform (scaleX), không đụng layout;
-           ghi thẳng vào ref để cuộn không kéo theo một lần setState nào */
-        const max = document.documentElement.scrollHeight - window.innerHeight
-        if (progressRef.current) {
-          progressRef.current.style.transform = `scaleX(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`
-        }
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
-  }, [])
+  /* VẠCH TIẾN ĐỘ CUỘN ĐÃ BỊ GỠ (vòng 16).
+     Nó là một vạch 2px gradient chạy ngang đỉnh màn hình, và có hai lý do để
+     đi:
+       · TRÙNG CHỨC NĂNG: thanh cuộn của trình duyệt đã nói đúng con số đó, ở
+         đúng chỗ người dùng tìm nó. Vạch thứ hai không thêm thông tin nào, chỉ
+         thêm một thứ chuyển động chạy suốt lúc cuộn — mà cuộn là thao tác lặp
+         nhiều nhất trên trang;
+       · TRÙNG MÀU: nó là gradient `--a → --a-2`, đúng cặp màu của thứ duy nhất
+         được phép nổi bật (nút hành động chính và mục đang chọn). Một vạch màu
+         nhấn chạy ngang đỉnh màn hình suốt phiên làm màu nhấn mất nghĩa
+         "chỗ này bấm được".
+     Đây cũng là lời nhắc cho lần sau: một thứ vừa trùng chức năng vừa trùng
+     màu thì không phải chi tiết nhỏ — nó là thứ làm cả trang trông như có
+     nhiều lớp trang trí hơn là một công cụ. */
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
@@ -1339,7 +1327,6 @@ function AppInner() {
   return (
     <>
       <Splash hide />
-      <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
@@ -1589,28 +1576,41 @@ function AppInner() {
                         "danh sách này đang bị lọc theo một loại bài" — người
                         dùng cuộn xuống thấy thiếu bài mà không hiểu vì sao. */}
                     {kindFilter !== 'all' && (
-                      <button type="button" className="fchip kind on onkind"
+                      <button type="button" className="fchip fkind on onkind"
                         style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
                         aria-label={t('board.clearKind', { k: kindFilter })}
                         title={t('board.clearKind', { k: kindFilter })}
                         onClick={() => setKindFilter('all')}>
-                        {kindFilter}<Icon name="close" size={12} />
+                        <i className="kswatch" aria-hidden="true" />{kindFilter}<Icon name="close" size={12} />
                       </button>
                     )}
                   </div>
                 </div>
 
                 <div className="fbar-more" id="fbar-more">
+                  {/* MỤC LỌC LOẠI BÀI KHÔNG PHẢI THẺ. Bốn nút dưới đây từng mang
+                      lớp `kind` — lớp của THẺ loại bài nằm trên từng hàng request.
+                      Thẻ đó khoá cứng `color: var(--k-ccl)`, nên cả bốn nút (kể
+                      cả "All types") đều hiện đúng một màu TÍM CCL, bất kể
+                      `--c` của chúng: bốn thẻ loại khác nhau mà mắt thấy cùng
+                      một màu, còn nền của nút đang chọn lại lấy `--c` — nên nút
+                      "Full Album" đang chọn có CHỮ TÍM trên NỀN XANH TEAL.
+                      Nay chúng mang lớp riêng `.fkind` và tự mang màu của mình.
+                      Dấu hiệu để nhận ra lỗi này từ đầu: một lớp CSS mang tên
+                      dữ liệu (`kind`) được dùng cho cả thứ hiển thị dữ liệu lẫn
+                      control để lọc dữ liệu đó. */}
                   <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
-                    <button type="button" className={`fchip kind${kindFilter === 'all' ? ' on' : ''}`}
+                    <button type="button" className={`fchip fkind${kindFilter === 'all' ? ' on' : ''}`}
                       aria-pressed={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
-                      {t('board.allKinds')}
+                      <i className="kswatch any" aria-hidden="true" />{t('board.allKinds')}
                     </button>
                     {Object.keys(KIND_META).map(k => (
                       <button key={k} type="button"
-                        className={`fchip kind${kindFilter === k ? ' on' : ''}`}
+                        className={`fchip fkind${kindFilter === k ? ' on' : ''}`}
                         style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilter === k}
-                        onClick={() => setKindFilter(k)}>{k}</button>
+                        onClick={() => setKindFilter(k)}>
+                        <i className="kswatch" aria-hidden="true" />{k}
+                      </button>
                     ))}
                   </div>
                   {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu

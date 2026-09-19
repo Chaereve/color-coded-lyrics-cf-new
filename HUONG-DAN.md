@@ -1185,10 +1185,11 @@ chưa về.
 ### Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả
 
 1. **Chỉ animate `opacity` và `transform`** — hai thứ này compositor xử lý, không bắt trình
-   duyệt tính lại layout giữa chừng. Ba chỗ đã sửa vì vi phạm: thanh âm lượng (chạy
+   duyệt tính lại layout giữa chừng. Hai chỗ đã sửa vì vi phạm: thanh âm lượng (chạy
    `width 0 → 64px`, làm chữ *Âm thanh* bên cạnh bị bóp rồi giãn mỗi lần rê chuột — nay
-   giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa khỏi transition),
-   và vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+   giữ nguyên 64px, chỉ đổi `opacity`) và ô sáng sidebar (bỏ `height` thừa khỏi transition).
+   *Vạch tiến độ cuộn* từng là ví dụ thứ ba, nhưng **nó đã bị gỡ hẳn** (vòng 16): nó trùng
+   chức năng với thanh cuộn của trình duyệt và trùng màu nhấn với nút hành động chính.
 2. **Tôn trọng `prefers-reduced-motion`** — có MỘT khối `*, *::before, *::after` ở
    `src/index.css` rút mọi `animation-duration` và `transition-duration` về `.001ms`, nên
    **không cần khai override cho từng phần tử nữa**. Hai khe hở phải nhớ khi viết code mới:
@@ -2930,10 +2931,11 @@ càng nhiều thì chuyển động ở đó phải càng ít và càng nhanh. �
 
 #### Sửa ba chỗ animate thuộc tính layout
 
-Bề rộng/chiều cao đổi giá trị là trình duyệt phải tính lại bố cục. Ba chỗ đã sửa:
+Bề rộng/chiều cao đổi giá trị là trình duyệt phải tính lại bố cục. Hai chỗ đã sửa:
 thanh âm lượng (chạy `width 0 → 64px` làm **chữ "Âm thanh" bị bóp rồi giãn** mỗi lần
-rê chuột — nay giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa
-khỏi transition), vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+rê chuột — nay giữ nguyên 64px, chỉ đổi `opacity`) và ô sáng sidebar (bỏ `height` thừa
+khỏi transition). Vạch tiến độ cuộn từng là ví dụ thứ ba — **đã gỡ hẳn ở vòng 16**,
+vì trùng chức năng với thanh cuộn của trình duyệt.
 
 Ghi chú thêm: khối `prefers-reduced-motion` toàn cục **đã phủ mọi animation của
 trang**, nên đừng khai override cho từng phần tử nữa. Hai khe hở thật phải nhớ:

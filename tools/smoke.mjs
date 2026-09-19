@@ -251,7 +251,49 @@ check('có bài bấm vote được', enabledVotes.length > 0, `${enabledVotes.l
 /* LỌC THEO LOẠI BÀI: chọn một loại thì hàng chip chính phải hiện chip "đang lọc"
    (trên màn hẹp khối lọc gấp lại, nên đây là chỗ duy nhất NÓI RA vì sao danh
    sách ngắn đi), và bấm vào chip đó là bỏ lọc. */
-const kindChip = qa('.fbar-more .fchip.kind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
+/* VÒNG 16 — ba thứ vừa sửa, chốt trên DOM thật: */
+check('không còn vạch tiến độ cuộn ở đỉnh trang', !q('.scroll-progress'),
+  q('.scroll-progress') ? 'phần tử vẫn được dựng' : '')
+/* Mục lọc loại bài: KHÔNG mang lớp `.kind` của thẻ (lỗi cũ làm cả bốn nút cùng
+   một màu tím), và mỗi mục có dấu màu của chính nó. */
+{
+  const kindItems = qa('.fbar-more .fchips.kinds .fchip')
+  check('mục lọc loại bài không mang lớp thẻ .kind', !qa('.fchip.kind').length,
+    `${qa('.fchip.kind').length} phần tử còn lớp .kind`)
+  check('mục lọc loại bài có dấu màu riêng', kindItems.length >= 5 && kindItems.every(el => el.querySelector('.kswatch')),
+    `${kindItems.filter(el => el.querySelector('.kswatch')).length}/${kindItems.length} mục có dấu`)
+  const onKind = q('.fbar-more .fchip.fkind.on')
+  check('đúng một mục loại đang chọn', kindItems.filter(el => el.classList.contains('on')).length === 1,
+    (onKind?.textContent || '').trim())
+}
+/* Thanh tiến độ của request: số được chừa chỗ, và vạch có hai mốc chia (suy từ
+   ba mốc Layout/Lyrics/Edit — 40 · 40 · 20).
+   Bài kiểm này phải đứng ở tab "In progress" mới thấy thanh tiến độ TRONG DANH
+   SÁCH (mặc định của bảng là tab Queue, nơi chưa có bài nào đang làm — chỉ khối
+   Up next mới có). Kiểm đúng chỗ người dùng nhìn thấy nó. */
+{
+  const chip = qa('.fchip').find(c => /In progress/i.test(c.textContent || ''))
+  if (chip) await click(chip)
+  const bars = qa('.list .prog')
+  check('tab In progress: mỗi hàng đang làm có thanh tiến độ', bars.length > 0, `${bars.length} thanh`)
+  const bar = bars[0]
+  const marks = bar ? [...bar.querySelectorAll('.prog-mile')] : []
+  check('vạch tiến độ có hai mốc chia', marks.length === 2, `${marks.length} mốc`)
+  check('vạch mốc nằm ở 40% và 80%', marks.map(m => m.style.getPropertyValue('--m')).join(' · ') === '40% · 80%',
+    marks.map(m => m.style.getPropertyValue('--m')).join(' · '))
+  check('thanh tiến độ có nhãn đọc được cho cả ba mốc',
+    /Layout 40% · Lyrics 40% · Edit 20%/.test(bar?.getAttribute('title') || ''),
+    bar?.getAttribute('title'))
+  const num = bar?.querySelector('.prog-num')
+  check('thanh tiến độ giữ nguyên khối "vạch + số"', !!num && !!bar.querySelector('.prog-track'),
+    num ? `${num.textContent.trim()}` : 'không thấy .prog-num')
+  dump('thanh tiến độ của request', '.list .prog')
+  /* trả bảng về tab Queue cho các mục kiểm phía sau */
+  const back = qa('.fchip').find(c => /^Queue/.test((c.textContent || '').trim()))
+  if (back) await click(back)
+}
+
+const kindChip = qa('.fbar-more .fchip.fkind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
 if (kindChip) {
   const kindName = (kindChip.textContent || '').trim()
   await click(kindChip)

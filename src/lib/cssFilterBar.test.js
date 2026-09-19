@@ -120,7 +120,7 @@ test('loại bài đang lọc hiện thành chip bỏ được — chỉ trên m
      không có chỗ nào NÓI RA là danh sách đang bị lọc theo loại bài: người dùng
      chỉ thấy danh sách thiếu bài. Trên màn rộng khối lọc luôn hiện nên chip đó
      là chỗ thứ hai nói cùng một điều. */
-  assert.match(app, /className="fchip kind on onkind"/, 'thiếu chip loại bài đang lọc')
+  assert.match(app, /className="fchip fkind on onkind"/, "thiếu chip loại bài đang lọc")
   assert.match(app, /kindFilter !== 'all' && \(/, 'chip chỉ hiện khi ĐANG lọc theo loại bài')
   assert.match(app, /board\.clearKind/, 'chip phải có nhãn đọc được, không chỉ một dấu ×')
   assert.match(app, /onClick=\{\(\) => setKindFilter\('all'\)\}/, 'bấm chip là bỏ lọc đó')
@@ -191,6 +191,54 @@ test('PC có nhịp riêng, và vế CHẠM không bị nó đè', () => {
     'ô tìm kiếm trên PC phải có bề rộng chặn, không co giãn hết hàng')
   assert.match(wide, /\.fbar-top > \.fbar-side \{[^}]*margin-left: auto/,
     'con số đếm phải được đẩy về mép phải khi ô tìm kiếm không còn co giãn')
+})
+
+test('mục lọc loại bài KHÔNG mang lớp của thẻ loại bài (lỗi: cả bốn nút cùng màu tím)', () => {
+  /* LỖI THẬT (vòng 16): bốn nút lọc loại bài mang `className="fchip kind"` —
+     `kind` là lớp của THẺ loại bài trên từng hàng request, và thẻ đó khoá cứng
+     `color: var(--k-ccl)`. Hệ quả: cả bốn nút, kể cả "All types", hiện đúng
+     một màu tím CCL bất kể `--c` của chúng; riêng nút đang chọn lại lấy `--c`
+     cho NỀN, nên "Full Album" đang chọn có chữ tím trên nền teal.
+     Dấu hiệu của lỗi này: một lớp CSS mang tên DỮ LIỆU (`kind`) được dùng cho
+     cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó. */
+  assert.ok(!/fchip kind/.test(app), 'mục lọc loại bài không được mang lớp .kind của thẻ')
+  /* và chúng có lớp riêng, cùng dấu màu của mình */
+  assert.match(app, /className=\{`fchip fkind/, 'mục lọc loại bài phải mang lớp .fkind')
+  assert.match(app, /className="kswatch any"/, '"All types" phải có dấu rỗng, không phải một ô màu')
+  assert.equal((app.match(/className="kswatch"/g) || []).length, 2,
+    'mỗi mục loại bài (bảng lọc + chip đang lọc) phải có dấu màu của nó')
+  /* Ô vuông của loại bài KHÁC HÌNH vạch đứng của trạng thái — hai dải nằm gần
+     nhau, hai bảng màu lại có vài sắc na ná nhau. */
+  assert.ok(has('.fchip .kswatch', /border-radius:\s*2px/), 'dấu loại bài phải là ô vuông bo góc nhỏ')
+  assert.ok(has('.fchip .ftick', /width:\s*3px/), 'dấu trạng thái vẫn là vạch đứng 3px')
+  /* Chọn loại thì chữ mang màu CỦA CHÍNH LOẠI ĐÓ (khác dải trạng thái, nơi mục
+     đang chọn dùng chữ trắng) — để nối thẳng với thẻ loại trên hàng request. */
+  assert.ok(has('.fchip.fkind.on', /color:\s*var\(--c/), 'mục loại đang chọn phải lấy màu của chính nó')
+  assert.ok(!bodies('.fchip.fkind.on').some(b => /background\s*:/.test(b)),
+    'mục loại đang chọn cũng không được tô nền')
+})
+
+test('thanh tiến độ của request: số không được đẩy vạch, và có hai mốc chia', () => {
+  /* 1. SỐ PHẢI ĐƯỢC CHỪA CHỖ. `tabular-nums` một mình là chưa đủ: "9%" và
+     "100%" vẫn khác nhau một con số, mà con số nằm SAU vạch (`flex: 1`), nên
+     mỗi lần tiến độ qua hàng chục/một trăm thì vạch tự ngắn lại đúng bằng một
+     con số. Chừa sẵn bề rộng rồi canh phải thì mép vạch đứng yên. */
+  const num = anchor('.prog-num', /tabular-nums/, 'số của thanh tiến độ')
+  assert.match(num, /min-width:\s*\d+px/, 'số phải có bề rộng chừa sẵn, nếu không vạch bị đẩy')
+  assert.match(num, /text-align:\s*right/, 'số canh phải để mép vạch không đổi theo số chữ số')
+  /* và chỉ MỘT luật màu cho con số (bản cũ khai hai, luật sau đè luật trước) */
+  assert.equal(bodies('.prog-num').filter(b => /color\s*:/.test(b)).length, 1,
+    'màu của con số phải được khai đúng một lần')
+  assert.match(num, /color:\s*color-mix\(in oklab, var\(--sc/, 'số phải lấy tông của chính vạch')
+  /* 2. HAI MỐC CHIA: 40% và 80% là biên của ba việc có tên (Layout · Lyrics ·
+     Edit — MILESTONES), nên "42%" đọc ra "xong Layout, đang làm Lyrics" thay vì
+     một con số trừu tượng. */
+  const mile = anchor('.prog-mile', /position:\s*absolute/, 'vạch mốc trong lòng vạch')
+  assert.match(mile, /left:\s*var\(--m\)/, 'vị trí mốc do JS đặt — đổi trọng số ba mốc là vạch chia đi theo')
+  assert.match(mile, /width:\s*1px/, 'mốc là một vạch 1px, không phải một khối')
+  const progress = at('../components/Progress.jsx')
+  assert.match(progress, /MILESTONES\.slice\(0, -1\)/, 'mốc phải suy từ MILESTONES, không viết cứng 40/80')
+  assert.match(progress, /title=\{stages\}/, 'cấu trúc ba mốc phải đọc được (title), nếu không vạch chia là câm')
 })
 
 test('mục đang chọn mang đúng màu của nó, và không tô nền', () => {
