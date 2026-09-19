@@ -457,6 +457,22 @@ Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việ
 vote* (xem `src/lib/board.js`) lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
 nhiều so với phát hiện rồi gộp ở tầng SQL sau khi dữ liệu đã bẩn.
 
+### Thẻ xem trước — thấy trước khi gửi
+
+Ngay dưới hai ô tên bài / nghệ sĩ có một **thẻ xem trước**: nó dựng đúng cái thẻ mà người
+khác sẽ thấy trên bảng (nhãn loại bài + *Nghệ sĩ — Tên bài* + người gửi), cập nhật theo từng
+ký tự đang gõ. Chỗ nào chưa điền thì hiện chữ mờ nói còn thiếu gì, nên tấm thẻ vừa là bản
+xem trước vừa là danh sách việc cần làm.
+
+Dán **link YouTube** vào ô link thì app nhận ra ngay và hiện **ảnh bìa của chính video đó**
+trong thẻ (lấy từ `i.ytimg.com`, không cần API key và không tốn quota của gói miễn phí). Link
+không phải YouTube thì chỉ được nhắc, **không chặn gửi** — người ta hay dán `youtu.be/abc`
+thiếu `https://`.
+
+Phần còn lại của form giữ đúng ba nguyên tắc: lỗi hiện ngay tại ô sai (rời ô mới hiện, kèm
+`aria-invalid` để trình đọc màn hình đọc được), bấm Gửi khi còn thiếu thì con trỏ **nhảy vào
+ô sai đầu tiên**, và bộ đếm ký tự chỉ hiện khi đã dùng quá 70% ô.
+
 Dò trên **toàn bộ** dữ liệu (kể cả request đang chờ duyệt và đã bị từ chối), không chỉ
 những hàng đang hiện trên bảng — vì ca trùng phổ biến nhất là *chính mình gửi lại*. Gặp
 trường hợp đó, dòng phụ đổi thành "1 request of yours is waiting for review" (`req.dupPending`).
@@ -865,8 +881,17 @@ trên, không phải dữ liệu bị hỏng.
 
 Mọi thay đổi hiện ngay trên máy người khác (kể cả khách chưa đăng nhập) nhờ Realtime.
 
-Bảng Admin mở bằng nút **Bảng quản trị** trong sidebar. Muốn mở thẳng tab Videos thì gọi
-`openAdmin('media')` trong `src/App.jsx`.
+Bảng quản trị là **một trang thật** ở `/admin` (không còn là hộp thoại): mở bằng mục
+**Bảng quản trị** trong sidebar, hoặc dán thẳng địa chỉ. Mục đang mở nằm luôn trong địa chỉ
+— `/admin?tab=orders`, `/admin?tab=media` — nên F5 giữ nguyên chỗ đang làm, nút Back lùi
+đúng một bước, và gửi link cho người khác là họ mở đúng mục đó. Muốn mở thẳng một mục từ
+trong code thì gọi `openAdmin('media')` trong `src/App.jsx`.
+
+Ba thứ trong trang làm việc nhanh hơn khi có nhiều request: **chọn nhiều** để duyệt / từ
+chối / chốt / trả về hàng chờ / xoá cả loạt, **lọc theo loại bài** và **xếp thứ tự**, và
+**xuất CSV** đúng những dòng đang nhìn (file dựng ngay trong trình duyệt, mở bằng Excel hay
+Google Sheets đều đúng dấu tiếng Việt). Thanh hành động hàng loạt dính ở đáy khung nên cuộn
+tới đâu vẫn bấm được; `Esc` bỏ chọn hết; `/` nhảy vào ô tìm kiếm.
 
 ### Khung Sửa trên điện thoại
 
@@ -1231,11 +1256,12 @@ Mỗi mục có đường dẫn riêng, chia sẻ link được và nút Back/Fo
 | Daily Spin | `/daily-spin` | Daily Spin · Chaereve |
 | Xếp hạng | `/ranking` | Xếp hạng — Color Coded Lyrics |
 | Của tôi | `/profile` | Của tôi — Color Coded Lyrics |
+| Bảng quản trị | `/admin` (thêm `?tab=…` để mở thẳng một mục) | Bảng quản trị — Color Coded Lyrics |
 
 Đổi đường dẫn thì sửa `ROUTES` ở đầu `src/App.jsx`:
 
 ```js
-const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
+const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 ```
 
 Đường dẫn `/videos` cũ (mục Kênh đã bỏ) mở lên vẫn ra trang chủ, thanh địa chỉ tự sửa về `/`.
