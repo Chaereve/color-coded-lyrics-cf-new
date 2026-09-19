@@ -26,7 +26,7 @@ export default function Check({ checked, onChange }) {
   const [pop, setPop] = useState(false)
   useEffect(() => {
     if (!pop) return
-    const id = setTimeout(() => setPop(false), 460)
+    const id = setTimeout(() => setPop(false), 380)
     return () => clearTimeout(id)
   }, [pop])
   return (

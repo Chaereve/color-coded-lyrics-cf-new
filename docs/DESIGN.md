@@ -147,9 +147,14 @@ phiên; một hiệu ứng 300ms ở đó là 6 giây chờ trong một phiên.
 |---|---|---|
 | `--e-out` | `cubic-bezier(.22,.61,.36,1)` | **Mọi thứ vào trang**, mọi thứ dịch chuyển. Không overshoot |
 | `--e-soft` | `cubic-bezier(.4,0,.2,1)` | Đổi màu nền / viền / chữ. Đường thẳng, không gợn |
-| `--e-pop` | `cubic-bezier(.34,1.24,.64,1)` | **Chỉ khoảnh khắc ăn mừng**: bục xếp hạng, vòng quay thưởng |
+| `--e-pop` | `cubic-bezier(.34,1.24,.64,1)` | **Chỉ khoảnh khắc ăn mừng do người dùng tự gây ra**: bục xếp hạng, vòng quay thưởng, và cú tick vừa bật (0,34s — hộp nảy + vòng loang, xem `components/Check.jsx`) |
 
 `--e-pop` từng được dùng cho công tắc, toast, nút điều hướng. Đó là chỗ sai:
+ba chỗ còn lại đều là thứ **người dùng vừa tự tay gây ra** và chỉ xảy ra một lần
+(bục xếp hạng khi công bố, vòng quay khi kim dừng, ô đánh dấu khi vừa tick), nên
+overshoot ở đó là phản hồi — không phải trang tự biểu diễn. Một hộp đã tick sẵn
+lúc mở bảng thì **đứng yên**: nhịp nảy gắn vào `onChange`, không gắn vào `:checked`.
+Chỗ sai là:
 overshoot trên một thao tác tiện ích đọc ra thành **đồ chơi**, không phải phản hồi.
 Ngưỡng thời gian: `--t-1` 160ms (phản hồi con trỏ) · `--t-2` 280ms (khối nhỏ đổi
 trạng thái) · `--t-3` 420ms (khối lớn, chuyển cảnh). Không có chuyển động nào

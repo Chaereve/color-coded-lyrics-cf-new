@@ -18,7 +18,7 @@
 import {
   ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
   CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Pencil, Play,
-  Plus, Send, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2,
+  Plus, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User, Volume2,
   VolumeX, X,
 } from 'lucide-react'
 
@@ -49,7 +49,6 @@ const SET = {
   sound: Volume2,
   mute: VolumeX,
   note: Music4,                   /* âm thanh trong sidebar */
-  send: Send,
   share: Share2,                  /* copy link của một bài */
 }
 

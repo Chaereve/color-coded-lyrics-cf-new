@@ -2539,7 +2539,7 @@ càng nhiều thì chuyển động ở đó phải càng ít và càng nhanh. �
 | Bốn mục sidebar | Trượt vào lệch 45ms mỗi lần mở trang | Đứng yên | Sidebar đứng yên suốt phiên; bốn mục nhấp nhô lệch nhịp là chuyển động không ai xin |
 | Bốn ô thống kê | Tự chạy `rowIn` lệch 60ms | Không chạy nữa | Khối cha đã có `[data-reveal]` lo — hai lớp chuyển động cho cùng một thứ |
 | Nhấp nhô khi rê | Nhấc/phóng ở hầu hết mọi thứ (nút phụ, thumbnail, mục toast, nút lên đầu trang, mục sidebar…) | Còn **đúng hai** thứ được nhấc: nút hành động chính và khung video chính | Chỗ nào cũng nhún thì không chỗ nào là chính; đây là mẫu chuyển động phổ biến nhất của giao diện do máy sinh |
-| `--e-pop` (easing nảy) | Công tắc, toast, mục sidebar, nút điều hướng | **Chỉ** bục xếp hạng và vòng quay thưởng | Overshoot trên thao tác tiện ích đọc ra thành đồ chơi, không phải phản hồi |
+| `--e-pop` (easing nảy) | Công tắc, toast, mục sidebar, nút điều hướng | **Chỉ** ba khoảnh khắc người dùng tự gây ra: bục xếp hạng, vòng quay thưởng, cú tick vừa bật (0,34s) | Overshoot trên thao tác tiện ích đọc ra thành đồ chơi, không phải phản hồi. Ô đánh dấu đã tick sẵn lúc mở bảng thì đứng yên — nhịp nảy gắn vào `onChange`, không gắn vào `:checked` |
 | Tiêu đề trang | Kéo ra bằng `clip-path` mỗi lần đổi mục | Mờ dần + nhích 6px trong 0.34s | Chữ là nội dung tĩnh — mỗi lần bấm menu lại thấy nó được vẽ ra là tự giới thiệu |
 | Đồng hồ "quá mốc" | `pickPulse` nhấp nháy vô hạn 1.6s | Đổi màu + một chấm tĩnh | Một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1.6 giây |
 | Vệt sáng thanh tiến độ | Mọi hàng "đang làm" | Chỉ khối **Up next**, và chỉ khi thật sự có bài đang chạy (`nowbar.live`) | Mười bài cùng lúc là mười vòng lặp vô hạn |
