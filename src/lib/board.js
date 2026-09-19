@@ -23,6 +23,22 @@ const ts = (v) => +new Date(v) || 0
 export const groupKey = (r) =>
   `${(r.artist || '').trim().toLowerCase()}\n${(r.title || '').trim().toLowerCase()}`
 
+/* Bỏ dấu tiếng Việt để một từ khoá khớp cả ba cách người ta gõ tên bài:
+   "Chung Hạ", "Chung Ha", "chung ha". Một chỗ định nghĩa, dùng cho cả ô tìm
+   trên bảng lẫn ô tìm trong panel admin — trước đây admin có bản riêng và
+   hai bản trả lời khác nhau cho cùng một câu hỏi.
+
+   `đ` phải thay TAY: nó là ký tự riêng của tiếng Việt chứ không phải `d` +
+   dấu, nên NFD không tách ra được — thiếu dòng đó thì "dang nhap" không tìm
+   ra "Đặng Nhập" mà nhìn vào chẳng thấy sai ở đâu.
+   Gộp khoảng trắng để "chung  ha" cũng khớp, và để hai vế so sánh được cùng
+   một chuẩn. */
+export const fold = (s) => (s || '').toString().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd')
+  .replace(/\s+/g, ' ')
+  .trim()
+
 /* Nhat ra nhung request CUNG MOT BAI (cung artist + title, khong phan biet
    hoa thuong / khoang trong thua) ma van con "song" (queued | in_progress).
    Dung khi admin danh dau mot buoc cua video: mot bai chi lam MOT lan, nen tick

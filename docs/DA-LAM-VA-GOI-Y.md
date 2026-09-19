@@ -1,7 +1,10 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
-Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new` · commit `8a85321`
-So với mốc đầu phiên (`bc65c01`): **23 file, +1.702 / −248 dòng**, `npm test` **214 đạt / 0 lỗi / 1 skip**.
+Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
+So với mốc đầu phiên (`bc65c01`): **28 file, +2.900 dòng**, `npm test` **239 đạt / 0 lỗi / 1 skip**.
+
+> **Đã làm tiếp (cùng ngày):** mục **C1-1 (sao lưu database)** và **cả ba việc ở C1-2/3/4** nay đã
+> xong — xem phần *F. Đã làm tiếp* ở cuối file.
 
 ---
 
@@ -154,9 +157,62 @@ Cột **"Trần free"** là giới hạn liên quan nhất của gợi ý đó.
 
 ## E. Thứ tự đề xuất
 
-1. **Sao lưu database** (C1-1) — trước mọi thứ khác. Miễn phí, làm trong vài phút, và là thứ duy nhất trong danh sách mà bỏ qua có thể mất dữ liệu thật.
-2. **Ba việc rẻ ở C1** — ước lượng thời gian chờ, CTA lúc "còn 2 vote", tìm kiếm không dấu.
+1. ~~**Sao lưu database** (C1-1)~~ — ✅ **đã làm**, xem phần F.
+2. ~~**Ba việc rẻ ở C1**~~ — ✅ **đã làm cả ba**, xem phần F.
 3. **Nối database cho theo dõi + gửi ra Telegram/Discord** (C2-8, C2-9) — giá trị lớn nhất còn lại, và lý do duy nhất cần bạn chốt ba quyết định.
-4. **Gỡ trần KV bằng D1** (C2-10) — làm trước khi lượng vote chạm ~500/ngày, không phải sau.
+4. **Gỡ trần KV bằng D1** (C2-10) — xem cảnh báo ở B-1: làm trước khi lượng vote chạm ~500/ngày, không phải sau.
 
 **Ba câu hỏi cần bạn trả lời để tôi làm được bước 3:** (a) trigger có tự theo dõi bài của mình và bỏ hẳn công tắc `auto` không; (b) bốn công tắc thông báo có chuyển xuống database không; (c) gửi ra ngoài bằng **Telegram** hay **Discord** (hoặc cả hai).
+
+---
+
+## F. Đã làm tiếp (cùng ngày) — sao lưu, và ba việc rẻ
+
+### F1. Sao lưu database tự chạy mỗi ngày (C1-1) ✅
+
+| File | Việc |
+|---|---|
+| `.github/workflows/backup-db.yml` | Cron 02:00 giờ VN + bấm chạy tay; **cài client Postgres 17** (runner có sẵn bản 16, không dump được server 17); dựng một **Postgres sạch** để thử phục hồi; upload artifact 30 ngày; đẩy R2 nếu có secret |
+| `scripts/backup-db.sh` | `pg_dump --format=custom`, kèm `manifest.txt` và `fingerprint.txt`. **Che mật khẩu** khi in log. Bốn chẩn đoán lỗi hay gặp: secret sai, project đang ngủ, sai loại chuỗi kết nối (IPv6 vs IPv4), client cũ |
+| `scripts/db-fingerprint.sql` | Dấu vân tay schema `public`: **số dòng từng bảng** + function + **policy RLS** + trigger + sequence + **index** (mất một `unique` là vote được hai lần) + view |
+| `scripts/verify-backup.sh` | Đổ bản dump vào database sạch rồi so từng dòng dấu vân tay; **lệch một dòng là đỏ**. Từ chối database đích không trống |
+| `scripts/backup-stubs.sql` | Dựng ngữ cảnh giả Supabase (`anon`/`authenticated`/`service_role`, schema `auth`, `pgcrypto`) để phép thử chạy đúng chỗ |
+| `scripts/push-to-r2.sh` | Tuỳ chọn, giữ bản sao lâu hơn 30 ngày; chưa cấu hình thì **bỏ qua êm** |
+| `src/lib/backup.test.js` | 13 ca: hợp đồng workflow, **không bí mật trong repo**, và chạy thật hai script với `pg_dump`/`pg_restore`/`psql` **giả** — kể cả ca "dấu vân tay lệch thì phải đỏ" |
+
+Ba quyết định thiết kế đáng nhớ:
+
+- **Thử phục hồi mới tính là sao lưu.** Dump xong là đổ vào Postgres sạch rồi so dấu vân tay.
+  Cách hỏng hay gặp nhất là **thiếu policy RLS**: số dòng khớp hoàn hảo mà quyền đã hở.
+- **So cả policy/trigger/sequence, không chỉ số dòng.** Thiếu trigger thì dữ liệu vẫn khớp
+  nhưng mọi bất biến (chống trùng, chống farm vote) biến mất.
+- **Mật khẩu không rò ra log.** Log CI nhiều người đọc được; script che `://user:pass@` trước
+  khi in, và có ca kiểm thử canh đúng điều đó.
+
+**Bạn cần làm 3 bước** (đã ghi chi tiết trong `HUONG-DAN.md`): lấy chuỗi **Session pooler**,
+dán vào secret `SUPABASE_DB_URL`, bấm **Run workflow** một lần. Nhớ: **cron chỉ chạy trên nhánh
+mặc định**, nên phải merge thì nó mới tự chạy hằng ngày.
+
+### F2. Ba việc rẻ (C1-2, C1-3, C1-4) ✅
+
+| Việc | Đã làm |
+|---|---|
+| **Ước lượng thời gian chờ** | `pickEta()` + `etaKey()` trong `lib/watch.js`, gắn vào `pickLadder()` nên bảng / hộp thông báo / trang Của tôi **dùng chung một con số**. Hiện "at least N days/weeks/months" cho hạng 2–20 — hạng 9–20 **trước đây im lặng hoàn toàn** |
+| **CTA mua vote lúc "còn 2 vote nữa"** | Nút **Get votes** trong tin *Almost picked*, mở thẳng tab mua. Cố ý để **lặng** (viền xám như *Watch*, không tô vàng như *Vote*) |
+| **Tìm kiếm không dấu** | `fold()` trong `lib/board.js` — **một** chỗ định nghĩa, dùng cho cả bảng lẫn Admin. Xử lý cả chữ **đ** (ký tự riêng của tiếng Việt, NFD không tách được) |
+
+Ba thứ **cố ý không hiện** sàn thời gian (và vì sao): bài dẫn đầu (đồng hồ đếm ngược đã nói
+rồi), bài bị request trả tiền chặn trước (không hứa được gì), hạng quá 20 (con số chỉ còn là
+trò chơi chữ). Con số luôn nói **"sớm nhất"** vì bài khác vote nhiều hơn chỉ có thể đẩy nó
+**muộn hơn**, không bao giờ sớm hơn.
+
+Nhân lúc làm, sửa luôn ba thứ vặt phát hiện được: một **chữ Hán lạc** trong chú thích
+`cssTapTarget.test.js`; đoạn tài liệu ghi *"bảy chốt chặn tĩnh"* trong khi **liệt kê tám** (nay
+là *mười*, đã bổ sung `cssTapTarget` và `cssSelectArrow` bị bỏ sót); và `.oxlintrc.json` thiếu
+khai báo môi trường node cho file test mới (làm phát sinh 2 lỗi `no-undef` — đã về đúng nền 14
+cảnh báo / 0 lỗi).
+
+### F3. Còn lại
+
+Đúng như bảng C: **C2-8/9 (nối database + gửi ra Telegram/Discord)**, **C2-10 (gỡ trần KV bằng
+D1)**, và các việc C2 khác. Ba câu hỏi chốt cho C2-8/9 vẫn nằm ở cuối phần E.

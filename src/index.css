@@ -2594,6 +2594,10 @@ html[data-section="spin"] .bgfx { display: none; }
 .standing.is-hot { color: var(--paid); border-color: rgba(240,178,65,.45); background: rgba(240,178,65,.12) }
 .standing.is-near { color: var(--a-2); border-color: rgba(135,130,250,.4); background: var(--a-soft) }
 .standing.is-muted { color: var(--txt-3) }
+/* Phần "sớm nhất bao lâu" mờ và nhỏ hơn phần hạng: nó là SUY RA từ lịch chốt
+   chứ không phải số liệu đọc thẳng từ database, nên không được trông như một
+   lời hứa ngang hàng với con số vote. */
+.standing-eta { font-style: normal; font-size: 10px; color: var(--txt-3) }
 
 
 @media (max-width: 620px) {

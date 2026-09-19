@@ -6,7 +6,7 @@
    điện thoại), và tự động nới hết là biến bảng biểu tượng thành đám ô vuông.
    Cái dựng được là **hợp đồng theo cặp**: một class đã chọn "nhỏ trên desktop,
    đủ to trên cảm ứng" thì CẢ HAI vế phải còn — vì vế mobile là thứ người ta
-  删 đầu tiên khi "dọn CSS".
+  XOÁ đầu tiên khi "dọn CSS".
 
    Bối cảnh ra đời (quét 08/09/2026): `.toast-x` 22px là dấu × duy nhất để đóng
    toast trên điện thoại; `.rowact` 18px là nút mảnh ở cuối dòng meta — cả hai

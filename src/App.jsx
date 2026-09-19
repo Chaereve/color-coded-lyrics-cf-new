@@ -22,7 +22,7 @@ import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { usePager } from './lib/usePager'
-import { boardItems as buildBoardItems, groupIds, groupKey, parseRequestPrefill, pickBoardParam } from './lib/board'
+import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
@@ -657,8 +657,10 @@ export default function App() {
 
   /* Hạng của từng bài so với đợt chót kế tiếp — một lần tính cho cả
      bảng, dùng chung cho dòng request, thẻ cụm, hộp thông báo và cả lúc
-     so sánh sinh tin. */
-  const { rank: standings } = useMemo(() => pickLadder(rows), [rows])
+     so sánh sinh tin. `pick` đi kèm để mỗi mục tự mang theo sàn thời gian tới
+     lượt (pickEta trong lib/watch.js): nhờ vậy mọi chỗ đã có `st` đều hiện
+     được "bao giờ" mà không phải luồn thêm prop qua từng tầng. */
+  const { rank: standings } = useMemo(() => pickLadder(rows, pick), [rows, pick])
 
   /* Bảng thông báo cần biết "dòng nào là của bài này" để gắn nút Vote / Xem
      video ngay trong dòng: lấy bài của mình trước, rồi tới dòng nhiều vote
@@ -809,7 +811,9 @@ export default function App() {
   /* Chỉ LỌC ở đây; sắp xếp nằm trong lib/board.js vì phải sắp theo cụm
      (tổng vote cộng dồn), không sắp theo từng dòng lẻ. */
   const visible = useMemo(() => {
-    const t = q.trim().toLowerCase()
+    /* `t` giữ nguyên chữ người dùng gõ: việc bỏ dấu + hạ chữ thường nằm trong
+       `fold()` để hai vế so sánh luôn đi qua cùng một phép biến đổi. */
+    const t = q.trim()
     let base = pub
     if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
     if (filter === 'picked') base = picked
@@ -823,7 +827,9 @@ export default function App() {
        hàng đã công bố — nên tab này lấy từ `rows`, không lấy từ `pub`. */
     if (filter === 'watch') base = rows.filter(r => watchedSet.has(groupKey(r)))
     if (kindFilter !== 'all') base = base.filter(r => r.kind === kindFilter)
-    if (t) base = base.filter(r => `${r.artist} ${r.title} ${r.kind} ${r.requester}`.toLowerCase().includes(t))
+    /* Bỏ dấu trước khi so: tên bài tiếng Việt được gõ cả có dấu lẫn không dấu,
+       mà ô tìm kiếm thì không nên bắt người ta nhớ đúng chính tả. */
+    if (t) base = base.filter(r => fold(`${r.artist} ${r.title} ${r.kind} ${r.requester}`).includes(fold(t)))
     return base
   }, [pub, picked, rows, filter, q, kindFilter, watchedSet])
 
@@ -1183,6 +1189,11 @@ export default function App() {
             <h1 className="mainhead-t">{t(`nav.${section}`)}</h1>
             <p className="mainhead-sub">{t(`nav.${section}Sub`)}</p>
           </div>
+          {/* Chú thích đặt TRƯỚC thẻ, không chen giữa các prop: JSX không cho
+              comment trong danh sách attribute, và propContract.test.js đọc
+              chữ trong đó thành tên prop rồi báo "dây đứt" oan.
+              `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
+              đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
           <Notifications
             open={bellOpen} notices={notices} rank={standings}
             rowsByKey={rowsByKey} prefs={prefs}
@@ -1193,6 +1204,7 @@ export default function App() {
             onDrop={doDropNotice}
             onBrowse={() => { setBellOpen(false); go('board') }}
             onVote={(r) => { setBellOpen(false); openVote(r) }}
+            onBuy={() => { setBellOpen(false); openModal('buy') }}
             onPrefs={doSetPrefs}
           />
           <button className="btn btn-primary only-narrow" onClick={() => openModal('request')}>

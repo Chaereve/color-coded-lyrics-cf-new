@@ -41,7 +41,7 @@ const PREF_ROWS = [
 export default function Notifications({
   open = false, notices = [], rowsByKey, rank, prefs,
   startTab = 'list', onToggle, onOpenNotice, onReadAll, onDrop, onBrowse, onVote,
-  onPrefs, onClose,
+  onBuy = null, onPrefs, onClose,
 }) {
   const { t } = useI18n()
   const [tab, setTab] = useState(startTab)
@@ -164,7 +164,8 @@ export default function Notifications({
                       {g.items.map(n => (
                         <Item key={n.id} n={n} st={rank?.get(n.key)} row={rowsByKey?.get(n.key) || null}
                           grp={t(`nt.grp.${g.id}`)}
-                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote} />
+                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote}
+                          onBuy={onBuy} />
                       ))}
                     </section>
                     )
@@ -184,7 +185,7 @@ export default function Notifications({
    Ca dong la mot nut bam: bo qua hop thoai trung gian, nhay thang toi dong
    request cua bai do tren bang (App lo). Nut hanh dong nhanh nam NGOAI nut do,
    khong long trong — `button` trong `button` la HTML hong. */
-function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
+function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
   const c = TONE[n.type] || 'var(--txt-3)'
   const tag = t(`nt.tag.${n.type}`)
   const url = row?.video_url || n.url || null
@@ -212,6 +213,16 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
         {votable && (
           <button type="button" className="btn btn-sm nt-vote" onClick={() => onVote?.(row)}>
             {t('nt.vote')}
+          </button>
+        )}
+        {/* Mua thêm vote CHỈ hiện ở tin "sát nút" — tin duy nhất mà con số
+            "còn 2 vote nữa" vừa đọc được vừa làm được gì đó ngay. Nút cố ý
+            để LẶNG (viền xám như nút Watch, không tô vàng như nút Vote):
+            người đọc trả tiền khi họ muốn, không phải vì có nút vàng hét lên. */}
+        {n.type === 'near' && onBuy && (
+          <button type="button" className="btn btn-sm" title={t('nt.buyWhy', { n: n.gap ?? 0 })}
+            onClick={() => onBuy(row)}>
+            {t('nt.buyVotes')}
           </button>
         )}
         {url && (

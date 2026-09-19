@@ -1,5 +1,5 @@
 import { useI18n } from '../lib/i18n.jsx'
-import { NEAR_GAP } from '../lib/watch'
+import { NEAR_GAP, etaKey } from '../lib/watch'
 
 /* =========================================================
    STANDING — "bài này còn cách vị trí được chốt bao xa"
@@ -16,6 +16,11 @@ import { NEAR_GAP } from '../lib/watch'
 
    Mốc giờ chốt cụ thể KHÔNG lặp lại ở đây: đồng hồ đếm ngược đã có ở
    khối "Up next" trên đầu bảng, hai chỗ cùng đếm một thứ chỉ tổ lệch.
+
+   PHẦN THỨ HAI — "sớm nhất bao lâu": hạng 9–20 TRƯỚC ĐÂY IM LẶNG HOÀN TOÀN
+   (chỉ hạng ≤ 8 mới có câu), mà đó lại đúng là những người cần biết "bao giờ"
+   nhất. Sàn thời gian (pickEta) hiện cả khi không có câu nào ở trên, và nó là
+   SÀN chứ không phải hẹn: xem chú thích dài trong lib/watch.js.
    ========================================================= */
 
 export default function Standing({ st }) {
@@ -27,11 +32,20 @@ export default function Standing({ st }) {
   else if (st.blocked) { tx = t('standing.paidAhead'); cls = ' is-muted' }
   else if (st.gap <= NEAR_GAP) { tx = t('standing.near', { n: st.gap }); cls = st.gap <= 1 ? ' is-hot' : ' is-near' }
   else if (st.rank <= 8) { tx = t('standing.rank', { n: st.rank }); cls = ' is-muted' }
-  if (!tx) return null
+
+  const eta = st.eta ? etaKey(st.eta.days) : null
+  if (!tx && !eta) return null
 
   return (
     <span className={`standing${cls}`} title={t('standing.rule')}>
-      <b>{tx}</b>
+      {tx && <b>{tx}</b>}
+      {tx && eta && <span className="dot" aria-hidden="true" />}
+      {eta && (
+        <i className="standing-eta"
+          title={t('standing.etaWhy', { d: st.eta.days, c: Math.max(0, st.eta.rank - 1) })}>
+          {t(eta.key, { n: eta.n })}
+        </i>
+      )}
     </span>
   )
 }

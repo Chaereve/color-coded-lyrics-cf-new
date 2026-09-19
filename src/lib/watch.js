@@ -28,6 +28,7 @@
 import { groupKey } from './board.js'
 
 /* ---------- trần & ngưỡng ---------- */
+const DAY = 86_400_000                 /* một ngày tính bằng ms, cho sàn thời gian */
 export const WATCH_LIMIT = 60
 export const INBOX_LIMIT = 60
 /* "Sát nút" = cách vị trí được chốt không quá N vote. Đặt 3 vì một lá phiếu
@@ -118,7 +119,7 @@ export function syncOwnRequests(rows, uid, list, prefs = {}, at = Date.now(), of
    created_at SỚM hơn thắng. Có chỗ khác với tab "Top voted" ngoài bảng (ở
    đó bài mới hơn thắng khi hoà vote) — nhưng nhắc người dùng thì phải theo
    luật của database, vì chính nó quyết định bài nào được làm. */
-export function pickLadder(rows) {
+export function pickLadder(rows, pick = null, now = Date.now()) {
   const totals = new Map()
   for (const r of rows || []) {
     if (r.status !== 'queued' && r.status !== 'in_progress') continue
@@ -140,17 +141,72 @@ export function pickLadder(rows) {
   const leader = ladder[0]
   const anyPaid = ladder.some(g => g.paid)
   const rank = new Map()
-  ladder.forEach((g, i) => rank.set(g.key, {
-    rank: i + 1,
-    total: g.total,
-    paid: g.paid,
-    /* cần bao nhiêu phiếu NỮA để vượt lên dẫn đầu */
-    gap: i === 0 ? 0 : Math.max(1, (leader.total + 1) - g.total),
+  ladder.forEach((g, i) => {
     /* bài dẫn đầu là paid thì vote không vượt được (database xếp paid
        trước, không kể vote) — nói "thiếu 5 vote" trong lúc đó là nói dối */
-    blocked: i > 0 && anyPaid && !g.paid,
-  }))
+    const blocked = i > 0 && anyPaid && !g.paid
+    rank.set(g.key, {
+      rank: i + 1,
+      total: g.total,
+      paid: g.paid,
+      /* cần bao nhiêu phiếu NỮA để vượt lên dẫn đầu */
+      gap: i === 0 ? 0 : Math.max(1, (leader.total + 1) - g.total),
+      blocked,
+      /* Sàn thời gian tới lượt. Gắn vào đây chứ không bắt từng chỗ gọi tự
+         tính: mọi nơi đang hiện "bài này đứng đâu" đều đã có `st` trong tay,
+         nên "bao giờ" đi tới đó mà không phải luồn thêm prop qua mấy tầng. */
+      eta: pickEta({ rank: i + 1, blocked }, pick, now),
+    })
+  })
   return { ladder, rank }
+}
+
+/* =========================================================
+   BAO GIỜ TỚI LƯỢT BÀI NÀY — câu hỏi tốn tiền nhất, và câu trả lời phải là SÀN
+   ---------------------------------------------------------
+   Người đã gửi request (nhất là người đã trả tiền) chỉ hỏi một câu: "bao giờ
+   có video?". Bảng trả lời được "còn cách 2 vote" — nhưng đó là việc của
+   NGƯỜI KHÁC bỏ phiếu, không phải một mốc thời gian ai cũng tự tính được.
+
+   Cách tính:
+     · tới đợt chốt kế tiếp: lấy từ settings.pick.next_pick_at — đúng cái mốc
+       mà đồng hồ đếm ngược trên đầu bảng đang chạy, nên hai chỗ không bao giờ
+       nói hai chuyện khác nhau. Chưa tới thì lấy tròn theo chu kỳ;
+     · mỗi đợt chốt lấy MỘT bài và cách nhau interval_days (mặc định 4), nên
+       bài đang đứng hạng r phải qua thêm (r - 1) đợt nữa.
+
+   Vì sao luôn nói "sớm nhất": bài khác có thể vượt lên bằng vote, tức thời
+   gian thật chỉ có thể MUỘN HƠN con số này. Một con số kèm chữ "khoảng" mà
+   lại có thể trễ hơn thì vẫn là nói thật; một con số không có gì bảo đảm thì
+   là hứa.
+
+   Không trả về gì khi: bài đang dẫn đầu (đồng hồ đếm ngược đã nói rồi, thêm
+   nữa chỉ lặp), bài bị một request đã trả tiền chặn trước (không hứa được
+   gì), hoặc hạng quá xa — lúc đó con số chỉ còn là trò chơi chữ.
+   ========================================================= */
+export const ETA_MAX_RANK = 20
+export const ETA_DEFAULT_INTERVAL = 4
+
+export function pickEta(st, pick, now = Date.now()) {
+  if (!st || !st.rank || st.blocked) return null
+  if (st.rank === 1 || st.rank > ETA_MAX_RANK) return null
+  const interval = Math.max(1, Math.round(Number(pick?.interval_days) || ETA_DEFAULT_INTERVAL))
+  const next = +new Date(pick?.next_pick_at || 0) || 0
+  /* Đếm theo NGÀY TRÒN: "còn 6 giờ nữa chốt" phải hiện là 1 ngày chứ không
+     phải 0 — hứa "0 ngày" là nói sai rõ ràng nhất. */
+  const toNext = next > now ? Math.ceil((next - now) / DAY) : interval
+  return { days: toNext + (st.rank - 1) * interval, interval, rank: st.rank }
+}
+
+/* Đơn vị để hiển thị: ngày → tuần → tháng. Trả về KHOÁ TỪ ĐIỂN chứ không trả
+   về câu chữ: watch.js là logic thuần, không biết gì về i18n (và nhờ vậy
+   kiểm thử được bằng node --test, không cần dựng giao diện). */
+export function etaKey(days) {
+  const d = Math.max(1, Math.round(Number(days) || 0))
+  if (d < 12) return { key: 'standing.etaDays', n: d }
+  if (d < 56) return { key: 'standing.etaWeeks', n: Math.max(1, Math.round(d / 7)) }
+  /* Sàn 2 tháng: "ít nhất 1 tháng" cho một con số 57 ngày là nói giảm */
+  return { key: 'standing.etaMonths', n: Math.max(2, Math.round(d / 30)) }
 }
 
 /* ---------- snapshot: thứ đem ra so sánh giữa hai lần bảng đổi ----------

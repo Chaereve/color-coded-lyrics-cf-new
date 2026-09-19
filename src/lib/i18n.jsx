@@ -160,6 +160,11 @@ const S = {
   'nt.watch': 'Watch',
   'nt.open': 'Go to the request',
   'nt.voteNow': 'Vote now',
+  /* Nút mua vote nằm ngay trong tin "sát nút": lúc bài của mình chỉ còn vài
+     phiếu nữa là dẫn đầu là lúc DUY NHẤT câu "mua thêm vote" trả lời đúng
+     một câu hỏi đang có sẵn trong đầu người đọc. */
+  'nt.buyVotes': 'Get votes',
+  'nt.buyWhy': 'Only {n} to lead the queue. More votes push it up now.',
   'nt.multi': '{n} new notifications',
   'nt.multiBody': 'First one: {song}.',
   'nt.none': 'You are not following any song yet.',
@@ -218,6 +223,12 @@ const S = {
   'standing.rank': '#{n} in line',
   'standing.paidAhead': 'behind a paid request',
   'standing.rule': 'Only one song is picked at a time: paid first, then most votes, then oldest request.',
+  /* "Sớm nhất khoảng …" — đây là SÀN thời gian, không phải lời hứa: bài khác
+     vote nhiều hơn chỉ có thể đẩy nó MUỘN hơn, không bao giờ sớm hơn. */
+  'standing.etaDays': 'at least {n} days',
+  'standing.etaWeeks': 'at least {n} weeks',
+  'standing.etaMonths': 'at least {n} months',
+  'standing.etaWhy': 'Earliest {d} days from now: the next pick, then {c} more cycles at one song per cycle. More votes for another song can push it later, never earlier.',
 
   /* chuong da thanh affordance an nen tooltip la thu duy nhat giai thich no:
      noi ro "alert" va pham vi ca bai, khong goi chung la "follow" */

@@ -6,7 +6,8 @@
    chỉ để trưng bày. Bài 9 vote xé làm 3 request bị xếp dưới bài 5 vote. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boardItems, creditText, findDuplicate, groupIds, groupKey, groupRows, parseRequestPrefill,
+import { readFileSync } from 'node:fs'
+import { boardItems, creditText, findDuplicate, fold, groupIds, groupKey, groupRows, parseRequestPrefill,
   pickBoardParam, sortGroups, sortRows, voteTotals } from './board.js'
 
 const day = 86_400_000
@@ -294,4 +295,45 @@ test('creditText: bài chưa có tên thì trả rỗng, không in dòng cụt',
 test('creditText: không có người gửi thì chỉ có dòng tên bài', () => {
   assert.equal(creditText({ artist: 'aespa', title: 'Whiplash', rows: [] }), 'aespa - Whiplash')
   assert.equal(creditText({ artist: '', title: 'Whiplash', rows: [{}] }), 'Whiplash')
+})
+
+/* ------------------------------------------------------------------
+   Tìm kiếm bỏ dấu: một luật duy nhất cho cả bảng lẫn panel admin
+   ------------------------------------------------------------------ */
+test('fold: bỏ dấu, hạ chữ thường, gộp khoảng trắng', () => {
+  assert.equal(fold('Chung Hạ'), 'chung ha')
+  assert.equal(fold('  CHUNG   Ha  '), 'chung ha')
+  assert.equal(fold('Whiplash'), 'whiplash')
+  assert.equal(fold(null), '')
+  assert.equal(fold(undefined), '')
+})
+
+test('fold: "đ" là ký tự riêng của tiếng Việt, không phải d có dấu', () => {
+  /* NFD không tách được "đ" — thiếu bước thay tay thì "dang nhap" không tìm ra
+     "Đặng Nhập", mà nhìn vào code chẳng thấy sai ở đâu. */
+  assert.equal(fold('Đặng Nhập'), 'dang nhap')
+  assert.equal(fold('đường'), 'duong')
+  assert.equal(fold('ĐƯỜNG'), 'duong')
+})
+
+test('fold: gõ không dấu vẫn ra bài có dấu, và ngược lại', () => {
+  const rows = [req('Chung Hạ', 'Hoa Hồng', 3), req('aespa', 'Whiplash', 5)]
+  const search = (q) => rows
+    .filter(r => fold(`${r.artist} ${r.title}`).includes(fold(q)))
+    .map(r => r.artist)
+  assert.deepEqual(search('chung ha'), ['Chung Hạ'])
+  assert.deepEqual(search('CHUNG HẠ'), ['Chung Hạ'])
+  assert.deepEqual(search('hoa hong'), ['Chung Hạ'])
+  assert.deepEqual(search('whiplash'), ['aespa'])
+  assert.deepEqual(search('blabla'), [])
+})
+
+test('bỏ dấu: chỉ MỘT chỗ định nghĩa, không bản sao thứ hai', () => {
+  /* Panel admin từng có `norm()` riêng không xử lý được "đ", nên cùng một từ
+     khoá cho hai kết quả khác nhau ở hai màn hình. */
+  for (const f of ['../App.jsx', '../components/AdminPanel.jsx']) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8')
+    assert.doesNotMatch(src, /normalize\('NFD'\)/, `${f} tự chuẩn hoá lại — phải dùng fold()`)
+    assert.match(src, /\bfold\(/, `${f} phải lọc bằng fold()`)
+  }
 })

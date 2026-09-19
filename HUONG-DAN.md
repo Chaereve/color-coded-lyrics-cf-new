@@ -1128,7 +1128,8 @@ Ba quy tắc đã áp dụng khi rà toàn bộ UI:
    `TOAST_CAP = 3` (trước đây 4 ô 8 giây là phủ gần hết góc nhìn). Lý do ra đời: một cú tick của
    admin trên cụm 3 request sinh ba mẩu tin giống hệt nhau che màn hình.
 
-**Bảy chốt chặn tĩnh cho những lỗi mà trình duyệt mới nhìn thấy** (`npm test` chạy kèm):
+**Mười chốt chặn tĩnh cho những lỗi mà chỉ trình duyệt mới nhìn thấy** (`npm test` chạy kèm;
+   đoạn này trước ghi "bảy" trong khi liệt kê tám — đếm lại và bổ sung hai cái bị bỏ sót):
 `src/lib/cssGridRows.test.js` — mọi quy tắc lưới của `.grow` chốt cột thì phải chốt hàng,
 chuông không được quay về `position:absolute`, và các số đo nhịp phải còn nguyên;
 `src/lib/cssNotifyPitch.test.js` — một khoảng lùi 12px cho mọi khối trong popover + không
@@ -1139,7 +1140,12 @@ phải loại widget và phải nằm trong `:where()`; `src/lib/cssScroll.test.
 `flex:1` phải có `min-height: 0`; `src/lib/cssTokens.test.js` — không `var(--x)` nào vô chủ
 (`var(--body)` đã sống sót 3 quy tắc vì CSS không bao giờ báo lỗi này); `src/lib/i18nKeys.test.js`
 — không key nào thiếu/trùng và không `{x}` nào hiện nguyên; `src/lib/jsxHtml.test.js` — markup hợp
-lệ (`<div>` trong `<button>`, control lồng control, `type` của button trong form). Mỗi cái đều đã
+lệ (`<div>` trong `<button>`, control lồng control, `type` của button trong form);
+`src/lib/cssTapTarget.test.js` — **hợp đồng theo cặp** cho những nút cố tình nhỏ ở bản desktop
+(`.rowact`, `.toast-x`): đã chọn "nhỏ trên chuột, đủ to trên cảm ứng" thì cả hai vế phải còn,
+vì vế mobile là thứ bị xoá đầu tiên khi dọn CSS; `src/lib/cssSelectArrow.test.js` — mũi tên
+`<select>` phải là thứ tự vẽ, không phải do trình duyệt sơn sát mép bo góc (lỗi người dùng đã
+báo một lần). Mỗi cái đều đã
 được thử phá để chắc rằng nó đỏ thật — chốt chặn không đỏ thì còn vô dụng hơn cả không có, và
 **bản thân bộ quét cũng phải được chứng minh là đọc đúng** (test cuối của mỗi file là vậy).
 
@@ -1344,6 +1350,53 @@ bảng, còn toast thì ở góc màn hình.
 
 Hai phím tắt cho người dùng bàn phím: `N` mở form gửi request, `/` nhảy ô tìm kiếm
 (`Esc` ngay trong ô tìm là xoá luôn từ khoá).
+
+### Tìm kiếm bỏ dấu — gõ sao cũng ra
+
+Ô tìm kiếm bỏ dấu trước khi so, nên một từ khoá khớp cả ba cách người ta gõ tên bài:
+`Chung Hạ`, `Chung Ha`, `chung ha`. `Đặng Nhập` tìm được bằng `dang nhap`: chữ **đ** là ký tự
+riêng của tiếng Việt (không phải `d` cộng dấu), nên nó phải được thay bằng tay — thiếu bước
+đó thì gõ "dang" không ra "Đặng" mà nhìn vào chẳng thấy sai ở đâu.
+
+Toàn bộ luật nằm trong **một** hàm `fold()` (`src/lib/board.js`), và bảng Admin dùng đúng hàm
+đó. Trước đây Admin có bản `norm()` riêng (không xử lý `đ`), nên cùng một từ khoá cho hai kết
+quả khác nhau ở hai màn hình — có ca kiểm thử canh riêng chuyện này.
+
+### "Sớm nhất bao lâu" — sàn thời gian, không phải lời hứa
+
+Dưới mỗi dòng request đang theo dõi, cạnh câu về hạng, nay có thêm một vế mờ hơn: *"at least
+3 weeks"*. Nó trả lời câu hỏi tốn tiền nhất của người đã gửi request — *bao giờ có video?* —
+mà bảng trước đó chỉ trả lời được "còn cách 2 vote", vốn là việc của người khác bỏ phiếu chứ
+không phải một mốc thời gian.
+
+| Thành phần | Lấy từ đâu |
+|---|---|
+| Tới đợt chốt kế tiếp | `settings.pick.next_pick_at` — **đúng** mốc mà đồng hồ đếm ngược trên đầu bảng đang chạy |
+| Số chu kỳ còn phải qua | `(hạng − 1) × interval_days` (mặc định 4 ngày; mỗi đợt chốt lấy **một** bài) |
+
+Vì sao luôn là *"sớm nhất"*: bài khác có thể vượt lên bằng vote, tức thời gian thật chỉ có
+thể **muộn hơn** con số này. Một con số kèm chữ "khoảng" mà lại có thể trễ hơn thì vẫn là nói
+thật; một con số không có gì bảo đảm thì là hứa. Con số chia theo ngày (< 12) → tuần (12–55)
+→ tháng (≥ 56), và không bao giờ hiện "0 ngày" hay "1 tháng" — còn 6 tiếng nữa chốt thì phải
+là "1 ngày".
+
+Ba chỗ **cố ý không hiện**: bài đang dẫn đầu (đồng hồ đếm ngược đã nói rồi, thêm chỉ lặp),
+bài bị một request đã trả tiền chặn trước (đang hiện *behind a paid request* — không hứa được
+gì), và hạng quá 20 (lúc đó con số chỉ còn là trò chơi chữ). Hạng 9–20 **trước đây im lặng
+hoàn toàn** (chỉ hạng ≤ 8 mới có câu), mà đó lại đúng là những người cần biết "bao giờ" nhất.
+
+Con số chỉ được tính ở **một chỗ**: `pickLadder()` gắn `eta` vào chính mục xếp hạng, nên bảng,
+hộp thông báo và trang Của tôi dùng chung một kết quả — không có ba bản tính riêng để lệch nhau.
+
+### Mua thêm vote trong tin "sát nút"
+
+Tin *"Almost picked"* (bài còn ≤ 3 vote nữa là dẫn đầu) nay có thêm nút **Get votes**, mở
+thẳng tab mua. Đây là **lúc duy nhất** con số "còn 2 vote nữa" vừa đọc được vừa làm được gì
+ngay, nên nút chỉ sống trong đúng loại tin đó: không rải khắp hộp thư, không nằm trên bảng.
+
+Nút cố ý để **lặng** (viền xám như nút *Watch*, không tô vàng như nút *Vote*): người đọc trả
+tiền khi họ muốn, không phải vì có nút vàng hét lên. Không truyền `onBuy` thì nút không tồn
+tại, nên chỗ nào không cần cũng không vỡ.
 
 ## Font chữ
 
@@ -1790,6 +1843,73 @@ Hai điểm **không phải giới hạn nhưng dễ mất dữ liệu**, quan t
 > **Đừng dùng gói free của Vercel cho app này** — Hobby cấm mục đích sinh doanh thu, mà app có
 > bán vote. Xem bảng so sánh ngay trên.
 
+### Sao lưu database — 5 phút, làm MỘT lần
+
+Mục *Giới hạn của các gói miễn phí* ngay trên đã nói vì sao việc này quan trọng: gói free của
+Supabase **không có backup tự động**. Repo đã có sẵn một workflow tự sao lưu mỗi ngày —
+`.github/workflows/backup-db.yml` — và nó không chỉ copy file ra: sau khi dump, nó **đổ bản
+dump vào một Postgres sạch** ngay trong máy ảo của GitHub rồi so *dấu vân tay* với nguồn (số
+dòng từng bảng, số function, **policy RLS**, trigger, sequence, index và view). Lệch một dòng
+là job đỏ và GitHub gửi email cho bạn.
+
+> Vì sao phải thử phục hồi mới tính là sao lưu: một file `.dump` nằm trong thư mục trông rất
+> giống một bản sao lưu, nhưng chỉ khi dựng lại được nó mới *là* sao lưu. Cách hỏng hay gặp
+> nhất là **thiếu policy RLS** — số dòng vẫn khớp hoàn hảo mà quyền thì đã hở.
+
+**Ba bước:**
+
+1. **Lấy chuỗi kết nối.** Supabase → nút **Connect** → tab **Session pooler** → copy chuỗi
+   dạng `postgresql://postgres.abcdefghij:[MẬT KHẨU]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`.
+   **Đừng** lấy *Direct connection* (`db.<ref>.supabase.co`): địa chỉ đó chỉ có IPv6, mà máy
+   chạy của GitHub chỉ có IPv4 — sai chỗ này thì job đỏ với lỗi *Network is unreachable*.
+2. **Dán vào secret.** GitHub → repo → **Settings → Secrets and variables → Actions → New
+   repository secret**, tên đúng là `SUPABASE_DB_URL`, giá trị là chuỗi vừa copy.
+3. **Chạy thử một lần bằng tay.** Tab **Actions** → *Sao lưu database* → **Run workflow**.
+   Khoảng một phút sau: ✅ là xong; ❌ thì log in sẵn bốn nguyên nhân hay gặp (sai mật khẩu,
+   project đang ngủ, sai loại chuỗi kết nối, client cũ hơn server).
+
+Sau đó nó tự chạy lúc **02:00 giờ VN mỗi ngày**. Lợi ích phụ đáng kể: vì nó chạm database mỗi
+ngày, nó cũng là thứ **giữ project free khỏi tự ngủ** sau 7 ngày im ắng (xem mục *Giới hạn của
+các gói miễn phí*). Hai điều cần biết:
+
+- **Cron chỉ chạy trên nhánh mặc định** (`main`). Chạy tay thì nhánh nào cũng được, nhưng
+  muốn nó tự chạy hằng ngày thì phải merge.
+- Bản sao nằm trong **artifact của lượt chạy** (Actions → lượt gần nhất → mục *Artifacts*),
+  giữ **30 ngày**, mỗi lượt một gói theo ngày. Trong gói có cả `manifest.txt` (ngày, commit,
+  số dòng từng bảng) và `fingerprint.txt`.
+
+**Muốn giữ lâu hơn 30 ngày?** Thêm bốn secret để đẩy sang **Cloudflare R2** (gói free: 10 GB,
+không tính phí băng thông ra): `R2_BUCKET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY` (R2 → *Manage R2 API Tokens* → token có quyền *Object Read & Write*).
+Không khai báo gì thì bước này tự bỏ qua và **không** làm hỏng lượt sao lưu. Bản trên R2 xếp
+theo ngày và **không bao giờ ghi đè** bản cũ, nên một lần dump hỏng không xoá mất bản lành.
+
+**Khi cần phục hồi thật:**
+
+```bash
+# 1. Tạo project Supabase mới, lấy chuỗi Session pooler của nó
+# 2. Đổ bản dump vào (policy RLS, trigger, sequence đi kèm đầy đủ)
+pg_restore --no-owner --dbname "$CHUOI_CUA_PROJECT_MOI" backup/ccl-*.dump
+```
+
+Project Supabase mới đã có sẵn `anon` / `authenticated` / `service_role`, schema `auth` và
+`pgcrypto` nên bản dump vào thẳng được. Hai thứ **không** nằm trong bản dump và phải làm lại
+tay: **biến môi trường trên Pages** và **URL cấu hình trong Google/Supabase Auth** — chúng
+thuộc về nơi deploy, không thuộc database.
+
+File `auth-users.sql` (nếu có) là **lưới an toàn để đối chiếu**, không phải bản phục hồi một
+cú bấm: nó chỉ có dữ liệu bảng `auth.users` (id + email), đủ để biết ai từng đăng nhập và
+không đủ để dựng lại phiên đăng nhập. Đừng coi nó là thứ thay thế bản dump chính.
+
+Chạy tay trên máy mình (cần `postgresql-client-17`):
+
+```bash
+SUPABASE_DB_URL='postgresql://…' npm run backup:db        # dump + manifest vào ./backup/
+VERIFY_DB_URL='postgres://postgres@127.0.0.1:5432/trong' npm run backup:verify
+```
+
+Thư mục `backup/` đã nằm trong `.gitignore`: dữ liệu thật **không bao giờ** vào git.
+
 ### Cách A — Cloudflare Pages (đơn giản hơn, khuyên dùng nếu mới bắt đầu)
 
 1. Push code lên GitHub.
@@ -2168,9 +2288,10 @@ danh sách cho phép.
 4. **Thêm domain mới vào Supabase** → Authentication → URL Configuration
    (cả *Site URL* lẫn *Redirect URLs*).
 5. **Kiểm tra Google Auth Platform → Audience** đã ở trạng thái *Published*, không phải *Testing*.
-6. **Đặt lịch sao lưu database** (xem *Giới hạn của các gói miễn phí* ở dưới): gói free của
-   Supabase không có backup tự động, nên một tác vụ `pg_dump` định kỳ là thứ rẻ nhất để không
-   mất dữ liệu. Làm việc này **trước khi** làm thêm tính năng nào.
+6. **Bật sao lưu database** — làm theo mục *Sao lưu database* ở dưới, mất khoảng 5 phút:
+   thêm secret `SUPABASE_DB_URL` rồi bấm **Run workflow** một lần cho chắc. Gói free của
+   Supabase không có backup tự động, nên đây là việc rẻ nhất và cũng là việc duy nhất mà bỏ
+   qua có thể mất dữ liệu thật.
 7. **Tự cấp quyền admin** sau khi đăng nhập Google lần đầu:
    ```sql
    update public.profiles set is_admin = true
@@ -2473,6 +2594,29 @@ và bản hai cột luôn là cùng một nội dung.
 - `public/manifest.webmanifest`: `background_color` là `#0b0d10` trong khi toàn app dùng
   `#0d0f12` — lệch ở đúng chỗ người dùng thấy lúc mở app từ màn hình chính.
 
+#### Vòng bốn (cùng ngày): sao lưu tự động + ba việc rẻ cuối cùng
+
+1. **Sao lưu database chạy mỗi ngày** — `.github/workflows/backup-db.yml` + `scripts/*.sh`,
+   kèm bước **thử phục hồi** vào một Postgres sạch và so dấu vân tay. Xem *Sao lưu database*
+   ở phần Deploy.
+2. **Tìm kiếm bỏ dấu** — một `fold()` dùng chung cho bảng và Admin.
+3. **Sàn thời gian "sớm nhất bao lâu"** cho bài đang chờ.
+4. **Nút Get votes trong tin "sát nút"**.
+
+Ba điều đáng nhớ về việc sao lưu, vì chúng là *lý do* chứ không phải chi tiết kỹ thuật: (a)
+backup không được dựa vào "file có tồn tại" — nên mới có bước phục hồi thật; (b) **policy RLS
+phải nằm trong phép so**, vì thiếu một policy thì số dòng vẫn khớp trong khi bản phục hồi đã
+hở quyền; (c) **mật khẩu trong chuỗi kết nối không được rò ra log** — log CI nhiều người đọc
+được, nên script che phần `://user:pass@` trước khi in và có một ca kiểm thử canh đúng điều đó.
+
+Cũng trong lượt này, đối chiếu giới hạn gói free phát hiện một trần **chặt hơn cả trần quen
+thuộc**: **Workers KV gói free chỉ cho 1.000 lượt GHI mỗi ngày** (đọc thì 100.000). Lá chắn
+Edge đang ghi KV mỗi lượt vote và mỗi lượt quay, nên ước lượng **~300–500 lượt vote+spin mỗi
+ngày là chạm trần**; vượt thì app *không sập* (lệnh ghi nằm trong `try/catch`, người dùng vẫn
+vote bình thường) nhưng tấm khiên **ngừng đếm**, chỉ còn Postgres giữ hạn mức thật. Đường ra
+đều miễn phí: ghi cách quãng, hoặc chuyển bộ đếm sang **D1** (gói free cho 100.000 lượt
+ghi/ngày — gấp 100 lần KV). Ghi lại đầy đủ ở `docs/DA-LAM-VA-GOI-Y.md`.
+
 #### Vòng ba (cùng ngày): ba việc miễn phí — không dịch vụ mới, không chạm database
 
 1. **Link mời gửi bài** `/?add=1&artist=…&title=…` — dán vào mô tả video YouTube, người xem
@@ -2519,14 +2663,16 @@ thích giải thích prop phải đặt TRƯỚC thẻ.
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` (`node --test`) | ✅ **214** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 19 ca mới của ba vòng |
+| `npm test` (`node --test`) | ✅ **239** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 44 ca mới của bốn vòng |
 | `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
-| `npm run build` (Vite) | ✅ build sạch, bundle chính 333 kB (gzip 106 kB) |
+| `npm run build` (Vite) | ✅ build sạch, bundle chính 338 kB (gzip 107 kB) |
 
 Đợt này **không thể** xem bằng mắt: sandbox không có trình duyệt (thiếu thư viện NSS,
 máy chủ gói không tới được). Vì vậy mọi kết luận về bố cục đều rút ra từ đọc CSS/JSX và
 các chốt chặn tự động (`cssTokens`, `cssTapTarget`, `cssGridRows`, `cssScroll`,
-`jsxHtml`, `propContract`, `i18nKeys`, `seoContract`). Ba thứ nên liếc bằng mắt sau khi
+`jsxHtml`, `propContract`, `i18nKeys`, `seoContract`, và `backup` — bộ chốt mới chạy thật
+`scripts/*.sh` với `pg_dump`/`pg_restore`/`psql` giả để chứng minh "dấu vân tay lệch thì phải
+đỏ"). Ba thứ nên liếc bằng mắt sau khi
 deploy:
 
 - Thu hẹp cửa sổ qua lại quanh **1300px**: bố cục phải đổi giữa một cột và hai cột, và

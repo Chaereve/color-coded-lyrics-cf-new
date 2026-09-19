@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isPicked, kindCls, STATUS_META, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
-import { creditText, groupKey, voteTotals } from '../lib/board'
+import { creditText, fold, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { useI18n } from '../lib/i18n.jsx'
 import MediaAdmin from './MediaAdmin'
@@ -13,11 +13,6 @@ import { usePager } from '../lib/usePager'
    ít dòng hơn — 10 là vừa một khung modal mà không phải cuộn lâu. */
 const PER_PAGE = 10
 
-/* Tên bài tiếng Việt thường bị gõ cả có dấu lẫn không dấu ("Chung Ha" /
-   "Chung Hạ" / "chung ha"): hạ mọi ký tự về chữ thường không dấu để một
-   từ khoá khớp cả ba. Dùng cho ô tìm kiếm trong panel admin. */
-const norm = (s) =>
-  (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
@@ -240,9 +235,10 @@ export default function AdminPanel({
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
      người gửi / loại / ghi chú cho request; loại đơn + tên bài của request
-     liên quan cho đơn hàng. Khớp cả tiếng Việt có dấu lẫn không dấu. */
-  const needle = norm(q)
-  const matchReq = (r) => !needle || norm(
+     liên quan cho đơn hàng. Bỏ dấu bằng `fold()` — đúng hàm mà ô tìm trên
+     bảng công khai dùng, nên hai màn hình không thể trả lời khác nhau. */
+  const needle = fold(q)
+  const matchReq = (r) => !needle || fold(
     `${r.title} ${r.artist} ${r.requester} ${r.kind} ${r.note || ''} ${r.status}`
   ).includes(needle)
   const matchOrder = (o) => {
@@ -251,7 +247,7 @@ export default function AdminPanel({
     const what = o.kind === 'votes'
       ? `${t('order.votes', { n: o.qty })} votes`
       : t('order.paidRequest')
-    return norm(`${what} ${o.status} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`).includes(needle)
+    return fold(`${what} ${o.status} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`).includes(needle)
   }
 
   /* danh sách đang hiển thị theo tab — phân trang chung một chỗ cho cả
