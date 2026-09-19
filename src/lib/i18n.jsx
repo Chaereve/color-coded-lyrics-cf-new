@@ -228,6 +228,7 @@ const S = {
   'watch.full': 'You follow {n} songs already — drop one first.',
   /* bài đã có trên bảng — hiện ngay dưới ô tên bài, lúc người dùng còn đang gõ */
   'req.dupMeta': '{c} requests, {n} votes on the board already',
+  'req.dupPending': '{c} request of yours is waiting for review',
   'req.dupVote': 'Vote for it instead',
   'req.dupWatch': 'Already done - watch it',
   'req.notifyNote': 'You will be told when this is approved, how production goes, and the moment the video is up.',

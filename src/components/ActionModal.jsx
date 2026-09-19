@@ -33,7 +33,7 @@ function RulesGate({ onAgree }) {
 }
 
 /* ------------------------- TAB: GỬI REQUEST ------------------------- */
-function RequestTab({ onSubmit, live = true, rows = [], onVoteExisting }) {
+function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting }) {
   const { t } = useI18n()
   const [form, setForm] = useState({ kind: KINDS[0], artist: '', title: '', link: '', note: '' })
   /* O "bai tra phi" luon bat dau tat. Tung co prop `paidDefault` de mo form dang
@@ -55,7 +55,10 @@ function RequestTab({ onSubmit, live = true, rows = [], onVoteExisting }) {
      bằng nhiều tài khoản; nói ra ở ô nhập thì rẻ hơn nhiều so với đi gộp ở tầng
      SQL sau khi dữ liệu đã bẩn. Chỉ dò khi cả tên bài lẫn nghệ sĩ đã đủ dài
      (xem `findDuplicate`) nên trong lúc gõ bình thường không có gì nhấp nháy. */
-  const dup = useMemo(() => findDuplicate(rows, form), [rows, form])
+  /* Dò trên `allRows` (mọi hàng, kể cả đang chờ duyệt và đã bị từ chối) chứ
+     không phải `rows` — bảng chỉ hiện hàng công khai, còn ở đây ta cần biết
+     "tôi vừa gửi bài này rồi" ngay cả khi nó chưa được duyệt. */
+  const dup = useMemo(() => findDuplicate(allRows || rows, form), [allRows, rows, form])
 
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
@@ -122,7 +125,9 @@ function RequestTab({ onSubmit, live = true, rows = [], onVoteExisting }) {
           <span className="dup-tx">
             <b>{dup.title}</b>
             <span className="dup-sub">
-              {t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
+              {dup.open === 0 && dup.pending > 0
+                ? t('req.dupPending', { c: dup.pending })
+                : t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
             </span>
           </span>
           {dup.best && onVoteExisting && (
@@ -366,7 +371,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 /* ============================== MODAL ============================== */
 export default function ActionModal({
   open, tab, setTab, onClose,
-  rows, myVotes, myOrders, voteStatus,
+  rows, myVotes, myOrders, voteStatus, allRows,
   onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting,
   /* live = co noi DB that hay chay demo: RequestTab dung no de chon dong chu bao
      tin. Bo no khoi danh sach prop la `live={live}` ben duoi thanh ReferenceError,
@@ -401,7 +406,8 @@ export default function ActionModal({
         </div>
         <div className="modal-body">
           {tab === 'request' && (
-            <RequestTab onSubmit={onSubmit} live={live} rows={rows} onVoteExisting={onVoteExisting} />
+            <RequestTab onSubmit={onSubmit} live={live} rows={rows} allRows={allRows}
+              onVoteExisting={onVoteExisting} />
           )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}

@@ -85,6 +85,10 @@ export function findDuplicate(rows, draft) {
   /* Bài để bấm vào vote: nhiều vote nhất trong số còn sống (vote thêm vào
      dòng yếu nhất là làm cụm mạnh thêm nhưng không đẩy hạng lên). */
   const best = [...open].sort(byVotes)[0] || null
+  /* `pending` đếm riêng: hàng đang chờ duyệt KHÔNG hiện trên bảng nên không
+     thể "vote cho nó" được, nhưng nó vẫn là lý do để không gửi lại lần nữa —
+     gửi trùng của chính mình là ca trùng phổ biến nhất. */
+  const pending = hit.filter((r) => r.status === 'pending').length
   return {
     key,
     rows: hit,
@@ -92,6 +96,7 @@ export function findDuplicate(rows, draft) {
     artist: hit[0].artist,
     votes: hit.reduce((n, r) => n + (r.votes || 0), 0),
     open: open.length,
+    pending,
     best,
     /* Video đã làm xong: gợi ý này đổi thành "xem rồi", không gợi ý vote nữa */
     video: hit.find((r) => r.status === 'completed' && r.video_url)?.video_url || null,

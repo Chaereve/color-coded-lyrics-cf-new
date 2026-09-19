@@ -233,3 +233,11 @@ test('findDuplicate: không có dòng nào thì không sập', () => {
   assert.equal(findDuplicate(null, { artist: 'aespa', title: 'Whiplash' }), null)
   assert.equal(findDuplicate([undefined, null], { artist: 'aespa', title: 'Whiplash' }), null)
 })
+
+test('findDuplicate: đếm riêng hàng đang chờ duyệt (không vote được nhưng vẫn là trùng)', () => {
+  const d = findDuplicate([req('aespa', 'Whiplash', 0, { status: 'pending' })],
+    { artist: 'aespa', title: 'Whiplash' })
+  assert.equal(d.pending, 1)
+  assert.equal(d.open, 0)
+  assert.equal(d.best, null)      // chờ duyệt thì chưa có gì để bấm vào vote
+})

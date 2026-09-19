@@ -457,11 +457,15 @@ Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việ
 vote* (xem `src/lib/board.js`) lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
 nhiều so với phát hiện rồi gộp ở tầng SQL sau khi dữ liệu đã bẩn.
 
+Dò trên **toàn bộ** dữ liệu (kể cả request đang chờ duyệt và đã bị từ chối), không chỉ
+những hàng đang hiện trên bảng — vì ca trùng phổ biến nhất là *chính mình gửi lại*. Gặp
+trường hợp đó, dòng phụ đổi thành "1 request of yours is waiting for review" (`req.dupPending`).
+
 Quy tắc dò **dùng đúng `groupKey`** mà bảng dùng để gom cụm (cùng tên bài + cùng nghệ sĩ,
 bỏ qua hoa/thường và khoảng trắng thừa), nên câu trả lời ở form và cách bảng cộng dồn vote
 không bao giờ nói hai chuyện khác nhau. Chưa đủ dữ liệu (tên bài dưới 3 ký tự, hoặc chưa có
 nghệ sĩ) thì **im lặng** — gõ tới đâu cũng thấy gợi ý là cách dạy người dùng phớt lờ nó.
-Luật nằm ở `findDuplicate()` trong `src/lib/board.js`, có 6 ca kiểm thử.
+Luật nằm ở `findDuplicate()` trong `src/lib/board.js`, có 7 ca kiểm thử.
 
 Người dùng tự xoá được request của mình khi ở trạng thái `pending`, `queued` hoặc `denied`
 (**trừ hàng đã vào Up next** — đã chốt thì khoá cả xoá để khỏi vỡ kế hoạch làm việc).
@@ -2399,7 +2403,7 @@ và bản hai cột luôn là cùng một nội dung.
 #### Vòng hai (cùng ngày): ba việc trong danh sách gợi ý đã làm
 
 1. **Dò trùng ngay lúc gõ** — xem mục *Bài đã có trên bảng?* ở phần Luồng của một
-   request. `findDuplicate()` + 6 ca kiểm thử.
+   request. `findDuplicate()` + 7 ca kiểm thử.
 2. **Nhớ bộ lọc qua các lần ghé** — xem mục *Bộ lọc, loại video và từ khoá tìm* ở phần
    Bố cục trang. `pickBoardParam()` + 3 ca kiểm thử.
 3. **Dấu phân cách trong dòng metadata** — bỏ hẳn ký tự `·`, thay bằng vạch mảnh 1×9px
@@ -2421,7 +2425,7 @@ thích giải thích prop phải đặt TRƯỚC thẻ.
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` (`node --test`) | ✅ **203** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 9 ca mới |
+| `npm test` (`node --test`) | ✅ **204** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 10 ca mới |
 | `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
 | `npm run build` (Vite) | ✅ build sạch, bundle chính 333 kB (gzip 106 kB) |
 

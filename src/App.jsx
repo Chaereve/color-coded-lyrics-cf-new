@@ -1441,7 +1441,7 @@ export default function App() {
             hai prop thành tên prop và báo "dây đứt" oan.) */}
         <ActionModal
           open={modal} tab={modalTab} setTab={setModalTab} onClose={() => setModal(false)}
-          rows={pub} myVotes={myVotes} myOrders={myOrders}
+          rows={pub} allRows={rows} myVotes={myVotes} myOrders={myOrders}
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
           onCancelOrder={doCancelOrder} userName={user.name} live={hasSupabase}
