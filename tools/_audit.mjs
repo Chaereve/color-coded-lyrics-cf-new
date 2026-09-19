@@ -159,7 +159,7 @@ line('H. console.* còn sót trong src')
 {
   const bad = []
   for (const f of srcFiles) {
-    for (const m of read(f).matchAll(/console\.(log|debug|info)\(/g)) bad.push(`${rel(f)}`)
+    if (/console\.(log|debug|info)\(/.test(read(f))) bad.push(`${rel(f)}`)
   }
   console.log(bad.length ? [...new Set(bad)].map((x) => `  · ${x}`).join('\n') : '  (không có)')
 }
