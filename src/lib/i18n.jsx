@@ -415,6 +415,11 @@ const S = {
   'req.splitGo': 'Split it',
   'req.draftRestored': 'Draft restored from your last visit',
   'req.draftClear': 'Discard draft',
+  /* Nhãn NGẮN của thẻ xem trước. Vòng 13 gỡ cả câu dài "Preview — this is what
+     goes on the board" (chủ dự án yêu cầu), nhưng gỡ luôn cả chữ "Preview" thì
+     thẻ mất tên: người dùng nhìn một khối có viền mà không biết nó là gì. Nay
+     giữ đúng MỘT chữ. */
+  'req.preview': 'Preview',
   'req.previewYt': 'YouTube link recognised',
   'req.phArtist': 'artist name…',
   'req.phTitle': 'the {f} name…',

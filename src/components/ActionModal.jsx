@@ -463,14 +463,15 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
             </div>
           )}
 
-          {/* Thẻ này KHÔNG có nhãn chữ. Câu "Preview — this is what goes on the
-              board" đã bị gỡ (vòng 13): cái thẻ có viền, có nền, lại nằm ngay
-              dưới hai ô vừa gõ — nó tự nói nó là gì. Chỉ còn lại thứ đúng là
-              THÔNG TIN: con mắt đánh dấu đây là bản xem trước, và chip xanh khi
-              link YouTube đã được nhận. */}
+          {/* Thẻ này có MỘT chữ làm tên: "Preview". Câu dài cũ
+              ("Preview — this is what goes on the board") đã bị gỡ, nhưng bỏ
+              luôn cả chữ "Preview" là sai — thẻ có viền nằm dưới hai ô vừa gõ
+              mà không có tên thì người dùng phải tự đoán. Con mắt đứng trước
+              chữ, và chip xanh hiện thêm khi link YouTube đã được nhận. */}
           <div className="req-preview">
             <div className="rp-bar">
               <Icon name="preview" size={13} />
+              <span>{t('req.preview')}</span>
               {ytId && <span className="rp-yt">{t('req.previewYt')}</span>}
             </div>
             <div className="rp-row">

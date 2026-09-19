@@ -96,6 +96,11 @@ test('thẻ XEM TRƯỚC dựng theo đúng việc đang gõ, và nói ra chỗ 
      the board"), nên dấu hiệu nó CÓ MẶT là chính nội dung nó dựng: chữ vừa gõ
      xuất hiện ở đây, còn ô chưa điền thì hiện chữ mờ. */
   assert.match(half, /aespa/, 'phải có thẻ xem trước dựng theo chữ vừa gõ')
+  /* Thẻ có TÊN, nhưng tên chỉ một chữ: câu dài "Preview — this is what goes on
+     the board" đã bị gỡ theo yêu cầu, còn bỏ luôn chữ "Preview" thì thẻ mất
+     tên (chủ dự án báo lại đúng lỗi này). */
+  assert.match(half, /Preview/, 'thẻ xem trước phải có tên')
+  assert.ok(!/goes on the board/i.test(half), 'câu dài cũ không được quay lại')
   assert.match(half, /the song name…/, 'ô chưa điền phải hiện chữ mờ nói còn thiếu gì')
 
   const filled = plain(await render({

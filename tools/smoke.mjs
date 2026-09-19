@@ -300,6 +300,9 @@ if (addBtn) {
   check('bước 2 có thẻ xem trước', !!q('.req-preview'))
   check('thẻ xem trước không còn nhãn dài "… goes on the board"',
     !/goes on the board/i.test(text()))
+  check('thẻ xem trước có tên ngắn "Preview"',
+    /Preview/.test(q('.req-preview')?.textContent || ''),
+    q('.req-preview')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 60))
   check('ô Link không còn câu "Paste the YouTube link if you have one."',
     !/Paste the YouTube link/i.test(text()))
   const artist = q('#rq-artist'), title = q('#rq-title')
