@@ -35,7 +35,7 @@ export default function Sidebar({
   sections, routes, section, onNavigate,
   user, counts,
   open, onClose, collapsed, onToggle,
-  onNewRequest, onProfile, onAdmin, onSignOut,
+  onNewRequest, onProfile, onSignOut,
 }) {
   const { t } = useI18n()
   const closeRef = useRef(null)
@@ -102,8 +102,17 @@ export default function Sidebar({
         </div>
 
         <div className="side-scroll">
+          {/* NÚT GỬI REQUEST — trước đây là một viên màu đặc kín khối, chữ
+              trắng, đứng ngay dưới logo: mắt đọc nó thành "logo thứ hai" chứ
+              không phải một hành động. Nay nó nói đúng việc: một ô nền chìm
+              cùng cỡ với các mục điều hướng, icon nằm trong ô vuông nhỏ có
+              màu nhấn (đúng dấu hiệu "viết" của cả trang), chữ đứng cạnh, và
+              một dải nhấn mảnh ở mép trái nối nó với nhóm Điều hướng ngay
+              dưới. Màu nhấn chỉ còn ở icon + dải mép, không phủ kín một khối
+              lớn — đúng tỉ lệ màu đã chốt. */}
           <button type="button" className="side-cta" onClick={fire(onNewRequest)} title={tip(t('btn.newRequest'))}>
-            <Icon name="edit" size={15} className="sico" /><span className="side-tx">{t('btn.newRequest')}</span>
+            <span className="cta-ico" aria-hidden="true"><Icon name="compose" size={14} /></span>
+            <span className="side-tx">{t('btn.newRequest')}</span>
           </button>
 
           <div className="side-group">
@@ -152,13 +161,12 @@ export default function Sidebar({
               <BrandIco d={BRAND.tg} /><span className="side-tx">Telegram</span>
               <Icon name="ext" size={13} className="side-ext" />
             </a>
-            {user?.isAdmin && (
-              <button type="button" className="side-item" onClick={fire(() => onAdmin('orders'))}
-                style={{ '--i': sections.length + 2 }} title={tip(t('menu.adminOrders'))}>
-                <Icon name="note" className="sico" /><span className="side-tx">{t('menu.adminOrders')}</span>
-                {counts.orders > 0 && <span className="dotbadge">{counts.orders}</span>}
-              </button>
-            )}
+            {/* Khối "Order queue" đã bị GỠ khỏi sidebar (vòng 12): hàng đợi đơn
+                là một tab của trang quản trị, và nó đã có lối vào đúng chỗ —
+                ô "Orders" trên dải số liệu, kèm con số và huy hiệu chờ xử lý.
+                Một mục thứ hai trong sidebar vừa trùng đường, vừa chiếm chỗ
+                của hai link ngoài (YouTube/Telegram) là thứ được bấm nhiều nhất
+                ở nhóm này. */}
           </div>
         </div>
 

@@ -17,9 +17,9 @@
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
 import {
   ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
-  CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Pencil, Play,
-  Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, Star, Trophy, User,
-  Volume2, VolumeX, X,
+  CircleAlert, Disc3, Info, ListMusic, LogOut, Minus, Music4, Play,
+  Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
+  Trophy, User, Volume2, VolumeX, X,
 } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
@@ -44,7 +44,9 @@ const SET = {
   user: User,
   shield: ShieldCheck,            /* bảng Admin */
   out: LogOut,
-  edit: Pencil,                   /* viết yêu cầu mới */
+  compose: SquarePen,             /* viết yêu cầu mới — cây bút TRONG ô vuông:
+                                     đọc ra "soạn thứ mới", và đứng cạnh biểu
+                                     tượng khác vẫn không lẫn với nút sửa */
   minus: Minus,
   plus: Plus,
   sound: Volume2,

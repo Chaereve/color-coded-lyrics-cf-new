@@ -63,6 +63,15 @@ const PER_PAGE_ORDERS = 10
 /* khối Up next hiện tối đa bao nhiêu request, còn lại nằm sau nút "View all" */
 const NOW_SHOW = 2
 
+/* Dòng phụ dưới tiêu đề trang — CHỈ những mục có câu trả lời thật cho câu hỏi
+   "trang này để làm gì". Bảng xếp hạng cố ý KHÔNG có dòng phụ: câu cũ ("ai gửi
+   nhiều nhất, ai được làm xong") vừa lặp lại chính tên trang, vừa nói một điều
+   mà bảng đã nói bằng số. Mục nào không có trong bảng này thì không vẽ dòng
+   phụ, chứ không vẽ một dòng rỗng. */
+const NAV_SUB = {
+  board: 'nav.boardSub', spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
+}
+
 const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
@@ -1318,7 +1327,6 @@ export default function App() {
         collapsed={collapsed} onToggle={toggleSide}
         onNewRequest={() => openModal('request')}
         onProfile={() => setProfile(true)}
-        onAdmin={openAdmin}
         onSignOut={doSignOut}
       />
 
@@ -1332,7 +1340,7 @@ export default function App() {
           </button>
           <div className="mainhead-tx" key={section}>
             <h1 className="mainhead-t">{t(`nav.${section}`)}</h1>
-            <p className="mainhead-sub">{t(`nav.${section}Sub`)}</p>
+            {NAV_SUB[section] && <p className="mainhead-sub">{t(NAV_SUB[section])}</p>}
           </div>
           {/* Chú thích đặt TRƯỚC thẻ, không chen giữa các prop: JSX không cho
               comment trong danh sách attribute, và propContract.test.js đọc
@@ -1391,7 +1399,7 @@ export default function App() {
                       hình đọc một mạch không có chỗ ngắt. */}
                   <h2 className="lbl">
                     {t('now.next')}
-                    {pickedGroups.length > 0 && <span className="now-n" title={t('now.why')}>{pickedGroups.length}</span>}
+                    {pickedGroups.length > 0 && <span className="now-n">{pickedGroups.length}</span>}
                     {/* Tách đôi con số trên thành hai giai đoạn: việc đang chạy
                         và việc đã chốt nhưng chờ tới lượt. Hai số này là hai ô
                         thống kê ngay phía trên, nên mắt nối được các con số mà
@@ -1404,11 +1412,6 @@ export default function App() {
                   </h2>
                   <Countdown pick={pick} />
                 </div>
-
-                {/* Một câu nói rõ quan hệ giữa khối này và tab In progress —
-                    hai mục nói cùng một dây chuyền, người đọc không phải tự
-                    suy ra vì sao bài đang làm nằm ở cả hai chỗ. */}
-                {pickedGroups.length > 0 && <p className="now-why">{t('now.why')}</p>}
 
                 {pickedGroups.length === 0 ? (
                   <h3 className="now-empty">{t('now.noPick')}</h3>
@@ -1689,6 +1692,40 @@ export default function App() {
           </>
         )}
 
+        {/* ======= BẢNG QUẢN TRỊ (chỉ admin thấy) =======
+            Là MỘT MỤC của trang, không phải hộp thoại: có địa chỉ riêng, F5 giữ
+            nguyên tab đang mở, và mở được song song ở tab trình duyệt thứ hai.
+            `tab` truyền xuống là tab đang mở (null = để panel tự chọn).
+
+            LỖI GIAO DIỆN NẶNG (vòng 12): khối này từng được dựng ở CUỐI cây
+            React, tức là phía sau cả thẻ đóng của khung nội dung và của `.shell`
+            — nó rơi ra ngoài khung. Không nằm trong `.main` nên không có bề rộng tối đa,
+            không có lề, không có tiêu đề trang, và vì `.side` là cột CỐ ĐỊNH
+            nên dải số liệu (rộng hết màn hình) chui xuống dưới sidebar: ô đầu
+            tiên bị cắt, các thanh công cụ kéo dài hết mép phải. Nay nó đứng
+            cùng chỗ với bốn mục kia, trong `.sect` của `.main`. */}
+        {user.isAdmin && section === ADMIN_ONLY && (
+          /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
+             từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
+             và người dùng chỉ thấy trang trắng — không còn menu, không đường về.
+             Có lưới này thì chỉ khối đó hỏng, kèm nút dựng lại. */
+          <Boundary label={t('nav.admin')} title={t('err.blockTitle')} body={t('err.blockBody')}
+            retry={t('err.blockRetry')}>
+            <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
+              <AdminPanel
+                tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
+                rows={rows} orders={orders} media={featuredRows}
+                onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
+                onPick={doAdminPick} onBulk={doBulk}
+                onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
+                onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
+                onMediaViewHome={viewMediaHome}
+                pickInterval={pick?.interval_days || 4}
+              />
+            </Suspense>
+          </Boundary>
+        )}
+
         </div>{/* /.sect */}
 
         <button type="button" className={`to-top${showTop ? ' on' : ''}`} onClick={scrollTop}
@@ -1752,32 +1789,6 @@ export default function App() {
           onCancelOrder={doCancelOrder} userName={user.name} live={hasSupabase}
         />
       </Suspense>
-
-      {/* ======= MỤC 5: BẢNG QUẢN TRỊ (chỉ admin thấy) =======
-          Là MỘT MỤC của trang, không phải hộp thoại: có địa chỉ riêng, F5 giữ
-          nguyên tab đang mở, và mở được song song ở tab trình duyệt thứ hai.
-          `tab` truyền xuống là tab đang mở (null = để panel tự chọn). */}
-      {user.isAdmin && section === ADMIN_ONLY && (
-        /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
-           từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
-           và người dùng chỉ thấy trang trắng — không còn menu, không đường về.
-           Có lưới này thì chỉ khối đó hỏng, kèm nút dựng lại. */
-        <Boundary label={t('nav.admin')} title={t('err.blockTitle')} body={t('err.blockBody')}
-          retry={t('err.blockRetry')}>
-          <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-            <AdminPanel
-              tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
-              rows={rows} orders={orders} media={featuredRows}
-              onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
-              onPick={doAdminPick} onBulk={doBulk}
-              onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
-              onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
-              onMediaViewHome={viewMediaHome}
-              pickInterval={pick?.interval_days || 4}
-            />
-          </Suspense>
-        </Boundary>
-      )}
     </>
   )
 }

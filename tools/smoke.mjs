@@ -187,6 +187,24 @@ const gate = qa('button').find(b => /Continue with Google/i.test(b.textContent |
 if (gate) await click(gate)
 await waitFor(() => qa('.row, .grow').length > 0 || !!q('.empty'), 5000)
 
+/* ---------- 4b. SIDEBAR (vòng 12) ---------- */
+where = 'sidebar'
+{
+  /* Hàng đợi đơn đã rời sidebar: nó là một tab của trang quản trị và đã có
+     lối vào ở dải số liệu. Còn một mục tên đó trong sidebar nghĩa là việc gỡ
+     chưa xong — chốt bằng chữ, vì một mục thừa không làm gì hỏng. */
+  const sideTx = qa('.side a.side-item, .side button.side-item').map(b => b.textContent || '')
+  check('sidebar không còn mục Order queue', !sideTx.some(x => /Order queue/i.test(x)),
+    sideTx.map(x => x.trim()).filter(Boolean).join(' | ').slice(0, 120))
+  /* Nút soạn request: icon nằm trong ô vuông riêng (.cta-ico) — dấu hiệu đọc ra
+     "hành động" giữa các icon trần; mất ô đó là nút trôi về thành logo thứ hai. */
+  check('nút New request có ô icon riêng', !!q('.side-cta .cta-ico svg'))
+  /* Dòng phụ dưới tiêu đề trang: mục nào có thì in, mục không có thì KHÔNG để
+     lại một thẻ rỗng (bảng xếp hạng cố ý không có dòng phụ). */
+  const sub = q('.mainhead-sub')
+  check('trang chủ có dòng phụ dưới tiêu đề', !!sub, sub?.textContent)
+}
+
 /* ---------- 5. trang chủ ---------- */
 where = 'trang chủ'
 const rows = qa('.row, .grow')
@@ -217,6 +235,10 @@ if (kindChip) {
 } else {
   check('thanh lọc có chip loại bài', false, 'không thấy chip loại bài nào trong khối lọc')
 }
+
+/* TIÊU ĐỀ KHỐI UP NEXT là một h2 thật (không phải div) và mang .lbl — cấp bậc
+   của khối. Trước đây nó 13,5px, nhỏ hơn cả tên bài trong khối (15px). */
+check('Up next có tiêu đề h2', !!q('.nowbar h2.lbl'), q('.nowbar h2.lbl')?.textContent?.replace(/\s+/g, ' ').trim())
 
 const lone1 = loneTagClusters()
 check('trang chủ: không có cụm nhãn rời', lone1.length === 0, lone1.join(' | '))
@@ -400,6 +422,13 @@ window.history.pushState({}, '', '/admin')
 window.dispatchEvent(new window.Event('popstate'))
 await waitFor(() => !!q('.adm-page'))
 check('trang quản trị dựng ra', !!q('.adm-page'))
+/* LỖI GIAO DIỆN NẶNG (vòng 12): bảng quản trị từng được dựng ở cuối cây React,
+   NGOÀI .main — dải số liệu rộng hết màn hình và chui xuống dưới sidebar cố
+   định, ô đầu tiên bị cắt. Chốt cả ba tầng khung, vì chỉ cần rơi ra ngoài một
+   tầng là lỗi quay lại y như cũ. */
+check('trang quản trị nằm trong .main', !!q('.main .adm-page'))
+check('trang quản trị nằm trong .sect', !!q('.sect .adm-page'))
+check('trang quản trị có tiêu đề trang (h1)', !!q('.mainhead-t'))
 check('có dải số liệu chuyển mục', qa('.adm-kpi').length === 5, `${qa('.adm-kpi').length} ô`)
 check('có thanh công cụ', !!q('.adm-bar'))
 /* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
@@ -419,6 +448,14 @@ check('mở địa chỉ đã lọc sẵn: ô tìm kiếm có sẵn từ khoá',
   `q="${q('.adm-bar .search')?.value}"`)
 check('mở địa chỉ đã lọc sẵn: cách xếp đúng lựa chọn', q('.adm-sort')?.value === 'votes',
   `sort="${q('.adm-sort')?.value}"`)
+
+/* Mục không có dòng phụ thì không được để lại thẻ rỗng: bảng xếp hạng là mục
+   duy nhất như vậy (câu "ai gửi nhiều nhất, ai được làm xong" đã bị gỡ). */
+window.history.pushState({}, '', '/ranking')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(150)
+check('bảng xếp hạng không có dòng phụ rỗng', !q('.mainhead-sub'),
+  q('.mainhead-sub')?.textContent)
 
 for (const k of ['pending', 'active', 'orders', 'done', 'media']) {
   where = `trang quản trị · ${k}`

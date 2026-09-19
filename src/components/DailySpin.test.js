@@ -38,9 +38,10 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.match(head, /Daily bonus wheel/)
     assert.match(head, /Next reset/)
     assert.match(head, /--:--:--/)
-    /* Đầu trang phải nói được LUẬT CHƠI: bản thật (không có nhãn demo) từng để
-       trống chỗ này, nên cả đầu khối chỉ có mỗi tiêu đề. */
-    assert.match(head, /Every spin wins — 1\.75 bonus votes on average\./)
+    /* Đầu trang CHỈ có tiêu đề + nhãn demo + đồng hồ đếm ngược (vòng 12):
+       dòng "mỗi lượt thắng trung bình 1,75 vote" đã bị gỡ, và test này chốt
+       đúng việc đó — dựng lại nó là hỏng ở đây. */
+    assert.doesNotMatch(head, /1\.75|bonus votes on average/)
 
     // 2. stage: the wheel and the button that spins it stay in one column
     const dial = html.match(/<div class="spin-dial">([\s\S]*?)<aside class="spin-panel">/)?.[1]
@@ -48,6 +49,9 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.ok(dial.indexOf('spin-wheel-wrap') < dial.indexOf('spin-button'), 'action sits under the wheel')
     assert.match(dial, /class="spin-result"/)
     assert.doesNotMatch(dial, /spin-rules|spin-odds/)
+    /* Không còn câu ghi chú "ô nào cũng có thưởng" nằm dưới nút: luật đó đã
+       hiện ra bằng chính các ô có thưởng trên đĩa. */
+    assert.doesNotMatch(dial, /spin-hint|Every sector wins/)
 
     /* 16 lát vẫn BẰNG NHAU (22,5° mỗi lát — xác suất không đổi), nhưng màu nay
        đi theo MỨC THƯỞNG: 9 lát +1 cùng một tông, 4 lát +2 tông khác… nhờ vậy

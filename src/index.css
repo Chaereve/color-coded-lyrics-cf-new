@@ -393,8 +393,15 @@ button { font-family: inherit; }
    cộng bo góc 8px thì hai đầu đường kẻ bị vát lệch, nhìn rất lộ */
 .nowbar > .nbar { position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
   background: linear-gradient(180deg, var(--a-2), var(--a)) }
+/* TIÊU ĐỀ KHỐI UP NEXT — trước đây 13,5px, tức là NHỎ HƠN cả tên từng bài
+   nằm trong nó (15px): mắt đọc tên bài trước, rồi mới biết đó là khối gì.
+   Nay nó là cấp bậc thật của khối: chữ hiển thị 19px, đậm 700, màu sáng nhất
+   trang; con số đi kèm thành một huy hiệu mang ĐÚNG màu giai đoạn hàng đợi
+   (cùng màu chấm ở chip lọc "Queue"), nên tiêu đề vừa to vừa nói được nó đang
+   đếm việc gì. Dải nhấn 2px ở mép trái khối (.nbar) vẫn là mốc của cả khối. */
 .nowbar .lbl { display: flex; align-items: center; gap: 8px; margin: 0 0 5px;
-  font-size: 13.5px; font-weight: 600; color: var(--txt); }
+  font-family: var(--display); font-size: 19px; font-weight: 700; letter-spacing: -.2px;
+  line-height: 1.15; color: var(--txt); }
 .nowbar h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .1px; }
 .nowbar .sub { font-size: 12.5px; color: var(--txt-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
@@ -404,7 +411,7 @@ button { font-family: inherit; }
    đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
 .section-title {
   display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
-  font-size: 13.5px; font-weight: 600; letter-spacing: .1px;
+  font-family: var(--display); font-size: 16.5px; font-weight: 700; letter-spacing: .1px;
   color: var(--txt);
   animation: rise .42s var(--e-out) both;
 }
@@ -1553,18 +1560,29 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
    nao ca. `.nt-list` tung ngat tin cung vi bo qua dong nay. */
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px var(--side-pad) 6px; scrollbar-width: thin; }
 
-/* ---- nút Gửi request ---- */
+/* ---- nút Gửi request ----
+   Cùng khuôn với một mục điều hướng (.side-item) chứ không phải một viên màu
+   đặc: nền chìm, một đường viền mảnh, và dải nhấn 2px ở mép trái. Icon nằm
+   trong ô vuông nhỏ 26px có nền nhấn nhạt — ô vuông là thứ khiến nó đọc ra
+   "hành động" giữa các icon trần của thanh điều hướng. Khi sidebar thu gọn,
+   chỉ còn đúng ô vuông đó ở đúng cột icon 24px như mọi mục khác. */
 .side-cta {
-  width: 100%; height: 38px; display: flex; align-items: center; gap: var(--side-gap);
-  padding: 0 var(--side-ix); margin-bottom: 16px; cursor: pointer;
-  border: 1px solid var(--a); border-radius: var(--r-md);
-  background: var(--a); color: #fff; font-family: inherit; font-size: 13px; font-weight: 600;
-  letter-spacing: .1px; box-shadow: 0 2px 12px -7px var(--a-glow);
-  transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out), box-shadow var(--t-2) var(--e-soft);
+  position: relative; width: 100%; height: 40px; display: flex; align-items: center; gap: var(--side-gap);
+  padding: 0 var(--side-ix); margin-bottom: 14px; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--txt); font-family: inherit; font-size: 13px; font-weight: 600;
+  letter-spacing: .1px; overflow: hidden;
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
 }
-.side-cta .sico { opacity: 1; }
-.side-cta:hover { background: var(--a-dim); border-color: var(--a-dim); box-shadow: 0 6px 16px -6px var(--a-glow); }
-.side-cta:active { transform: scale(.985); box-shadow: none; }
+.side-cta::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--a-2); }
+.side-cta .cta-ico { flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--a-2); background: var(--a-soft);
+  box-shadow: inset 0 0 0 1px var(--a-dim); }
+.side-cta:hover { background: var(--surface-3); border-color: var(--a-dim); }
+.side-cta:hover .cta-ico { background: color-mix(in srgb, var(--a-2) 22%, transparent); color: var(--txt); }
+.side-cta:active { transform: scale(.99); }
+.side-cta:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 
 /* ---- nhóm + nhãn nhóm ---- */
 .side-group { padding: 4px 0 10px; }
@@ -2617,11 +2635,12 @@ html[data-section="spin"] .bgfx { display: none; }
 /* Dòng tách giai đoạn cạnh con số trên nắp khối Up next: nói rõ con số đó gồm
    bao nhiêu việc đang chạy và bao nhiêu việc chờ tới lượt — hai số nhỏ này là
    hai ô thống kê phía trên, nên mắt nối được mà không phải đoán. */
-.now-split { font-size: 11px; color: var(--txt-3); white-space: nowrap; }
+.now-split { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
 @media (max-width: 620px) { .now-split { white-space: normal; } }
-.now-n { font-family: var(--mono); font-size: 10.5px; font-weight: 600; line-height: 16px; min-width: 16px;
-  padding: 0 5px; text-align: center; border-radius: var(--r-pill);
-  color: var(--queued); background: rgba(143,148,255,.14); }
+.now-n { font-family: var(--mono); font-size: 12px; font-weight: 700; line-height: 20px; min-width: 20px;
+  padding: 0 6px; text-align: center; border-radius: var(--r-pill);
+  color: var(--queued); background: color-mix(in srgb, var(--queued) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--queued) 34%, transparent); }
 
 /* đếm ngược: nhãn nhỏ + số mono, căn phải */
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
@@ -2652,7 +2671,6 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-rule { font-size: 11.5px; color: var(--txt-3); line-height: 1.5; }
 /* Định nghĩa của khối này, đặt ngay dưới tiêu đề: mục Up next và tab In progress
    nói cùng một dây chuyền, người đọc không phải tự suy ra. */
-.now-why { margin: 0 0 10px; font-size: 11.5px; line-height: 1.5; color: var(--txt-3); }
 .now-more { margin-left: auto; }
 
 @media (max-width: 620px) {

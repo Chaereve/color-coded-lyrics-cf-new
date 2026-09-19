@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds, spinAverage,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
 } from '../lib/dailySpin'
 import {
@@ -342,13 +342,16 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       <header className="spin-head">
         <div className="spin-head-text">
           <h2>{t('spin.playLabel')}</h2>
-          <p>
-            {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
-            {/* Bản thật không có nhãn demo nên dòng này từng TRỐNG: đầu trang chỉ
-                có mỗi tiêu đề. Luật chơi rút gọn thành một câu, kèm con số trung
-                bình tính từ CHÍNH bảng thưởng — đổi bảng là đổi luôn câu này. */}
-            <span className="spin-sum">{t('spin.summary', { n: spinAverage(rewards) })}</span>
-          </p>
+          {/* Dòng "mỗi lượt thắng trung bình 1,75 vote" đã bị GỠ (vòng 12): con
+              số trung bình không giúp ai quyết định bấm hay không, mà nó lại
+              đứng ở vị trí đắt nhất của trang — ngay dưới tiêu đề, chỗ mắt đọc
+              đầu tiên. Việc của đầu trang là MỘT lời mời bấm, không phải một
+              bảng thống kê. Nhãn demo ở lại (nó nói dữ liệu này là dữ liệu
+              mẫu, một điều người dùng PHẢI biết), và khi không có nhãn thì cả
+              dòng phụ không được dựng — không để lại một thẻ rỗng. */}
+          {!hasSupabase && (
+            <p><span className="spin-demo" role="note">{t('spin.demo')}</span></p>
+          )}
         </div>
         <div className="spin-reset" title={t('spin.ruleReset')}>
           <span>{t('spin.resetIn')}</span>
@@ -375,7 +378,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
               {result
                 ? <><strong key={result.reward} className="spin-won-num">{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
                   <small>{t('spin.wonNote')}</small></>
-                : <span className="spin-hint">{t('spin.hint')}</span>}
+                : null}
             </div>
           </div>
 

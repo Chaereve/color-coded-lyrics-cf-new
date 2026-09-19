@@ -11,14 +11,13 @@ const S = {
   'nav.board': 'Requests',
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
-  'nav.mine': 'My requests',
+  'nav.mine': 'About me',
   'nav.admin': 'Admin',
   /* dòng phụ dưới tiêu đề trang: nói trang này để LÀM GÌ, không nhắc lại số
      liệu (dải thống kê ngay dưới đã làm việc đó) */
   'nav.boardSub': 'Vote for what gets made next',
-  'nav.spinSub': 'One free spin a day',
-  'nav.rankingSub': 'Who requests the most, who gets finished',
-  'nav.mineSub': 'Your requests, orders and standing',
+  'nav.spinSub': 'Two free spins a day',
+  'nav.mineSub': 'Your details, your requests, your orders',
   'nav.adminSub': 'Review requests, pick the queue, handle orders',
 
   /* sidebar */
@@ -67,7 +66,6 @@ const S = {
   'menu.settings': 'Settings',
   'menu.sound': 'Sound',
   'menu.admin': 'Admin workspace',
-  'menu.adminOrders': 'Order queue',
   'menu.signOut': 'Sign out',
 
   /* the so diem vote */
@@ -94,10 +92,6 @@ const S = {
   'spin.refresh': 'Try again',
   'spin.deviceReset': 'Reset this browser',
   'spin.deviceResetHint': 'Clears the saved browser token, then reloads. Your spins already used today stay used.',
-  'spin.hint': 'Every sector wins something.',
-  /* Một câu cho cả luật chơi, ở đầu trang — số trung bình tính từ chính bảng
-     thưởng nên không bao giờ lệch với vòng quay. */
-  'spin.summary': 'Every spin wins — {n} bonus votes on average.',
   'spin.wonOne': '+1 bonus vote',
   'spin.won': '+{n} bonus votes',
   'spin.wonNote': 'Added to your vote credits.',
@@ -277,7 +271,6 @@ const S = {
   'now.votes': 'votes',
   /* Quan he giua khoi Up next va tab In progress — noi mot cau thay vi de nguoi
      doc tu doan vi sao mot bai nam o ca hai cho. */
-  'now.why': 'Everything already picked for production: songs being edited plus songs waiting for their turn.',
   /* Hai giai đoạn của dây chuyền, cộng lại đúng bằng con số trên nắp khối */
   'now.split': '{a} in progress · {b} picked, not started',
   'now.nextPickLbl': 'Next pick in',
@@ -351,9 +344,9 @@ const S = {
   /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js).
      Ba câu, ba con số đếm được — bảng không còn "điểm" nào do nó tự đặt ra, nên
      cũng không còn câu giải thích trọng số nào để mà lệch. */
-  'rank.rule.total': 'Sorted by requests sent · ties go to more completed, then more votes',
-  'rank.rule.completed': 'Sorted by requests completed · ties go to more votes, then more requests',
-  'rank.rule.total_votes': 'Sorted by votes earned · ties go to more completed, then more requests',
+  'rank.rule.total': 'Sorted by requests sent',
+  'rank.rule.completed': 'Sorted by requests completed',
+  'rank.rule.total_votes': 'Sorted by votes earned',
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
