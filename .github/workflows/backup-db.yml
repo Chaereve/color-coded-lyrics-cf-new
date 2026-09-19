@@ -1,0 +1,112 @@
+# =========================================================
+# SAO LƯU DATABASE — mỗi ngày một lần, miễn phí, không cần dịch vụ nào
+# ---------------------------------------------------------
+# Gói free của Supabase KHÔNG có backup tự động: dữ liệu thật của app (request,
+# vote, đơn hàng, lịch sử vòng quay) chỉ nằm ở một chỗ. Workflow này là bản
+# sao duy nhất — và nó KHÔNG chỉ copy file ra: sau khi dump, nó đổ bản dump
+# vào một Postgres sạch trong chính máy ảo rồi so dấu vân tay (số dòng từng
+# bảng, function, policy, trigger). Lệch một dòng là job đỏ.
+#
+# Cần đặt 1 secret:  SUPABASE_DB_URL  (chuỗi Session pooler, cổng 5432)
+# Tuỳ chọn, 4 secret: R2_BUCKET · R2_ACCOUNT_ID · R2_ACCESS_KEY_ID ·
+#                     R2_SECRET_ACCESS_KEY  → giữ bản sao lâu hơn 30 ngày
+# Cách lấy từng thứ: HUONG-DAN.md, mục "Sao lưu database".
+#
+# ⚠️ Cron chỉ chạy trên NHÁNH MẶC ĐỊNH. Muốn nó tự chạy hằng ngày thì phải
+#    merge vào main; còn chạy tay (Run workflow) thì chạy được từ nhánh nào
+#    cũng được — dùng đúng cách đó để thử lần đầu.
+#
+# Giờ chạy 19:00 UTC = 02:00 giờ VN: lúc kênh vắng người nhất, và pg_dump
+# không tranh chấp với ai.
+# =========================================================
+name: Sao lưu database
+
+on:
+  schedule:
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+# Hai lượt chồng nhau (bấm tay đúng lúc cron nổ) thì bản sau xếp hàng, không
+# chạy song song: hai pg_dump cùng lúc chỉ tốn tài nguyên vô ích.
+concurrency:
+  group: backup-db
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Postgres sạch để THỬ PHỤC HỒI. Miễn phí: container chạy trong máy ảo
+    # của runner, không phải một dịch vụ ngoài nào.
+    services:
+      verify:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Runner có sẵn client 16, mà Supabase chạy Postgres 17 — pg_dump cũ
+      # hơn server thì từ chối làm việc ("server version mismatch"), nên cài
+      # client cùng phiên bản từ kho PGDG.
+      - name: Cài PostgreSQL client 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] http://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump + dấu vân tay
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: bash scripts/backup-db.sh
+
+      - name: Thử phục hồi vào Postgres sạch
+        env:
+          VERIFY_DB_URL: postgres://postgres:verify@localhost:5432/verify
+        run: bash scripts/verify-backup.sh
+
+      # if: always() — dump hỏng thì file hỏng vẫn phải xem được để biết hỏng
+      # ở đâu; và bản dump lành của hôm qua trong R2 vẫn còn nguyên.
+      - name: Lưu artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_number }}
+          path: backup/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: (tuỳ chọn) Đẩy lên Cloudflare R2
+        if: success()
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: bash scripts/push-to-r2.sh
+
+      # GitHub đã tự gửi email khi workflow đỏ; dòng này để log nói thẳng
+      # việc cần làm thay vì chỉ báo "exit code 1".
+      - name: Nhắc khi hỏng
+        if: failure()
+        run: |
+          echo "::error::Sao lưu KHÔNG thành công. Kiểm tra: (1) secret SUPABASE_DB_URL, (2) project Supabase có đang ngủ vì gói free không, (3) chuỗi kết nối phải là Session pooler cổng 5432."

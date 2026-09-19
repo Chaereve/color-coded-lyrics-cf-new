@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "test": "node --test \"src/**/*.test.js\" \"supabase/tests/**/*.test.js\" \"worker/**/*.test.js\"",
     "preview": "vite preview",
-    "test:spin:db": "node --test supabase/tests/dailySpin.test.js"
+    "test:spin:db": "node --test supabase/tests/dailySpin.test.js",
+    "backup:db": "bash scripts/backup-db.sh",
+    "backup:verify": "bash scripts/verify-backup.sh"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",
