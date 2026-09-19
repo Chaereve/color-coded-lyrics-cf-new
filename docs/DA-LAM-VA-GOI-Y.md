@@ -989,3 +989,56 @@ có vài sắc na ná (`--queued #8f94ff` với `--k-ccl #ab8fe0`, `--done #4cba
 - `npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
   → **0 lỗi, 13 cảnh báo** (không đổi). `npm run build` → OK: `index-7SWXOV2s.js` 294,5 kB
   (gzip 91,6 kB — **nhỏ hơn** bản trước vì vạch cuộn đã bị gỡ), CSS 119,0 kB.
+
+## Phần U — vòng 17: "thanh progress đang bị bự và xấu quá"
+
+Chủ dự án gửi **ảnh chụp một hàng request** kèm đúng bốn chữ đó. Ảnh là dữ liệu quý: nó
+biến một câu cảm nhận thành bốn con số cụ thể, và cả bốn đều **đúng như những gì đã được
+viết ra trong tài liệu ở vòng trước** — nghĩa là lỗi không nằm ở chỗ làm sai, mà ở chỗ mỗi
+thứ được nới một nhịp mà không ai nhìn tổng thể cái khối.
+
+### U1. Bốn thứ cùng lúc làm nó bự
+
+| | Trước | Sau | Vì sao |
+|---|---|---|---|
+| Rãnh | 6px | **4px** | Sáu pixel là độ dày của một dải băng. Cạnh một con số in đậm, trong một khối rộng 340px, nó đúng là dải băng chứ không phải thanh |
+| Khối vạch + số | 340px | **220px** | Cột danh sách trên màn hai cột chỉ ~740px → 340px là gần **NỬA** bề ngang hàng: thành thứ to nhất sau tiêu đề. 220px ≈ 30% — đúng cỡ một chi tiết phụ dưới dòng meta |
+| Con số | 11,5px nét **600**, màu vạch pha 78% trắng | **10,5px nét 500**, pha 72% màu vạch + 28% `--txt-2` | Một chữ số in đậm màu bão hoà **to hơn cả tên người gửi** là chỗ to tiếng nhất trong hàng |
+| Hai vạch mốc | `rgba(0,0,0,.42)`, rãnh 6px | `rgba(0,0,0,.34)`, rãnh 4px | Ở 6px chúng đọc ra như vạch chia của một thanh **ba khúc**; ở 4px chúng là đường nối trong lòng vạch |
+
+Một chi tiết đáng nói: **lý do của bản 6px vẫn nằm trong tài liệu** — *"đủ dày để đọc được
+mà không thành một dải băng"*. Câu đó không sai khi viết ra; nó sai khi đứng cạnh ba thứ
+kia (con số đậm, khối 340px, hai vạch chia). Đây là lần thứ hai cùng một khối bị chỉ vì một
+con số được chọn riêng lẻ, nên luật cho lần sau đã được ghi thẳng vào `DESIGN.md` §2.5:
+
+> **Khi thanh tiến độ nằm trong một HÀNG danh sách, mọi con số của nó phải nhỏ hơn con số
+> nhỏ nhất của hàng đó.** Vạch có thể mang màu trạng thái, nhưng kích cỡ và độ đậm thì phải
+> xếp **dưới** chữ — nó là chi tiết phụ, không phải số liệu.
+
+### U2. Số cụ thể (đo, không đoán)
+
+Màu của con số được tính lại bằng tay theo đúng công thức `color-mix(in oklab, …)` rồi đo
+tương phản trên nền `--panel`:
+
+| Trạng thái | Số cũ | Số mới |
+|---|---|---|
+| Đang làm (`--progress #e0a93e`) | `#e7bc71` · **10,45:1** | `#cda96a` · **8,33:1** |
+| Xong 100% (`--done #4cba88`) | `#7acaa1` · 9,46:1 | `#69b494` · **7,55:1** |
+
+Vẫn trên ngưỡng WCAG AA (4,5:1 cho chữ nhỏ) khá xa, nhưng độ chói giảm một bậc — và quan
+trọng hơn: độ **đậm** (600 → 500) và cỡ (11,5 → 10,5px) mới là hai thứ làm nó thôi hét.
+
+Vạch vẫn không mất thông tin nào sau bốn lần siết: đúng hai mốc, số ở cuối, `min-width` chừa
+sẵn nên mép vạch vẫn đứng yên tuyệt đối khi số từ 9% lên 100% (30px đủ chứa "100%" ở mono
+10,5px ≈ 25px).
+
+### U3. Kiểm chứng
+
+`src/components/Progress.test.js` (phép kiểm "không còn thanh tiến độ nào dựng bằng tay")
+nay chốt **cả bốn vế của lần siết này** — vì đây là loại thay đổi dễ bị nới ngược khi có
+người "sửa cho dễ nhìn": rãnh 4px, khối ≤ 220px, số 10,5px nét 500, và số phải pha với
+`--txt-2`. Kèm một dòng ghi lại vì sao con số cũ (6px) từng được chọn.
+
+`npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
+→ **0 lỗi, 13 cảnh báo**. `npm run build` → OK: `index-B5awy9PP.js` 294,6 kB (gzip 91,7 kB),
+CSS 119,0 kB.

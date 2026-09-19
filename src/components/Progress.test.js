@@ -90,7 +90,20 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   /* .bar cũ đã bị gỡ khỏi CSS; .prog mới phải thật sự có luật. */
   const css = readFileSync(`${root}src/index.css`, 'utf8')
   assert.doesNotMatch(css, /^\.bar\s*\{/m, 'luật .bar cũ phải bị xoá')
-  assert.match(css, /\.prog-track\s*\{[^}]*height:\s*6px/, 'rãnh 6px — đủ dày để đọc được mà không thành một dải băng')
+  /* RÃNH 4px (vòng 17). Bản trước là 6px với lý do "đủ dày để đọc được mà
+     không thành một dải băng" — nhưng chủ dự án gửi ảnh chụp và nói đúng bốn
+     chữ: "thanh progress đang bị bự và xấu quá". Sáu pixel cạnh một con số in
+     đậm màu vàng, trong một khối rộng 340px trên cột danh sách ~740px, thì nó
+     ĐÚNG LÀ một dải băng. Bốn pixel vẫn đọc được ở 1x mà đọc ra là "một
+     đường". Phép kiểm này chốt cả hai vế của lần siết đó: rãnh mảnh, và khối
+     không được rộng lại. */
+  assert.match(css, /\.prog-track\s*\{[^}]*height:\s*4px/, 'rãnh 4px — một đường, không phải một dải băng')
+  assert.match(css, /\.prog \{[^}]*max-width:\s*220px/,
+    'khối vạch + số không được rộng quá 220px (cột danh sách chỉ ~740px)')
+  const numRule = css.match(/\.prog-num \{[^}]*\}/)[0]
+  assert.match(numRule, /font-size:\s*10\.5px/, 'số là chú thích, không phải biển báo')
+  assert.match(numRule, /font-weight:\s*500/, 'số không được in đậm — nó là thứ to tiếng nhất trong hàng')
+  assert.match(numRule, /var\(--txt-2\)/, 'số pha với xám để không hét lên bằng màu bão hoà')
   assert.match(css, /\.prog-track > i\s*\{[^}]*width:\s*var\(--w, 0%\)/)
   assert.match(css, /\.prog-num\s*\{[^}]*tabular-nums/, 'số phải đứng yên khi tiến độ đổi')
 

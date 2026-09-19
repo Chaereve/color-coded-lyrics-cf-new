@@ -156,15 +156,31 @@ Luật:
 - Số dùng `--mono` + `tabular-nums` **và có bề rộng chừa sẵn** (vòng 16). Chỉ
   `tabular-nums` là chưa đủ: "9%" và "100%" vẫn khác nhau một con số, mà con số
   nằm **sau** vạch (`flex: 1`), nên mỗi lần tiến độ qua hàng chục hay tới 100%
-  thì **vạch tự ngắn lại đúng bằng một con số**. Chừa 34px + canh phải thì mép
-  vạch đứng yên tuyệt đối.
+  thì **vạch tự ngắn lại đúng bằng một con số**. Chừa 30px + canh phải thì mép
+  vạch đứng yên tuyệt đối (mono 10,5px: "100%" ≈ 25px < 30px).
+- **Kích thước là một quyết định thiết kế, không phải chỗ để nới** (vòng 17).
+  Chủ dự án gửi ảnh một hàng request: *"thanh progress đang bị bự và xấu quá"*.
+  Bốn thứ cùng lúc làm nó bự, và cả bốn đều là hệ quả của việc mỗi thứ được nới
+  một nhịp mà **không ai nhìn tổng thể cái khối**:
+
+  | | Trước | Sau | Vì sao |
+  |---|---|---|---|
+  | Rãnh | 6px | **4px** | 6px là độ dày của một dải băng; 4px vẫn đọc được ở 1x mà đọc ra là "một đường" |
+  | Khối vạch + số | 340px | **220px** | Cột danh sách trên màn hai cột chỉ ~740px → 340px là gần **nửa** bề ngang hàng, thành thứ to nhất sau tiêu đề |
+  | Con số | 11,5px nét **600**, màu vạch pha trắng | **10,5px nét 500**, pha 72% màu vạch + 28% `--txt-2` | Một chữ số in đậm màu bão hoà to hơn cả tên người gửi là chỗ to tiếng nhất trong hàng |
+  | Hai vạch mốc | `rgba(0,0,0,.42)`, rãnh 6px | `rgba(0,0,0,.34)`, rãnh 4px | Ở 6px chúng đọc ra như vạch chia của một thanh ba khúc; ở 4px chúng là đường nối trong lòng vạch |
+
+  Bài học cho lần sau, ghi lại vì đây là lần thứ hai cùng một khối bị chỉ:
+  **khi thanh tiến độ nằm trong một HÀNG danh sách, mọi con số của nó phải nhỏ
+  hơn con số nhỏ nhất của hàng đó.** Vạch có thể mang màu trạng thái, nhưng kích
+  cỡ và độ đậm thì phải xếp dưới chữ — nó là chi tiết phụ, không phải số liệu.
 - **Hai vạch mốc chia ở 40% và 80%** (vòng 16): con số này không trừu tượng,
   sau nó là đúng ba việc có tên (Layout 40 · Lyrics 40 · Edit 20 — `MILESTONES`
   trong `db.js`, cũng là ba ô tick admin nhìn thấy). Nhờ vậy "42%" đọc ra "xong
   Layout, đang làm Lyrics". Vị trí mốc do JS đặt qua `--m`, **suy từ
   `MILESTONES`** chứ không viết cứng 40/80 trong CSS: đổi trọng số ba mốc ở
   `db.js` là vạch chia đi theo, không có hai chỗ khai cùng một con số. Mốc là
-  vạch **chìm** (`rgba(0,0,0,.42)`) nên đọc được cả khi ruột màu đã chạy qua;
+  vạch **chìm** (xem bảng ở mục dưới) nên đọc được cả khi ruột màu đã chạy qua;
   cấu trúc ba mốc nằm trong `title` của cả khối, còn hai vạch mốc là
   `aria-hidden` (đọc lại chỉ thành tiếng ồn).
 - Giá trị rác (`undefined`, `"abc"`, `150`, `-3`) bị kẹp về `0..100` **trong

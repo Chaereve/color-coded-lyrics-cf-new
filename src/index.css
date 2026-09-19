@@ -754,8 +754,8 @@ select {
    3px nên khó thấy nó đang ở đâu. Nay vạch dày 6px, bo tròn hai đầu, tô theo
    trạng thái của bài (--sc) — số và vạch cùng một hàng, đọc là hiểu ngay. */
 /* ---- THANH TIẾN ĐỘ ------------------------------------------------------
-   MỘT vạch phẳng: rãnh chìm một sắc, ruột đặc đúng màu trạng thái, con số
-   đứng ở cuối vạch.
+   MỘT vạch mảnh: rãnh chìm một sắc, ruột đặc đúng màu trạng thái, con số
+   đứng ở cuối vạch — như một chú thích, không như một con số hét.
 
    Bản trước tô ruột bằng `color-mix` nâng sáng, thêm hai vệt bóng trong lòng
    vạch, một quầng sáng, và một mũi 3px ở đầu vạch — bốn lớp ánh sáng cho một
@@ -768,22 +768,33 @@ select {
    chính bán kính bo tròn thì vạch biến mất và người đọc tưởng "chưa bắt đầu".
    Phần tử chỉ tồn tại khi pct > 0 (Progress.jsx), nên 0% không sinh que thừa.
 
-   HAI MỐC CHIA (vòng 16) — vạch này không chạy trên một con số trừu tượng:
-   sau nó là ĐÚNG BA việc có tên (Layout 40% · Lyrics 40% · Edit 20%, xem
-   `MILESTONES` trong db.js), cũng là ba ô tick mà admin nhìn thấy. Hai vạch
-   mốc 1px ở 40% và 80% nói ra cấu trúc đó mà không thêm chữ nào: "42%" đọc
-   thành "xong Layout, đang làm Lyrics" thay vì "gần nửa đường, không rõ tới
-   đâu". Chúng là VẠCH CHÌM (nền tối mờ) chứ không phải vạch trắng: khi ruột
-   chạy qua, mốc đã xong vẫn đọc được như một đường nối trong lòng vạch, còn
-   khi chưa tới thì nó là một nếp gấp trong rãnh — đúng kiểu một thứ có cấu
-   trúc, không phải một thứ được tô màu. */
-.prog { display: flex; align-items: center; gap: 10px; margin-top: 8px; max-width: 340px;
+   VÒNG 17 — BỚT "BỰ". Chủ dự án gửi ảnh một hàng request và nói đúng bốn chữ:
+   "thanh progress đang bị bự và xấu quá". Bốn thứ cùng lúc làm nó bự, và cả
+   bốn đều là hệ quả của việc mỗi thứ được nới ra một nhịp mà không ai nhìn
+   TỔNG THỂ cái khối:
+
+     1. RÃNH 6px → 4px. Sáu pixel là độ dày của một dải băng; bốn pixel vẫn
+        đọc được ở 1x mà đọc ra là "một đường", không phải "một khối".
+     2. KHỐI RỘNG 340px → 220px. Cột danh sách trên màn hai cột chỉ ~740px, nên
+        340px là gần NỬA bề ngang hàng: nó thành thứ to nhất trong hàng sau
+        tiêu đề. 220px ≈ 30% — đúng cỡ một chi tiết phụ dưới dòng meta.
+     3. SỐ 11,5px in ĐẬM, màu vàng bão hoà → 10,5px nét 500, màu pha với xám.
+        Con số cũ là thứ to tiếng nhất trong hàng: một chữ số in đậm màu cảnh
+        báo to hơn cả tên người gửi. Nó vẫn THUỘC VỀ VẠCH (pha 72% màu vạch,
+        28% `--txt-2`) — nghĩa là vẫn đọc ra "con số của thanh màu vàng này" —
+        nhưng ở nét 500 cỡ 10,5px nó là chú thích, không phải biển báo.
+     4. HAI VẠCH MỐC nhạt lại (`rgba(0,0,0,.34)`): ở 6px chúng là vạch chia
+        đọc ra như một thanh ba khúc; ở 4px chúng là đường nối trong lòng vạch.
+
+   Vạch không mất thông tin nào sau bốn lần siết đó: vẫn đúng hai mốc, vẫn số
+   ở cuối, vẫn cỡ chữ mono có bề rộng chừa sẵn nên mép vạch không nhảy. */
+.prog { display: flex; align-items: center; gap: 8px; margin-top: 7px; max-width: 220px;
   /* MÀU CỦA VẠCH do CSS quyết (không có prop màu): cùng một bài phải có cùng
      một màu vạch ở trang chủ và trong bảng quản trị. */
   --sc: var(--progress); }
 .prog-full { --sc: var(--done); }
 .prog-wide { max-width: none; }
-.prog-track { position: relative; flex: 1 1 auto; min-width: 56px; height: 6px;
+.prog-track { position: relative; flex: 1 1 auto; min-width: 56px; height: 4px;
   border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .prog-track > i { display: block; height: 100%; width: var(--w, 0%); min-width: 6px;
   border-radius: inherit; background: var(--sc, var(--progress));
@@ -793,19 +804,18 @@ select {
    `aria-hidden` vì cấu trúc đã nằm trong `title` của cả khối — đọc lại ở đây
    chỉ thành tiếng ồn cho trình đọc màn hình. */
 .prog-mile { position: absolute; top: 0; bottom: 0; left: var(--m); width: 1px;
-  background: rgba(0,0,0,.42); }
+  background: rgba(0,0,0,.34); }
 /* Số dùng chữ mono + chữ số đều (tabular-nums) và BỀ RỘNG ĐƯỢC CHỪA SẴN: chỉ
    tabular-nums là chưa đủ, "9%" và "100%" vẫn khác nhau một con số, mà số này
    nằm sau vạch (vạch `flex: 1` co theo nó) — nên tới lúc đổi hàng chục, vạch
-   TỰ NGẮN LẠI đúng bằng một con số, mỗi lần. Chừa sẵn 34px rồi canh phải thì
-   mép vạch đứng yên tuyệt đối.
-   Màu: con số thuộc về vạch — lấy đúng tông của vạch, sáng hơn một bậc để đọc
-   được trên nền. Một luật, không phải hai: bản cũ khai `color: var(--txt-2)`
-   ở đây rồi bị luật `.prog .prog-num` đè ngay bên dưới — một khai báo chết. */
-.prog-num { min-width: 34px; text-align: right;
-  font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+   TỰ NGẮN LẠI đúng bằng một con số, mỗi lần. Chừa sẵn 30px rồi canh phải thì
+   mép vạch đứng yên tuyệt đối (mono 10,5px: "100%" = 4 ký tự ≈ 25px < 30px).
+   Một luật màu duy nhất: bản cũ khai `color: var(--txt-2)` ở đây rồi bị luật
+   `.prog .prog-num` đè ngay bên dưới — một khai báo chết. */
+.prog-num { min-width: 30px; text-align: right;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: color-mix(in oklab, var(--sc, var(--progress)) 78%, #fff); }
+  color: color-mix(in oklab, var(--sc, var(--progress)) 72%, var(--txt-2)); }
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
