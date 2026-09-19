@@ -166,7 +166,11 @@ html {
      vẽ nằm dưới. Khung vẽ lấy màu từ <html>; <html> không có nền thì trình
      duyệt dùng màu mặc định của nó — TRẮNG — và người dùng thấy đúng một vệt
      trắng nháy ở mép, mỗi lần đổi mục. Kéo quá đà trên iOS cũng lộ khoảng trắng
-     ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang. */
+     ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang.
+     (index.html có sẵn một bản sao y hệt nội tuyến trong <head>: nó phải có mặt
+     TRƯỚC khi tệp CSS tải xong để khung hình đầu tiên không trắng. Hai chỗ cùng
+     một màu — sửa màu nền thì sửa cả hai.) */
+  background: var(--bg);
   /* lề cuộn chừa sẵn: dữ liệu về làm thanh cuộn xuất hiện là cả trang
      giật ngang một cái, rất dễ thấy trên khối danh sách */
   scrollbar-gutter: stable;
@@ -187,7 +191,6 @@ body {
 button { font-family: inherit; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); }
-::-webkit-scrollbar-thumb:hover { background: #3a424c; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ================= SPLASH ================= */
@@ -584,7 +587,14 @@ select {
   transition: transform .3s var(--e-out); }
 .row:hover { background: var(--hover); }
 .row:hover::before { transform: scaleY(1); }
+/* HÀNG PAID — MỘT sắc phẳng, không phải một dải gradient chạy dần sang trái.
+   Bản cũ khai báo hàng paid ở HAI chỗ: một luật phẳng ở đây và một cặp gradient
+   ở cuối tệp đè lên. Đọc mã thì thấy mâu thuẫn ("phẳng" hay "gradient"?), còn
+   trên màn hình thì hàng paid đổi hẳn tính cách khi rê chuột: vệt vàng biến
+   mất, chỉ còn nền hover xám. Nay chỉ còn một cặp luật, cả hai đều phẳng, và
+   hover đậm hơn một chút thay vì đổi sang màu khác. */
 .row.paid { background: rgba(215,166,63,.045); }
+.row.paid:hover { background: rgba(215,166,63,.075); }
 .row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
 .row .body { flex: 1; min-width: 0; }
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
@@ -882,18 +892,14 @@ select {
   position: fixed; inset: 0; z-index: 60; background: rgba(6,7,9,.6);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 40px 16px; overflow-y: auto; overscroll-behavior: contain;
-  animation: fade .14s ease;
 }
-@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 .modal {
   width: 100%; max-width: 560px;
   background: var(--float);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   border: 1px solid var(--line-2); border-radius: var(--r-lg);
   box-shadow: var(--sh-3), var(--ring);
-  animation: pop .16s ease;
 }
-@keyframes pop { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 .modal.narrow { max-width: 420px; }
 .modal-head { display: flex; align-items: stretch; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .modal-tabs { display: flex; flex-wrap: wrap; min-width: 0; flex: 1; gap: 2px; }
@@ -954,7 +960,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .rules { padding: 15px; border: 1px solid var(--line-2); border-radius: var(--r-md);
   background: var(--surface); animation: rowIn var(--t-2) var(--e-out) both; }
 .rules h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
-.rules ol { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 8px;
+.rules ol { margin: 0 0 14px; display: grid; gap: 8px;
   font-size: 13px; color: var(--txt-2); line-height: 1.55; }
 .rules .btn { width: 100%; }
 .switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
@@ -988,9 +994,8 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 
 /* ---- gói vote ---- */
 .packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-.pack { position: relative; padding: 14px 12px; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-md); transition: border-color .13s; }
+.pack { position: relative; padding: 14px 12px; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-md); }
 .pack:hover { border-color: #3c4550; }
-.pack.best { border-color: rgba(215,166,63,.45); }
 .pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(215,166,63,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
 .pack b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .pack .u { font-size: 11.5px; color: var(--txt-3); margin-bottom: 9px; }
@@ -1004,8 +1009,12 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
    khảo". KHÔNG thêm token (màu vàng đã có --paid, nền đã có --a-soft), KHÔNG
    đổi số cột của .packs (modal đang ổn định), phần chuyển động chỉ opacity/
    transform và luôn có nhánh giảm-chuyển-động + cảm ứng. */
+/* Thẻ "đáng mua nhất": nổi bằng BA thứ đo được — viền vàng, bóng vàng rất mờ,
+   và con số to hơn. Nền là MỘT sắc vàng nhạt phẳng: bản cũ để hai gradient xếp
+   lên nhau ở hai chỗ trong tệp (một tím, một vàng), lớp dưới không bao giờ hiện
+   mà vẫn nằm đó chờ người sau sửa nhầm. */
 .pack.best {
-  background: linear-gradient(180deg, var(--a-soft), transparent 70%);
+  background: rgba(215,166,63,.055);
   border-color: var(--paid);
   box-shadow: 0 8px 26px -14px var(--paid);
 }
@@ -1115,7 +1124,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .crop-hint { margin-top: 10px; font-size: 11.5px; color: var(--txt-3); text-align: center; }
 
 /* ---- hàng quản trị ---- */
-.adm { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.adm { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
 .adm:last-child { border-bottom: 0; }
 .adm .nm { flex: 1; min-width: 0; }
 .adm .nm b { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 13.5px; font-weight: 500; }
@@ -1290,7 +1299,10 @@ img { max-width: 100%; }
   .grow-head { padding: 10px 12px; gap: 10px; }
   .grow-head .idx { display: none; }
   .grow-stat b { font-size: 17px; }
-  .grow-rows-in > .row { padding-left: 12px; padding-right: 12px; }
+  /* lề trái của hàng trong cụm; lề PHẢI do khối thẻ ở dưới quyết định (10px,
+     cùng nhịp với chấm chuông) — hai chỗ cùng khai một cạnh thì chỗ dưới
+     luôn thắng và chỗ trên chỉ còn là một câu đọc lên thấy mâu thuẫn. */
+  .grow-rows-in > .row { padding-left: 12px; }
   /* bo loc: cho truot ngang thay vi gay chu thanh 2 dong */
   .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
   .tabs::-webkit-scrollbar { display: none; }
@@ -2541,11 +2553,6 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .34s var(--e-out) }
 .stat:hover::after { transform: scaleX(1) }
 
-/* hàng paid: thêm một lớp ánh vàng mờ phía trái, phân biệt từ xa */
-.row.paid { background: linear-gradient(90deg, rgba(215,166,63,.055), rgba(215,166,63,0) 55%) }
-/* hover đè lên gradient: nếu chỉ đổi background thì vệt gold biến mất cái rụp,
-   nên phải giữ cả hai lớp trong trạng thái hover */
-.row.paid:hover { background: linear-gradient(90deg, rgba(215,166,63,.08), rgba(215,166,63,0) 55%), var(--hover) }
 .pill.gold { background: rgba(215,166,63,.1) }
 
 /* link "xem video": mũi tên nhích ra khi rê */
@@ -2555,16 +2562,13 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .3s var(--e-out) }
 .watch:hover::after { transform: scaleX(1) }
 
-/* chọn loại request: thẻ được chọn đổi màu + viền, không nhấc cũng không nảy
-   — đây là ô chọn trong form, phản hồi nằm ở trạng thái chứ không ở chuyển động */
-.kchip { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-  background var(--t-1) var(--e-soft) }
+/* (nhịp chuyển của .kchip nằm trong luật đầy đủ của nó ở khối form request —
+   trước đây khai lại ở đây nữa, cùng danh sách chỉ khác thứ tự.) */
 
 /* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
 .pack { transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
   box-shadow var(--t-2) var(--e-soft) }
 .pack:hover { transform: translateY(-2px); box-shadow: var(--sh-2) }
-.pack.best { background: linear-gradient(180deg, rgba(215,166,63,.08), transparent 55%) }
 
 /* nút vote đã bấm: một chấm sáng nhỏ báo "phần của bạn nằm ở đây" */
 .votebtn.on::before { content: ''; position: absolute; top: -2px; right: -2px; width: 6px; height: 6px;
@@ -2622,10 +2626,10 @@ html[data-section="spin"] .bgfx { display: none; }
    CHỐT REQUEST ĐỊNH KỲ — đếm ngược · nhãn Up next · chú thích loại video
    ========================================================= */
 
-/* ---- đếm ngược trong khối Up next (.nowbar) ---- */
-.pick-cd { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; font-size: 12.5px; }
-.pick-cd b { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--queued); letter-spacing: .01em; }
-.pick-cd span { color: var(--txt-3); font-size: 11.5px; line-height: 1.5; }
+/* Đếm ngược (.pick-cd) chỉ có MỘT định nghĩa, nằm ở khối .nowbar phía dưới
+   (nhãn nhỏ bên trên, số mono căn phải bên dưới). Bản cũ khai báo nó ở đây
+   nữa với cỡ chữ và khoảng cách khác — luật dưới thắng, nên khối này chưa bao
+   giờ hiện ra; giữ lại chỉ để người sau sửa nhầm chỗ. */
 
 /* ---- nhãn Up next trên dòng request / danh sách vote ----
    cùng khuôn với .pill.gold: chữ + viền + nền rất nhạt theo màu queued */
@@ -2731,7 +2735,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 @media (max-width: 620px) {
   .now-head { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .pick-cd { align-items: flex-start; text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
+  .pick-cd { text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
   .now-more { width: 100%; text-align: center; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .now-item { animation: none; } }
