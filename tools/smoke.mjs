@@ -256,6 +256,17 @@ if (addBtn) {
   check('đủ 4 chip loại bài', qa('.kchip').length === 4)
   check('có đúng MỘT dòng giải thích loại đang chọn', qa('.kind-note').length === 1)
   check('ô ghi chú gấp lại khi chưa dùng', !q('#rq-note') && !!q('.note-add'))
+  /* Mở ô ghi chú bằng MỘT cú bấm, và con trỏ phải rơi vào đúng ô vừa hiện. */
+  if (q('.note-add')) {
+    await click(q('.note-add'))
+    check('bấm "Add a note" là ô ghi chú hiện ra', !!q('#rq-note'))
+    check('con trỏ rơi vào ô ghi chú vừa mở', window.document.activeElement === q('#rq-note'))
+    if (q('#rq-note')) {
+      await type(q('#rq-note'), 'Chorus starts at 0:52')
+      check('ghi chú giữ được chữ vừa gõ', q('#rq-note').value === 'Chorus starts at 0:52')
+      await type(q('#rq-note'), '')
+    }
+  }
   const artist = q('#rq-artist'), title = q('#rq-title')
   if (artist && title) {
     await type(artist, 'aespa')

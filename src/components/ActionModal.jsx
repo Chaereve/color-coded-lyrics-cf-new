@@ -109,6 +109,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   })
   const artistRef = useRef(null)
   const titleRef = useRef(null)
+  const noteRef = useRef(null)
+  /* Bấm "Add a note" thì con trỏ phải rơi vào ô vừa hiện — nếu không, người
+     dùng còn phải bấm thêm một lần nữa vào đúng chỗ vừa mở. Cờ `wantsNote`
+     để lần render sau khi mở mới focus, và chỉ focus khi người dùng CHỦ ĐỘNG
+     mở (không cướp con trỏ lúc form khôi phục nháp). */
+  const wantsNote = useRef(false)
 
   /* Tra bảng loại bài LUÔN phải có kết quả: `form.kind` đi qua state nên về lý
      thuyết chỉ nhận bốn giá trị của KINDS, nhưng tra trượt ở đây là TypeError
@@ -180,6 +186,15 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
     setTouched({}); setMsg(null); artistRef.current?.focus()
   }
+
+  useEffect(() => {
+    if (noteOpen && wantsNote.current) {
+      wantsNote.current = false
+      noteRef.current?.focus()
+    }
+  }, [noteOpen])
+
+  const openNote = () => { wantsNote.current = true; setNoteOpen(true) }
 
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
@@ -429,13 +444,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         {noteOpen ? (
           <>
             <label htmlFor="rq-note">{t('req.note')}</label>
-            <textarea id="rq-note" value={form.note} onChange={set('note')} maxLength={500}
+            <textarea id="rq-note" ref={noteRef} value={form.note} onChange={set('note')} maxLength={500}
               placeholder={t('req.notePh')} />
             <p className="fhint">{t('req.noteHint')}{left('note', 500)}</p>
           </>
         ) : (
-          <button type="button" className="note-add" aria-expanded="false" aria-controls="rq-note"
-            onClick={() => setNoteOpen(true)}>
+          <button type="button" className="note-add" aria-controls="rq-note" onClick={openNote}>
             <Icon name="plus" size={13} />
             {t('req.noteAdd')}
           </button>
