@@ -60,7 +60,7 @@ function MediaForm({ initial, busy, onSave, onCancel }) {
         )}
         <button className="btn btn-sm" onClick={onCancel} disabled={busy}>{t('prof.cancel')}</button>
         <button className="btn btn-sm btn-primary" disabled={busy || f.title.trim().length < 2 || !parsed?.id}
-          onClick={() => onSave({ ...f })}>
+          onClick={async () => { try { await onSave({ ...f }) } catch { /* App shows the save error; retain draft. */ } }}>
           {busy ? t('prof.saving') : t('adm.mediaSave')}
         </button>
       </div>
@@ -194,7 +194,7 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
         <button className="icon-btn" title={t('adm.mediaUp')} aria-label={t('adm.mediaUp')} disabled={i === 0 || busy}
           onClick={() => onMove(i, -1)}><Icon name="up" size={15} /></button>
         <button className="icon-btn" title={t('adm.mediaDown')} aria-label={t('adm.mediaDown')} disabled={last || busy}
-          onClick={() => onMove(i + 1)}><Icon name="down" size={15} /></button>
+          onClick={() => onMove(i, 1)}><Icon name="down" size={15} /></button>
         <button className="btn btn-sm" onClick={() => onEdit(m)}>{t('adm.edit')}</button>
         <button className="btn btn-sm" onClick={toggleHide}>{m.is_hidden ? t('adm.mediaShow') : t('adm.mediaHide')}</button>
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
@@ -239,7 +239,7 @@ function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, o
   const startEdit = (row, patch, auto = false) => {
     const next = patch || row
     setDraft(next)
-    if (auto) onSave(next)
+    if (auto) Promise.resolve(onSave(next)).catch(() => {})
     else setEditing(row.id)
   }
 
@@ -299,6 +299,7 @@ export default function MediaAdmin({ media = [], busy, onSave, onCommit, onDelet
           (xem .adm-bar-end ở AdminPanel) — cùng hàng, cùng chỗ với điều khiển
           của mọi mục khác, thay vì một dải riêng nằm chênh giữa tiêu đề và
           nhóm đầu tiên. */}
+      <p className="hint">{t('adm.mediaLimit', { n: media.length })}</p>
       <MediaGroup kind="featured" allItems={media} busy={busy}
         label={t('adm.mediaGroupFeatured')}
         addLabel={t('adm.mediaAddFeatured')}

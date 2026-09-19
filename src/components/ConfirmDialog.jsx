@@ -27,12 +27,22 @@ import Icon from './Icon'
 export default function ConfirmDialog({
   open, title, body, confirmLabel, cancelLabel, tone = 'danger',
   reasonLabel, reasonPh, reason = '', onReason, onConfirm, onClose,
+  videoLabel, videoUrl = '', onVideoUrl,
 }) {
   const { t } = useI18n()
   const { mounted, closing } = useModalExit(open)
   const okRef = useRef(null)
   const reasonRef = useRef(null)
   const panelRef = useRef(null)
+  const videoRef = useRef(null)
+  const submitAnswer = () => {
+    if (videoLabel && videoUrl.trim() && !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(videoUrl.trim())) {
+      videoRef.current?.setCustomValidity(t('err.denyVideo'))
+      videoRef.current?.reportValidity()
+      return
+    }
+    onConfirm?.()
+  }
 
   /* MỞ RA LÀ ĐÃ SẴN SÀNG BẤM: con trỏ rơi vào ô lý do (nếu có) hay nút xác
      nhận. Không đặt vào nút nào thì người dùng bàn phím phải Tab một lượt mới
@@ -54,7 +64,7 @@ export default function ConfirmDialog({
       const inReason = e.target === reasonRef.current
       if (inReason && !(e.metaKey || e.ctrlKey)) return
       e.preventDefault()
-      onConfirm?.()
+      submitAnswer()
     }
     /* Nghe ở `window` chứ không phải `document`: hộp này là lớp TRÊN CÙNG, phải
        nhận phím trước mọi hộp khác trong app (chúng nghe ở `window`/bubble), và
@@ -62,7 +72,7 @@ export default function ConfirmDialog({
        khung kiểm thử dùng. */
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, onClose, onConfirm])
+  })
 
   if (!mounted) return null
   const out = closing ? ' out' : ''
@@ -94,11 +104,20 @@ export default function ConfirmDialog({
           </label>
         )}
 
+        {videoLabel && (
+          <label className="dlg-field">
+            <span>{videoLabel}</span>
+            <input ref={videoRef} type="url" value={videoUrl} maxLength={500}
+              placeholder="https://www.youtube.com/watch?v=…"
+              onChange={e => { e.target.setCustomValidity(''); onVideoUrl?.(e.target.value) }} />
+          </label>
+        )}
+
         <div className="dlg-acts">
           <button type="button" className="btn" onClick={onClose}>{cancelLabel || t('btn.cancel')}</button>
           <button type="button" ref={okRef}
             className={`btn ${danger ? 'btn-no' : 'btn-ok'}`}
-            onClick={onConfirm}>
+            onClick={submitAnswer}>
             {confirmLabel || t('btn.confirm')}
           </button>
         </div>

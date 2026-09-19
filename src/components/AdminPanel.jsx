@@ -140,9 +140,9 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               onClick={async () => {
                 const r2 = await ask({
                   title: t('dlg.denyTitle'), body: t('dlg.denyBody'),
-                  reasonLabel: t('adm.denyPrompt'), confirmLabel: t('adm.deny'),
+                  reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
                 })
-                if (r2) onReview(r.id, false, r2.reason)
+                if (r2) onReview(r.id, false, r2.reason, r2.videoUrl)
               }}>
               {t('adm.deny')}
             </button>
@@ -455,6 +455,7 @@ export default function AdminPanel({
        (không hoàn tác được) và từ chối (người gửi đọc được lý do). Duyệt thì
        không hỏi — đó là việc admin bấm để ĐI TIẾP, hỏi lại chỉ làm chậm tay. */
     let reason = null
+    let videoUrl = null
     if (action === 'delete') {
       if (!(await ask({
         title: t('adm.bulkConfirmDelete', { n: selIds.length }),
@@ -468,13 +469,14 @@ export default function AdminPanel({
     if (action === 'deny') {
       const r2 = await ask({
         title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: t('dlg.denyBody'),
-        reasonLabel: t('adm.denyPrompt'), confirmLabel: t('adm.deny'),
+        reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
       })
       if (!r2) return
       reason = r2.reason
+      videoUrl = r2.videoUrl
     }
     setBulkBusy(true)
-    try { await onBulk(action, selIds, reason); setSel(new Set()) }
+    try { await onBulk(action, selIds, reason, videoUrl); setSel(new Set()) }
     finally { setBulkBusy(false) }
   }
 

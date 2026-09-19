@@ -69,13 +69,13 @@ const Chev = ({ dir }) => (
 
 const ytLink = (v) => v.url || (v.id ? `https://youtu.be/${v.id}` : null)
 
-export default function MediaShowcase({ featured = null, videos = [], canEdit, onAdd, limit = 12 }) {
+export default function MediaShowcase({ featured = null, videos = [], canEdit, onAdd, limit = 20 }) {
   const { t } = useI18n()
 
   /* Một danh sách duy nhất cho cả sân khấu lẫn dải mục lục: video nổi
      bật đứng đầu, sau đó là các link mới — mũi tên xoay vòng đúng thứ
      tự admin đã xếp. */
-  const items = featured ? [featured, ...videos.slice(0, limit)] : videos.slice(0, limit)
+  const items = (featured ? [featured, ...videos] : videos).slice(0, Math.min(20, limit))
   const n = items.length
 
   /* `sel` được phép tràn (sau khi xoay vòng, hoặc admin vừa xoá video
