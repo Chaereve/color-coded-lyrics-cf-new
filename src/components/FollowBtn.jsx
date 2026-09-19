@@ -9,7 +9,7 @@ import { useI18n } from '../lib/i18n.jsx'
 
    Component chỉ lo ba thứ: không tự khai kích thước (hộp 18px, ẩn khi hàng
    tĩnh, hiện khi rê/focus, chấm accent khi đang bật — tất cả ở khối
-   `.followbtn` trong `index.css`), `stopPropagation` vì nó nằm NGAY TRONG dòng
+   `.rowact` + `.followbtn` trong `index.css`), `stopPropagation` vì nó nằm NGAY TRONG dòng
    mà người dùng bấm được, và `title` + `aria-label` — affordance ẩn thì chữ
    giải thích phải nằm ở tooltip, không thì người dùng không bao giờ biết nó có
    ở đó để mà rê vào.
@@ -22,7 +22,7 @@ import { useI18n } from '../lib/i18n.jsx'
 export default function FollowBtn({ on = false, onToggle }) {
   const { t } = useI18n()
   return (
-    <button type="button" className={`followbtn${on ? ' on' : ''}`}
+    <button type="button" className={`rowact followbtn${on ? ' on' : ''}`}
       aria-pressed={on} title={on ? t('row.unfollow') : t('row.follow')}
       aria-label={on ? t('row.unfollow') : t('row.follow')}
       onClick={(e) => { e.stopPropagation(); onToggle?.() }}>

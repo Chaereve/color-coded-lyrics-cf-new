@@ -9,7 +9,7 @@
   删 đầu tiên khi "dọn CSS".
 
    Bối cảnh ra đời (quét 08/09/2026): `.toast-x` 22px là dấu × duy nhất để đóng
-   toast trên điện thoại; `.followbtn` 18px là chuông ở cuối dòng meta — cả hai
+   toast trên điện thoại; `.rowact` 18px là nút mảnh ở cuối dòng meta — cả hai
    đều là control thật, không phải biểu tượng trang trí, nên đều được nới lên
    24–30px trong @media bản hẹp. Chạy: npm test */
 import test from 'node:test'
@@ -52,7 +52,10 @@ const sizedIn = (cls, where, w, h) => forCls(cls).some((r) => (where === 'media'
 
 /* [class, ban desktop, ban cam ung/hea hep, ly do] */
 const CONTRACT = [
-  ['followbtn', 18, 24, 'chuông cuối dòng meta: 18px là dấu mờ, 24px là mục tiêu chạm'],
+  /* Nút mảnh cuối dòng meta (theo dõi + chia sẻ): 18px là dấu mờ, 24px là mục
+     tiêu chạm. Cả hai nút dùng CHUNG `.rowact` nên chỉ có một cặp số để canh —
+     thêm nút mảnh thứ ba thì nó tự thừa hưởng, không phải khai gì thêm. */
+  ['rowact', 18, 24, 'nút mảnh cuối dòng meta: 18px là dấu mờ, 24px là mục tiêu chạm'],
   ['toast-x', 22, 30, 'dấu × của toast là cách DUY NHẤT để đóng nó trên điện thoại'],
 ]
 

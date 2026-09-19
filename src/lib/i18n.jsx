@@ -227,6 +227,12 @@ const S = {
   'watch.off': 'Stopped following {song}.',
   'watch.full': 'You follow {n} songs already — drop one first.',
   /* bài đã có trên bảng — hiện ngay dưới ô tên bài, lúc người dùng còn đang gõ */
+  'adm.credits': 'Copy credits',
+  'adm.creditsDone': 'Copied',
+  'adm.creditsHint': 'Copy the song name and everyone who requested it, ready to paste into the video description',
+  'row.share': 'Share this request',
+  'row.shareCopied': 'Link copied - send it to anyone who should vote',
+  'row.shareFailed': 'Could not copy - the link is in your address bar',
   'req.dupMeta': '{c} requests, {n} votes on the board already',
   'req.dupPending': '{c} request of yours is waiting for review',
   'req.dupVote': 'Vote for it instead',

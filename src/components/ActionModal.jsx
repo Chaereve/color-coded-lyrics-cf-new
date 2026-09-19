@@ -33,9 +33,16 @@ function RulesGate({ onAgree }) {
 }
 
 /* ------------------------- TAB: GỬI REQUEST ------------------------- */
-function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting }) {
+function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting, prefill }) {
   const { t } = useI18n()
-  const [form, setForm] = useState({ kind: KINDS[0], artist: '', title: '', link: '', note: '' })
+  /* Link mời (`?add=1&artist=…&title=…`) đổ sẵn vào form: người bấm link từ mô
+     tả video chỉ còn phải bấm Gửi. Giá trị đã được cắt theo maxLength của ô
+     nhập ở `parseRequestPrefill` nên không có chuyện chữ từ URL dài hơn ô. */
+  const [form, setForm] = useState(() => ({
+    kind: KINDS[0],
+    artist: prefill?.artist || '', title: prefill?.title || '',
+    link: prefill?.link || '', note: '',
+  }))
   /* O "bai tra phi" luon bat dau tat. Tung co prop `paidDefault` de mo form dang
      tick san, nhung khong mot ai truyen no — xoa di con hon de nguoi doc tuong
      la co loi tat. */
@@ -371,7 +378,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 /* ============================== MODAL ============================== */
 export default function ActionModal({
   open, tab, setTab, onClose,
-  rows, myVotes, myOrders, voteStatus, allRows,
+  rows, myVotes, myOrders, voteStatus, allRows, prefill,
   onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting,
   /* live = co noi DB that hay chay demo: RequestTab dung no de chon dong chu bao
      tin. Bo no khoi danh sach prop la `live={live}` ben duoi thanh ReferenceError,
@@ -407,7 +414,7 @@ export default function ActionModal({
         <div className="modal-body">
           {tab === 'request' && (
             <RequestTab onSubmit={onSubmit} live={live} rows={rows} allRows={allRows}
-              onVoteExisting={onVoteExisting} />
+              prefill={prefill} onVoteExisting={onVoteExisting} />
           )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isPicked, kindCls, STATUS_META, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
-import { groupKey, voteTotals } from '../lib/board'
+import { creditText, groupKey, voteTotals } from '../lib/board'
+import { copyText } from '../lib/clipboard'
 import { useI18n } from '../lib/i18n.jsx'
 import MediaAdmin from './MediaAdmin'
 import { useModalExit } from '../lib/useModalExit'
@@ -18,9 +19,16 @@ const PER_PAGE = 10
 const norm = (s) =>
   (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 
-function RequestAdminRow({ r, dup, onReview, onUpdate, onDelete, onPick }) {
+function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
+  /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
+     gửi). Việc này trước đây làm bằng tay — mở bảng, đọc từng dòng, gõ lại
+     tên — nên nó thường bị bỏ qua. Người đã gửi request là người làm nên tập
+     phim đó; ghi tên họ là thứ duy nhất khiến họ gửi tiếp.
+     Nhãn nút đổi tại chỗ sau khi copy thay vì bật toast: mắt đang ở giữa bảng,
+     còn toast nằm ở góc màn hình. */
+  const [copied, setCopied] = useState(false)
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
   const [title, setTitle] = useState(r.title)
@@ -128,6 +136,16 @@ function RequestAdminRow({ r, dup, onReview, onUpdate, onDelete, onPick }) {
           <div className="bar" style={{ maxWidth: 'none' }}><i style={{ width: `${pct}%` }} /></div>
           <div className="inline-form">
             <button type="button" className="btn btn-sm" onClick={() => onUpdate(r.id, { status: 'queued' })}>{t('adm.backToQueue')}</button>
+            <button type="button" className={`btn btn-sm adm-copy${copied ? ' done' : ''}`}
+              title={t('adm.creditsHint')}
+              onClick={async () => {
+                const ok = await copyText(creditText({ title: r.title, artist: r.artist, rows: songRows }))
+                if (!ok) return
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1600)
+              }}>
+              {copied ? t('adm.creditsDone') : t('adm.credits')}
+            </button>
           </div>
         </div>
       )}
@@ -363,6 +381,9 @@ export default function AdminPanel({
               ? <div className="empty">{needle ? t('adm.noResults', { q: q.trim() }) : t('adm.emptyList')}</div>
               : pg.items.map(r => (
                 <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))}
+                  /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
+                     người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
+                  songRows={rows.filter(x => groupKey(x) === groupKey(r))}
                   onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick} />
               ))
           )}

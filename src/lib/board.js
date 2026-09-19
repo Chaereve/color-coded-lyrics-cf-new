@@ -103,6 +103,58 @@ export function findDuplicate(rows, draft) {
   }
 }
 
+/* =========================================================
+   LINK MỜI GỬI BÀI — `/?add=1&artist=…&title=…`
+   ---------------------------------------------------------
+   Chủ kênh dán link này vào mô tả video / ghim bình luận: người xem bấm là
+   vào thẳng form gửi request, đã điền sẵn tên bài. Đây là đường ngắn nhất từ
+   "đang xem video" tới "đã gửi request", và nó KHÔNG tốn gì: bộ lọc đã nằm
+   trên URL từ trước, chỉ cần đọc thêm ba tham số.
+
+   Cắt độ dài theo đúng `maxLength` của ô nhập: dán một URL dài ngoằng vào
+   không được tạo ra cái form mà chính nó không gửi được.
+   ========================================================= */
+export function parseRequestPrefill(params, limits = { artist: 120, title: 160, link: 500 }) {
+  /* `?add` trần, `?add=1`, `?add=true`, `?add=TRUE` đều là "mở form"; còn
+     `?add=0` / `?add=false` / `?add=no` là không. Đọc bằng `has()` chứ không
+     phải bằng giá trị: tham số trần (`?add`) trả về CHUỖI RỖNG, và chuỗi rỗng
+     là falsy — bản đầu của hàm này vì thế mà âm thầm bỏ qua đúng cái link
+     ngắn nhất, loại link người ta hay gõ tay nhất. */
+  if (!params?.has?.('add')) return null
+  const v = (params.get('add') || '').trim().toLowerCase()
+  if (v === '0' || v === 'false' || v === 'no') return null
+  const clip = (v, n) => (v || '').trim().slice(0, n)
+  return {
+    artist: clip(params.get('artist'), limits.artist),
+    title: clip(params.get('title'), limits.title),
+    link: clip(params.get('link'), limits.link),
+  }
+}
+
+/* =========================================================
+   GHIM CÔNG — chữ để dán vào mô tả video YouTube
+   ---------------------------------------------------------
+   Người gửi request là người làm nên tập phim đó; ghi tên họ vào mô tả là thứ
+   duy nhất khiến họ gửi tiếp. Việc này đang phải làm bằng tay: mở bảng, đọc
+   từng dòng, gõ lại tên — nên nó thường bị bỏ.
+   Chỉ nhận `title`/`artist` + danh sách dòng của CÙNG bài (lọc bằng groupKey
+   trước khi gọi), trả về một khối chữ thuần, dán được ngay.
+   ========================================================= */
+export function creditText(song, maxNames = 8) {
+  const title = (song?.title || '').trim()
+  const artist = (song?.artist || '').trim()
+  if (!title) return ''
+  const names = [...new Set((song.rows || [])
+    .map((r) => (r?.requester || '').trim())
+    .filter(Boolean))]
+  const head = [artist, title].filter(Boolean).join(' - ')
+  if (!names.length) return head
+  const shown = names.slice(0, maxNames)
+  const more = names.length - shown.length
+  const list = shown.join(', ') + (more > 0 ? ` +${more}` : '')
+  return `${head}\nRequested by: ${list}`
+}
+
 /* Nhiều vote hơn đứng trước; hoà vote thì bài mới hơn đứng trước. */
 export const byVotes = (a, b) => ((b.votes || 0) - (a.votes || 0)) || (ts(b.created_at) - ts(a.created_at))
 export const byNewest = (a, b) => ts(b.created_at) - ts(a.created_at)

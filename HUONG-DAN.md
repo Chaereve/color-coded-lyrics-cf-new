@@ -1301,6 +1301,47 @@ Giá trị lạ (tab đã bị đổi tên ở bản trước còn nằm trong m
 hiểu vì sao. Còn `q` (từ khoá tìm) thì **không** nhớ: mở lại web mà danh sách tự dưng rỗng vì một
 từ khoá cũ là kiểu bực mình không ai gọi được tên — tìm kiếm là chuyện của phiên hiện tại.
 
+### Link mời gửi bài — dán vào mô tả video YouTube
+
+```
+https://chaereve.pages.dev/?add=1&artist=aespa&title=Whiplash
+```
+
+Bấm link là vào thẳng form *Gửi request* với tên bài/nghệ sĩ đã điền sẵn — người xem chỉ còn bấm
+Gửi. Đây là đường ngắn nhất từ "đang xem video" tới "đã gửi request", và nó không tốn thêm dịch vụ
+nào: bộ lọc vốn đã nằm trên URL từ trước.
+
+| Tham số | Việc |
+|---|---|
+| `add` | Bắt buộc. `?add`, `?add=1`, `?add=true` đều mở form; `?add=0` / `false` / `no` thì không |
+| `artist` | Điền sẵn ô nghệ sĩ (cắt ở 120 ký tự như ô nhập) |
+| `title` | Điền sẵn ô tên bài (cắt ở 160 ký tự) |
+| `link` | Điền sẵn ô link (cắt ở 500 ký tự) |
+
+Bốn tham số được **dùng đúng một lần rồi xoá khỏi URL** (`replaceState`): để nguyên thì F5 lại mở
+form lần nữa, và đóng form xong bấm Back lại thấy nó bật lên.
+
+Nút **chia sẻ** ở cuối mỗi dòng request làm việc ngược lại: nó tạo link
+`/?f=top&q=<tên bài>` trỏ về **chính bảng** — người nhận bấm vào là vote được ngay thay vì phải
+đi tìm bài. Trên máy cảm ứng thì mở hộp chia sẻ của hệ điều hành (Zalo/Messenger/Telegram), còn
+lại thì copy link + hiện toast. Đây là vòng tăng trưởng duy nhất của app mà không cần thêm dịch vụ:
+người gửi request trở thành người đi vận động cho nó.
+
+### Ghim công người gửi — nút *Copy credits* trong bảng Admin
+
+Mở bảng Admin → một request → **Copy credits**: chép vào clipboard đúng đoạn chữ để dán vào mô tả
+video:
+
+```
+aespa - Whiplash
+Requested by: An, Bình, Chi
+```
+
+Gom **mọi dòng cùng bài** (kể cả dòng đã bị từ chối, vì người đó vẫn đã gửi) và bỏ tên trùng; quá
+8 người thì gộp đuôi thành `+3`. Trước đây việc này làm bằng tay — mở bảng, đọc từng dòng, gõ lại
+tên — nên nó thường bị bỏ. Nhãn nút đổi thành *Copied* tại chỗ trong 1,6 giây: mắt đang ở giữa
+bảng, còn toast thì ở góc màn hình.
+
 Hai phím tắt cho người dùng bàn phím: `N` mở form gửi request, `/` nhảy ô tìm kiếm
 (`Esc` ngay trong ô tìm là xoá luôn từ khoá).
 
@@ -1720,6 +1761,35 @@ volume Spin/Vote còn lâu mới chạm); toàn bộ file tĩnh vẫn miễn ph�
 > `wrangler.jsonc` cho ai muốn đi đường đó (Cách B, phương án thay thế) — nhưng mọi hướng
 > dẫn lá chắn Edge trong file này viết cho Pages.
 
+### Giới hạn của các gói miễn phí — con số thật, và cách sống trong đó
+
+Cả chồng dịch vụ của app này đều đang chạy ở gói **miễn phí** (Cloudflare Pages + Pages
+Functions, Supabase, Turnstile, GitHub). Không có tính năng nào trong app cần trả tiền.
+Nhưng có năm con số phải biết, vì chúng quyết định cách viết code chứ không chỉ là chuyện
+hoá đơn:
+
+| Giới hạn | Ở đâu | Nghĩa là phải… |
+|---|---|---|
+| **10 ms CPU / request** | Cloudflare Workers & Pages Functions (free) | Đừng tính toán gì nặng trong Function. Việc nặng (chốt request, gộp thông báo, cộng vote) để **Postgres** làm — Function chỉ gọi **một** RPC rồi trả về. Thời gian chờ mạng không tính vào 10 ms, nên mô hình này thoải mái |
+| **5 cron trigger / tài khoản** | Cloudflare Workers (free) | Gộp mọi việc định kỳ vào **một** cron (đúng cách app này đang làm: một lượt chốt request). Cần thêm việc định kỳ thì nhét vào cùng lượt đó, đừng tạo cron thứ hai |
+| **50 request con / lượt gọi** | Workers free | Nếu sau này gửi thông báo ra Telegram/Discord thì phải **gộp nhiều tin vào một lần gửi** và chặn số lượng mỗi lượt (ví dụ 20 tin/lượt) |
+| **500 MB database · 5 GB băng thông · 2 triệu tin realtime/tháng · 200 kết nối realtime** | Supabase free | Đủ cho quy mô hiện tại, nhưng tin realtime là tài nguyên quý nhất trong này: mỗi lần một hàng `requests` đổi là thông tin đó được đẩy tới **mọi** người đang mở trang. Đừng thêm realtime cho việc gì không cần thiết |
+| **20.000 file mỗi lần deploy** | Cloudflare Pages/Workers free | Nếu sau này muốn sinh sẵn một trang tĩnh cho mỗi video đã làm thì được, nhưng nhớ con số này — vài trăm bài thì không sao, vài chục nghìn thì chạm trần |
+
+Hai điểm **không phải giới hạn nhưng dễ mất dữ liệu**, quan trọng hơn mọi tính năng:
+
+1. **Gói free của Supabase KHÔNG có backup tự động.** Dữ liệu thật (request, vote, đơn
+   hàng, vòng quay) chỉ nằm ở một chỗ. Cách rẻ nhất để ngủ ngon: một tác vụ định kỳ chạy
+   `pg_dump` và cất file đi — GitHub Actions có 2.000 phút/tháng miễn phí, thừa sức cho việc
+   này. Làm trước khi làm thêm bất cứ tính năng nào.
+2. **Project free của Supabase tự tạm dừng sau 7 ngày không có hoạt động**, và phải vào
+   dashboard bấm khởi động lại (mất tới ~60 giây). Site có người vào mỗi ngày thì không bao
+   giờ chạm chuyện này; nhưng nếu app im ắng (hoặc cron không gọi database), nó sẽ ngủ. Lượt
+   cron chốt request hiện tại *có* gọi database nên nó tự giữ project thức — miễn là cron còn chạy.
+
+> **Đừng dùng gói free của Vercel cho app này** — Hobby cấm mục đích sinh doanh thu, mà app có
+> bán vote. Xem bảng so sánh ngay trên.
+
 ### Cách A — Cloudflare Pages (đơn giản hơn, khuyên dùng nếu mới bắt đầu)
 
 1. Push code lên GitHub.
@@ -2098,7 +2168,10 @@ danh sách cho phép.
 4. **Thêm domain mới vào Supabase** → Authentication → URL Configuration
    (cả *Site URL* lẫn *Redirect URLs*).
 5. **Kiểm tra Google Auth Platform → Audience** đã ở trạng thái *Published*, không phải *Testing*.
-6. **Tự cấp quyền admin** sau khi đăng nhập Google lần đầu:
+6. **Đặt lịch sao lưu database** (xem *Giới hạn của các gói miễn phí* ở dưới): gói free của
+   Supabase không có backup tự động, nên một tác vụ `pg_dump` định kỳ là thứ rẻ nhất để không
+   mất dữ liệu. Làm việc này **trước khi** làm thêm tính năng nào.
+7. **Tự cấp quyền admin** sau khi đăng nhập Google lần đầu:
    ```sql
    update public.profiles set is_admin = true
     where id = (select id from auth.users where email = 'email-cua-ban@gmail.com');
@@ -2400,6 +2473,27 @@ và bản hai cột luôn là cùng một nội dung.
 - `public/manifest.webmanifest`: `background_color` là `#0b0d10` trong khi toàn app dùng
   `#0d0f12` — lệch ở đúng chỗ người dùng thấy lúc mở app từ màn hình chính.
 
+#### Vòng ba (cùng ngày): ba việc miễn phí — không dịch vụ mới, không chạm database
+
+1. **Link mời gửi bài** `/?add=1&artist=…&title=…` — dán vào mô tả video YouTube, người xem
+   bấm là form mở sẵn. Kèm nút **chia sẻ** trên mỗi dòng request (link về chính bảng
+   `?f=top&q=…`, cảm ứng thì mở hộp chia sẻ hệ thống).
+2. **Copy credits** trong bảng Admin — chép sẵn "tên bài + những người đã gửi" để dán vào mô
+   tả video.
+3. **Giới hạn free tier** — một mục mới trong phần Deploy (xem *Giới hạn của các gói miễn
+   phí*), kèm hai cảnh báo quan trọng hơn mọi tính năng: **Supabase free không có backup**
+   và **project free tự ngủ sau 7 ngày im ắng**.
+
+Hai nút mảnh ở cuối dòng meta (theo dõi + chia sẻ) nay dùng **chung một class `.rowact`**:
+trước đây nền của nút chuông nằm ngay trong `.followbtn`, thêm nút thứ hai là phải chép lại
+toàn bộ số đo và thế nào cũng lệch. Cỡ chạm ở bản hẹp vì thế cũng chỉ còn **một** cặp số để
+canh (`cssTapTarget.test.js`).
+
+Một lỗi tự gây ra, ghi lại vì nó suýt lọt: bản đầu của `parseRequestPrefill` đọc giá trị
+tham số `add` bằng `params.get('add')` rồi so với chuỗi rỗng — mà tham số **trần** (`?add`)
+cũng trả về chuỗi rỗng, nên nó âm thầm bỏ qua đúng loại link ngắn nhất, loại người ta hay gõ
+tay nhất. Nay đọc bằng `has()` rồi mới xét giá trị, và có ca kiểm thử riêng cho `?add` trần.
+
 #### Vòng hai (cùng ngày): ba việc trong danh sách gợi ý đã làm
 
 1. **Dò trùng ngay lúc gõ** — xem mục *Bài đã có trên bảng?* ở phần Luồng của một
@@ -2425,7 +2519,7 @@ thích giải thích prop phải đặt TRƯỚC thẻ.
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` (`node --test`) | ✅ **204** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 10 ca mới |
+| `npm test` (`node --test`) | ✅ **214** đạt, 0 lỗi, 1 skip (bài cần Postgres thật) — 195 nền + 19 ca mới của ba vòng |
 | `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
 | `npm run build` (Vite) | ✅ build sạch, bundle chính 333 kB (gzip 106 kB) |
 

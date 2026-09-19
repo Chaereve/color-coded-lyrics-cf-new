@@ -58,11 +58,11 @@ test('.grow: mỗi quy tắc chọn con trực tiếp đều chốt cả hàng l
   }
 })
 
-test('.grow định nghĩa lưới và chuông cụm không neo absolute', () => {
+test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolute', () => {
   assert.match(ruleOf('.grow'), /display:\s*grid/)
-  assert.ok(!rulesWith('.grow > .followbtn').some((b) => /position:\s*absolute/.test(b)),
-    'chuông của cụm phải là ô lưới, không phải absolute + top: số đo')
-  assert.match(ruleOf('.grow > .followbtn'), /grid-area:\s*1\s*\/\s*2/, 'chuông cụm ở cột 2, hàng 1')
+  assert.ok(!rulesWith('.grow > .rowact').some((b) => /position:\s*absolute/.test(b)),
+    'nút mảnh của cụm (chuông) phải là ô lưới, không phải absolute + top: số đo')
+  assert.match(ruleOf('.grow > .rowact'), /grid-area:\s*1\s*\/\s*2/, 'chuông cụm ở cột 2, hàng 1')
   assert.match(ruleOf('.grow > .grow-head'), /padding-right:\s*0/,
     'đầu cụm không cộng padding — khoảng cách do chuông giữ, không thì thành 26px')
 })
@@ -71,15 +71,17 @@ test('nhịp cụm nút phải thống nhất giữa dòng lẻ và cả cụm',
   const row = ruleOf('.row')
   assert.match(row, /gap:\s*12px/, '.row gap phải 12px như cam kết trong HUONG-DAN')
   assert.match(row, /padding:\s*11px 14px/, '.row cách mép phải 14px')
-  const bell = rulesWith('.grow > .followbtn')
+  const bell = rulesWith('.grow > .rowact')
   assert.ok(bell.some((b) => /margin:\s*0 14px 0 12px/.test(b)),
     'chuông cụm: 12px từ mũi tên, 14px từ mép phải — đúng bằng .row')
   assert.ok(bell.some((b) => /margin:\s*0 10px 0 8px/.test(b)),
     'bản hẹp giữ cùng tỉ lệ: 8px giữa các nút, 10px từ mép phải')
 })
 
-test('chuông là affordance mờ, không phải ô nút có hộp', () => {
-  const b = ruleOf('.followbtn')
+test('nút mảnh cuối dòng meta là affordance mờ, không phải ô nút có hộp', () => {
+  /* Nền dùng chung nằm ở `.rowact` (theo dõi + chia sẻ dùng cùng một cái), còn
+     `.followbtn` chỉ còn giữ trạng thái "đang theo dõi". */
+  const b = ruleOf('.rowact')
   assert.match(b, /opacity:\s*0/, 'hàng tĩnh thì chuông phải ẩn hẳn')
   assert.match(b, /border:\s*0/, 'không viền — có viền là quay lại cái hộp 26px bị phản đối')
   assert.match(b, /background:\s*none/, 'không nền')
@@ -89,7 +91,7 @@ test('chuông là affordance mờ, không phải ô nút có hộp', () => {
   /* An = khong duoc cham vao. Thieu no thi 18px trong cuoi dong meta van la mot
      nut: con tro bao bam duoc o cho khong co gi, va bôi đen dòng chữ là dính ô. */
   assert.match(b, /pointer-events:\s*none/)
-  for (const sel of ['.row:hover .followbtn', '.grow:hover > .followbtn', '.followbtn:focus-visible']) {
+  for (const sel of ['.row:hover .rowact', '.grow:hover > .rowact', '.rowact:focus-visible']) {
     assert.ok(rulesWith(sel).some((body) => /pointer-events:\s*auto/.test(body)),
       `"${sel}" phải mở lại pointer-events, không chỉ tăng opacity`)
   }
@@ -97,16 +99,23 @@ test('chuông là affordance mờ, không phải ô nút có hộp', () => {
      chỉ kiếm chuỗi ".row:hover .followbtn" trong file thì nó khớp cả
      `.row:hover .followbtn.on > svg`, tức là bỏ mất đường hiện khi rê mà test
      vẫn xanh. */
-  for (const sel of ['.row:hover .followbtn', '.grow:hover > .followbtn', '.followbtn:focus-visible']) {
+  for (const sel of ['.row:hover .rowact', '.grow:hover > .rowact', '.rowact:focus-visible']) {
     const hits = rulesWith(sel)
     assert.ok(hits.length, `thiếu quy tắc "${sel}" — affordance ẩn mà không có đường hiện thì mất luôn lối tắt`)
     assert.ok(hits.some((body) => /opacity:/.test(body) && !/svg|::after/.test(body)),
-      `"${sel}" phải đặt opacity cho chính cái chuông`)
+      `"${sel}" phải đặt opacity cho chính nút`)
   }
   /* @media phải đọc trên CSS gốc: quy tắc một dòng `@media (...) { .x { y } }`
      làm bộ parse ở trên nhảy thẳng vào quy tắc con, mất tên @media.  */
-  assert.match(css, /@media\s*\(hover:\s*none\)\s*\{[^{}]*\.followbtn\s*\{[^{}]*opacity:[^}]*\}/,
-    'màn cảm ứng không có "rê": phải có .followbtn trong @media (hover: none) với opacity > 0')
+  assert.match(css, /@media\s*\(hover:\s*none\)\s*\{[^{}]*\.rowact\s*\{[^{}]*opacity:[^}]*\}/,
+    'màn cảm ứng không có "rê": phải có .rowact trong @media (hover: none) với opacity > 0')
+  /* Hai nút mảnh đang cùng tồn tại (theo dõi + chia sẻ). Nút nào quên `.rowact`
+     là tự dựng kiểu riêng và lệch nhịp với nút bên cạnh — đúng lỗi mà khối
+     `.rowact` sinh ra để chặn. */
+  assert.match(btn, /rowact followbtn/,
+    'FollowBtn phải mang CẢ .rowact (nền chung) lẫn .followbtn (trạng thái)')
+  assert.match(at('../components/ShareBtn.jsx'), /rowact sharebtn/,
+    'ShareBtn phải mang CẢ .rowact lẫn .sharebtn')
 })
   /* Vong focus: index.css chot bang THE (`button:focus-visible`), khong bang
      danh sach ten — ten chu ong co trong danh sach la mau hinh cu, va o day
@@ -124,8 +133,8 @@ test('trạng thái bật = chấm 4px chồng đúng chỗ glyph (không nhảy
   assert.match(after, /border-radius:\s*50%/, 'chấm tròn')
   /* "glyph va cham trung mot o" phai tim bang quy tac co CA HAI selector trong
      danh sach — ruleOf() tach theo dau phay nen goi tron
-     `.followbtn > svg, .followbtn::after` se khong bao gio khop. */
-  assert.ok(RULES.some((r) => r.sels.includes('.followbtn > svg') && r.sels.includes('.followbtn::after')
+     `.rowact > svg, .followbtn::after` se khong bao gio khop. */
+  assert.ok(RULES.some((r) => r.sels.includes('.rowact > svg') && r.sels.includes('.followbtn::after')
     && /grid-area:\s*1\s*\/\s*1/.test(r.body)),
     'glyph và chấm phải xếp chồng trong cùng một ô, nếu không dòng meta giật 1px khi rê')
   assert.match(ruleOf('.followbtn.on'), /color:\s*var\(--a-2\)/, 'đang bật thì đổi MÀU, không đổi hình hài')

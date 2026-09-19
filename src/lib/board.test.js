@@ -6,7 +6,8 @@
    chỉ để trưng bày. Bài 9 vote xé làm 3 request bị xếp dưới bài 5 vote. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boardItems, findDuplicate, groupIds, groupKey, groupRows, pickBoardParam, sortGroups, sortRows, voteTotals } from './board.js'
+import { boardItems, creditText, findDuplicate, groupIds, groupKey, groupRows, parseRequestPrefill,
+  pickBoardParam, sortGroups, sortRows, voteTotals } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -240,4 +241,57 @@ test('findDuplicate: đếm riêng hàng đang chờ duyệt (không vote đư�
   assert.equal(d.pending, 1)
   assert.equal(d.open, 0)
   assert.equal(d.best, null)      // chờ duyệt thì chưa có gì để bấm vào vote
+})
+
+/* ------------------------------------------------------------------
+   Link mời gửi bài: /?add=1&artist=…&title=…
+   ------------------------------------------------------------------ */
+const q = (str) => new URLSearchParams(str)
+
+test('parseRequestPrefill: mở form khi có tham số add', () => {
+  assert.deepEqual(parseRequestPrefill(q('?add=1&artist=aespa&title=Whiplash')),
+    { artist: 'aespa', title: 'Whiplash', link: '' })
+  /* `?add` trần và `?add=TRUE` cũng phải mở — link do người dùng gõ tay */
+  assert.ok(parseRequestPrefill(q('?add')))
+  assert.ok(parseRequestPrefill(q('?add=true')))
+})
+
+test('parseRequestPrefill: không có add (hoặc add=0) thì im lặng', () => {
+  assert.equal(parseRequestPrefill(q('?artist=aespa&title=Whiplash')), null)
+  assert.equal(parseRequestPrefill(q('?add=0')), null)
+  assert.equal(parseRequestPrefill(q('?add=false')), null)
+  assert.equal(parseRequestPrefill(null), null)
+})
+
+test('parseRequestPrefill: cắt độ dài theo đúng maxLength của ô nhập', () => {
+  const p = parseRequestPrefill(q(`?add=1&artist=${'a'.repeat(300)}&title=${'t'.repeat(300)}`))
+  assert.equal(p.artist.length, 120)
+  assert.equal(p.title.length, 160)
+})
+
+/* ------------------------------------------------------------------
+   Ghim công: chữ dán vào mô tả video
+   ------------------------------------------------------------------ */
+test('creditText: tên nghệ sĩ đứng trước, gom người gửi, bỏ trùng', () => {
+  const song = {
+    artist: 'aespa', title: 'Whiplash',
+    rows: [{ requester: 'An' }, { requester: 'Bình' }, { requester: 'An' }],
+  }
+  assert.equal(creditText(song), 'aespa - Whiplash\nRequested by: An, Bình')
+})
+
+test('creditText: quá nhiều người thì gộp phần đuôi', () => {
+  const rows = Array.from({ length: 11 }, (_, i) => ({ requester: `U${i}` }))
+  const out = creditText({ artist: 'a', title: 't', rows })
+  assert.match(out, /Requested by: U0, U1, U2, U3, U4, U5, U6, U7 \+3$/)
+})
+
+test('creditText: bài chưa có tên thì trả rỗng, không in dòng cụt', () => {
+  assert.equal(creditText({ artist: 'a', title: '  ', rows: [{ requester: 'X' }] }), '')
+  assert.equal(creditText(null), '')
+})
+
+test('creditText: không có người gửi thì chỉ có dòng tên bài', () => {
+  assert.equal(creditText({ artist: 'aespa', title: 'Whiplash', rows: [] }), 'aespa - Whiplash')
+  assert.equal(creditText({ artist: '', title: 'Whiplash', rows: [{}] }), 'Whiplash')
 })

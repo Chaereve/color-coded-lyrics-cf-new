@@ -2624,7 +2624,10 @@ html[data-section="spin"] .bgfx { display: none; }
    - cam ung (hover:none): glyph lo mo mai, vi o day khong co "re" de phat hien;
    - theo doi la cho CA BAI nen hang ben trong cum khong con chu ong nao ca —
      bo duoc cai "o ghost" 26px dung cho thang cot cua lan truoc. */
-.followbtn {
+/* Nút mảnh cuối dòng meta — hiện dùng cho HAI việc: theo dõi bài (chuông) và
+   chia sẻ bài (mắt xích). Cùng cỡ, cùng chỗ, cùng độ mờ: một nút đậm hơn nút
+   kia ở cạnh nhau là cách nhanh nhất để hàng trông lệch. */
+.rowact {
   flex: none; width: 18px; height: 18px; display: inline-grid; place-items: center;
   border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); opacity: 0;
@@ -2637,16 +2640,16 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft);
 }
 /* glyph va cham xep chong len nhau trong cung mot o: doi chi la doi noi dung */
-.followbtn > svg, .followbtn::after { grid-area: 1 / 1 }
+.rowact > svg, .followbtn::after { grid-area: 1 / 1 }
 .followbtn::after {
   content: ''; width: 4px; height: 4px; border-radius: 50%;
   background: currentColor; opacity: 0;
 }
-.row:hover .followbtn, .grow:hover > .followbtn, .followbtn:focus-visible { opacity: .85; pointer-events: auto }
+.row:hover .rowact, .grow:hover > .rowact, .rowact:focus-visible { opacity: .85; pointer-events: auto }
 /* hàng đang bật thì giữ nguyên độ đậm 1: chấm 4px mà bị giảm xuống .85 lúc rê
    vào là nó nhạt đi đúng lúc người dùng nhìn nó nhất */
 .row:hover .followbtn.on, .grow:hover > .followbtn.on { opacity: 1 }
-.followbtn:hover { color: var(--txt) }
+.rowact:hover { color: var(--txt) }
 .followbtn.on { color: var(--a-2); opacity: 1 }
 .followbtn.on > svg { opacity: 0 }
 .followbtn.on::after { opacity: 1 }
@@ -2654,7 +2657,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .followbtn.on:hover > svg, .followbtn.on:focus-visible > svg { opacity: 1 }
 .row:hover .followbtn.on::after, .grow:hover > .followbtn.on::after,
 .followbtn.on:hover::after, .followbtn.on:focus-visible::after { opacity: 0 }
-@media (hover: none) { .followbtn { opacity: .55; pointer-events: auto } }
+@media (hover: none) { .rowact { opacity: .55; pointer-events: auto } }
 /* CHUONG CUA CA CU NAM O COT LUOI THU HAI, khong neo absolute: .grow-head cao
    theo noi dung (nhan + ten + meta) nen moi so do "top: 15px" deu lech voi mui
    ten; `align-self:center` tu thang hang. Cung nhip: 12px gitua cac nut, 14px
@@ -2665,16 +2668,16 @@ html[data-section="spin"] .bgfx { display: none; }
    — chuong nam rieng mot dong o goc, the card cao them ~40px. Lan sua truoc do
    lech nhieu hon cung vi ly do nay. */
 .grow > .grow-head { grid-area: 1 / 1; min-width: 0; padding-right: 0 }
-.grow > .followbtn { grid-area: 1 / 2; align-self: center; justify-self: end; margin: 0 14px 0 12px; z-index: 2 }
+.grow > .rowact { grid-area: 1 / 2; align-self: center; justify-self: end; margin: 0 14px 0 12px; z-index: 2 }
 .grow > .grow-rows { grid-area: 2 / 1 / 3 / 3 }
 .grow.hl { border-color: var(--a-2); }
 
 @media (max-width: 620px) {
   .row { gap: 8px; }
   /* ban cham: 18px qua nho cho ngon tay; 24px ma khong hop thi hang van ghe */
-  .followbtn { width: 24px; height: 24px }
+  .rowact { width: 24px; height: 24px }
   /* giu dung mot nhip o ban hep: 8px giua cac nut, 10px t mép phai */
-  .grow > .followbtn { margin: 0 10px 0 8px }
+  .grow > .rowact { margin: 0 10px 0 8px }
   .grow-rows-in > .row { padding-right: 10px }
   .votebtn { padding-left: 8px; padding-right: 8px; }
   .standing { margin-left: 0; }
@@ -2841,3 +2844,10 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* Bản hẹp: cột video trở lại dải cuộn ngang như cũ — .pick-hero đã có
    max-width 760px của nó, không cần gì thêm. */
+
+
+/* Nút "Copy credits" trong hàng admin: đổi nhãn tại chỗ sau khi copy thay vì
+   bật toast. Toast nằm ở góc màn hình còn mắt đang ở giữa bảng; nhãn nút đổi
+   ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
+   nhiều thông báo nổi. */
+.adm-copy.done { color: var(--done); border-color: rgba(79,169,122,.4); }

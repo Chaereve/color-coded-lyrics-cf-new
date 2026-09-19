@@ -10,6 +10,7 @@ import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
 import FollowBtn from './components/FollowBtn'
+import ShareBtn from './components/ShareBtn'
 import Standing from './components/Standing'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
@@ -21,7 +22,8 @@ import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { usePager } from './lib/usePager'
-import { boardItems as buildBoardItems, groupIds, groupKey, pickBoardParam } from './lib/board'
+import { boardItems as buildBoardItems, groupIds, groupKey, parseRequestPrefill, pickBoardParam } from './lib/board'
+import { copyText } from './lib/clipboard'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
   loadOff, markAllRead, markRead, pickLadder, pushNotices, saveInbox, saveOff, savePrefs, saveWatched,
@@ -109,7 +111,7 @@ function Stat({ c, v, label }) {
 
 /* ---------------- một dòng request ---------------- */
 function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
-  followed = false, onWatch, hl = false, st = null }) {
+  followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
   const sm = STATUS_META[r.status]
   /* Đã vào Up next thì khóa vote (kể cả rút lại) và khóa xóa của user. */
@@ -155,6 +157,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
               tĩnh thì chỉ có chữ, quyền theo dõi hiện lên khi rê. Dòng trong cụm
               không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
           {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
+          {onShare && <ShareBtn onShare={() => onShare(r)} />}
         </div>
         {r.status === 'in_progress' && <div className="bar"><i style={{ width: `${r.progress}%` }} /></div>}
         {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
@@ -177,7 +180,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
 }
 
 function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, hl = false, st = null }) {
+  followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -223,6 +226,7 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
               onVote={onVote}
+              onShare={onShare}
               onDelete={onDelete} />
           ))}
         </div>
@@ -312,7 +316,12 @@ export default function App() {
 
   const [profile, setProfile] = useState(false)
   const [voteFor, setVoteFor] = useState(null)
-  const [modal, setModal] = useState(false)
+  /* Link mời gửi bài (`/?add=1&artist=…&title=…`) do chủ kênh dán vào mô tả
+     video: đọc MỘT lần lúc khởi tạo state nên form mở ngay từ khung hình đầu,
+     không phải mở sau một effect (mở trễ một nhịp là thấy trang nháy). */
+  const [prefill] = useState(() =>
+    parseRequestPrefill(new URLSearchParams(window.location.search)))
+  const [modal, setModal] = useState(!!prefill)
   const [modalTab, setModalTab] = useState('request')
   const [admin, setAdmin] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -441,6 +450,19 @@ export default function App() {
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
+  }, [])
+
+  /* Tham số mời (`add`/`artist`/`title`/`link`) được dùng đúng một lần rồi bỏ
+     khỏi URL: để nguyên thì F5 lại mở form một lần nữa, và người dùng đóng form
+     xong bấm Back lại thấy nó bật lên. `replaceState` nên không thêm bước vào
+     lịch sử duyệt web. */
+  useEffect(() => {
+    const u = new URL(window.location.href)
+    const has = ['add', 'artist', 'title', 'link'].some(k => u.searchParams.has(k))
+    if (!has) return
+    for (const k of ['add', 'artist', 'title', 'link']) u.searchParams.delete(k)
+    const qs = u.searchParams.toString()
+    window.history.replaceState(null, '', u.pathname + (qs ? `?${qs}` : '') + u.hash)
   }, [])
 
   /* Màn chờ: sàn 560ms cho logo kịp "vào" (dưới ngưỡng đó chỉ là một cái nháy
@@ -602,12 +624,17 @@ export default function App() {
     if (canonical) canonical.href = new URL(ROUTES[section], window.location.origin).href
   }, [section, t])
 
-  const flash = (tone, m, extra) => push({
+  /* Bọc useCallback: `flash` được dùng bên trong nhiều useCallback khác
+     (shareSong, các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
+     mọi callback đó phải ghi `flash` vào deps, mà `flash` lại đổi mỗi render —
+     React Compiler than phiền, và memo vô hiệu. Danh tính ổn định ở đây rẻ
+     hơn nhiều so với việc đi giải thích từng chỗ. */
+  const flash = useCallback((tone, m, extra) => push({
     tone,
     title: t(tone === 'err' ? 'notif.err' : tone === 'gold' ? 'notif.gold' : 'notif.ok'),
     body: m,
     ...extra,
-  })
+  }), [push, t])
 
   /* ---------------- theo dõi + thông báo ----------------
      Nạp theo tài khoản; đổi tài khoản là xoá snapshot cũ để không mang
@@ -882,6 +909,29 @@ export default function App() {
   /* ---------------- actions ---------------- */
   /* Chặn mở bảng vote cho Up next ngay ở lớp điều phối (nút đã disable,
      đây là lớp chặn thứ hai cho phím tắt / state cũ). */
+  /* CHIA SẺ MỘT BÀI. Link trỏ về CHÍNH bảng (`?f=top&q=<bài>`), không trỏ ra
+     YouTube: người nhận bấm vào là vote được ngay, thay vì phải tự đi tìm bài
+     trong danh sách. Điện thoại có hộp chia sẻ hệ thống thì mở hộp đó (người
+     dùng chọn được Zalo/Messenger), còn lại thì copy + toast.
+     Không dùng `navigator.share` ở desktop: hộp thoại hệ thống trên Windows
+     chậm và nhiều máy không có, trong khi copy link là thao tác ai cũng hiểu. */
+  const shareSong = useCallback(async (r) => {
+    const q = `${r.title} ${r.artist}`.trim()
+    const url = `${window.location.origin}${ROUTES.board}?f=top&q=${encodeURIComponent(q)}`
+    const text = `${r.title} - ${r.artist}`
+    /* Hộp chia sẻ hệ thống chỉ mở trên máy cảm ứng. Trên desktop nó là một hộp
+       thoại của hệ điều hành (Windows/macOS) chậm, hay bị chặn trong webview,
+       và không giúp gì: người dùng desktop muốn một chuỗi để dán. Nhận biết
+       bằng `(hover: none)` — cùng tiêu chí mà CSS dùng để phân biệt hai thế
+       giới, không phải đoán theo user-agent. */
+    const touch = window.matchMedia?.('(hover: none)').matches
+    if (touch && navigator.share) {
+      try { await navigator.share({ title: 'Chaereve', text, url }); return } catch { return }
+    }
+    const ok = await copyText(url)
+    flash(ok ? 'ok' : 'err', t(ok ? 'row.shareCopied' : 'row.shareFailed'))
+  }, [flash, t])
+
   const openVote = useCallback((r) => {
     if (!r || isPicked(r)) return
     setVoteFor(r)
@@ -1298,7 +1348,7 @@ export default function App() {
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={user} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
                         followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        st={standings.get(e.key)} />
+                        onShare={shareSong} st={standings.get(e.key)} />
                       )
                     : (
                       <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i}
@@ -1308,7 +1358,7 @@ export default function App() {
                         onVote={openVote}
                         onDelete={doDelete}
                         followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        st={standings.get(groupKey(e.r))} />
+                        onShare={shareSong} st={standings.get(groupKey(e.r))} />
                       )
                   ))}
               </div>
@@ -1351,7 +1401,7 @@ export default function App() {
                     onVote={openVote}
                     onDelete={doDelete}
                     followed={watchedSet.has(groupKey(r))} onWatch={doToggleWatch}
-                    st={standings.get(groupKey(r))} />
+                    onShare={shareSong} st={standings.get(groupKey(r))} />
                 ))}
             </div>
             <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />
@@ -1442,6 +1492,7 @@ export default function App() {
         <ActionModal
           open={modal} tab={modalTab} setTab={setModalTab} onClose={() => setModal(false)}
           rows={pub} allRows={rows} myVotes={myVotes} myOrders={myOrders}
+          prefill={prefill}
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
           onCancelOrder={doCancelOrder} userName={user.name} live={hasSupabase}
