@@ -820,3 +820,14 @@ Chiều lỗi (bản chưa sửa, phát `submit` ở bước 2 sau khi điền t
 `npm test` → **366 ca / 365 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **235/235** (trước lượt
 này: 225). `npx oxlint src tools worker supabase` → **0 lỗi, 13 cảnh báo**. `tools/_probe_enter.mjs`
 là đồ tạm, đã xoá sau khi lấy xong bằng chứng.
+
+
+## Phần R — trước khi merge: hai chỗ tài liệu thiếu so với thực tế
+
+1. Bảng *"Chạy lại SQL khi repo có bản mới"* trong `HUONG-DAN.md` dừng ở
+   `20261103_vote_hardening.sql` — thiếu `20261104_spin_streak.sql`. Ai làm đúng theo
+   tài liệu sẽ bỏ sót đúng bản vá luật "vòng quay không lặp quá 2 lượt". Đã thêm dòng.
+2. Mục *"Nên kiểm tra bằng tay sau khi deploy"* không có mục nào cho luồng request trả phí.
+   Đã thêm bốn việc phải bấm tay — Enter/"Go" ở bước 2 phải ra bước 3, request kế tiếp phải
+   tắt ô trả phí, đổi tab phải giữ form, và ba lượt quay liền không được trùng số — vì đây
+   đúng là những thứ jsdom không mô phỏng được (lý do cả bộ kiểm đi qua lỗi này ở vòng 14).

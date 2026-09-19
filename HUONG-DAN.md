@@ -951,6 +951,7 @@ New query → dán cả file → Run**.
 | `migrations/20260909_daily_spin_edge.sql` | một lần, CHẠY SAU file prizes: cột audit `fp_hash`/`ip_hash` + `spin_daily` nhận hash từ cổng Edge (mặc định null); đã có trong schema mới |
 | `migrations/20261102_spin_fp_quota.sql` | một lần: hạn mức quay theo vân tay nằm trong Postgres (`fp_slot` + unique index), gọi thẳng RPC cũng bị chặn; đã có trong schema mới |
 | `migrations/20261103_vote_hardening.sql` | một lần, CHẠY SAU file spin_fp_quota: siết vote (khoá hàng, hạn mức vân tay, hoàn đúng ví, cổng `edge_gate`); đã có trong schema mới |
+| `migrations/20261104_spin_streak.sql` | một lần, CHẠY SAU file vote_hardening: vòng quay **không lặp quá 2 lượt liên tiếp** — hai lượt gần nhất của cùng một thiết bị đã ra cùng số thưởng thì lượt này loại số đó (ô vẫn rút đều trên 16 ô, chỉ hẹp tập hợp lệ trong đúng tình huống này); đã có trong schema mới |
 
 **Thấy đúng chữ `P0001` trên màn hình là schema chạy thiếu.** Từ bản này các hàm SQL
 `raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/i18n.jsx`
@@ -2615,7 +2616,9 @@ nguồn thật, rồi mới dựng CSP.
 
 ### Việc BẮT BUỘC làm khi deploy
 
-1. **Chạy lại toàn bộ `supabase/schema.sql`** trong SQL Editor. Bản hiện tại có nhiều thứ
+1. **Chạy lại toàn bộ `supabase/schema.sql`** trong SQL Editor. **Sau bản cập nhật vòng 14
+   (19/09/2026) thì đây không còn là việc "nên làm":** bản vá cuối cùng trong đó là
+   `migrations/20261104_spin_streak.sql` (vòng quay không lặp quá 2 lượt liên tiếp). Bản hiện tại có nhiều thứ
    mới so với lần chạy đầu: bỏ giới hạn 1 vote/người, `cast_vote` nhận số lượng bất kỳ,
    loại video `Short`, 3 cột mốc tiến độ, `update_my_profile`, `cancel_my_order`,
    Paid Request không bị chặn bởi giới hạn 3 request/giờ, và **bảng `public.media` +
@@ -2824,6 +2827,19 @@ tại: **50/50 mục đạt, 0 lỗi runtime**. Cờ môi trường có sẵn:
 
 ### Nên kiểm tra bằng tay sau khi deploy
 
+Ba việc dưới đây **không máy nào kiểm được** (jsdom không mô phỏng việc gửi ngầm của
+trình duyệt, và sandbox không có bàn phím điện thoại thật) nên phải bấm bằng tay:
+
+- Trong **form request**, điền tên bài ở bước 2 rồi bấm **Enter** trong ô **Link** (trên
+  điện thoại là nút **"Go/Đi"** của bàn phím) → phải sang **bước 3** với ô *"bài trả phí"*,
+  và **không** được có request nào được gửi. Đây chính là đường đã làm bước chọn trả phí bị
+  bỏ qua ở vòng 14; nếu vẫn thấy thông báo "Request sent" thì lỗi còn nguyên.
+- Gửi một request **trả phí** thật, rồi mở form request **kế tiếp**: ô *"bài trả phí"* phải
+  **tắt**, và nút gửi phải là **"Send request"** thường (không phải nút vàng).
+- Đổi tab trong hộp request rồi quay lại (New request → Vote → New request): chữ vừa gõ,
+  bước đang đứng và ô tick phải còn, kèm dòng nói form được khôi phục.
+- Nếu vừa chạy `20261104_spin_streak.sql`: quay thử **3 lượt liền trên cùng một thiết bị** —
+  không được có ba số thưởng giống nhau liên tiếp.
 - Đăng nhập Google thật (bản demo trong sandbox dùng tài khoản giả).
 - Mở trang đã deploy, xem khối **Chaereve's Pick** có hiện video thật của kênh không —
   trong sandbox thì không, vì sandbox không có đường ra YouTube.
