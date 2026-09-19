@@ -130,3 +130,53 @@ test('họ key ghép động còn nguyên (nt.tag.*, status.*, filter.*, nav.*)'
     assert.ok(n >= 3, `họ "${fam}*" chỉ còn ${n} key — JSX vẫn ghép động vào họ này`)
   }
 })
+
+
+test('không khoá nào nằm chết trong từ điển', () => {
+  /* Chiều NGƯỢC của các ca trên: không phải "chuỗi dùng có bản dịch không" mà
+     "bản dịch có ai dùng không". Một khoá chết không làm gì hỏng, nhưng nó là
+     một chuỗi phải đọc, phải dịch, phải giữ mãi — mà người dọn sau không biết
+     nó là để dành hay là rác. Sáu khoá rác đã gỡ bằng tay (crop.title,
+     menu.admin, req.needFields, vote.available, vote.canTakeBack,
+     adm.emptyList), nay gỡ xong là máy giữ.
+
+     Ba đường miễn trừ, và chỉ ba:
+       · khoá CÓ MẶT nguyên văn trong một tệp mã (kể cả khi nó nằm trong một
+         bảng dữ liệu như `adminTabs.js`, không phải trong lời gọi t(...));
+       · khoá thuộc một HỌ GHÉP ĐỘNG đang được dùng — đọc thẳng các mẫu
+         t(`nav.${...}`) trong mã rồi lấy phần tiền tố đứng trước dấu chấm;
+       · mã lỗi err.*: phần lớn đến từ payload của máy chủ (SQL raise
+         exception, cổng Edge trả { error: 'err.x' }), nên không có lời gọi nào
+         trong mã nhắc tới chúng — ca 4 phía trên đã giữ đầu kia. */
+  const src = []
+  for (const f of codeFiles) {
+    if (f.endsWith('i18n.jsx')) continue
+    src.push(strip(readFileSync(f, 'utf8')))
+  }
+  const all = src.join(String.fromCharCode(10))
+
+  /* Tiền tố ghép động: tìm chuỗi t( + dấu huyền, rồi lấy chữ cho tới khi gặp
+     dấu ${ — không dùng regex để khỏi phải thoát dấu huyền và dấu đô. */
+  const dyn = new Set()
+  const MARK = 't(`'
+  for (let i = all.indexOf(MARK); i !== -1; i = all.indexOf(MARK, i + 1)) {
+    const rest = all.slice(i + MARK.length)
+    const cut = rest.indexOf('${')
+    if (cut < 0 || cut > 40) continue
+    /* `t(\`nav.${x}\`)` cho tiền tố "nav", `t(\`nt.tag.${x}\`)` cho "nt.tag" —
+       cả hai đều là HỌ, nên bỏ dấu chấm cuối rồi nhận cả tiền tố một tầng. */
+    const prefix = rest.slice(0, cut).replace(/\.$/, '')
+    if (prefix) dyn.add(prefix)
+  }
+  assert.ok(dyn.size >= 5, `phải nhận ra các họ ghép động (được ${dyn.size}: ${[...dyn].join(', ')})`)
+
+  const Q1 = String.fromCharCode(39)   // dấu nháy đơn, khỏi phải thoát trong chuỗi
+  const dead = [...DICT.keys()].filter((k) => {
+    if (k.startsWith('err.')) return false
+    if (all.includes(Q1 + k + Q1)) return false
+    if (all.includes('"' + k + '"')) return false
+    for (const pre of dyn) if (k.startsWith(pre + '.')) return false
+    return true
+  })
+  assert.deepEqual(dead, [], `khoá không nơi nào dùng (xoá, hoặc gọi nó ra): ${dead.join(', ')}`)
+})

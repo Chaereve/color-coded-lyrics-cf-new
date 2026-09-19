@@ -3,6 +3,7 @@ import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, formatChance, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
+  dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
 } from '../lib/dailySpin'
 import {
   SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,
@@ -61,12 +62,32 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
    logo trong trục. */
 const HUB = 26             // bán kính trục
 
-function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef }) {
+function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, wrapRef, discRef, drag }) {
   const count = sectors.length
+  /* KÉO ĐĨA — thao tác quen tay nhất của một bánh xe thưởng.
+     Ba quyết định, và lý do của từng cái:
+
+     · CHUỘT VÀ BÚT, KHÔNG PHẢI NGÓN TAY. Trên máy cảm ứng, kéo một ngón ở giữa
+       màn hình là cuộn trang; cướp thao tác đó để quay thì trang khó dùng hơn
+       hẳn, đổi lại chỉ thêm một cách quay trong khi nút quay 46px đã nằm ngay
+       dưới đĩa. Vì vậy `pointerType === 'touch'` được nhường lại cho việc cuộn.
+     · PHẦN KÉO ĐƯỢC ĐẶT Ở LỚP BỌC, KHÔNG ĐẶT Ở ĐĨA. Đĩa đã có transform do
+       React đặt (nhịp quay 4,5s của CSS bám vào chính nó). Lớp bọc giữ phần
+       xoay của TAY, nên lúc nhả ra chỉ cần cộng dồn phần đã kéo vào góc thật
+       rồi giao lại — đĩa không nhảy về vị trí cũ trước khi quay.
+     · NHẢ RA MỚI QUAY, và kết quả vẫn do máy chủ quyết định. Kéo chỉ là cách
+       bấm nút cho vui tay, không phải cách gian lận: dưới 40° coi như chạm hụt
+       và đĩa trả về chỗ cũ. */
+  const canDrag = drag.enabled
   return (
-    <div className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}`}
-      role="img" aria-label={label}>
-      <svg className="spin-wheel-disc" viewBox="0 0 400 400" aria-hidden="true"
+    <div ref={wrapRef}
+      className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}${canDrag ? ' can-drag' : ''}`}
+      role="img" aria-label={label}
+      onPointerDown={canDrag ? drag.down : undefined}
+      onPointerMove={canDrag ? drag.move : undefined}
+      onPointerUp={canDrag ? drag.up : undefined}
+      onPointerCancel={canDrag ? drag.up : undefined}>
+      <svg ref={discRef} className="spin-wheel-disc" viewBox="0 0 400 400" aria-hidden="true"
         style={{ transform: `rotate(${rotation}deg)`, transitionDuration: `${duration}ms` }}>
         <circle cx={C} cy={C} r="195" className="spin-wheel-rim" />
         <circle cx={C} cy={C} r="199.5" className="spin-wheel-edge" />
@@ -154,6 +175,9 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   const stopTicks = useRef(null)
   const angle = useRef(0)   // góc hiện tại, đọc được ngoài render (updater có thể chạy 2 lần)
   const pointerRef = useRef(null)
+  const wrapRef = useRef(null)
+  const discRef = useRef(null)
+  const dragRef = useRef(null)
   const pointerRaf = useRef(0)
   const pointerTimer = useRef(0)
 
@@ -329,6 +353,90 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   const remaining = status?.remaining ?? 0
   const limit = status?.limit || DAILY_SPIN_LIMIT
   const active = phase !== 'idle'
+
+  /* ---------- KÉO ĐĨA (xem chú thích dài trong `Wheel`) ---------- */
+  const canDrag = !active && !loading && !!status && (!!remaining || pending)
+  /* Góc của con trỏ quanh TÂM đĩa, tính bằng độ. Tâm lấy từ hộp bao của lớp
+     bọc — vòng tròn nằm trọn trong đó nên tâm hình học cũng là tâm đĩa — và
+     hộp bao được ĐỌC MỘT LẦN lúc bấm: cuộn trang giữa chừng sẽ làm mọi phép
+     `getBoundingClientRect()` sau đó lệch đi, còn con trỏ thì vẫn báo toạ độ
+     màn hình. */
+  const pointerAngle = (e, box) => Math.atan2(
+    e.clientY - (box.top + box.height / 2),
+    e.clientX - (box.left + box.width / 2),
+  ) * 180 / Math.PI
+
+  const dragDown = (e) => {
+    if (e.pointerType === 'touch' || reducedMotion() || dragRef.current || !canDrag) return
+    const el = wrapRef.current
+    if (!el) return
+    const box = el.getBoundingClientRect()
+    dragRef.current = {
+      id: e.pointerId, box,
+      prev: pointerAngle(e, box),
+      turned: 0, tickAt: 0, last: performance.now(), lastTick: 0,
+    }
+    el.classList.add('dragging')
+    try { el.setPointerCapture?.(e.pointerId) } catch { /* jsdom, hoặc pointer đã mất */ }
+  }
+
+  const dragMove = (e) => {
+    const d = dragRef.current
+    if (!d || e.pointerId !== d.id) return
+    const at = pointerAngle(e, d.box)
+    /* Chênh lệch đi vòng qua mốc ±180° (con trỏ vượt qua phía sau đĩa) phải co
+       lại thành bước ngắn nhất, nếu không một lần vượt mốc là cả vòng quay. */
+    let step = at - d.prev
+    if (step > 180) step -= 360
+    else if (step < -180) step += 360
+    if (!step) return
+    d.prev = at
+    d.turned += step
+    const el = wrapRef.current
+    if (el) el.style.transform = `rotate(${d.turned}deg)`
+
+    /* TIẾNG TÁCH theo từng vạch đi qua — cùng cơ chế với lúc máy quay, chỉ
+       khác nhịp do TAY quyết định. Có sàn thời gian 45ms: kéo mạnh một cái
+       (một lần nhích đi cả trăm độ) cũng không thành tràng "tạch tạch". */
+    const now = performance.now()
+    if (now - d.lastTick < DRAG_TICK_GAP_MS) { d.last = now; return }
+    const { count, gain } = dragTicks(d.tickAt, d.turned, { ms: now - d.last })
+    d.tickAt = d.turned
+    d.last = now
+    const n = Math.min(3, Math.abs(count))
+    if (!n) return
+    d.lastTick = now
+    for (let i = 0; i < n; i++) setTimeout(() => sfx.spinTicks([{ at: 0, gain }]), i * 30)
+  }
+
+  const dragUp = (e) => {
+    const d = dragRef.current
+    if (!d || (e && e.pointerId !== undefined && e.pointerId !== d.id)) return
+    dragRef.current = null
+    const el = wrapRef.current
+    el?.classList.remove('dragging')
+    try { el?.releasePointerCapture?.(d.id) } catch { /* xem dragDown */ }
+    if (!el) return
+
+    if (Math.abs(d.turned) >= DRAG_MIN_DEG && canDrag) {
+      /* Giao lại ĐÚNG chỗ mắt đang nhìn: cộng phần vừa kéo vào góc thật, đặt
+         luôn transform của đĩa theo góc mới, rồi trả lớp bọc về 0. Hai dòng
+         ghi liền nhau trước khi trình duyệt kịp vẽ lại, nên không có nhịp
+         "nhảy về chỗ cũ" nào ở giữa. */
+      angle.current += d.turned
+      el.style.transition = 'none'
+      el.style.transform = ''
+      if (discRef.current) discRef.current.style.transform = `rotate(${angle.current}deg)`
+      spin()
+      /* Trả nhịp đàn hồi lại cho lớp bọc ở khung hình sau — xoá ngay trong cùng
+         khung này thì trình duyệt gộp hai lần ghi và bỏ luôn việc tắt transition. */
+      requestAnimationFrame(() => { el.style.transition = '' })
+      return
+    }
+    /* Kéo hụt: đĩa trả về chỗ cũ bằng một nhịp ngắn, để tay thấy là chưa đủ. */
+    el.style.transform = ''
+  }
+
   // The transaction is already committed, but do not spoil the result while
   // the wheel is still moving. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
@@ -371,7 +479,8 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       <div className="spin-stage">
         <div className="spin-dial">
           <Wheel sectors={sectors} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
-            pointerRef={pointerRef}
+            pointerRef={pointerRef} wrapRef={wrapRef} discRef={discRef}
+            drag={{ enabled: canDrag, down: dragDown, move: dragMove, up: dragUp }}
             won={won} label={t('spin.wheelLabel', {
               n: rewards.length,
               odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),

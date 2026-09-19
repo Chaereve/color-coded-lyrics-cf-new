@@ -471,6 +471,42 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
       q('.spin-legend')?.textContent?.replace(/\s+/g, ' ').slice(0, 90))
     /* Không còn note thừa: dòng "mỗi lượt thắng trung bình 1,75 vote" ở đầu
        khối và câu "ô nào cũng có thưởng" dưới nút đều đã bị gỡ. */
+    /* KÉO ĐĨA — thao tác vừa được thêm. Ba điều phải đúng, và điều thứ ba
+       (kéo đủ xa thì đĩa quay thật) chỉ kiểm được bằng cách BẤM THẬT: nó đi
+       qua `spin()`, qua nhịp 4,5s và qua trạng thái của component. */
+    {
+      const wrap = q('.spin-wheel-wrap')
+      check('đĩa báo được là kéo được (can-drag)', !!wrap && wrap.classList.contains('can-drag'))
+      const ev = (type, x, y, pointerType = 'mouse') => {
+        const e = new window.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 7 })
+        Object.defineProperty(e, 'pointerType', { value: pointerType })
+        return e
+      }
+      const fire = async (el, e) => { await act(async () => { el.dispatchEvent(e) }); await tick(50) }
+
+      /* (1) ngón tay KHÔNG kéo được: kéo ở giữa màn hình cảm ứng là cuộn trang */
+      await fire(wrap, ev('pointerdown', 100, 0, 'touch'))
+      check('ngón tay không cầm được đĩa', !wrap.classList.contains('dragging'))
+      /* (2) chuột thì cầm được, và đĩa đi theo tay */
+      await fire(wrap, ev('pointerdown', 100, 0))
+      check('chuột cầm được đĩa', wrap.classList.contains('dragging'))
+      await fire(wrap, ev('pointermove', 95, 12))          // ~7° — có xoay, nhưng chưa tới ngưỡng
+      check('đĩa xoay theo tay', /rotate\(-?\d+/.test(wrap.style.transform), wrap.style.transform)
+      /* (3) kéo hụt (chưa tới ngưỡng 40°) thì nhả ra KHÔNG quay: đĩa trả về chỗ cũ */
+      await fire(wrap, ev('pointerup', 95, 12))
+      await tick(80)
+      check('kéo hụt không tiêu mất lượt quay',
+        !wrap.classList.contains('is-spinning') && wrap.style.transform === '',
+        wrap.style.transform)
+      /* (4) kéo đủ xa rồi nhả: đĩa vào nhịp quay thật */
+      await fire(wrap, ev('pointerdown', 100, 0))
+      await fire(wrap, ev('pointermove', 0, 100))          // 90° — quá ngưỡng 40°
+      await fire(wrap, ev('pointerup', 0, 100))
+      const turned = await waitFor(() => wrap.classList.contains('is-spinning'), 1500)
+      check('kéo đủ xa thì đĩa quay thật', turned,
+        `transform="${wrap.style.transform}" class="${wrap.className}"`)
+      await tick(200)
+    }
     check('đầu khối quay không còn dòng trung bình cộng',
       !/1\.75|on average/i.test(text()), text().slice(0, 120))
     check('không còn câu ghi chú "ô nào cũng có thưởng"',

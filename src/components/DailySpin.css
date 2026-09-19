@@ -85,6 +85,18 @@
      hai đường tròn cách nhau nửa pixel là một chi tiết thừa. */
   box-shadow: 0 24px 60px -34px rgba(0, 0, 0, .92);
 }
+/* KÉO ĐĨA BẰNG TAY (xem chú thích trong DailySpin.jsx).
+   Con trỏ đổi hình để nói "cầm được" — nhưng CHỈ khi kéo thật sự có tác dụng
+   (`.can-drag`, tức là còn lượt và đĩa đang đứng yên): hình bàn tay trên một
+   đĩa không kéo được là lời hứa suông. Lúc đang kéo thì tắt nhịp đàn hồi để
+   đĩa bám tay 1:1, nhả ra mới trả lại — nhịp đó dùng cho cú kéo hụt (đĩa về
+   chỗ cũ trong 0,26s) chứ không dùng cho cú kéo thành công, vì lúc đó đĩa đã
+   được giao lại cho nhịp quay 4,5s của chính nó. */
+.spin-wheel-wrap { transition: transform .26s var(--e-out); }
+.spin-wheel-wrap.can-drag { cursor: grab; }
+.spin-wheel-wrap.dragging { cursor: grabbing; transition: none; }
+.spin-wheel-wrap.dragging * { pointer-events: none; }
+
 .spin-wheel-disc {
   display: block; width: 100%; height: 100%; transform-origin: 50% 50%;
   transition: transform 4500ms cubic-bezier(.12, .72, .12, 1);
@@ -307,5 +319,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .spin-wheel-disc { transition: none !important; }
+  .spin-wheel-wrap { transition: none !important; }
   .spin-sector, .spin-wheel-number { transition: none; }
 }

@@ -50,7 +50,6 @@ const S = {
   'prof.cancel': 'Cancel',
 
   /* cat anh */
-  'crop.title': 'Adjust the crop',
   'crop.hint': 'Drag to move · scroll to zoom',
   'crop.zoom': 'Zoom',
   'crop.apply': 'Use this image',
@@ -63,7 +62,6 @@ const S = {
   'menu.close': 'Close menu',
   'menu.settings': 'Settings',
   'menu.sound': 'Sound',
-  'menu.admin': 'Admin workspace',
   'menu.signOut': 'Sign out',
 
   /* the so diem vote */
@@ -436,7 +434,6 @@ const S = {
   'req.link': 'Song / album link',
   'req.linkPh': 'https://youtu.be/…',
   'req.note': 'Notes',
-  'req.needFields': 'Artist and {f} are required.',
   'req.rulesTitle': 'Before requesting',
   'req.rule1': "If the song is already requested, vote for it — don't send it again.",
   'req.rule2': 'One song per request.',
@@ -467,7 +464,6 @@ const S = {
   'vote.freeToday': 'Free votes today',
   'vote.yours': 'you voted {n}',
   'vote.qty': 'Number of votes',
-  'vote.available': '{n} left',
   /* Hộp vote: con số lớn là KẾT QUẢ SAU khi bấm, không phải số đang có. */
   'vote.hero': 'Votes after this',
   'vote.heroSub': 'Currently {n} votes',
@@ -480,7 +476,6 @@ const S = {
   'vote.closed': 'Voting is closed for this request — it is no longer in the queue.',
   'vote.takeBack': 'Take back {n}',
   'vote.sources': 'including {p} bought and {b} bonus',
-  'vote.canTakeBack': '{n} can be taken back',
   'vote.tooManyBack': 'You voted {n} here.',
   'vote.buyMore': 'Buy more votes',
 
@@ -564,7 +559,6 @@ const S = {
   'adm.confirmDelete': 'Delete this request?',
   'adm.received': 'Mark as paid',
   'adm.noOrders': 'No orders yet.',
-  'adm.emptyList': 'Nothing here.',
   /* TRẠNG THÁI RỖNG NÓI RA LÝ DO. Bản cũ chỉ có một dòng "Nothing here." giữa
      khung trống — người dùng đọc nó như một lỗi. Nay: một dòng đậm nói đang
      thiếu gì, một dòng nhỏ nói vì sao, và lối thoát (bỏ bộ lọc) khi cái trống

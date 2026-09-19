@@ -203,6 +203,39 @@ export function spinTicks(totalDeg, count = SPIN_REWARDS.length, durationMs = 45
   return ticks.length > maxTicks ? ticks.slice(ticks.length - maxTicks) : ticks
 }
 
+/* =========================================================
+   KÉO ĐĨA BẰNG TAY — đếm vạch để tiếng tách bám đúng tay
+   ---------------------------------------------------------
+   Khi máy tự quay, `spinTicks` tính trước CẢ đường cong rồi xếp lịch một lần:
+   biết trước đĩa đi bao nhiêu độ, trong bao lâu, nên biết trước từng mốc vạch
+   đi qua kim. Kéo bằng tay thì ngược lại — mỗi lần con trỏ nhích, ta chỉ biết
+   "vừa đi thêm bao nhiêu độ". Vì vậy phải hỏi TỪNG NHỊP: từ góc này sang góc
+   kia thì mấy vạch đã đi qua, và tiếng đó to nhỏ ra sao.
+
+   Hàm thuần để đếm vạch kiểm được ngoài trình duyệt (không cần Web Audio).
+
+   `trunc` chứ không phải `floor`: kéo ngược chiều kim đồng hồ phải kêu y như
+   kéo xuôi. Với `floor`, một góc âm nhỏ (-10°) bị tính thành -1 vạch ngay khi
+   vừa chạm tay vào đĩa — tiếng tách kêu trước cả khi đĩa kịp nhúc nhích.
+
+   `gain` theo TỐC ĐỘ kéo (độ/giây): kéo chậm thì tiếng nhẹ, kéo mạnh thì tiếng
+   rõ. Sàn 0,45 vì tiếng tách quá nhỏ thì coi như không có; trần 1 vì trên
+   ngưỡng đó tai không phân biệt thêm được gì, chỉ có nguy cơ chói. */
+
+export const DRAG_SECTOR_DEG = 22.5      // một vạch = một ô trên bản vẽ (360/16)
+export const DRAG_MIN_DEG = 40           // kéo dưới ngưỡng này coi như chạm hụt
+export const DRAG_TICK_GAP_MS = 45       // nhanh hơn nữa là tiếng ù, không phải nhịp
+
+export function dragTicks(fromDeg, toDeg, { sectorDeg = DRAG_SECTOR_DEG, ms = 0 } = {}) {
+  if (!(sectorDeg > 0) || !Number.isFinite(fromDeg) || !Number.isFinite(toDeg)) {
+    return { count: 0, gain: .6 }
+  }
+  const count = Math.trunc(toDeg / sectorDeg) - Math.trunc(fromDeg / sectorDeg)
+  const speed = ms > 0 ? Math.abs(toDeg - fromDeg) / (ms / 1000) : 0
+  const gain = Math.min(1, Math.max(.45, .45 + speed / 900))
+  return { count, gain }
+}
+
 export function spinCountdown(ms) {
   /* Nan la "NaN:NaN:NaN" in thang len man hinh (dem nguoc hong khi moc gio cua
      cua portal khong doc duoc) -> khong co moc thi dem ve 0, dung de gia do. */

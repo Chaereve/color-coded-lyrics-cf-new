@@ -172,3 +172,40 @@ test('Daily Spin uses flat site colours and opts out of the shared background', 
   assert.match(pageCss, /prefers-reduced-motion/)
   assert.match(siteCss, /html\[data-section="spin"\] \.bgfx\s*\{[^}]*display:\s*none/)
 })
+
+/* ---------- KÉO ĐĨA (vòng 13, phần dư) ---------- */
+
+test('kéo đĩa: chuột/bút kéo được, ngón tay thì không, và nhả ra mới quay', async () => {
+  const [jsx, pageCss] = await Promise.all([
+    readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('./DailySpin.css', import.meta.url), 'utf8'),
+  ])
+
+  /* NGUYÊN TẮC: trên máy cảm ứng, kéo một ngón ở giữa màn hình là cuộn trang.
+     Cướp thao tác đó để quay thì trang khó dùng hơn hẳn, mà nút quay 46px đã
+     nằm ngay dưới đĩa. */
+  assert.match(jsx, /e\.pointerType === 'touch'[^\n]*return/,
+    'phải chặn kéo bằng ngón tay ngay đầu dragDown')
+  assert.match(jsx, /onPointerDown=\{canDrag \? drag\.down : undefined\}/,
+    'chỉ gắn tay kéo khi đĩa thật sự kéo được (còn lượt và đang đứng yên)')
+
+  /* PHẦN KÉO NẰM Ở LỚP BỌC, KHÔNG Ở ĐĨA: đĩa đã có transform của nhịp quay
+     CSS. Kéo ở lớp bọc rồi cộng dồn lúc nhả ra là cách duy nhất để đĩa không
+     nhảy về vị trí cũ trước khi quay. */
+  assert.match(jsx, /el\.style\.transform = `rotate\(\$\{d\.turned\}deg\)`/)
+  assert.match(jsx, /angle\.current \+= d\.turned/,
+    'lúc nhả phải cộng phần đã kéo vào góc thật TRƯỚC khi gọi lượt quay')
+  assert.match(jsx, /discRef\.current\.style\.transform = `rotate\(\$\{angle\.current\}deg\)`/,
+    'đặt lại transform của đĩa theo góc mới trong cùng khung hình')
+
+  /* Tiếng tách khi kéo: cùng hàm đếm vạch, có sàn thời gian, và đi theo hướng
+     nào cũng kêu (giá trị tuyệt đối). */
+  assert.match(jsx, /dragTicks\(d\.tickAt, d\.turned, \{ ms: now - d\.last \}\)/)
+  assert.match(jsx, /now - d\.lastTick < DRAG_TICK_GAP_MS/)
+  assert.match(jsx, /Math\.min\(3, Math\.abs\(count\)\)/, 'một cú nhích dài không thành tràng tạch tạch')
+
+  /* CSS: hình bàn tay chỉ hiện khi kéo được; lúc kéo thì tắt nhịp đàn hồi. */
+  assert.match(pageCss, /\.spin-wheel-wrap\.can-drag \{[^}]*cursor:\s*grab/)
+  assert.match(pageCss, /\.spin-wheel-wrap\.dragging \{[^}]*transition:\s*none/)
+  assert.match(pageCss, /prefers-reduced-motion[\s\S]*\.spin-wheel-wrap \{[^}]*transition:\s*none !important/)
+})

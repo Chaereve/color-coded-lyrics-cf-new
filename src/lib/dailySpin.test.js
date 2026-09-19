@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
+  dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
   spinRotation, spinCountdown, sectorAtPointer,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
@@ -319,4 +320,37 @@ test('SQL thật giữ đúng luật, và schema.sql khớp với migration', ()
       `${rel}: tập ô hẹp lại không chia hết 256 nên phải lấy mẫu loại bỏ`)
     assert.match(sql, /v_prizes\[i\] <> v_block/, `${rel}: phải loại đúng số thưởng đang bị chặn`)
   }
+})
+
+/* ---------- KÉO ĐĨA: đếm vạch để tiếng tách bám đúng tay ---------- */
+
+test('dragTicks đếm vạch theo cả hai chiều, không kêu khi chưa qua vạch nào', () => {
+  const S = DRAG_SECTOR_DEG
+  assert.equal(dragTicks(0, 5).count, 0, 'chưa qua vạch nào thì không có tiếng')
+  assert.equal(dragTicks(0, S).count, 1)
+  assert.equal(dragTicks(0, S * 2.9).count, 2)
+  assert.equal(dragTicks(S, S * 2.9).count, 1, 'đếm từ vạch đã qua, không đếm lại từ đầu')
+  assert.equal(dragTicks(S * 2.9, S).count, -1, 'kéo ngược trả về số âm')
+  assert.equal(dragTicks(-S * 2 + 3, -S * 0.5).count, 1, 'góc âm đếm y như góc dương')
+  /* Đúng MỘT ca lệch được phép: bắt đầu ngay TRÊN một vạch thì vạch đó tính
+     là đã đi qua (đang rời khỏi nó). Kéo tay không bao giờ đứng yên đúng
+     trên vạch, nên đây là quy ước chứ không phải sai số tích luỹ. */
+  assert.equal(dragTicks(-S * 2, -S * 0.5).count, 2, 'vạch xuất phát tính là đã rời')
+  assert.equal(dragTicks(10, 10).count, 0)
+
+  /* Sàn/trần của độ mạnh: kéo chậm vẫn phải nghe ra, kéo mạnh không chói thêm. */
+  assert.ok(dragTicks(0, S, { ms: 400 }).gain >= .45)
+  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain <= 1)
+  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain > dragTicks(0, S, { ms: 400 }).gain,
+    'kéo nhanh phải rõ hơn kéo chậm')
+
+  /* Đầu vào rác không được làm sập vòng quay: NaN/0 độ chia. */
+  for (const args of [[NaN, 30], [0, NaN], [0, 30, { sectorDeg: 0 }]])
+    assert.equal(dragTicks(...args).count, 0)
+
+  /* Ba hằng số dùng chung giữa JSX và CSS — đổi một chỗ mà quên chỗ kia là
+     tiếng tách lệch khỏi vạch vẽ trên đĩa. */
+  assert.equal(S, 360 / 16, 'một vạch = một ô của bản vẽ 16 ô')
+  assert.ok(DRAG_MIN_DEG > S && DRAG_MIN_DEG < 90, 'ngưỡng kéo phải lớn hơn một ô và nhỏ hơn một phần tư vòng')
+  assert.ok(DRAG_TICK_GAP_MS >= 30 && DRAG_TICK_GAP_MS <= 80, 'nhịp tách nằm trong khoảng tai nghe ra nhịp')
 })
