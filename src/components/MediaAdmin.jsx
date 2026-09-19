@@ -185,13 +185,13 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
       </div>
 
       <div className="adm-acts">
-        <button className="icon-btn" title={t('adm.mediaUp')} disabled={i === 0 || busy}
+        <button className="icon-btn" title={t('adm.mediaUp')} aria-label={t('adm.mediaUp')} disabled={i === 0 || busy}
           onClick={() => onMove(i, -1)}>↑</button>
-        <button className="icon-btn" title={t('adm.mediaDown')} disabled={last || busy}
+        <button className="icon-btn" title={t('adm.mediaDown')} aria-label={t('adm.mediaDown')} disabled={last || busy}
           onClick={() => onMove(i + 1)}>↓</button>
         <button className="btn btn-sm" onClick={() => onEdit(m)}>{t('adm.edit')}</button>
         <button className="btn btn-sm" onClick={toggleHide}>{m.is_hidden ? t('adm.mediaShow') : t('adm.mediaHide')}</button>
-        <button className="icon-btn" title={t('adm.delete')}
+        <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
           onClick={() => onDelete(m.id)}>×</button>
       </div>
     </div>

@@ -177,9 +177,9 @@ export default function Leaderboard({ rows, meId }) {
             <span className="lb-me-nm">{me.name}</span>
             <span className="lb-me-stats">
               <span>{t('rank.position', { n: me.place, total: ranked.length })}</span>
-              <span className="dot">·</span>
+              <span className="dot" aria-hidden="true" />
               <span>{me.total} {t('rank.requests')}</span>
-              <span className="dot">·</span>
+              <span className="dot" aria-hidden="true" />
               <span>{me.total_votes} {t('rank.votes')}</span>
             </span>
           </>

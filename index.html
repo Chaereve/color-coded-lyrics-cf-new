@@ -28,13 +28,24 @@
     <link rel="preconnect" href="https://i.ytimg.com" crossorigin />
     <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin />
 
-    <!-- Xem trước khi dán link vào Telegram, Discord, Facebook… -->
+    <!-- Xem trước khi dán link vào Telegram, Discord, Facebook…
+         og:image PHẢI là URL tuyệt đối: crawler của Telegram/Discord/Facebook
+         đọc index.html thô, không có "origin của trang" để ghép với đường dẫn
+         tương đối — để `/logo-192.png` thì phần lớn nơi hiện link sẽ không có
+         ảnh nào. og:url cũng phải tuyệt đối vì lý do tương tự. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Chaereve" />
+    <meta property="og:url" content="https://chaereve.pages.dev/" />
     <meta property="og:title" content="Chaereve — Request Page" />
     <meta property="og:description" content="Request and vote for colour-coded lyric videos by @chaereve." />
-    <meta property="og:image" content="/logo-192.png" />
+    <meta property="og:image" content="https://chaereve.pages.dev/logo-192.png" />
+    <meta property="og:image:width" content="192" />
+    <meta property="og:image:height" content="192" />
+    <meta property="og:image:alt" content="Chaereve logo" />
     <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Chaereve — Request Page" />
+    <meta name="twitter:description" content="Request and vote for colour-coded lyric videos by @chaereve." />
+    <meta name="twitter:image" content="https://chaereve.pages.dev/logo-192.png" />
   </head>
   <body>
     <div id="root"></div>

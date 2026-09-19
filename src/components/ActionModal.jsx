@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../lib/db'
 import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
+import { findDuplicate } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { useModalExit } from '../lib/useModalExit'
@@ -32,7 +33,7 @@ function RulesGate({ onAgree }) {
 }
 
 /* ------------------------- TAB: GỬI REQUEST ------------------------- */
-function RequestTab({ onSubmit, live = true }) {
+function RequestTab({ onSubmit, live = true, rows = [], onVoteExisting }) {
   const { t } = useI18n()
   const [form, setForm] = useState({ kind: KINDS[0], artist: '', title: '', link: '', note: '' })
   /* O "bai tra phi" luon bat dau tat. Tung co prop `paidDefault` de mo form dang
@@ -48,6 +49,13 @@ function RequestTab({ onSubmit, live = true }) {
   const meta = KIND_META[form.kind]
   const titleLabel = t(meta.titleKey)
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  /* Dò trùng NGAY LÚC GÕ, không đợi tới lúc bấm Gửi. Một bài do ba người gửi
+     lẻ là gốc của cả việc cụm 9 vote bị xếp dưới bài 5 vote lẫn việc farm vote
+     bằng nhiều tài khoản; nói ra ở ô nhập thì rẻ hơn nhiều so với đi gộp ở tầng
+     SQL sau khi dữ liệu đã bẩn. Chỉ dò khi cả tên bài lẫn nghệ sĩ đã đủ dài
+     (xem `findDuplicate`) nên trong lúc gõ bình thường không có gì nhấp nháy. */
+  const dup = useMemo(() => findDuplicate(rows, form), [rows, form])
 
   const agree = () => {
     try { localStorage.setItem(RULES_KEY, RULES_V) } catch { /* private mode */ }
@@ -105,6 +113,31 @@ function RequestTab({ onSubmit, live = true }) {
           <input value={form.title} onChange={set('title')} maxLength={160} />
         </div>
       </div>
+
+      {/* Bài đã có trên bảng: nói ra rồi đưa thẳng tới chỗ vote cho bài đó.
+          Đây là gợi ý, KHÔNG phải chặn — người dùng vẫn gửi được nếu họ muốn
+          (ví dụ bài cũ đã bị từ chối, hoặc họ muốn một bản khác). */}
+      {dup && (
+        <div className="dup-note" role="status">
+          <span className="dup-tx">
+            <b>{dup.title}</b>
+            <span className="dup-sub">
+              {t('req.dupMeta', { c: dup.rows.length, n: dup.votes })}
+            </span>
+          </span>
+          {dup.best && onVoteExisting && (
+            <button type="button" className="btn btn-sm btn-primary"
+              onClick={() => onVoteExisting(dup.best)}>
+              {t('req.dupVote')}
+            </button>
+          )}
+          {!dup.best && dup.video && (
+            <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
+              {t('req.dupWatch')}
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="field">
         <label>{t('req.link')}</label>
@@ -321,7 +354,8 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
               {orderStatus(o.status)}
             </span>
             {o.status === 'awaiting' && onCancelOrder && (
-              <button className="icon-btn" title={t('order.cancel')} onClick={() => onCancelOrder(o)}>×</button>
+              <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
+                onClick={() => onCancelOrder(o)}>×</button>
             )}
           </div>
         ))}
@@ -333,7 +367,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 export default function ActionModal({
   open, tab, setTab, onClose,
   rows, myVotes, myOrders, voteStatus,
-  onVote, onSubmit, onBuy, onCancelOrder, userName,
+  onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting,
   /* live = co noi DB that hay chay demo: RequestTab dung no de chon dong chu bao
      tin. Bo no khoi danh sach prop la `live={live}` ben duoi thanh ReferenceError,
      React go ca cay -> mo "New request" chi con man den. */
@@ -366,7 +400,9 @@ export default function ActionModal({
           <button className="x" onClick={onClose} aria-label={t('btn.close')}>×</button>
         </div>
         <div className="modal-body">
-          {tab === 'request' && <RequestTab onSubmit={onSubmit} live={live} />}
+          {tab === 'request' && (
+            <RequestTab onSubmit={onSubmit} live={live} rows={rows} onVoteExisting={onVoteExisting} />
+          )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}
               voteStatus={voteStatus} goBuy={() => setTab('buy')} />

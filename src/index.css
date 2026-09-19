@@ -136,13 +136,23 @@
   --display: 'Archivo Display', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Chuyển động — một bộ easing dùng chung cho cả trang, không chỗ nào tự chế.
-     Chỉ animate opacity/transform (GPU lo, không gây layout lại giữa chừng). */
+     Chỉ animate opacity/transform (GPU lo, không gây layout lại giữa chừng).
+
+     BA mức, chia theo CỔNG TẦN SUẤT (xem DESIGN.md § Chuyển động — người dùng
+     bấm càng nhiều thì chuyển động càng phải ít và nhanh):
+       --e-out  mọi thứ VÀO trang + mọi thứ dịch chuyển. Không overshoot.
+       --e-soft đổi màu nền/viền/chữ — lặp hàng trăm lần mỗi phiên nên phải
+                là đường thẳng không gợn.
+       --e-pop  overshoot. CHỈ dành cho khoảnh khắc ăn mừng (bục xếp hạng,
+                vòng quay thưởng). Toast, công tắc, nút điều hướng dùng nó
+                là sai: nảy trên một thao tác tiện ích đọc ra thành đồ chơi,
+                không phải phản hồi. */
   --e-out:  cubic-bezier(.22,.61,.36,1);    /* vào: nhanh rồi hãm dần */
   --e-soft: cubic-bezier(.4,0,.2,1);        /* đổi màu nền, viền */
-  --e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — modal, nút phát */
-  --t-1: .16s;
-  --t-2: .28s;
-  --t-3: .42s;
+  --e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — chỉ lúc ăn mừng */
+  --t-1: .16s;   /* phản hồi con trỏ: hover, active, focus */
+  --t-2: .28s;   /* khối nhỏ đổi trạng thái */
+  --t-3: .42s;   /* khối lớn, chuyển cảnh */
 }
 
 * { box-sizing: border-box; }
@@ -185,13 +195,13 @@ button { font-family: inherit; }
 .splash.hide { opacity: 0; visibility: hidden; transform: scale(1.035); }
 /* logo vào: nở ra từ giữa và hết mờ dần — blur chỉ chạy một lần lúc mở */
 @keyframes splashIn { from { opacity: 0; transform: scale(.88); filter: blur(7px) } to { opacity: 1; transform: none; filter: none } }
-.applogo.lg-splash { position: relative; animation: splashIn .7s var(--e-out) both; }
+.applogo.lg-splash { position: relative; animation: splashIn .4s var(--e-out) both; }
 /* Không có vòng tròn xoay quanh logo — nhìn như icon đang load.
    Thay bằng một vệt sáng quét chéo NGANG LOGO, có nghỉ giữa hai nhịp:
    shimmer thật của app xịn là quét rồi im, không quay vô hạn.
    .applogo đã overflow:hidden nên vệt sáng bị cắt đúng theo khối logo. */
 .splash-mark { position: relative; display: grid; place-items: center;
-  animation: rise .55s var(--e-out) both; }
+  animation: rise .36s var(--e-out) both; }
 .applogo.lg-splash {
   border-radius: var(--r-xl);
   box-shadow: 0 16px 44px -18px var(--a-glow), inset 0 0 0 1px rgba(255,255,255,.06);
@@ -203,19 +213,19 @@ button { font-family: inherit; }
     transparent 41%, rgba(255,255,255,.14) 46%, rgba(255,255,255,.82) 50%,
     rgba(255,255,255,.14) 54%, transparent 59%);
   transform: translateX(-72%);
-  animation: logoShimmer 2.9s var(--e-soft) .45s infinite;
+  animation: logoShimmer 1.6s var(--e-soft) .08s infinite;
 }
 @keyframes logoShimmer {
   0%   { transform: translateX(-72%) }
-  34%  { transform: translateX(72%) }
-  100% { transform: translateX(72%) }   /* nghỉ 2/3 chu kỳ, không quay liên tục */
+  22%  { transform: translateX(72%) }
+  100% { transform: translateX(72%) }   /* quét 0.35s rồi nghỉ phần còn lại */
 }
 @keyframes shine { 0% { background-position: 130% 0 } 100% { background-position: -60% 0 } }
 /* chữ hiệu chạy ánh kim: một dải sáng quét qua nền chữ, chạy hai nhịp
    rồi đứng — đủ để mở màn, không phải banner chạy chữ. Chỉ bật khi trình
    duyệt cắt được gradient theo chữ, không thì giữ màu chữ thường. */
 .splash-title { margin-top: 20px; font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .2px;
-  color: var(--txt); animation: rise .5s var(--e-out) .18s both; }
+  color: var(--txt); animation: rise .32s var(--e-out) .08s both; }
 @supports (background-clip: text) or (-webkit-background-clip: text) {
   .splash-title {
     background: linear-gradient(100deg, var(--txt) 20%, #fff 38%, var(--a-2) 50%, var(--txt) 66%, var(--txt) 100%);
@@ -227,17 +237,17 @@ button { font-family: inherit; }
 }
 .splash-sub { margin-top: 5px; color: var(--txt-3); font-size: 11px; font-family: var(--mono);
   letter-spacing: 2.4px; text-transform: uppercase;
-  animation: rise .5s var(--e-out) .28s both; }
-.splash-bar { animation: rise .5s var(--e-out) .36s both; }
+  animation: rise .32s var(--e-out) .13s both; }
+.splash-bar { animation: rise .32s var(--e-out) .18s both; }
 .splash-bar { margin-top: 26px; width: 140px; height: 2px; background: var(--line); overflow: hidden; }
 .splash-bar > i { position: relative; display: block; height: 100%; width: 0; overflow: hidden;
   background: linear-gradient(90deg, var(--a), var(--a-2) 65%, #b9b6ff);
   box-shadow: 0 0 14px -2px var(--a-glow);
-  animation: fill 1.15s var(--e-out) .5s forwards; }
+  animation: fill .72s var(--e-out) .2s forwards; }
 /* vệt sáng chạy dọc thanh: thanh tải "có điện" chứ không chỉ dài ra */
 .splash-bar > i::after { content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
-  transform: translateX(-100%); animation: sheen 1.25s var(--e-soft) .55s infinite; }
+  transform: translateX(-100%); animation: sheen 1.15s var(--e-soft) .22s infinite; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 @keyframes fill { to { width: 100% } }
 
@@ -361,7 +371,7 @@ button { font-family: inherit; }
   background: linear-gradient(90deg, transparent, rgba(135,130,250,.10), transparent);
   transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite; pointer-events: none; }
 @keyframes nowdrift { 0% { transform: translateX(0) } 55%,100% { transform: translateX(260%) } }
-.nowbar:hover { border-color: var(--line-2); transform: translateY(-1px) }
+.nowbar:hover { border-color: var(--line-2); }
 /* accent bên trong, clipped theo border-radius của khối — border-left 2px
    cộng bo góc 8px thì hai đầu đường kẻ bị vát lệch, nhìn rất lộ */
 .nowbar > .nbar { position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
@@ -453,7 +463,21 @@ select {
 .row .title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
-.meta .dot { color: var(--line-2); }
+/* Dấu phân cách nhóm trong dòng metadata: một VẠCH MẢNH 1×9px, không phải ký
+   tự '·'. Một hàng request có 3-4 nhóm thông tin, mỗi nhóm cách nhau bằng dấu
+   chấm giữa là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh —
+   vạch mảnh đọc ra thành ranh giới, còn dấu chấm đọc ra thành dấu câu.
+   Ký tự trong JSX đã bỏ hẳn (aria-hidden) nên không còn gì để trình đọc màn
+   hình đọc lên. */
+/* dùng chung cho mọi chỗ: trong `.meta` (flex, đã có gap 8px) lẫn trong câu
+   chữ thường (inline) — nên phải là inline-block có lề riêng, còn `.meta` bỏ
+   lề đi để không cộng dồn với gap */
+.dot { display: inline-block; flex: none; width: 1px; height: 9px;
+  margin: 0; padding: 0; background: var(--line-2); vertical-align: -1px; }
+/* Chỗ nào nằm trong câu chữ thường (không phải flex) thì phải tự mang lề, vì
+   ở đó không có `gap` nào lo khoảng cách. Mọi khối đang dùng .dot (.meta,
+   .lb-me-stats, .vm-sub, .nt-meta) đều là flex có gap sẵn nên mặc định là 0. */
+.dot-inline { margin: 0 7px; }
 
 /* trạng thái: chấm tròn nhỏ + chữ, không phải thẻ màu */
 .status { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2); }
@@ -541,7 +565,6 @@ select {
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
 .grow-head .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12px; color: var(--txt-3); }
-.grow-head .meta .dot { color: var(--line-2); }
 /* cột tổng vote bên phải — con số mono lớn màu accent */
 .grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
   min-width: 44px; }
@@ -999,44 +1022,42 @@ img { max-width: 100%; }
 @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes thumbIn { from { opacity: 0; transform: scale(1.06) } to { opacity: 1; transform: none } }
 
-/* đổi mục là cả khối dựng lại (key theo section) → chạy lại một nhịp,
-   tiêu đề trượt vào từ trái cùng lúc */
-.sect { animation: sectIn .5s var(--e-out) both; }
-.mainhead-tx { animation: fadeUp .5s var(--e-out) both; }
-.mainhead-t { animation: headMask .55s var(--e-out) .04s both; }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
-/* tiêu đề được "kéo ra" từ một đường kẻ: mask chạy từ trên xuống, chữ không nhô lệch dòng */
-@keyframes headMask { from { opacity: 0; clip-path: inset(0 0 100% 0) } to { opacity: 1; clip-path: inset(-15% -15% -15% -15%) } }
+/* đổi mục là cả khối dựng lại (key theo section) → chạy lại một nhịp.
+   Tiêu đề chỉ mờ dần + nhích 6px: bản trước còn "kéo" nó ra bằng clip-path
+   (mask chạy từ trên xuống). Chữ là nội dung TĨNH — mỗi lần bấm menu lại thấy
+   nó được vẽ ra là chuyển động tự giới thiệu, không phải phản hồi. */
+.sect { animation: sectIn .34s var(--e-out) both; }
+.mainhead-tx { animation: fadeUp .34s var(--e-out) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 
-/* hàng trong danh sách vào lần lượt; --i do component truyền, chặn tối đa 12 nhịp */
-.list > * { animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
-/* ô thống kê nảy lên từng ô một */
-.stats .stat { animation: rowIn .45s var(--e-out) both; }
-.stats .stat:nth-child(1) { animation-delay: 60ms; }
-.stats .stat:nth-child(2) { animation-delay: 120ms; }
-.stats .stat:nth-child(3) { animation-delay: 180ms; }
-.stats .stat:nth-child(4) { animation-delay: 240ms; }
+/* Hàng trong danh sách vào lần lượt — ĐÂY là nhịp so le duy nhất của trang
+   Bảng: --i do component truyền, chặn ở 10 nhịp và 32ms/nhịp (12 nhịp × 40ms
+   thì hàng cuối phải chờ gần nửa giây mới hiện, lâu hơn cả thời gian đọc). */
+.list > * { animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 10) * 32ms); }
+/* Dải thống kê KHÔNG tự chạy animation nữa: cả khối đã có [data-reveal] lo,
+   bốn ô nhấp nhô thêm 60ms một lần là hai lớp chuyển động cho cùng một thứ. */
 
 /* hiện dần khi vừa lăn vào tầm nhìn (lib/useReveal.js thêm class .in) */
-[data-reveal] { opacity: 0; transform: translateY(18px);
-  transition: opacity .55s var(--e-out), transform .55s var(--e-out); }
+[data-reveal] { opacity: 0; transform: translateY(12px);
+  transition: opacity .42s var(--e-out), transform .42s var(--e-out); }
 [data-reveal].in { opacity: 1; transform: none; }
 
-/* nút: nhấc lên 1px khi rê, ấn xuống nhẹ khi bấm — cảm giác có phản hồi */
+/* Nút: nút CHÍNH mới nhấc lên khi rê (nó là hành động của trang); nút phụ trả
+   lời bằng màu viền/nền, còn mọi nút đều lún xuống khi bấm. Nhấc-cả-lên ở mọi
+   nút là mẫu chuyển động phổ biến nhất của giao diện do máy sinh: chỗ nào cũng
+   nhún thì không chỗ nào là chính. */
 .btn, .tab, .votebtn, .kbtn, .copy, .icon-btn, .sfxbtn, .mtab,
 .side-item, .side-row, .side-user, .pvrow {
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
 }
-.btn:hover:not(:disabled) { transform: translateY(-1.5px); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1.5px); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.97); }
 /* nút nhấn mang màu logo: đỡ bằng một quầng tỏa rất nhẹ, rê chuột thì nở ra */
 .btn-primary { box-shadow: 0 2px 12px -6px var(--a-glow); }
 .btn-primary:hover:not(:disabled) { box-shadow: 0 7px 20px -7px var(--a-glow); }
 .btn-primary:active:not(:disabled) { box-shadow: 0 1px 6px -4px var(--a-glow); }
-.votebtn:hover:not(:disabled) { transform: translateY(-1px); }
 .votebtn:active:not(:disabled) { transform: scale(.97); }
-.icon-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
 
 /* modal mượt hơn: mờ dần + trượt nhẹ, không giật.
@@ -1067,19 +1088,22 @@ img { max-width: 100%; }
 /* thanh tiến độ chạy chứ không nhảy số */
 .bar > i, .vs-bar > i { transition: width .55s var(--e-out); }
 /* việc đang chạy: một vệt sáng quét chậm trên thanh — đủ thấy "sống",
-   không lòe loẹt. Vệt là transform của pseudo-element nên rẻ. */
+   không lòe loẹt. Vệt là transform của pseudo-element nên rẻ.
+   CHỈ đặt trên thanh của khối Up next (nơi luôn đúng MỘT bài đang làm).
+   Trước đây mọi hàng in_progress trong danh sách cũng mang vệt: mười bài cùng
+   lúc là mười vòng lặp vô hạn — vừa tốn máy vừa đọc ra như bảng đèn. */
 .bar > i { position: relative; overflow: hidden; }
-.bar > i::after {
+.nowbar .bar > i::after {
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
   transform: translateX(-100%);
-  animation: sheen 1.9s var(--e-soft) .3s infinite;
+  animation: sheen 2.4s var(--e-soft) .3s infinite;
 }
 @keyframes sheen { to { transform: translateX(100%) } }
 
 /* số vừa đổi thì nhún một nhịp rất ngắn (key theo giá trị ở JSX) */
 @keyframes tickIn { from { opacity: .25; transform: translateY(4px) scale(.9) } to { opacity: 1; transform: none } }
-.tick { display: inline-block; animation: tickIn .34s var(--e-pop) both; }
+.tick { display: inline-block; animation: tickIn .26s var(--e-out) both; }
 
 /* chọn chữ bằng chuột nhuộm màu nhãn hiệu */
 ::selection { background: rgba(43,34,226,.5); color: #fff; }
@@ -1202,7 +1226,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 
 .shell { min-height: 100%; }
-.main { max-width: 1060px; margin: 0 auto; padding: 26px 26px 60px; }
+.main { position: relative; max-width: 1060px; margin: 0 auto; padding: 26px 26px 60px; }
+/* mốc 0px của nội dung: KHÔNG vẽ, không chiếm chỗ, chỉ để IntersectionObserver
+   của nút "lên đầu trang" biết đã cuộn qua ngưỡng (xem App.jsx) */
+.top-sentinel { position: absolute; top: 0; left: 12px; width: 1px; height: 1px; pointer-events: none; }
 @media (min-width: 900px) {
   .shell { padding-left: var(--side-w); transition: padding-left var(--t-side) var(--e-out); }
   .shell.min { padding-left: var(--side-min); }
@@ -1263,9 +1290,9 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   background: var(--surface-2); color: var(--txt-2);
   box-shadow: 0 2px 8px rgba(0,0,0,.35);
   transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-              background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop);
+              background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-out);
 }
-.side-toggle:hover { color: var(--txt); border-color: var(--a-2); background: var(--surface-3); transform: scale(1.1); }
+.side-toggle:hover { color: var(--txt); border-color: var(--a-2); background: var(--surface-3); }
 .side-toggle:active { transform: scale(.94); }
 .side-toggle .sico { opacity: 1; transition: transform var(--t-side) var(--e-out); }
 /* trong ngăn kéo (bản hẹp) không có khái niệm thu gọn */
@@ -1300,7 +1327,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out), box-shadow var(--t-2) var(--e-soft);
 }
 .side-cta .sico { opacity: 1; }
-.side-cta:hover { background: var(--a-dim); border-color: var(--a-dim); transform: translateY(-1px); box-shadow: 0 6px 16px -6px var(--a-glow); }
+.side-cta:hover { background: var(--a-dim); border-color: var(--a-dim); box-shadow: 0 6px 16px -6px var(--a-glow); }
 .side-cta:active { transform: scale(.985); box-shadow: none; }
 
 /* ---- nhóm + nhãn nhóm ---- */
@@ -1324,21 +1351,22 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-ind::before { content: ''; position: absolute; left: 0; top: 50%; width: 3px; height: 16px;
   margin-top: -8px; border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--a-2);
   box-shadow: 0 0 10px var(--a-glow); }
-.side-ind.live { transition: transform .34s var(--e-pop), height .2s var(--e-out), opacity .2s var(--e-soft); }
+/* ô sáng trượt sang mục mới: chỉ transform + opacity, không đụng layout */
+.side-ind.live { transition: transform .3s var(--e-out), opacity .2s var(--e-soft); }
 
 .side-item {
   position: relative; z-index: 1; display: flex; align-items: center; gap: var(--side-gap); width: 100%;
   height: 36px; padding: 0 var(--side-ix); border: 0; border-radius: var(--radius);
   background: none; cursor: pointer; color: var(--txt-2); text-decoration: none;
   font-family: inherit; font-size: 13.5px; font-weight: 500; letter-spacing: .1px; text-align: left;
-  animation: sideIn .42s var(--e-out) both; animation-delay: calc(60ms + var(--i, 0) * 45ms);
-  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft),
-              transform var(--t-2) var(--e-out);
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
 }
-@keyframes sideIn { from { opacity: 0; transform: translateX(-10px) } to { opacity: 1; transform: none } }
-.side-item:hover { background: var(--hover); color: var(--txt); transform: translateX(3px); }
+/* Không có animation vào cho từng mục: sidebar đứng yên suốt phiên, bốn mục
+   nhấp nhô lệch 45ms một lần lúc mở trang là chuyển động không ai xin. Ô sáng
+   trượt theo mục đang đứng mới là chuyển động có nghĩa ở đây. */
+.side-item:hover { background: var(--hover); color: var(--txt); }
 .side-item.on { color: var(--txt); font-weight: 600; }
-.side-item.on:hover { background: none; transform: none; }
+.side-item.on:hover { background: none; }
 .side-item:active { transform: scale(.98); }
 .side-item .side-tx { flex: 1; }
 .side-n { font-family: var(--mono); font-size: 11px; color: var(--txt-3); min-width: 18px; text-align: center;
@@ -1349,11 +1377,10 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-item:hover .side-ext { color: var(--a-2); transform: translate(2px, -2px); }
 
 /* icon: bao giờ cũng 20px vuông để cột icon thẳng hàng dù svg 15 hay 16px */
-.sico { flex: none; opacity: .72; transition: opacity var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop); }
+.sico { flex: none; opacity: .72; transition: opacity var(--t-1) var(--e-soft); }
 .side-item .sico, .side-out .sico, .side-cta .sico { width: 20px; height: 20px; }
 .side-item.on .sico, .side-item:hover .sico { opacity: 1; }
 .side-item.on .sico { color: var(--a-2); }
-.side-item:hover .sico { transform: scale(1.12); }
 
 .side-item .dotbadge { transition: opacity .15s var(--e-soft); }
 
@@ -1377,8 +1404,8 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .side-user-tx b { font-size: 13px; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
 .side-user-tx small { font-size: 11px; color: var(--txt-3); line-height: 1.25; }
 .avatar.lg { width: 28px; height: 28px; font-size: 12.5px; }
-.side-user .avatar { transition: transform var(--t-2) var(--e-pop), box-shadow var(--t-2) var(--e-soft); }
-.side-user:hover .avatar { transform: scale(1.06); }
+.side-user .avatar { transition: box-shadow var(--t-2) var(--e-soft); }
+.side-user:hover .avatar { box-shadow: 0 0 0 3px var(--a-soft); }
 .side-out { display: flex; align-items: center; gap: var(--side-gap); width: 100%; height: 34px; margin-top: 2px;
   padding: 0 var(--side-ix); border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-family: inherit; font-size: 13px; text-align: left;
@@ -1419,10 +1446,15 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 
 /* ================= ĐẦU TRANG NỘI DUNG ================= */
-.mainhead { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 20px; }
+.mainhead { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .mainhead-tx { flex: 1; min-width: 0; }
 .mainhead-t { margin: 0; font-family: var(--display); font-weight: 700; font-size: 21px;
   letter-spacing: .1px; line-height: 1.2; }
+/* Dòng phụ: tiêu đề một mình ở góc trên bên trái để lại một khoảng trống
+   không rõ chức năng, còn người mới vào thì không biết trang này để làm gì.
+   Một dòng, chữ nhỏ, màu nhạt nhất trong thang — đủ định hướng, không tranh
+   chỗ với tiêu đề và không lặp lại số liệu của dải thống kê ngay dưới. */
+.mainhead-sub { margin: 3px 0 0; color: var(--txt-3); font-size: 12.5px; line-height: 1.4; }
 
 /* ---- khối "Vote của bạn", đặt ngay dưới thanh Up next ---- */
 .votepanel {
@@ -1492,7 +1524,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 }
 .pick-nav.prev { left: 10px }
 .pick-nav.next { right: 10px }
-.pick-nav:hover { background: var(--a); border-color: transparent; transform: scale(1.06) }
+.pick-nav:hover { background: var(--a); border-color: transparent; }
 .pick-nav:active { transform: scale(.94) }
 
 /* ---- quầng sáng quanh khung video featured ----
@@ -1572,11 +1604,13 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   display: flex; flex-direction: column; gap: 7px; padding: 0; overflow: hidden; cursor: pointer;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel-2); color: inherit; font-family: inherit; text-align: left; text-decoration: none;
-  animation: rowIn .45s var(--e-out) both; animation-delay: calc(var(--i, 0) * 45ms);
   transition: transform var(--t-2) var(--e-out), border-color var(--t-2) var(--e-soft),
               background var(--t-2) var(--e-soft);
 }
-.pvrow:hover { transform: translateY(-3px); border-color: var(--line-2); background: var(--panel-3); }
+/* rê vào một mục trong dải: đổi viền + nền + ảnh khẽ phóng. Không nhấc ô
+   lên: dải có 8-12 ô nằm sát nhau, mỗi ô nhấc 3px là hàng răng cưa nhấp nhô
+   chạy theo con trỏ. */
+.pvrow:hover { border-color: var(--line-2); background: var(--panel-3); }
 .pvrow:hover .mthumb > img { transform: scale(1.05); }
 .pvrow:hover .playbtn.sm { opacity: 1; transform: none; }
 /* video đang mở trên sân khấu: khoanh viền cùng tông accent — nhìn một
@@ -1601,15 +1635,62 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .channel-state .hint { margin-top: 10px; }
 @keyframes skeletonShimmer { from { background-position: 120% 0 } to { background-position: -120% 0 } }
 
+/* Thanh lọc: 6 tab kèm số đếm không vừa bề ngang 390px. `.tabs` có
+   `overflow: hidden` (để bo góc khối) nên bản trước CẮT MẤT tab cuối —
+   "Completed" (và "Following" khi đang theo dõi) biến mất, không cách nào
+   bấm tới. Cho dải tab cuộn ngang: cùng chỗ, cùng hình dáng, không mất mục. */
+@media (max-width: 899px) {
+  .toolbar .tabs { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .toolbar .tabs::-webkit-scrollbar { display: none; }
+  .toolbar .tabs .tab { flex: none; }
+}
+
+/* Sáu tab kèm số đếm không vừa bề ngang 390px. `.tabs` có `overflow: hidden`
+   (để bo góc khối) nên bản trước CẮT MẤT tab cuối — "Completed" (và "Following"
+   khi đang theo dõi) biến mất khỏi màn hình, không cách nào bấm tới. Cho dải
+   tab tự cuộn ngang: cùng chỗ, cùng hình dáng, không mất mục nào. */
+@media (max-width: 899px) {
+  .toolbar .tabs { flex: 1 1 100%; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .toolbar .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; }
+}
+
 @media (max-width: 620px) {
   .main { padding: 18px 14px 44px; }
   .mainhead { align-items: center; gap: 9px; }
+  /* Dải thống kê: 4 ô về MỘT hàng (mỗi ô ~90px) thay vì 3+1 hai hàng.
+     Ô "12 / queued" đọc được ở cỡ 15px, còn 60px chiều cao tiết kiệm được
+     thì trả thẳng cho danh sách request — trên 390px, mỗi 60px là một phần
+     tư khoảng cách từ đầu trang tới hàng request đầu tiên. */
+  .stat { flex: 1 1 25%; min-width: 0; padding: 9px 10px; }
+  .stat b { font-size: 15px; }
+  .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; }
+  /* Dải mục lục video: bỏ TÊN, chỉ còn ảnh bìa 96px. Tên của video đang mở đã
+     nằm ngay trên sân khấu phía trên, còn ở đây mắt chỉ cần chọn nhanh (viền
+     sáng đánh dấu ô đang mở). Một hàng ảnh cao ~62px thay vì ~140px. */
+  .pick-side .pv-tx { display: none; }
+  .pvrow { flex-basis: 96px; }
+  .pick-side .pv-label { margin-bottom: 6px; }
+  /* Dải thống kê: 4 ô về MỘT hàng (mỗi ô ~90px) thay vì 3+1 hai hàng.
+     Ô "12 / queued" đọc được ở cỡ 15px, còn 60px chiều cao tiết kiệm được
+     là 60px mà danh sách request không phải nằm dưới màn hình đầu tiên. */
+  .stat { flex: 1 1 25%; min-width: 0; padding: 9px 10px; }
+  .stat b { font-size: 15px; }
+  .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: block; }
   .mainhead-t { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .votepanel { gap: 14px; }
   .vp-divider { display: none; }
   .vp-acts { margin-left: 0; width: 100%; }
   .vp-acts .btn { flex: 1; text-align: center; }
-  .pvrow { flex-basis: 158px; }
+  /* Dải mục lục video trên điện thoại: thu về 96px và BỎ tên video — tên
+     của video đang mở đã nằm ngay trên sân khấu, còn dải này là để chọn
+     nhanh bằng mắt (viền sáng đánh dấu ô đang mở). Chiều cao tiết kiệm được
+     trả lại cho danh sách request. */
+  .pick-side .pv-tx { display: none; }
+  .pvrow { flex-basis: 96px; }
+  .pick-side .pv-label { margin-bottom: 6px; }
 }
 
 /* =========================================================
@@ -1667,13 +1748,12 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
   .pick-stage::before { filter: blur(22px); opacity: .42; top: 16%; bottom: -3%; }
   /* trên Phone, hai nút qua lại là cách chính để lướt video: giữ to vừa tay, thu nhẹ cho đỡ chiếm ảnh */
   .pick-nav { width: 42px; height: 42px; margin-top: -21px }
-  .sect { animation-duration: .28s; }
-  .mainhead-tx { animation-duration: .25s; }
+  .sect { animation-duration: .26s; }
+  .mainhead-tx { animation-duration: .24s; }
   [data-reveal] { transform: translateY(8px); transition-duration: .3s; }
-  .list > * { animation-duration: .28s; animation-delay: min(calc(var(--i, 0) * 24ms), 120ms); }
-  .stats .stat { animation-duration: .28s; }
-  .stats .stat:nth-child(n) { animation-delay: 0ms; }
-  .pvrow { animation-duration: .28s; animation-delay: min(calc(var(--i, 0) * 24ms), 96ms); }
+  /* trên điện thoại người ta cuộn nhanh hơn là chờ hiệu ứng: nhịp ngắn hơn
+     và chặn ở 6 hàng */
+  .list > * { animation-duration: .26s; animation-delay: calc(min(var(--i, 0), 6) * 22ms); }
   .mthumb > img { animation-duration: .3s; }
   .modal { animation-duration: .22s; }
   .overlay { animation-duration: .16s; }
@@ -1816,10 +1896,10 @@ html[data-section="spin"] .bgfx { display: none; }
   background: var(--float); border: 1px solid var(--line-2);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-3), var(--ring);
-  animation: toastIn .36s var(--e-pop) both;
+  animation: toastIn .3s var(--e-out) both;
 }
 .toast.out { animation: toastOut .2s var(--e-soft) both; }
-@keyframes toastIn  { from { opacity: 0; transform: translateX(18px) scale(.96) } to { opacity: 1; transform: none } }
+@keyframes toastIn  { from { opacity: 0; transform: translateX(16px) scale(.97) } to { opacity: 1; transform: none } }
 @keyframes toastOut { from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(14px) scale(.97) } }
 /* mép màu theo loại — nhìn một cái biết tốt/xấu, không cần đọc chữ */
 .toast::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--tone) }
@@ -1843,7 +1923,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .toast-act { margin-top: 9px; padding: 4px 9px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--a); background: var(--a); color: #fff;
   font: 600 11.5px/1.3 var(--font); transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out) }
-.toast-act:hover { background: var(--a-dim); transform: translateY(-1px) }
+.toast-act:hover { background: var(--a-dim); }
 .toast-x { width: 22px; height: 22px; border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-size: 15px; line-height: 1; transition: color var(--t-1), background var(--t-1) }
 .toast-x:hover { color: var(--txt); background: var(--hover-2) }
@@ -1950,10 +2030,9 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-table td { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--line); vertical-align: middle }
 .lb-table th.num, .lb-table td.num { text-align: right }
 .lb-table th.c-rk, .lb-table td.c-rk { width: 42px; text-align: center }
-.lb-table tbody tr { position: relative; animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 26ms);
+.lb-table tbody tr { position: relative; animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 8) * 24ms);
   transition: background var(--t-1) var(--e-soft) }
 .lb-table tbody tr:hover { background: rgba(255,255,255,.03) }
-.lb-table tbody tr:hover .lb-av { transform: scale(1.07) }
 .lb-table tbody tr.me { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
 .lb-table tbody tr.me:hover { background: linear-gradient(90deg, rgba(43,34,226,.2), rgba(255,255,255,.03) 65%) }
 .lb-table td.c-rk b { font-family: var(--mono); font-size: 12px; color: var(--txt-3) }
@@ -1995,6 +2074,18 @@ html[data-section="spin"] .bgfx { display: none; }
   background: linear-gradient(90deg, var(--a), var(--a-2));
   pointer-events: none;
 }
+/* Trình duyệt có scroll-driven animations thì vạch chạy bằng CSS, KHÔNG cần
+   listener 'scroll' nào cả (App.jsx chỉ gắn listener khi thiếu tính năng này).
+   Cuộn là thao tác liên tục: để CSS lo thì việc vẽ vạch nằm cùng luồng
+   composite với việc cuộn, không phải chạy JS mỗi khung hình. */
+@supports (animation-timeline: scroll()) {
+  .scroll-progress {
+    transform: none;
+    animation: progressGrow linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes progressGrow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+}
 @media (prefers-reduced-motion: reduce) { .scroll-progress { transition: none; } }
 
 .to-top {
@@ -2004,10 +2095,13 @@ html[data-section="spin"] .bgfx { display: none; }
   background: var(--panel); backdrop-filter: var(--glass-sm); -webkit-backdrop-filter: var(--glass-sm);
   box-shadow: var(--sh-2);
   opacity: 0; transform: translateY(10px) scale(.92); pointer-events: none;
-  transition: opacity var(--t-2) var(--e-soft), transform var(--t-2) var(--e-pop),
+  transition: opacity var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
               color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft) }
 .to-top.on { opacity: 1; transform: none; pointer-events: auto }
-.to-top:hover { color: var(--txt); border-color: var(--a-2); transform: translateY(-2px) }
+/* nút "lên đầu trang" đổi viền + mũi tên nhích lên — nút nổi ở góc màn
+   hình mà còn nhấc cả khối thì nó thành phần tử chuyển động duy nhất
+   ngoài rìa mắt người đọc */
+.to-top:hover { color: var(--txt); border-color: var(--a-2); }
 .to-top:active { transform: scale(.94) }
 .to-top svg { transition: transform var(--t-2) var(--e-out) }
 .to-top:hover svg { transform: translateY(-1.5px) }
@@ -2024,7 +2118,7 @@ html[data-section="spin"] .bgfx { display: none; }
   pointer-events: none; animation: votefx .62s var(--e-out) both }
 @keyframes votefx { 0% { opacity: .85; transform: scale(.94) } 100% { opacity: 0; transform: scale(1.22) } }
 
-.pv-label { display: flex; align-items: center }
+
 
 /* nút chính: vệt sáng quét khi rê vào — cùng nhịp với splash */
 .btn-primary::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none;
@@ -2099,6 +2193,7 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .bgfx-aurora { animation: none; }
   .nowbar::before, .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
+  .nowbar.live .bar > i::after { animation: none; opacity: 0 }
   .pick-stage::before { transition: none }
   .toast, .lb-me, .lb-pod, .lb-table tbody tr { animation: none }
   .toast-bar, .lb-underline, .lb-pod-bar > i { animation: none }
@@ -2120,11 +2215,11 @@ html[data-section="spin"] .bgfx { display: none; }
    ========================================================= */
 
 /* các khối data-reveal vào so le nhau, không cùng một loạt */
-.sect > [data-reveal]:nth-child(1) { transition-delay: 0ms }
-.sect > [data-reveal]:nth-child(2) { transition-delay: 70ms }
-.sect > [data-reveal]:nth-child(3) { transition-delay: 140ms }
-.sect > [data-reveal]:nth-child(4) { transition-delay: 210ms }
-.sect > [data-reveal]:nth-child(5) { transition-delay: 280ms }
+:is(.sect, .board) > [data-reveal]:nth-child(1) { transition-delay: 0ms }
+:is(.sect, .board) > [data-reveal]:nth-child(2) { transition-delay: 70ms }
+:is(.sect, .board) > [data-reveal]:nth-child(3) { transition-delay: 140ms }
+:is(.sect, .board) > [data-reveal]:nth-child(4) { transition-delay: 210ms }
+:is(.sect, .board) > [data-reveal]:nth-child(5) { transition-delay: 280ms }
 [data-reveal] { transition-delay: 0s }
 
 /* ô thống kê: một sợi màu chân đế mọc lên khi rê vào */
@@ -2148,12 +2243,10 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .3s var(--e-out) }
 .watch:hover::after { transform: scaleX(1) }
 
-/* chọn loại request: thẻ được chọn nảy nhẹ, thẻ chưa chọn ngả sáng hơn */
+/* chọn loại request: thẻ được chọn đổi màu + viền, không nhấc cũng không nảy
+   — đây là ô chọn trong form, phản hồi nằm ở trạng thái chứ không ở chuyển động */
 .kbtn { transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-  background var(--t-1) var(--e-soft), transform var(--t-2) var(--e-pop) }
-.kbtn:hover { transform: translateY(-1px) }
-.kbtn.on { transform: none; animation: pickIn .32s var(--e-pop) both }
-@keyframes pickIn { 0% { transform: scale(.965) } 60% { transform: scale(1.02) } 100% { transform: none } }
+  background var(--t-1) var(--e-soft) }
 
 /* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
 .pack { transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
@@ -2167,9 +2260,8 @@ html[data-section="spin"] .bgfx { display: none; }
   animation: fadeIn .3s var(--e-out) both }
 
 /* logo ở đầu sidebar: vòng sáng viền ngoài khi rê vào */
-.side-brand .applogo { transition: transform var(--t-2) var(--e-pop), box-shadow var(--t-2) var(--e-soft);
-  box-shadow: 0 0 0 0 var(--a-glow) }
-.side-brand:hover .applogo { transform: rotate(-4deg) scale(1.06); box-shadow: 0 0 0 4px rgba(43,34,226,.18) }
+.side-brand .applogo { transition: box-shadow var(--t-2) var(--e-soft); box-shadow: 0 0 0 0 var(--a-glow) }
+.side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(43,34,226,.18) }
 .applogo.lg-nav { border-radius: var(--radius) }
 
 /* danh sách rỗng: đừng trơ một câu chữ, cho nó một cái khung nhẹ */
@@ -2201,7 +2293,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 
 @media (max-width: 620px) {
-  .sect > [data-reveal]:nth-child(n) { transition-delay: 0ms }
+  :is(.sect, .board) > [data-reveal]:nth-child(n) { transition-delay: 0ms }
   .watch::after { display: none }
 }
 
@@ -2239,6 +2331,21 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* ---- chú thích loại video trong form gửi request ----
    chỉ mount khi KIND_META[kind].noteKey có → animation chạy đúng lúc bấm chọn */
+/* "Bài này đã có trên bảng" — một dải viền nhấn, đặt NGAY DƯỚI ô tên bài vì
+   đó là chỗ mắt đang nhìn lúc gõ, không phải cạnh nút Gửi ở cuối form. Viền
+   trái dày + nền nhấn nhạt: đọc ra là gợi ý, không phải lỗi (lỗi ở form này
+   có màu đỏ của `.msg.err`). */
+.dup-note {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 12px; padding: 9px 12px;
+  border: 1px solid var(--line-2); border-left: 3px solid var(--a-2);
+  border-radius: var(--radius); background: var(--a-soft);
+}
+.dup-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; }
+.dup-tx b { font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dup-sub { color: var(--txt-2); font-size: 11.5px; }
+.dup-note .btn { flex: none; }
+
 .kind-note {
   margin: 10px 0 0; padding: 9px 12px;
   font-size: 12.5px; line-height: 1.55; color: var(--txt-2);
@@ -2274,14 +2381,15 @@ html[data-section="spin"] .bgfx { display: none; }
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
 .pick-cd span { font-size: 11px; color: var(--txt-3); }
 .pick-cd b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--queued); letter-spacing: .02em; }
-/* Đã tới mốc chốt mà lượt chốt chưa xong: nhấp nháy nhẹ để không tưởng
-   đồng hồ chết — mốc mới (sau khi cron/admin chốt) sẽ tự hiện lên. */
-.pick-cd.over b { color: var(--a-2); animation: pickPulse 1.6s ease-in-out infinite; }
-@keyframes pickPulse { 0%, 100% { opacity: 1 } 50% { opacity: .4 } }
+/* Đã tới mốc chốt mà lượt chốt chưa xong: đổi màu + một chấm nhịp, KHÔNG
+   nhấp nháy. Một đồng hồ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh
+   sách mỗi 1,6 giây; "quá mốc" đọc được bằng màu và con số là đủ. */
+.pick-cd.over b { color: var(--a-2); }
+.pick-cd.over b::after { content: ''; display: inline-block; width: 6px; height: 6px;
+  margin-left: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 
 .now-list { display: flex; flex-direction: column; }
-.now-item { padding: 9px 0; border-top: 1px solid var(--line);
-  animation: rowIn .42s var(--e-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.now-item { padding: 9px 0; border-top: 1px solid var(--line); }
 .now-item:first-child { border-top: 0; padding-top: 0; }
 .nowbar .now-item h3 { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
@@ -2304,11 +2412,23 @@ html[data-section="spin"] .bgfx { display: none; }
   .now-more { width: 100%; text-align: center; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .now-item { animation: none; } }
-/* Nút âm thanh + thanh âm lượng hiện khi rê chuột / focus */
+/* Nút âm thanh + thanh âm lượng hiện khi rê chuột / focus.
+   Bản trước cho thanh chạy từ width 0 → 64px: bề rộng đổi là LAYOUT đổi,
+   nên mỗi lần rê vào nút, chữ "Âm thanh" bên trái bị bóp lại rồi giãn ra —
+   đúng kiểu giật người dùng nhận ra ngay mà không gọi được tên.
+   Thanh giữ nguyên 64px, chỉ đổi opacity (compositor lo), nên không có gì
+   dịch chuyển; `pointer-events` đi kèm để lúc ẩn nó không chặn chuột. */
 .sfxwrap{display:inline-flex;align-items:center;gap:6px}
-.sfxvol{width:0;opacity:0;margin:0;transition:width .18s ease,opacity .18s ease;accent-color:var(--a-2);cursor:pointer}
-.sfxwrap:hover .sfxvol,.sfxwrap:focus-within .sfxvol{width:64px;opacity:1}
-.sfxvol:disabled{opacity:.35;cursor:not-allowed}
+.sfxvol{width:64px;opacity:0;margin:0;pointer-events:none;
+  transition:opacity var(--t-2) var(--e-soft);accent-color:var(--a-2);cursor:pointer}
+.sfxwrap:hover .sfxvol,.sfxwrap:focus-within .sfxvol{opacity:1;pointer-events:auto}
+.sfxvol:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+/* sidebar thu gọn: nút âm thanh bị ghim vào ô 20px ở mép trái (xem khối
+   .side.min phía trên) nên thanh trượt không còn chỗ — giấu hẳn thay vì để
+   nó tràn ra ngoài sidebar */
+@media (min-width: 900px) {
+  .side.min .sfxvol { display: none; }
+}
 
 
 /* =========================================================
@@ -2390,7 +2510,7 @@ html[data-section="spin"] .bgfx { display: none; }
   font: 700 10px/1.5 var(--font); letter-spacing: .5px; text-transform: uppercase;
   transition: filter var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out)
 }
-.nt-hvote:hover { filter: brightness(1.07); transform: translateY(-1px) }
+.nt-hvote:hover { filter: brightness(1.07); }
 
 /* ---- mot dong tin ----
    MOT NHIP CHO CA BANG: 12px la don vi do loi tinh tu mép ngoài của popover,
@@ -2641,3 +2761,86 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 .adm:last-child { margin-bottom: 0; border-bottom: 1px solid var(--line); }
 .adm:hover { border-color: var(--line-2); background: var(--surface-2); }
+
+
+/* =========================================================
+   BỐ CỤC BẢNG — nội dung chính + cột video (≥1300px)
+   ---------------------------------------------------------
+   Trước: MỘT cột dọc, nên trên màn 1440px trở lên khối nội dung chỉ
+   rộng 1060px giữa hai khoảng trắng, mà phía trên danh sách request
+   phải xếp lần lượt: dải thống kê → sân khấu video (cao ~430px) → Up
+   next → Vote của bạn → tiêu đề mục → thanh công cụ. Người vào để
+   xem/xin bài phải cuộn hơn một màn hình mới thấy hàng request đầu
+   tiên, trong khi bề ngang còn thừa.
+
+   Nay: hai cột. Cột trái là việc chính của trang (thống kê, Up next,
+   vote của bạn, danh sách). Cột phải là video của kênh — đúng vai một
+   cột "xem thêm": có thì tốt, không có thì trang vẫn đủ. Bề rộng cột
+   video cố định 336px, cột nội dung co giãn nên màn rộng bao nhiêu
+   cũng chỉ ăn vào khoảng trống, không kéo giãn hàng request.
+
+   Ngưỡng 1300px không phải con số cho đẹp: từ 900px trở lên, `.shell` đã
+   chừa 252px cho sidebar, nên bề ngang thật của `.main` là (viewport - 252).
+   Muốn cột nội dung còn ≥650px — mức tối thiểu để một hàng request không
+   phải xuống dòng ở tên bài — thì cần 650 + 24 (khe) + 320 (cột video) +
+   52 (lề) + 252 = 1298px. Dưới ngưỡng đó, hai cột sẽ bóp hàng request chứ
+   không phải tận dụng khoảng trống, nên về một cột.
+
+   Dưới 1300px: về lại một cột theo đúng thứ tự DOM (thống kê → video →
+   Up next → vote → danh sách) — thứ tự này là thứ tự đọc tốt nhất từ
+   trên xuống, nên bản hẹp không cần đổi gì.
+   ========================================================= */
+.board { display: grid; grid-template-columns: minmax(0, 1fr); }
+/* Khoảng cách giữa các khối do MỘT nhịp `gap` quyết định, không để mỗi
+   khối tự mang margin-bottom (22 · 24 · 26 · 4px cộng dồn: nhìn kỹ là thấy
+   các khối không đều nhau, mà sửa một chỗ là ba chỗ lệch theo). */
+.board > * { margin: 0; }
+.board { gap: 22px; }
+
+.board-list { display: flex; flex-direction: column; min-width: 0; }
+.board-list .pager { margin-top: 12px; }
+
+@media (min-width: 1300px) {
+  /* rộng hơn 1060px một chút để sau khi trừ cột video vẫn còn ~740px cho
+     hàng request — vẫn là một cột chữ dễ đọc, không phải bảng kéo ngang */
+  .main { max-width: 1140px; }
+  .board {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-areas:
+      "stats media"
+      "now   media"
+      "votes media"
+      "list  media";
+    align-items: start;
+    column-gap: 26px;
+  }
+  .board > .stats     { grid-area: stats; }
+  .board > .nowbar    { grid-area: now; }
+  .board > .votepanel { grid-area: votes; }
+  .board > .board-list { grid-area: list; }
+  .board > .pick      { grid-area: media; }
+
+  /* ---- cột video: sân khấu hết bị ghim giữa trang, dải mục lục xếp dọc ---- */
+  .board .pick-hero { max-width: none; }
+  .board .pick-nav { width: 38px; height: 38px; margin-top: -19px; }
+  .board .pick-nav.prev { left: 7px; }
+  .board .pick-nav.next { right: 7px; }
+  .board .pick-cap { padding: 34px 12px 10px; }
+  .board .pick-cap b { font-size: 14.5px; }
+  .board .pvlist {
+    flex-direction: column; gap: 4px;
+    overflow: visible; scroll-snap-type: none; padding: 0;
+  }
+  /* hàng ngang: ảnh 112px bên trái, tên bên phải — cùng dạng với danh sách
+     "video mới" quen thuộc, đọc được cả tên dài trong bề ngang 336px */
+  .board .pvrow { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 10px; padding: 5px; }
+  .board .pvrow:hover { transform: none; background: var(--panel-3); border-color: var(--line-2); }
+  .board .pv-thumb { flex: none; width: 112px; }
+  .board .pv-thumb .mthumb { border-radius: var(--radius); }
+  .board .pv-tx { padding: 0 6px 0 0; }
+  .board .pv-tx b { font-size: 12.5px; line-height: 1.4; }
+  .board .pvrow:hover .mthumb > img { transform: scale(1.04); }
+}
+
+/* Bản hẹp: cột video trở lại dải cuộn ngang như cũ — .pick-hero đã có
+   max-width 760px của nó, không cần gì thêm. */

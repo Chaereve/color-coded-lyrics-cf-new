@@ -6,7 +6,7 @@
    chỉ để trưng bày. Bài 9 vote xé làm 3 request bị xếp dưới bài 5 vote. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boardItems, groupIds, groupKey, groupRows, sortGroups, sortRows, voteTotals } from './board.js'
+import { boardItems, findDuplicate, groupIds, groupKey, groupRows, pickBoardParam, sortGroups, sortRows, voteTotals } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -163,4 +163,73 @@ test('groupIds: dong khong co id va danh sach rong khong lam bai', () => {
 test('groupIds: noi ket qua cho admin, khong phai cho rieng tung hang', () => {
   const ids = groupIds(cluster, cluster[1], ['queued', 'in_progress', 'completed'])
   assert.deepEqual(ids, ['b', 'a', 'c'])
+})
+
+/* ------------------------------------------------------------------
+   Bộ lọc đã nhớ: thứ tự ưu tiên URL → giá trị đã lưu → mặc định
+   ------------------------------------------------------------------ */
+test('pickBoardParam: URL thắng giá trị đã lưu', () => {
+  assert.equal(pickBoardParam('top', 'newest', ['top', 'newest', 'queued'], 'queued'), 'top')
+})
+
+test('pickBoardParam: không có trên URL thì dùng giá trị đã lưu', () => {
+  assert.equal(pickBoardParam(null, 'completed', ['queued', 'completed'], 'queued'), 'completed')
+})
+
+test('pickBoardParam: giá trị lạ bị bỏ qua, không đẩy vào state', () => {
+  /* tab đã bị đổi tên ở bản trước để lại trong localStorage, hoặc URL cũ ai đó
+     dán vào: cả hai đều phải rơi về mặc định chứ không làm danh sách rỗng */
+  assert.equal(pickBoardParam('khong-co-tab-nay', 'cung-khong', ['queued', 'top'], 'queued'), 'queued')
+  assert.equal(pickBoardParam('', undefined, ['queued', 'top'], 'queued'), 'queued')
+})
+
+/* ------------------------------------------------------------------
+   Dò trùng lúc gõ: câu trả lời phải khớp ĐÚNG cách bảng gom cụm
+   ------------------------------------------------------------------ */
+const dupSample = [
+  req('aespa', 'Whiplash', 5, { status: 'queued' }),
+  req('  AESPA ', '  whiplash', 4, { status: 'in_progress' }),
+  req('aespa', 'Whiplash', 3, { status: 'completed', video_url: 'https://youtu.be/x' }),
+  req('Itzy', 'Whiplash', 9, { status: 'queued' }),   // khác nghệ sĩ -> bài khác
+]
+
+test('findDuplicate: gom đúng cụm trùng và cộng TỔNG vote của cả cụm', () => {
+  const d = findDuplicate(dupSample, { artist: 'Aespa', title: 'WHIPLASH' })
+  assert.ok(d)
+  assert.equal(d.rows.length, 3)
+  assert.equal(d.votes, 12)          // 5 + 4 + 3, kể cả dòng đã xong
+  assert.equal(d.open, 2)            // queued + in_progress
+  assert.equal(d.video, 'https://youtu.be/x')
+})
+
+test('findDuplicate: chỗ bấm vote là dòng còn sống nhiều vote nhất', () => {
+  const d = findDuplicate(dupSample, { artist: 'aespa', title: 'whiplash' })
+  assert.equal(d.best.id, dupSample[0].id)
+  assert.equal(d.best.votes, 5)
+})
+
+test('findDuplicate: khác nghệ sĩ hoặc khác tên bài thì KHÔNG báo trùng', () => {
+  assert.equal(findDuplicate(dupSample, { artist: 'Itzy', title: 'Dalla Dalla' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: 'Aespa', title: 'Supernova' }), null)
+})
+
+test('findDuplicate: chưa đủ dữ liệu thì im lặng, không gợi ý sớm', () => {
+  /* gõ tới ký tự thứ hai đã thấy "đã có trên bảng" là cách dạy người dùng
+     phớt lờ gợi ý */
+  assert.equal(findDuplicate(dupSample, { artist: 'aespa', title: 'wh' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: '', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate(dupSample, { artist: 'aespa', title: '   ' }), null)
+})
+
+test('findDuplicate: bài chỉ còn dòng đã xong thì không có gì để vote', () => {
+  const d = findDuplicate([req('aespa', 'Whiplash', 3, { status: 'completed' })],
+    { artist: 'aespa', title: 'Whiplash' })
+  assert.equal(d.open, 0)
+  assert.equal(d.best, null)
+})
+
+test('findDuplicate: không có dòng nào thì không sập', () => {
+  assert.equal(findDuplicate([], { artist: 'aespa', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate(null, { artist: 'aespa', title: 'Whiplash' }), null)
+  assert.equal(findDuplicate([undefined, null], { artist: 'aespa', title: 'Whiplash' }), null)
 })

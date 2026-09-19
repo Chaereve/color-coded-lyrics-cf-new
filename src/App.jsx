@@ -21,7 +21,7 @@ import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { usePager } from './lib/usePager'
-import { boardItems as buildBoardItems, groupIds, groupKey } from './lib/board'
+import { boardItems as buildBoardItems, groupIds, groupKey, pickBoardParam } from './lib/board'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
   loadOff, markAllRead, markRead, pickLadder, pushNotices, saveInbox, saveOff, savePrefs, saveWatched,
@@ -57,11 +57,22 @@ const sectionOf = (path) => {
 const SIDE_KEY = 'ccl.side'
 const readSide = () => { try { return localStorage.getItem(SIDE_KEY) === 'min' } catch { return false } }
 
+const BOARD_KEY = 'ccl.board'
+const readSavedBoard = () => {
+  try { return JSON.parse(localStorage.getItem(BOARD_KEY)) || {} } catch { return {} }
+}
+
+/* Bộ lọc đã chọn được NHỚ cho lần ghé sau. Ba nguồn theo thứ tự ưu tiên:
+   URL (dán link là mở đúng chỗ người gửi chỉ) → giá trị đã lưu → mặc định.
+   Giá trị lạ bị bỏ qua chứ không đẩy vào state (xem `pickBoardParam`).
+   `q` KHÔNG nhớ: mở lại web mà danh sách tự dưng rỗng vì một từ khoá cũ là
+   kiểu bực mình không ai gọi được tên — tìm kiếm là chuyện của phiên hiện tại. */
 const readBoard = () => {
   const p = new URLSearchParams(window.location.search)
+  const saved = readSavedBoard()
   return {
-    f: FILTER_KEYS.includes(p.get('f')) ? p.get('f') : 'queued',
-    k: KIND_KEYS.includes(p.get('k')) ? p.get('k') : 'all',
+    f: pickBoardParam(p.get('f'), saved.f, FILTER_KEYS, 'queued'),
+    k: pickBoardParam(p.get('k'), saved.k, KIND_KEYS, 'all'),
     q: p.get('q') || '',
   }
 }
@@ -128,10 +139,13 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             {isPicked(r) && r.status === 'queued' ? t('now.next') : t(`status.${r.status}`)}
           </span>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-          <span className="dot">·</span><span>{r.requester}</span>
-          <span className="dot">·</span><span>{timeAgo(r.created_at, t)}</span>
+          <span className="dot" aria-hidden="true" /><span>{r.requester}</span>
+          <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
           {r.status === 'denied' && r.deny_reason && (
-            <span style={{ color: 'var(--denied)' }}>· {r.deny_reason}</span>
+            <>
+              <span className="dot" aria-hidden="true" />
+              <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
+            </>
           )}
           {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
               là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
@@ -155,7 +169,8 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
         {myCount > 0 && <em className="mine" title={t('row.mine', { n: myCount })}>×{myCount}</em>}
       </button>
       {showDelete && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
-        <button className="icon-btn" title={t('row.deleteReq')} onClick={() => onDelete(r.id)}>×</button>
+        <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
+          onClick={() => onDelete(r.id)}>×</button>
       )}
     </div>
   )
@@ -191,7 +206,7 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
           <span className="title">{g.title} <span className="artist">— {g.artist}</span></span>
           <span className="meta">
             <span>{whoTx}</span>
-            {newest > 0 && <><span className="dot">·</span><span>{timeAgo(newest, t)}</span></>}
+            {newest > 0 && <><span className="dot" aria-hidden="true" /><span>{timeAgo(newest, t)}</span></>}
             {followed && <Standing st={st} />}
           </span>
         </span>
@@ -216,11 +231,17 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
   )
 }
 
+/** Khoá sessionStorage: đánh dấu tab này đã xem màn chờ một lần. */
+const SPLASH_KEY = 'ccl3_splash'
+/** Lần đầu trong tab này? Đọc NGAY lúc khởi tạo state — không setState trong
+    effect, vì như vậy là thêm một vòng render nữa để nói điều đã biết. */
+const firstVisit = () => { try { return sessionStorage.getItem(SPLASH_KEY) !== '1' } catch { return true } }
+
 export default function App() {
   const { t } = useI18n()
   const { push } = useNotify()
   useGlow()
-  const [booting, setBooting] = useState(true)
+  const [booting, setBooting] = useState(firstVisit)
   const [ready, setReady] = useState(false)
   const [user, setUser] = useState(null)
   const currentUserId = useRef(null)
@@ -284,6 +305,8 @@ export default function App() {
   const [q, setQ] = useState(board.q)
   const [showTop, setShowTop] = useState(false)
   const searchRef = useRef(null)
+  /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
+  const topSentinelRef = useRef(null)
   /* vạch tiến độ cuộn: ghi thẳng style qua ref để không setState mỗi frame */
   const progressRef = useRef(null)
 
@@ -359,16 +382,41 @@ export default function App() {
       if (next !== window.location.pathname + window.location.search) {
         window.history.replaceState({ s: 'board' }, '', next)
       }
+      /* Ghi cùng lúc với URL, cùng một nhịp hoãn 320ms: hai lần ghi tách rời
+         nhau thì có lúc URL nói một đằng, bộ nhớ nói một nẻo. */
+      try { localStorage.setItem(BOARD_KEY, JSON.stringify({ f: filter, k: kindFilter })) }
+      catch { /* chặn storage thì bộ lọc chỉ sống trong phiên này */ }
     }, 320)
     return () => clearTimeout(id)
   }, [section, filter, kindFilter, q])
 
+  /* Nút "lên đầu trang" biết mình nên hiện khi nào nhờ IntersectionObserver
+     trên mốc đầu nội dung, với ngưỡng 520px nằm ở rootMargin. Cách cũ là
+     nghe sự kiện scroll rồi setState mỗi khung hình: cuộn một màn hình là
+     hàng chục lần React phải so sánh state, trong khi thứ duy nhất đổi là
+     một chữ "on" ở một nút. Observer chỉ báo đúng lúc vượt ngưỡng. */
   useEffect(() => {
+    const el = topSentinelRef.current
+    if (!el || !('IntersectionObserver' in window)) return
+    const io = new IntersectionObserver(
+      ([e]) => setShowTop(!e.isIntersecting),
+      { rootMargin: '520px 0px 0px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  /* Vạch tiến độ cuộn: trình duyệt nào có CSS scroll-driven animations thì
+     việc vẽ vạch do CSS lo (xem `.scroll-progress` trong index.css) — ở đây
+     KHÔNG gắn listener nào cả. Chỉ khi thiếu tính năng mới chạy bản dự phòng
+     bằng rAF, đúng như hành vi trước đây. */
+  useEffect(() => {
+    const native = typeof CSS !== 'undefined' && CSS.supports
+      && CSS.supports('(animation-timeline: scroll())')
+    if (native) return
     let raf = 0
     const onScroll = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        setShowTop(window.scrollY > 520)
         /* vạch tiến độ chỉ co giãn bằng transform (scaleX), không đụng layout;
            ghi thẳng vào ref để cuộn không kéo theo một lần setState nào */
         const max = document.documentElement.scrollHeight - window.innerHeight
@@ -395,7 +443,18 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => { const t = setTimeout(() => setBooting(false), 1700); return () => clearTimeout(t) }, [])
+  /* Màn chờ: sàn 560ms cho logo kịp "vào" (dưới ngưỡng đó chỉ là một cái nháy
+     mắt), còn lại chờ dữ liệu. Bản trước ghim cứng 1.7s — mạng nhanh thì
+     người dùng nhìn logo thêm hơn một giây vô ích.
+     Và màn chờ này CHỈ chạy một lần mỗi phiên tab: nó là câu chào thương
+     hiệu, không phải màn hình nghi thức. Tải lại trang trong cùng tab mà vẫn
+     phải xem lại từ đầu là thứ duy nhất người dùng gọi đúng tên: chậm. */
+  useEffect(() => {
+    try { sessionStorage.setItem(SPLASH_KEY, '1') } catch { /* chặn storage thì thôi */ }
+    if (!booting) return
+    const t = setTimeout(() => setBooting(false), 560)
+    return () => clearTimeout(t)
+  }, [booting])
   useEffect(() => { getUser().then(u => { setUser(u); setReady(true) }); return onAuthChange(setUser) }, [])
 
   const loadMedia = useCallback(async () => {
@@ -1064,6 +1123,7 @@ export default function App() {
 
       <div className={`shell${collapsed ? ' min' : ''}`}>
       <main className="main" id="main" tabIndex={-1}>
+        <span className="top-sentinel" ref={topSentinelRef} aria-hidden="true" />
         <header className="mainhead">
           <button className="fab only-narrow" type="button" aria-label={t('menu.open')}
             aria-expanded={menu} onClick={() => setMenu(true)}>
@@ -1071,6 +1131,7 @@ export default function App() {
           </button>
           <div className="mainhead-tx" key={section}>
             <h1 className="mainhead-t">{t(`nav.${section}`)}</h1>
+            <p className="mainhead-sub">{t(`nav.${section}Sub`)}</p>
           </div>
           <Notifications
             open={bellOpen} notices={notices} rank={standings}
@@ -1092,7 +1153,10 @@ export default function App() {
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
         {section === 'board' && (
-          <>
+          /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
+             xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
+             đọc: thống kê → video → Up next → vote → danh sách. */
+          <div className="board">
             <div className="stats" data-reveal data-glow>
               <Stat c="var(--queued)" v={counts.queued} label={t('stat.queued')} />
               <Stat c="var(--progress)" v={counts.in_progress} label={t('stat.inProgress')} />
@@ -1107,7 +1171,8 @@ export default function App() {
                 Khối này luôn hiện để mốc giờ chốt tiếp theo không bao giờ
                 biến mất (kể cả khi chưa có request nào được chốt). ======= */}
             {
-              <div className="nowbar" data-reveal data-glow>
+              <div className={`nowbar${picked.some(r => r.status === 'in_progress') ? ' live' : ''}`}
+                data-reveal data-glow>
                 <span className="nbar" aria-hidden="true" />
                 <div className="now-head">
                   <div className="lbl">
@@ -1134,9 +1199,9 @@ export default function App() {
                           <div className="sub">
                             <span className="status" style={{ '--c': STATUS_META[rep.status].c }}>{t(`status.${rep.status}`)}</span>
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
-                            <span className="dot">·</span><span>{g.votes} {t('now.votes')}</span>
-                            <span className="dot">·</span><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
-                            {working && <><span className="dot">·</span><span>{rep.progress}%</span></>}
+                            <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
+                            <span className="dot" aria-hidden="true" /><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
+                            {working && <><span className="dot" aria-hidden="true" /><span>{rep.progress}%</span></>}
                           </div>
                           {working && <div className="bar"><i style={{ width: `${rep.progress}%` }} /></div>}
                           {g.rows.length > 1 && (
@@ -1202,52 +1267,54 @@ export default function App() {
               </div>
             </section>
 
-            <div className="section-title">{t('board.listTitle')}</div>
-            <div className="toolbar">
-              <div className="tabs">
-                {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
-                  <button key={f.k} className={`tab${filter === f.k ? ' on' : ''}`} onClick={() => setFilter(f.k)}>
-                    {t(`filter.${f.k}`)}<span className="n">{counts[f.k]}</span>
-                  </button>
-                ))}
+            <div className="board-list">
+              <div className="section-title">{t('board.listTitle')}</div>
+              <div className="toolbar">
+                <div className="tabs">
+                  {FILTERS.filter(f => f.k !== 'watch' || watchedSet.size > 0).map(f => (
+                    <button key={f.k} className={`tab${filter === f.k ? ' on' : ''}`} onClick={() => setFilter(f.k)}>
+                      {t(`filter.${f.k}`)}<span className="n">{counts[f.k]}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="spacer" />
+                <select className="sel" value={kindFilter} onChange={e => setKindFilter(e.target.value)}>
+                  <option value="all">{t('board.allKinds')}</option>
+                  {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
+                </select>
+                <span className="searchwrap">
+                  <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
+                    onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
+                  {!q && <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+                </span>
               </div>
-              <div className="spacer" />
-              <select className="sel" value={kindFilter} onChange={e => setKindFilter(e.target.value)}>
-                <option value="all">{t('board.allKinds')}</option>
-                {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
-              <span className="searchwrap">
-                <input ref={searchRef} className="search" placeholder={t('board.search')} value={q}
-                  onChange={e => setQ(e.target.value)} aria-keyshortcuts="/" />
-                {!q && <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-              </span>
-            </div>
 
-            <div className="list" data-glow key={filter} ref={listRef}>
-              {boardItems.length === 0
-                ? <div className="empty">{filter === 'watch' ? t('nt.none') : t('board.empty')}</div>
-                : pgBoard.items.map((e, i) => (e.type === 'group'
-                  ? (
-                    <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
-                      expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
-                      user={user} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
-                      followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                      st={standings.get(e.key)} />
-                    )
-                  : (
-                    <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i}
-                      showDelete={e.r.user_id === user.id}
-                      myCount={myVotes.get(e.r.id) || 0}
-                      canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}
-                      onVote={openVote}
-                      onDelete={doDelete}
-                      followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                      st={standings.get(groupKey(e.r))} />
-                    )
-                ))}
-            </div>
-            <Pager {...pgBoard} onChange={pgBoard.setPage} scrollTo={listRef} />
-          </>
+              <div className="list" data-glow key={filter} ref={listRef}>
+                {boardItems.length === 0
+                  ? <div className="empty">{filter === 'watch' ? t('nt.none') : t('board.empty')}</div>
+                  : pgBoard.items.map((e, i) => (e.type === 'group'
+                    ? (
+                      <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
+                        expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
+                        user={user} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
+                        followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
+                        st={standings.get(e.key)} />
+                      )
+                    : (
+                      <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i}
+                        showDelete={e.r.user_id === user.id}
+                        myCount={myVotes.get(e.r.id) || 0}
+                        canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}
+                        onVote={openVote}
+                        onDelete={doDelete}
+                        followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
+                        st={standings.get(groupKey(e.r))} />
+                      )
+                  ))}
+              </div>
+              <Pager {...pgBoard} onChange={pgBoard.setPage} scrollTo={listRef} />
+            </div>{/* /.board-list */}
+          </div>
         )}
 
         {section === 'spin' && (
@@ -1298,15 +1365,18 @@ export default function App() {
                     <div className="body">
                       <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
                       <div className="meta">
-                        <span>{vnd(o.amount_vnd)} · {usd(o.amount_usd)}</span>
-                        <span className="dot">·</span><span>{timeAgo(o.created_at, t)}</span>
+                        <span>{vnd(o.amount_vnd)}</span>
+                        <span className="dot" aria-hidden="true" />
+                        <span>{usd(o.amount_usd)}</span>
+                        <span className="dot" aria-hidden="true" /><span>{timeAgo(o.created_at, t)}</span>
                       </div>
                     </div>
                     <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
                       {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
                     </span>
                     {o.status === 'awaiting' && (
-                      <button className="icon-btn" title={t('order.cancel')} onClick={() => doCancelOrder(o)}>×</button>
+                      <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
+                        onClick={() => doCancelOrder(o)}>×</button>
                     )}
                   </div>
                 ))}
@@ -1364,9 +1434,15 @@ export default function App() {
 
       <Suspense fallback={null}>
 
+        {/* onVoteExisting: "bài này đã có trên bảng" → đóng form, mở thẳng hộp
+            vote của bài đó — người dùng định làm gì thì làm đúng việc đó, chỉ
+            ở chỗ khác. (Chú thích đặt TRƯỚC thẻ, không nằm giữa danh sách
+            prop: bộ parse của propContract.test.js đọc chữ trong comment giữa
+            hai prop thành tên prop và báo "dây đứt" oan.) */}
         <ActionModal
           open={modal} tab={modalTab} setTab={setModalTab} onClose={() => setModal(false)}
           rows={pub} myVotes={myVotes} myOrders={myOrders}
+          onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
           onCancelOrder={doCancelOrder} userName={user.name} live={hasSupabase}
         />

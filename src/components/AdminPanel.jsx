@@ -45,7 +45,11 @@ function RequestAdminRow({ r, dup, onReview, onUpdate, onDelete, onPick }) {
         </b>
         <small>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>{' '}
-          {r.requester} · {timeAgo(r.created_at, t)} · {r.votes} {t('adm.votesShort')}
+          {r.requester}
+          <span className="dot dot-inline" aria-hidden="true" />
+          {timeAgo(r.created_at, t)}
+          <span className="dot dot-inline" aria-hidden="true" />
+          {r.votes} {t('adm.votesShort')}
         </small>
         {/* bài này còn request trùng: vote của cả bài đã được cộng dồn khi xếp hạng */}
         {dup && dup.n > 1 && (
@@ -76,7 +80,8 @@ function RequestAdminRow({ r, dup, onReview, onUpdate, onDelete, onPick }) {
             <button className="btn btn-sm" onClick={toggleOpen}>{open ? t('adm.closeEdit') : t('adm.edit')}</button>
           </>
         )}
-        <button className="icon-btn" title={t('adm.delete')} onClick={() => confirm(t('adm.confirmDelete')) && onDelete(r.id)}>×</button>
+        <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
+          onClick={() => confirm(t('adm.confirmDelete')) && onDelete(r.id)}>×</button>
       </div>
 
       {/* Khung sửa nằm NGOÀI hàng tên + nút: xuống dòng thành một dải riêng
@@ -320,7 +325,13 @@ export default function AdminPanel({
                 <div className="adm" key={o.id}>
                   <div className="nm">
                     <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                    <small>{vnd(o.amount_vnd)} · {usd(o.amount_usd)} · {timeAgo(o.created_at, t)}</small>
+                    <small>
+                      {vnd(o.amount_vnd)}
+                      <span className="dot dot-inline" aria-hidden="true" />
+                      {usd(o.amount_usd)}
+                      <span className="dot dot-inline" aria-hidden="true" />
+                      {timeAgo(o.created_at, t)}
+                    </small>
                     {o.request_id && (
                       <small style={{ color: 'var(--txt-2)' }}>
                         {rows.find(r => r.id === o.request_id)

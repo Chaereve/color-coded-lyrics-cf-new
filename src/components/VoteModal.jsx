@@ -65,9 +65,9 @@ export default function VoteModal({ open, request, myCount = 0, votesLeft = 0, o
             <span> — {req.artist}</span>
             <div className="vm-sub">
               <span className={`kind ${kindCls(req.kind)}`}>{req.kind}</span>
-              <span className="dot">·</span>
+              <span className="dot" aria-hidden="true" />
               <span>{t('vote.total', { n: req.votes })}</span>
-              {myCount > 0 && <><span className="dot">·</span><span>{t('vote.yours', { n: myCount })}</span></>}
+              {myCount > 0 && <><span className="dot" aria-hidden="true" /><span>{t('vote.yours', { n: myCount })}</span></>}
             </div>
           </div>
 

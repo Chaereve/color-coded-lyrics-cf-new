@@ -202,7 +202,7 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote }) {
           <span className="nt-meta">
             {/* nhan to trong ten nhom thi khong lap lai nua ("Out now" da
                 nam o nhan nhom ngay tren dau) */}
-            {tag !== grp && <><em style={{ color: c }}>{tag}</em><span className="dot">·</span></>}
+            {tag !== grp && <><em style={{ color: c }}>{tag}</em><span className="dot" aria-hidden="true" /></>}
             <span>{timeAgo(n.at, t)}</span>
             <Standing st={st} />
           </span>

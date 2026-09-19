@@ -1,9 +1,10 @@
 # =========================================================
 #  robots.txt — chaereve.pages.dev
 #  ---------------------------------------------------------
-#  Tên miền lấy theo wrangler.jsonc + worker/index.js + HUONG-DAN.md
-#  (đường production thật). KHÔNG phải `chaereve.pages.dev` như vài chỗ
-#  trong goi-skills/ ghi — chỗ đó sai, đổi lại đây là sai cả sitemap.
+#  Tên miền lấy theo wrangler.jsonc + worker/index.js + HUONG-DAN.md:
+#  production là Cloudflare Pages ở `chaereve.pages.dev`. Đổi tên miền thì
+#  phải sửa CẢ BỐN chỗ: index.html (canonical + og:url), sitemap.xml, file
+#  này, và ROUTES trong src/App.jsx (canonical lấy theo origin thật).
 #
 #  Chủ dự án muốn được index, nên mặc định là Allow. Chỉ chặn /api/:
 #  đó là Pages Functions (lá chắn chống farm cho Daily Spin và Vote),

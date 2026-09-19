@@ -41,6 +41,63 @@ export const groupIds = (rows, row, statuses = ['queued', 'in_progress']) => {
   return out
 }
 
+/* =========================================================
+   BỘ LỌC ĐÃ NHỚ — URL trước, rồi tới giá trị đã lưu, cuối cùng mới mặc định
+   ---------------------------------------------------------
+   Ba nguồn, xếp theo thứ tự ưu tiên rõ ràng:
+     1. URL  — dán link là mở ĐÚNG chỗ người gửi muốn chỉ (link luôn thắng)
+     2. localStorage — lần ghé trước đang xem tab nào thì ghé sau vẫn ở đó
+     3. mặc định của app
+   Giá trị lạ (URL cũ, dữ liệu lưu từ bản trước đổi tên tab) bị bỏ qua chứ
+   không đẩy vào state: một tab không tồn tại sẽ làm danh sách rỗng mà không
+   ai hiểu vì sao.
+   ========================================================= */
+export const pickBoardParam = (fromUrl, saved, valid, dflt) => {
+  if (valid.includes(fromUrl)) return fromUrl
+  if (valid.includes(saved)) return saved
+  return dflt
+}
+
+/* =========================================================
+   BÀI ĐÃ CÓ TRÊN BẢNG? — dò trùng ngay lúc gõ, không đợi tới lúc gửi
+   ---------------------------------------------------------
+   Quy tắc dò dùng ĐÚNG `groupKey` mà bảng dùng để gom cụm (cùng tên bài +
+   cùng nghệ sĩ, bỏ qua hoa/thường và khoảng trắng thừa), nên câu trả lời ở
+   form và cách bảng cộng dồn vote không bao giờ nói hai chuyện khác nhau.
+
+   Vì sao cần: một bài bị ba người gửi lẻ là gốc của cả việc "9 vote mà xếp
+   dưới 5 vote" lẫn việc farm vote bằng nhiều tài khoản. Chặn ở ô nhập rẻ hơn
+   nhiều so với phát hiện rồi gộp ở tầng SQL.
+
+   Trả về `null` khi CHƯA đủ để kết luận: tên bài dưới 3 ký tự mà đã báo trùng
+   thì gõ tới đâu cũng thấy gợi ý, và người dùng học được cách phớt lờ nó.
+   ========================================================= */
+export function findDuplicate(rows, draft) {
+  const title = (draft?.title || '').trim()
+  const artist = (draft?.artist || '').trim()
+  if (title.length < 3 || !artist) return null
+
+  const key = groupKey({ title, artist })
+  const hit = (rows || []).filter((r) => r && groupKey(r) === key)
+  if (!hit.length) return null
+
+  const open = hit.filter((r) => r.status === 'queued' || r.status === 'in_progress')
+  /* Bài để bấm vào vote: nhiều vote nhất trong số còn sống (vote thêm vào
+     dòng yếu nhất là làm cụm mạnh thêm nhưng không đẩy hạng lên). */
+  const best = [...open].sort(byVotes)[0] || null
+  return {
+    key,
+    rows: hit,
+    title: hit[0].title,
+    artist: hit[0].artist,
+    votes: hit.reduce((n, r) => n + (r.votes || 0), 0),
+    open: open.length,
+    best,
+    /* Video đã làm xong: gợi ý này đổi thành "xem rồi", không gợi ý vote nữa */
+    video: hit.find((r) => r.status === 'completed' && r.video_url)?.video_url || null,
+  }
+}
+
 /* Nhiều vote hơn đứng trước; hoà vote thì bài mới hơn đứng trước. */
 export const byVotes = (a, b) => ((b.votes || 0) - (a.votes || 0)) || (ts(b.created_at) - ts(a.created_at))
 export const byNewest = (a, b) => ts(b.created_at) - ts(a.created_at)

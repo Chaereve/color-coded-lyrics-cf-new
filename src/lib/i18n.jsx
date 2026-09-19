@@ -12,6 +12,12 @@ const S = {
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
   'nav.mine': 'My requests',
+  /* dòng phụ dưới tiêu đề trang: nói trang này để LÀM GÌ, không nhắc lại số
+     liệu (dải thống kê ngay dưới đã làm việc đó) */
+  'nav.boardSub': 'Vote for what gets made next',
+  'nav.spinSub': 'One free spin a day',
+  'nav.rankingSub': 'Who requests the most, who gets finished',
+  'nav.mineSub': 'Your requests, orders and standing',
 
   /* sidebar */
   'side.label': 'Main menu',
@@ -220,6 +226,10 @@ const S = {
   'watch.on': 'We will tell you about {song}.',
   'watch.off': 'Stopped following {song}.',
   'watch.full': 'You follow {n} songs already — drop one first.',
+  /* bài đã có trên bảng — hiện ngay dưới ô tên bài, lúc người dùng còn đang gõ */
+  'req.dupMeta': '{c} requests, {n} votes on the board already',
+  'req.dupVote': 'Vote for it instead',
+  'req.dupWatch': 'Already done - watch it',
   'req.notifyNote': 'You will be told when this is approved, how production goes, and the moment the video is up.',
   'req.notifyDemo': 'This demo stores notifications in your browser, so they only appear while this tab is open.',
   'err.watchLimit': 'You are following too many songs.',

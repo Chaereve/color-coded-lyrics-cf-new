@@ -948,15 +948,26 @@ một nhịp thay vì mỗi chỗ một kiểu:
 ```css
 --e-out:  cubic-bezier(.22,.61,.36,1);    /* vào: nhanh rồi hãm dần */
 --e-soft: cubic-bezier(.4,0,.2,1);        /* đổi màu nền, viền */
---e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — modal, nút phát */
+--e-pop:  cubic-bezier(.34,1.24,.64,1);   /* nảy nhẹ — CHỈ lúc ăn mừng */
 --t-1: .16s;  --t-2: .28s;  --t-3: .42s;
 ```
+
+Ba tầng này chia theo **cổng tần suất**, không chia theo "hiệu ứng này đẹp hơn hiệu ứng
+kia": thao tác người dùng càng lặp nhiều thì chuyển động ở đó càng phải **ít và nhanh**
+(Emil Kowalski). Người dùng bấm vote hai chục lần một phiên; một hiệu ứng 300ms ở đó là
+sáu giây chờ trong một phiên. Vì vậy:
+
+* `--e-out` — mọi thứ **vào** trang và mọi thứ dịch chuyển. Không overshoot.
+* `--e-soft` — đổi màu nền/viền/chữ, lặp hàng trăm lần nên phải là đường thẳng không gợn.
+* `--e-pop` — **chỉ khoảnh khắc ăn mừng** (bục xếp hạng, vòng quay thưởng). Công tắc,
+  toast, nút điều hướng từng dùng nó: overshoot trên một thao tác tiện ích đọc ra thành
+  đồ chơi, không phải phản hồi.
 
 | Chỗ | Hiệu ứng |
 |---|---|
 | Đổi mục | **View Transitions**: hai màn hình trượt qua nhau theo hướng điều hướng (`src/App.jsx` → `go`). Sidebar mang `view-transition-name: sidebar` nên đứng yên, chỉ nội dung đổi. Trình duyệt không có API này (`html[data-vt]` không tồn tại) thì khối nội dung tự chạy `sectIn` như trước |
-| Tiêu đề trang | Mở bằng `clip-path` từ trên xuống; dòng mô tả trượt vào trễ hơn 0.16s |
-| Danh sách request | Mỗi hàng vào sau trễ hơn 28ms, chặn tối đa 12 nhịp để danh sách dài không phải chờ |
+| Tiêu đề trang | Mờ dần + nhích lên 6px trong 0.34s. **Không** còn `clip-path`: chữ là nội dung tĩnh, mỗi lần bấm menu lại thấy nó được "vẽ ra" là tự giới thiệu chứ không phải phản hồi |
+| Danh sách request | Mỗi hàng vào sau trễ hơn **32ms**, chặn tối đa **10 nhịp** — đây là nhịp so le duy nhất của bảng (bản trước còn cộng thêm nhịp riêng cho dải thống kê và dải video) |
 | Cuộn trang | Khối vừa vào tầm nhìn hiện dần, các khối trong một mục lệch nhau 70ms (`data-reveal` + `src/lib/useReveal.js`) |
 | Nền trang | Aurora 3 vệt cùng tông logo trôi rất chậm 36s/nhịp bằng transform (`src/components/Background.jsx`) |
 | Khối lớn (thống kê, danh sách, Vote của bạn) | Vệt sáng 9% bám vị trí con trỏ — `data-glow` + `useGlow()`: MỘT listener cho cả trang, cắt theo frame |
@@ -965,9 +976,11 @@ một nhịp thay vì mỗi chỗ một kiểu:
 | Modal / khung phát | Mờ dần + trượt, easing nảy nhẹ; phông sau modal mờ đi 7px (`@starting-style` nên lớp blur TO ra khi mở, không bật phụt) |
 | Bỏ / thêm vote | Vòng sáng bung ra từ nút vote ngay lúc số đổi |
 | Thanh tiến độ | Chạy mượt sang % mới thay vì nhảy số |
-| Nút | Nhấc lên 1px khi rê, ấn xuống khi bấm; nút màu có vệt sáng quét |
-| Thông báo | Trượt vào theo easing nảy, có thanh đếm giờ; rê chuột vào là đồng hồ DỪNG thật (rAF, không phải setTimeout giả) |
-| Logo ở màn chờ | Một vệt sáng quét NGANG logo rồi nghỉ (`logoShimmer`, chu kỳ 2.9s trong đó chỉ 34% là quét) — không có vòng tròn xoay quanh logo: vòng xoay vô hạn nhìn như icon đang tải chứ không phải thương hiệu |
+| Nút | **Chỉ nút hành động chính** nhấc lên khi rê; nút phụ trả lời bằng màu viền/nền; mọi nút đều lún xuống `scale(.97)` khi bấm. Chỗ nào cũng nhún thì không chỗ nào là chính |
+| Thông báo | Trượt vào 0.3s bằng `--e-out` (**không nảy** — toast là thông báo, không phải phần thưởng), có thanh đếm giờ; rê chuột vào là đồng hồ DỪNG thật (rAF, không phải setTimeout giả) |
+| Số liệu đổi | Nhún nhẹ 0.26s (`tickIn`) ở đúng ô vừa đổi giá trị |
+| Việc đang chạy | Vệt sáng quét chậm 2.4s trên thanh của khối **Up next** và chỉ ở đó. Bản trước mọi hàng "đang làm" trong danh sách cũng mang vệt: mười bài cùng lúc là mười vòng lặp vô hạn |
+| Logo ở màn chờ | Một vệt sáng quét NGANG logo rồi nghỉ (`logoShimmer`, chu kỳ 1.6s trong đó 22% là quét) — không có vòng tròn xoay quanh logo: vòng xoay vô hạn nhìn như icon đang tải chứ không phải thương hiệu |
 | Bục xếp hạng | Ba thẻ nở từ dưới lên so le 90ms (`podIn`), một vệt ánh kim quét ngang rồi tắt (`podShine`, dịch −120%→+120% để vệt ra khỏi khung hẳn, không dừng giữa thẻ) |
 
 Nền trang là hai lớp trong `src/components/Background.jsx`: một tấm gradient tĩnh đứng yên,
@@ -979,12 +992,29 @@ nháy khi cuộn) và không dùng `height: 100dvh` (giật theo thanh địa ch
 muốn nền đặc thì chặn `.bgfx { display: none }`. Người dùng bật giảm chuyển động trong hệ điều
 hành thì aurora tự đứng yên.
 
-Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả:
+### Màn chờ (splash) dài bao lâu?
+
+**Không cố định.** App chờ hai điều kiện: dữ liệu đã về (`ready`) và một **sàn 560ms** đủ
+để logo kịp "vào" — dưới ngưỡng đó thì nó chỉ là một cái nháy mắt. Bản trước ghim cứng
+1.7 giây, nên mạng nhanh thì người dùng ngồi nhìn logo thêm hơn một giây vô ích.
+
+Và màn chờ **chỉ chạy một lần mỗi phiên tab** (cờ `ccl3_splash` trong `sessionStorage`),
+F5 lại thì vào thẳng nội dung. Nó là câu chào thương hiệu, không phải màn hình nghi thức.
+
+### Hai nguyên tắc giữ cho mượt thật chứ không phải mượt giả
 
 1. **Chỉ animate `opacity` và `transform`** — hai thứ này compositor xử lý, không bắt trình
-   duyệt tính lại layout giữa chừng.
-2. **Tôn trọng `prefers-reduced-motion`** — người dùng tắt hiệu ứng trong hệ điều hành thì
-   mọi animation/transition rút về 0, nội dung vẫn hiện đầy đủ.
+   duyệt tính lại layout giữa chừng. Ba chỗ đã sửa vì vi phạm: thanh âm lượng (chạy
+   `width 0 → 64px`, làm chữ *Âm thanh* bên cạnh bị bóp rồi giãn mỗi lần rê chuột — nay
+   giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa khỏi transition),
+   và vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+2. **Tôn trọng `prefers-reduced-motion`** — có MỘT khối `*, *::before, *::after` ở
+   `src/index.css` rút mọi `animation-duration` và `transition-duration` về `.001ms`, nên
+   **không cần khai override cho từng phần tử nữa**. Hai khe hở phải nhớ khi viết code mới:
+   `animation-delay` / `transition-delay` **không** bị vô hiệu (phần tử vào trang bằng
+   `both` + delay sẽ đứng im ở trạng thái đầu — vì thế nhịp so le luôn phải chặn số nhịp),
+   và `backdrop-filter` cũng không (nó không phải chuyển động — ai không muốn kính thì có
+   khối `prefers-reduced-transparency` riêng).
 
 Muốn nhanh/chậm hơn thì sửa 3 biến `--t-*`; muốn đổi cảm giác thì sửa `--e-*`.
 
@@ -1200,6 +1230,25 @@ Sidebar có 4 mục chính, mỗi mục là một trang riêng:
 Thanh trên cũ đã bỏ hẳn. Bốn mục chính và toàn bộ cài đặt nằm trong **cột sidebar
 bên trái** — xem mục *Sidebar và video lấy thẳng từ kênh YouTube* ở cuối file.
 
+### Trang Bảng yêu cầu: hai cột từ 1300px
+
+Dưới 1300px, trang là **một cột** theo đúng thứ tự đọc: thống kê → video của kênh →
+*Up next* → *Vote của bạn* → danh sách request. Từ 1300px trở lên, **video của kênh
+tách sang một cột riêng bên phải** (320px), còn cột trái giữ việc chính của trang:
+thống kê, *Up next*, *Vote của bạn*, danh sách.
+
+Con số 1300px là tính ra chứ không phải chọn cho đẹp: từ 900px trở lên `.shell` đã chừa
+252px cho sidebar, nên bề ngang thật của `.main` chỉ còn `viewport − 252`. Muốn cột nội
+dung còn ≥650px (đủ để tên bài không phải xuống dòng) thì cần khoảng 1298px. Dưới ngưỡng
+đó, hai cột sẽ **bóp** hàng request chứ không tận dụng khoảng trống.
+
+Đổi bố cục bằng `grid-template-areas`, **không** đổi thứ tự DOM — nên bản một cột và bản
+hai cột luôn là cùng một nội dung, và trình đọc màn hình đọc đúng thứ tự.
+
+Trong cột hẹp 320px, dải mục lục video xếp **dọc** (ảnh 112px bên trái, tên bên phải)
+thay vì cuộn ngang như bản rộng — cùng dạng với một danh sách video quen thuộc, đọc được
+tên dài trong bề ngang hẹp.
+
 **Vote của bạn** là khối riêng trong trang Bảng yêu cầu, đặt **ngay dưới thanh
 *Up next***: số lượt còn lại, vote miễn phí hôm nay, vote đã mua, bonus Daily Spin —
 mỗi loại một ô riêng — kèm nút *Vote ngay*, *Daily Spin* và *Mua vote*.
@@ -1317,10 +1366,16 @@ của file chứ đừng ghi `normal`.
 
 Giao diện đi theo hướng **tối giản, để chữ dẫn dắt thay vì màu**:
 
-- **Một màu nhấn duy nhất** (`--a`, xanh dương) cho link, nút chính, tab đang mở và ô nhập
+- **Một màu nhấn duy nhất** (`--a`, xanh **ultramarine** `#2b22e2`, lấy đúng từ logo —
+  không còn là xanh da trời nhạt như bản cũ) cho link, nút chính, tab đang mở và ô nhập
   đang focus. Ngoài ra gần như toàn bộ trang là thang xám trung tính.
-- **Không gradient, không glow.** Cả file CSS còn đúng 2 `box-shadow`: bóng đổ của hộp
-  thoại và vòng viền avatar admin.
+- **Không gradient trang trí, không glow phát sáng.** Nói cho chính xác — bản mô tả cũ ghi
+  "cả file CSS còn đúng 2 `box-shadow`", điều đó đã sai từ lâu và càng sai sau đợt này:
+  bóng đổ *nhẹ* được dùng để tách khối khỏi nền (và thay viền ở chỗ nền phía sau sáng thay
+  đổi: ảnh bìa, avatar), thang kính có ba mức độ đục, và có đúng **hai** ngoại lệ được biện
+  minh: quầng ultramarine sau khung video chính (đánh dấu "đây là video chính", cả trang chỉ
+  một khung) và vệt sáng trên thanh tiến độ của khối *Up next*. Thêm ngoại lệ thứ ba thì
+  phải bỏ một trong hai cái đang có.
 - **Trạng thái hiện bằng chấm tròn 6px + chữ xám** (`.status`), không phải thẻ nền màu.
   Nhờ vậy một dòng request không còn 3 mảng màu chen nhau.
 - **Số liệu dùng font monospace** (`--mono`): số vote, giá tiền, số tài khoản, thời gian.
@@ -1882,6 +1937,9 @@ từ YouTube. Link kênh
 ## Cấu trúc
 
 ```
+docs/
+  DESIGN.md                   TOKEN + LUẬT + LÝ DO của giao diện — đọc trước khi sửa CSS
+  RA-SOAT-2026-09-08.md       biên bản soát bảo mật/logic (09/2026)
 src/
   App.jsx                     trang chính, bộ lọc, danh sách, điều phối menu
   index.css                   toàn bộ style + bộ easing chuyển động
@@ -2221,3 +2279,104 @@ Ba thứ nên bấm bằng mắt sau khi deploy (sandbox không có trình duy�
 - Bấm một dòng tin: bảng đóng, nhảy xuống đúng hàng của bài (kể cả khi nó ở trang khác của bảng),
   hàng sáng lên ~2,6 giây, và **không** có hộp thoại nào bật lên.
 - Một cú tick 3 mốc tiến độ cho cả cụm: chỉ MỘT toast (có huy hiệu `×n`), không phải ba ô che màn hình.
+
+### Soát giao diện + chuyển động + bố cục (19/09/2026)
+
+Đợt này đọc và áp ba nguồn: `leonxlnx/taste-skill` (kỷ luật chống "giao diện do máy
+sinh"), `kylezantos/design-motion-principles` (chuyển động, theo Emil Kowalski ·
+Jakub Krehel · Jhey Tompkins), và `VoltAgent/awesome-claude-design` (cách viết một
+`DESIGN.md` giữ token + luật + lý do trong cùng một file). Kết quả gọn lại thành
+**`docs/DESIGN.md`** — đọc file đó trước khi sửa giao diện; nó trả lời *vì sao*, còn
+`HUONG-DAN.md` (file này) trả lời *cách chạy*.
+
+#### Chuyển động: bớt đi, và bớt đúng chỗ
+
+Nguyên tắc lấy từ Emil Kowalski — **cổng tần suất**: thao tác nào người dùng lặp
+càng nhiều thì chuyển động ở đó phải càng ít và càng nhanh. Áp vào đây:
+
+| Chỗ | Trước | Sau | Vì sao |
+|---|---|---|---|
+| Bốn mục sidebar | Trượt vào lệch 45ms mỗi lần mở trang | Đứng yên | Sidebar đứng yên suốt phiên; bốn mục nhấp nhô lệch nhịp là chuyển động không ai xin |
+| Bốn ô thống kê | Tự chạy `rowIn` lệch 60ms | Không chạy nữa | Khối cha đã có `[data-reveal]` lo — hai lớp chuyển động cho cùng một thứ |
+| Nhấp nhô khi rê | Nhấc/phóng ở hầu hết mọi thứ (nút phụ, thumbnail, mục toast, nút lên đầu trang, mục sidebar…) | Còn **đúng hai** thứ được nhấc: nút hành động chính và khung video chính | Chỗ nào cũng nhún thì không chỗ nào là chính; đây là mẫu chuyển động phổ biến nhất của giao diện do máy sinh |
+| `--e-pop` (easing nảy) | Công tắc, toast, mục sidebar, nút điều hướng | **Chỉ** bục xếp hạng và vòng quay thưởng | Overshoot trên thao tác tiện ích đọc ra thành đồ chơi, không phải phản hồi |
+| Tiêu đề trang | Kéo ra bằng `clip-path` mỗi lần đổi mục | Mờ dần + nhích 6px trong 0.34s | Chữ là nội dung tĩnh — mỗi lần bấm menu lại thấy nó được vẽ ra là tự giới thiệu |
+| Đồng hồ "quá mốc" | `pickPulse` nhấp nháy vô hạn 1.6s | Đổi màu + một chấm tĩnh | Một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1.6 giây |
+| Vệt sáng thanh tiến độ | Mọi hàng "đang làm" | Chỉ khối **Up next**, và chỉ khi thật sự có bài đang chạy (`nowbar.live`) | Mười bài cùng lúc là mười vòng lặp vô hạn |
+| Nhịp so le danh sách | 40ms/hàng, không chặn | **32ms/hàng, chặn ở 10 nhịp** | 12 hàng × 40ms thì hàng cuối chờ gần nửa giây — lâu hơn cả thời gian đọc |
+| Màn chờ | Ghim cứng 1.7s | Chờ dữ liệu + sàn 560ms, **một lần mỗi phiên tab** | Nó là câu chào thương hiệu, không phải màn hình nghi thức |
+
+#### Sửa ba chỗ animate thuộc tính layout
+
+Bề rộng/chiều cao đổi giá trị là trình duyệt phải tính lại bố cục. Ba chỗ đã sửa:
+thanh âm lượng (chạy `width 0 → 64px` làm **chữ "Âm thanh" bị bóp rồi giãn** mỗi lần
+rê chuột — nay giữ nguyên 64px, chỉ đổi `opacity`), ô sáng sidebar (bỏ `height` thừa
+khỏi transition), vạch tiến độ cuộn (dùng `transform: scaleX`, không dùng `width`).
+
+Ghi chú thêm: khối `prefers-reduced-motion` toàn cục **đã phủ mọi animation của
+trang**, nên đừng khai override cho từng phần tử nữa. Hai khe hở thật phải nhớ:
+`animation-delay`/`transition-delay` **không** bị vô hiệu (phần tử vào trang bằng
+`both` + delay sẽ đứng im ở trạng thái đầu), và `backdrop-filter` cũng không.
+
+#### Bố cục: trang Bảng yêu cầu thành hai cột từ 1300px
+
+Xem mục *Trang Bảng yêu cầu: hai cột từ 1300px* ở trên. Tóm lại: cột trái giữ việc
+chính của trang (thống kê, Up next, Vote của bạn, danh sách), cột phải 320px là video
+của kênh. Đổi bằng `grid-template-areas`, **không** đổi thứ tự DOM, nên bản một cột
+và bản hai cột luôn là cùng một nội dung.
+
+#### Bản hẹp: ba lỗi và ba lần trả lại chiều cao
+
+| Việc | Trước | Sau |
+|---|---|---|
+| Thanh lọc 6 tab | **Bị cắt mất tab cuối** — `.tabs` có `overflow: hidden`, nên "Completed" (và "Following" khi đang theo dõi) biến mất khỏi màn hình, không cách nào bấm tới | Dải tab **tự cuộn ngang**, không mất mục nào |
+| Dải thống kê | 4 ô cao 2 hàng (~120px) | 4 ô về **một hàng** (~62px), 60px trả lại cho danh sách |
+| Dải mục lục video | Mỗi ô 158px kèm tên (2 dòng) — hàng cao ~140px | **Chỉ còn ảnh bìa 96px** (~62px): tên video đang mở đã nằm trên sân khấu, viền sáng cho biết ô nào đang mở |
+| Nút chỉ có dấu × / ↑ ↓ | Chỉ có `title` (không đọc được bằng trình đọc màn hình trên nút bấm) | Thêm `aria-label` cùng chuỗi |
+
+#### Sửa cho khớp thực tế (những câu trong tài liệu đã sai)
+
+- `HUONG-DAN.md` ghi nhịp so le **28ms** — CSS dùng 40ms. Nay cả hai là **32ms, chặn 10 nhịp**.
+- `HUONG-DAN.md` ghi *"Không gradient, không glow. Cả file CSS còn đúng 2 `box-shadow`"* —
+  điều này đã sai từ lâu và càng sai sau đợt này. Câu đúng: không gradient **trang trí**,
+  bóng đổ nhẹ dùng để tách khối (và thay viền ở chỗ nền phía sau sáng thay đổi), và có
+  **đúng hai ngoại lệ** được biện minh: quầng sau khung video chính và vệt sáng trên
+  thanh tiến độ của Up next.
+- `HUONG-DAN.md` ghi màu nhấn là "xanh dương" — thực tế là **ultramarine `#2b22e2`**
+  lấy từ logo (đổi màu nhấn thì đổi ở `:root` của `src/index.css`).
+- `public/robots.txt`: comment nói tên miền **không phải** `chaereve.pages.dev`, trong khi
+  chính dòng `Sitemap:` ngay dưới lại trỏ vào đó. Nay comment nói đúng, kèm danh sách
+  4 chỗ phải sửa cùng nhau khi đổi tên miền.
+- `index.html`: `og:image` là đường dẫn tương đối `/logo-192.png`. Crawler của
+  Telegram/Discord/Facebook đọc HTML thô, không có "origin của trang" để ghép với đường
+  dẫn tương đối ⇒ **phần lớn nơi dán link không có ảnh xem trước**. Nay là URL tuyệt đối,
+  thêm `og:url`, `twitter:title/description/image`, kích thước và `og:image:alt`.
+- `public/privacy.html`: bản sao token lệch với app — `--a` còn là xanh dương cũ
+  (`#4f8ff7`) và `--txt-3` còn đúng màu mà app đã phải đổi vì **chỉ đạt 3.9:1**, trượt
+  WCAG AA. Nay chép đúng từ `:root` (kèm chú thích "sửa bên app rồi chép sang"), link
+  dùng `--a-2` (đủ tương phản cho chữ trên nền tối), và nạp thêm nét 500 của
+  Be Vietnam Pro mà trang vẫn đang gọi.
+- `public/manifest.webmanifest`: `background_color` là `#0b0d10` trong khi toàn app dùng
+  `#0d0f12` — lệch ở đúng chỗ người dùng thấy lúc mở app từ màn hình chính.
+
+#### Kiểm thử
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` (`node --test`) | ✅ 194 đạt, 0 lỗi, 1 skip (bài cần Postgres thật) |
+| `npx oxlint` | ✅ 0 lỗi, 14 cảnh báo — **đúng bằng nền trước khi sửa** (không thêm cảnh báo nào) |
+| `npm run build` (Vite) | ✅ build sạch |
+
+Đợt này **không thể** xem bằng mắt: sandbox không có trình duyệt (thiếu thư viện NSS,
+máy chủ gói không tới được). Vì vậy mọi kết luận về bố cục đều rút ra từ đọc CSS/JSX và
+các chốt chặn tự động (`cssTokens`, `cssTapTarget`, `cssGridRows`, `cssScroll`,
+`jsxHtml`, `propContract`, `i18nKeys`, `seoContract`). Ba thứ nên liếc bằng mắt sau khi
+deploy:
+
+- Thu hẹp cửa sổ qua lại quanh **1300px**: bố cục phải đổi giữa một cột và hai cột, và
+  ở cả hai bên ngưỡng, hàng request không được xuống dòng ở tên bài.
+- Trên điện thoại thật: kéo dải tab sang ngang phải tới được tab **Completed**; dải mục
+  lục video phải là một hàng ảnh bìa cao ~62px.
+- Bật *giảm chuyển động* trong hệ điều hành rồi tải lại: nội dung phải hiện **ngay**,
+  không có hàng nào đứng im ở trạng thái trong suốt (đây chính là khe hở
+  `animation-delay` đã nhắc ở trên).
