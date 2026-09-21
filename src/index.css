@@ -3887,6 +3887,16 @@ html[data-section="spin"] .bgfx { display: none; }
 .hall-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
 .hall-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; color: var(--txt); text-decoration: none; background: color-mix(in srgb, var(--bg-2) 82%, transparent); border: 1px solid var(--line); border-radius: 10px; transition: border-color .18s, transform .18s; }
 .hall-card:hover, .hall-card:focus-visible { border-color: var(--a-2); transform: translateY(-1px); }
+.hall-card { width: 100%; border: 1px solid var(--line); text-align: left; font: inherit; cursor: pointer; }
+.video-preview-scrim { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(4,5,9,.78); backdrop-filter: blur(5px); }
+.video-preview { width: min(760px, 100%); overflow: hidden; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel); box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+.video-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 16px; }
+.video-preview-head h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 16px var(--display); }
+.video-preview-head span { display: block; margin-top: 3px; color: var(--txt-3); font-size: 11px; }
+.video-preview-frame { aspect-ratio: 16 / 9; background: #000; }
+.video-preview-frame iframe { width: 100%; height: 100%; border: 0; }
+.video-preview-foot { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); }
+@media (max-width: 620px) { .video-preview-scrim { padding: 10px; } .video-preview-head h2 { font-size: 14px; } }
 .hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .hall-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .hall-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--txt-3); font-size: 11px; }
@@ -4144,4 +4154,37 @@ body {
 .streak-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px }
 .streak-row .streak { flex: 1 1 320px; min-height: 34px; margin-top: 0 }
 .streak-row .card-btn { flex: none }
+/* Tách dải streak khỏi lưới số liệu: hai card không còn dính mép như một
+   khối duy nhất trên desktop lẫn mobile. */
+.streak-row + .stats { margin-top: 12px; }
 .public-request-link { display: grid; gap: 2px; color: inherit; text-decoration: none; }.public-request-link:hover b { color: var(--a-2); }
+
+/* Achievement index: earned and locked milestones share one grid so the
+   reward map remains visible instead of hiding the user's next target. */
+.achievement-index { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.achievement-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.achievement-head h2 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 14px; }
+.achievement-head h2 svg { color: var(--a-2); }
+.achievement-head > span { color: var(--txt-3); font: 11px var(--mono); }
+.achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.achievement-card { display: grid; grid-template-columns: 25px minmax(0,1fr) auto; align-items: start; gap: 8px; padding: 9px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); opacity: .58; }
+.achievement-card.earned { opacity: 1; border-color: color-mix(in srgb, var(--a-2) 42%, var(--line)); }
+.achievement-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; color: var(--txt-3); background: var(--surface-3); }
+.achievement-card.earned .achievement-icon { color: var(--a-2); background: var(--a-soft); }
+.achievement-copy { min-width: 0; display: grid; gap: 2px; }
+.achievement-copy b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.achievement-copy small { color: var(--txt-3); font-size: 10.5px; }
+.achievement-copy span { color: var(--txt-2); font-size: 10px; }
+.achievement-copy em { color: var(--txt-3); font-style: normal; }
+.achievement-card > strong { align-self: center; color: var(--txt-3); font: 600 9px var(--mono); text-transform: uppercase; }
+.achievement-card.earned > strong { color: var(--done); }
+@media (max-width: 620px) { .achievement-grid { grid-template-columns: 1fr; } .achievement-card { grid-template-columns: 25px minmax(0,1fr) auto; } }
+.comment-actions { display: flex; align-items: center; gap: 7px; min-height: 20px; }
+.comment-reply-btn { padding: 0; border: 0; background: none; color: var(--txt-3); font: 600 10px var(--font); cursor: pointer; }
+.comment-reply-btn:hover { color: var(--a-2); }
+.comment-reply { margin: 5px 0 0 10px; padding: 5px 0 0 9px; border-left: 1px solid var(--line-2); }
+.replying { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; color: var(--txt-3); font-size: 10px; }
+.comment-form { flex-wrap: wrap; }
+.comment-form input { flex: 1 1 150px; }
+.followbtn:hover, .followbtn:focus-visible { border-radius: 50%; background: var(--surface-3); }
+.followbtn.on { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--a-2) 35%, transparent)); }

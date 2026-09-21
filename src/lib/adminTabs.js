@@ -8,7 +8,7 @@
    Thứ tự trong mảng là thứ tự trên màn hình: việc gấp nhất đứng trước.
    ========================================================= */
 
-export const ADMIN_TABS = ['pending', 'active', 'orders', 'done', 'media']
+export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media']
 
 /* =========================================================
    MỖI MỤC MỘT DÒNG KHAI — nguồn duy nhất cho dải số liệu
@@ -24,6 +24,7 @@ export const ADMIN_TABS = ['pending', 'active', 'orders', 'done', 'media']
 export const ADMIN_TAB_META = [
   { k: 'pending', label: 'adm.pending', tone: 'var(--pending)',  count: 'pending' },
   { k: 'active',  label: 'adm.active',  tone: 'var(--progress)', count: 'active' },
+  { k: 'expired', label: 'adm.expired', tone: 'var(--denied)',   count: 'expired' },
   { k: 'orders',  label: 'adm.orders',  tone: 'var(--paid)',     count: 'orders' },
   { k: 'done',    label: 'adm.done',    tone: 'var(--done)',     count: 'done' },
   { k: 'media',   label: 'adm.media',   tone: 'var(--a-2)',      count: 'media' },

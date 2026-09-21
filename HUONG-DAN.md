@@ -3285,3 +3285,25 @@ Muốn soi bằng mắt: mở bảng → bấm tên người gửi → trang cá
 trong *Recent requests* → bảng phải hiện đúng bài đó với ô tìm đã điền sẵn, **và trang phải cuộn
 xuống tới thanh lọc** chứ không nhảy lên đầu trang. Lặp lại sau khi tự bật một chip lọc (Queue +
 một loại bài): bài đó **vẫn** phải hiện.
+
+## Các bổ sung cộng đồng (vòng 22 — 21/09/2026)
+
+- **Tên bài trong form** gợi ý `e.g. LEMONADE`. Dò bài trùng chỉ là lời nhắc; nếu
+  người dùng đi tiếp bằng Enter thì vẫn phải đi qua màn chọn *paid request* — không
+  được gửi ngầm từ bước nhập tên.
+- **GIF avatar** được giữ nguyên file GIF, không qua canvas crop (crop canvas chỉ
+  giữ frame đầu). JPG/PNG vẫn dùng cropper như trước; giới hạn file vẫn áp dụng.
+- **Comments** có reply một cấp. Reply lưu `request_comments.parent_id`, nên tải lại
+  trang vẫn giữ quan hệ; xóa comment gốc cũng dọn reply con theo cascade.
+- **Hall of Fame** mở popup YouTube với `start=0&end=30`, thay vì đá người xem sang
+  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup.
+- **Achievement index** ở About me luôn liệt kê cả mốc đã đạt và chưa đạt: streak
+  7/30/100, request đầu tiên, completion đầu tiên, top 10 và podium. Phần thưởng là
+  badge/title hiển thị; không có vote weight ẩn.
+- **Request quá hạn**: migration `20260921_replies_request_expiry.sql` thêm cron queue
+  các request pending/queued đã quá một tháng mà chưa được chọn, báo admin; admin phải
+  bấm `Expire and delete`, sau đó người gửi nhận tin request đã hết hạn và bị xóa.
+  Nếu project chưa bật `pg_cron`, chạy `select public.queue_expired_requests()` bằng
+  Worker schedule hoặc SQL Editor.
+- Admin có thêm tab **Expired** và nút **Start production** để chuyển request queued
+  sang `in_progress` (gom cùng bài theo luật cũ).

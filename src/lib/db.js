@@ -288,13 +288,48 @@ export async function fetchPublicProfile(userId) {
 }
 
 /* ======================== READ ======================== */
+export async function fetchNotifications(uid) {
+  if (!uid || !hasSupabase) return []
+  const { data, error } = await supabase.from('notifications')
+    .select('id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at')
+    .eq('user_id', uid).order('created_at', { ascending: false }).limit(60)
+  if (error) return []
+  return (data || []).map(n => ({
+    id: `db-${n.id}`, key: n.song_key, type: n.kind, request_id: n.request_id,
+    title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
+    reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
+    read: !!n.read_at, own: true,
+  }))
+}
+
+export async function adminExpireRequest(id) {
+  if (!id) throw appError('err.requestMissing')
+  if (!hasSupabase) {
+    const rows = demoRows()
+    const r = rows.find(x => x.id === id)
+    if (!r) throw appError('err.requestMissing')
+    if (r.picked_at || !['pending', 'queued'].includes(r.status)) throw appError('err.expiryLocked')
+    try {
+      const key = `ccl3_box:${r.user_id}`
+      const old = JSON.parse(localStorage.getItem(key) || '[]')
+      const n = { id: `expiry-${r.id}`, key: groupKey(r), type: 'expired', title: r.title, artist: r.artist,
+        reason: 'This request expired after one month and was deleted.', at: Date.now(), own: true, read: false }
+      localStorage.setItem(key, JSON.stringify([n, ...old].slice(0, 60)))
+    } catch { /* local demo storage may be blocked */ }
+    wr(LS.rows, rows.filter(x => x.id !== id))
+    return
+  }
+  const { error } = await supabase.rpc('admin_expire_request', { p_id: id })
+  if (error) throw rpcError(error)
+}
+
 export async function fetchComments(requestId) {
   if (!requestId) return []
   if (!hasSupabase) {
     try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
   }
   const { data, error } = await supabase.from('request_comments')
-    .select('id, request_id, user_id, body, created_at, profiles(name, avatar_url)')
+    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
     .eq('request_id', requestId).is('deleted_at', null)
     .order('created_at', { ascending: false }).limit(20)
   if (error) throw error
@@ -308,11 +343,11 @@ export async function deleteComment(commentId) {
   return true
 }
 
-export async function addComment(requestId, userId, body) {
+export async function addComment(requestId, userId, body, parentId = null) {
   const clean = String(body || '').trim()
   if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
   if (!hasSupabase) {
-    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, body: clean, created_at: new Date().toISOString(), author: 'You' }
+    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: 'You' }
     try {
       const key = `ccl.comments.${requestId}`
       const old = JSON.parse(localStorage.getItem(key) || '[]')
@@ -320,7 +355,7 @@ export async function addComment(requestId, userId, body) {
     } catch { /* storage blocked; current session still receives next */ }
     return next
   }
-  const { data, error } = await supabase.from('request_comments').insert({ request_id: requestId, user_id: userId, body: clean }).select('id, request_id, user_id, body, created_at').single()
+  const { data, error } = await supabase.from('request_comments').insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean }).select('id, request_id, user_id, parent_id, body, created_at').single()
   if (error) throw error
   return { ...data, author: 'You' }
 }

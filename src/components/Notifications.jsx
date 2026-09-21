@@ -28,7 +28,7 @@ const MAX_PER_GROUP = 12
 /* Màu của dòng tin lấy đúng màu trạng thái ngoài bảng: cùng một bài thì
    ngoài bảng và trong thông báo phải một màu, không tự bày bảng màu mới. */
 const TONE = {
-  near: 'var(--paid)', lead: 'var(--done)', done: 'var(--done)', denied: 'var(--denied)',
+  near: 'var(--paid)', lead: 'var(--done)', done: 'var(--done)', expired: 'var(--denied)', denied: 'var(--denied)',
   picked: 'var(--queued)', started: 'var(--progress)', progress: 'var(--progress)',
   approved: 'var(--queued)', votes: 'var(--a-2)',
 }

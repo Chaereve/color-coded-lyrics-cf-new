@@ -1527,3 +1527,27 @@ Bảng kế hoạch bảy mục — search fix, regression tests, gates, public 
 streak/badge, share card — **đủ cả bảy**. Nhắc lại một việc deploy còn nợ từ vòng 20: chạy
 migration `20260921_activity_days.sql` trên Supabase (additive, chạy lại an toàn; chưa chạy thì
 dải streak tự ẩn chứ không nói dối).
+
+## Phần XII — vòng 22: community polish, expiry và rà soát quảng cáo
+
+Vòng này không mở thêm một hệ điểm mơ hồ. Các phần người dùng yêu cầu được ghép vào
+nguồn dữ liệu hiện có: reply dùng `request_comments.parent_id`; GIF đi thẳng qua blob
+không vẽ canvas; Hall of Fame mở preview 30 giây; achievement index chỉ phát badge/title
+cosmetic, không cộng vote ảo; và admin có tab Expired + Start production.
+
+Request chưa được chọn sau một tháng không bị xóa âm thầm ngay từ cron. Cron chỉ đánh dấu
+`expired_at` và báo admin; admin xem lại rồi bấm `admin_expire_request`, lúc đó mới tạo
+notification cho người gửi và xóa row. Đây là chủ ý: không thể hoàn vote hoặc phục hồi một
+request sau một lệnh nền không ai nhìn thấy.
+
+### XII1. Daily Spin + ads: chưa bật
+
+Kế hoạch thưởng vote sau quảng cáo **không được chốt bằng callback phía trình duyệt**.
+Client callback có thể bị tự gọi; Worker phải nhận postback/S2S có chữ ký, lấy user từ
+JWT, giữ nonce/idempotency key, và chỉ cộng trong transaction D1 với unique
+`(user_id, day)`. KV chỉ dùng cache/rate-limit mềm, không dùng chốt một lần.
+
+Monetag/PropellerAds cần xác nhận bằng văn bản rewarded web + incentivized traffic +
+postback cho đúng placement/GEO trước khi thêm SDK. Vì vậy vòng này chỉ thêm tài liệu
+rà soát ở `docs/DAILY-SPIN-ADS.md`, không biến Daily Spin hiện tại thành một lời hứa
+"xem quảng cáo chắc chắn nhận vote".

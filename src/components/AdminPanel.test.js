@@ -69,7 +69,7 @@ const base = {
 }
 
 test('cả năm mục của trang quản trị đều dựng được (không sót prop → trang trắng)', async () => {
-  for (const tab of ['pending', 'active', 'orders', 'done', 'media']) {
+  for (const tab of ['pending', 'active', 'expired', 'orders', 'done', 'media']) {
     const html = await render({ ...base, tab })
     assert.ok(html.includes('class="adm-page"'), `mục ${tab}: thiếu khung .adm-page`)
     assert.ok(html.includes('adm-kpis'), `mục ${tab}: thiếu dải số liệu`)
@@ -87,8 +87,8 @@ test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê —
   const html = await render({ ...base, tab: 'pending' })
   const kpi = html.match(/<div class="adm-kpis"[\s\S]*?<\/div><\/div>/)?.[0] ?? ''
   const nums = [...kpi.matchAll(/<span class="v">(\d+)<\/span>/g)].map(m => m[1])
-  assert.deepEqual(nums, ['2', '1', '1', '2', '1'],
-    'chờ duyệt 2 · đang xử lý 1 · đơn chờ 1 · đã xong/từ chối 2 · video 1')
+  assert.deepEqual(nums, ['2', '1', '0', '1', '2', '1'],
+    'chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đơn chờ 1 · đã xong/từ chối 2 · video 1')
 
   /* TIÊU ĐỀ MỤC ĐANG MỞ: dải số liệu là bộ CHUYỂN MỤC nên nó không thể vừa là
      tiêu đề; mà trang không có tiêu đề nào thì trình đọc màn hình chỉ nghe được

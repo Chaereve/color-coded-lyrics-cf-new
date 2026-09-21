@@ -6,6 +6,8 @@ import LoginGate from './components/LoginGate'
 import ProfilePanel from './components/ProfilePanel'
 import StreakStrip from './components/StreakStrip'
 import ShareCardButton from './components/ShareCardButton'
+import AchievementIndex from './components/AchievementIndex'
+import VideoPreviewModal from './components/VideoPreviewModal'
 import { streakStats, STREAK_MILESTONES } from './lib/streak.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
@@ -48,7 +50,7 @@ import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays,
+  fetchActivityDays, fetchNotifications, adminExpireRequest,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -380,6 +382,7 @@ function AppInner() {
   const [orders, setOrders] = useState([])
   const [media, setMedia] = useState([])
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
+  const [hallVideo, setHallVideo] = useState(null)
 
   /* ------- theo dõi + hộp thư (prototype: localStorage, xem lib/watch.js) -------
      `watched` là danh sách BÀI (khóa = groupKey), không phải danh sách dòng:
@@ -911,7 +914,17 @@ function AppInner() {
     const w = loadWatched(uid)
     const off = loadOff(uid)
     setWatched(w); watchedRef.current = w
-    setNotices(loadInbox(uid))
+    const localInbox = loadInbox(uid)
+    setNotices(localInbox)
+    /* Live expiry notifications come from the DB; keep the prototype inbox as
+       a fallback and dedupe by id so a refresh cannot double-show a notice. */
+    fetchNotifications(uid).then(dbInbox => {
+      if (!dbInbox.length) return
+      setNotices(current => {
+        const seen = new Set(current.map(n => n.id))
+        return [...dbInbox.filter(n => !seen.has(n.id)), ...current].slice(0, 60)
+      })
+    }).catch(() => {})
     const pf = loadPrefs(uid)
     setPrefs(pf); prefsRef.current = pf
     offRef.current = off
@@ -1091,6 +1104,7 @@ function AppInner() {
     in_progress: pickedGroups.length,
     completed: songCount(pub.filter(r => r.status === 'completed')),
     pending: rows.filter(r => r.status === 'pending').length,
+    expired: rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)).length,
     watch: new Set(rows.filter(r => watchedSet.has(groupKey(r))).map(groupKey)).size,
     mine: rows.filter(r => r.user_id === user?.id).length,
     orders: orders.filter(o => o.status === 'awaiting').length,
@@ -1150,7 +1164,6 @@ function AppInner() {
   const myOrders = useMemo(
     () => orders.filter(o => !hasSupabase || o.user_id === user?.id),
     [orders, user])
-
   const listRef = useRef(null)
   const mineRef = useRef(null)
   const ordersRef = useRef(null)
@@ -1323,6 +1336,10 @@ function AppInner() {
       flash('ok', touched > 1 ? t('toast.updatedGroup', { n: touched }) : t('toast.updated'))
     }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
+  }
+  const doAdminExpire = async (id) => {
+    try { await adminExpireRequest(id); await loadBoard(user); flash('ok', t('toast.removed')) }
+    catch (e) { flash('err', errMsg(t, e)) }
   }
   const doAdminDelete = async (id) => {
     try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.removed')) }
@@ -1504,6 +1521,12 @@ function AppInner() {
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   const myStats = fullRanking.find(p => p.user_id === user?.id)
+  const myAchievementMetrics = useMemo(() => ({
+    longestStreak: myActivity ? streakStats(myActivity).longest : 0,
+    requests: mineRows.length,
+    completed: myStats?.completed ?? 0,
+    rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
+  }), [myActivity, mineRows.length, myStats, fullRanking, user?.id])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
@@ -1570,8 +1593,8 @@ function AppInner() {
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
           {user && streak.days > 0 && (
-            <span className="streak-pill" title="Daily visit streak" aria-label={`${streak.days} day streak`}>
-              <Icon name="star" size={13} /><b>{streak.days}</b>
+            <span className="streak-pill" title={t('streak.headerTitle', { n: streak.days })} aria-label={t('streak.headerTitle', { n: streak.days })}>
+              <Icon name="flame" size={13} /><b>{streak.days}</b>
             </span>
           )}
           <Notifications
@@ -1648,10 +1671,10 @@ function AppInner() {
                 </div>
                 <div className="hall-grid">
                   {hallOfFame.map(r => (
-                    <a className="hall-card" key={r.id} href={r.video_url} target="_blank" rel="noreferrer">
+                    <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
                       <span className="hall-play" aria-hidden="true">▶</span>
                       <span><b>{r.title}</b><small>{r.artist} · requested by {r.requester}</small></span>
-                    </a>
+                    </button>
                   ))}
                 </div>
               </section>
@@ -1971,6 +1994,7 @@ function AppInner() {
               <StreakStrip days={myActivity} />
               {myCard && <ShareCardButton card={myCard} />}
             </div>
+            <AchievementIndex metrics={myAchievementMetrics} />
             <div className="stats" data-glow>
               <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />
@@ -2054,7 +2078,7 @@ function AppInner() {
               <AdminPanel
                 tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
                 rows={rows} orders={orders} media={featuredRows}
-                onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onOrder={doOrder}
+                onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onExpire={doAdminExpire} onOrder={doOrder}
                 onPick={doAdminPick} onBulk={doBulk}
                 onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
                 onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
@@ -2095,6 +2119,8 @@ function AppInner() {
         </footer>
       </main>
       </div>{/* /.shell */}
+
+      <VideoPreviewModal video={hallVideo} onClose={() => setHallVideo(null)} />
 
       <VoteModal
         open={!!voteFor} request={voteFor}

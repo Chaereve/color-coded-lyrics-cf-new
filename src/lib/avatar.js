@@ -70,7 +70,7 @@ const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
   fr.readAsDataURL(blob)
 })
 
-async function toCloudinary(blob) {
+export async function toCloudinary(blob) {
   const fd = new FormData()
   fd.append('file', blob)
   fd.append('upload_preset', PRESET)
@@ -79,6 +79,19 @@ async function toCloudinary(blob) {
   const json = await res.json()
   if (!json.secure_url) throw err('err.avatarUpload')
   return json.secure_url
+}
+
+/**
+ * GIF phải đi thẳng qua, không qua canvas: vẽ/cắt canvas chỉ giữ frame đầu
+ * và đổi nó thành WebP/JPEG, nên "hỗ trợ GIF" mà làm vậy thực ra là làm mất
+ * chuyển động. Giữ nguyên blob (hoặc đưa nguyên blob lên Cloudinary) để
+ * trình duyệt còn được quyền phát animation.
+ */
+export async function processAnimatedAvatar(file) {
+  if (!file || file.type !== 'image/gif') throw err('err.avatarType')
+  if (file.size > MAX_FILE_MB * 1024 * 1024) throw err('err.avatarBig')
+  const url = usesCloudinary ? await toCloudinary(file) : await blobToDataUrl(file)
+  return { url, bytes: file.size, hosted: usesCloudinary }
 }
 
 /** Kiểm tra file người dùng chọn trước khi cho vào khung chỉnh */

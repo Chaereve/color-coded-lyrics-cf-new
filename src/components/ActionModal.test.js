@@ -181,7 +181,7 @@ test('form nhớ việc đang làm dở, và Enter/ dán link đều có đườ
      người dùng chưa nhìn thấy. */
   assert.match(src, /if \(e\.key === 'Enter'\) \{ e\.preventDefault\(\); titleRef\.current\?\.focus\(\) \}/,
     'Enter ở ô nghệ sĩ phải nhảy sang ô tên bài')
-  assert.match(src, /if \(ready\) setStep\(3\); else artistRef\.current\?\.focus\(\)/,
+  assert.match(src, /if \(ready\) next\(\); else artistRef\.current\?\.focus\(\)/,
     'Enter ở ô cuối phải mở bước gửi khi form đã đủ')
 
   /* DÁN LINK vào ô tên bài: link phải về ô Link, không thành tên bài. */
