@@ -639,6 +639,15 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     check('hồ sơ không còn là hộp thoại nổi', !q('.overlay .modal.narrow'))
     check('khối hồ sơ không còn dòng "Square crop…"', !/Square crop/i.test(text()))
     check('mục About me vẫn liệt kê request của mình', !!q('.list') && !!q('.section-title'))
+    /* ---- STREAK (vòng 20): dải chuỗi ngày + ba badge cột mốc 7/30/100 ----
+       Luật đếm có test số (streak.test.js), hợp đồng schema có test tĩnh; smoke
+       chốt phần NGƯỜI THẤY: dải nằm dưới khối hồ sơ, đủ ba badge, và con số
+       chuỗi dài nhất luôn được in (badge mờ không được là chỗ trống). */
+    check('About me có dải streak với ba badge cột mốc',
+      !!q('.streak') && qa('.streak-mile').length === 3, `${qa('.streak-mile').length} badge`)
+    check('dải streak in chuỗi dài nhất và luật đếm trong tooltip ngọn lửa',
+      /longest \d+/.test(q('.streak')?.textContent || '') && !!q('.streak-flame')?.getAttribute('title'),
+      q('.streak')?.textContent?.slice(0, 90))
   }
 }
 
@@ -1457,6 +1466,10 @@ where = 'bài trả phí'
     && new URLSearchParams(window.location.search).get('profile') === uid, window.location.search)
   check('trang cá nhân có ba ô số liệu', qa('.public-stats > div').length === 3,
     `${qa('.public-stats > div').length} ô`)
+  /* cột mốc chuỗi ngày là thứ cộng đồng THẤY NHAU (chủ dự án chốt hiện ở cả
+     trang công khai) — dải phải có mặt với đủ ba badge sáng/mờ */
+  check('trang cá nhân công khai có dải streak ba badge',
+    !!q('.streak') && qa('.streak-mile').length === 3, q('.streak')?.textContent?.slice(0, 90))
   check('có nút chia sẻ và nút quay lại', !!q('.profile-share') && !!q('.profile-back'))
   check('nút quay lại là một link thật (middle-click / Back của trình duyệt còn dùng được)',
     q('.profile-back')?.tagName === 'A' && !!q('.profile-back')?.getAttribute('href'),

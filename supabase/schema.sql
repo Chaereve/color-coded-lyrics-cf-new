@@ -2806,3 +2806,47 @@ revoke all on function public.enforce_media_limit() from public;
 drop trigger if exists media_limit on public.media;
 create trigger media_limit before insert on public.media
 for each row execute function public.enforce_media_limit();
+
+-- =========================================================
+-- 20. ACTIVITY DAYS (streak + badge 7/30/100)
+-- keep identical to migrations/20260921_activity_days.sql
+-- =========================================================
+-- BEGIN ACTIVITY DAYS: keep identical to the migration file, verbatim.
+create table if not exists public.activity_days (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day     date not null,
+  primary key (user_id, day)
+);
+create index if not exists activity_days_day_idx on public.activity_days (day);
+
+alter table public.activity_days enable row level security;
+drop policy if exists "read activity days" on public.activity_days;
+create policy "read activity days" on public.activity_days for select using (true);
+revoke insert, update, delete on public.activity_days from anon, authenticated;
+
+create or replace function public.touch_activity_day() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.activity_days (user_id, day)
+  values (new.user_id, (coalesce(new.created_at, now()) at time zone 'Asia/Ho_Chi_Minh')::date)
+  on conflict (user_id, day) do nothing;
+  return new;
+end $$;
+revoke all on function public.touch_activity_day() from public;
+
+drop trigger if exists activity_on_request on public.requests;
+create trigger activity_on_request after insert on public.requests
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_vote on public.votes;
+create trigger activity_on_vote after insert on public.votes
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_comment on public.request_comments;
+create trigger activity_on_comment after insert on public.request_comments
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_spin on public.daily_spins;
+create trigger activity_on_spin after insert on public.daily_spins
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+-- END ACTIVITY DAYS

@@ -1406,3 +1406,66 @@ Kiểm thử: `Leaderboard.test.js` — ca bố cục chốt câu luật BẰNG 
 ngày; smoke đổi ba check từ `.lb-range`/`.lb-votes-note` sang soi `title` của `.lb-periodseg`.
 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi 20 cảnh báo; build sạch 307,62 kB
 (gzip 95,69 kB).
+
+## Phần X — vòng 20: streak + badge cột mốc 7/30/100 (mục 6 của bảng kế hoạch)
+
+### X1. Bài toán và phán quyết của chủ dự án
+
+Bảng kế hoạch còn hai mục: **badge/streak milestones 7/30/100** và **share card PNG**. Vòng này
+làm mục 6. Khảo sát schema trước khi đề xuất: streak "kiểu Duolingo" cần MỘT nguồn trả lời "người
+này có hoạt động ngày X không" cho BẤT KỲ ai đọc (trang công khai), và bốn nguồn có sẵn đều
+thiếu một vế — `requests`/`request_comments` đọc công khai được nhưng quá thưa để nuôi chuỗi
+ngày; `votes` có `created_at` theo user nhưng RLS **chỉ cho đọc hàng của mình**; `daily_spins`
+khoá theo `device_hash` chứ không theo tài khoản. Suy diễn streak từ bốn nguồn lệch nhau ở
+client là tự dối mình, nên hai phương án được đưa ra hỏi và chủ dự án chốt:
+
+- **Nguồn**: bảng `activity_days (user_id, day)` + trigger tự in dấu ngày khi gửi request · vote ·
+  bình luận · quay spin (migration `20260921_activity_days.sql`, additive, chạy lại an toàn).
+- **Chỗ hiện badge**: trang *About me* **và** trang cá nhân công khai — cột mốc là thứ cộng đồng
+  nhìn thấy nhau, cùng tinh thần với bảng xếp hạng.
+
+### X2. Luật đếm — `src/lib/streak.js`, và ba chỗ dễ sai đã bị test khoá
+
+- **Mốc ngày theo lịch Việt Nam** — trigger in `(created_at at time zone 'Asia/Ho_Chi_Minh')::date`,
+  client đếm bằng `vnDayKey` MƯỢN TỪ `season.js`: một "ngày" của cộng đồng này bắt đầu/kết thúc
+  lúc nửa đêm giờ VN ở cả ba nơi (spin, mùa giải, streak), không mỗi nơi một múi.
+- **"Hôm nay chưa hoạt động" không phải là đứt chuỗi** (luật Duolingo): 9 giờ sáng chưa làm gì thì
+  chuỗi còn sống tới hết ngày; `currentStreak` thấy hôm nay trống thì LÙI VỀ HÔM QUA mà đếm, và
+  chỉ trả 0 khi cả hôm qua cũng trống.
+- **Badge bám `longest`, không bám `current`**: mốc đã mở là THÀNH TÍCH — người nghỉ một tuần quay
+  lại không bị trừng phạt lần hai bằng cách mất huy hiệu; nhưng `current` phải nói thật là đã đứt
+  (test khoá cả hai vế cùng lúc).
+- Lỗ hổng tự bắt khi viết test: `'2025-13-45'` KHUÔN `YYYY-MM-DD` nhưng `Date.parse` ra NaN, và một
+  `toISOString()` trên ngày NaN là RangeError ném thẳng vào render — `dayKeys` phải lọc bằng
+  `Number.isFinite`, không chỉ bằng regex.
+
+### X3. Ba quyết định nhỏ đáng ghi lại
+
+- **`fetchActivityDays` trả `null` khi không đọc được nguồn, KHÔNG phải mảng rỗng.** `null` =
+  project chưa chạy migration / lỗi mạng → dải streak TỰ ẨN; `[]` = sự thật "chưa có ngày hoạt
+  động nào" → hiện câu `streak.none`. Gộp hai trạng thái thành một là bắt UI nói dối một trong hai.
+- **Tooltip ngọn lửa chở luật đếm, tooltip badge chở mốc còn thiếu** — dải chỉ in ba con số có tên
+  (chuỗi hiện tại · dài nhất · 7/30/100), đúng quy tắc W8: chú thích tỉ lệ với tần suất cần đọc.
+- **Bản demo gương đúng bốn trigger**: dấu ngày gom từ ngày gửi request (`demoRows`), ngày bình
+  luận (`ccl.comments.*`), ngày quay spin (`LS.spins` — entry đã mang `day` tính sẵn theo giờ VN).
+  Thiếu nguồn nào thì demo nghèo đúng nguồn đó, không bịa thêm.
+
+Hai cảnh báo lint trên đường đi, một tránh được một thì không: `setActDays(null)` đồng bộ trong
+effect của PublicProfile bị `react(set-state-in-effect)` bắt — đổi sang pattern `loaded` (một state
+chở cả "của ai" lẫn dữ liệu, suy ra cũ/mới bằng so sánh id); còn `Date.now()` chốt mốc "bây giờ"
+trong `useMemo` của StreakStrip là đúng pattern baseline đã chấp nhận ở `weeklyHighlights` và
+Leaderboard — cảnh báo thứ 21, có tên có chỗ, không phải nợ vô chủ.
+
+### X4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **426 ca / 425 đạt / 0 lỗi / 1 skip** (vòng 19+3: 416). Mới: `streak.test.js` **7 ca** (biên nửa đêm VN, "hôm nay chưa có dấu thì lùi về hôm qua", chỗ đứt, dữ liệu méo kể cả ngày hợp-khuôn-nhưng-không-thật, mốc bám `longest`, và hai ca hợp đồng schema: migration tồn tại + schema.sql hợp nhất nguyên văn bốn trigger — bài học hụt file `20261104_spin_streak.sql`) và `StreakStrip.test.js` **3 ca** (badge 7 sáng/30-100 mờ, mốc không tắt khi chuỗi đứt, `null` ẩn dải còn `[]` hiện câu thật) |
+| `npm run smoke` | ✅ **299/299** (vòng trước 296): +2 check dải streak ở *About me* (đủ ba badge, chuỗi dài nhất luôn in, tooltip ngọn lửa mang luật) và +1 ở trang cá nhân công khai |
+| `npx oxlint` | ✅ 0 lỗi, **21 cảnh báo** — nền 20 + đúng 1 `react(purity)` của mốc `Date.now()`, pattern baseline |
+| `npm run build` | ✅ sạch — `index-yC1k3g2F.js` 307,35 kB (gzip 95,33 kB) |
+
+Một vết môi trường đáng nhớ: lần chạy `StreakStrip.test.js` đầu tiên QUÊN hook đóng vite server
+(nên node:test treo hết timeout) và để lại process mồ côi GIỮ cổng WebSocket 24678 — ba vòng smoke
+sau đó báo "WebSocket server error: Port already in use" như thể product lỗi. Bài học: test treo
+không chỉ tốn thời gian, nó còn để lại xác process làm hỏng cả cổng kiểm thử kế tiếp.

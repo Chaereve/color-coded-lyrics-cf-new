@@ -741,6 +741,33 @@ season resets every Monday (Vietnam time)") và **vẫn giữ nhóm nút mùa** 
 Kiểm tra luật mùa: `npm test` chạy `src/lib/season.test.js` (10 ca) và 3 ca render trong
 `Leaderboard.test.js`; `npm run smoke` bấm thật ba nút trên `/ranking`.
 
+## Chuỗi ngày hoạt động + badge cột mốc 7/30/100 (vòng 20 — 21/09/2026)
+
+Mỗi ngày có ít nhất một hành động cộng đồng — **gửi request · vote · bình luận · quay spin** —
+thì ngày đó (theo **lịch Việt Nam**) được in một dấu vào bảng `activity_days` bằng trigger
+(migration `20260921_activity_days.sql`). Từ các dấu ngày, `src/lib/streak.js` đếm ba con số:
+chuỗi hiện tại, chuỗi dài nhất, và các mốc **7 / 30 / 100** đã mở.
+
+Dải streak hiện ở **hai nơi** (chủ dự án chốt): khối *About me* của chính bạn và **trang cá nhân
+công khai** của mỗi người — cột mốc là thứ cộng đồng nhìn thấy nhau. Trên dải: ngọn lửa (tooltip
+chở luật đếm), số chuỗi hiện tại, chuỗi dài nhất, rồi ba badge — badge **mờ** là mốc chưa đạt,
+**sáng cam** là đã mở (tooltip từng badge nói "Unlocked: …" hay còn thiếu bao xa).
+
+Ba luật phải nhớ khi sửa:
+
+- **Sáng sớm chưa hoạt động không làm đứt chuỗi.** Chuỗi chỉ chết khi một ngày TRỌN trôi qua
+  không dấu nào; nên lúc 9 giờ sáng dải vẫn đếm chuỗi hôm qua.
+- **Badge bám chuỗi DÀI NHẤT, không bám chuỗi hiện tại** — mốc đã mở là thành tích, nghỉ một
+  tuần quay lại không mất huy hiệu (nhưng số chuỗi hiện tại thì nói thật là đã về 0).
+- **Không đọc được nguồn thì dải TỰ ẨN** (`fetchActivityDays` trả `null`), khác với mảng rỗng
+  là sự thật "chưa có ngày hoạt động nào" và hiện câu khuyên bắt đầu chuỗi. Project chưa chạy
+  migration thì không ai thấy dải chứ không thấy một dải nói dối.
+
+Chế độ demo gương đúng bốn trigger: dấu ngày gom từ ngày gửi request, ngày bình luận và ngày
+quay spin đã lưu trên máy. Kiểm tra: `npm test` (streak.test.js 7 ca + StreakStrip.test.js 3 ca,
+kể cả ca khoá migration + schema.sql phải có đủ bốn trigger) và `npm run smoke` (3 check ở hai
+trang).
+
 ## Theo dõi bài + thông báo (Notifications)
 
 **Bấm chuông ở góc trên phải là bảng thông báo mở ra tại chỗ** — kiểu Facebook /

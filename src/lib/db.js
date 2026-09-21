@@ -5,6 +5,7 @@ import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
+import { vnDayKey } from './season.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -511,6 +512,48 @@ export async function performDailySpin(requestId, userId) {
   })
   if (error) throw spinSetupError(error)
   return validateSpinResult(data, userId, requestId)
+}
+
+/* Dấu ngày hoạt động cho streak (bảng activity_days — migration
+   20260921_activity_days.sql). Trả về MẢNG chuỗi 'YYYY-MM-DD', hoặc NULL khi
+   không đọc được: null và [] khác nhau có chủ ý — [] là "người này chưa có
+   ngày nào" (khối streak hiện trạng thái chưa bắt đầu), còn null là "chưa
+   chạy migration / lỗi mạng" (khối streak ẨN đi, không được nói dối rằng
+   người ta chưa hoạt động ngày nào). */
+export async function fetchActivityDays(userId) {
+  if (!hasSupabase) return demoActivityDays(userId)
+  const { data, error } = await supabase.from('activity_days').select('day')
+    .eq('user_id', userId).order('day', { ascending: false }).limit(400)
+  if (error) return null
+  return (data || []).map((r) => r.day).filter(Boolean)
+}
+
+/* Bản demo gom dấu ngày từ BA nguồn địa phương đúng bằng bốn trigger của
+   database thật: ngày gửi request (demoRows), ngày bình luận (localStorage
+   theo request), ngày quay spin (LS.spins — entry đã mang `day` tính sẵn
+   theo giờ VN). Thiếu nguồn nào thì demo nghèo hơn thật ở nguồn đó, không
+   bịa thêm. */
+function demoActivityDays(userId) {
+  const days = new Set()
+  for (const r of demoRows()) {
+    if ((r.user_id ?? 'demo-user') !== userId) continue
+    const ms = Date.parse(r.created_at)
+    if (Number.isFinite(ms)) days.add(vnDayKey(ms))
+  }
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith('ccl.comments.')) continue
+      for (const c of JSON.parse(localStorage.getItem(k) || '[]')) {
+        if (c?.user_id !== userId) continue
+        const ms = Date.parse(c.created_at)
+        if (Number.isFinite(ms)) days.add(vnDayKey(ms))
+      }
+    }
+  } catch { /* storage bị chặn: demo chỉ còn dấu request + spin */ }
+  for (const e of readData(LS.spins, [])) {
+    if (e?.user_id === userId && typeof e.day === 'string') days.add(e.day)
+  }
+  return [...days]
 }
 
 export async function fetchRanking() {

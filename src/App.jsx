@@ -4,6 +4,7 @@ import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
 import ProfilePanel from './components/ProfilePanel'
+import StreakStrip from './components/StreakStrip'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
@@ -45,6 +46,7 @@ import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, fetchRanking, fetchOrders, fetchMedia,
+  fetchActivityDays,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -370,6 +372,9 @@ function AppInner() {
     }))
   }, [])
   const [ranking, setRanking] = useState([])
+  /* Dấu ngày hoạt động của chính người xem (streak). null = chưa đọc được
+     nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip. */
+  const [myActivity, setMyActivity] = useState(null)
   const [orders, setOrders] = useState([])
   const [media, setMedia] = useState([])
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
@@ -773,9 +778,10 @@ function AppInner() {
     const version = ++balanceVersion.current
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
+      fetchActivityDays(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk, od] = results
+    const [r, v, vs, rk, od, , , act] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
@@ -786,6 +792,7 @@ function AppInner() {
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (od.status === 'fulfilled') setOrders(od.value)
+    if (act.status === 'fulfilled') setMyActivity(act.value)
     return results
   }, [user, loadMedia, loadPick])
 
@@ -796,9 +803,12 @@ function AppInner() {
     const version = ++balanceVersion.current
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(),
+      /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
+         trong chính lần tải bảng này để ngọn lửa không trễ một nhịp */
+      fetchActivityDays(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk] = results
+    const [r, v, vs, rk, act] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
@@ -807,6 +817,7 @@ function AppInner() {
       setVoteStatus(() => vs.value)
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
+    if (act.status === 'fulfilled') setMyActivity(act.value)
     return results
   }, [user])
 
@@ -1926,6 +1937,9 @@ function AppInner() {
               user={viewer}
               onSaved={async () => { const u = await getUser(); setUser(u); await load(u); flash('ok', t('toast.profSaved')) }}
             />
+            {/* Chuỗi ngày + badge 7/30/100 của chính mình, ngay dưới khối hồ sơ:
+                nhìn thấy mình là ai thì thấy luôn mình đã đều đặn mấy ngày. */}
+            <StreakStrip days={myActivity} />
             <div className="stats" data-glow>
               <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />

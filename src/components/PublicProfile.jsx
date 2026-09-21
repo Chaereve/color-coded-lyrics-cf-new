@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon'
-import { fetchPublicProfile, PUBLIC_RECENT } from '../lib/db'
+import { fetchPublicProfile, fetchActivityDays, PUBLIC_RECENT } from '../lib/db'
+import StreakStrip from './StreakStrip'
 import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
@@ -32,12 +33,24 @@ export default function PublicProfile({ userId, onBack }) {
      effect là một lượt render thừa (lint `react(set-state-in-effect)`). */
   const [loaded, setLoaded] = useState({ id: null, profile: null })
   const [shared, setShared] = useState(false)
+  /* Dấu ngày hoạt động cho dải streak: tải SONG SONG với hồ sơ chứ không nối
+     tiếp — thêm một round-trip vào chuỗi sẽ kéo dài màn "Loading profile…".
+     null = chưa đọc được nguồn thì dải tự ẩn (xem StreakStrip). */
+  /* CÙNG pattern với `loaded`: một state chở cả "của ai" lẫn "dấu ngày nào",
+     và suy ra cũ/mới bằng so sánh id — KHÔNG setState đồng bộ trong effect
+     để xoá state cũ (lint react(set-state-in-effect) bắt đúng lượt render
+     thừa đó). Xem người khác thì dải streak ẩn ngay cho tới khi dấu mới về. */
+  const [act, setAct] = useState({ id: null, days: null })
+  const actDays = act.id === userId ? act.days : null
 
   useEffect(() => {
     let live = true
     fetchPublicProfile(userId)
       .then(profile => { if (live) setLoaded({ id: userId, profile }) })
       .catch(() => { if (live) setLoaded({ id: userId, profile: null }) })
+    fetchActivityDays(userId)
+      .then(days => { if (live) setAct({ id: userId, days }) })
+      .catch(() => { if (live) setAct({ id: userId, days: null }) })
     return () => { live = false }
   }, [userId])
 
@@ -77,6 +90,9 @@ export default function PublicProfile({ userId, onBack }) {
           của `votes` (chỉ mình + admin) — xem ghi chú ở `fetchPublicProfile`. */}
       <div><b>{profile.votes}</b><span>Votes received</span></div>
     </div>
+    {/* Cột mốc chuỗi ngày của người này — cộng đồng thấy nhau đã đều đặn mấy
+        ngày, cùng tinh thần với bảng xếp hạng và khối Achievements bên dưới. */}
+    <StreakStrip days={actDays} />
     <div className="public-badges">
       <h3>Achievements</h3>
       <div className="achievement-list">

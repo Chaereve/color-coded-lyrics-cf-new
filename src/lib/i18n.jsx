@@ -347,6 +347,16 @@ const S = {
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
+  /* CHUỖI NGÀY HOẠT ĐỘNG + badge 7/30/100 (streak.js / StreakStrip.jsx).
+     Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
+     ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
+  'streak.label': 'Activity streak',
+  'streak.how': 'A day counts when you send a request, vote, comment or use the daily spin (Vietnam time)',
+  'streak.current': '{n}-day streak',
+  'streak.longest': 'longest {n}',
+  'streak.none': 'No active day yet — vote, comment, spin or send a request to start a streak',
+  'streak.unlocked': 'Unlocked: {n}-day streak',
+  'streak.locked': 'Reach a {n}-day streak to unlock',
   /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
      in ra kèm nhãn: "tuần này" là từ mơ hồ nếu không nói tuần nào. */
   'rank.periodLabel': 'Choose season period',
