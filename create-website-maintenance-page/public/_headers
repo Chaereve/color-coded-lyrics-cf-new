@@ -1,0 +1,4 @@
+# Cloudflare Pages maintenance response headers.
+/*
+  X-Robots-Tag: noindex
+  Cache-Control: no-store
