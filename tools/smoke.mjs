@@ -344,6 +344,14 @@ where = 'form request'
 const addBtn = qa('button').find(b => /New request|Request a|Gửi/i.test(b.textContent || ''))
 if (addBtn) {
   await click(addBtn)
+  /* Public browsing now gates actions lazily: the first click opens LoginGate.
+     Smoke through the demo OAuth path, then retry the same action. */
+  if (q('.btn-google')) {
+    await click(q('.btn-google'))
+    await tick(160)
+    const retry = qa('button').find(b => /New request|Request a|Gửi/i.test(b.textContent || ''))
+    if (retry) await click(retry)
+  }
   if (/Before requesting/i.test(text())) {
     await click(qa('button').find(b => /agree/i.test(b.textContent || '')))
   }

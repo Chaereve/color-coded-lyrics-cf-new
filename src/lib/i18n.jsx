@@ -674,6 +674,7 @@ const S = {
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',
+  'err.commentInvalid': 'Comment must be between 1 and 180 characters.',
   'err.voteClosed': 'Voting is closed for this request.',
   'err.needFields': 'Artist and title are required.',
   'err.notOwner': 'You can only delete your own request.',

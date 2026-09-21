@@ -12,6 +12,8 @@ import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
+import Comments from './components/Comments'
+import PublicProfile from './components/PublicProfile'
 import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
@@ -82,6 +84,27 @@ const sectionOf = (path) => {
 const SIDE_KEY = 'ccl.side'
 const readSide = () => { try { return localStorage.getItem(SIDE_KEY) === 'min' } catch { return false } }
 
+const dayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
+const readStreak = (uid) => {
+  if (!uid) return { days: 0, today: false }
+  try {
+    const raw = JSON.parse(localStorage.getItem(`ccl.streak.${uid}`) || '{}')
+    const today = dayKey()
+    if (raw.last === today) return { days: Number(raw.days) || 1, today: true }
+    const yesterday = new Date(`${today}T12:00:00+07:00`)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const prev = yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+    return { days: raw.last === prev ? Number(raw.days) || 0 : 0, today: false }
+  } catch { return { days: 0, today: false } }
+}
+const touchStreak = (uid) => {
+  if (!uid) return { days: 0, today: false }
+  const current = readStreak(uid)
+  const next = current.today ? current.days : { days: current.days + 1, today: true }.days
+  try { localStorage.setItem(`ccl.streak.${uid}`, JSON.stringify({ days: next, last: dayKey() })) } catch { /* storage blocked */ }
+  return { days: next, today: true }
+}
+
 const BOARD_KEY = 'ccl.board'
 const readSavedBoard = () => {
   try { return JSON.parse(localStorage.getItem(BOARD_KEY)) || {} } catch { return {} }
@@ -150,8 +173,8 @@ function Stat({ c, v, label, why }) {
 }
 
 /* ---------------- một dòng request ---------------- */
-function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
-  followed = false, onWatch, onShare, hl = false, st = null }) {
+function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete, user = null,
+  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
   const { t } = useI18n()
   const sm = { c: statusColor(r.status) }
   /* Đã vào dây chuyền (chốt vào Up next HOẶC đang làm) thì khóa vote, kể cả
@@ -188,7 +211,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
         <div className="meta">
           <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-          <span className="dot" aria-hidden="true" /><span>{r.requester}</span>
+          <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={`/?profile=${encodeURIComponent(r.user_id)}`} onClick={e => { e.preventDefault(); e.stopPropagation(); window.history.pushState({}, '', `/?profile=${encodeURIComponent(r.user_id)}`); window.dispatchEvent(new PopStateEvent('popstate')) }}>{r.requester}</a> : <span>{r.requester}</span>}
           <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
           {r.status === 'denied' && r.deny_reason && (
             <>
@@ -211,6 +234,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
         {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
+        <Comments requestId={r.id} user={user} onLogin={onLogin} />
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
@@ -230,7 +254,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
 }
 
 function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, onShare, hl = false, st = null }) {
+  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -271,12 +295,13 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
       <div className="grow-rows">
         <div className="grow-rows-in">
           {g.rows.map((r, k) => (
-            <RequestRow key={r.id} r={r} i={null} n={k}
+            <RequestRow key={r.id} r={r} i={null} n={k} user={user}
               showDelete={r.user_id === user.id}
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
               onVote={onVote}
               onShare={onShare}
+              onLogin={onLogin}
               onDelete={onDelete} />
           ))}
         </div>
@@ -305,7 +330,11 @@ function AppInner() {
      giá trị không ai đọc. */
   const readyRef = useRef(false)
   const [user, setUser] = useState(null)
+  const [streak, setStreak] = useState({ days: 0, today: false })
+  const [authPrompt, setAuthPrompt] = useState(false)
   const currentUserId = useRef(null)
+  // Public browsing uses a stable, non-account identity only for presentational props.
+  const viewer = user || { id: null, name: '', avatar: '', isAdmin: false }
   useLayoutEffect(() => { currentUserId.current = user?.id }, [user?.id])
 
   const [rows, setRows] = useState([])
@@ -354,6 +383,9 @@ function AppInner() {
   const watchedSet = useMemo(() => watchedKeys(watched), [watched])
 
   const [section, setSection] = useState(() => sectionOf(window.location.pathname))
+  const publicProfileId = window.location.pathname.startsWith('/u/')
+    ? decodeURIComponent(window.location.pathname.slice(3).replace(/\/+$/, ''))
+    : new URLSearchParams(window.location.search).get('profile')
   // The shared aurora sits outside the lazy page. Set its route mode before
   // paint so Daily Spin stays flat on direct loads, navigation and history.
   useLayoutEffect(() => {
@@ -362,7 +394,9 @@ function AppInner() {
   }, [section])
   const [board] = useState(readBoard)
   const [filter, setFilter] = useState(board.f)
+  const [statusFilters, setStatusFilters] = useState(() => ['queued', 'picked', 'in_progress', 'completed'].includes(board.f) ? [board.f] : [])
   const [kindFilter, setKindFilter] = useState(board.k)
+  const [kindFilters, setKindFilters] = useState(() => board.k !== 'all' ? [board.k] : [])
   const [q, setQ] = useState(board.q)
   const [showTop, setShowTop] = useState(false)
   /* Bộ lọc trên máy hẹp nằm trong một khối gấp/mở, và thanh lọc tự dính lên
@@ -456,14 +490,14 @@ function AppInner() {
          `?tab=done` mà màn hình vẫn đang ở Đơn hàng. */
       setAdmin(readAdminTab(window.location.search))
       const b = readBoard()
-      setFilter(b.f); setKindFilter(b.k); setQ(b.q)
+      setFilter(b.f); setStatusFilters(['queued', 'picked', 'in_progress', 'completed'].includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
   useEffect(() => {
-    if (section !== 'board') return
+    if (section !== 'board' || new URLSearchParams(window.location.search).has('profile')) return
     const id = setTimeout(() => {
       const p = new URLSearchParams()
       if (filter !== 'queued') p.set('f', filter)
@@ -514,7 +548,7 @@ function AppInner() {
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
-    if (!Object.values(ROUTES).includes(clean)) {
+    if (!Object.values(ROUTES).includes(clean) && !clean.startsWith('/u/')) {
       putUrl(null, ROUTES.board + window.location.search)
     }
   }, [])
@@ -561,6 +595,7 @@ function AppInner() {
     return () => { clearTimeout(cap); clearTimeout(floor) }
   }, [booting])
   useEffect(() => { getUser().then(u => { setUser(u); readyRef.current = true }); return onAuthChange(setUser) }, [])
+  useEffect(() => { setStreak(user ? touchStreak(user.id) : { days: 0, today: false }) }, [user?.id])
 
   const loadMedia = useCallback(async () => {
     try { setMedia(await fetchMedia()) } catch { /* ignore */ }
@@ -657,6 +692,16 @@ function AppInner() {
   }, [user])
 
   useEffect(() => { if (user) load(user) }, [user, load])
+
+  // The board, ranking and showcase are intentionally readable before sign-in.
+  // Account-scoped data is still loaded only after authentication.
+  useEffect(() => {
+    if (user) return
+    Promise.allSettled([fetchRequests(), fetchRanking()]).then(([r, rk]) => {
+      if (r.status === 'fulfilled') setRows(r.value)
+      if (rk.status === 'fulfilled') setRanking(rk.value)
+    })
+  }, [user])
 
   useEffect(() => {
     if (!hasSupabase || !user) return
@@ -924,14 +969,18 @@ function AppInner() {
        `fold()` để hai vế so sánh luôn đi qua cùng một phép biến đổi. */
     const t = q.trim()
     let base = pub
-    if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
-    if (filter === 'picked') base = picked
-    /* In progress hiện CẢ dây chuyền đã chốt — cùng tập dòng với tab Up next,
-       chỉ khác thứ tự (tab này để thứ tự mặc định của bảng, tab Up next xếp
-       theo thứ tự làm việc). Bài đã chốt vẫn giữ pill "Up next" trên dòng để
-       người xem biết nó đã được chọn, không nhầm với bài thường. */
-    if (filter === 'in_progress') base = picked
-    if (filter === 'completed') base = base.filter(r => r.status === 'completed')
+    if (statusFilters.length) {
+      base = base.filter(r => statusFilters.some(s => s === 'picked'
+        ? isPicked(r) && r.status !== 'in_progress'
+        : s === 'in_progress' ? r.status === 'in_progress'
+        : s === 'queued' ? r.status === 'queued' && !r.picked_at
+        : s === 'completed' && r.status === 'completed'))
+    } else {
+      if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
+      if (filter === 'picked') base = picked
+      if (filter === 'in_progress') base = picked
+      if (filter === 'completed') base = base.filter(r => r.status === 'completed')
+    }
     /* "Top voted" là danh sách bài ĐANG XIN PHIẾU: bài đã xong hoặc đã nằm
        trong dây chuyền làm việc không còn xin phiếu nữa (nút vote của chúng
        cũng đã khóa) — dùng inChain để hai chỗ nói cùng một chuyện. */
@@ -939,12 +988,12 @@ function AppInner() {
     /* Đang theo dõi thì muốn thấy CẢ bài pending/bị từ chối, không riêng
        hàng đã công bố — nên tab này lấy từ `rows`, không lấy từ `pub`. */
     if (filter === 'watch') base = rows.filter(r => watchedSet.has(groupKey(r)))
-    if (kindFilter !== 'all') base = base.filter(r => r.kind === kindFilter)
+    if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
     /* Bỏ dấu trước khi so: tên bài tiếng Việt được gõ cả có dấu lẫn không dấu,
        mà ô tìm kiếm thì không nên bắt người ta nhớ đúng chính tả. */
     if (t) base = base.filter(r => fold(`${r.artist} ${r.title} ${r.kind} ${r.requester}`).includes(fold(t)))
     return base
-  }, [pub, picked, rows, filter, q, kindFilter, watchedSet])
+  }, [pub, picked, rows, filter, statusFilters, q, kindFilter, kindFilters, watchedSet])
 
   const featured = useMemo(() => {
     const m = media.find(x => !x.is_hidden && x.kind === 'featured')
@@ -965,6 +1014,21 @@ function AppInner() {
     [media])
 
   const featuredRows = media
+  /* Completed requests become a public archive instead of disappearing into
+     the main queue. Match media titles to completed rows when possible so the
+     archive carries the original request context without a new table. */
+  const hallOfFame = useMemo(() => {
+    const done = rows.filter(r => r.status === 'completed' && r.video_url)
+    return done.slice().sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at)).slice(0, 8)
+  }, [rows])
+  const weeklyHighlights = useMemo(() => {
+    const since = Date.now() - 7 * 86400000
+    const recent = rows.filter(r => new Date(r.created_at).getTime() >= since && r.status !== 'denied')
+    return {
+      top: recent.slice().sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0))[0] || null,
+      newcomer: recent.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null,
+    }
+  }, [rows])
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -1053,11 +1117,11 @@ function AppInner() {
   }, [flash, t])
 
   const openVote = useCallback((r) => {
-    /* Khóa ở cả đường mở bảng chọn phiếu, không chỉ ở nút: người dùng phím
-       hoặc trình đọc màn hình vẫn bấm được nút nếu chỉ disable phần nhìn. */
+    /* Guests can inspect and share the board, but voting is an explicit auth action. */
+    if (!user) { setAuthPrompt(true); return }
     if (!r || inChain(r)) return
     setVoteFor(r)
-  }, [])
+  }, [user])
 
   const doVote = async (id, delta = 1) => {
     const target = rows.find(r => r.id === id)
@@ -1083,6 +1147,7 @@ function AppInner() {
     }
   }
   const doSubmit = async (form, paid) => {
+    if (!user) { setModal(false); setAuthPrompt(true); return }
     const row = await addRequest(form, user, paid)
     /* vua gui xong là theo dõi liọn, khỏi phải chờ lần nạp bảng kế tiếp */
     if (row) applyOwnFollows([{ ...row, user_id: row.user_id || user.id }])
@@ -1291,7 +1356,10 @@ function AppInner() {
     setUser(null); setAdmin(null); setModal(false); setMenu(false)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
-  const openModal = (t) => { setModalTab(t); setModal(true) }
+  const openModal = (t) => {
+    if (!user && (t === 'request' || t === 'buy' || t === 'vote')) { setAuthPrompt(true); return }
+    setModalTab(t); setModal(true)
+  }
 
   useEffect(() => {
     const h = (e) => {
@@ -1320,18 +1388,21 @@ function AppInner() {
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   if (booting) return <Splash />
-  if (!user) return (<><Splash hide /><LoginGate onDemoLogin={setUser} /></>)
-
-  const myStats = fullRanking.find(p => p.user_id === user.id)
+  const myStats = fullRanking.find(p => p.user_id === user?.id)
+  /* Public mode keeps the real board mounted. LoginGate is an action modal,
+     so Turnstile is not downloaded or rendered until a guest asks to act. */
 
   return (
     <>
       <Splash hide />
+      {authPrompt && !user && (
+        <LoginGate onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }} />
+      )}
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
         sections={navOrder()} routes={ROUTES} section={section} onNavigate={go}
-        user={user} counts={counts}
+        user={viewer} counts={counts}
         open={menu} onClose={() => setMenu(false)}
         collapsed={collapsed} onToggle={toggleSide}
         onNewRequest={() => openModal('request')}
@@ -1356,6 +1427,11 @@ function AppInner() {
               chữ trong đó thành tên prop rồi báo "dây đứt" oan.
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
+          {user && streak.days > 0 && (
+            <span className="streak-pill" title="Daily visit streak" aria-label={`${streak.days} day streak`}>
+              <Icon name="star" size={13} /><b>{streak.days}</b>
+            </span>
+          )}
           <Notifications
             open={bellOpen} notices={notices} rank={standings}
             rowsByKey={rowsByKey} prefs={prefs}
@@ -1375,8 +1451,10 @@ function AppInner() {
         </header>
         <div className="sect" key={section}>
 
+        {publicProfileId && <PublicProfile userId={publicProfileId} onBack={() => { window.history.pushState({}, '', '/'); window.dispatchEvent(new PopStateEvent('popstate')) }} />}
+
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
-        {section === 'board' && (
+        {section === 'board' && !publicProfileId && (
           /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
@@ -1395,6 +1473,40 @@ function AppInner() {
             <MediaShowcase featured={featured} videos={latest}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} />
 
+            {(weeklyHighlights.top || weeklyHighlights.newcomer) && (
+              <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
+                <div className="now-head">
+                  <h2 className="lbl" id="weekly-title">This week</h2>
+                  <span className="now-split">Community highlights · last 7 days</span>
+                </div>
+                <div className="weekly-grid">
+                  {weeklyHighlights.top && <a className="weekly-card" href={`/?f=top&q=${encodeURIComponent(`${weeklyHighlights.top.title} ${weeklyHighlights.top.artist}`)}`}>
+                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes || 0} votes</span>
+                  </a>}
+                  {weeklyHighlights.newcomer && <a className="weekly-card" href={`/?q=${encodeURIComponent(`${weeklyHighlights.newcomer.title} ${weeklyHighlights.newcomer.artist}`)}`}>
+                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist} · {weeklyHighlights.newcomer.requester}</span>
+                  </a>}
+                </div>
+              </section>
+            )}
+
+            {hallOfFame.length > 0 && (
+              <section className="nowbar hall" data-reveal aria-labelledby="hall-title">
+                <div className="now-head">
+                  <h2 className="lbl" id="hall-title">Hall of Fame</h2>
+                  <span className="now-split">Completed videos</span>
+                </div>
+                <div className="hall-grid">
+                  {hallOfFame.map(r => (
+                    <a className="hall-card" key={r.id} href={r.video_url} target="_blank" rel="noreferrer">
+                      <span className="hall-play" aria-hidden="true">▶</span>
+                      <span><b>{r.title}</b><small>{r.artist} · requested by {r.requester}</small></span>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* ======= UP NEXT: các request đã được chốt, chưa xong.
                 Khối này luôn hiện để mốc giờ chốt tiếp theo không bao giờ
                 biến mất (kể cả khi chưa có request nào được chốt). ======= */}
@@ -1409,12 +1521,8 @@ function AppInner() {
                   <h2 className="lbl">
                     {t('now.next')}
                     {pickedGroups.length > 0 && <span className="now-n">{pickedGroups.length}</span>}
-                    {/* Tách đôi con số trên thành hai giai đoạn: việc đang chạy
-                        và việc đã chốt nhưng chờ tới lượt. Hai số này là hai ô
-                        thống kê ngay phía trên, nên mắt nối được các con số mà
-                        không phải đoán mục nào đếm cái gì. */}
                     {pickedGroups.length > 0 && (
-                      <span className="now-split">
+                      <span className="now-split visually-quiet">
                         {t('now.split', { a: working, b: pickedGroups.length - working })}
                       </span>
                     )}
@@ -1444,7 +1552,7 @@ function AppInner() {
                             <span className="status" style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
-                            <span className="dot" aria-hidden="true" /><span>{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
+                            <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
                           </div>
                           {/* Số phần trăm chỉ nằm MỘT chỗ: trong thanh, sát mép
                               phải. Trước đây nó nằm trong dòng meta rồi lặp
@@ -1561,9 +1669,14 @@ function AppInner() {
                     {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
                       <Fragment key={f.k}>
                         {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
-                        <button type="button" className={`fchip${filter === f.k ? ' on' : ''}`}
-                          style={{ '--c': f.c }} aria-pressed={filter === f.k}
-                          onClick={() => { setFilter(f.k); setFbarOpen(false) }}>
+                        <button type="button" className={`fchip${(['queued', 'picked', 'in_progress', 'completed'].includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
+                          style={{ '--c': f.c }} aria-pressed={(['queued', 'picked', 'in_progress', 'completed'].includes(f.k) ? statusFilters.includes(f.k) : filter === f.k)}
+                          onClick={() => {
+                            if (['queued', 'picked', 'in_progress', 'completed'].includes(f.k)) {
+                              setStatusFilters(current => current.includes(f.k) ? current.filter(s => s !== f.k) : [...current, f.k])
+                              setFilter(f.k)
+                            } else { setStatusFilters([]); setFilter(f.k) }
+                          }}>
                           <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
                           <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
                         </button>
@@ -1600,15 +1713,15 @@ function AppInner() {
                       dữ liệu (`kind`) được dùng cho cả thứ hiển thị dữ liệu lẫn
                       control để lọc dữ liệu đó. */}
                   <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
-                    <button type="button" className={`fchip fkind${kindFilter === 'all' ? ' on' : ''}`}
-                      aria-pressed={kindFilter === 'all'} onClick={() => setKindFilter('all')}>
+                    <button type="button" className={`fchip fkind${kindFilters.length === 0 ? ' on' : ''}`}
+                      aria-pressed={kindFilters.length === 0} onClick={() => { setKindFilters([]); setKindFilter('all') }}>
                       <i className="kswatch any" aria-hidden="true" />{t('board.allKinds')}
                     </button>
                     {Object.keys(KIND_META).map(k => (
                       <button key={k} type="button"
-                        className={`fchip fkind${kindFilter === k ? ' on' : ''}`}
-                        style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilter === k}
-                        onClick={() => setKindFilter(k)}>
+                        className={`fchip fkind${kindFilters.includes(k) ? ' on' : ''}`}
+                        style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilters.includes(k)}
+                        onClick={() => { setKindFilters(current => current.includes(k) ? current.filter(x => x !== k) : [...current, k]); setKindFilter(k) }}>
                         <i className="kswatch" aria-hidden="true" />{k}
                       </button>
                     ))}
@@ -1619,7 +1732,7 @@ function AppInner() {
                     <div className="fbar-meta">
                       <span>{t('board.showing', { n: boardItems.length })}</span>
                       <button type="button" className="lnk"
-                        onClick={() => { setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
+                        onClick={() => { setStatusFilters([]); setFilter('queued'); setKindFilters([]); setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
                     </div>
                   )}
                 </div>
@@ -1638,19 +1751,19 @@ function AppInner() {
                     ? (
                       <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
-                        user={user} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
+                        user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
                         followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        onShare={shareSong} st={standings.get(e.key)} />
+                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
                       )
                     : (
-                      <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i}
-                        showDelete={e.r.user_id === user.id}
+                      <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i} user={viewer}
+                        showDelete={!!user && e.r.user_id === user.id}
                         myCount={myVotes.get(e.r.id) || 0}
                         canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}
                         onVote={openVote}
                         onDelete={doDelete}
                         followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        onShare={shareSong} st={standings.get(groupKey(e.r))} />
+                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(groupKey(e.r))} />
                       )
                   ))}
               </div>
@@ -1661,15 +1774,15 @@ function AppInner() {
 
         {section === 'spin' && (
           <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-            <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
+            {user && <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
               purchased={voteStatus.purchased} bonus={voteStatus.bonus}
-              onBalance={applySpinBalance} onVote={() => openModal('vote')} />
+              onBalance={applySpinBalance} onVote={() => openModal('vote')} />}
           </Suspense>
         )}
 
         {/* ======= MỤC 2: XẾP HẠNG ======= */}
         {section === 'ranking' && (
-          <Leaderboard rows={fullRanking} meId={user.id} />
+          <Leaderboard rows={fullRanking} meId={viewer.id} />
         )}
 
         {/* ======= MỤC 3: CỦA TÔI ======= */}
@@ -1681,7 +1794,7 @@ function AppInner() {
                 mình. Nay nó là khối đầu tiên của mục này: nhìn thấy mình là ai,
                 sửa được ngay tại chỗ, rồi đọc tiếp danh sách request bên dưới. */}
             <ProfilePanel
-              user={user}
+              user={viewer}
               onSaved={async () => { const u = await getUser(); setUser(u); await load(u); flash('ok', t('toast.profSaved')) }}
             />
             <div className="stats" data-glow>
@@ -1700,7 +1813,7 @@ function AppInner() {
                   <small>{t('mine.emptyHint')}</small>
                 </div>
                 : pgMine.items.map((r, i) => (
-                  <RequestRow key={r.id} r={r} n={i} showDelete
+                  <RequestRow key={r.id} r={r} n={i} user={viewer} showDelete
                     myCount={myVotes.get(r.id) || 0}
                     canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
                     onVote={openVote}
@@ -1756,7 +1869,7 @@ function AppInner() {
             nên dải số liệu (rộng hết màn hình) chui xuống dưới sidebar: ô đầu
             tiên bị cắt, các thanh công cụ kéo dài hết mép phải. Nay nó đứng
             cùng chỗ với bốn mục kia, trong `.sect` của `.main`. */}
-        {user.isAdmin && section === ADMIN_ONLY && (
+        {user?.isAdmin && section === ADMIN_ONLY && (
           /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
              từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
              và người dùng chỉ thấy trang trắng — không còn menu, không đường về.
@@ -1833,7 +1946,7 @@ function AppInner() {
           prefill={prefill}
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
-          onCancelOrder={doCancelOrder} userName={user.name} live={hasSupabase}
+          onCancelOrder={doCancelOrder} userName={viewer.name} live={hasSupabase}
         />
       </Suspense>
     </>

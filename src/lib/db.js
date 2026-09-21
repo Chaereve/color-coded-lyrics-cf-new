@@ -231,7 +231,58 @@ export async function signOut() {
   } catch { /* ignore */ }
 }
 
+export async function fetchPublicProfile(userId) {
+  if (!userId) return null
+  if (!hasSupabase) {
+    const rows = demoRows().filter(r => r.user_id === userId)
+    return { id: userId, name: rows[0]?.requester || 'Demo User', avatar_url: null, requests: rows.length, completed: rows.filter(r => r.status === 'completed').length, votes: rows.reduce((n, r) => n + Number(r.votes || 0), 0), recent: rows.slice(0, 8) }
+  }
+  const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
+    supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
+    supabase.from('requests').select('status, votes').eq('user_id', userId).neq('status', 'denied'),
+  ])
+  if (pe) throw pe; if (re) throw re; if (!p) return null
+  return { ...p, requests: rs?.length || 0, completed: rs?.filter(r => r.status === 'completed').length || 0, votes: rs?.reduce((n, r) => n + Number(r.votes || 0), 0) || 0, recent: rs?.slice(0, 8) || [] }
+}
+
 /* ======================== READ ======================== */
+export async function fetchComments(requestId) {
+  if (!requestId) return []
+  if (!hasSupabase) {
+    try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
+  }
+  const { data, error } = await supabase.from('request_comments')
+    .select('id, request_id, user_id, body, created_at, profiles(name, avatar_url)')
+    .eq('request_id', requestId).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return (data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
+}
+
+export async function deleteComment(commentId) {
+  if (!commentId || !hasSupabase) return true
+  const { error } = await supabase.from('request_comments').delete().eq('id', commentId)
+  if (error) throw error
+  return true
+}
+
+export async function addComment(requestId, userId, body) {
+  const clean = String(body || '').trim()
+  if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
+  if (!hasSupabase) {
+    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, body: clean, created_at: new Date().toISOString(), author: 'You' }
+    try {
+      const key = `ccl.comments.${requestId}`
+      const old = JSON.parse(localStorage.getItem(key) || '[]')
+      localStorage.setItem(key, JSON.stringify([next, ...old].slice(0, 20)))
+    } catch { /* storage blocked; current session still receives next */ }
+    return next
+  }
+  const { data, error } = await supabase.from('request_comments').insert({ request_id: requestId, user_id: userId, body: clean }).select('id, request_id, user_id, body, created_at').single()
+  if (error) throw error
+  return { ...data, author: 'You' }
+}
+
 export async function fetchRequests() {
   if (!hasSupabase) return demoRows()
   const { data, error } = await supabase.from('requests').select('*')

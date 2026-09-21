@@ -322,3 +322,21 @@
   .spin-wheel-wrap { transition: none !important; }
   .spin-sector, .spin-wheel-number { transition: none; }
 }
+
+/* Spin polish: make the wheel the hero and keep supporting information quiet. */
+.daily-spin { box-shadow: 0 18px 45px rgba(0,0,0,.18); }
+.daily-spin { --w-2: color-mix(in oklab, var(--queued) 52%, var(--surface-3)); --w-3: color-mix(in oklab, var(--progress) 62%, var(--surface-3)); }
+.spin-wheel-wrap { filter: drop-shadow(0 18px 20px rgba(0,0,0,.18)); }
+.spin-wheel-number { paint-order: stroke; stroke: rgba(8,10,14,.22); stroke-width: .7px; }
+.spin-legend li { min-width: 48px; justify-content: center; }
+@media (max-width: 720px) {
+  .spin-head { align-items: flex-start; }
+  .spin-head-text { flex: 1 1 180px; }
+  .spin-reset { flex: 1 1 100%; justify-content: space-between; }
+  .spin-stage { gap: 18px; }
+  .spin-wheel-wrap { width: min(88vw, 340px); }
+  .spin-dial { gap: 11px; }
+  .spin-legend { gap: 5px; }
+  .spin-legend li { padding: 5px 8px; }
+  .spin-panel { width: 100%; }
+}

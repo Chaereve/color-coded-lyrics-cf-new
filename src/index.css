@@ -396,7 +396,7 @@ button { font-family: inherit; }
 /* khối "đang làm" thở rất nhẹ — có người thật đang ngồi sửa video */
 .nowbar::before { content: ''; position: absolute; left: -40%; top: 0; bottom: 0; width: 55%;
   background: linear-gradient(90deg, transparent, rgba(169,164,255,.10), transparent);
-  transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite; pointer-events: none; }
+  transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite alternate; pointer-events: none; }
 @keyframes nowdrift { 0% { transform: translateX(0) } 55%,100% { transform: translateX(260%) } }
 .nowbar:hover { border-color: var(--line-2); }
 /* accent bên trong, clipped theo border-radius của khối — border-left 2px
@@ -3859,3 +3859,228 @@ html[data-section="spin"] .bgfx { display: none; }
   box-shadow: 0 2px 8px rgba(0,0,0,.18);
 }
 .pick-flag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #c4bbff; }
+
+/* Public archive: completed work is a destination, not just a status row. */
+.hall { margin-top: 20px; }
+.hall-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
+.hall-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; color: var(--txt); text-decoration: none; background: color-mix(in srgb, var(--bg-2) 82%, transparent); border: 1px solid var(--line); border-radius: 10px; transition: border-color .18s, transform .18s; }
+.hall-card:hover, .hall-card:focus-visible { border-color: var(--a-2); transform: translateY(-1px); }
+.hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hall-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.hall-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--txt-3); font-size: 11px; }
+.hall-play { flex: 0 0 28px; display: grid; place-items: center; width: 28px; height: 28px; color: var(--a-2); border: 1px solid currentColor; border-radius: 50%; font-size: 11px; }
+.weekly { margin-top: 20px; }
+.weekly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.weekly-card { display: flex; flex-direction: column; gap: 4px; padding: 13px; color: var(--txt); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--a) 8%, var(--bg-2)); }
+.weekly-card:hover, .weekly-card:focus-visible { border-color: var(--a-2); }
+.weekly-card small { color: var(--a-2); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; font-weight: 700; }
+.weekly-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weekly-card span { color: var(--txt-3); font-size: 12px; }
+@media (max-width: 560px) { .weekly-grid { grid-template-columns: 1fr; } }
+.reveal-title { flex-wrap: wrap; }
+.reveal-kicker { display: inline-flex; align-items: center; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--a-2) 55%, transparent); border-radius: 999px; color: var(--a-2); font-size: 10px; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
+/* Keep the accessible detail in the DOM, but let the Up next block breathe. */
+.nowbar .visually-quiet { display: none; }
+
+/* Small-screen pass for the public/community blocks. Keep the action and the
+   countdown on one readable rhythm instead of letting labels wrap into noise. */
+@media (max-width: 620px) {
+  .nowbar { padding: 12px; margin-bottom: 16px; }
+  .nowbar .now-head { align-items: flex-start; gap: 8px; }
+  .nowbar .now-head .lbl { font-size: 16px; }
+  .nowbar .now-head > .countdown { margin-left: auto; white-space: nowrap; }
+  .now-item { padding: 10px 0; }
+  .now-item h3 { font-size: 14px; line-height: 1.35; }
+  .now-item .sub { gap: 5px; font-size: 11.5px; }
+  .hall-grid { grid-template-columns: 1fr; }
+  .hall-card { min-height: 52px; }
+  .weekly-card { padding: 11px; }
+  .pick-main { gap: 12px; }
+  .pick-hero { border-radius: var(--r-md); overflow: hidden; }
+  .pick-side { min-width: 0; }
+  .pvlist { scrollbar-width: none; }
+  .pvlist::-webkit-scrollbar { display: none; }
+}
+@media (min-width: 621px) and (max-width: 1100px) {
+  .hall-grid, .weekly-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.streak-pill { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--a-2) 45%, transparent); border-radius: 999px; color: var(--a-2); font-size: 11px; font-weight: 700; white-space: nowrap; }
+@media (max-width: 620px) { .streak-pill { padding-inline: 6px; font-size: 10px; } }
+
+/* Final visual polish: fewer flat rectangles, clearer focal hierarchy. */
+.mainhead-t { letter-spacing: -.02em; }
+.mainhead-sub { max-width: 52ch; }
+.stats { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 18px 42px rgba(0,0,0,.18); }
+.stat { min-height: 70px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-right: 1px solid var(--line); transition: background .18s, transform .18s; }
+.stat:last-child { border-right: 0; }
+.stat:hover { background: var(--panel-2); transform: translateY(-1px); }
+.stat .tick { font-size: 24px; letter-spacing: -.04em; }
+.nowbar { border-color: color-mix(in srgb, var(--a-2) 22%, var(--line)); background: linear-gradient(125deg, color-mix(in srgb, var(--a) 8%, var(--panel)) 0%, var(--panel) 48%); box-shadow: 0 18px 44px rgba(0,0,0,.16); }
+.nowbar .lbl { letter-spacing: -.02em; }
+.hall-card, .weekly-card { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-2) 82%, var(--a) 18%), var(--panel)); box-shadow: 0 8px 22px rgba(0,0,0,.12); }
+.hall-card:hover, .hall-card:focus-visible, .weekly-card:hover, .weekly-card:focus-visible { box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+@media (max-width: 620px) {
+  .stats { border-radius: var(--r-md); }
+  .stat { min-height: 62px; padding-inline: 10px; }
+  .stat .tick { font-size: 20px; }
+}
+/* Streak is a quiet utility signal, not a second primary CTA. */
+.streak-pill { width: 30px; height: 30px; justify-content: center; padding: 0; gap: 2px; border-color: var(--line); background: var(--panel); color: var(--txt-2); font-size: 12px; }
+.streak-pill b { font-weight: 700; }
+.streak-pill:hover { border-color: var(--a-2); color: var(--a-2); }
+@media (max-width: 620px) { .streak-pill { width: 28px; height: 28px; } }
+.streak-pill svg { color: var(--a-2); flex: 0 0 auto; }
+
+/* Calm background direction: content owns the contrast; the page background
+   should not compete with cards or request rows. */
+.bgfx { background: radial-gradient(900px 520px at 50% -12%, #151923 0%, var(--bg) 62%, #08090c 100%); }
+.bgfx-aurora { opacity: .22; animation: none; }
+.bgfx-grain { opacity: .018; }
+
+/* Background v2: one stable paint layer. Avoid fixed negative stacking contexts
+   and backdrop-composited aurora on mobile/browser route transitions. */
+html, body { background: #0b0d12; }
+body {
+  background:
+    radial-gradient(900px 520px at 50% -110px, rgba(77,64,240,.13), transparent 70%),
+    linear-gradient(180deg, #10131b 0%, #0b0d12 38%, #090a0e 100%);
+  background-attachment: scroll;
+}
+.bgfx { display: none; }
+
+/* Filter drawer polish on phones: an intentional compact panel, not a tall
+   stack of loose controls. */
+@media (max-width: 620px) {
+  .fbar.open .fbar-more {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+    margin: 2px -2px -2px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    animation: filterIn .18s var(--e-out) both;
+  }
+  .fbar.open .fbar-more .fchips { width: 100%; }
+  .fbar.open .fbar-more .fchips.kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+  .fbar.open .fbar-more .fchip { min-height: 36px; padding-inline: 9px; border-radius: var(--r-sm); }
+  .fbar.open .fbar-more .fchip:hover { background: var(--hover); }
+  .fbar.open .fbar-more .fbar-meta { padding-top: 3px; }
+}
+@keyframes filterIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fbar.open .fbar-more { animation: none; } }
+
+/* Same filter language on desktop: keep the board calm, reveal the detailed
+   controls only on demand instead of showing a second dense row permanently. */
+@media (min-width: 621px) {
+  .fmore { display: inline-flex; }
+  .fbar:not(.open) .fbar-more { display: none; }
+  .fbar.open .fbar-more {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+    margin: 1px -2px -2px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    animation: filterIn .18s var(--e-out) both;
+  }
+  .fbar.open .fbar-more .fchips { width: 100%; }
+  .fbar.open .fbar-more .fchips.kinds { flex-wrap: wrap; }
+  .fbar.open .fbar-more .fchip { border-radius: var(--r-sm); }
+  .fbar.open .fbar-more .fchip:hover { background: var(--hover); }
+}
+
+/* Vote sheet: fit the actual mobile viewport, including safe areas and the
+   keyboard, instead of relying on the desktop modal width. */
+@media (max-width: 620px) {
+  .vote-overlay { overflow: hidden; }
+  .vote-overlay .modal.narrow {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 720px);
+    overflow: hidden;
+  }
+  .vote-overlay .modal.narrow .modal-body {
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .vote-overlay .vm-song b,
+  .vote-overlay .vm-song > span { overflow-wrap: anywhere; }
+  .vote-overlay .vm-presets { gap: 6px; }
+  .vote-overlay .vm-preset { min-width: 0; flex: 1 1 auto; padding-inline: 10px; }
+  .vote-overlay .prof-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vote-overlay .prof-acts .btn { min-height: 42px; flex: 1 1 auto; }
+  .vote-overlay .prof-acts .btn[style] { margin-right: 0 !important; flex-basis: 100%; }
+  .vote-overlay .vm-after { gap: 6px; flex-wrap: wrap; }
+}
+
+/* Leaderboard responsive pass: podium remains a hierarchy, not a shrunken
+   desktop table. */
+@media (max-width: 620px) {
+  .lb-bar { gap: 14px; }
+  .lb-seg { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .lb-seg::-webkit-scrollbar { display: none; }
+  .lb-segb { flex: 1 0 auto; min-height: 40px; }
+  .lb-top { gap: 6px; padding-inline: 8px; }
+  .lb-pod { padding-inline: 4px; }
+  .lb-pod .lb-av.lg { width: 42px; height: 42px; }
+  .lb-pod-name { max-width: 92px; font-size: 11px; }
+  .lb-pod-num b { font-size: 18px; }
+  .lb-pod-mini { font-size: 9px; }
+  .lb-table th, .lb-table td { padding-inline: 8px; }
+  .lb-table .hide-sm { display: none; }
+  .lb-me { gap: 8px; flex-wrap: wrap; }
+  .lb-me-stats { flex-basis: 100%; margin-left: 30px; }
+}
+.comments { margin-top: 7px; }
+.comments-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 3px 0; border: 0; background: none; color: var(--txt-3); font: 500 11px var(--font); cursor: pointer; }
+.comments-toggle:hover { color: var(--a-2); }
+.comments-toggle b { min-width: 16px; padding: 1px 4px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--txt-2); font: 10px var(--mono); text-align: center; }
+.comments-panel { max-width: 520px; margin-top: 5px; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.comments-list { display: grid; gap: 7px; max-height: 180px; overflow: auto; }
+.comment { display: grid; gap: 1px; font-size: 11.5px; }
+.comment b { color: var(--txt-2); font-size: 10.5px; }
+.comment span { color: var(--txt); overflow-wrap: anywhere; }
+.comments-empty { margin: 2px 0 8px; color: var(--txt-3); font-size: 11px; }
+.comment-form { display: flex; gap: 6px; margin-top: 9px; }
+.comment-form input { min-width: 0; flex: 1; height: 32px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--txt); font: 11.5px var(--font); }
+.comment-form button { display: grid; place-items: center; width: 34px; border: 1px solid var(--a-dim); border-radius: var(--r-sm); background: var(--a-soft); color: var(--a-2); cursor: pointer; }
+.comment-form button:disabled { opacity: .45; cursor: not-allowed; }
+.comment-error { display: block; margin-top: 5px; color: var(--denied); font-size: 10.5px; }
+@media (max-width: 620px) { .comments-panel { max-width: none; } }
+.comments-panel { transform-origin: top left; animation: commentPanelIn .22s var(--e-out) both; }
+.comment { animation: commentRowIn .2s var(--e-out) both; }
+.comment:nth-child(2) { animation-delay: 25ms; }
+.comment:nth-child(3) { animation-delay: 50ms; }
+@keyframes commentPanelIn { from { opacity: 0; transform: translateY(-5px) scaleY(.96); } to { opacity: 1; transform: none; } }
+@keyframes commentRowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .comments-panel, .comment { animation: none; } }
+.comment-delete { justify-self: start; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-3); cursor: pointer; }
+.comment-delete:hover { color: var(--denied); background: rgba(226,110,105,.1); }
+.comment { position: relative; padding-right: 28px; }
+.comment-delete { position: absolute; top: -2px; right: 0; }
+.public-profile { max-width: 680px; margin: 0 auto; padding: 24px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.profile-back { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--txt-3); cursor: pointer; }
+.profile-back:hover { color: var(--a-2); }
+.public-profile-head { display: flex; align-items: center; gap: 14px; margin-top: 28px; }
+.public-avatar { display: grid; place-items: center; width: 64px; height: 64px; overflow: hidden; border-radius: 50%; background: var(--a-soft); color: var(--a-2); font-size: 24px; font-weight: 700; }
+.public-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.public-profile h2 { margin: 0; font-size: 22px; }
+.public-profile p { margin: 4px 0 0; color: var(--txt-3); }
+.public-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 28px; }
+.public-stats div { display: grid; gap: 3px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.public-stats b { font: 600 22px var(--mono); }.public-stats span { color: var(--txt-3); font-size: 11px; }
+@media (max-width: 620px) { .public-profile { padding: 16px; }.public-stats { gap: 5px; }.public-stats div { padding: 10px 8px; }.public-stats span { font-size: 10px; } }
+.comment-author { color: var(--txt-2); font-size: 10.5px; font-weight: 600; text-decoration: none; }
+.comment-author:hover { color: var(--a-2); text-decoration: underline; }
+.public-requests { margin-top: 24px; }.public-requests h3 { margin: 0 0 8px; font-size: 13px; }.public-request { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }.public-request span { min-width: 0; display: grid; gap: 2px; }.public-request b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.public-request small { color: var(--txt-3); }.public-request em { flex: none; font-size: 10px; font-style: normal; color: var(--txt-2); }
+.requester-link { color: inherit; text-decoration: none; }.requester-link:hover { color: var(--a-2); text-decoration: underline; }
+.public-badges { margin-top: 24px; }.public-badges h3 { margin: 0 0 8px; font-size: 13px; }.achievement-list { display: flex; flex-wrap: wrap; gap: 7px; }.achievement-list span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2); color: var(--a-2); font-size: 11px; }.achievement-list b { color: var(--txt-2); font-weight: 500; }
+.profile-share { margin-top: 18px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); cursor: pointer; }.profile-share:hover { border-color: var(--a-2); color: var(--a-2); }
+.public-request-link { display: grid; gap: 2px; color: inherit; text-decoration: none; }.public-request-link:hover b { color: var(--a-2); }
