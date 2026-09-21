@@ -5,6 +5,8 @@ import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
 import ProfilePanel from './components/ProfilePanel'
 import StreakStrip from './components/StreakStrip'
+import ShareCardButton from './components/ShareCardButton'
+import { streakStats, STREAK_MILESTONES } from './lib/streak.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
@@ -1501,8 +1503,34 @@ function AppInner() {
   /* ---------------- render ---------------- */
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
-  if (booting) return <Splash />
   const myStats = fullRanking.find(p => p.user_id === user?.id)
+  /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
+     streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
+     phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
+     kiện là phạm rules-of-hooks. */
+  const myCard = useMemo(() => {
+    if (!user) return null
+    const st = myActivity ? streakStats(myActivity) : null
+    return {
+      name: user.name || 'Community member',
+      avatarUrl: user.avatar || null,
+      subtitle: t('card.subtitle'),
+      stats: [
+        { value: mineRows.length, label: t('stat.submitted') },
+        { value: myStats?.completed ?? 0, label: t('stat.completed') },
+        { value: myStats?.total_votes ?? 0, label: t('stat.votesReceived') },
+      ],
+      streakLine: st
+        ? (st.current > 0
+          ? `${t('streak.current', { n: st.current })} · ${t('streak.longest', { n: st.longest })}`
+          : t('streak.longest', { n: st.longest }))
+        : null,
+      milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
+      footer: t('card.footer'),
+    }
+  }, [user, myActivity, myStats, mineRows.length, t])
+
+  if (booting) return <Splash />
   /* Public mode keeps the real board mounted. LoginGate is an action modal,
      so Turnstile is not downloaded or rendered until a guest asks to act. */
 
@@ -1939,7 +1967,10 @@ function AppInner() {
             />
             {/* Chuỗi ngày + badge 7/30/100 của chính mình, ngay dưới khối hồ sơ:
                 nhìn thấy mình là ai thì thấy luôn mình đã đều đặn mấy ngày. */}
-            <StreakStrip days={myActivity} />
+            <div className="streak-row">
+              <StreakStrip days={myActivity} />
+              {myCard && <ShareCardButton card={myCard} />}
+            </div>
             <div className="stats" data-glow>
               <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />

@@ -1469,3 +1469,61 @@ Một vết môi trường đáng nhớ: lần chạy `StreakStrip.test.js` đ�
 (nên node:test treo hết timeout) và để lại process mồ côi GIỮ cổng WebSocket 24678 — ba vòng smoke
 sau đó báo "WebSocket server error: Port already in use" như thể product lỗi. Bài học: test treo
 không chỉ tốn thời gian, nó còn để lại xác process làm hỏng cả cổng kiểm thử kế tiếp.
+
+## Phần XI — vòng 21: share card PNG (mục 7, mục CUỐI của bảng kế hoạch)
+
+### XI1. Bài toán: một tấm ảnh chia sẻ được, không thêm dependency
+
+Mục cuối của bảng kế hoạch: cho mỗi người một **tấm card PNG** — tên, avatar, ba con số thật,
+streak + ba mốc 7/30/100 — đúng khổ og:image **1200×630** để dán lên Discord/Telegram/Facebook
+là ra thẻ đẹp. Ba đường đi đã cân nhắc:
+
+- `html2canvas`/chụp DOM: thêm một dependency nặng chỉ để làm ra MỘT tấm ảnh, và ảnh ra phụ
+  thuộc bố cục màn hình đang mở — màn hẹp ra ảnh hẹp, chữ nhỏ mờ theo mật độ pixel thật;
+- server render (Satori/OG service): đúng khổ nhưng cần một service thứ hai, ngoài phạm vi repo;
+- **tự vẽ bằng canvas 2D** (`src/lib/shareCard.js`): không dependency, ảnh LUÔN đúng khổ đúng
+  mật độ chữ kể cả khi người bấm đang xem bằng điện thoại, xuất scale 2 → 2400×1260. Chọn đường này.
+
+### XI2. Hợp đồng của module vẽ — bốn luật khoá bằng code và test
+
+- **Module không tự ráp chữ.** `drawShareCard` nhận nội dung ĐÃ DỊCH (`name, subtitle, stats:[{value,label}],
+  streakLine, milestones, footer, stamp`) — nơi gọi (PublicProfile, App) ghép bằng `t()`. Thêm một ngôn
+  ngữ sau này không phải sờ vào canvas; và `shareCard.test.js` khoá ca "mọi chữ phải có mặt đều được vẽ".
+- **Số trên card là số đang hiển thị.** PublicProfile ghép card từ đúng `profile` (fetchPublicProfile) và
+  `actDays` đang nuôi dải streak; App ghép từ đúng `mineRows`/`myStats`/`myActivity` đang nuôi ô thống kê
+  và dải streak — không có bản tính thứ hai để mà lệch.
+- **Mọi toạ độ hữu hạn.** Test chạy `drawShareCard` trên ctx GIẢ ghi lại từng lời gọi vẽ và khẳng định
+  không một tham số số nào là NaN/Infinity — ảnh tĩnh vẽ lệch là lỗi im lặng nguy hiểm nhất, không có
+  runtime error nào kêu thay. `n()` trong module là lưới an toàn cùng tinh thần `Number.isFinite` của `dayKeys`.
+- **Hỏng thì nói thật.** `makeShareCardBlob` ném mã lỗi rõ (`card-no-dom` / `card-unsupported`); nút bắt lỗi
+  và toast "This browser cannot render the card image", không bao giờ giả vờ "đã lưu". Avatar fetch về
+  **blob rồi mới vẽ** (blob same-origin nên canvas không nhiễm bẩn CORS — `toBlob` trên canvas bẩn ném
+  SecurityError); host không cho CORS thì lùi về vòng chữ cái đầu như giao diện vẫn làm.
+
+### XI3. Ba quyết định nhỏ đáng ghi lại
+
+- **Tem ngày dán lúc BẤM NÚT, không phải lúc render** — luôn là hôm nay giờ VN (`vnDayKey(Date.now())`
+  trong handler), và né luôn một cảnh báo `react(purity)` cho useMemo; tên file `chaereve-<slug>-<ngày>.png`
+  để card hai mùa không đè nhau trong thư mục tải về.
+- **Màu đọc thẳng từ CSS custom property** (`readPalette`, có `DEFAULT_PALETTE` dự phòng khi chạy ngoài
+  trình duyệt) — đổi token thương hiệu một chỗ, card đổi theo.
+- **Smoke chỉ chốt nút CÓ MẶT, không bấm**: canvas trong môi trường smoke là jsdom, `getContext('2d')`
+  vừa trả null vừa ném jsdomError "Not implemented" làm bẩn lượt chạy. Phần vẽ thật đã có test ctx giả lo.
+
+Một lỗi tự bắt trên đường: `myCard` useMemo ban đầu nằm SAU early-return `if (booting) return <Splash />`
+— oxlint `rules-of-hooks` bắt ngay 1 error (nền trước đó 0 error/21 warn). Dời cả `myStats` + `myCard`
+lên trước return; bài học cũ vẫn đúng — hook không được đứng sau bất kỳ nhánh return nào.
+
+### XI4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **431 ca / 430 đạt / 0 lỗi / 1 skip** (vòng 20: 426). Mới: `shareCard.test.js` **5 ca** (wrapLines ngắt tham lam + dữ liệu rỗng/null, slugName bỏ dấu tiếng Việt + filename đúng tem, drawShareCard mọi số hữu hạn + mọi chữ có mặt + drawImage đúng một lần khi có avatar, dữ liệu cụt không nổ, `makeShareCardBlob` ném `card-no-dom` trong node) |
+| `npm run smoke` | ✅ **301/301** (vòng 20: 299): +1 check `.streak-row .card-btn` ở *About me*, +1 `.profile-share-row .card-btn` ở trang cá nhân công khai — chỉ presence, không bấm |
+| `npx oxlint` | ✅ 0 lỗi, **21 cảnh báo** — đúng nền đã chốt ở vòng 20, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-Cc-nX48n.js` 313,56 kB (gzip 97,73 kB) |
+
+Bảng kế hoạch bảy mục — search fix, regression tests, gates, public profile, Season Leaderboard,
+streak/badge, share card — **đủ cả bảy**. Nhắc lại một việc deploy còn nợ từ vòng 20: chạy
+migration `20260921_activity_days.sql` trên Supabase (additive, chạy lại an toàn; chưa chạy thì
+dải streak tự ẩn chứ không nói dối).

@@ -357,6 +357,15 @@ const S = {
   'streak.none': 'No active day yet — vote, comment, spin or send a request to start a streak',
   'streak.unlocked': 'Unlocked: {n}-day streak',
   'streak.locked': 'Reach a {n}-day streak to unlock',
+  /* SHARE CARD PNG (shareCard.js): chữ trên ẢNH cũng qua từ điển như chữ
+     trên màn hình — component ghép sẵn rồi truyền xuống canvas. */
+  'card.save': 'Save card',
+  'card.busy': 'Making card…',
+  'card.tip': 'Download a shareable PNG card of these stats',
+  'card.saved': 'Card saved as PNG',
+  'card.unsupported': 'This browser cannot render the card image',
+  'card.subtitle': 'Chaereve community member',
+  'card.footer': 'chaereve · color coded lyrics request board',
   /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
      in ra kèm nhãn: "tuần này" là từ mơ hồ nếu không nói tuần nào. */
   'rank.periodLabel': 'Choose season period',

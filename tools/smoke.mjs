@@ -648,6 +648,12 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     check('dải streak in chuỗi dài nhất và luật đếm trong tooltip ngọn lửa',
       /longest \d+/.test(q('.streak')?.textContent || '') && !!q('.streak-flame')?.getAttribute('title'),
       q('.streak')?.textContent?.slice(0, 90))
+    /* ---- SHARE CARD (item 7): nút tải PNG ngồi cạnh dải streak. Smoke chỉ
+       chốt nút CÓ MẶT — không bấm: canvas vẽ trong môi trường smoke là
+       jsdom, getContext('2d') ném "Not implemented" và làm bẩn lượt chạy.
+       Phần vẽ thật đã có shareCard.test.js khoá bằng ctx giả. */
+    check('About me có nút tải card PNG cạnh dải streak',
+      !!q('.streak-row .card-btn'), q('.streak-row .card-btn')?.textContent?.trim())
   }
 }
 
@@ -1471,6 +1477,8 @@ where = 'bài trả phí'
   check('trang cá nhân công khai có dải streak ba badge',
     !!q('.streak') && qa('.streak-mile').length === 3, q('.streak')?.textContent?.slice(0, 90))
   check('có nút chia sẻ và nút quay lại', !!q('.profile-share') && !!q('.profile-back'))
+  check('hồ sơ công khai có nút tải card PNG cạnh nút chia sẻ link',
+    !!q('.profile-share-row .card-btn'), q('.profile-share-row .card-btn')?.textContent?.trim())
   check('nút quay lại là một link thật (middle-click / Back của trình duyệt còn dùng được)',
     q('.profile-back')?.tagName === 'A' && !!q('.profile-back')?.getAttribute('href'),
     q('.profile-back')?.outerHTML?.slice(0, 90))

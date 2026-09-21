@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon'
 import { fetchPublicProfile, fetchActivityDays, PUBLIC_RECENT } from '../lib/db'
 import StreakStrip from './StreakStrip'
+import ShareCardButton from './ShareCardButton'
+import { streakStats, STREAK_MILESTONES } from '../lib/streak.js'
 import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
@@ -65,6 +67,31 @@ export default function PublicProfile({ userId, onBack }) {
     () => (profile?.recent || []).filter(r => r && (r.title || r.artist)).slice(0, PUBLIC_RECENT),
     [profile])
 
+  /* Nội dung tấm card PNG: số liệu lấy ĐÚNG nguồn đang hiển thị ở hồ sơ
+     (fetchPublicProfile) và streak đang hiển thị ở dải trên — card là một
+     cách NHÌN khác của cùng dữ liệu, không phải bản sao tự tính lại. */
+  const card = useMemo(() => {
+    if (!profile) return null
+    const st = actDays ? streakStats(actDays) : null
+    return {
+      name: profile.name || 'Community member',
+      avatarUrl: profile.avatar_url || null,
+      subtitle: t('card.subtitle'),
+      stats: [
+        { value: profile.requests, label: t('rank.requests') },
+        { value: profile.completed, label: t('rank.completed') },
+        { value: profile.votes, label: t('stat.votesReceived') },
+      ],
+      streakLine: st
+        ? (st.current > 0
+          ? `${t('streak.current', { n: st.current })} · ${t('streak.longest', { n: st.longest })}`
+          : t('streak.longest', { n: st.longest }))
+        : null,
+      milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
+      footer: t('card.footer'),
+    }
+  }, [profile, actDays, t])
+
   /* Địa chỉ để CHIA SẺ dựng từ `userId`, không lấy `window.location.href`: khi
      `pushState` bị chặn (iframe sandbox) thì địa chỉ trên thanh vẫn là bảng yêu
      cầu, copy ra sẽ là link sai. */
@@ -81,7 +108,10 @@ export default function PublicProfile({ userId, onBack }) {
       <div className="public-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (profile.name || '?')[0]}</div>
       <div><h2>{profile.name || 'Community member'}</h2><p>Chaereve community member</p></div>
     </div>
-    <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? 'Link copied' : 'Share profile'}</button>
+    <div className="profile-share-row">
+      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? 'Link copied' : 'Share profile'}</button>
+      {card && <ShareCardButton card={card} />}
+    </div>
     <div className="public-stats">
       <div><b>{profile.requests}</b><span>Requests</span></div>
       <div><b>{profile.completed}</b><span>Completed</span></div>

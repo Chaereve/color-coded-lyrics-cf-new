@@ -768,6 +768,30 @@ quay spin đã lưu trên máy. Kiểm tra: `npm test` (streak.test.js 7 ca + St
 kể cả ca khoá migration + schema.sql phải có đủ bốn trigger) và `npm run smoke` (3 check ở hai
 trang).
 
+## Thẻ chia sẻ PNG — nút Save card (vòng 21 — 21/09/2026)
+
+Nút **Save card** nằm cạnh nút *Share profile* (trang cá nhân công khai) và cạnh dải streak
+(khối *About me*). Bấm vào là tải về một tấm ảnh **1200×630** (xuất 2× → 2400×1260 nên chữ
+nhỏ vẫn sắc khi phóng to) — đúng khổ og:image, dán lên Discord/Telegram/Facebook ra thẻ đẹp:
+avatar, tên, ba con số thật (bài gửi · bài xong · phiếu nhận), câu streak + ba mốc 7/30/100,
+chân trang và tem ngày theo giờ Việt Nam. Tên file mang tem ngày
+(`chaereve-alice-nguyen-2026-09-22.png`) nên card hai mùa không đè nhau trong thư mục tải về.
+
+Card được **vẽ tay bằng canvas** (`src/lib/shareCard.js`, không thêm thư viện nào), màu đọc
+thẳng từ token CSS — đổi thương hiệu một chỗ, card đổi theo. **Số trên ảnh là số đang hiện trên
+trang**: component nơi đặt nút ghép nội dung đã dịch rồi truyền xuống canvas, card là một cách
+nhìn khác của cùng nguồn dữ liệu, không phải bản sao tự tính lại.
+
+Hai chỗ nói thật: **avatar fetch trượt thì lùi về vòng chữ cái đầu** (ảnh được tải về blob
+trước khi vẽ để canvas không nhiễm bẩn CORS; host không cho thì lùi, không ra ảnh trắng);
+**trình duyệt không vẽ được canvas** thì toast nói "This browser cannot render the card image"
+chứ không giả vờ "đã lưu".
+
+Kiểm tra: `npm test` (shareCard.test.js 5 ca — ngắt dòng theo hàm đo giả, slug/filename bỏ dấu
+tiếng Việt, mọi toạ độ vẽ hữu hạn, mọi chữ phải có mặt đều được vẽ, ném đúng mã lỗi khi không
+có DOM) và `npm run smoke` (2 check nút có mặt ở hai trang — smoke KHÔNG bấm nút vì canvas của
+jsdom ném "Not implemented" làm bẩn lượt chạy).
+
 ## Theo dõi bài + thông báo (Notifications)
 
 **Bấm chuông ở góc trên phải là bảng thông báo mở ra tại chỗ** — kiểu Facebook /
