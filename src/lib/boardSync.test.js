@@ -34,6 +34,10 @@ const app = readFileSync(at('../App.jsx'), 'utf8')
 const notifications = readFileSync(at('../components/Notifications.jsx'), 'utf8')
 const css = readFileSync(at('../index.css'), 'utf8')
 const metaSrc = readFileSync(at('./meta.js'), 'utf8')
+/* Phép lọc bảng (`filterBoard`) và tập dây chuyền (`chainRows`) đã dời sang
+   lib/board.js để kiểm thử được bằng dữ liệu giả — file này chỉ chốt rằng
+   App.jsx GỌI chúng chứ không tự lọc lại một bản thứ hai. */
+const boardSrc = readFileSync(at('./board.js'), 'utf8')
 
 const row = (o) => ({ artist: 'aespa', title: 'Whiplash', status: 'queued', votes: 0, ...o })
 /* Bóc khối `const counts = useMemo(...)` để soi từng dòng số. */
@@ -103,7 +107,7 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
   }
   assert.match(lineOf('in_progress'), /pickedGroups\.length/,
     'badge tab In progress phải bằng số thẻ tab đó liệt kê — cùng tập với Up next')
-  assert.match(app, /if \(filter === 'in_progress'\) base = picked/,
+  assert.match(boardSrc, /filter === 'in_progress'\) base = picked/,
     'tab In progress liệt kê CẢ dây chuyền đã chốt (chủ dự án chốt 19/09), không chỉ bài đang chạy')
   /* Dây chuyền = đã chốt HOẶC đang làm. Thiếu vế thứ hai thì một bài
      in_progress mà không có picked_at (admin tick mốc trên request chưa chốt)
@@ -111,8 +115,12 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
      picked_at, Done vì chưa xong. */
   assert.match(metaSrc, /export const inChain = \(r\) => isPicked\(r\) \|\| r\?\.status === 'in_progress'/,
     'inChain phải là phép HOẶC của isPicked và status in_progress')
-  assert.match(app, /pub\.filter\(inChain\)/,
+  assert.match(boardSrc, /export const chainRows = \(rows\) => real\(rows\)\.filter\(inChain\)/,
     'danh sách dây chuyền phải lọc bằng inChain, không phải isPicked')
+  assert.match(app, /const picked = useMemo\(\(\) => chainRows\(pub\), \[pub\]\)/,
+    'App.jsx phải lấy dây chuyền từ chainRows — tự lọc lại là hai tập khác nhau')
+  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet \}\)/,
+    'bảng phải lọc bằng filterBoard: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]
   assert.equal(nowN, 'pickedGroups.length', 'số trên nắp khối Up next phải là số bài đã chốt')

@@ -75,6 +75,7 @@ create table if not exists public.requests (
   done_edit      boolean not null default false,   -- moc 20%
   video_url      text,                         -- link video da hoan thanh
   picked_at      timestamptz,                   -- cron/admin chot vao Up next luc nao; null = chua chot
+  expired_at     timestamptz,                   -- admin expiry queue: old, never-picked request
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -84,6 +85,7 @@ create index if not exists requests_votes_idx   on public.requests (votes desc);
 create index if not exists requests_created_idx on public.requests (created_at desc);
 create index if not exists requests_user_idx    on public.requests (user_id);
 create index if not exists requests_picked_idx  on public.requests (picked_at) where picked_at is not null;
+create index if not exists requests_expired_idx on public.requests (expired_at) where expired_at is not null;
 alter table public.requests add column if not exists picked_at timestamptz;
 
 -- =========================================================
@@ -2465,7 +2467,7 @@ create table if not exists public.notifications (
   song_key   text,
   request_id uuid,
   kind       text not null check (kind in
-               ('near','lead','approved','picked','started','progress','done','denied','votes')),
+               ('near','lead','approved','picked','started','progress','done','denied','votes','expired')),
   /* chu kỳ chốt — để 'near'/'lead' chỉ được ghi ĐÚNG MỘT LẦN mỗi đợt chốt */
   cycle      text,
   title      text, artist text, url text, pct int, votes int,
@@ -2806,3 +2808,75 @@ revoke all on function public.enforce_media_limit() from public;
 drop trigger if exists media_limit on public.media;
 create trigger media_limit before insert on public.media
 for each row execute function public.enforce_media_limit();
+
+-- =========================================================
+-- 19.5. REQUEST COMMENTS + REPLIES
+-- =========================================================
+create table if not exists public.request_comments (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.requests(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  parent_id uuid references public.request_comments(id) on delete cascade,
+  body text not null check (char_length(trim(body)) between 1 and 180),
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+create index if not exists request_comments_request_created_idx
+  on public.request_comments (request_id, created_at desc);
+create index if not exists request_comments_parent_idx
+  on public.request_comments (parent_id, created_at asc);
+alter table public.request_comments enable row level security;
+drop policy if exists request_comments_public_read on public.request_comments;
+create policy request_comments_public_read on public.request_comments for select using (deleted_at is null);
+drop policy if exists request_comments_authenticated_insert on public.request_comments;
+create policy request_comments_authenticated_insert on public.request_comments for insert to authenticated
+  with check (auth.uid() = user_id and (parent_id is null or exists (select 1 from public.request_comments p where p.id = parent_id and p.request_id = request_id)));
+drop policy if exists request_comments_owner_delete on public.request_comments;
+create policy request_comments_owner_delete on public.request_comments for delete to authenticated
+  using (auth.uid() = user_id or public.is_admin());
+grant select on public.request_comments to anon, authenticated;
+grant insert, delete on public.request_comments to authenticated;
+
+-- =========================================================
+-- 20. ACTIVITY DAYS (streak + badge 7/30/100)
+-- keep identical to migrations/20260921_activity_days.sql
+-- =========================================================
+-- BEGIN ACTIVITY DAYS: keep identical to the migration file, verbatim.
+create table if not exists public.activity_days (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day     date not null,
+  primary key (user_id, day)
+);
+create index if not exists activity_days_day_idx on public.activity_days (day);
+
+alter table public.activity_days enable row level security;
+drop policy if exists "read activity days" on public.activity_days;
+create policy "read activity days" on public.activity_days for select using (true);
+revoke insert, update, delete on public.activity_days from anon, authenticated;
+
+create or replace function public.touch_activity_day() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.activity_days (user_id, day)
+  values (new.user_id, (coalesce(new.created_at, now()) at time zone 'Asia/Ho_Chi_Minh')::date)
+  on conflict (user_id, day) do nothing;
+  return new;
+end $$;
+revoke all on function public.touch_activity_day() from public;
+
+drop trigger if exists activity_on_request on public.requests;
+create trigger activity_on_request after insert on public.requests
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_vote on public.votes;
+create trigger activity_on_vote after insert on public.votes
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_comment on public.request_comments;
+create trigger activity_on_comment after insert on public.request_comments
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+
+drop trigger if exists activity_on_spin on public.daily_spins;
+create trigger activity_on_spin after insert on public.daily_spins
+for each row when (new.user_id is not null) execute function public.touch_activity_day();
+-- END ACTIVITY DAYS

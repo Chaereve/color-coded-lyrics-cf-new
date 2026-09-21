@@ -4,7 +4,7 @@ import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf } from '../lib/db'
-import { creditText, fold, groupKey, voteTotals } from '../lib/board'
+import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useConfirm } from '../lib/confirm.jsx'
@@ -53,7 +53,7 @@ function EmptyState({ title, body, filtered, q, t, onClear }) {
 }
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
-  select = false, selected = false, onSelect, pickInterval = 4 }) {
+  select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
@@ -149,7 +149,8 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         ) : (
           <>
-            <span className="status" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>
+            {expired && <span className="status denied" title={t('adm.expiredBody')}>{t('expiry.label')}</span>}
+            {!expired && <span className="status" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>}
             {/* Nhịp chốt bài đọc từ CÙNG nguồn với dòng "Next pick" ở trang
                 chủ (`settings.pick.interval_days`). Viết cứng `n: 4` ở đây là
                 cách lời giải thích lệch khỏi lịch thật ngay khi admin đổi nhịp
@@ -160,6 +161,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
                 {picked ? t('adm.unpick') : t('adm.pick')}
               </button>
             )}
+            {expired && onExpire && <button className="btn btn-sm btn-no" onClick={() => onExpire(r.id)}>{t('expiry.delete')}</button>}
             <button className="btn btn-sm" onClick={toggleOpen}>{open ? t('adm.closeEdit') : t('adm.edit')}</button>
           </>
         )}
@@ -215,6 +217,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               con số: nó trả lời "còn bao xa", tô theo trạng thái của bài. */}
           <Progress pct={pct} label={t('progress.label')} wide />
           <div className="inline-form">
+            {r.status === 'queued' && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdate(r.id, { status: 'in_progress' }, { group: true })}>{t('adm.start')}</button>}
             <button type="button" className="btn btn-sm" onClick={() => onUpdate(r.id, { status: 'queued' })}>{t('adm.backToQueue')}</button>
             <button type="button" className={`btn btn-sm adm-copy${copied ? ' done' : ''}`}
               title={t('adm.creditsHint')}
@@ -249,7 +252,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
    ========================================================= */
 export default function AdminPanel({
   tab, onTab, rows, orders, media = [],
-  onReview, onUpdate, onDelete, onOrder, onPick, onBulk,
+  onReview, onUpdate, onDelete, onExpire, onOrder, onPick, onBulk,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
   pickInterval = 4,
 }) {
@@ -400,26 +403,29 @@ export default function AdminPanel({
   /* (Khối `pipeline` cũ đã bị gỡ: nó tính năm con số mà không chỗ nào đọc —
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
+  const expiredRows = useMemo(() => rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)), [rows])
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
      người gửi / loại / ghi chú cho request; loại đơn + tên bài của request
-     liên quan cho đơn hàng. Bỏ dấu bằng `fold()` — đúng hàm mà ô tìm trên
-     bảng công khai dùng, nên hai màn hình không thể trả lời khác nhau. */
+     liên quan cho đơn hàng. Bỏ dấu + so theo từ bằng `allTermsIn()` — đúng
+     hàm mà ô tìm trên bảng công khai dùng, nên hai màn hình không thể trả lời
+     khác nhau cho cùng một từ khoá. */
   /* Bỏ MỌI bộ lọc bằng một cú bấm: trạng thái rỗng vì lọc mà không có lối thoát
      thì người dùng phải tự đoán xem mình đã bấm vào đâu. */
   const clearFilters = () => { setQ(''); setKindF('all'); setSortKey('default'); setSel(new Set()) }
   const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default'
-  const needle = fold(q)
-  const matchReq = (r) => !needle || fold(
-    `${r.title} ${r.artist} ${r.requester} ${r.kind} ${r.note || ''} ${r.status}`
-  ).includes(needle)
+  /* So THEO TỪ bằng đúng hàm mà bảng công khai dùng (`allTermsIn` trong
+     lib/board.js): bỏ dấu, hạ chữ thường, và mỗi từ trong từ khoá được dò độc
+     lập nên "Whiplash aespa" với "aespa Whiplash" ra cùng một kết quả. Bản cũ
+     là một phép `includes` cả chuỗi, tức là admin phải gõ đúng thứ tự cột. */
+  const matchReq = (r) => allTermsIn(
+    `${r.title} ${r.artist} ${r.requester} ${r.kind} ${r.note || ''} ${r.status}`, q)
   const matchOrder = (o) => {
-    if (!needle) return true
     const req = rows.find(r => r.id === o.request_id)
     const what = o.kind === 'votes'
       ? `${t('order.votes', { n: o.qty })} votes`
       : t('order.paidRequest')
-    return fold(`${what} ${o.status} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`).includes(needle)
+    return allTermsIn(`${what} ${o.status} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
   }
 
   /* danh sách đang hiển thị theo tab — phân trang chung một chỗ cho cả
@@ -427,7 +433,8 @@ export default function AdminPanel({
   const listRef = useRef(null)
   const base = tab === 'pending' ? pending
     : tab === 'active' ? active
-      : tab === 'orders' ? orders
+      : tab === 'expired' ? expiredRows
+        : tab === 'orders' ? orders
         : tab === 'done' ? others : []
   const order = (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
   const sortList = (list) => {
@@ -484,9 +491,9 @@ export default function AdminPanel({
      số mà mục đó sẽ liệt kê, nên không cần thêm một hàng tab đếm lại lần nữa:
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
-    pending: pending.length, active: active.length, orders: orderQueue.length,
+    pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
     done: others.length, media: media.length,
-  }), [pending.length, active.length, orderQueue.length, others.length, media.length])
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -733,6 +740,7 @@ export default function AdminPanel({
                 filtered={filtered} q={q} t={t} onClear={clearFilters} />
             : pg.items.map(r => (
               <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))} pickInterval={pickInterval}
+                expired={tab === 'expired'} onExpire={onExpire}
                 select={pickMode} selected={sel.has(r.id)} onSelect={toggleSel}
                 /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */

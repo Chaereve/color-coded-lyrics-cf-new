@@ -1,6 +1,7 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
-Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
+Cập nhật 21/09/2026 · nhánh `arena/01a0c255-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
+nằm ở cuối file** (phần V — vòng 18); các con số ngay dưới đây là của mốc 19/09
 So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
 `npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
 `npx oxlint` **0 lỗi**. Bản dựng hiện tại: `index-BxQ09EV7.js` 359 kB.
@@ -1042,3 +1043,511 @@ người "sửa cho dễ nhìn": rãnh 4px, khối ≤ 220px, số 10,5px nét 5
 `npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
 → **0 lỗi, 13 cảnh báo**. `npm run build` → OK: `index-B5awy9PP.js` 294,6 kB (gzip 91,7 kB),
 CSS 119,0 kB.
+
+---
+
+## Phần V — vòng 18: một cú bấm, bốn chỗ hỏng (21/09/2026)
+
+Chủ dự án gửi bảng tổng hợp của phiên trước, trong đó bốn lỗi quanh **trang cá nhân công khai**
+còn treo: bấm tên người gửi thì "quay về trang chủ", *Back to board* không ăn, bấm một bài trong
+*Recent requests* không ra bài, và gõ `POP OFF LE SSERAFIM` thì bảng nói **không có kết quả**.
+Truy tới nơi thì bốn triệu chứng đó là bốn mặt của cùng một cách làm: *mỗi link nội bộ tự ghép
+địa chỉ bằng tay rồi tự gọi `pushState`*.
+
+### V1. Bốn nguyên nhân gốc
+
+| # | Nguyên nhân | Người dùng thấy gì | Vì sao khó bắt |
+|---|---|---|---|
+| 1 | Ba chỗ gọi thẳng `window.history.pushState(...)` trong `onClick`. `pushState` **ném** `SecurityError` trong iframe bị sandbox, trên `file://`, trong chế độ riêng tư của vài trình duyệt — mà `preventDefault()` đã chạy **trước** đó | Bấm tên người gửi / tác giả bình luận / một bài trong trang cá nhân: **không gì xảy ra cả** | Repo đã có `lib/history.js` sinh ra cho đúng lỗi này (vòng 11 sửa ca "bảng quản trị hỏng toàn bộ" cũng vì nó) — ba link mới chỉ là không đi qua cửa đó. Trên bản deploy thật (không sandbox) chúng lại chạy, nên không lộ trong lúc làm |
+| 2 | "Trang cá nhân đang mở" được đọc từ `window.location` **lúc render**, không phải state | Cùng cú bấm đó: có khi địa chỉ đổi mà màn hình đứng yên | React bỏ qua lượt render nếu mọi `setState` trong handler trùng giá trị; còn khi (1) xảy ra thì địa chỉ không đổi, tức là không có gì để đọc |
+| 3 | Từ khoá dựng `tên bài + nghệ sĩ`; chuỗi để dò của hàng là `nghệ sĩ + tên bài + loại + người gửi`; so bằng **MỘT** phép `includes` cả cụm | `Pop Off LE SSERAFIM` → trang trống cho **chính bài đó** | Thứ tự "nghệ sĩ trước" là thứ tự của CSDL, còn **mọi** đường link vào bảng (thẻ *This week*, *Recent requests*, nút chia sẻ) đều dựng theo thứ tự ngược lại |
+| 4 | `fetchPublicProfile` (đường Supabase) chỉ `select('status, votes')` | Trên bản deploy: *Recent requests* không có tên bài → link `?q=` **rỗng**, `key` của 8 hàng trùng nhau | Chế độ demo dùng hàng mẫu có đủ mọi cột nên không lộ — hỏng đúng ở chỗ không ai bấm thử |
+
+### V2. Đã sửa
+
+| File | Việc |
+|---|---|
+| **`src/lib/nav.js`** (mới) | Context ba hàm `openProfile` / `openSong` / `closeProfile`, và `spaLink(fn, arg)`: thẻ **giữ `href` thật** (middle-click, "mở trong tab mới", trình đọc màn hình — và là đường lùi khi component được dựng ngoài App), còn bấm thường thì đổi **state**. Không có đường SPA thì `spaLink` trả về `undefined` để React **không gắn handler**, cú bấm đi theo href. Khác `useNotify` (ném khi thiếu provider) là có lý do: nav là thứ tuỳ chọn |
+| **`src/lib/history.js`** | Thêm cửa DỰNG địa chỉ cạnh cửa GHI địa chỉ: `profileUrl()`, `songQuery()`, `boardSearchUrl()` (luôn kèm `f=newest`), `absolute()`. Trước đó năm chỗ tự ghép chuỗi và ghép **năm kiểu** khác nhau |
+| **`src/App.jsx`** | `profileId` là **state** (khởi tạo + đọc lại lúc Back/Forward bằng `readProfileId()` — đúng hai lần chạm vào địa chỉ); `openProfile`/`closeProfile`/`openSong` đổi state TRƯỚC rồi mới `pushUrl`. Bộ hẹn giờ ghi URL **hỏi lại lúc sắp ghi** (trong 320ms chờ đó người dùng kịp mở trang cá nhân — ghi đè là xoá mất địa chỉ vừa mở). `shareSong` và hai thẻ *This week* đi qua `boardSearchUrl` |
+| **`src/lib/board.js`** | `searchTerms()` / `allTermsIn()` / `searchHit()`: bỏ dấu, so **THEO TỪ**, bỏ từ chỉ có dấu câu. Và `filterBoard()` / `chainRows()`: khối lọc bảng dời ra khỏi App.jsx để kiểm thử được bằng dữ liệu giả |
+| **`src/lib/db.js`** | `fetchPublicProfile` chọn đủ cột (`id, title, artist, kind, status, votes, created_at, picked_at, video_url`), sắp **mới nhất trước**, lọc cả `pending` lẫn `denied` (RLS cho đọc cả bảng `requests`, nên lọc là việc của chỗ này), và một `publicProfileShape()` để hai đường demo/Supabase không thể trả về hai hình dạng |
+| **`src/components/PublicProfile.jsx`** | Trạng thái **đang tải** riêng (trước đây in *"Profile not found."* trong ~200ms đầu — nói dối về một thứ chỉ là chưa tới); link đi qua `spaLink`; *Back to board* là thẻ `<a href="/">` chứ không phải nút; nhãn trạng thái qua `statusLabel`; hàng thiếu tên thì **không dựng link**; URL chia sẻ dựng từ `userId` (không lấy `location.href` — khi `pushState` bị chặn thì đó là địa chỉ của bảng) |
+| **`src/components/Comments.jsx`** | Tên tác giả đi qua `profileUrl` + `spaLink` |
+| **`src/components/AdminPanel.jsx`** | Ô tìm của admin dùng `allTermsIn` — cùng một phép bỏ dấu và cùng một cách so theo từ với bảng công khai |
+
+### V3. Nhãn "Votes given" là một lời nói dối
+
+Con số đó là `sum(requests.votes)` — **tổng phiếu mà các bài của người đó nhận được**. Phiếu họ
+đi bỏ cho người khác không đọc được ở đây: RLS của `votes` là *read own votes*, người lạ hỏi là
+nhận về rỗng. Nhãn đã đổi thành **Votes received**, và huy hiệu thành *"10 votes earned"*. Một
+con số đúng với một cái nhãn sai thì vẫn là nói dối — và đây là loại lỗi không có phép kiểm nào
+bắt được ngoài việc đọc lại chính câu chữ của mình.
+
+### V4. Hai bộ lọc lệch nhau — lỗi cùng họ, tìm ra trong lúc truy
+
+Bảng có **hai** state cho cùng một việc: `statusFilters`/`kindFilters` (chọn NHIỀU) là thứ thật
+sự lọc, còn `filter`/`kindFilter` (chọn MỘT) là bản sao dùng cho địa chỉ `?f=`/`?k=` và cho bộ
+lọc đã lưu. Ba chỗ để hai bản lệch nhau:
+
+| Chỗ | Trước | Sau |
+|---|---|---|
+| Bỏ chọn chip giai đoạn **cuối cùng** | `statusFilters` rỗng nhưng `filter` vẫn là giai đoạn vừa bỏ → danh sách lọc **y như cũ** trong khi chip đã tắt | Về `newest` (cả bảng) — chip tắt thì lọc cũng phải tắt |
+| Bỏ chọn loại bài cuối cùng | `kindFilters` rỗng, `kindFilter` vẫn giữ tên loại → chip "đang lọc theo loại" còn hiện, dòng *"đang xem n/mục"* còn đó | `kindFilter` = `next.length === 1 ? next[0] : 'all'` |
+| Chip "bỏ lọc loại bài" trên hàng chính | Chỉ `setKindFilter('all')` — chip biến mất mà danh sách **vẫn thiếu bài** | Dọn cả `kindFilters` |
+
+Cùng họ với chúng là ba đường "nhảy tới một bài" (`jumpToSong` từ hộp thông báo, `showAllPicked`
+từ nút *View all*, và `openSong` mới): cả ba đều phải **dọn cả hai bộ lọc nhiều-chọn**, vì
+`statusFilters` THẮNG `filter` trong `filterBoard` — không dọn thì tin thông báo bảo "bấm vào
+đây để xem bài của bạn" mà bảng hiện trang trống.
+
+### V5. Vì sao link tới MỘT BÀI phải là `f=newest`, không phải `f=top`
+
+`top` là danh sách bài **đang xin phiếu**: nó cố ý loại bài đã xong và bài đã vào dây chuyền
+(nút vote của chúng đã khóa). Vậy nên:
+
+- thẻ *Most voted* tuần trỏ vào `?f=top&q=…` — mà bài nổi nhất tuần thường **đang được làm**,
+  tức là link mở ra trang trống;
+- nút **chia sẻ** một bài vừa được chốt cũng gửi đi link chết — người nhận không phân biệt được
+  "bài bị xoá" với "link hỏng";
+- *Recent requests* của trang cá nhân: bài đã completed (đúng ca chủ dự án báo) biến mất.
+
+`newest` thấy **mọi** bài trên bảng, nên nó là cách nhìn duy nhất đúng cho một link dẫn tới một
+bài cụ thể. `top` vẫn giữ nguyên nghĩa của nó ở chỗ người dùng tự chọn: "đang xin phiếu".
+
+### V6. Hai bài kiểm cũ phải đổi theo — và vì sao đó là đổi đúng
+
+| Bài kiểm | Trước | Nay |
+|---|---|---|
+| `boardSync.test.js` | đòi App.jsx chứa `pub.filter(inChain)` và `if (filter === 'in_progress') base = picked` | đòi **`lib/board.js`** định nghĩa `chainRows` lọc bằng `inChain`, và App.jsx phải **gọi** `chainRows(pub)` + `filterBoard({...})` — khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả |
+| `board.test.js` | đòi App.jsx/AdminPanel.jsx chứa `fold(` | đòi App.jsx dùng `filterBoard(`, AdminPanel dùng `allTermsIn(`, **không** file nào còn `.includes(fold(`, và `normalize('NFD')` chỉ xuất hiện đúng **một** lần trong toàn repo |
+| `cssFilterBar.test.js` | đòi chip bỏ lọc loại bài có `onClick={() => setKindFilter('all')}` | đòi `setKindFilters([]); setKindFilter('all')` — tức là dọn bộ lọc **thật**, không chỉ bản sao |
+
+### V7. Bấm một bài thì trang phải cuộn XUỐNG kết quả
+
+Chủ dự án báo ngay sau lượt sửa trên: *"bấm vào request của người khác, nó chuyển hướng đến chỗ
+search thì phải cuộn xuống chứ sao lại cuộn lên đầu"*. Đúng, và lý do nó sai thì rõ ràng khi nhìn
+lại bố cục của trang bảng:
+
+```
+[bốn ô thống kê] [video của kênh] [This week] [Hall of Fame] [Up next] [thanh lọc] [DANH SÁCH]
+```
+
+`openSong` kế thừa `toTop()` từ `openProfile` — hợp lý khi mở **trang cá nhân** (đó là một trang
+khác, đọc từ đầu), nhưng vô nghĩa khi đi tới **một bài trên bảng**: kết quả nằm dưới năm khối nội
+dung, tức là cách đầu trang cả một màn hình. Người bấm thấy trang nhảy lên đầu, không thấy bài
+đâu, và không biết cú bấm có ăn không — đúng loại lỗi mà tài liệu này gọi là *"tính năng có mà
+không tới được"*.
+
+Nay `openSong` gọi `scrollToList()`: cuộn tới **thanh lọc**, không tới `.list`. Chọn thanh lọc vì ở
+đó thấy được ba thứ cùng lúc — từ khoá vừa đặt trong ô tìm, dòng *"đang xem n/mục"*, và danh sách
+ngay bên dưới; cuộn thẳng vào `.list` thì từ khoá bị đẩy lên trên mép màn hình và người đọc không
+biết mình đang lọc bằng gì.
+
+Hai chi tiết kỹ thuật đáng ghi lại:
+
+| Chi tiết | Vì sao |
+|---|---|
+| Chờ **một nhịp** (`requestAnimationFrame` + 60ms) rồi mới cuộn | Danh sách được dựng lại từ bộ lọc vừa đổi, và `.list` mang `key={filter}` — đổi cách nhìn là node đó bị thay bằng node khác. Cuộn ngay là cuộn vào cái danh sách CŨ (cùng lý do `showAllPicked` và `jumpToSong` đã làm vậy từ trước) |
+| Hỏi `document.querySelector('.board .fbar')` thay vì giữ `ref` | `scrollToList` được truyền **xuống cây** bằng context và được gọi ngay trong lúc render để dựng handler cho thẻ link; đọc `ref.current` trong một hàm như vậy là đúng thứ React Compiler bắt (`react(refs)` — hai cảnh báo hiện lên ngay khi làm bằng ref). Gói trong `.board` vì mục *Của tôi* cũng có một `.list` riêng |
+
+`profileNav.test.js` giữ luật này cho cả ba hàm: `openSong` phải cuộn xuống và **không** được gọi
+`toTop()`; `openProfile`/`closeProfile` thì ngược lại. Còn `npm run smoke` ghi lại lệnh cuộn thật
+(jsdom không cuộn, nên thay `scrollIntoView`/`window.scrollTo` bằng hàm ghi nhận) rồi khẳng định
+bấm *Recent request* và bấm thẻ *This week* đều cuộn tới `.fbar`, không có lệnh `scrollTo({top:0})`
+nào — tức là kiểm bằng **hành vi**, không chỉ bằng chữ trong mã nguồn.
+
+### V8. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **401 ca / 400 đạt / 0 lỗi / 1 skip** (vòng 17: 375 ca). Mới: `src/lib/profileNav.test.js` **15 ca** (dựng địa chỉ, `spaLink` chạy thật với sự kiện giả, và bảy hợp đồng trên mã nguồn: không ai tự `pushState`, không ai tự ghép chuỗi địa chỉ, mọi link nội bộ là thẻ thật + `spaLink`, trang cá nhân là state, `openSong` dọn cả hai bộ lọc, `setBooting(true)` không tồn tại, câu truy vấn trang cá nhân chọn đủ cột) và **+11 ca** trong `board.test.js` cho `searchHit`/`filterBoard`/`chainRows` |
+| `npm run smoke` | ✅ **289/289 mục đạt** (vòng 17: 249). Mục **10d** mới đi bằng đường bấm thật: bấm tên người gửi → trang cá nhân mở, **không màn chờ**; soi href của từng *Recent request*; bấm bài **đã completed** (Get Up / NewJeans) → bảng hiện đúng bài, ô tìm mang `Get Up NewJeans`, không chip giai đoạn nào còn bật; **bật chip lọc trước rồi mới bấm** (đúng ca đã báo); thẻ *This week*; gửi một bình luận rồi bấm tên tác giả; *Back to board*; và lặp lại tất cả trong **iframe bị sandbox** (`pushState`/`replaceState` ném `SecurityError`) |
+| `npx oxlint` | ✅ **0 lỗi, 19 cảnh báo** — nền trước vòng là 21: bớt được hai (`useMemo` thừa dep `kindFilter`, và một `set-state-in-effect` tránh được nhờ gộp "đang tải" vào cùng một state với "tải cho ai") |
+| `npm run build` | ✅ sạch — `index-x3-XImIn.js` 304,29 kB (gzip 94,43 kB), CSS 131,53 kB |
+
+**Một chi tiết đáng nhớ về cách viết chú thích trong repo này:** `jsxHtml.test.js` quét THÔ mã
+nguồn `.jsx`, nên chữ `<a>` viết trong một **chú thích** cũng được đếm là một thẻ mở — và vì nó
+không có thẻ đóng, mọi thẻ tương tác phía sau trong file đó bị báo là "lồng control vào control".
+Hai mươi ba "lỗi" hiện ra từ một dấu `<a>` trong chú thích. Quy tắc: trong file `.jsx`, đừng viết
+tên thẻ kèm dấu nhọn trong chú thích (`profileNav.test.js` nay lột chú thích trước khi quét, và
+giữ nguyên số dòng để thông báo còn trỏ đúng chỗ).
+
+## Phần W — vòng 19: Season Leaderboard — tuần này / tháng này, không migration (21/09/2026)
+
+### W1. Câu hỏi mà bảng xếp hạng chưa trả lời được
+
+Bảng xếp hạng chỉ có MỘT góc nhìn: toàn bộ thời gian. Người mới gửi bài tháng này không có cửa
+nào so với người đã tích luỹ hai năm, và người xem không trả lời được câu đơn giản nhất:
+**"tuần này ai được lên sóng nhiều nhất?"**. Một bảng "mùa giải" (tuần/tháng) trả lời đúng câu
+đó — và làm cho hạng của người mới có ý nghĩa ngay trong tuần đầu tiên.
+
+Rào cản cũ là dữ liệu: bảng `requests` **không có cột `completed_at`** (schema chỉ có
+`created_at`, `updated_at`, `picked_at`), và view `requester_ranking` là số tổng cộng dồn — muốn
+có "số bài xong trong tháng" bằng SQL thì phải thêm cột + backfill + sửa view, tức là một lần
+migration cho một tính năng đọc. Quyết định vòng này: **tính client-side, không migration** —
+toàn bộ hàng request vốn đã được tải về máy (`fetchRequests`, tối đa 800 hàng mới nhất), gom lại
+theo cửa sổ thời gian là việc thuần tuý của trình duyệt.
+
+### W2. Luật nằm ở `src/lib/season.js` — một chỗ, test bằng số
+
+Cùng triết lý với `ranking.js` và `board.js`: luật là hàm thuần (không React, không mạng, nhận
+`now` làm tham số) để test khoá được bằng một ngày cố định. Bốn hàm:
+
+| Hàm | Việc |
+|---|---|
+| `vnDayKey(now)` | "hôm nay" theo lịch **Việt Nam** (`Asia/Ho_Chi_Minh`) — 17:30 UTC Chủ nhật đã là thứ Hai ở VN |
+| `seasonWindow(period, now)` | cửa sổ `[start, end)` của tuần/tháng: tuần **thứ Hai → Chủ nhật** (lịch VN), tháng **mùng 1 → mùng 1 tháng sau**, cả hai neo theo nửa đêm giờ VN |
+| `seasonRows(rows, ranking, period, now)` | gom lại từ các hàng request thành đúng **hình dạng `requester_ranking`**: `{ user_id, key, name, avatar_url, total, completed, total_votes }` — để `rankRows` xếp mà không cần biết nó đang xếp bảng tổng hay bảng mùa |
+| `seasonLabel(period, now)` | khoảng ngày cho UI: `22/09 – 28/09` |
+
+**Mốc "bài xong lúc nào"** (`doneAt`): `completed_at || updated_at || created_at` — cùng luật
+fallback mà khối *Hall of fame* đang dùng. `completed_at` chưa tồn tại trong schema, nhưng nếu
+một ngày nào đó cột được thêm, code này tự dùng nó trước mà không phải sửa. Chỗ xấp xỉ phải nói
+thật: bài đã xong mà admin còn chạm vào sau này (sửa link, đổi ghi chú) sẽ bị tính theo lần chạm
+đó — chấp nhận được vì bài vừa được sửa thường cũng là bài vừa được xong.
+
+**Hai quyết định chống gian lận, kế thừa đúng tinh thần C3-14** (ghi chú từng hoãn một bảng
+"top người gửi tháng" vì nó khuyến khích đua số lượng):
+
+- Xếp theo **số bài XONG trong mùa** làm mặc định — trả lời "cộng đồng nhận được gì tuần này",
+  không phải "ai bấm gửi nhiều nhất". Ba cách xếp vẫn đổi được như bảng tổng, nhưng con số nào
+  cũng bị cắt theo cửa sổ.
+- Bài **bị từ chối không tính gì**, cùng luật `where r.status <> 'denied'` của view.
+- Bài GỬI ngoài mùa nhưng XONG trong mùa **vẫn được đếm là xong trong mùa** (bài lên sóng thứ
+  Ba dù gửi từ tháng trước vẫn là thành quả của tuần này) — nhưng không bị đếm là "gửi trong
+  tuần". Người có gửi mà chưa xong bài nào **vẫn có mặt** với `completed = 0`: bảng nói thật
+  thay vì làm họ biến mất.
+
+**Phiếu là chỗ dữ liệu không cho phép nói quá:** bảng `votes` không có mốc thời gian theo bài
+trong dữ liệu tải về, nên KHÔNG thể đếm "phiếu nhận trong mùa". Con số phiếu trên bảng mùa là
+**phiếu cộng dồn của các bài GỬI trong mùa** — và UI phải tự thú nhận điều đó bằng một dòng chú
+thích ngay dưới hàng nút mùa (`rank.votesNote`), đặt ở cấp BẢNG chứ không nhét vào hàng "bạn"
+(vì đó là sự thật về cả một cột, không phải của riêng ai, và không được phép biến mất khi người
+xem chưa có tên trên bảng).
+
+### W3. Hai lỗi thật đã bị test bắt ngay trong lúc viết
+
+Không phải lỗi giả định — cả hai đều là ca fail thật trước khi xanh:
+
+| Lỗi | Vì sao sai | Sửa |
+|---|---|---|
+| `new Date(start).getUTCDay()` để tìm thứ trong tuần | `start` là mốc **UTC** của nửa đêm VN: 00:00 thứ Hai giờ VN vẫn là 17:00 **Chủ nhật** UTC — đọc thứ trên mốc đó làm cả cửa sổ tuần lùi sai hẳn một tuần (22–28/09 thành 16–22/09) | Hỏi thứ trên chính **chuỗi ngày lịch VN** (`Date.parse('YYYY-MM-DD…Z').getUTCDay()`), không hỏi trên mốc UTC vừa dựng |
+| `end = start + 1 ngày` khi hôm nay là thứ Hai | Quên nhân 7: cửa sổ tuần chỉ dài… một ngày | `end = weekStart + 7 × 86400000` — và `season.test.js` khoá bằng đúng một ngày-thứ-Hai (2025-09-22) |
+
+Cả hai đều là loại lỗi **im lặng**: bảng vẫn render, vẫn có số, chỉ là số của sai tuần. Không có
+test bằng ngày cố định thì không cách nào nhìn thấy bằng mắt.
+
+### W4. UI: một hàng nút, một khoảng ngày, một câu luật
+
+`Leaderboard.jsx` thêm đúng một hàng (`lb-periodrow`) dưới thanh tiêu đề: ba nút **All time ·
+This week · This month** (dùng lại đúng kiểu viên thuốc `lb-seg`/`lb-segb` có sẵn — mobile tự
+được hưởng luật tràn ngang của `.lb-seg`), kèm khoảng ngày `22/09 – 28/09` in chữ mono như một
+con tem. Ba chi tiết có chủ ý:
+
+- **Câu luật đổi theo mùa**: đang xem mùa nào thì `lb-rule` nói đúng mùa đó
+  (`rank.periodRule.*`: "Sorted by requests completed this period (Mon–Sun week / calendar month,
+  Vietnam time)") — không để người xem tự đoán ba con số là của cả thời gian hay của tuần.
+- **Khoảng ngày PHẢI in ra**: "tuần này" là từ mơ hồ nếu không nói tuần nào tới tuần nào, và
+  người xem ở múi giờ khác phải tự đổi được.
+- **Mùa chưa có gì là một câu trả lời thật**, không phải "bảng hỏng": `rank.emptyPeriod.week`
+  nói "No requests yet this week — the season resets every Monday (Vietnam time)", và khối rỗng
+  vẫn giữ hàng nút mùa để luôn có đường về *All time*.
+
+`period` là state của component (không đẩy lên App, không đưa vào URL): đổi mùa là đổi góc nhìn
+tại chỗ, cùng loại với đổi cách sắp xếp — và `usePager` nhận thêm `period` vào deps để đổi mùa
+là quay lại trang 1. Mốc "bây giờ" chốt **một lần lúc mở bảng** (`useMemo`, deps `[now]`): cửa
+sổ mùa không được tự trượt giữa chừng lúc người xem đang nhìn; nửa đêm đi qua thì mùa mới là
+việc của lần mở trang sau. `App.jsx` chỉ truyền thêm `allRows={rows}` (toàn bộ hàng request) và
+`ranking={fullRanking}` (để mùa lấy đúng tên + avatar đã chốt ở view thật).
+
+### W5. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **414 ca / 413 đạt / 0 lỗi / 1 skip** (vòng 18+1: 401 ca). Mới: `src/lib/season.test.js` **10 ca** (ranh giới nửa đêm VN, tuần thứ Hai–Chủ nhật kể cả nhìn từ Chủ nhật, tháng 12 gối năm, gom số theo cửa sổ, denied/ngoài cửa sổ bị loại, gửi-ngoài-xong-trong vẫn đếm, hình dạng khớp `requester_ranking` + `rankRows` xếp được, dữ liệu méo không ném lỗi, nhãn khoảng ngày, và một ca soi mã nguồn: component không được tự dựng mốc thời gian) và **+3 ca** trong `Leaderboard.test.js` (bảng tuần cắt số + khoảng ngày + câu luật + lời thú nhận phiếu; bảng tháng gối đúng cửa sổ và *All time* giữ nguyên luật cũ; mùa trống ra câu trả lời thật và vẫn còn núm đổi mùa) |
+| `npm run smoke` | ✅ **296/296 mục đạt** (vòng 18+1: 289). Mục *Xếp hạng* thêm 7 check bấm thật: bộ chọn mùa 3 nút, mặc định All time không in khoảng ngày, bấm *This month* thì câu luật đổi + khoảng ngày hiện đúng dạng `dd/MM – dd/MM` + chú thích phiếu xuất hiện + **không điều hướng** (vẫn `/ranking`), bấm *All time* thì về đúng câu luật cũ |
+| `npx oxlint` | ✅ **0 lỗi, 20 cảnh báo** — nền trước vòng là 19; +1 là `react(purity)` cho `Date.now()` trong `useMemo` của mốc "bây giờ", **đúng pattern mà baseline đã chấp nhận** ở `weeklyHighlights` (App.jsx). Đổi lại, mốc đó không còn nằm trần trong thân component như bản nháp đầu tiên |
+| `npm run build` | ✅ sạch — `index-4gnrXPD4.js` 308,21 kB (gzip 95,68 kB) |
+
+Chi tiết đáng nhớ khi viết test render cho bục: `html.split('<div class="lb-pod')` ăn nhầm cả
+`lb-pod-num`/`lb-pod-name` (không có khoảng trắng sau `lb-pod`), và chunk ĐẦU TIÊN của một lần
+split chứa toàn bộ phần trước bục — bao gồm khối `lb-me` có tên alice — nên `.find(b =>
+b.includes('alice'))` bắt nhầm chunk đó. Sửa: split theo `'<div class="lb-pod p'` (có khoảng
+trắng + chữ `p` của `p1/p2/p3`) và tìm theo `title="alice"` chứ không theo tên trần.
+
+### W6. Vòng 19+1: người dùng chê bố cục — "chuyển qua lại các mục chưa tốt, nhìn rối"
+
+Phản hồi nguyên văn: *"phần chuyển qua lại các mục trong leaderboard làm chưa đc tốt và nhìn bố
+cục rối"*. Soi lại bản W4 thì thấy hai bệnh thật, đều là quyết định vội của vòng trước:
+
+**Bệnh 1 — ba hàng viền đáy chồng nhau.** `lb-bar` (tiêu đề + nút xếp), rồi `lb-periodrow`
+(hàng nút mùa + khoảng ngày), rồi `lb-votes-note` (hàng chú thích phiếu) — người xem phải đi
+qua BA đường kẻ ngang trước khi thấy một con số nào. Hai hàng sau mỗi hàng chỉ chở một mẩu
+thông tin nhỏ (ba nút, một con tem ngày, một câu chú thích) nhưng mỗi hàng chiếm trọn chiều
+rộng bảng kèm viền đáy riêng: chi phí bố cục gấp ba lần nội dung.
+
+**Bệnh 2 — hai nhóm nút giống hệt nhau.** Nút mùa và nút sắp xếp đều là viên thuốc `lb-segb`
+sáng màu khi bật, đặt gần nhau thành một ma trận 3×2 nút cùng nước sơn. Không có gì trên màn
+hình nói được nhóm nào đổi DỮ LIỆU (mùa) và nhóm nào đổi CÁCH NHÌN (sắp xếp) — đúng thứ mà
+cả repo này luôn đòi: *chức năng khác nhau thì nước sơn phải khác nhau*.
+
+**Bệnh 3 (tự bắt thêm) — đổi mùa không có phản hồi chuyển động.** Bục và bảng chỉ đổi số tại
+chỗ; `podIn`/`rowIn` là animation mount-once nên không phát lại. Cú bấm đổi cả phạm vi dữ liệu
+mà màn hình chỉ "nhảy số" — cảm giác như bảng bị lỗi.
+
+Sửa cả ba, không thêm hàng nào:
+
+| Trước | Sau |
+|---|---|
+| 3 hàng có viền đáy trước bục | **1 thanh duy nhất**: chữ trái (kicker · tiêu đề · câu luật · chú thích phiếu), điều khiển phải (`lb-bar-ctl`) hai tầng |
+| Nút mùa = viên thuốc giống nút xếp | Nút mùa = **tab gạch chân** (`lb-tab`, gạch chạy dưới chữ, trượt ngang khi chuyển); nút xếp giữ viên thuốc. Class `lb-segb` vẫn được GIỮ trên tab để luật mobile có sẵn (tràn ngang, min-height 40px) tự áp vào |
+| Khoảng ngày chiếm chỗ riêng trong `lb-periodrow` | Con tem `lb-range` nằm **ngay trong câu luật** — luật và phạm vi của luật đọc trong một hơi |
+| Đổi mùa: số nhảy tại chỗ | `key={'top-'+period}` / `key={'tbl-'+period}` trên bục và vỏ bảng: đổi mùa là **remount**, hai nhịp đổ xuống phát lại. Đổi cách sắp xếp thì KHÔNG remount (useCountUp tự đếm số cũ → mới) — hai cú chuyển, hai phản hồi khác nhau, có lý do |
+| Bảng trống: nhánh return riêng, cấu trúc header khác | **Một return duy nhất**, `isEmpty` chỉ giấu phần thân; tab mùa luôn còn (đường về *All time*), nhóm nút xếp bị giấu khi không có gì để xếp |
+
+Hai lỗi bị chính hàng rào test của repo bắt trong lúc sửa, đáng ghi lại:
+
+- `cssTokens.test.js` bắt `var(--txt-1)` — token **không tồn tại** (thang chữ của app là
+  `--txt`, `--txt-2`, `--txt-3`). CSS không có token đó không báo lỗi cũng không sập: nó âm thầm
+  rơi về giá trị kế thừa, tức là màu chữ của tab đang chọn sẽ do may rủi quyết định. Đúng loại
+  lỗi mà test token sinh ra để bắt.
+- `npm run smoke` bắt React warning *"two children with the same key"*: cả `lb-top` lẫn
+  `lb-twrap` cùng mang `key={period}` mà hai khối là **anh em ruột** trong cùng một children
+  array. Test render tĩnh không bắt được (warning chỉ nổi khi React reconcile thật trong
+  jsdom) — smoke mới là lưới đúng tầng. Sửa thành hai key khác tiền tố (`top-`/`tbl-`).
+
+Kiểm thử: `Leaderboard.test.js` **+2 ca** khoá bố cục mới (một thanh điều khiển duy nhất, tab
+mùa mang `lb-tab` còn nút xếp thì không, tem khoảng ngày nằm trong câu luật, bảng trống giấu
+viên thuốc nhưng giữ tab mùa) — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi
+20 cảnh báo; build sạch. Toàn bộ selector mà smoke đang dùng (`.lb-periodseg`, `.lb-range`,
+`.lb-votes-note`) sống sót qua cuộc dọn — đổi nước sơn, không đổi hợp đồng.
+
+### W7. Vòng 19+2: "chú thích còn quá dài làm bố cục nút bị lệch xuống; all time/this week/this month chưa đẹp, khó nhìn"
+
+Phản hồi nguyên văn: *"mấy cái chú thích ở leaderboard còn quá dài nên làm bố cục các nút bị
+lệch xuống, với mấy chỗ all time this week this month bạn làm chưa đẹp và khó nhìn quá"*. W6 đã
+gộp ba hàng thành một thanh, nhưng để lại hai di chứng:
+
+**Chữ dài đẩy nút lệch.** `lb-bar` căn ĐÁY (`align-items: flex-end`), cột chữ trái giờ chở tới
+bốn dòng (kicker, tiêu đề, câu luật kèm ngoặc đơn "(Mon–Sun week / calendar month, Vietnam
+time)", đoạn chú thích phiếu riêng). Cột nút bên phải bị kéo tụt xuống đáy theo chữ — đúng hiện
+tượng "lệch xuống" người dùng chỉ ra. Nguyên nhân sâu xa: mình nhét **chú thích một-lần-đọc**
+vào chỗ **hiện thường trực**. Chi tiết "tuần T2–CN, tháng lịch, giờ VN" chỉ cần đọc MỘT lần để
+hiểu con tem; bắt nó chiếm hai dòng trên mọi lần mở trang là bắt cả bảng trả tiền cho một lời
+giải thích.
+
+**Tab gạch chân khó nhìn.** Nước sơn W6 chọn (chữ xám 11.5px + gạch chân 2px màu `--a-2`) có
+độ tương phản quá thấp trên nền panel tối: trạng thái "đang chọn" gần như vô hình, muốn biết
+đang xem tuần hay tháng phải dí mắt vào. Phân biệt bằng HÌNH DÁNG (tab ≠ viên thuốc) là đúng
+ý tưởng nhưng sai cường độ.
+
+Sửa:
+
+| Trước (W6) | Sau (W7) |
+|---|---|
+| Câu luật + ngoặc đơn dài 2 dòng | `rank.periodRule.*` rút còn MỘT vế ("Sorted by requests completed this period"); chi tiết cửa sổ dời vào **tooltip của con tem** (`rank.rangeTip`) |
+| Chú thích phiếu = đoạn văn thứ hai | Vế **inline** trong chính câu luật, ngăn bằng chấm mờ (`::before content:'·'`): "… · votes are lifetime totals" |
+| `lb-bar` căn đáy → chữ dài đẩy nút tụt xuống | `align-items: center`; và khi chữ chỉ còn 3 dòng ngắn thì cột nút tự khắc ngang hàng tiêu đề |
+| Tab gạch chân chữ xám | **Viên nhạt (soft chip)**: cùng họ vỏ pill với nhóm sắp xếp, nhưng trạng thái chọn = nền tím MỜ `--a-soft` + chữ sáng `--a-2` + vòng inset — đối lập ĐẬM/NHẠT với viên thuốc đặc của nhóm xếp, tương phản thấy rõ từ xa |
+
+Quy tắc rút ra cho cả repo, đáng nhớ hơn bản thân cú sửa: **chú thích giải thích luật phải tỉ lệ
+thuận với tần suất người dùng cần nó** — luật đang chạy (một vế ngắn) hiện thường trực; chi
+tiết định nghĩa (cửa sổ tính thế nào, múi giờ nào) vào tooltip; lời thú nhận dữ liệu (phiếu cộng
+dồn) là vế inline chứ không phải đoạn văn. Và trạng thái "đang chọn" của một control phải nhìn
+thấy được **ở khoảng cách đọc bình thường** — nếu phải dí mắt mới biết nút nào sáng, đó là lỗi
+chứ không phải "thiết kế tinh tế".
+
+Nút mùa bỏ luôn class `lb-segb` mượn tạm (W6 mượn để ăn luật mobile): nước sơn khác hẳn thì khai
+luật riêng cho sạch — `.lb-tab` có đủ hover/active/transition của riêng nó, và media 620px khai
+`min-height: 40px` riêng (không mượn thì phải tự khai, quên là mất mục tiêu chạm).
+
+Một lỗi test tự bắt: regex `/class="lb-tab([^"]*)"/` định đếm ba nút mùa nhưng ăn cả VỎ container
+(`class="lb-tabs lb-periodseg"` — tiền tố trùng) thành bốn. Sửa thành `/class="lb-tab( on)?"/`
+neo trọn giá trị class. Bài học cũ của repo đúng lần nữa: regex soi HTML phải neo đến ranh giới
+class, không neo bằng tiền tố.
+
+Kiểm thử: `Leaderboard.test.js` cập nhật ca bố cục (+assert chú thích phiếu là vế inline của câu
+luật, +assert chuỗi "Mon–Sun week" KHÔNG còn in thường trực, +assert tooltip mang "Vietnam
+time") — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke **296/296**; oxlint 0 lỗi 20 cảnh báo; build
+sạch 307,5 kB (gzip 95,6 kB).
+
+### W8. Vòng 19+3: người dùng chốt — bỏ ngày tháng khỏi màn hình, và thanh mùa hết lệch
+
+Ảnh chụp màn hình người dùng gửi chỉ đúng hai chỗ hở còn sót của W7:
+
+**1. Chữ trên thanh tiêu đề vẫn thừa.** Câu luật còn quấn hai dòng vì chở thêm con tem
+`01/09 – 30/09` và vế "votes are lifetime totals". Phán quyết nguyên văn: *"ko cần ghi ngày
+tháng ra đâu, để mỗi dòng sorted... ở chỗ chú thích là đc r"*. W7 đã đúng hướng (chú thích tỉ lệ
+với tần suất cần đọc) nhưng mới đi nửa đường: vẫn giữ khoảng ngày thường trực vì sợ mất tra
+cứu. Nay đi nốt: **màn hình chỉ còn đúng câu luật một vế**; khoảng ngày + chi tiết cửa sổ + lời
+thú nhận phiếu gộp thành **một tooltip trên nhóm nút mùa** — hover/hold là đọc đủ, không hover
+thì thanh tiêu đề gọn một dòng.
+
+Một chi tiết buộc phải nghĩ lại khi dời: lời thú nhận phiếu thoạt đầu đặt vào tooltip **đầu cột
+votes**, nhưng test bắt ngay — mùa có ≤3 người thì `rest` rỗng, **bảng không dựng**, đầu cột
+không tồn tại, còn nhóm nút mùa thì luôn có mặt kể cả khi mùa trống. Tooltip phải sống trên phần
+tử **luôn hiện diện ở chế độ đó**, không phải trên phần tử "hợp chủ đề nhất".
+
+**2. Thanh mùa lệch.** `.lb-bar-ctl` để `align-items: stretch` nên nhóm mùa bị kéo dài bằng
+nhóm sắp xếp (nhóm rộng hơn), trong khi các chip ôm nội dung — thừa một khoảng trống ~45px bên
+phải trong vỏ pill, nhìn như nút bị xô lệch. Sửa: `align-items: flex-start` (mỗi nhóm ôm đúng
+nội dung của nó), và chip thêm `inline-flex + align/justify-content: center` để chữ căn giữa cả
+hai trục, không lệch baseline giữa nút chọn và nút thường. Media bản hẹp đổi `width:100%` thành
+`max-width:100%` để vẫn tràn ngang được khi chật mà không tự kéo dài khi thừa.
+
+Gỡ sạch CSS chết: `.lb-range`, `.lb-votes-note` không còn phần tử nào mang chúng — để lại là
+mồi cho người sau tưởng nhầm còn dùng (repo từng có sáu khoá từ điển chết sống qua nhiều vòng
+vì không ai dám xoá).
+
+Kiểm thử: `Leaderboard.test.js` — ca bố cục chốt câu luật BẰNG CHUỖI TUYỆT ĐỐI
+(`'Sorted by requests completed this period'`, không tem không chú thích), tooltip nhóm mùa chở
+`dd/MM – dd/MM` + "Vietnam time" + "lifetime totals", và All time thì tooltip không chở khoảng
+ngày; smoke đổi ba check từ `.lb-range`/`.lb-votes-note` sang soi `title` của `.lb-periodseg`.
+416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi 20 cảnh báo; build sạch 307,62 kB
+(gzip 95,69 kB).
+
+## Phần X — vòng 20: streak + badge cột mốc 7/30/100 (mục 6 của bảng kế hoạch)
+
+### X1. Bài toán và phán quyết của chủ dự án
+
+Bảng kế hoạch còn hai mục: **badge/streak milestones 7/30/100** và **share card PNG**. Vòng này
+làm mục 6. Khảo sát schema trước khi đề xuất: streak "kiểu Duolingo" cần MỘT nguồn trả lời "người
+này có hoạt động ngày X không" cho BẤT KỲ ai đọc (trang công khai), và bốn nguồn có sẵn đều
+thiếu một vế — `requests`/`request_comments` đọc công khai được nhưng quá thưa để nuôi chuỗi
+ngày; `votes` có `created_at` theo user nhưng RLS **chỉ cho đọc hàng của mình**; `daily_spins`
+khoá theo `device_hash` chứ không theo tài khoản. Suy diễn streak từ bốn nguồn lệch nhau ở
+client là tự dối mình, nên hai phương án được đưa ra hỏi và chủ dự án chốt:
+
+- **Nguồn**: bảng `activity_days (user_id, day)` + trigger tự in dấu ngày khi gửi request · vote ·
+  bình luận · quay spin (migration `20260921_activity_days.sql`, additive, chạy lại an toàn).
+- **Chỗ hiện badge**: trang *About me* **và** trang cá nhân công khai — cột mốc là thứ cộng đồng
+  nhìn thấy nhau, cùng tinh thần với bảng xếp hạng.
+
+### X2. Luật đếm — `src/lib/streak.js`, và ba chỗ dễ sai đã bị test khoá
+
+- **Mốc ngày theo lịch Việt Nam** — trigger in `(created_at at time zone 'Asia/Ho_Chi_Minh')::date`,
+  client đếm bằng `vnDayKey` MƯỢN TỪ `season.js`: một "ngày" của cộng đồng này bắt đầu/kết thúc
+  lúc nửa đêm giờ VN ở cả ba nơi (spin, mùa giải, streak), không mỗi nơi một múi.
+- **"Hôm nay chưa hoạt động" không phải là đứt chuỗi** (luật Duolingo): 9 giờ sáng chưa làm gì thì
+  chuỗi còn sống tới hết ngày; `currentStreak` thấy hôm nay trống thì LÙI VỀ HÔM QUA mà đếm, và
+  chỉ trả 0 khi cả hôm qua cũng trống.
+- **Badge bám `longest`, không bám `current`**: mốc đã mở là THÀNH TÍCH — người nghỉ một tuần quay
+  lại không bị trừng phạt lần hai bằng cách mất huy hiệu; nhưng `current` phải nói thật là đã đứt
+  (test khoá cả hai vế cùng lúc).
+- Lỗ hổng tự bắt khi viết test: `'2025-13-45'` KHUÔN `YYYY-MM-DD` nhưng `Date.parse` ra NaN, và một
+  `toISOString()` trên ngày NaN là RangeError ném thẳng vào render — `dayKeys` phải lọc bằng
+  `Number.isFinite`, không chỉ bằng regex.
+
+### X3. Ba quyết định nhỏ đáng ghi lại
+
+- **`fetchActivityDays` trả `null` khi không đọc được nguồn, KHÔNG phải mảng rỗng.** `null` =
+  project chưa chạy migration / lỗi mạng → dải streak TỰ ẨN; `[]` = sự thật "chưa có ngày hoạt
+  động nào" → hiện câu `streak.none`. Gộp hai trạng thái thành một là bắt UI nói dối một trong hai.
+- **Tooltip ngọn lửa chở luật đếm, tooltip badge chở mốc còn thiếu** — dải chỉ in ba con số có tên
+  (chuỗi hiện tại · dài nhất · 7/30/100), đúng quy tắc W8: chú thích tỉ lệ với tần suất cần đọc.
+- **Bản demo gương đúng bốn trigger**: dấu ngày gom từ ngày gửi request (`demoRows`), ngày bình
+  luận (`ccl.comments.*`), ngày quay spin (`LS.spins` — entry đã mang `day` tính sẵn theo giờ VN).
+  Thiếu nguồn nào thì demo nghèo đúng nguồn đó, không bịa thêm.
+
+Hai cảnh báo lint trên đường đi, một tránh được một thì không: `setActDays(null)` đồng bộ trong
+effect của PublicProfile bị `react(set-state-in-effect)` bắt — đổi sang pattern `loaded` (một state
+chở cả "của ai" lẫn dữ liệu, suy ra cũ/mới bằng so sánh id); còn `Date.now()` chốt mốc "bây giờ"
+trong `useMemo` của StreakStrip là đúng pattern baseline đã chấp nhận ở `weeklyHighlights` và
+Leaderboard — cảnh báo thứ 21, có tên có chỗ, không phải nợ vô chủ.
+
+### X4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **426 ca / 425 đạt / 0 lỗi / 1 skip** (vòng 19+3: 416). Mới: `streak.test.js` **7 ca** (biên nửa đêm VN, "hôm nay chưa có dấu thì lùi về hôm qua", chỗ đứt, dữ liệu méo kể cả ngày hợp-khuôn-nhưng-không-thật, mốc bám `longest`, và hai ca hợp đồng schema: migration tồn tại + schema.sql hợp nhất nguyên văn bốn trigger — bài học hụt file `20261104_spin_streak.sql`) và `StreakStrip.test.js` **3 ca** (badge 7 sáng/30-100 mờ, mốc không tắt khi chuỗi đứt, `null` ẩn dải còn `[]` hiện câu thật) |
+| `npm run smoke` | ✅ **299/299** (vòng trước 296): +2 check dải streak ở *About me* (đủ ba badge, chuỗi dài nhất luôn in, tooltip ngọn lửa mang luật) và +1 ở trang cá nhân công khai |
+| `npx oxlint` | ✅ 0 lỗi, **21 cảnh báo** — nền 20 + đúng 1 `react(purity)` của mốc `Date.now()`, pattern baseline |
+| `npm run build` | ✅ sạch — `index-yC1k3g2F.js` 307,35 kB (gzip 95,33 kB) |
+
+Một vết môi trường đáng nhớ: lần chạy `StreakStrip.test.js` đầu tiên QUÊN hook đóng vite server
+(nên node:test treo hết timeout) và để lại process mồ côi GIỮ cổng WebSocket 24678 — ba vòng smoke
+sau đó báo "WebSocket server error: Port already in use" như thể product lỗi. Bài học: test treo
+không chỉ tốn thời gian, nó còn để lại xác process làm hỏng cả cổng kiểm thử kế tiếp.
+
+## Phần XI — vòng 21: share card PNG (mục 7, mục CUỐI của bảng kế hoạch)
+
+### XI1. Bài toán: một tấm ảnh chia sẻ được, không thêm dependency
+
+Mục cuối của bảng kế hoạch: cho mỗi người một **tấm card PNG** — tên, avatar, ba con số thật,
+streak + ba mốc 7/30/100 — đúng khổ og:image **1200×630** để dán lên Discord/Telegram/Facebook
+là ra thẻ đẹp. Ba đường đi đã cân nhắc:
+
+- `html2canvas`/chụp DOM: thêm một dependency nặng chỉ để làm ra MỘT tấm ảnh, và ảnh ra phụ
+  thuộc bố cục màn hình đang mở — màn hẹp ra ảnh hẹp, chữ nhỏ mờ theo mật độ pixel thật;
+- server render (Satori/OG service): đúng khổ nhưng cần một service thứ hai, ngoài phạm vi repo;
+- **tự vẽ bằng canvas 2D** (`src/lib/shareCard.js`): không dependency, ảnh LUÔN đúng khổ đúng
+  mật độ chữ kể cả khi người bấm đang xem bằng điện thoại, xuất scale 2 → 2400×1260. Chọn đường này.
+
+### XI2. Hợp đồng của module vẽ — bốn luật khoá bằng code và test
+
+- **Module không tự ráp chữ.** `drawShareCard` nhận nội dung ĐÃ DỊCH (`name, subtitle, stats:[{value,label}],
+  streakLine, milestones, footer, stamp`) — nơi gọi (PublicProfile, App) ghép bằng `t()`. Thêm một ngôn
+  ngữ sau này không phải sờ vào canvas; và `shareCard.test.js` khoá ca "mọi chữ phải có mặt đều được vẽ".
+- **Số trên card là số đang hiển thị.** PublicProfile ghép card từ đúng `profile` (fetchPublicProfile) và
+  `actDays` đang nuôi dải streak; App ghép từ đúng `mineRows`/`myStats`/`myActivity` đang nuôi ô thống kê
+  và dải streak — không có bản tính thứ hai để mà lệch.
+- **Mọi toạ độ hữu hạn.** Test chạy `drawShareCard` trên ctx GIẢ ghi lại từng lời gọi vẽ và khẳng định
+  không một tham số số nào là NaN/Infinity — ảnh tĩnh vẽ lệch là lỗi im lặng nguy hiểm nhất, không có
+  runtime error nào kêu thay. `n()` trong module là lưới an toàn cùng tinh thần `Number.isFinite` của `dayKeys`.
+- **Hỏng thì nói thật.** `makeShareCardBlob` ném mã lỗi rõ (`card-no-dom` / `card-unsupported`); nút bắt lỗi
+  và toast "This browser cannot render the card image", không bao giờ giả vờ "đã lưu". Avatar fetch về
+  **blob rồi mới vẽ** (blob same-origin nên canvas không nhiễm bẩn CORS — `toBlob` trên canvas bẩn ném
+  SecurityError); host không cho CORS thì lùi về vòng chữ cái đầu như giao diện vẫn làm.
+
+### XI3. Ba quyết định nhỏ đáng ghi lại
+
+- **Tem ngày dán lúc BẤM NÚT, không phải lúc render** — luôn là hôm nay giờ VN (`vnDayKey(Date.now())`
+  trong handler), và né luôn một cảnh báo `react(purity)` cho useMemo; tên file `chaereve-<slug>-<ngày>.png`
+  để card hai mùa không đè nhau trong thư mục tải về.
+- **Màu đọc thẳng từ CSS custom property** (`readPalette`, có `DEFAULT_PALETTE` dự phòng khi chạy ngoài
+  trình duyệt) — đổi token thương hiệu một chỗ, card đổi theo.
+- **Smoke chỉ chốt nút CÓ MẶT, không bấm**: canvas trong môi trường smoke là jsdom, `getContext('2d')`
+  vừa trả null vừa ném jsdomError "Not implemented" làm bẩn lượt chạy. Phần vẽ thật đã có test ctx giả lo.
+
+Một lỗi tự bắt trên đường: `myCard` useMemo ban đầu nằm SAU early-return `if (booting) return <Splash />`
+— oxlint `rules-of-hooks` bắt ngay 1 error (nền trước đó 0 error/21 warn). Dời cả `myStats` + `myCard`
+lên trước return; bài học cũ vẫn đúng — hook không được đứng sau bất kỳ nhánh return nào.
+
+### XI4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **431 ca / 430 đạt / 0 lỗi / 1 skip** (vòng 20: 426). Mới: `shareCard.test.js` **5 ca** (wrapLines ngắt tham lam + dữ liệu rỗng/null, slugName bỏ dấu tiếng Việt + filename đúng tem, drawShareCard mọi số hữu hạn + mọi chữ có mặt + drawImage đúng một lần khi có avatar, dữ liệu cụt không nổ, `makeShareCardBlob` ném `card-no-dom` trong node) |
+| `npm run smoke` | ✅ **301/301** (vòng 20: 299): +1 check `.streak-row .card-btn` ở *About me*, +1 `.profile-share-row .card-btn` ở trang cá nhân công khai — chỉ presence, không bấm |
+| `npx oxlint` | ✅ 0 lỗi, **21 cảnh báo** — đúng nền đã chốt ở vòng 20, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-Cc-nX48n.js` 313,56 kB (gzip 97,73 kB) |
+
+Bảng kế hoạch bảy mục — search fix, regression tests, gates, public profile, Season Leaderboard,
+streak/badge, share card — **đủ cả bảy**. Nhắc lại một việc deploy còn nợ từ vòng 20: chạy
+migration `20260921_activity_days.sql` trên Supabase (additive, chạy lại an toàn; chưa chạy thì
+dải streak tự ẩn chứ không nói dối).
+
+## Phần XII — vòng 22: community polish, expiry và rà soát quảng cáo
+
+Vòng này không mở thêm một hệ điểm mơ hồ. Các phần người dùng yêu cầu được ghép vào
+nguồn dữ liệu hiện có: reply dùng `request_comments.parent_id`; GIF đi thẳng qua blob
+không vẽ canvas; Hall of Fame mở preview 30 giây; achievement index chỉ phát badge/title
+cosmetic, không cộng vote ảo; và admin có tab Expired + Start production.
+
+Request chưa được chọn sau một tháng không bị xóa âm thầm ngay từ cron. Cron chỉ đánh dấu
+`expired_at` và báo admin; admin xem lại rồi bấm `admin_expire_request`, lúc đó mới tạo
+notification cho người gửi và xóa row. Đây là chủ ý: không thể hoàn vote hoặc phục hồi một
+request sau một lệnh nền không ai nhìn thấy.
+
+### XII1. Daily Spin + ads: chưa bật
+
+Kế hoạch thưởng vote sau quảng cáo **không được chốt bằng callback phía trình duyệt**.
+Client callback có thể bị tự gọi; Worker phải nhận postback/S2S có chữ ký, lấy user từ
+JWT, giữ nonce/idempotency key, và chỉ cộng trong transaction D1 với unique
+`(user_id, day)`. KV chỉ dùng cache/rate-limit mềm, không dùng chốt một lần.
+
+Monetag/PropellerAds cần xác nhận bằng văn bản rewarded web + incentivized traffic +
+postback cho đúng placement/GEO trước khi thêm SDK. Vì vậy vòng này chỉ thêm tài liệu
+rà soát ở `docs/DAILY-SPIN-ADS.md`, không biến Daily Spin hiện tại thành một lời hứa
+"xem quảng cáo chắc chắn nhận vote".

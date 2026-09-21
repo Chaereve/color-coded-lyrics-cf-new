@@ -360,7 +360,7 @@ export const NOTICE_GROUPS = [
   { id: 'upnext', types: ['picked'] },
   { id: 'denied', types: ['denied'] },
   { id: 'work', types: ['started', 'progress'] },
-  { id: 'out', types: ['done'] },
+  { id: 'out', types: ['done', 'expired'] },
 ]
 
 export function groupNotices(inbox) {

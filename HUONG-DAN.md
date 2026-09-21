@@ -690,6 +690,108 @@ không phải một ghi chú: nó là một dòng `where r.status <> 'denied'` t
 `requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để leo hạng
 là vô ích.
 
+### Mùa giải: All time · This week · This month (vòng 19 — 21/09/2026)
+
+Góc phải thanh tiêu đề của bảng là **một cột điều khiển hai tầng**: tầng trên
+là nhóm ba mùa (*All time · This week · This month*), tầng dưới là **nhóm viên
+thuốc** ba cách sắp xếp vốn có. Hai nhóm dùng chung một họ vỏ (khung pill)
+nhưng khác **đậm/nhạt**: mùa đang chọn nhuộm nền **tím mờ** với chữ sáng
+(`--a-soft`/`--a-2`), cách sắp xếp đang chọn là nền **đặc** với chữ sẫm. Đọc
+một lần là biết nhóm nào đổi phạm vi dữ liệu, nhóm nào đổi cách nhìn. (Lịch
+sử: bản đầu xếp mùa thành một HÀNG RIÊNG cũng kiểu viên thuốc → "bố cục rối";
+bản thứ hai đổi sang tab gạch chân → chữ xám nhỏ + gạch 2px mảnh bị chê
+"khó nhìn", và hai đoạn chú thích dài dưới tiêu đề đẩy cả cụm nút lệch xuống.
+Nay chú thích co lại còn MỘT dòng và thanh tiêu đề căn giữa.)
+
+Chọn *This week* hoặc *This month* thì **toàn bộ số trên bảng bị cắt theo cửa
+sổ đó**, tính theo **giờ Việt Nam**: tuần là **thứ Hai 00:00 → thứ Hai kế
+tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Trên màn hình khi đó
+chỉ còn **đúng một câu luật** ("Sorted by requests completed this period") —
+người dùng đã chốt không in ngày tháng ra làm gì. Khoảng ngày đang tính,
+cách cửa sổ chạy (T2–CN / tháng lịch, giờ VN) và lời thú nhận về cột phiếu
+("votes are lifetime totals…") nằm trong **tooltip của nhóm nút mùa**: hover
+(hold trên cảm ứng) là đọc được đủ cả ba mẩu. Đổi mùa thì bục và bảng **dựng
+lại kèm nhịp đổ xuống** (podIn/rowIn phát lại) để cú bấm có phản hồi; đổi
+cách sắp xếp thì không dựng lại (số tự đếm từ cũ sang mới) — hai cú chuyển,
+hai phản hồi khác nhau.
+
+Luật cắt mùa nằm ở **`src/lib/season.js`** (hàm thuần, nhận `now` làm tham số — test khoá
+được bằng một ngày cố định, không phụ thuộc đồng hồ máy chạy test). Component chỉ hỏi luật,
+giống hệt cách nó hỏi `ranking.js` chuyện sắp xếp. Ba điều phải biết khi sửa:
+
+- **Không có migration nào.** Bảng `requests` không có cột `completed_at`, nên mốc "bài xong
+  lúc nào" dùng luật fallback `completed_at || updated_at || created_at` — cùng luật với khối
+  *Hall of fame*. Nếu sau này thêm cột `completed_at` thật, `season.js` tự dùng nó trước.
+- **Mùa xếp theo số bài XONG trong cửa sổ, không xếp theo số bài gửi** — đúng tinh thần ghi
+  chú C3-14 (bảng "top người gửi tháng" từng bị hoãn vì khuyến khích đua số lượng). Bài gửi
+  ngoài mùa nhưng lên sóng trong mùa **vẫn tính là thành quả của mùa đó**; bài bị từ chối
+  không tính gì; người có gửi mà chưa xong bài nào vẫn có mặt với `completed = 0`.
+- **Cột phiếu của bảng mùa là phiếu CỘNG DỒN của các bài gửi trong mùa** (bảng `votes` không
+  có mốc thời gian theo bài trong dữ liệu tải về, nên không thể đếm "phiếu trong tuần").
+  UI tự thú nhận điều này trong **tooltip của nhóm nút mùa** (vế "votes are lifetime totals…")
+  — đừng xoá nó, và đừng đổi nhãn cột phiếu thành "votes this week": đó sẽ là một lời nói dối.
+  Đặt tooltip ở nhóm nút mùa chứ không ở đầu cột votes vì mùa có ≤3 người thì bảng không dựng,
+  đầu cột không tồn tại — còn nhóm nút mùa thì luôn có mặt.
+
+Mùa chưa có gì thì bảng hiện đúng một câu trả lời thật ("No requests yet this week — the
+season resets every Monday (Vietnam time)") và **vẫn giữ nhóm nút mùa** để luôn có đường về
+*All time*. Mốc "bây giờ" chốt một lần lúc mở bảng — cửa sổ không tự trượt giữa chừng; nửa
+đêm đi qua thì mùa mới là việc của lần mở trang sau.
+
+Kiểm tra luật mùa: `npm test` chạy `src/lib/season.test.js` (10 ca) và 3 ca render trong
+`Leaderboard.test.js`; `npm run smoke` bấm thật ba nút trên `/ranking`.
+
+## Chuỗi ngày hoạt động + badge cột mốc 7/30/100 (vòng 20 — 21/09/2026)
+
+Mỗi ngày có ít nhất một hành động cộng đồng — **gửi request · vote · bình luận · quay spin** —
+thì ngày đó (theo **lịch Việt Nam**) được in một dấu vào bảng `activity_days` bằng trigger
+(migration `20260921_activity_days.sql`). Từ các dấu ngày, `src/lib/streak.js` đếm ba con số:
+chuỗi hiện tại, chuỗi dài nhất, và các mốc **7 / 30 / 100** đã mở.
+
+Dải streak hiện ở **hai nơi** (chủ dự án chốt): khối *About me* của chính bạn và **trang cá nhân
+công khai** của mỗi người — cột mốc là thứ cộng đồng nhìn thấy nhau. Trên dải: ngọn lửa (tooltip
+chở luật đếm), số chuỗi hiện tại, chuỗi dài nhất, rồi ba badge — badge **mờ** là mốc chưa đạt,
+**sáng cam** là đã mở (tooltip từng badge nói "Unlocked: …" hay còn thiếu bao xa).
+
+Ba luật phải nhớ khi sửa:
+
+- **Sáng sớm chưa hoạt động không làm đứt chuỗi.** Chuỗi chỉ chết khi một ngày TRỌN trôi qua
+  không dấu nào; nên lúc 9 giờ sáng dải vẫn đếm chuỗi hôm qua.
+- **Badge bám chuỗi DÀI NHẤT, không bám chuỗi hiện tại** — mốc đã mở là thành tích, nghỉ một
+  tuần quay lại không mất huy hiệu (nhưng số chuỗi hiện tại thì nói thật là đã về 0).
+- **Không đọc được nguồn thì dải TỰ ẨN** (`fetchActivityDays` trả `null`), khác với mảng rỗng
+  là sự thật "chưa có ngày hoạt động nào" và hiện câu khuyên bắt đầu chuỗi. Project chưa chạy
+  migration thì không ai thấy dải chứ không thấy một dải nói dối.
+
+Chế độ demo gương đúng bốn trigger: dấu ngày gom từ ngày gửi request, ngày bình luận và ngày
+quay spin đã lưu trên máy. Kiểm tra: `npm test` (streak.test.js 7 ca + StreakStrip.test.js 3 ca,
+kể cả ca khoá migration + schema.sql phải có đủ bốn trigger) và `npm run smoke` (3 check ở hai
+trang).
+
+## Thẻ chia sẻ PNG — nút Save card (vòng 21 — 21/09/2026)
+
+Nút **Save card** nằm cạnh nút *Share profile* (trang cá nhân công khai) và cạnh dải streak
+(khối *About me*). Bấm vào là tải về một tấm ảnh **1200×630** (xuất 2× → 2400×1260 nên chữ
+nhỏ vẫn sắc khi phóng to) — đúng khổ og:image, dán lên Discord/Telegram/Facebook ra thẻ đẹp:
+avatar, tên, ba con số thật (bài gửi · bài xong · phiếu nhận), câu streak + ba mốc 7/30/100,
+chân trang và tem ngày theo giờ Việt Nam. Tên file mang tem ngày
+(`chaereve-alice-nguyen-2026-09-22.png`) nên card hai mùa không đè nhau trong thư mục tải về.
+
+Card được **vẽ tay bằng canvas** (`src/lib/shareCard.js`, không thêm thư viện nào), màu đọc
+thẳng từ token CSS — đổi thương hiệu một chỗ, card đổi theo. **Số trên ảnh là số đang hiện trên
+trang**: component nơi đặt nút ghép nội dung đã dịch rồi truyền xuống canvas, card là một cách
+nhìn khác của cùng nguồn dữ liệu, không phải bản sao tự tính lại.
+
+Hai chỗ nói thật: **avatar fetch trượt thì lùi về vòng chữ cái đầu** (ảnh được tải về blob
+trước khi vẽ để canvas không nhiễm bẩn CORS; host không cho thì lùi, không ra ảnh trắng);
+**trình duyệt không vẽ được canvas** thì toast nói "This browser cannot render the card image"
+chứ không giả vờ "đã lưu".
+
+Kiểm tra: `npm test` (shareCard.test.js 5 ca — ngắt dòng theo hàm đo giả, slug/filename bỏ dấu
+tiếng Việt, mọi toạ độ vẽ hữu hạn, mọi chữ phải có mặt đều được vẽ, ném đúng mã lỗi khi không
+có DOM) và `npm run smoke` (2 check nút có mặt ở hai trang — smoke KHÔNG bấm nút vì canvas của
+jsdom ném "Not implemented" làm bẩn lượt chạy).
+
 ## Theo dõi bài + thông báo (Notifications)
 
 **Bấm chuông ở góc trên phải là bảng thông báo mở ra tại chỗ** — kiểu Facebook /
@@ -3079,3 +3181,129 @@ deploy:
 - Bật *giảm chuyển động* trong hệ điều hành rồi tải lại: nội dung phải hiện **ngay**,
   không có hàng nào đứng im ở trạng thái trong suốt (đây chính là khe hở
   `animation-delay` đã nhắc ở trên).
+
+---
+
+## Trang cá nhân công khai, bình luận, và cách đi lại trong app (vòng 18 — 21/09/2026)
+
+### Trang cá nhân công khai
+
+Mở bằng cách bấm vào **tên người gửi** trên một hàng request, hoặc **tên tác giả** của một bình
+luận. Địa chỉ là `/?profile=<user-id>` — dạng **tham số**, không phải `/u/<id>`: host tĩnh chỉ
+phục vụ `index.html` cho đúng `/` (xem `public/_redirects`), nên một link `/u/…` dán ra ngoài là
+404. App vẫn **đọc** được `/u/<id>` cho những link cũ đã lỡ dán.
+
+| Hiện | Không hiện |
+|---|---|
+| Ảnh đại diện (hoặc chữ cái đầu của tên), tên | Email |
+| Ba ô số: **Requests** · **Completed** · **Votes received** | Số dư vote / bonus |
+| Huy hiệu: *First request* (≥1 bài) · *First completion* (≥1 bài xong) · *10 votes earned* | Đơn hàng, lịch sử vote từng dòng |
+| **Recent requests**: 8 bài mới nhất, mỗi bài là một link về bảng | Bài đang **chờ duyệt** (`pending`) và bài **bị từ chối** (`denied`) — RLS cho đọc cả bảng `requests`, nên lọc hai trạng thái đó là việc của `fetchPublicProfile` |
+
+Hai điều cần nhớ khi sửa chỗ này:
+
+1. **"Votes received", không phải "Votes given".** Con số là tổng phiếu mà các bài của người đó
+   **nhận được**. Phiếu họ đi bỏ cho người khác không đọc được: RLS của `votes` là *read own
+   votes*, người lạ hỏi là nhận về rỗng. Muốn đổi nhãn thì đổi luôn phép tính, đừng đổi một mình
+   nhãn.
+2. **Nút *Share profile* dựng URL từ `userId`**, không lấy `window.location.href` — trong iframe
+   bị sandbox (bản xem trước của nền tảng) địa chỉ trên thanh có thể vẫn là địa chỉ của bảng, và
+   copy ra sẽ là link sai.
+
+Bấm một bài trong *Recent requests* (hoặc một thẻ trong *This week*) thì bảng lọc sẵn bài đó **và
+cuộn xuống tận thanh lọc + danh sách kết quả** — không cuộn lên đầu trang, vì trên danh sách còn
+bốn ô thống kê, video của kênh, *This week*, *Hall of Fame* và *Up next*: cuộn lên đầu là bỏ người
+bấm ở cách kết quả cả một màn hình. Đích cuộn là thanh lọc chứ không phải danh sách, để còn thấy
+được từ khoá vừa đặt và dòng *"đang xem n/mục"*.
+
+*Back to board* trả về **đúng chỗ vừa rời đi**: cả địa chỉ lẫn mục đang đứng (mở trang cá nhân từ
+*Của tôi* thì quay về *Của tôi*, không bị đẩy ra bảng). Bộ lọc của bảng không bị đụng tới trong
+lúc trang cá nhân mở, nên quay về là thấy đúng danh sách cũ.
+
+### Bình luận trên một request
+
+Nút **Comments** nằm ở cuối mỗi hàng. Mở ra là khung nội tuyến (không phải hộp thoại), nên vừa
+đọc bình luận vừa thấy hàng đó.
+
+- Khách bấm vào ô nhập thì **LoginGate** mở (đúng luồng "xem được, làm thì phải đăng nhập");
+- 1–180 ký tự, nút gửi tự khoá khi rỗng; lỗi hiện ngay trong khung + một toast;
+- Người viết xoá được bình luận của **mình** (icon × ở góc phải cùng hàng); admin xoá được bất kỳ
+  bình luận nào — cả hai đều là policy RLS, không phải chỉ ẩn nút trên giao diện;
+- xoá là **xoá mềm** (`deleted_at`), nên về sau còn làm được mục kiểm duyệt;
+- đọc tối đa 20 bình luận mới nhất cho mỗi request;
+- chế độ demo (chưa nối Supabase) lưu bình luận vào `localStorage`: đóng/mở khung, tải lại trang
+  vẫn còn.
+
+### Tìm kiếm trên bảng: so THEO TỪ
+
+`searchHit()` trong `src/lib/board.js` là chỗ duy nhất định nghĩa phép tìm: bỏ dấu tiếng Việt
+(kể cả chữ **đ**), hạ chữ thường, gom khoảng trắng thừa, bỏ những từ chỉ có dấu câu, rồi đòi
+**mỗi từ** xuất hiện đâu đó trong `nghệ sĩ + tên bài + loại bài + người gửi`.
+
+Hệ quả mà người dùng thấy: `Pop Off LE SSERAFIM`, `LE SSERAFIM Pop Off`, `pop off`, và
+`Pop Off - LE SSERAFIM` (dán từ tiêu đề video) đều ra **cùng một bài**. Bản cũ so cả cụm bằng một
+phép `includes`, nên chỉ cách gõ đúng thứ tự cột của CSDL là có kết quả — và mọi link trong app
+thì dựng theo thứ tự ngược lại.
+
+Ô tìm của **bảng Admin** dùng `allTermsIn()` của cùng file đó (chuỗi dò khác: admin dò thêm ghi
+chú và trạng thái), nên hai màn hình không thể trả lời khác nhau cho cùng một từ khoá.
+`q` vẫn **không** được nhớ giữa các phiên: mở lại web mà danh sách tự dưng rỗng vì một từ khoá
+cũ là kiểu bực mình không ai gọi được tên.
+
+### Quy tắc cho người sửa sau: thêm một link nội bộ
+
+Mọi link trỏ vào chính app (trang cá nhân, một bài trên bảng) phải đi qua **hai cửa**:
+
+```jsx
+import { profileUrl, boardSearchUrl } from '../lib/history'   // DỰNG địa chỉ
+import { useNav, spaLink } from '../lib/nav.js'                // ĐI trong app
+
+const nav = useNav()
+<a className="requester-link" href={profileUrl(r.user_id)}
+   onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a>
+```
+
+Bốn điều không được làm, và lý do:
+
+| Đừng | Vì sao |
+|---|---|
+| Tự gọi `window.history.pushState` | Nó **ném** `SecurityError` trong iframe sandbox / `file://` / chế độ riêng tư. `lib/history.js` bọc try/catch cho đúng việc này |
+| Tự phát `PopStateEvent` để "báo app đọc lại" | Nghĩa là đang coi **địa chỉ** là nguồn sự thật. Nay state đổi trước, địa chỉ là bản sao |
+| Tự ghép chuỗi `?profile=` / `?f=top&q=` | Năm chỗ từng ghép năm kiểu, và một trong số đó dùng `f=top` — là cách nhìn **loại** bài đã xong/đã vào dây chuyền, nên link tới một bài đang làm là link chết |
+| Bỏ `href` | Middle-click, "mở trong tab mới", copy link, và trình đọc màn hình đều cần nó; `spaLink` trả về `undefined` khi không có đường SPA để cú bấm đi theo href thật |
+
+`profileNav.test.js` giữ cả bốn điều trên bằng hợp đồng trên mã nguồn: làm sai là `npm test` đỏ.
+
+### Kiểm tra lại bằng gì
+
+```bash
+npm test        # 414 ca — có 10 ca season.test.js, 15 ca profileNav.test.js, 11 ca searchHit/filterBoard
+npm run smoke   # 296 mục — mục 10d đi bằng đường bấm thật, mục Xếp hạng bấm cả ba nút mùa
+```
+
+Muốn soi bằng mắt: mở bảng → bấm tên người gửi → trang cá nhân → bấm một bài **đã completed**
+trong *Recent requests* → bảng phải hiện đúng bài đó với ô tìm đã điền sẵn, **và trang phải cuộn
+xuống tới thanh lọc** chứ không nhảy lên đầu trang. Lặp lại sau khi tự bật một chip lọc (Queue +
+một loại bài): bài đó **vẫn** phải hiện.
+
+## Các bổ sung cộng đồng (vòng 22 — 21/09/2026)
+
+- **Tên bài trong form** gợi ý `e.g. LEMONADE`. Dò bài trùng chỉ là lời nhắc; nếu
+  người dùng đi tiếp bằng Enter thì vẫn phải đi qua màn chọn *paid request* — không
+  được gửi ngầm từ bước nhập tên.
+- **GIF avatar** được giữ nguyên file GIF, không qua canvas crop (crop canvas chỉ
+  giữ frame đầu). JPG/PNG vẫn dùng cropper như trước; giới hạn file vẫn áp dụng.
+- **Comments** có reply một cấp. Reply lưu `request_comments.parent_id`, nên tải lại
+  trang vẫn giữ quan hệ; xóa comment gốc cũng dọn reply con theo cascade.
+- **Hall of Fame** mở popup YouTube với `start=0&end=30`, thay vì đá người xem sang
+  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup.
+- **Achievement index** ở About me luôn liệt kê cả mốc đã đạt và chưa đạt: streak
+  7/30/100, request đầu tiên, completion đầu tiên, top 10 và podium. Phần thưởng là
+  badge/title hiển thị; không có vote weight ẩn.
+- **Request quá hạn**: migration `20260921_replies_request_expiry.sql` thêm cron queue
+  các request pending/queued đã quá một tháng mà chưa được chọn, báo admin; admin phải
+  bấm `Expire and delete`, sau đó người gửi nhận tin request đã hết hạn và bị xóa.
+  Nếu project chưa bật `pg_cron`, chạy `select public.queue_expired_requests()` bằng
+  Worker schedule hoặc SQL Editor.
+- Admin có thêm tab **Expired** và nút **Start production** để chuyển request queued
+  sang `in_progress` (gom cùng bài theo luật cũ).

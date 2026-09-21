@@ -7,8 +7,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { boardItems, creditText, findDuplicate, fold, groupIds, groupKey, groupRows, parseRequestPrefill,
-  pickBoardParam, sortGroups, sortRows, splitSong, voteTotals } from './board.js'
+import { allTermsIn, boardItems, chainRows, creditText, filterBoard, findDuplicate, fold, groupIds,
+  groupKey, groupRows, parseRequestPrefill, pickBoardParam, searchHit, searchTerms, sortGroups,
+  sortRows, splitSong, STAGES, voteTotals } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -330,12 +331,171 @@ test('fold: gõ không dấu vẫn ra bài có dấu, và ngược lại', () =>
 
 test('bỏ dấu: chỉ MỘT chỗ định nghĩa, không bản sao thứ hai', () => {
   /* Panel admin từng có `norm()` riêng không xử lý được "đ", nên cùng một từ
-     khoá cho hai kết quả khác nhau ở hai màn hình. */
-  for (const f of ['../App.jsx', '../components/AdminPanel.jsx']) {
+     khoá cho hai kết quả khác nhau ở hai màn hình. Nay cả hai màn hình đi qua
+     lib/board.js: bảng công khai dùng `searchHit`, admin dùng `allTermsIn`
+     (chuỗi dò khác nhau vì admin dò cả ghi chú, còn phép bỏ dấu là MỘT). */
+  for (const [f, uses] of [['../App.jsx', /\bfilterBoard\(/], ['../components/AdminPanel.jsx', /\ballTermsIn\(/]]) {
     const src = readFileSync(new URL(f, import.meta.url), 'utf8')
-    assert.doesNotMatch(src, /normalize\('NFD'\)/, `${f} tự chuẩn hoá lại — phải dùng fold()`)
-    assert.match(src, /\bfold\(/, `${f} phải lọc bằng fold()`)
+    assert.doesNotMatch(src, /normalize\('NFD'\)/, `${f} tự chuẩn hoá lại — phải dùng hàm của lib/board.js`)
+    /* `.includes(fold(...))` là dấu hiệu của bản cũ: ghép chuỗi rồi so CẢ cụm,
+       nên thứ tự các cột quyết định kết quả tìm (xem test ngay dưới đây). */
+    assert.doesNotMatch(src, /\.includes\(fold\(/, `${f} tự ghép chuỗi để dò — phải qua filterBoard/allTermsIn`)
+    assert.match(src, uses, `${f} phải lọc bằng hàm dùng chung`)
   }
+  /* App.jsx nay KHÔNG tự bỏ dấu ở đâu cả: việc lọc nằm trong filterBoard. */
+  assert.doesNotMatch(readFileSync(new URL('../App.jsx', import.meta.url), 'utf8'), /\bfold\(/,
+    'App.jsx không được tự lọc/bỏ dấu — khối đó nằm trong lib/board.js')
+  const boardSrc = readFileSync(new URL('./board.js', import.meta.url), 'utf8')
+  assert.equal((boardSrc.match(/normalize\('NFD'\)/g) || []).length, 1,
+    'fold() chỉ được định nghĩa đúng một lần trong lib/board.js')
+})
+
+/* =========================================================
+   TÌM KIẾM — so theo từ, không so cả chuỗi
+   ---------------------------------------------------------
+   Lỗi thật: mọi đường link vào bảng (thẻ "This week", Recent requests của
+   trang cá nhân) dựng từ khoá `tên bài + nghệ sĩ`, còn chuỗi để dò của hàng
+   lại là `nghệ sĩ + tên bài + loại + người gửi`. Với MỘT phép `includes` cả
+   cụm thì hai thứ tự đó không bao giờ gặp nhau: bấm vào bài "Pop Off" trong
+   trang cá nhân của người gửi trả về danh sách RỖNG cho chính bài đó.
+   ========================================================= */
+test('tìm kiếm: thứ tự gõ không quyết định kết quả', () => {
+  const row = req('LE SSERAFIM', 'Pop Off', 14, { requester: 'swanlychae' })
+  /* Đúng ca chủ dự án báo: từ khoá dựng theo "tên bài trước". */
+  assert.equal(searchHit(row, 'Pop Off LE SSERAFIM'), true)
+  assert.equal(searchHit(row, 'LE SSERAFIM Pop Off'), true)
+  /* Vẫn dò được từng vế riêng, và dò cả loại bài lẫn người gửi. */
+  assert.equal(searchHit(row, 'pop off'), true)
+  assert.equal(searchHit(row, 'swanlychae'), true)
+  assert.equal(searchHit(row, 'color coded'), true)
+  assert.equal(searchHit(row, 'LE SSERAFIM Crazy'), false)
+})
+
+test('tìm kiếm: từ khoá rỗng là "không lọc", hàng rác không làm vỡ phép dò', () => {
+  const row = req('aespa', 'Whiplash', 5)
+  for (const empty of ['', '   ', null, undefined]) {
+    assert.equal(searchHit(row, empty), true, `từ khoá ${JSON.stringify(empty)} không được loại hàng nào`)
+    assert.deepEqual(searchTerms(empty), [])
+  }
+  /* Một dòng null/thiếu trường giữa mảng (payload realtime méo) không được ném
+     lỗi — xem thêm renderGuard.test.js. */
+  for (const bad of [null, undefined, {}, { title: 'Whiplash' }]) {
+    assert.equal(typeof searchHit(bad, 'whiplash'), 'boolean')
+  }
+  assert.equal(searchHit({ title: 'Whiplash' }, 'whiplash'), true)
+  assert.equal(searchHit(null, 'whiplash'), false)
+})
+
+test('tìm kiếm: vẫn bỏ dấu và gom khoảng trắng như fold()', () => {
+  const row = req('Chung Hạ', 'Hoa Hồng', 3)
+  assert.equal(searchHit(row, 'chung ha'), true)
+  assert.equal(searchHit(row, 'CHUNG  HẠ'), true)
+  assert.equal(searchHit(row, 'hoa hong chung ha'), true, 'hai từ ở hai trường khác nhau vẫn khớp')
+})
+
+test('tìm kiếm: admin và bảng công khai trả lời giống nhau cho cùng một từ khoá', () => {
+  /* Admin dò thêm `note`/`status`, nhưng với một từ khoá chỉ có tên bài +
+     nghệ sĩ thì hai màn hình phải ra cùng một kết luận — đây là chỗ đã từng
+     lệch vì hai bản `fold`/`norm` riêng. */
+  const row = req('NewJeans', 'Get Up', 27, { note: 'album xong rồi' })
+  for (const q of ['Get Up NewJeans', 'NewJeans Get Up', 'get up', 'newjeans']) {
+    assert.equal(allTermsIn(`${row.title} ${row.artist} ${row.note}`, q), searchHit(row, q),
+      `lệch nhau ở từ khoá "${q}"`)
+  }
+})
+
+/* =========================================================
+   LỌC BẢNG — ca kiểm thử của lỗi "bấm Recent Request mà bảng nói không có kết quả"
+   ---------------------------------------------------------
+   Bốn vế, đúng bốn thứ đã cùng lúc hỏng: từ khoá dựng theo "tên bài trước",
+   `f=top` loại bài đã xong/đã vào dây chuyền, chip giai đoạn còn bật, và chip
+   loại bài còn bật. Mỗi vế là một ca riêng để lần sau hỏng chỗ nào biết ngay
+   chỗ đó.
+   ========================================================= */
+const boardRows = () => {
+  const pop = req('LE SSERAFIM', 'Pop Off', 14)
+  const done = req('NewJeans', 'Get Up', 27, {
+    kind: 'Full Album', status: 'completed', progress: 100, video_url: 'https://youtu.be/x',
+  })
+  const working = req('Stray Kids', 'FARMING', 3, {
+    status: 'in_progress', progress: 47, picked_at: new Date(now - day).toISOString(),
+  })
+  const next = req('TWICE', 'Moonlight Sunrise', 12, {
+    kind: '1 Hour Loop', picked_at: new Date(now - 2 * day).toISOString(),
+  })
+  const pending = req('aespa', 'Whiplash', 0, { status: 'pending' })
+  /* `pub` là thứ App.jsx đưa vào: bài công bố, không pending/denied. */
+  return { pub: [pop, done, working, next], rows: [pop, done, working, next, pending], done, working, pending, pop, next }
+}
+
+test('lọc bảng: link "tên bài + nghệ sĩ" tìm ra bài ĐÃ XONG (đúng ca đã báo lỗi)', () => {
+  const { pub, rows, done } = boardRows()
+  for (const q of ['Get Up NewJeans', 'NewJeans Get Up', 'get up newjeans', 'GET UP   NEWJEANS']) {
+    const out = filterBoard({ pub, rows, filter: 'newest', q })
+    assert.equal(out.length, 1, `từ khoá "${q}" phải ra đúng một bài`)
+    assert.equal(out[0].id, done.id)
+  }
+})
+
+test('lọc bảng: chip giai đoạn còn bật sẽ giấu bài đã xong — nên mở một bài phải XOÁ nó', () => {
+  const { pub, rows } = boardRows()
+  /* Đây chính xác là trạng thái của người dùng trước khi bấm: họ đang xem
+     Queue (chip `Queued` bật), rồi mở trang cá nhân và bấm một bài đã xong. */
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'queued', statusFilters: ['queued'], q: 'Get Up NewJeans' }), [])
+  /* Và sau khi `openSong` dọn bộ lọc thì bài hiện ra. */
+  assert.equal(filterBoard({ pub, rows, filter: 'newest', statusFilters: [], q: 'Get Up NewJeans' }).length, 1)
+})
+
+test('lọc bảng: chip loại bài còn bật cũng giấu bài — cùng một lý do', () => {
+  const { pub, rows } = boardRows()
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'newest', kindFilters: ['Color Coded Lyrics'], q: 'Get Up NewJeans' }), [],
+    'bài đó là Full Album')
+  assert.equal(filterBoard({ pub, rows, filter: 'newest', kindFilters: ['Full Album'], q: 'Get Up NewJeans' }).length, 1)
+  assert.equal(filterBoard({ pub, rows, filter: 'newest', kindFilters: [], q: 'Get Up NewJeans' }).length, 1)
+})
+
+test('lọc bảng: `top` loại bài đã xong và bài đang làm — link tới MỘT BÀI phải dùng `newest`', () => {
+  const { pub, rows, done, working, pop } = boardRows()
+  /* Thẻ "Most voted" bản cũ trỏ vào `?f=top&q=…`: nếu bài nổi nhất tuần đã
+     được chốt hoặc đã xong thì người bấm nhận một trang TRỐNG. */
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'top', q: 'Get Up NewJeans' }), [])
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'top', q: 'FARMING Stray Kids' }), [])
+  assert.equal(filterBoard({ pub, rows, filter: 'newest', q: 'FARMING Stray Kids' })[0].id, working.id)
+  assert.equal(filterBoard({ pub, rows, filter: 'top', q: 'Pop Off LE SSERAFIM' })[0].id, pop.id,
+    'bài còn đang xin phiếu thì `top` vẫn thấy — đó là lý do nó tồn tại')
+  assert.equal(filterBoard({ pub, rows, filter: 'newest', q: 'Get Up' })[0].id, done.id)
+})
+
+test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy cả bài chưa duyệt', () => {
+  const { pub, rows, pending, pop, done, next } = boardRows()
+  const ids = (out) => out.map(r => r.id).sort()
+  assert.deepEqual(
+    ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: ['queued', 'completed'] })),
+    ids([pop, done]),
+    '`queued` là chờ vote chưa được chốt — Moonlight Sunrise đã có picked_at nên không thuộc về nó')
+  assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: [...STAGES] })), ids(pub),
+    'chọn cả bốn giai đoạn thì bằng cả bảng')
+  /* Đang theo dõi một bài chưa duyệt: tab Following lấy từ `rows`, không `pub`. */
+  const watched = new Set([groupKey(pending)])
+  assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'watch', watchedSet: watched })), ids([pending]))
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'watch', watchedSet: new Set() }), [])
+})
+
+test('lọc bảng: dữ liệu rác không ném lỗi, gọi thiếu tham số vẫn chạy', () => {
+  assert.deepEqual(filterBoard(), [])
+  assert.deepEqual(filterBoard({ pub: null, rows: null }), [])
+  assert.deepEqual(filterBoard({ pub: [null, undefined, { status: 'queued' }] , filter: 'newest' }).length, 1,
+    'một dòng null giữa mảng không được làm vỡ bảng')
+  assert.deepEqual(filterBoard({ pub: [{ status: 'queued', title: 'x' }], q: null, filter: 'newest' }).length, 1)
+})
+
+test('chainRows: bài đang chạy lên trước, rồi theo ngày chốt; bài chưa chốt không vào', () => {
+  const { pub, working, next, pop, done } = boardRows()
+  const chain = chainRows(pub)
+  assert.deepEqual(chain.map(r => r.id), [working.id, next.id],
+    'đang làm trước, rồi tới bài chốt sớm hơn; bài chờ vote và bài đã xong không thuộc dây chuyền')
+  assert.equal(chainRows(null).length, 0)
+  assert.ok(!chain.some(r => r.id === pop.id || r.id === done.id))
 })
 
 /* =========================================================

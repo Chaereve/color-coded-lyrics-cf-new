@@ -28,6 +28,7 @@ export default function FollowBtn({ on = false, onToggle }) {
       aria-label={on ? t('row.unfollow') : t('row.follow')}
       onClick={(e) => { e.stopPropagation(); onToggle?.() }}>
       <Icon name={on ? 'bellOn' : 'bell'} size={15} />
+      <span className="sr-only">{on ? t('row.unfollow') : t('row.follow')}</span>
     </button>
   )
 }

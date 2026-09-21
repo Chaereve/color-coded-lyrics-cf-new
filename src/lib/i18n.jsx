@@ -17,8 +17,8 @@ const S = {
      liệu (dải thống kê ngay dưới đã làm việc đó) */
   'nav.boardSub': 'Vote for what gets made next',
   'nav.spinSub': 'Two free spins a day',
-  'nav.mineSub': 'Your details, your requests, your orders',
-  'nav.adminSub': 'Review requests, pick the queue, handle orders',
+  'nav.mineSub': 'Your profile',
+  'nav.adminSub': 'Manage queue & orders',
 
   /* sidebar */
   'side.label': 'Main menu',
@@ -44,6 +44,7 @@ const S = {
   'prof.name': 'Display name',
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
+  'prof.gifReady': 'Animated GIF ready ({kb} KB). Save your profile to keep it moving.',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',
@@ -193,6 +194,8 @@ const S = {
   'nt.tag.started': 'Production',
   'nt.tag.picked': 'Up next',
   'nt.tag.done': 'Out now',
+  'nt.tag.expired': 'Request expired',
+  'nt.n.expired': 'This request expired after one month and was deleted.',
   'nt.tag.denied': 'Denied',
   'nt.tag.progress': 'Progress',
   'nt.tag.votes': 'Votes',
@@ -243,8 +246,8 @@ const S = {
 
   /* chuong da thanh affordance an nen tooltip la thu duy nhat giai thich no:
      noi ro "alert" va pham vi ca bai, khong goi chung la "follow" */
-  'row.follow': 'Get alerts about this song',
-  'row.unfollow': "You'll get alerts about this song — turn off",
+  'row.follow': 'Follow song',
+  'row.unfollow': 'Following — turn off',
   'watch.on': 'We will tell you about {song}.',
   'watch.off': 'Stopped following {song}.',
   'watch.full': 'You follow {n} songs already — drop one first.',
@@ -347,6 +350,95 @@ const S = {
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
+  /* CHUỖI NGÀY HOẠT ĐỘNG + badge 7/30/100 (streak.js / StreakStrip.jsx).
+     Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
+     ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
+  'streak.label': 'Activity streak',
+  'streak.how': 'A day counts when you send a request, vote, comment or use the daily spin (Vietnam time)',
+  'streak.current': '{n}-day streak',
+  'streak.longest': 'longest {n}',
+  'streak.none': 'No active day yet — vote, comment, spin or send a request to start a streak',
+  'streak.unlocked': 'Unlocked: {n}-day streak',
+  'streak.locked': 'Reach a {n}-day streak to unlock',
+  'streak.headerTitle': '{n}-day activity streak',
+  /* achievement index: cosmetic rewards only, never hidden vote weight */
+  'ach.index': 'Achievement index',
+  'ach.reward': 'Reward',
+  'ach.locked': 'Locked',
+  'ach.earned': 'Earned',
+  'ach.streak7': '7-day spark',
+  'ach.streak7Desc': 'Stay active for 7 days',
+  'ach.streak7Reward': '7-day badge',
+  'ach.streak30': '30-day rhythm',
+  'ach.streak30Desc': 'Stay active for 30 days',
+  'ach.streak30Reward': '30-day badge',
+  'ach.streak100': '100-day legend',
+  'ach.streak100Desc': 'Stay active for 100 days',
+  'ach.streak100Reward': '100-day badge',
+  'ach.firstRequest': 'First request',
+  'ach.firstRequestDesc': 'Send your first request',
+  'ach.firstRequestReward': 'Profile badge',
+  'ach.firstCompletion': 'First completion',
+  'ach.firstCompletionDesc': 'Have one request completed',
+  'ach.firstCompletionReward': 'Completion badge',
+  'ach.top10': 'Top 10',
+  'ach.top10Desc': 'Finish in the all-time top 10',
+  'ach.top10Reward': 'Top 10 title',
+  'ach.podium': 'Podium',
+  'ach.podiumDesc': 'Finish in the all-time top 3',
+  'ach.podiumReward': 'Podium badge',
+  /* SHARE CARD PNG (shareCard.js): chữ trên ẢNH cũng qua từ điển như chữ
+     trên màn hình — component ghép sẵn rồi truyền xuống canvas. */
+  'card.save': 'Save card',
+  'card.busy': 'Making card…',
+  'card.tip': 'Download a shareable PNG card of these stats',
+  'card.saved': 'Card saved as PNG',
+  'card.unsupported': 'This browser cannot render the card image',
+  'card.subtitle': 'Chaereve community member',
+  'card.footer': 'chaereve · color coded lyrics request board',
+  'comment.reply': 'Reply',
+  'comment.cancel': 'Cancel',
+  'comment.replying': 'Replying to {name}',
+  'comment.replyPh': 'Write a reply…',
+  'comment.empty': 'No comments yet.',
+  'comment.signIn': 'Sign in to comment',
+  'comment.post': 'Post comment',
+  'comment.title': 'Comments',
+  'comment.write': 'Write a comment…',
+  'comment.remove': 'Remove comment',
+  'comment.posted': 'Your comment is now visible.',
+  'comment.removed': 'Your comment was removed.',
+  'comment.failed': 'Could not load or post comment.',
+  'preview.close': 'Close preview',
+  'preview.thirty': '30-second preview',
+  'preview.open': 'Open full video on YouTube',
+  'expiry.label': 'Expired',
+  'expiry.delete': 'Expire and delete',
+  /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
+     in ra kèm nhãn: "tuần này" là từ mơ hồ nếu không nói tuần nào. */
+  'rank.periodLabel': 'Choose season period',
+  'rank.period.all': 'All time',
+  'rank.period.week': 'This week',
+  'rank.period.month': 'This month',
+  'rank.range': '{from} – {to}',
+  /* Chi tiết cửa sổ (tuần T2–CN, tháng lịch, giờ VN) KHÔNG in thường trực:
+     nó là chú thích một-lần-đọc, in mãi thành nhiễu và đẩy cụm nút lệch hàng
+     (người dùng đã chê "chú thích dài làm bố cục nút bị lệch xuống"). Nó sống
+     trong tooltip của con tem khoảng ngày — cần thì hover/hold để đọc. */
+  'rank.rangeTip': 'Week runs Mon–Sun, month is the calendar month · Vietnam time (UTC+7)',
+  /* Câu luật của bảng mùa: MỘT vế ngắn, nói rõ con số bị cắt theo cửa sổ, cùng
+     khoá chính với ba cách xếp — không một con số tự đặt nào. */
+  'rank.periodRule.total': 'Sorted by requests sent this period',
+  'rank.periodRule.completed': 'Sorted by requests completed this period',
+  'rank.periodRule.total_votes': 'Sorted by votes earned this period',
+  /* Bảng votes không có mốc thời gian theo bài, nên cột phiếu của bảng mùa là
+     phiếu CỘNG DỒN của bài gửi trong mùa — nói thật còn hơn để người xem tự
+     hiểu nhầm là "phiếu nhận trong tuần". Rút còn một vế inline (ngăn bằng
+     chấm mờ trong câu luật): ý phải giữ trọn, chữ không được chiếm cả hàng. */
+  'rank.votesNote': 'Votes are lifetime totals for requests sent this period',
+  'rank.emptyPeriod.all': 'No data yet.',
+  'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
+  'rank.emptyPeriod.month': 'No requests yet this month.',
 
   /* request cua toi */
   'mine.title': 'My requests',
@@ -407,7 +499,7 @@ const S = {
   'req.kindHint.loop': 'One song looping for an hour',
   'req.kindHint.short': 'Vertical cut for Shorts',
   'req.artistPh': 'e.g. aespa',
-  'req.titlePh': 'Song, or album name',
+  'req.titlePh': 'e.g. LEMONADE',
   'req.notePh': 'Anything the editor should know',
   'req.noteHint': 'Optional. Up to 500 characters.',
   'req.warnLink': 'That does not look like a full link — it should start with http.',
@@ -566,6 +658,9 @@ const S = {
   'adm.videoPh': 'Finished video link (YouTube)',
   'adm.saveDone': 'Save and complete',
   'adm.backToQueue': 'Back to queue',
+  'adm.start': 'Start production',
+  'adm.expired': 'Expired',
+  'adm.expiredBody': 'Requests not picked within one month appear here for review.',
   'adm.pick': 'Pick for Up next',
   'adm.unpick': 'Remove from Up next',
   'adm.picked': 'Up next',
@@ -674,6 +769,8 @@ const S = {
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',
+  'err.commentInvalid': 'Comment must be between 1 and 180 characters.',
+  'err.expiryLocked': 'This request is already in production and cannot expire.',
   'err.voteClosed': 'Voting is closed for this request.',
   'err.needFields': 'Artist and title are required.',
   'err.notOwner': 'You can only delete your own request.',
@@ -695,7 +792,7 @@ const S = {
   'err.nameShort': 'Name needs at least 2 characters.',
   'err.avatarType': 'That file is not an image.',
   'err.avatarBig': 'That image is too large.',
-  'err.avatarRead': 'Could not read that image. Use a JPG or PNG.',
+  'err.avatarRead': 'Could not read that image. Use a JPG, PNG or GIF.',
   'err.avatarUpload': 'Upload failed. Try again.',
   'err.notVoted': 'You have not cast that many votes here.',
   'err.voteQty': 'Enter a number between 1 and 100.',

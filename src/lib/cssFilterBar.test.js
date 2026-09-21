@@ -123,7 +123,12 @@ test('loại bài đang lọc hiện thành chip bỏ được — chỉ trên m
   assert.match(app, /className="fchip fkind on onkind"/, "thiếu chip loại bài đang lọc")
   assert.match(app, /kindFilter !== 'all' && \(/, 'chip chỉ hiện khi ĐANG lọc theo loại bài')
   assert.match(app, /board\.clearKind/, 'chip phải có nhãn đọc được, không chỉ một dấu ×')
-  assert.match(app, /onClick=\{\(\) => setKindFilter\('all'\)\}/, 'bấm chip là bỏ lọc đó')
+  /* Bấm chip là bỏ lọc THẬT. `kindFilters` (chọn nhiều) mới là thứ lọc danh
+     sách; `kindFilter` chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ `?k=` và
+     cho bộ lọc đã lưu. Bản cũ chỉ đặt lại bản sao, nên chip biến mất mà danh
+     sách vẫn thiếu bài — đúng kiểu "không hiểu vì sao không thấy bài". */
+  assert.match(app, /onClick=\{\(\) => \{ setKindFilters\(\[\]\); setKindFilter\('all'\) \}\}/,
+    'bấm chip phải dọn cả bộ lọc nhiều-chọn, không chỉ bản sao một lựa chọn')
   const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
   assert.match(mq, /\.fchip\.onkind \{ display: inline-flex/, 'máy hẹp phải thấy chip này')
   assert.match(css, /@media \(min-width: 621px\) \{ \.fchip\.onkind \{ display: none; \} \}/,

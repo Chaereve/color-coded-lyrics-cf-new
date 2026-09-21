@@ -5,6 +5,7 @@ import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
+import { vnDayKey } from './season.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -231,7 +232,134 @@ export async function signOut() {
   } catch { /* ignore */ }
 }
 
+/* ===================== TRANG CÁ NHÂN CÔNG KHAI =====================
+   Ba quy tắc, và cả ba đều là lỗi đã gặp thật:
+
+   1. CHỈ những hàng người ngoài được thấy trên bảng. RLS cho đọc CẢ bảng
+      `requests` (`using (true)`), nên lọc `pending`/`denied` là việc của chỗ
+      này: một bài chưa duyệt thì người lạ chưa được biết tên, và bài bị từ
+      chối là chuyện riêng của người gửi.
+   2. `recent` phải mang ĐỦ cột để dựng link. Bản cũ chọn đúng `status, votes`
+      nên `recent` không có `title`/`artist`/`id`: UI dựng ra
+      `?f=newest&q=` RỖNG và `key` của cả tám hàng trùng nhau. Ở chế độ demo
+      lỗi này không lộ (hàng mẫu có đủ mọi cột) — nó chỉ hiện trên bản deploy,
+      tức là đúng chỗ không ai bấm thử.
+   3. Con số `votes` là TỔNG PHIẾU MÀ CÁC BÀI CỦA NGƯỜI ĐÓ NHẬN ĐƯỢC. Số phiếu
+      họ ĐI BỎ cho người khác không đọc được ở đây: RLS của `votes` là
+      "read own votes", người lạ hỏi là nhận về rỗng. Nhãn trên UI phải nói
+      đúng điều đó ("Votes received") — một con số đúng với một cái nhãn sai thì
+      vẫn là nói dối. */
+export const PUBLIC_RECENT = 8
+
+const publicRequestsOf = (rows) => (rows || [])
+  .filter(r => r && r.status !== 'pending' && r.status !== 'denied')
+  .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+
+const publicProfileShape = (profile, rows) => {
+  const visible = publicRequestsOf(rows)
+  return {
+    ...profile,
+    requests: visible.length,
+    completed: visible.filter(r => r.status === 'completed').length,
+    votes: visible.reduce((n, r) => n + Number(r.votes || 0), 0),
+    recent: visible.slice(0, PUBLIC_RECENT),
+  }
+}
+
+export async function fetchPublicProfile(userId) {
+  if (!userId) return null
+  if (!hasSupabase) {
+    const rows = demoRows().filter(r => r.user_id === userId)
+    return publicProfileShape(
+      { id: userId, name: rows[0]?.requester || 'Demo User', avatar_url: null }, rows)
+  }
+  const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
+    supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
+    /* Hai `.neq` ở đây chỉ để KHÔNG TẢI về những hàng kiểu gì cũng bị bỏ;
+       luật lọc thật nằm trong `publicRequestsOf` để cả hai đường (demo /
+       Supabase) trả lời giống nhau. */
+    supabase.from('requests')
+      .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url')
+      .eq('user_id', userId).neq('status', 'pending').neq('status', 'denied')
+      .order('created_at', { ascending: false }),
+  ])
+  if (pe) throw pe; if (re) throw re; if (!p) return null
+  return publicProfileShape(p, rs)
+}
+
 /* ======================== READ ======================== */
+export async function fetchNotifications(uid) {
+  if (!uid || !hasSupabase) return []
+  const { data, error } = await supabase.from('notifications')
+    .select('id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at')
+    .eq('user_id', uid).order('created_at', { ascending: false }).limit(60)
+  if (error) return []
+  return (data || []).map(n => ({
+    id: `db-${n.id}`, key: n.song_key, type: n.kind, request_id: n.request_id,
+    title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
+    reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
+    read: !!n.read_at, own: true,
+  }))
+}
+
+export async function adminExpireRequest(id) {
+  if (!id) throw appError('err.requestMissing')
+  if (!hasSupabase) {
+    const rows = demoRows()
+    const r = rows.find(x => x.id === id)
+    if (!r) throw appError('err.requestMissing')
+    if (r.picked_at || !['pending', 'queued'].includes(r.status)) throw appError('err.expiryLocked')
+    try {
+      const key = `ccl3_box:${r.user_id}`
+      const old = JSON.parse(localStorage.getItem(key) || '[]')
+      const n = { id: `expiry-${r.id}`, key: groupKey(r), type: 'expired', title: r.title, artist: r.artist,
+        reason: 'This request expired after one month and was deleted.', at: Date.now(), own: true, read: false }
+      localStorage.setItem(key, JSON.stringify([n, ...old].slice(0, 60)))
+    } catch { /* local demo storage may be blocked */ }
+    wr(LS.rows, rows.filter(x => x.id !== id))
+    return
+  }
+  const { error } = await supabase.rpc('admin_expire_request', { p_id: id })
+  if (error) throw rpcError(error)
+}
+
+export async function fetchComments(requestId) {
+  if (!requestId) return []
+  if (!hasSupabase) {
+    try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
+  }
+  const { data, error } = await supabase.from('request_comments')
+    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
+    .eq('request_id', requestId).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return (data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
+}
+
+export async function deleteComment(commentId) {
+  if (!commentId || !hasSupabase) return true
+  const { error } = await supabase.from('request_comments').delete().eq('id', commentId)
+  if (error) throw error
+  return true
+}
+
+export async function addComment(requestId, userId, body, parentId = null) {
+  const clean = String(body || '').trim()
+  if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
+  if (!hasSupabase) {
+    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: 'You' }
+    try {
+      const key = `ccl.comments.${requestId}`
+      const old = JSON.parse(localStorage.getItem(key) || '[]')
+      localStorage.setItem(key, JSON.stringify([next, ...old].slice(0, 20)))
+    } catch { /* storage blocked; current session still receives next */ }
+    return next
+  }
+  const { data, error } = await supabase.from('request_comments').insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean }).select('id, request_id, user_id, parent_id, body, created_at').single()
+  if (error) throw error
+  return { ...data, author: 'You' }
+}
+
 export async function fetchRequests() {
   if (!hasSupabase) return demoRows()
   const { data, error } = await supabase.from('requests').select('*')
@@ -419,6 +547,48 @@ export async function performDailySpin(requestId, userId) {
   })
   if (error) throw spinSetupError(error)
   return validateSpinResult(data, userId, requestId)
+}
+
+/* Dấu ngày hoạt động cho streak (bảng activity_days — migration
+   20260921_activity_days.sql). Trả về MẢNG chuỗi 'YYYY-MM-DD', hoặc NULL khi
+   không đọc được: null và [] khác nhau có chủ ý — [] là "người này chưa có
+   ngày nào" (khối streak hiện trạng thái chưa bắt đầu), còn null là "chưa
+   chạy migration / lỗi mạng" (khối streak ẨN đi, không được nói dối rằng
+   người ta chưa hoạt động ngày nào). */
+export async function fetchActivityDays(userId) {
+  if (!hasSupabase) return demoActivityDays(userId)
+  const { data, error } = await supabase.from('activity_days').select('day')
+    .eq('user_id', userId).order('day', { ascending: false }).limit(400)
+  if (error) return null
+  return (data || []).map((r) => r.day).filter(Boolean)
+}
+
+/* Bản demo gom dấu ngày từ BA nguồn địa phương đúng bằng bốn trigger của
+   database thật: ngày gửi request (demoRows), ngày bình luận (localStorage
+   theo request), ngày quay spin (LS.spins — entry đã mang `day` tính sẵn
+   theo giờ VN). Thiếu nguồn nào thì demo nghèo hơn thật ở nguồn đó, không
+   bịa thêm. */
+function demoActivityDays(userId) {
+  const days = new Set()
+  for (const r of demoRows()) {
+    if ((r.user_id ?? 'demo-user') !== userId) continue
+    const ms = Date.parse(r.created_at)
+    if (Number.isFinite(ms)) days.add(vnDayKey(ms))
+  }
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith('ccl.comments.')) continue
+      for (const c of JSON.parse(localStorage.getItem(k) || '[]')) {
+        if (c?.user_id !== userId) continue
+        const ms = Date.parse(c.created_at)
+        if (Number.isFinite(ms)) days.add(vnDayKey(ms))
+      }
+    }
+  } catch { /* storage bị chặn: demo chỉ còn dấu request + spin */ }
+  for (const e of readData(LS.spins, [])) {
+    if (e?.user_id === userId && typeof e.day === 'string') days.add(e.day)
+  }
+  return [...days]
 }
 
 export async function fetchRanking() {

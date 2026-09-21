@@ -490,7 +490,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
                     /* Enter ở ô tên bài là "xong bước này", không phải "gửi luôn":
                        ở bước 3 còn ô link, ô ghi chú và lựa chọn bài trả phí mà
                        người dùng chưa nhìn thấy. */
-                    if (ready) setStep(3); else artistRef.current?.focus()
+                    if (ready) next(); else artistRef.current?.focus()
                   }}
                   aria-invalid={showErr('title') ? 'true' : undefined}
                   aria-describedby={showErr('title') ? 'err-title' : undefined}
