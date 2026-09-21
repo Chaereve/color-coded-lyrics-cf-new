@@ -3108,6 +3108,12 @@ Hai điều cần nhớ khi sửa chỗ này:
    bị sandbox (bản xem trước của nền tảng) địa chỉ trên thanh có thể vẫn là địa chỉ của bảng, và
    copy ra sẽ là link sai.
 
+Bấm một bài trong *Recent requests* (hoặc một thẻ trong *This week*) thì bảng lọc sẵn bài đó **và
+cuộn xuống tận thanh lọc + danh sách kết quả** — không cuộn lên đầu trang, vì trên danh sách còn
+bốn ô thống kê, video của kênh, *This week*, *Hall of Fame* và *Up next*: cuộn lên đầu là bỏ người
+bấm ở cách kết quả cả một màn hình. Đích cuộn là thanh lọc chứ không phải danh sách, để còn thấy
+được từ khoá vừa đặt và dòng *"đang xem n/mục"*.
+
 *Back to board* trả về **đúng chỗ vừa rời đi**: cả địa chỉ lẫn mục đang đứng (mở trang cá nhân từ
 *Của tôi* thì quay về *Của tôi*, không bị đẩy ra bảng). Bộ lọc của bảng không bị đụng tới trong
 lúc trang cá nhân mở, nên quay về là thấy đúng danh sách cũ.
@@ -3169,10 +3175,11 @@ Bốn điều không được làm, và lý do:
 ### Kiểm tra lại bằng gì
 
 ```bash
-npm test        # 400 ca — có 14 ca của profileNav.test.js và 11 ca searchHit/filterBoard
-npm run smoke   # 287 mục — mục 10d đi bằng đường bấm thật, kể cả trong iframe bị sandbox
+npm test        # 401 ca — có 15 ca của profileNav.test.js và 11 ca searchHit/filterBoard
+npm run smoke   # 289 mục — mục 10d đi bằng đường bấm thật, kể cả trong iframe bị sandbox
 ```
 
 Muốn soi bằng mắt: mở bảng → bấm tên người gửi → trang cá nhân → bấm một bài **đã completed**
-trong *Recent requests* → bảng phải hiện đúng bài đó với ô tìm đã điền sẵn. Lặp lại sau khi tự
-bật một chip lọc (Queue + một loại bài): bài đó **vẫn** phải hiện.
+trong *Recent requests* → bảng phải hiện đúng bài đó với ô tìm đã điền sẵn, **và trang phải cuộn
+xuống tới thanh lọc** chứ không nhảy lên đầu trang. Lặp lại sau khi tự bật một chip lọc (Queue +
+một loại bài): bài đó **vẫn** phải hiện.

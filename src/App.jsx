@@ -519,6 +519,26 @@ function AppInner() {
   const toTop = useCallback(
     () => window.scrollTo({ top: 0, behavior: REDUCED() ? 'auto' : 'smooth' }), [])
 
+  /* Bấm MỘT BÀI (từ trang cá nhân, từ thẻ "This week") là muốn xem kết quả,
+     không phải muốn đọc lại đầu trang: trên danh sách còn bốn ô thống kê, video
+     của kênh, This week, Hall of Fame và Up next — tức là cả một màn hình nữa.
+     "Cuộn lên đầu" ở đó nghĩa là người bấm phải tự kéo xuống và tự hỏi cú bấm
+     có ăn không. Nên cuộn tới THANH LỌC: chỗ đó thấy được từ khoá vừa đặt, dòng
+     "đang xem n/mục", và danh sách nằm ngay bên dưới.
+     Chờ một nhịp (rAF + 60ms) vì danh sách được dựng lại từ bộ lọc vừa đổi —
+     cuộn ngay là cuộn vào cái danh sách CŨ, và `.list` mang `key={filter}` nên
+     đổi cách nhìn là node đó bị thay bằng node khác. */
+  const scrollToList = useCallback(() => {
+    requestAnimationFrame(() => setTimeout(() => {
+      /* Hỏi DOM thay vì giữ ref: hàm này được truyền XUỐNG CÂY (context nav) và
+         được gọi ngay trong lúc render để dựng handler cho thẻ link, nên đọc
+         `ref.current` bên trong nó là đúng thứ React Compiler bắt (`react(refs)`).
+         Gói trong `.board` vì mục "Của tôi" cũng có một `.list` riêng. */
+      const el = document.querySelector('.board .fbar') || document.querySelector('.board .list')
+      el?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'start' })
+    }, 60))
+  }, [])
+
   const openProfile = useCallback((id) => {
     const key = (id ?? '').toString().trim()
     if (!key) return
@@ -565,8 +585,8 @@ function AppInner() {
     setFilter('newest')
     setQ(query)
     pushUrl({ s: 'board' }, boardSearchUrl(song?.title, song?.artist))
-    toTop()
-  }, [toTop])
+    scrollToList()
+  }, [scrollToList])
 
   const nav = useMemo(
     () => ({ openProfile, openSong, closeProfile }),

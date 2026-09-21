@@ -1444,15 +1444,33 @@ where = 'bài trả phí'
     && qa('.public-state').every(e => (e.textContent || '').trim().length > 2),
     qa('.public-state').map(e => e.textContent).join(' | '))
 
+  /* GHI LẠI LỆNH CUỘN: jsdom không cuộn thật (hai hàm này đã bị thay bằng hàm
+     rỗng ở đầu file), nên muốn biết "bấm một bài thì trang cuộn đi đâu" phải tự
+     ghi lại. `scrollIntoView` là cuộn TỚI một phần tử; `window.scrollTo({top:0})`
+     là cuộn lên đầu trang — hai thứ đó cho hai trải nghiệm khác hẳn nhau. */
+  const scrolled = []
+  const realSIV = window.Element.prototype.scrollIntoView
+  const realScrollTo = window.scrollTo
+  window.Element.prototype.scrollIntoView = function (opt) {
+    scrolled.push(`${this.className || this.tagName.toLowerCase()}${opt?.block ? ` (${opt.block})` : ''}`)
+  }
+  window.scrollTo = (opt) => scrolled.push(`window.scrollTo(${JSON.stringify(opt)})`)
+  try {
+
   /* (3) BẤM MỘT BÀI ĐÃ XONG — đúng ca đã báo lỗi */
   await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
   const doneLink = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
   check('trang của demo-user có bài ĐÃ XONG (Get Up) để bấm', !!doneLink,
     qa('.public-request-link').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
   if (doneLink) {
+    scrolled.length = 0
     await click(doneLink)
     check('bấm Recent Request: về bảng và trang cá nhân đóng',
       await waitFor(() => !!q('.list') && !q('.public-profile'), 3000))
+    await tick(240)   // rAF + 60ms của scrollToList
+    check('bấm Recent Request: cuộn XUỐNG thanh lọc kết quả, KHÔNG cuộn lên đầu trang',
+      scrolled.some(c => /fbar/.test(c)) && !scrolled.some(c => c.startsWith('window.scrollTo')),
+      scrolled.join(' | ') || 'không thấy lệnh cuộn nào')
     check('về bảng KHÔNG tải lại trang (không màn chờ)', !splashUp())
     check('ô tìm kiếm mang đúng "tên bài nghệ sĩ"', searched() === 'Get Up NewJeans', `"${searched()}"`)
     check('bảng hiện ĐÚNG bài đó', items().length > 0 && /Get Up/.test(q('.list')?.textContent || ''),
@@ -1498,10 +1516,20 @@ where = 'bài trả phí'
     const name = (weekly.querySelector('b')?.textContent || '').trim()
     check('thẻ This week trỏ về bảng bằng f=newest (không phải f=top)',
       (weekly.getAttribute('href') || '').startsWith('/?f=newest&q='), weekly.getAttribute('href'))
+    scrolled.length = 0
     await click(weekly)
     check('bấm thẻ This week: đi trong app, tìm ra bài, không màn chờ',
       (await waitFor(() => searched().length > 0 && items().length > 0, 3000)) && !splashUp(),
       `q="${searched()}" · số mục=${items().length} · bài trên thẻ="${name}"`)
+    await tick(240)
+    check('bấm thẻ This week: cũng cuộn xuống kết quả',
+      scrolled.some(c => /fbar/.test(c)) && !scrolled.some(c => c.startsWith('window.scrollTo')),
+      scrolled.join(' | ') || 'không thấy lệnh cuộn nào')
+  }
+
+  } finally {
+    window.Element.prototype.scrollIntoView = realSIV
+    window.scrollTo = realScrollTo
   }
 
   /* (6) TÁC GIẢ BÌNH LUẬN CŨNG LÀ MỘT LINK TRANG CÁ NHÂN */

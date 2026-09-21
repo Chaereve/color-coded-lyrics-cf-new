@@ -209,6 +209,28 @@ test('mở một bài từ trang cá nhân phải dọn CẢ HAI bộ lọc nhi�
   assert.match(body, /boardSearchUrl\(/, 'địa chỉ phải dựng bằng hàm dùng chung')
 })
 
+test('mở một bài thì cuộn XUỐNG kết quả, mở trang cá nhân thì cuộn lên đầu', () => {
+  /* Trên bảng yêu cầu, danh sách nằm SAU bốn ô thống kê, video của kênh, This
+     week, Hall of Fame và Up next — tức là cách đầu trang cả một màn hình. Bấm
+     một bài ở trang cá nhân mà trang cuộn LÊN ĐẦU là đưa người bấm tới chỗ chưa
+     có kết quả nào: họ phải tự kéo xuống và tự hỏi cú bấm có ăn không. */
+  const song = app.match(/const openSong = useCallback\(([\s\S]*?)\n  \}, \[/)?.[1]
+  assert.match(song, /scrollToList\(\)/, 'openSong phải cuộn xuống thanh lọc/danh sách')
+  assert.doesNotMatch(song, /toTop\(\)/, 'openSong không được cuộn lên đầu trang')
+  /* Còn mở/đóng trang cá nhân là đổi CẢ trang đang xem → đầu trang là đúng. */
+  for (const fn of ['openProfile', 'closeProfile']) {
+    const body = app.match(new RegExp(`const ${fn} = useCallback\\(([\\s\\S]*?)\\n  \\}, \\[`))?.[1]
+    assert.match(body, /toTop\(\)/, `${fn} phải đưa người xem về đầu trang`)
+  }
+  /* Đích cuộn phải hỏi DOM chứ không giữ ref: hàm này được truyền xuống cây và
+     gọi ngay lúc render để dựng handler, đọc `ref.current` ở đó là `react(refs)`. */
+  const scroll = app.match(/const scrollToList = useCallback\(([\s\S]*?)\n  \}, \[\]\)/)?.[1]
+  assert.ok(scroll, 'không tìm thấy scrollToList')
+  assert.match(scroll, /document\.querySelector\('\.board \.fbar'\)/,
+    'cuộn tới thanh lọc của BẢNG (mục "Của tôi" cũng có một .list riêng)')
+  assert.doesNotMatch(scroll, /Ref\.current/, 'scrollToList không được đọc ref')
+})
+
 test('màn chờ không thể bật lại giữa phiên — đi trong app không bao giờ thấy splash', () => {
   assert.match(app, /const \[booting, setBooting\] = useState\(true\)/)
   assert.doesNotMatch(app, /setBooting\(true\)/,

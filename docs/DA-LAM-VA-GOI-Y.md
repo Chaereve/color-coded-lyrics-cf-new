@@ -1123,14 +1123,48 @@ bài cụ thể. `top` vẫn giữ nguyên nghĩa của nó ở chỗ người d
 | `board.test.js` | đòi App.jsx/AdminPanel.jsx chứa `fold(` | đòi App.jsx dùng `filterBoard(`, AdminPanel dùng `allTermsIn(`, **không** file nào còn `.includes(fold(`, và `normalize('NFD')` chỉ xuất hiện đúng **một** lần trong toàn repo |
 | `cssFilterBar.test.js` | đòi chip bỏ lọc loại bài có `onClick={() => setKindFilter('all')}` | đòi `setKindFilters([]); setKindFilter('all')` — tức là dọn bộ lọc **thật**, không chỉ bản sao |
 
-### V7. Kiểm thử của vòng này
+### V7. Bấm một bài thì trang phải cuộn XUỐNG kết quả
+
+Chủ dự án báo ngay sau lượt sửa trên: *"bấm vào request của người khác, nó chuyển hướng đến chỗ
+search thì phải cuộn xuống chứ sao lại cuộn lên đầu"*. Đúng, và lý do nó sai thì rõ ràng khi nhìn
+lại bố cục của trang bảng:
+
+```
+[bốn ô thống kê] [video của kênh] [This week] [Hall of Fame] [Up next] [thanh lọc] [DANH SÁCH]
+```
+
+`openSong` kế thừa `toTop()` từ `openProfile` — hợp lý khi mở **trang cá nhân** (đó là một trang
+khác, đọc từ đầu), nhưng vô nghĩa khi đi tới **một bài trên bảng**: kết quả nằm dưới năm khối nội
+dung, tức là cách đầu trang cả một màn hình. Người bấm thấy trang nhảy lên đầu, không thấy bài
+đâu, và không biết cú bấm có ăn không — đúng loại lỗi mà tài liệu này gọi là *"tính năng có mà
+không tới được"*.
+
+Nay `openSong` gọi `scrollToList()`: cuộn tới **thanh lọc**, không tới `.list`. Chọn thanh lọc vì ở
+đó thấy được ba thứ cùng lúc — từ khoá vừa đặt trong ô tìm, dòng *"đang xem n/mục"*, và danh sách
+ngay bên dưới; cuộn thẳng vào `.list` thì từ khoá bị đẩy lên trên mép màn hình và người đọc không
+biết mình đang lọc bằng gì.
+
+Hai chi tiết kỹ thuật đáng ghi lại:
+
+| Chi tiết | Vì sao |
+|---|---|
+| Chờ **một nhịp** (`requestAnimationFrame` + 60ms) rồi mới cuộn | Danh sách được dựng lại từ bộ lọc vừa đổi, và `.list` mang `key={filter}` — đổi cách nhìn là node đó bị thay bằng node khác. Cuộn ngay là cuộn vào cái danh sách CŨ (cùng lý do `showAllPicked` và `jumpToSong` đã làm vậy từ trước) |
+| Hỏi `document.querySelector('.board .fbar')` thay vì giữ `ref` | `scrollToList` được truyền **xuống cây** bằng context và được gọi ngay trong lúc render để dựng handler cho thẻ link; đọc `ref.current` trong một hàm như vậy là đúng thứ React Compiler bắt (`react(refs)` — hai cảnh báo hiện lên ngay khi làm bằng ref). Gói trong `.board` vì mục *Của tôi* cũng có một `.list` riêng |
+
+`profileNav.test.js` giữ luật này cho cả ba hàm: `openSong` phải cuộn xuống và **không** được gọi
+`toTop()`; `openProfile`/`closeProfile` thì ngược lại. Còn `npm run smoke` ghi lại lệnh cuộn thật
+(jsdom không cuộn, nên thay `scrollIntoView`/`window.scrollTo` bằng hàm ghi nhận) rồi khẳng định
+bấm *Recent request* và bấm thẻ *This week* đều cuộn tới `.fbar`, không có lệnh `scrollTo({top:0})`
+nào — tức là kiểm bằng **hành vi**, không chỉ bằng chữ trong mã nguồn.
+
+### V8. Kiểm thử của vòng này
 
 | Hạng mục | Kết quả |
 |---|---|
-| `npm test` | ✅ **400 ca / 399 đạt / 0 lỗi / 1 skip** (vòng 17: 375 ca). Mới: `src/lib/profileNav.test.js` **14 ca** (dựng địa chỉ, `spaLink` chạy thật với sự kiện giả, và bảy hợp đồng trên mã nguồn: không ai tự `pushState`, không ai tự ghép chuỗi địa chỉ, mọi link nội bộ là thẻ thật + `spaLink`, trang cá nhân là state, `openSong` dọn cả hai bộ lọc, `setBooting(true)` không tồn tại, câu truy vấn trang cá nhân chọn đủ cột) và **+11 ca** trong `board.test.js` cho `searchHit`/`filterBoard`/`chainRows` |
-| `npm run smoke` | ✅ **287/287 mục đạt** (vòng 17: 249). Mục **10d** mới đi bằng đường bấm thật: bấm tên người gửi → trang cá nhân mở, **không màn chờ**; soi href của từng *Recent request*; bấm bài **đã completed** (Get Up / NewJeans) → bảng hiện đúng bài, ô tìm mang `Get Up NewJeans`, không chip giai đoạn nào còn bật; **bật chip lọc trước rồi mới bấm** (đúng ca đã báo); thẻ *This week*; gửi một bình luận rồi bấm tên tác giả; *Back to board*; và lặp lại tất cả trong **iframe bị sandbox** (`pushState`/`replaceState` ném `SecurityError`) |
+| `npm test` | ✅ **401 ca / 400 đạt / 0 lỗi / 1 skip** (vòng 17: 375 ca). Mới: `src/lib/profileNav.test.js` **15 ca** (dựng địa chỉ, `spaLink` chạy thật với sự kiện giả, và bảy hợp đồng trên mã nguồn: không ai tự `pushState`, không ai tự ghép chuỗi địa chỉ, mọi link nội bộ là thẻ thật + `spaLink`, trang cá nhân là state, `openSong` dọn cả hai bộ lọc, `setBooting(true)` không tồn tại, câu truy vấn trang cá nhân chọn đủ cột) và **+11 ca** trong `board.test.js` cho `searchHit`/`filterBoard`/`chainRows` |
+| `npm run smoke` | ✅ **289/289 mục đạt** (vòng 17: 249). Mục **10d** mới đi bằng đường bấm thật: bấm tên người gửi → trang cá nhân mở, **không màn chờ**; soi href của từng *Recent request*; bấm bài **đã completed** (Get Up / NewJeans) → bảng hiện đúng bài, ô tìm mang `Get Up NewJeans`, không chip giai đoạn nào còn bật; **bật chip lọc trước rồi mới bấm** (đúng ca đã báo); thẻ *This week*; gửi một bình luận rồi bấm tên tác giả; *Back to board*; và lặp lại tất cả trong **iframe bị sandbox** (`pushState`/`replaceState` ném `SecurityError`) |
 | `npx oxlint` | ✅ **0 lỗi, 19 cảnh báo** — nền trước vòng là 21: bớt được hai (`useMemo` thừa dep `kindFilter`, và một `set-state-in-effect` tránh được nhờ gộp "đang tải" vào cùng một state với "tải cho ai") |
-| `npm run build` | ✅ sạch — `index-DwxZpI5J.js` 304,06 kB (gzip 94,38 kB), CSS 131,53 kB |
+| `npm run build` | ✅ sạch — `index-x3-XImIn.js` 304,29 kB (gzip 94,43 kB), CSS 131,53 kB |
 
 **Một chi tiết đáng nhớ về cách viết chú thích trong repo này:** `jsxHtml.test.js` quét THÔ mã
 nguồn `.jsx`, nên chữ `<a>` viết trong một **chú thích** cũng được đếm là một thẻ mở — và vì nó
