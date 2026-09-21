@@ -354,15 +354,21 @@ const S = {
   'rank.period.week': 'This week',
   'rank.period.month': 'This month',
   'rank.range': '{from} – {to}',
-  /* Câu luật của bảng mùa: nói rõ con số bị CẮT theo cửa sổ, cùng khoá chính
-     với ba cách xếp — không một con số tự đặt nào. */
-  'rank.periodRule.total': 'Sorted by requests sent this period (Mon–Sun week / calendar month, Vietnam time)',
-  'rank.periodRule.completed': 'Sorted by requests completed this period (Mon–Sun week / calendar month, Vietnam time)',
-  'rank.periodRule.total_votes': 'Sorted by votes earned by requests sent this period',
+  /* Chi tiết cửa sổ (tuần T2–CN, tháng lịch, giờ VN) KHÔNG in thường trực:
+     nó là chú thích một-lần-đọc, in mãi thành nhiễu và đẩy cụm nút lệch hàng
+     (người dùng đã chê "chú thích dài làm bố cục nút bị lệch xuống"). Nó sống
+     trong tooltip của con tem khoảng ngày — cần thì hover/hold để đọc. */
+  'rank.rangeTip': 'Week runs Mon–Sun, month is the calendar month · Vietnam time (UTC+7)',
+  /* Câu luật của bảng mùa: MỘT vế ngắn, nói rõ con số bị cắt theo cửa sổ, cùng
+     khoá chính với ba cách xếp — không một con số tự đặt nào. */
+  'rank.periodRule.total': 'Sorted by requests sent this period',
+  'rank.periodRule.completed': 'Sorted by requests completed this period',
+  'rank.periodRule.total_votes': 'Sorted by votes earned this period',
   /* Bảng votes không có mốc thời gian theo bài, nên cột phiếu của bảng mùa là
      phiếu CỘNG DỒN của bài gửi trong mùa — nói thật còn hơn để người xem tự
-     hiểu nhầm là "phiếu nhận trong tuần". */
-  'rank.votesNote': 'Votes are lifetime totals for requests sent this period.',
+     hiểu nhầm là "phiếu nhận trong tuần". Rút còn một vế inline (ngăn bằng
+     chấm mờ trong câu luật): ý phải giữ trọn, chữ không được chiếm cả hàng. */
+  'rank.votesNote': 'votes are lifetime totals',
   'rank.emptyPeriod.all': 'No data yet.',
   'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
   'rank.emptyPeriod.month': 'No requests yet this month.',

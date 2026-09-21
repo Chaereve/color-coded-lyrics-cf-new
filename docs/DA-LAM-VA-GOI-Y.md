@@ -1322,3 +1322,52 @@ mùa mang `lb-tab` còn nút xếp thì không, tem khoảng ngày nằm trong c
 viên thuốc nhưng giữ tab mùa) — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi
 20 cảnh báo; build sạch. Toàn bộ selector mà smoke đang dùng (`.lb-periodseg`, `.lb-range`,
 `.lb-votes-note`) sống sót qua cuộc dọn — đổi nước sơn, không đổi hợp đồng.
+
+### W7. Vòng 19+2: "chú thích còn quá dài làm bố cục nút bị lệch xuống; all time/this week/this month chưa đẹp, khó nhìn"
+
+Phản hồi nguyên văn: *"mấy cái chú thích ở leaderboard còn quá dài nên làm bố cục các nút bị
+lệch xuống, với mấy chỗ all time this week this month bạn làm chưa đẹp và khó nhìn quá"*. W6 đã
+gộp ba hàng thành một thanh, nhưng để lại hai di chứng:
+
+**Chữ dài đẩy nút lệch.** `lb-bar` căn ĐÁY (`align-items: flex-end`), cột chữ trái giờ chở tới
+bốn dòng (kicker, tiêu đề, câu luật kèm ngoặc đơn "(Mon–Sun week / calendar month, Vietnam
+time)", đoạn chú thích phiếu riêng). Cột nút bên phải bị kéo tụt xuống đáy theo chữ — đúng hiện
+tượng "lệch xuống" người dùng chỉ ra. Nguyên nhân sâu xa: mình nhét **chú thích một-lần-đọc**
+vào chỗ **hiện thường trực**. Chi tiết "tuần T2–CN, tháng lịch, giờ VN" chỉ cần đọc MỘT lần để
+hiểu con tem; bắt nó chiếm hai dòng trên mọi lần mở trang là bắt cả bảng trả tiền cho một lời
+giải thích.
+
+**Tab gạch chân khó nhìn.** Nước sơn W6 chọn (chữ xám 11.5px + gạch chân 2px màu `--a-2`) có
+độ tương phản quá thấp trên nền panel tối: trạng thái "đang chọn" gần như vô hình, muốn biết
+đang xem tuần hay tháng phải dí mắt vào. Phân biệt bằng HÌNH DÁNG (tab ≠ viên thuốc) là đúng
+ý tưởng nhưng sai cường độ.
+
+Sửa:
+
+| Trước (W6) | Sau (W7) |
+|---|---|
+| Câu luật + ngoặc đơn dài 2 dòng | `rank.periodRule.*` rút còn MỘT vế ("Sorted by requests completed this period"); chi tiết cửa sổ dời vào **tooltip của con tem** (`rank.rangeTip`) |
+| Chú thích phiếu = đoạn văn thứ hai | Vế **inline** trong chính câu luật, ngăn bằng chấm mờ (`::before content:'·'`): "… · votes are lifetime totals" |
+| `lb-bar` căn đáy → chữ dài đẩy nút tụt xuống | `align-items: center`; và khi chữ chỉ còn 3 dòng ngắn thì cột nút tự khắc ngang hàng tiêu đề |
+| Tab gạch chân chữ xám | **Viên nhạt (soft chip)**: cùng họ vỏ pill với nhóm sắp xếp, nhưng trạng thái chọn = nền tím MỜ `--a-soft` + chữ sáng `--a-2` + vòng inset — đối lập ĐẬM/NHẠT với viên thuốc đặc của nhóm xếp, tương phản thấy rõ từ xa |
+
+Quy tắc rút ra cho cả repo, đáng nhớ hơn bản thân cú sửa: **chú thích giải thích luật phải tỉ lệ
+thuận với tần suất người dùng cần nó** — luật đang chạy (một vế ngắn) hiện thường trực; chi
+tiết định nghĩa (cửa sổ tính thế nào, múi giờ nào) vào tooltip; lời thú nhận dữ liệu (phiếu cộng
+dồn) là vế inline chứ không phải đoạn văn. Và trạng thái "đang chọn" của một control phải nhìn
+thấy được **ở khoảng cách đọc bình thường** — nếu phải dí mắt mới biết nút nào sáng, đó là lỗi
+chứ không phải "thiết kế tinh tế".
+
+Nút mùa bỏ luôn class `lb-segb` mượn tạm (W6 mượn để ăn luật mobile): nước sơn khác hẳn thì khai
+luật riêng cho sạch — `.lb-tab` có đủ hover/active/transition của riêng nó, và media 620px khai
+`min-height: 40px` riêng (không mượn thì phải tự khai, quên là mất mục tiêu chạm).
+
+Một lỗi test tự bắt: regex `/class="lb-tab([^"]*)"/` định đếm ba nút mùa nhưng ăn cả VỎ container
+(`class="lb-tabs lb-periodseg"` — tiền tố trùng) thành bốn. Sửa thành `/class="lb-tab( on)?"/`
+neo trọn giá trị class. Bài học cũ của repo đúng lần nữa: regex soi HTML phải neo đến ranh giới
+class, không neo bằng tiền tố.
+
+Kiểm thử: `Leaderboard.test.js` cập nhật ca bố cục (+assert chú thích phiếu là vế inline của câu
+luật, +assert chuỗi "Mon–Sun week" KHÔNG còn in thường trực, +assert tooltip mang "Vietnam
+time") — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke **296/296**; oxlint 0 lỗi 20 cảnh báo; build
+sạch 307,5 kB (gzip 95,6 kB).

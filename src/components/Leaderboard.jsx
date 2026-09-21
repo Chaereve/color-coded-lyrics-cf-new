@@ -76,21 +76,20 @@ function PodiumFace({ p, place, max, sort }) {
   )
 }
 
-/* Núm chọn mùa — TAB GẠCH CHÂN, không phải viên thuốc: trên cùng một thanh
-   điều khiển có hai nhóm nút, và hai nhóm viên thuốc giống hệt nhau chính là
-   thứ làm bố cục cũ đọc như một ma trận nút (người xem không phân biệt được
-   nhóm nào đổi DỮ LIỆU, nhóm nào đổi CÁCH NHÌN). Gạch chân dưới chữ là kiểu
-   vẫn dùng cho "chuyển phạm vi đang xem", còn viên thuốc sáng màu dành riêng
-   cho cách sắp xếp. Class `lb-segb` được GIỮ LẠI để các luật mobile có sẵn
-   (tràn ngang, min-height 40px) tự áp vào, `lb-tab` chỉ đổi nước sơn.
-   Nhãn gọi t() nguyên văn từng key vì từ điển có test khoá chết. */
+/* Núm chọn mùa — nhóm VIÊN NHẠT (soft chip): cùng hình dáng vỏ với nhóm sắp
+   xếp để đọc thành một họ điều khiển, nhưng nút đang chọn chỉ nhuộm nền TÍM
+   MỜ (a-soft) với chữ sáng, trong khi nhóm sắp xếp chọn bằng nền ĐẶC sẫm chữ.
+   Hai mức đậm/nhạt đó là đủ để phân biệt "đổi phạm vi dữ liệu" với "đổi cách
+   nhìn" mà không cần hai hình dáng nút khác nhau — bản tab gạch chân cũ bị
+   chê "khó nhìn" vì chữ xám nhỏ trên nền tối, gạch chân 2px mảnh gần như vô
+   hình. Nhãn gọi t() nguyên văn từng key vì từ điển có test khoá chết. */
 function PeriodSeg({ period, setPeriod }) {
   const { t } = useI18n()
   return (
     <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
-      {PERIODS.map((p, i) => (
-        <button key={p.k} type="button" className={`lb-segb lb-tab${period === p.k ? ' on' : ''}`}
-          style={{ '--i': i }} onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
+      {PERIODS.map((p) => (
+        <button key={p.k} type="button" className={`lb-tab${period === p.k ? ' on' : ''}`}
+          onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
           {p.k === 'all' ? t('rank.period.all') : p.k === 'week' ? t('rank.period.week') : t('rank.period.month')}
         </button>
       ))}
@@ -149,21 +148,25 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         <div className="lb-bar-tx">
           <span className="lb-kicker">{t('rank.kicker')}</span>
           <h2 className="lb-title">{t('rank.title')}</h2>
-          {/* Câu nói rõ luật đang chạy — đang xem mùa nào thì luật nói đúng mùa
-              đó, và khoảng ngày nằm NGAY TRONG câu luật dưới dạng một con tem:
-              "tuần này" không bao giờ là một từ mơ hồ, mà cũng không chiếm
-              riêng một hàng chỉ để in tám ký tự. */}
+          {/* MỘT dòng duy nhất chở cả ba mẩu: câu luật (đang xem mùa nào thì
+              nói đúng mùa đó), con tem khoảng ngày, và lời thú nhận về cột
+              phiếu — ngăn cách bằng chấm mờ. Bản cũ tách thành hai đoạn văn
+              dài, thanh tiêu đề phình ra bốn dòng chữ và ĐẨY CẢ HAI NHÓM NÚT
+              LỆCH XUỐNG dưới đáy thanh (lb-bar căn đáy) — chữ dài không phải
+              là cái cớ để nút mất hàng. Chi tiết dài (tuần T2–CN, giờ VN) dời
+              vào tooltip của con tem: cần thì hover/hold để đọc, không bắt cả
+              bảng gánh nó thường trực. */}
           {!isEmpty && (
             <p className="lb-rule">
               {period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}
-              {range && <span className="lb-range">{t('rank.range', { from: range.from, to: range.to })}</span>}
+              {range && (
+                <span className="lb-range" title={t('rank.rangeTip')}>
+                  {t('rank.range', { from: range.from, to: range.to })}
+                </span>
+              )}
+              {period !== 'all' && <span className="lb-votes-note">{t('rank.votesNote')}</span>}
             </p>
           )}
-          {/* Xem theo mùa thì cột phiếu là phiếu CỘNG DỒN của bài gửi trong mùa
-              (bảng votes không có mốc thời gian theo bài). Chú thích đặt ở cấp
-              BẢNG, ngay dưới câu luật — sự thật về dữ liệu của cả một cột thì
-              không được phép biến mất khi người xem chưa có tên trên bảng. */}
-          {!isEmpty && period !== 'all' && <p className="lb-votes-note">{t('rank.votesNote')}</p>}
         </div>
         <div className="lb-bar-ctl">
           <PeriodSeg period={period} setPeriod={setPeriod} />

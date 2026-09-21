@@ -693,22 +693,26 @@ là vô ích.
 ### Mùa giải: All time · This week · This month (vòng 19 — 21/09/2026)
 
 Góc phải thanh tiêu đề của bảng là **một cột điều khiển hai tầng**: tầng trên
-là **tab gạch chân** ba mùa (*All time · This week · This month*), tầng dưới là
-**nhóm viên thuốc** ba cách sắp xếp vốn có. Hai nước sơn cố tình khác nhau:
-gạch chân dưới chữ = "đổi phạm vi dữ liệu đang xem", viên thuốc sáng màu =
-"đổi cách nhìn trên cùng dữ liệu". (Bản đầu tiên xếp mùa thành một HÀNG RIÊNG
-dưới thanh tiêu đề, cũng kiểu viên thuốc — kết quả là ba đường kẻ ngang chồng
-nhau trước khi thấy bục, và hai nhóm nút giống hệt không đọc được nhóm nào
-làm gì; người dùng báo "bố cục rối" là vì vậy.)
+là nhóm ba mùa (*All time · This week · This month*), tầng dưới là **nhóm viên
+thuốc** ba cách sắp xếp vốn có. Hai nhóm dùng chung một họ vỏ (khung pill)
+nhưng khác **đậm/nhạt**: mùa đang chọn nhuộm nền **tím mờ** với chữ sáng
+(`--a-soft`/`--a-2`), cách sắp xếp đang chọn là nền **đặc** với chữ sẫm. Đọc
+một lần là biết nhóm nào đổi phạm vi dữ liệu, nhóm nào đổi cách nhìn. (Lịch
+sử: bản đầu xếp mùa thành một HÀNG RIÊNG cũng kiểu viên thuốc → "bố cục rối";
+bản thứ hai đổi sang tab gạch chân → chữ xám nhỏ + gạch 2px mảnh bị chê
+"khó nhìn", và hai đoạn chú thích dài dưới tiêu đề đẩy cả cụm nút lệch xuống.
+Nay chú thích co lại còn MỘT dòng và thanh tiêu đề căn giữa.)
 
 Chọn *This week* hoặc *This month* thì **toàn bộ số trên bảng bị cắt theo cửa
 sổ đó**, tính theo **giờ Việt Nam**: tuần là **thứ Hai 00:00 → thứ Hai kế
-tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Khoảng ngày đang tính
-nằm **ngay trong câu luật** dưới dạng một con tem (`22/09 – 28/09`) — "tuần
-này" không bao giờ là một từ mơ hồ, mà cũng không tốn một hàng riêng. Đổi
-mùa thì bục và bảng **dựng lại kèm nhịp đổ xuống** (podIn/rowIn phát lại) để
-cú bấm có phản hồi; đổi cách sắp xếp thì không dựng lại (số tự đếm từ cũ
-sang mới) — hai cú chuyển, hai phản hồi khác nhau.
+tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Câu luật khi đó là MỘT
+dòng chở ba vế: luật xếp ("Sorted by requests completed this period"), con tem
+khoảng ngày (`22/09 – 28/09`, hover/hold để xem tooltip "tuần T2–CN / tháng
+lịch, giờ VN"), và lời thú nhận về cột phiếu ("votes are lifetime totals") —
+ngăn nhau bằng chấm mờ, không vế nào chiếm một hàng riêng. Đổi mùa thì bục
+và bảng **dựng lại kèm nhịp đổ xuống** (podIn/rowIn phát lại) để cú bấm có
+phản hồi; đổi cách sắp xếp thì không dựng lại (số tự đếm từ cũ sang mới) —
+hai cú chuyển, hai phản hồi khác nhau.
 
 Luật cắt mùa nằm ở **`src/lib/season.js`** (hàm thuần, nhận `now` làm tham số — test khoá
 được bằng một ngày cố định, không phụ thuộc đồng hồ máy chạy test). Component chỉ hỏi luật,
@@ -723,11 +727,12 @@ giống hệt cách nó hỏi `ranking.js` chuyện sắp xếp. Ba điều ph�
   không tính gì; người có gửi mà chưa xong bài nào vẫn có mặt với `completed = 0`.
 - **Cột phiếu của bảng mùa là phiếu CỘNG DỒN của các bài gửi trong mùa** (bảng `votes` không
   có mốc thời gian theo bài trong dữ liệu tải về, nên không thể đếm "phiếu trong tuần").
-  UI tự thú nhận điều này bằng dòng chú thích ngay dưới câu luật — đừng xoá nó, và đừng
-  đổi nhãn cột phiếu thành "votes this week": đó sẽ là một lời nói dối.
+  UI tự thú nhận điều này bằng vế "votes are lifetime totals" inline ngay trong câu luật (ngăn
+  bằng chấm mờ) — đừng xoá nó, và đừng đổi nhãn cột phiếu thành "votes this week": đó sẽ là
+  một lời nói dối.
 
 Mùa chưa có gì thì bảng hiện đúng một câu trả lời thật ("No requests yet this week — the
-season resets every Monday (Vietnam time)") và **vẫn giữ tab mùa** để luôn có đường về
+season resets every Monday (Vietnam time)") và **vẫn giữ nhóm nút mùa** để luôn có đường về
 *All time*. Mốc "bây giờ" chốt một lần lúc mở bảng — cửa sổ không tự trượt giữa chừng; nửa
 đêm đi qua thì mùa mới là việc của lần mở trang sau.
 
