@@ -128,8 +128,11 @@ test('mùa giải: bảng tuần cắt số theo cửa sổ, câu luật và kho
   const html = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
     initialPeriod: 'week', now: NOW })
   /* khoảng ngày của tuần phải in ra — "This week" một mình là từ mơ hồ */
-  assert.ok(html.includes('22/09'), 'khoảng ngày phải hiện ngày đầu tuần')
-  assert.ok(html.includes('28/09'), 'khoảng ngày phải hiện ngày cuối tuần')
+  /* khoảng ngày KHÔNG in thường trực nữa (người dùng chốt: câu luật một vế là
+     đủ) — nó sống trong tooltip của nhóm nút mùa */
+  const segTitle = html.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
+  assert.ok(segTitle.includes('22/09') && segTitle.includes('28/09'),
+    `tooltip nhóm mùa phải chở khoảng ngày — được: "${segTitle}"`)
   assert.match(html, /Sorted by requests completed this period/, 'câu luật phải nói rõ là theo mùa')
   /* alice trong tuần: 1 gửi / 1 xong — KHÔNG phải 2/2 của cả thời gian.
      Tuần chỉ có 2 người nên cả hai đều đứng trên BỤC, không có hàng bảng —
@@ -146,8 +149,10 @@ test('mùa giải: bảng tuần cắt số theo cửa sổ, câu luật và kho
   assert.ok(html.includes('bob'), 'người gửi trong tuần nhưng chưa xong vẫn có mặt')
   /* caro (denied) không bao giờ lên bảng */
   assert.ok(!html.includes('>caro<'), 'bài bị từ chối không được tính vào mùa')
-  /* cột phiếu của bảng mùa là phiếu cộng dồn — phải tự thú nhận */
-  assert.ok(html.includes('lifetime totals'), 'phải nói rõ phiếu là cộng dồn, không phải phiếu trong tuần')
+  /* cột phiếu của bảng mùa là phiếu cộng dồn — phải tự thú nhận, nay nằm trong
+     tooltip nhóm mùa (đầu cột votes không tồn tại khi mùa có ≤3 người) */
+  assert.ok(segTitle.includes('lifetime totals'),
+    'tooltip nhóm mùa phải thú nhận phiếu là cộng dồn, không phải phiếu trong tuần')
 })
 
 test('mùa giải: tháng gối đúng cửa sổ, và All time giữ nguyên câu luật cũ', async () => {
@@ -165,6 +170,8 @@ test('mùa giải: tháng gối đúng cửa sổ, và All time giữ nguyên c�
   const all = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'me' })
   assert.ok(all.includes('>Sorted by requests completed</p>'), 'All time (mặc định) giữ đúng câu luật cũ')
   assert.doesNotMatch(all, /lifetime totals/, 'bảng toàn thời gian không cần chú thích phiếu')
+  const allTitle = all.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
+  assert.ok(!/\d{2}\/\d{2}/.test(allTitle), 'All time thì tooltip không chở khoảng ngày nào')
   /* ba nút mùa phải có mặt trên cả hai trạng thái */
   const segs = all.match(/lb-periodseg[\s\S]*?<\/div>/)[0]
   for (const label of ['All time', 'This week', 'This month']) {
@@ -212,16 +219,17 @@ test('một thanh điều khiển duy nhất: viên nhạt cho mùa + viên thu�
   assert.equal(pillBtns.length, 3, 'nhóm sắp xếp có đúng ba nút')
   assert.ok(pillBtns.every((m) => !m[1].includes('lb-tab')),
     'nút sắp xếp KHÔNG được mang lb-tab — hai nhóm phải khác nước sơn')
-  /* câu luật là MỘT dòng chở đủ ba mẩu: luật + tem khoảng ngày + lời thú nhận
-     về cột phiếu. Bản cũ tách chú thích thành đoạn văn riêng dài dằng dặc,
-     thanh tiêu đề phình ra và đẩy cụm nút lệch xuống (người dùng đã chê). */
+  /* câu luật ĐÚNG MỘT VẾ: người dùng chốt "ko cần ghi ngày tháng ra, để mỗi
+     dòng sorted... là đủ". Ngày tháng + chi tiết cửa sổ = tooltip nhóm mùa;
+     lời thú nhận phiếu = tooltip đầu cột votes. Không mẩu chữ thừa nào trên
+     thanh tiêu đề. */
   const rule = html.match(/<p class="lb-rule">[\s\S]*?<\/p>/)[0]
-  assert.ok(rule.includes('lb-range'), 'khoảng ngày phải nằm trong câu luật')
-  assert.ok(rule.includes('22/09') && rule.includes('28/09'))
-  assert.ok(rule.includes('lb-votes-note'), 'chú thích phiếu phải là vế inline của câu luật')
-  assert.ok(!html.includes('Mon–Sun week'), 'chi tiết cửa sổ dài không được in thường trực — nó thuộc tooltip')
-  assert.ok(html.includes('rank.rangeTip') === false && html.includes('Vietnam time'),
-    'tooltip của tem ngày phải mang chi tiết giờ VN')
+  assert.equal(rule.replace(/<\/?p[^>]*>/g, ''), 'Sorted by requests completed this period',
+    'câu luật chỉ còn đúng một vế, không tem ngày, không chú thích kèm')
+  const segTitle = html.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
+  assert.match(segTitle, /\d{2}\/\d{2} – \d{2}\/\d{2}/, 'khoảng ngày sống trong tooltip nhóm mùa')
+  assert.ok(/Vietnam time/.test(segTitle), 'tooltip nhóm mùa mang chi tiết giờ VN')
+  assert.ok(segTitle.includes('lifetime totals'), 'chú thích phiếu sống trong tooltip nhóm mùa')
 })
 
 test('bảng trống: giấu viên thuốc sắp xếp nhưng GIỮ tab mùa để còn đường về All time', async () => {

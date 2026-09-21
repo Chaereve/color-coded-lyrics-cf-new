@@ -539,24 +539,28 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     check('bảng xếp hạng có bộ chọn mùa 3 nút', pbtns.length === 3,
       pbtns.map(b => b.textContent).join(' · ') || 'không thấy .lb-periodseg')
     const ruleAll = q('.lb-rule')?.textContent || ''
-    check('mặc định là All time và không in khoảng ngày',
-      pbtns[0]?.getAttribute('aria-pressed') === 'true' && !q('.lb-range'), ruleAll)
+    /* ngày tháng KHÔNG in thường trực (người dùng chốt) — mặc định tooltip
+       nhóm mùa không chở khoảng ngày nào */
+    check('mặc định là All time: câu luật một vế, tooltip chưa chở khoảng ngày',
+      pbtns[0]?.getAttribute('aria-pressed') === 'true'
+      && !/\d{2}\/\d{2}/.test(pseg?.getAttribute('title') || ''), pseg?.getAttribute('title'))
     if (pbtns.length === 3) {
       await click(pbtns[2])
       await waitFor(() => /this period/i.test(q('.lb-rule')?.textContent || ''), 2000)
-      const rangeTx = q('.lb-range')?.textContent || ''
+      const tip = pseg?.getAttribute('title') || ''
       check('bấm This month: câu luật đổi thành theo mùa',
         /this period/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
-      check('bấm This month: khoảng ngày hiện ra (ngày/tháng – ngày/tháng)',
-        /^\d{2}\/\d{2} – \d{2}\/\d{2}$/.test(rangeTx.trim()), rangeTx)
-      check('đang xem mùa thì phiếu phải tự thú nhận là cộng dồn',
-        !!q('.lb-votes-note'), q('.lb-votes-note')?.textContent)
+      check('bấm This month: khoảng ngày vào tooltip nhóm mùa (dd/mm – dd/mm)',
+        /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(tip), tip)
+      check('đang xem mùa thì phiếu phải tự thú nhận là cộng dồn (trong tooltip)',
+        /lifetime totals/.test(tip), tip)
       check('đổi mùa không điều hướng — vẫn ở /ranking',
         window.location.pathname === '/ranking', window.location.pathname)
       await click(pbtns[0])
       await waitFor(() => (q('.lb-rule')?.textContent || '') === ruleAll, 2000)
-      check('bấm All time: bảng trở về đúng câu luật cũ',
-        (q('.lb-rule')?.textContent || '') === ruleAll && !q('.lb-range'), q('.lb-rule')?.textContent)
+      check('bấm All time: bảng trở về đúng câu luật cũ, tooltip hết khoảng ngày',
+        (q('.lb-rule')?.textContent || '') === ruleAll
+        && !/\d{2}\/\d{2}/.test(pseg?.getAttribute('title') || ''), q('.lb-rule')?.textContent)
     }
   }
   if (name === 'Daily Spin') {

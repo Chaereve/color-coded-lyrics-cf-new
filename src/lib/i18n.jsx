@@ -368,7 +368,7 @@ const S = {
      phiếu CỘNG DỒN của bài gửi trong mùa — nói thật còn hơn để người xem tự
      hiểu nhầm là "phiếu nhận trong tuần". Rút còn một vế inline (ngăn bằng
      chấm mờ trong câu luật): ý phải giữ trọn, chữ không được chiếm cả hàng. */
-  'rank.votesNote': 'votes are lifetime totals',
+  'rank.votesNote': 'Votes are lifetime totals for requests sent this period',
   'rank.emptyPeriod.all': 'No data yet.',
   'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
   'rank.emptyPeriod.month': 'No requests yet this month.',

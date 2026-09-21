@@ -1371,3 +1371,38 @@ Kiểm thử: `Leaderboard.test.js` cập nhật ca bố cục (+assert chú th�
 luật, +assert chuỗi "Mon–Sun week" KHÔNG còn in thường trực, +assert tooltip mang "Vietnam
 time") — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke **296/296**; oxlint 0 lỗi 20 cảnh báo; build
 sạch 307,5 kB (gzip 95,6 kB).
+
+### W8. Vòng 19+3: người dùng chốt — bỏ ngày tháng khỏi màn hình, và thanh mùa hết lệch
+
+Ảnh chụp màn hình người dùng gửi chỉ đúng hai chỗ hở còn sót của W7:
+
+**1. Chữ trên thanh tiêu đề vẫn thừa.** Câu luật còn quấn hai dòng vì chở thêm con tem
+`01/09 – 30/09` và vế "votes are lifetime totals". Phán quyết nguyên văn: *"ko cần ghi ngày
+tháng ra đâu, để mỗi dòng sorted... ở chỗ chú thích là đc r"*. W7 đã đúng hướng (chú thích tỉ lệ
+với tần suất cần đọc) nhưng mới đi nửa đường: vẫn giữ khoảng ngày thường trực vì sợ mất tra
+cứu. Nay đi nốt: **màn hình chỉ còn đúng câu luật một vế**; khoảng ngày + chi tiết cửa sổ + lời
+thú nhận phiếu gộp thành **một tooltip trên nhóm nút mùa** — hover/hold là đọc đủ, không hover
+thì thanh tiêu đề gọn một dòng.
+
+Một chi tiết buộc phải nghĩ lại khi dời: lời thú nhận phiếu thoạt đầu đặt vào tooltip **đầu cột
+votes**, nhưng test bắt ngay — mùa có ≤3 người thì `rest` rỗng, **bảng không dựng**, đầu cột
+không tồn tại, còn nhóm nút mùa thì luôn có mặt kể cả khi mùa trống. Tooltip phải sống trên phần
+tử **luôn hiện diện ở chế độ đó**, không phải trên phần tử "hợp chủ đề nhất".
+
+**2. Thanh mùa lệch.** `.lb-bar-ctl` để `align-items: stretch` nên nhóm mùa bị kéo dài bằng
+nhóm sắp xếp (nhóm rộng hơn), trong khi các chip ôm nội dung — thừa một khoảng trống ~45px bên
+phải trong vỏ pill, nhìn như nút bị xô lệch. Sửa: `align-items: flex-start` (mỗi nhóm ôm đúng
+nội dung của nó), và chip thêm `inline-flex + align/justify-content: center` để chữ căn giữa cả
+hai trục, không lệch baseline giữa nút chọn và nút thường. Media bản hẹp đổi `width:100%` thành
+`max-width:100%` để vẫn tràn ngang được khi chật mà không tự kéo dài khi thừa.
+
+Gỡ sạch CSS chết: `.lb-range`, `.lb-votes-note` không còn phần tử nào mang chúng — để lại là
+mồi cho người sau tưởng nhầm còn dùng (repo từng có sáu khoá từ điển chết sống qua nhiều vòng
+vì không ai dám xoá).
+
+Kiểm thử: `Leaderboard.test.js` — ca bố cục chốt câu luật BẰNG CHUỖI TUYỆT ĐỐI
+(`'Sorted by requests completed this period'`, không tem không chú thích), tooltip nhóm mùa chở
+`dd/MM – dd/MM` + "Vietnam time" + "lifetime totals", và All time thì tooltip không chở khoảng
+ngày; smoke đổi ba check từ `.lb-range`/`.lb-votes-note` sang soi `title` của `.lb-periodseg`.
+416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi 20 cảnh báo; build sạch 307,62 kB
+(gzip 95,69 kB).

@@ -705,14 +705,15 @@ Nay chú thích co lại còn MỘT dòng và thanh tiêu đề căn giữa.)
 
 Chọn *This week* hoặc *This month* thì **toàn bộ số trên bảng bị cắt theo cửa
 sổ đó**, tính theo **giờ Việt Nam**: tuần là **thứ Hai 00:00 → thứ Hai kế
-tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Câu luật khi đó là MỘT
-dòng chở ba vế: luật xếp ("Sorted by requests completed this period"), con tem
-khoảng ngày (`22/09 – 28/09`, hover/hold để xem tooltip "tuần T2–CN / tháng
-lịch, giờ VN"), và lời thú nhận về cột phiếu ("votes are lifetime totals") —
-ngăn nhau bằng chấm mờ, không vế nào chiếm một hàng riêng. Đổi mùa thì bục
-và bảng **dựng lại kèm nhịp đổ xuống** (podIn/rowIn phát lại) để cú bấm có
-phản hồi; đổi cách sắp xếp thì không dựng lại (số tự đếm từ cũ sang mới) —
-hai cú chuyển, hai phản hồi khác nhau.
+tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Trên màn hình khi đó
+chỉ còn **đúng một câu luật** ("Sorted by requests completed this period") —
+người dùng đã chốt không in ngày tháng ra làm gì. Khoảng ngày đang tính,
+cách cửa sổ chạy (T2–CN / tháng lịch, giờ VN) và lời thú nhận về cột phiếu
+("votes are lifetime totals…") nằm trong **tooltip của nhóm nút mùa**: hover
+(hold trên cảm ứng) là đọc được đủ cả ba mẩu. Đổi mùa thì bục và bảng **dựng
+lại kèm nhịp đổ xuống** (podIn/rowIn phát lại) để cú bấm có phản hồi; đổi
+cách sắp xếp thì không dựng lại (số tự đếm từ cũ sang mới) — hai cú chuyển,
+hai phản hồi khác nhau.
 
 Luật cắt mùa nằm ở **`src/lib/season.js`** (hàm thuần, nhận `now` làm tham số — test khoá
 được bằng một ngày cố định, không phụ thuộc đồng hồ máy chạy test). Component chỉ hỏi luật,
@@ -727,9 +728,10 @@ giống hệt cách nó hỏi `ranking.js` chuyện sắp xếp. Ba điều ph�
   không tính gì; người có gửi mà chưa xong bài nào vẫn có mặt với `completed = 0`.
 - **Cột phiếu của bảng mùa là phiếu CỘNG DỒN của các bài gửi trong mùa** (bảng `votes` không
   có mốc thời gian theo bài trong dữ liệu tải về, nên không thể đếm "phiếu trong tuần").
-  UI tự thú nhận điều này bằng vế "votes are lifetime totals" inline ngay trong câu luật (ngăn
-  bằng chấm mờ) — đừng xoá nó, và đừng đổi nhãn cột phiếu thành "votes this week": đó sẽ là
-  một lời nói dối.
+  UI tự thú nhận điều này trong **tooltip của nhóm nút mùa** (vế "votes are lifetime totals…")
+  — đừng xoá nó, và đừng đổi nhãn cột phiếu thành "votes this week": đó sẽ là một lời nói dối.
+  Đặt tooltip ở nhóm nút mùa chứ không ở đầu cột votes vì mùa có ≤3 người thì bảng không dựng,
+  đầu cột không tồn tại — còn nhóm nút mùa thì luôn có mặt.
 
 Mùa chưa có gì thì bảng hiện đúng một câu trả lời thật ("No requests yet this week — the
 season resets every Monday (Vietnam time)") và **vẫn giữ nhóm nút mùa** để luôn có đường về

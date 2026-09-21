@@ -2405,7 +2405,8 @@ html[data-section="spin"] .bgfx { display: none; }
 /* nhóm nút sắp xếp dạng viên thuốc — một lựa chọn, một chỗ sáng */
 .lb-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
   background: rgba(255,255,255,.02) }
-.lb-segb { padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
+.lb-segb { display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
 .lb-segb:hover { color: var(--txt-2) }
@@ -2420,10 +2421,11 @@ html[data-section="spin"] .bgfx { display: none; }
    (mùa ở trên, sắp xếp ở dưới), và nó nhìn rõ hơn hẳn bản tab gạch chân cũ —
    bản đó bị chê "khó nhìn" vì chữ xám 11.5px trên nền tối với gạch chân 2px
    mảnh gần như vô hình, muốn thấy đang chọn gì phải dí mắt vào. */
-.lb-bar-ctl { display: flex; flex-direction: column; align-items: stretch; gap: 6px }
+.lb-bar-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
 .lb-tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
   background: rgba(255,255,255,.02) }
-.lb-tab { padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
+.lb-tab { display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out),
     box-shadow var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
@@ -2431,15 +2433,6 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-tab.on { color: var(--a-2); background: var(--a-soft);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--a-2) 34%, transparent) }
 .lb-tab:active { transform: scale(.97) }
-/* tem khoảng ngày — nằm NGAY TRONG câu luật, không chiếm hàng riêng; chi tiết
-   "tuần T2–CN / tháng lịch, giờ VN" dời vào tooltip (title) của tem */
-.lb-range { margin-left: 7px; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
-  font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-2); white-space: nowrap;
-  cursor: help }
-/* lời thú nhận về cột phiếu — MỘT vế inline trong câu luật, ngăn bằng chấm mờ,
-   không còn là đoạn văn thứ hai đẩy thanh tiêu đề phình ra bốn dòng chữ */
-.lb-votes-note { color: var(--txt-3) }
-.lb-votes-note::before { content: '·'; margin: 0 7px; opacity: .65 }
 
 /* ---- bục 1/2/3 ---- */
 .lb-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) }
@@ -4060,7 +4053,7 @@ body {
   /* nút mùa trên cảm ứng: tràn ngang + mục tiêu chạm 40px như nhóm viên thuốc
      (nó không còn mượn class lb-segb nên luật chạm phải khai riêng, nếu không
      34px trên desktop là mức bấm trượt được bằng ngón cái) */
-  .lb-tabs { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .lb-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .lb-tabs::-webkit-scrollbar { display: none; }
   .lb-tab { flex: 1 0 auto; min-height: 40px; }
   .lb-top { gap: 6px; padding-inline: 8px; }

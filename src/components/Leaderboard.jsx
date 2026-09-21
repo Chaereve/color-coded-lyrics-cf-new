@@ -83,10 +83,10 @@ function PodiumFace({ p, place, max, sort }) {
    nhìn" mà không cần hai hình dáng nút khác nhau — bản tab gạch chân cũ bị
    chê "khó nhìn" vì chữ xám nhỏ trên nền tối, gạch chân 2px mảnh gần như vô
    hình. Nhãn gọi t() nguyên văn từng key vì từ điển có test khoá chết. */
-function PeriodSeg({ period, setPeriod }) {
+function PeriodSeg({ period, setPeriod, title }) {
   const { t } = useI18n()
   return (
-    <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
+    <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')} title={title}>
       {PERIODS.map((p) => (
         <button key={p.k} type="button" className={`lb-tab${period === p.k ? ' on' : ''}`}
           onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
@@ -132,6 +132,16 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
 
   const win = period === 'all' ? null : seasonWindow(period, nowMs)
   const range = win ? seasonLabel(period, nowMs) : null
+  /* Tooltip của nhóm nút mùa = tờ ghi chú của cả chế độ mùa: khoảng ngày đang
+     tính, cửa sổ chạy thế nào, và lời thú nhận về cột phiếu (bảng votes không
+     có mốc thời gian theo bài nên phiếu là cộng dồn). Đặt Ở ĐÂY chứ không ở
+     đầu cột votes vì mùa có ≤3 người thì bảng không dựng, đầu cột không tồn
+     tại — còn nhóm nút mùa thì luôn có mặt, kể cả khi mùa trống. */
+  const seasonTitle = [
+    range ? t('rank.range', { from: range.from, to: range.to }) : null,
+    t('rank.rangeTip'),
+    period === 'all' ? null : t('rank.votesNote'),
+  ].filter(Boolean).join(' · ')
 
   const isEmpty = !ranked.length
 
@@ -148,28 +158,20 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         <div className="lb-bar-tx">
           <span className="lb-kicker">{t('rank.kicker')}</span>
           <h2 className="lb-title">{t('rank.title')}</h2>
-          {/* MỘT dòng duy nhất chở cả ba mẩu: câu luật (đang xem mùa nào thì
-              nói đúng mùa đó), con tem khoảng ngày, và lời thú nhận về cột
-              phiếu — ngăn cách bằng chấm mờ. Bản cũ tách thành hai đoạn văn
-              dài, thanh tiêu đề phình ra bốn dòng chữ và ĐẨY CẢ HAI NHÓM NÚT
-              LỆCH XUỐNG dưới đáy thanh (lb-bar căn đáy) — chữ dài không phải
-              là cái cớ để nút mất hàng. Chi tiết dài (tuần T2–CN, giờ VN) dời
-              vào tooltip của con tem: cần thì hover/hold để đọc, không bắt cả
-              bảng gánh nó thường trực. */}
+          {/* Câu luật ĐÚNG MỘT VẾ, không tem ngày, không chú thích kèm: người
+              dùng đã chốt "để mỗi dòng sorted... ở chỗ chú thích là đủ". Khoảng
+              ngày và chi tiết cửa sổ sống trong TOOLTIP của nhóm nút mùa (hover
+              /hold là đọc được), lời thú nhận về cột phiếu sống trong tooltip
+              của đầu cột votes — sự thật vẫn ở đó cho người cần, nhưng không
+              bắt thanh tiêu đề phình ra hai ba dòng chữ trên mọi lần mở trang. */}
           {!isEmpty && (
             <p className="lb-rule">
               {period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}
-              {range && (
-                <span className="lb-range" title={t('rank.rangeTip')}>
-                  {t('rank.range', { from: range.from, to: range.to })}
-                </span>
-              )}
-              {period !== 'all' && <span className="lb-votes-note">{t('rank.votesNote')}</span>}
             </p>
           )}
         </div>
         <div className="lb-bar-ctl">
-          <PeriodSeg period={period} setPeriod={setPeriod} />
+          <PeriodSeg period={period} setPeriod={setPeriod} title={seasonTitle} />
           {/* Bảng trống thì không còn gì để sắp xếp — giấu nhóm nút cách xếp,
               nhưng GIỮ nút mùa: mùa trống là một câu trả lời thật ("tuần này
               chưa có gì"), và người xem phải còn đường quay về All time. */}
