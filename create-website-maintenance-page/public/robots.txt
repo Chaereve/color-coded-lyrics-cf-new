@@ -1,3 +1,0 @@
-# Temporary maintenance page: do not index.
-User-agent: *
-Disallow: /
