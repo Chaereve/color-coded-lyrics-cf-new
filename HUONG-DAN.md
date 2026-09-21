@@ -690,6 +690,38 @@ không phải một ghi chú: nó là một dòng `where r.status <> 'denied'` t
 `requester_ranking` (bên Supabase) và bản demo gom đúng như vậy, nên gửi bài bừa để leo hạng
 là vô ích.
 
+### Mùa giải: All time · This week · This month (vòng 19 — 21/09/2026)
+
+Dưới thanh tiêu đề của bảng có thêm một hàng ba nút mùa. Chọn *This week* hoặc *This month*
+thì **toàn bộ số trên bảng bị cắt theo cửa sổ đó**, tính theo **giờ Việt Nam**: tuần là
+**thứ Hai 00:00 → thứ Hai kế tiếp 00:00**, tháng là **mùng 1 → mùng 1 tháng sau**. Khoảng
+ngày đang tính luôn được in bên phải hàng nút (`22/09 – 28/09`) — "tuần này" không bao giờ
+là một từ mơ hồ trên màn hình này.
+
+Luật cắt mùa nằm ở **`src/lib/season.js`** (hàm thuần, nhận `now` làm tham số — test khoá
+được bằng một ngày cố định, không phụ thuộc đồng hồ máy chạy test). Component chỉ hỏi luật,
+giống hệt cách nó hỏi `ranking.js` chuyện sắp xếp. Ba điều phải biết khi sửa:
+
+- **Không có migration nào.** Bảng `requests` không có cột `completed_at`, nên mốc "bài xong
+  lúc nào" dùng luật fallback `completed_at || updated_at || created_at` — cùng luật với khối
+  *Hall of fame*. Nếu sau này thêm cột `completed_at` thật, `season.js` tự dùng nó trước.
+- **Mùa xếp theo số bài XONG trong cửa sổ, không xếp theo số bài gửi** — đúng tinh thần ghi
+  chú C3-14 (bảng "top người gửi tháng" từng bị hoãn vì khuyến khích đua số lượng). Bài gửi
+  ngoài mùa nhưng lên sóng trong mùa **vẫn tính là thành quả của mùa đó**; bài bị từ chối
+  không tính gì; người có gửi mà chưa xong bài nào vẫn có mặt với `completed = 0`.
+- **Cột phiếu của bảng mùa là phiếu CỘNG DỒN của các bài gửi trong mùa** (bảng `votes` không
+  có mốc thời gian theo bài trong dữ liệu tải về, nên không thể đếm "phiếu trong tuần").
+  UI tự thú nhận điều này bằng dòng chú thích ngay dưới hàng nút mùa — đừng xoá nó, và đừng
+  đổi nhãn cột phiếu thành "votes this week": đó sẽ là một lời nói dối.
+
+Mùa chưa có gì thì bảng hiện đúng một câu trả lời thật ("No requests yet this week — the
+season resets every Monday (Vietnam time)") và **vẫn giữ hàng nút mùa** để luôn có đường về
+*All time*. Mốc "bây giờ" chốt một lần lúc mở bảng — cửa sổ không tự trượt giữa chừng; nửa
+đêm đi qua thì mùa mới là việc của lần mở trang sau.
+
+Kiểm tra luật mùa: `npm test` chạy `src/lib/season.test.js` (10 ca) và 3 ca render trong
+`Leaderboard.test.js`; `npm run smoke` bấm thật ba nút trên `/ranking`.
+
 ## Theo dõi bài + thông báo (Notifications)
 
 **Bấm chuông ở góc trên phải là bảng thông báo mở ra tại chỗ** — kiểu Facebook /
@@ -3175,8 +3207,8 @@ Bốn điều không được làm, và lý do:
 ### Kiểm tra lại bằng gì
 
 ```bash
-npm test        # 401 ca — có 15 ca của profileNav.test.js và 11 ca searchHit/filterBoard
-npm run smoke   # 289 mục — mục 10d đi bằng đường bấm thật, kể cả trong iframe bị sandbox
+npm test        # 414 ca — có 10 ca season.test.js, 15 ca profileNav.test.js, 11 ca searchHit/filterBoard
+npm run smoke   # 296 mục — mục 10d đi bằng đường bấm thật, mục Xếp hạng bấm cả ba nút mùa
 ```
 
 Muốn soi bằng mắt: mở bảng → bấm tên người gửi → trang cá nhân → bấm một bài **đã completed**

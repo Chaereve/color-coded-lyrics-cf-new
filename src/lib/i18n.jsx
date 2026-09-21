@@ -347,6 +347,25 @@ const S = {
   'rank.player': 'Requester',
   'rank.position': 'Rank {n} of {total}',
   'rank.noMe': 'You are not on the board yet.',
+  /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
+     in ra kèm nhãn: "tuần này" là từ mơ hồ nếu không nói tuần nào. */
+  'rank.periodLabel': 'Choose season period',
+  'rank.period.all': 'All time',
+  'rank.period.week': 'This week',
+  'rank.period.month': 'This month',
+  'rank.range': '{from} – {to}',
+  /* Câu luật của bảng mùa: nói rõ con số bị CẮT theo cửa sổ, cùng khoá chính
+     với ba cách xếp — không một con số tự đặt nào. */
+  'rank.periodRule.total': 'Sorted by requests sent this period (Mon–Sun week / calendar month, Vietnam time)',
+  'rank.periodRule.completed': 'Sorted by requests completed this period (Mon–Sun week / calendar month, Vietnam time)',
+  'rank.periodRule.total_votes': 'Sorted by votes earned by requests sent this period',
+  /* Bảng votes không có mốc thời gian theo bài, nên cột phiếu của bảng mùa là
+     phiếu CỘNG DỒN của bài gửi trong mùa — nói thật còn hơn để người xem tự
+     hiểu nhầm là "phiếu nhận trong tuần". */
+  'rank.votesNote': 'Votes are lifetime totals for requests sent this period.',
+  'rank.emptyPeriod.all': 'No data yet.',
+  'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
+  'rank.emptyPeriod.month': 'No requests yet this month.',
 
   /* request cua toi */
   'mine.title': 'My requests',

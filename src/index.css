@@ -2412,6 +2412,18 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-segb.on { color: #0a0c10; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
 .lb-segb:active { transform: scale(.97) }
 
+/* ---- hàng mùa giải (All time · This week · This month) ----
+   Cùng kiểu viên thuốc với nhóm nút sắp xếp, nhưng nằm trên hàng riêng có
+   viền đáy: đổi mùa là đổi TOÀN BỘ con số trên bảng, không phải đổi góc nhìn
+   trên cùng một tập dữ liệu — tách hàng để cú đổi không bị đọc nhầm là một
+   bộ lọc nhỏ. Khoảng ngày in bên phải, chữ mono nhỏ như một con tem. */
+.lb-periodrow { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line) }
+.lb-range { font-family: var(--mono); font-size: 10.5px; letter-spacing: .4px; color: var(--txt-3) }
+/* chú thích cột phiếu của bảng mùa — sự thật về dữ liệu, không phải trang trí */
+.lb-votes-note { margin: 0; padding: 8px 16px; font-size: 10.5px; line-height: 1.4;
+  color: var(--txt-3); border-bottom: 1px solid var(--line) }
+
 /* ---- bục 1/2/3 ---- */
 .lb-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) }
 /* kênh nhỏ, bảng ngắn: bục vẫn nằm giữa, không để lại một ô trống to tướng */

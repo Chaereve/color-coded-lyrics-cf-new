@@ -530,6 +530,34 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
       !/ties go to/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
     const lone = loneTagClusters()
     check('Xếp hạng: không có cụm nhãn rời', lone.length === 0, lone.join(' | '))
+    /* ---- MÙA GIẢI (vòng 19): ba núm All time / This week / This month ----
+       Luật cắt mùa có test riêng (season.test.js); smoke chỉ chốt hành vi thật
+       trên trình duyệt: bấm núm thì câu luật + khoảng ngày đổi theo, và bảng
+       không điều hướng đi đâu (nút type=button trong SPA). */
+    const pseg = q('.lb-periodseg')
+    const pbtns = [...(pseg?.querySelectorAll('button') || [])]
+    check('bảng xếp hạng có bộ chọn mùa 3 nút', pbtns.length === 3,
+      pbtns.map(b => b.textContent).join(' · ') || 'không thấy .lb-periodseg')
+    const ruleAll = q('.lb-rule')?.textContent || ''
+    check('mặc định là All time và không in khoảng ngày',
+      pbtns[0]?.getAttribute('aria-pressed') === 'true' && !q('.lb-range'), ruleAll)
+    if (pbtns.length === 3) {
+      await click(pbtns[2])
+      await waitFor(() => /this period/i.test(q('.lb-rule')?.textContent || ''), 2000)
+      const rangeTx = q('.lb-range')?.textContent || ''
+      check('bấm This month: câu luật đổi thành theo mùa',
+        /this period/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
+      check('bấm This month: khoảng ngày hiện ra (ngày/tháng – ngày/tháng)',
+        /^\d{2}\/\d{2} – \d{2}\/\d{2}$/.test(rangeTx.trim()), rangeTx)
+      check('đang xem mùa thì phiếu phải tự thú nhận là cộng dồn',
+        !!q('.lb-votes-note'), q('.lb-votes-note')?.textContent)
+      check('đổi mùa không điều hướng — vẫn ở /ranking',
+        window.location.pathname === '/ranking', window.location.pathname)
+      await click(pbtns[0])
+      await waitFor(() => (q('.lb-rule')?.textContent || '') === ruleAll, 2000)
+      check('bấm All time: bảng trở về đúng câu luật cũ',
+        (q('.lb-rule')?.textContent || '') === ruleAll && !q('.lb-range'), q('.lb-rule')?.textContent)
+    }
   }
   if (name === 'Daily Spin') {
     /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là

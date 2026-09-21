@@ -98,3 +98,85 @@ test('bảng rỗng ra đúng một câu, không phải khung trống', async ()
   assert.ok(html.includes('empty'), 'bảng rỗng phải có thông báo')
   assert.ok(!html.includes('lb-kpis'))
 })
+
+/* ---------- MÙA GIẢI (tuần/tháng) ----------
+   Luật cắt mùa nằm ở src/lib/season.js và đã được khoá bằng số trong
+   season.test.js. Ba ca dưới đây chỉ chốt những gì THẤY ĐƯỢC KHI RENDER:
+   nút mùa có mặt, câu luật đổi theo mùa, khoảng ngày in ra, và lời thú nhận
+   về cột phiếu (cộng dồn) không bị quên. */
+
+/* Chủ nhật 2025-09-21 17:30 UTC = thứ Hai 2025-09-22 00:30 giờ Việt Nam —
+   cùng mốc `NOW` với season.test.js để hai tầng test nói về một tuần. */
+const NOW = Date.parse('2025-09-21T17:30:00Z')
+const vn = (day) => new Date(`${day}T12:00:00+07:00`).toISOString()
+/* Tuần đang xét: 22/09 (thứ Hai) – 28/09 (Chủ nhật), giờ VN. */
+const seasonAll = [
+  /* alice: 1 bài xong trong tuần (gửi + xong 22–23/09), 1 bài xong tuần trước */
+  { id: 'a1', user_id: 'alice', requester: 'alice', status: 'completed', votes: 5,
+    created_at: vn('2025-09-22'), updated_at: vn('2025-09-23') },
+  { id: 'a2', user_id: 'alice', requester: 'alice', status: 'completed', votes: 9,
+    created_at: vn('2025-09-15'), updated_at: vn('2025-09-16') },
+  /* bob: gửi thứ Sáu 26/09, chưa xong -> có mặt với total 1, completed 0 */
+  { id: 'b1', user_id: 'bob', requester: 'bob', status: 'in_progress', votes: 3,
+    created_at: vn('2025-09-26'), updated_at: vn('2025-09-26') },
+  /* caro: denied, không được vào bảng mùa nào */
+  { id: 'c1', user_id: 'caro', requester: 'caro', status: 'denied', votes: 7,
+    created_at: vn('2025-09-24'), updated_at: vn('2025-09-24') },
+]
+
+test('mùa giải: bảng tuần cắt số theo cửa sổ, câu luật và khoảng ngày nói rõ đang xem gì', async () => {
+  const html = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
+    initialPeriod: 'week', now: NOW })
+  /* khoảng ngày của tuần phải in ra — "This week" một mình là từ mơ hồ */
+  assert.ok(html.includes('22/09'), 'khoảng ngày phải hiện ngày đầu tuần')
+  assert.ok(html.includes('28/09'), 'khoảng ngày phải hiện ngày cuối tuần')
+  assert.match(html, /Sorted by requests completed this period/, 'câu luật phải nói rõ là theo mùa')
+  /* alice trong tuần: 1 gửi / 1 xong — KHÔNG phải 2/2 của cả thời gian.
+     Tuần chỉ có 2 người nên cả hai đều đứng trên BỤC, không có hàng bảng —
+     vì vậy soi con số ngay trong khối bục của alice. */
+  /* cắt theo thẻ MỞ của khối bục ('<div class="lb-pod p' — có khoảng trắng,
+     không ăn vào lb-pod-num/lb-pod-name), rồi mới tìm khối có tên alice */
+  const alicePod = html.split('<div class="lb-pod p').find((b) => b.includes('title="alice"'))
+  assert.ok(alicePod, 'alice phải có mặt trên bảng tuần')
+  /* con số to trong khối bục (lb-pod-num) — không phải số trong huy chương */
+  const podNum = alicePod.match(/lb-pod-num"><b[^>]*>(\d+)<\/b>/)
+  assert.equal(podNum?.[1], '1', 'tuần này alice xong 1 bài — không phải 2 của cả thời gian')
+  assert.ok(!alicePod.includes('9 votes'), 'bài xong tuần trước (9 phiếu) không được lọt vào bảng tuần')
+  /* bob có mặt dù chưa xong bài nào — bảng nói thật là có gửi */
+  assert.ok(html.includes('bob'), 'người gửi trong tuần nhưng chưa xong vẫn có mặt')
+  /* caro (denied) không bao giờ lên bảng */
+  assert.ok(!html.includes('>caro<'), 'bài bị từ chối không được tính vào mùa')
+  /* cột phiếu của bảng mùa là phiếu cộng dồn — phải tự thú nhận */
+  assert.ok(html.includes('lifetime totals'), 'phải nói rõ phiếu là cộng dồn, không phải phiếu trong tuần')
+})
+
+test('mùa giải: tháng gối đúng cửa sổ, và All time giữ nguyên câu luật cũ', async () => {
+  const month = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
+    initialPeriod: 'month', now: NOW })
+  assert.ok(month.includes('01/09') && month.includes('30/09'), 'tháng 9: 01/09 – 30/09')
+  /* cả hai bài của alice đều gửi + xong trong tháng 9: 2 bài, 14 phiếu —
+     khác bảng tuần (1 bài, 5 phiếu) ở đúng chỗ đó */
+  const alicePod = month.split('<div class="lb-pod p').find((b) => b.includes('title="alice"'))
+  assert.equal(alicePod.match(/lb-pod-num"><b[^>]*>(\d+)<\/b>/)?.[1], '2',
+    'bảng tháng phải đếm cả bài gửi 15/09 (trong tháng, ngoài tuần)')
+  assert.ok(alicePod.includes('14 votes'), 'phiếu của bài gửi trong mùa: 5 + 9 = 14')
+  assert.ok(month.includes('alice') && month.includes('bob'), 'tháng 9 có cả alice lẫn bob')
+
+  const all = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'me' })
+  assert.ok(all.includes('>Sorted by requests completed</p>'), 'All time (mặc định) giữ đúng câu luật cũ')
+  assert.doesNotMatch(all, /lifetime totals/, 'bảng toàn thời gian không cần chú thích phiếu')
+  /* ba nút mùa phải có mặt trên cả hai trạng thái */
+  const segs = all.match(/lb-periodseg[\s\S]*?<\/div>/)[0]
+  for (const label of ['All time', 'This week', 'This month']) {
+    assert.ok(segs.includes(label), `thiếu nút mùa "${label}"`)
+  }
+  assert.match(segs, /aria-pressed="true"/, 'phải có đúng một nút mùa đang sáng')
+})
+
+test('mùa chưa có gì: câu trả lời thật, không phải "bảng hỏng", và vẫn có đường về All time', async () => {
+  const html = await render({ rows, allRows: [], ranking: rows, meId: 'me',
+    initialPeriod: 'week', now: NOW })
+  assert.match(html, /No requests yet this week/, 'tuần trống phải nói đúng câu "chưa có gì tuần này"')
+  assert.ok(html.includes('lb-periodseg'), 'bảng trống vẫn phải còn núm đổi mùa')
+  assert.ok(!html.includes('lb-pod'), 'không vẽ bục cho một mùa không có ai')
+})

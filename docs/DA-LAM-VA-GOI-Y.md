@@ -1172,3 +1172,106 @@ không có thẻ đóng, mọi thẻ tương tác phía sau trong file đó bị
 Hai mươi ba "lỗi" hiện ra từ một dấu `<a>` trong chú thích. Quy tắc: trong file `.jsx`, đừng viết
 tên thẻ kèm dấu nhọn trong chú thích (`profileNav.test.js` nay lột chú thích trước khi quét, và
 giữ nguyên số dòng để thông báo còn trỏ đúng chỗ).
+
+## Phần W — vòng 19: Season Leaderboard — tuần này / tháng này, không migration (21/09/2026)
+
+### W1. Câu hỏi mà bảng xếp hạng chưa trả lời được
+
+Bảng xếp hạng chỉ có MỘT góc nhìn: toàn bộ thời gian. Người mới gửi bài tháng này không có cửa
+nào so với người đã tích luỹ hai năm, và người xem không trả lời được câu đơn giản nhất:
+**"tuần này ai được lên sóng nhiều nhất?"**. Một bảng "mùa giải" (tuần/tháng) trả lời đúng câu
+đó — và làm cho hạng của người mới có ý nghĩa ngay trong tuần đầu tiên.
+
+Rào cản cũ là dữ liệu: bảng `requests` **không có cột `completed_at`** (schema chỉ có
+`created_at`, `updated_at`, `picked_at`), và view `requester_ranking` là số tổng cộng dồn — muốn
+có "số bài xong trong tháng" bằng SQL thì phải thêm cột + backfill + sửa view, tức là một lần
+migration cho một tính năng đọc. Quyết định vòng này: **tính client-side, không migration** —
+toàn bộ hàng request vốn đã được tải về máy (`fetchRequests`, tối đa 800 hàng mới nhất), gom lại
+theo cửa sổ thời gian là việc thuần tuý của trình duyệt.
+
+### W2. Luật nằm ở `src/lib/season.js` — một chỗ, test bằng số
+
+Cùng triết lý với `ranking.js` và `board.js`: luật là hàm thuần (không React, không mạng, nhận
+`now` làm tham số) để test khoá được bằng một ngày cố định. Bốn hàm:
+
+| Hàm | Việc |
+|---|---|
+| `vnDayKey(now)` | "hôm nay" theo lịch **Việt Nam** (`Asia/Ho_Chi_Minh`) — 17:30 UTC Chủ nhật đã là thứ Hai ở VN |
+| `seasonWindow(period, now)` | cửa sổ `[start, end)` của tuần/tháng: tuần **thứ Hai → Chủ nhật** (lịch VN), tháng **mùng 1 → mùng 1 tháng sau**, cả hai neo theo nửa đêm giờ VN |
+| `seasonRows(rows, ranking, period, now)` | gom lại từ các hàng request thành đúng **hình dạng `requester_ranking`**: `{ user_id, key, name, avatar_url, total, completed, total_votes }` — để `rankRows` xếp mà không cần biết nó đang xếp bảng tổng hay bảng mùa |
+| `seasonLabel(period, now)` | khoảng ngày cho UI: `22/09 – 28/09` |
+
+**Mốc "bài xong lúc nào"** (`doneAt`): `completed_at || updated_at || created_at` — cùng luật
+fallback mà khối *Hall of fame* đang dùng. `completed_at` chưa tồn tại trong schema, nhưng nếu
+một ngày nào đó cột được thêm, code này tự dùng nó trước mà không phải sửa. Chỗ xấp xỉ phải nói
+thật: bài đã xong mà admin còn chạm vào sau này (sửa link, đổi ghi chú) sẽ bị tính theo lần chạm
+đó — chấp nhận được vì bài vừa được sửa thường cũng là bài vừa được xong.
+
+**Hai quyết định chống gian lận, kế thừa đúng tinh thần C3-14** (ghi chú từng hoãn một bảng
+"top người gửi tháng" vì nó khuyến khích đua số lượng):
+
+- Xếp theo **số bài XONG trong mùa** làm mặc định — trả lời "cộng đồng nhận được gì tuần này",
+  không phải "ai bấm gửi nhiều nhất". Ba cách xếp vẫn đổi được như bảng tổng, nhưng con số nào
+  cũng bị cắt theo cửa sổ.
+- Bài **bị từ chối không tính gì**, cùng luật `where r.status <> 'denied'` của view.
+- Bài GỬI ngoài mùa nhưng XONG trong mùa **vẫn được đếm là xong trong mùa** (bài lên sóng thứ
+  Ba dù gửi từ tháng trước vẫn là thành quả của tuần này) — nhưng không bị đếm là "gửi trong
+  tuần". Người có gửi mà chưa xong bài nào **vẫn có mặt** với `completed = 0`: bảng nói thật
+  thay vì làm họ biến mất.
+
+**Phiếu là chỗ dữ liệu không cho phép nói quá:** bảng `votes` không có mốc thời gian theo bài
+trong dữ liệu tải về, nên KHÔNG thể đếm "phiếu nhận trong mùa". Con số phiếu trên bảng mùa là
+**phiếu cộng dồn của các bài GỬI trong mùa** — và UI phải tự thú nhận điều đó bằng một dòng chú
+thích ngay dưới hàng nút mùa (`rank.votesNote`), đặt ở cấp BẢNG chứ không nhét vào hàng "bạn"
+(vì đó là sự thật về cả một cột, không phải của riêng ai, và không được phép biến mất khi người
+xem chưa có tên trên bảng).
+
+### W3. Hai lỗi thật đã bị test bắt ngay trong lúc viết
+
+Không phải lỗi giả định — cả hai đều là ca fail thật trước khi xanh:
+
+| Lỗi | Vì sao sai | Sửa |
+|---|---|---|
+| `new Date(start).getUTCDay()` để tìm thứ trong tuần | `start` là mốc **UTC** của nửa đêm VN: 00:00 thứ Hai giờ VN vẫn là 17:00 **Chủ nhật** UTC — đọc thứ trên mốc đó làm cả cửa sổ tuần lùi sai hẳn một tuần (22–28/09 thành 16–22/09) | Hỏi thứ trên chính **chuỗi ngày lịch VN** (`Date.parse('YYYY-MM-DD…Z').getUTCDay()`), không hỏi trên mốc UTC vừa dựng |
+| `end = start + 1 ngày` khi hôm nay là thứ Hai | Quên nhân 7: cửa sổ tuần chỉ dài… một ngày | `end = weekStart + 7 × 86400000` — và `season.test.js` khoá bằng đúng một ngày-thứ-Hai (2025-09-22) |
+
+Cả hai đều là loại lỗi **im lặng**: bảng vẫn render, vẫn có số, chỉ là số của sai tuần. Không có
+test bằng ngày cố định thì không cách nào nhìn thấy bằng mắt.
+
+### W4. UI: một hàng nút, một khoảng ngày, một câu luật
+
+`Leaderboard.jsx` thêm đúng một hàng (`lb-periodrow`) dưới thanh tiêu đề: ba nút **All time ·
+This week · This month** (dùng lại đúng kiểu viên thuốc `lb-seg`/`lb-segb` có sẵn — mobile tự
+được hưởng luật tràn ngang của `.lb-seg`), kèm khoảng ngày `22/09 – 28/09` in chữ mono như một
+con tem. Ba chi tiết có chủ ý:
+
+- **Câu luật đổi theo mùa**: đang xem mùa nào thì `lb-rule` nói đúng mùa đó
+  (`rank.periodRule.*`: "Sorted by requests completed this period (Mon–Sun week / calendar month,
+  Vietnam time)") — không để người xem tự đoán ba con số là của cả thời gian hay của tuần.
+- **Khoảng ngày PHẢI in ra**: "tuần này" là từ mơ hồ nếu không nói tuần nào tới tuần nào, và
+  người xem ở múi giờ khác phải tự đổi được.
+- **Mùa chưa có gì là một câu trả lời thật**, không phải "bảng hỏng": `rank.emptyPeriod.week`
+  nói "No requests yet this week — the season resets every Monday (Vietnam time)", và khối rỗng
+  vẫn giữ hàng nút mùa để luôn có đường về *All time*.
+
+`period` là state của component (không đẩy lên App, không đưa vào URL): đổi mùa là đổi góc nhìn
+tại chỗ, cùng loại với đổi cách sắp xếp — và `usePager` nhận thêm `period` vào deps để đổi mùa
+là quay lại trang 1. Mốc "bây giờ" chốt **một lần lúc mở bảng** (`useMemo`, deps `[now]`): cửa
+sổ mùa không được tự trượt giữa chừng lúc người xem đang nhìn; nửa đêm đi qua thì mùa mới là
+việc của lần mở trang sau. `App.jsx` chỉ truyền thêm `allRows={rows}` (toàn bộ hàng request) và
+`ranking={fullRanking}` (để mùa lấy đúng tên + avatar đã chốt ở view thật).
+
+### W5. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **414 ca / 413 đạt / 0 lỗi / 1 skip** (vòng 18+1: 401 ca). Mới: `src/lib/season.test.js` **10 ca** (ranh giới nửa đêm VN, tuần thứ Hai–Chủ nhật kể cả nhìn từ Chủ nhật, tháng 12 gối năm, gom số theo cửa sổ, denied/ngoài cửa sổ bị loại, gửi-ngoài-xong-trong vẫn đếm, hình dạng khớp `requester_ranking` + `rankRows` xếp được, dữ liệu méo không ném lỗi, nhãn khoảng ngày, và một ca soi mã nguồn: component không được tự dựng mốc thời gian) và **+3 ca** trong `Leaderboard.test.js` (bảng tuần cắt số + khoảng ngày + câu luật + lời thú nhận phiếu; bảng tháng gối đúng cửa sổ và *All time* giữ nguyên luật cũ; mùa trống ra câu trả lời thật và vẫn còn núm đổi mùa) |
+| `npm run smoke` | ✅ **296/296 mục đạt** (vòng 18+1: 289). Mục *Xếp hạng* thêm 7 check bấm thật: bộ chọn mùa 3 nút, mặc định All time không in khoảng ngày, bấm *This month* thì câu luật đổi + khoảng ngày hiện đúng dạng `dd/MM – dd/MM` + chú thích phiếu xuất hiện + **không điều hướng** (vẫn `/ranking`), bấm *All time* thì về đúng câu luật cũ |
+| `npx oxlint` | ✅ **0 lỗi, 20 cảnh báo** — nền trước vòng là 19; +1 là `react(purity)` cho `Date.now()` trong `useMemo` của mốc "bây giờ", **đúng pattern mà baseline đã chấp nhận** ở `weeklyHighlights` (App.jsx). Đổi lại, mốc đó không còn nằm trần trong thân component như bản nháp đầu tiên |
+| `npm run build` | ✅ sạch — `index-4gnrXPD4.js` 308,21 kB (gzip 95,68 kB) |
+
+Chi tiết đáng nhớ khi viết test render cho bục: `html.split('<div class="lb-pod')` ăn nhầm cả
+`lb-pod-num`/`lb-pod-name` (không có khoảng trắng sau `lb-pod`), và chunk ĐẦU TIÊN của một lần
+split chứa toàn bộ phần trước bục — bao gồm khối `lb-me` có tên alice — nên `.find(b =>
+b.includes('alice'))` bắt nhầm chunk đó. Sửa: split theo `'<div class="lb-pod p'` (có khoảng
+trắng + chữ `p` của `p1/p2/p3`) và tìm theo `title="alice"` chứ không theo tên trần.

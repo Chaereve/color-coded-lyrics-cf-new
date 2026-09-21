@@ -1907,8 +1907,11 @@ function AppInner() {
         )}
 
         {/* ======= MỤC 2: XẾP HẠNG ======= */}
+        {/* `allRows` nuôi bảng mùa giải (tuần/tháng): số tổng trong `rows` là
+            của view thật, không cắt theo thời gian được — mùa phải gom lại từ
+            chính các hàng request (luật ở src/lib/season.js, không migration). */}
         {section === 'ranking' && (
-          <Leaderboard rows={fullRanking} meId={viewer.id} />
+          <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
         )}
 
         {/* ======= MỤC 3: CỦA TÔI ======= */}

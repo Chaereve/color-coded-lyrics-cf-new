@@ -4,6 +4,7 @@ import { useI18n } from '../lib/i18n.jsx'
 import { useCountUp } from '../lib/motion'
 import { usePager } from '../lib/usePager'
 import { RANK_SORTS, rankRows } from '../lib/ranking.js'
+import { PERIODS, seasonRows, seasonWindow, seasonLabel } from '../lib/season.js'
 import Pager from './Pager'
 
 /* Bục 1-2-3 đã chiếm sẵn ba hạng đầu, phần bảng bên dưới cắt 25 dòng
@@ -75,11 +76,46 @@ function PodiumFace({ p, place, max, sort }) {
   )
 }
 
-export default function Leaderboard({ rows, meId }) {
+/* Nhãn ba núm mùa gọi t() NGUYÊN VĂN từng key thay vì ghép động: từ điển có
+   test khoá chết, và họ `rank.period.*` không được họ ghép động nào che. */
+
+/* Núm chọn mùa — dùng chung cho cả bảng có dữ liệu lẫn bảng trống, để người
+   xem luôn có đường quay về 'All time' kể cả khi mùa đang xem chưa có gì. */
+function PeriodSeg({ period, setPeriod }) {
+  const { t } = useI18n()
+  return (
+    <div className="lb-seg lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
+      {PERIODS.map((p, i) => (
+        <button key={p.k} type="button" className={`lb-segb${period === p.k ? ' on' : ''}`}
+          style={{ '--c': 'var(--a-2)', '--i': i }} onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
+          {p.k === 'all' ? t('rank.period.all') : p.k === 'week' ? t('rank.period.week') : t('rank.period.month')}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null }) {
   const { t } = useI18n()
   const [sort, setSort] = useState(SORTS[0])
+  /* Mùa đang xem: 'all' là bảng toàn thời gian (mặc định, giữ nguyên mọi
+     hành vi cũ), 'week'/'month' cắt số liệu theo cửa sổ giờ Việt Nam.
+     `initialPeriod`/`now` tồn tại để test render được một ngày cố định. */
+  const [period, setPeriod] = useState(PERIODS.some(p => p.k === initialPeriod) ? initialPeriod : 'all')
+  /* Mốc "bây giờ" chốt MỘT LẦN lúc mở bảng (deps rỗng): cửa sổ mùa không được
+     tự trượt giữa chừng lúc người xem đang nhìn — nửa đêm đi qua thì mùa mới
+     là việc của lần mở trang sau. `Date.now()` trong render cũng là thứ mà
+     react(purity) bắt, nên nó nằm trong useMemo thay vì thân component. */
+  const nowMs = useMemo(() => now ?? Date.now(), [now])
 
-  const ranked = useMemo(() => rankRows(rows, sort.k), [rows, sort.k])
+  /* LUẬT CẮT MÙA nằm ở `src/lib/season.js`, không ở đây — component chỉ hỏi.
+     `rows` là số tổng (view `requester_ranking` hoặc `rankDemo`); mùa giải
+     được gom lại từ `allRows` — toàn bộ hàng request đã tải về máy. */
+  const view = useMemo(
+    () => (period === 'all' ? (rows || []) : seasonRows(allRows, ranking, period, nowMs)),
+    [rows, allRows, ranking, period, nowMs])
+
+  const ranked = useMemo(() => rankRows(view, sort.k), [view, sort.k])
 
   /* rankRows đã xếp giảm dần nên hàng đầu giữ giá trị lớn nhất — không cần
      quét lại cả mảng chỉ để tìm max. */
@@ -88,11 +124,37 @@ export default function Leaderboard({ rows, meId }) {
   const rest = ranked.slice(3)
   const me = ranked.find(p => p.user_id === meId)
 
-  /* đổi cách sắp xếp là thứ tự đổi hoàn toàn -> quay lại trang 1 */
+  /* đổi cách sắp xếp HOẶC đổi mùa là tập hàng đổi hoàn toàn -> quay lại trang 1 */
   const tableRef = useRef(null)
-  const pg = usePager(rest, PER_PAGE, [sort.k])
+  const pg = usePager(rest, PER_PAGE, [sort.k, period])
 
-  if (!ranked.length) return <div className="empty">{t('rank.empty')}</div>
+  const win = period === 'all' ? null : seasonWindow(period, nowMs)
+  const range = win ? seasonLabel(period, nowMs) : null
+
+  if (!ranked.length) {
+    /* Mùa chưa có gì không được hiện như "bảng hỏng" — nó là một câu trả lời
+       thật ("tuần này chưa có bài nào xong"), khác với bảng tổng trống. */
+    return (
+      <div className="lb" data-reveal>
+        <div className="lb-bar">
+          <div className="lb-bar-tx">
+            <span className="lb-kicker">{t('rank.kicker')}</span>
+            <h2 className="lb-title">{t('rank.title')}</h2>
+            {period !== 'all' && <p className="lb-rule">{t(`rank.periodRule.${sort.k}`)}</p>}
+          </div>
+        </div>
+        <div className="lb-periodrow">
+          <PeriodSeg period={period} setPeriod={setPeriod} />
+          {range && (
+            <span className="lb-range">
+              {t('rank.range', { from: range.from, to: range.to })}
+            </span>
+          )}
+        </div>
+        <div className="empty">{t(`rank.emptyPeriod.${period}`)}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="lb" data-reveal>
@@ -103,7 +165,9 @@ export default function Leaderboard({ rows, meId }) {
           {/* Câu nói rõ luật đang chạy. Không còn nhánh riêng cho "điểm": mỗi
               cách xếp chỉ có ĐÚNG MỘT con số, nên câu luật đọc thẳng từ khoá
               của nó và không thể lệch khỏi phép tính đang chạy. */}
-          <p className="lb-rule">{t(`rank.rule.${sort.k}`)}</p>
+          {/* Đang xem mùa nào thì câu luật nói đúng mùa đó — không để người xem
+              tự đoán ba con số trên bảng là của cả thời gian hay của tuần. */}
+          <p className="lb-rule">{period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}</p>
         </div>
         <div className="lb-seg" role="group" aria-label={t('rank.sortLabel')}>
           {SORTS.map((s, i) => (
@@ -114,6 +178,24 @@ export default function Leaderboard({ rows, meId }) {
           ))}
         </div>
       </div>
+
+      {/* Hàng mùa giải: ba góc thời gian + khoảng ngày đang tính (giờ Việt Nam).
+          Khoảng ngày PHẢI in ra: "tuần này" là từ mơ hồ nếu không nói tuần
+          nào tới tuần nào, và người xem ở múi giờ khác phải tự đổi được. */}
+      <div className="lb-periodrow">
+        <PeriodSeg period={period} setPeriod={setPeriod} />
+        {range && (
+          <span className="lb-range">
+            {t('rank.range', { from: range.from, to: range.to })}
+          </span>
+        )}
+      </div>
+      {/* Xem theo mùa thì cột phiếu là phiếu CỘNG DỒN của bài gửi trong mùa
+          (bảng votes không có mốc thời gian theo bài). Chú thích đặt ở cấp
+          BẢNG chứ không nhét vào hàng "bạn": đây là sự thật về dữ liệu của cả
+          cột, không phải của riêng ai, và không được phép biến mất khi người
+          xem chưa có tên trên bảng. */}
+      {period !== 'all' && <p className="lb-votes-note">{t('rank.votesNote')}</p>}
 
       <div className={`lb-top c${Math.min(podium.length, 3)}`}>
         {/* thứ tự trên màn hình: 2 · 1 · 3 — người xem đọc ra ngay ai nhất */}
