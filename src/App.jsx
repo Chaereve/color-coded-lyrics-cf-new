@@ -27,10 +27,11 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { pushUrl, putUrl } from './lib/history'
+import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery } from './lib/history'
+import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { boardItems as buildBoardItems, fold, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
+import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
@@ -79,6 +80,19 @@ const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/p
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
+}
+
+/* Trang cá nhân công khai đang mở, đọc từ địa chỉ — dùng đúng HAI lần: lúc
+   khởi tạo state và lúc Back/Forward (`onPop`). Mọi lần mở/đóng sau đó đi qua
+   state (xem `openProfile`/`closeProfile`), vì địa chỉ là bản sao chứ không
+   phải nguồn sự thật: trong iframe bị sandbox `pushState` ném lỗi và không ghi
+   được, mà người bấm vẫn phải tới được trang cá nhân.
+   Hai dạng được nhận: `/?profile=<id>` (dạng link hiện tại) và `/u/<id>`
+   (dạng cũ còn nằm trong lịch sử duyệt web / link đã dán ra ngoài). */
+const readProfileId = () => {
+  const path = window.location.pathname
+  if (path.startsWith('/u/')) return decodeURIComponent(path.slice(3).replace(/\/+$/, '')) || null
+  return new URLSearchParams(window.location.search).get('profile') || null
 }
 
 const SIDE_KEY = 'ccl.side'
@@ -176,6 +190,8 @@ function Stat({ c, v, label, why }) {
 function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete, user = null,
   followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
   const { t } = useI18n()
+  /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
+  const nav = useNav()
   const sm = { c: statusColor(r.status) }
   /* Đã vào dây chuyền (chốt vào Up next HOẶC đang làm) thì khóa vote, kể cả
      rút lại: bài sắp/đang được làm mà vẫn nhận phiếu thì lá phiếu không còn
@@ -211,7 +227,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
         <div className="meta">
           <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-          <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={`/?profile=${encodeURIComponent(r.user_id)}`} onClick={e => { e.preventDefault(); e.stopPropagation(); window.history.pushState({}, '', `/?profile=${encodeURIComponent(r.user_id)}`); window.dispatchEvent(new PopStateEvent('popstate')) }}>{r.requester}</a> : <span>{r.requester}</span>}
+          <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
           <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
           {r.status === 'denied' && r.deny_reason && (
             <>
@@ -383,9 +399,13 @@ function AppInner() {
   const watchedSet = useMemo(() => watchedKeys(watched), [watched])
 
   const [section, setSection] = useState(() => sectionOf(window.location.pathname))
-  const publicProfileId = window.location.pathname.startsWith('/u/')
-    ? decodeURIComponent(window.location.pathname.slice(3).replace(/\/+$/, ''))
-    : new URLSearchParams(window.location.search).get('profile')
+  /* TRANG CÁ NHÂN CÔNG KHAI là một mục trong state, không phải thứ đọc lại từ
+     `window.location` mỗi lần render. Bản cũ đọc lúc render nên nó chỉ đổi khi
+     có MỘT STATE KHÁC đổi theo (React bỏ qua lượt render nếu mọi setState đều
+     trùng giá trị), và nó chết hẳn khi `pushState` bị chặn — đúng hai triệu
+     chứng chủ dự án báo: "bấm profile bị quay về trang chủ" và "bấm không được
+     gì". State đổi trước, địa chỉ ghi sau bằng `pushUrl` (không bao giờ ném). */
+  const [profileId, setProfileId] = useState(readProfileId)
   // The shared aurora sits outside the lazy page. Set its route mode before
   // paint so Daily Spin stays flat on direct loads, navigation and history.
   useLayoutEffect(() => {
@@ -394,7 +414,7 @@ function AppInner() {
   }, [section])
   const [board] = useState(readBoard)
   const [filter, setFilter] = useState(board.f)
-  const [statusFilters, setStatusFilters] = useState(() => ['queued', 'picked', 'in_progress', 'completed'].includes(board.f) ? [board.f] : [])
+  const [statusFilters, setStatusFilters] = useState(() => STAGES.includes(board.f) ? [board.f] : [])
   const [kindFilter, setKindFilter] = useState(board.k)
   const [kindFilters, setKindFilters] = useState(() => board.k !== 'all' ? [board.k] : [])
   const [q, setQ] = useState(board.q)
@@ -468,11 +488,15 @@ function AppInner() {
   const jumpToSong = useCallback((target) => {
     const key = typeof target === 'string' ? target : (target?.key || groupKey(target || {}))
     if (!key) return
-    go('board'); setKindFilter('all'); setQ('')
+    go('board'); setKindFilter('all'); setKindFilters([]); setStatusFilters([]); setQ('')
     /* tab "Following" la noi duy nhat con hien bai pending/bi tu choi; bai
        chua theo doi thi nhay ve bang chung lo, de hien "khong co ket qua" con
        hon la nhay vao mot tab trong sach cua nguoi khac */
     setFilter(watchedSet.has(key) ? 'watch' : 'newest')
+    /* XOÁ cả hai bộ lọc nhiều-chọn: chúng THẮNG `filter` trong `filterBoard`,
+       nên một chip `Queued` còn bật từ lần lọc trước sẽ giấu đúng cái bài mà
+       tin thông báo vừa bảo "bấm vào đây để xem". Cùng một họ lỗi với
+       "bấm Recent Request trong trang cá nhân mà bảng nói không có kết quả". */
     setHlSong(key)
     const sel = `[data-song="${songAttr(key)}"]`
     requestAnimationFrame(() => setTimeout(() => {
@@ -482,6 +506,72 @@ function AppInner() {
     setTimeout(() => setHlSong(s => (s === key ? null : s)), 2600)
   }, [go, watchedSet])
 
+  /* ---------------- trang cá nhân công khai + đi tới một bài ----------------
+     Ba hàm này là NỘI DUNG của context `lib/nav.js`: mọi link nội bộ gọi
+     chúng thay vì tự ghi địa chỉ. Thứ tự trong mỗi hàm là CỐ Ý — state đổi
+     trước (nguồn sự thật, luôn chạy), địa chỉ ghi sau (bản sao, có thể thất
+     bại trong iframe sandbox mà không ai mất chức năng). */
+  /* Chỗ đứng TRƯỚC khi mở trang cá nhân — là state chứ không phải ref: ba hàm
+     dưới đây được truyền xuống cây bằng context và được gọi lúc render (khi
+     dựng handler cho thẻ link), nên đọc/ghi ref trong đó là loại lỗi mà React
+     Compiler bắt được (`react(refs)`), còn state thì không. */
+  const [backTo, setBackTo] = useState(null)
+  const toTop = useCallback(
+    () => window.scrollTo({ top: 0, behavior: REDUCED() ? 'auto' : 'smooth' }), [])
+
+  const openProfile = useCallback((id) => {
+    const key = (id ?? '').toString().trim()
+    if (!key) return
+    /* Nhớ cả địa chỉ LẪN mục đang đứng: trang cá nhân mở ra từ "Của tôi" thì
+       "Back to board" phải trả về đúng "Của tôi", không đẩy người ta ra bảng. */
+    setBackTo({ url: here(), section })
+    setProfileId(key)
+    setSection('board')
+    setMenu(false)
+    pushUrl({ s: 'profile' }, profileUrl(key))
+    toTop()
+  }, [section, toTop])
+
+  const closeProfile = useCallback(() => {
+    setProfileId(null)
+    /* Bộ lọc của bảng KHÔNG bị đụng tới trong lúc trang cá nhân mở, nên trả về
+       đúng địa chỉ cũ là trả về đúng danh sách người ta vừa rời đi. */
+    if (backTo?.section && backTo.section !== 'board') setSection(backTo.section)
+    pushUrl({ s: 'board' }, backTo?.url || ROUTES.board)
+    setBackTo(null)
+    toTop()
+  }, [backTo, toTop])
+
+  /* Đi tới MỘT BÀI từ bất kỳ đâu (thẻ "This week", Recent requests của trang
+     cá nhân). Ba việc phải đi cùng nhau, thiếu một là ra danh sách rỗng:
+       · `f=newest` — cách nhìn duy nhất thấy MỌI bài. `f=top` cố ý loại bài đã
+         xong/đã vào dây chuyền, và "Most voted" tuần này thường chính là bài
+         đang làm → link dẫn tới trang trống;
+       · XOÁ cả hai bộ lọc nhiều-chọn — một chip `Queued` còn bật từ lần lọc
+         trước sẽ giấu bài đã completed (đúng lỗi "bấm Recent Request không
+         thấy bài");
+       · từ khoá là `tên bài + nghệ sĩ` — và ô tìm nay so THEO TỪ nên thứ tự đó
+         khớp được với hàng có `nghệ sĩ` đứng trước (xem `searchHit`). */
+  const openSong = useCallback((song) => {
+    const query = songQuery(song?.title, song?.artist)
+    if (!query) return
+    setBackTo(null)
+    setProfileId(null)
+    setSection('board')
+    setMenu(false)
+    setStatusFilters([])
+    setKindFilters([])
+    setKindFilter('all')
+    setFilter('newest')
+    setQ(query)
+    pushUrl({ s: 'board' }, boardSearchUrl(song?.title, song?.artist))
+    toTop()
+  }, [toTop])
+
+  const nav = useMemo(
+    () => ({ openProfile, openSong, closeProfile }),
+    [openProfile, openSong, closeProfile])
+
   useEffect(() => {
     const onPop = () => {
       setSection(sectionOf(window.location.pathname))
@@ -489,16 +579,30 @@ function AppInner() {
          phải đọc lại cùng lúc với mục của trang — không thì địa chỉ nói
          `?tab=done` mà màn hình vẫn đang ở Đơn hàng. */
       setAdmin(readAdminTab(window.location.search))
+      /* Nút Back của TRÌNH DUYỆT cũng là một lần đổi trang cá nhân: từ
+         `/?profile=…` lùi về `/?f=newest&q=…` thì trang cá nhân phải đóng, và
+         đi tới `/?profile=…` thì nó phải mở. Không đọc lại ở đây là Back chỉ
+         đổi địa chỉ mà màn hình đứng yên. */
+      setProfileId(readProfileId())
       const b = readBoard()
-      setFilter(b.f); setStatusFilters(['queued', 'picked', 'in_progress', 'completed'].includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
+      setFilter(b.f); setStatusFilters(STAGES.includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  /* Bản sao của `profileId` cho đúng MỘT việc: đọc giá trị hiện tại từ bên
+     trong một bộ hẹn giờ (closure của effect dưới đây giữ giá trị cũ). */
+  const profileRef = useRef(null)
+  useEffect(() => { profileRef.current = profileId }, [profileId])
+
   useEffect(() => {
-    if (section !== 'board' || new URLSearchParams(window.location.search).has('profile')) return
+    if (section !== 'board') return
     const id = setTimeout(() => {
+      /* Hỏi LẠI lúc sắp ghi, không phải lúc hẹn giờ: trong 320ms chờ đó người
+         dùng kịp bấm mở trang cá nhân, và ghi đè lúc ấy là XOÁ địa chỉ
+         `/?profile=…` vừa mở — F5 hoặc dán link cho người khác sẽ rơi về bảng. */
+      if (profileRef.current || new URLSearchParams(window.location.search).has('profile')) return
       const p = new URLSearchParams()
       if (filter !== 'queued') p.set('f', filter)
       if (kindFilter !== 'all') p.set('k', kindFilter)
@@ -900,12 +1004,9 @@ function AppInner() {
      đây nó không hiện ở tab nào cả — xem chú thích `inChain` trong lib/meta.js.
      Dòng thiếu picked_at xếp sau các dòng đã chốt bằng `|| 0` để phép so không
      trả NaN (NaN trong comparator là thứ tự ngẫu nhiên, không phải lỗi rõ ràng). */
-  const picked = useMemo(() => {
-    const rank = (r) => (r.status === 'in_progress' ? 0 : 1)
-    return pub.filter(inChain)
-      .sort((a, b) => rank(a) - rank(b)
-        || ((+new Date(a.picked_at) || 0) - (+new Date(b.picked_at) || 0)))
-  }, [pub])
+  /* Dây chuyền đã chốt: luật lọc + luật sắp nằm trong `chainRows` (lib/board.js)
+     để khối Up next, hai tab Up next/In progress và bộ lọc bảng dùng MỘT tập. */
+  const picked = useMemo(() => chainRows(pub), [pub])
 
   /* Gom cụm trung bài trong khối Up next: mỗi bài (artist + title) thành một
      thẻ gồm tất cả dòng đã chốt. `picked` đã sort in_progress trước rồi
@@ -962,38 +1063,14 @@ function AppInner() {
     orders: orders.filter(o => o.status === 'awaiting').length,
   }), [pub, pickedGroups, rows, orders, user, watchedSet])
 
-  /* Chỉ LỌC ở đây; sắp xếp nằm trong lib/board.js vì phải sắp theo cụm
-     (tổng vote cộng dồn), không sắp theo từng dòng lẻ. */
-  const visible = useMemo(() => {
-    /* `t` giữ nguyên chữ người dùng gõ: việc bỏ dấu + hạ chữ thường nằm trong
-       `fold()` để hai vế so sánh luôn đi qua cùng một phép biến đổi. */
-    const t = q.trim()
-    let base = pub
-    if (statusFilters.length) {
-      base = base.filter(r => statusFilters.some(s => s === 'picked'
-        ? isPicked(r) && r.status !== 'in_progress'
-        : s === 'in_progress' ? r.status === 'in_progress'
-        : s === 'queued' ? r.status === 'queued' && !r.picked_at
-        : s === 'completed' && r.status === 'completed'))
-    } else {
-      if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
-      if (filter === 'picked') base = picked
-      if (filter === 'in_progress') base = picked
-      if (filter === 'completed') base = base.filter(r => r.status === 'completed')
-    }
-    /* "Top voted" là danh sách bài ĐANG XIN PHIẾU: bài đã xong hoặc đã nằm
-       trong dây chuyền làm việc không còn xin phiếu nữa (nút vote của chúng
-       cũng đã khóa) — dùng inChain để hai chỗ nói cùng một chuyện. */
-    if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
-    /* Đang theo dõi thì muốn thấy CẢ bài pending/bị từ chối, không riêng
-       hàng đã công bố — nên tab này lấy từ `rows`, không lấy từ `pub`. */
-    if (filter === 'watch') base = rows.filter(r => watchedSet.has(groupKey(r)))
-    if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
-    /* Bỏ dấu trước khi so: tên bài tiếng Việt được gõ cả có dấu lẫn không dấu,
-       mà ô tìm kiếm thì không nên bắt người ta nhớ đúng chính tả. */
-    if (t) base = base.filter(r => fold(`${r.artist} ${r.title} ${r.kind} ${r.requester}`).includes(fold(t)))
-    return base
-  }, [pub, picked, rows, filter, statusFilters, q, kindFilter, kindFilters, watchedSet])
+  /* LỌC nằm trong `filterBoard` (lib/board.js) — cùng chỗ với luật gom cụm và
+     sắp xếp, để mọi đường vào bảng (chip lọc, link "This week", Recent requests
+     của trang cá nhân, nút Back) đi qua MỘT phép lọc có kiểm thử. `kindFilter`
+     không có trong deps vì nó chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ
+     `?k=`; thứ thật sự lọc là `kindFilters`. */
+  const visible = useMemo(
+    () => filterBoard({ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet }),
+    [pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet])
 
   const featured = useMemo(() => {
     const m = media.find(x => !x.is_hidden && x.kind === 'featured')
@@ -1080,7 +1157,9 @@ function AppInner() {
 
   /* nút "View all" trong khối Up next: mở tab Up next của danh sách và cuộn tới */
   const showAllPicked = useCallback(() => {
-    setFilter('picked'); setKindFilter('all'); setQ('')
+    /* `setStatusFilters([])` là bắt buộc: bộ lọc nhiều-chọn THẮNG `filter`,
+       nên không dọn nó thì bấm "View all" đổi `filter` mà danh sách đứng yên. */
+    setFilter('picked'); setStatusFilters([]); setKindFilter('all'); setKindFilters([]); setQ('')
     requestAnimationFrame(() => {
       setTimeout(() => listRef.current?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'start' }), 60)
     })
@@ -1099,8 +1178,12 @@ function AppInner() {
      Không dùng `navigator.share` ở desktop: hộp thoại hệ thống trên Windows
      chậm và nhiều máy không có, trong khi copy link là thao tác ai cũng hiểu. */
   const shareSong = useCallback(async (r) => {
-    const q = `${r.title} ${r.artist}`.trim()
-    const url = `${window.location.origin}${ROUTES.board}?f=top&q=${encodeURIComponent(q)}`
+    /* Link dựng bằng `boardSearchUrl` — cùng một cửa với thẻ "This week" và
+       Recent requests của trang cá nhân. Bản cũ tự ghép `?f=top&q=…`: `top` chỉ
+       liệt kê bài ĐANG XIN PHIẾU, nên chia sẻ một bài vừa được chốt (hoặc đã
+       xong) là gửi đi một link mở ra danh sách RỖNG — người nhận không phân
+       biệt được "bài bị xoá" với "link hỏng". */
+    const url = absolute(boardSearchUrl(r?.title, r?.artist))
     const text = `${r.title} - ${r.artist}`
     /* Hộp chia sẻ hệ thống chỉ mở trên máy cảm ứng. Trên desktop nó là một hộp
        thoại của hệ điều hành (Windows/macOS) chậm, hay bị chặn trong webview,
@@ -1393,7 +1476,7 @@ function AppInner() {
      so Turnstile is not downloaded or rendered until a guest asks to act. */
 
   return (
-    <>
+    <NavProvider value={nav}>
       <Splash hide />
       {authPrompt && !user && (
         <LoginGate onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }} />
@@ -1451,10 +1534,10 @@ function AppInner() {
         </header>
         <div className="sect" key={section}>
 
-        {publicProfileId && <PublicProfile userId={publicProfileId} onBack={() => { window.history.pushState({}, '', '/'); window.dispatchEvent(new PopStateEvent('popstate')) }} />}
+        {profileId && <PublicProfile userId={profileId} onBack={closeProfile} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
-        {section === 'board' && !publicProfileId && (
+        {section === 'board' && !profileId && (
           /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
@@ -1480,10 +1563,18 @@ function AppInner() {
                   <span className="now-split">Community highlights · last 7 days</span>
                 </div>
                 <div className="weekly-grid">
-                  {weeklyHighlights.top && <a className="weekly-card" href={`/?f=top&q=${encodeURIComponent(`${weeklyHighlights.top.title} ${weeklyHighlights.top.artist}`)}`}>
+                  {/* Cả hai thẻ đi qua `boardSearchUrl` (một chỗ dựng link, luôn
+                      kèm `f=newest`) và `spaLink` (đi trong app, không tải lại
+                      trang → không chạy lại màn chờ). Bản cũ tự ghép chuỗi bằng
+                      tay: thẻ "Most voted" giữ `f=top` — mà `top` cố ý loại bài
+                      đã xong/đã vào dây chuyền, nên bấm vào bài nổi nhất tuần
+                      (thường đúng là bài đang làm) ra danh sách RỖNG; thẻ "New this
+                      week" không kèm `f` nên rơi về bộ lọc đã lưu trong
+                      localStorage, cũng rỗng nếu lần trước đang xem Queue. */}
+                  {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
                     <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes || 0} votes</span>
                   </a>}
-                  {weeklyHighlights.newcomer && <a className="weekly-card" href={`/?q=${encodeURIComponent(`${weeklyHighlights.newcomer.title} ${weeklyHighlights.newcomer.artist}`)}`}>
+                  {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
                     <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist} · {weeklyHighlights.newcomer.requester}</span>
                   </a>}
                 </div>
@@ -1669,13 +1760,19 @@ function AppInner() {
                     {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
                       <Fragment key={f.k}>
                         {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
-                        <button type="button" className={`fchip${(['queued', 'picked', 'in_progress', 'completed'].includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
-                          style={{ '--c': f.c }} aria-pressed={(['queued', 'picked', 'in_progress', 'completed'].includes(f.k) ? statusFilters.includes(f.k) : filter === f.k)}
+                        <button type="button" className={`fchip${(STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
+                          style={{ '--c': f.c }} aria-pressed={STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k}
                           onClick={() => {
-                            if (['queued', 'picked', 'in_progress', 'completed'].includes(f.k)) {
-                              setStatusFilters(current => current.includes(f.k) ? current.filter(s => s !== f.k) : [...current, f.k])
-                              setFilter(f.k)
-                            } else { setStatusFilters([]); setFilter(f.k) }
+                            const stage = STAGES.includes(f.k)
+                            const next = stage
+                              ? (statusFilters.includes(f.k) ? statusFilters.filter(s => s !== f.k) : [...statusFilters, f.k])
+                              : []
+                            setStatusFilters(next)
+                            /* Bỏ chọn chip giai đoạn CUỐI CÙNG thì về "cả bảng"
+                               (newest). Để `filter` ở lại giai đoạn vừa bỏ là
+                               danh sách vẫn lọc đúng y như cũ trong khi chip đã
+                               tắt — người bấm thấy "không có gì thay đổi". */
+                            setFilter(stage && !next.length ? 'newest' : f.k)
                           }}>
                           <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
                           <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
@@ -1693,7 +1790,7 @@ function AppInner() {
                         style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
                         aria-label={t('board.clearKind', { k: kindFilter })}
                         title={t('board.clearKind', { k: kindFilter })}
-                        onClick={() => setKindFilter('all')}>
+                        onClick={() => { setKindFilters([]); setKindFilter('all') }}>
                         <i className="kswatch" aria-hidden="true" />{kindFilter}<Icon name="close" size={12} />
                       </button>
                     )}
@@ -1721,7 +1818,16 @@ function AppInner() {
                       <button key={k} type="button"
                         className={`fchip fkind${kindFilters.includes(k) ? ' on' : ''}`}
                         style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilters.includes(k)}
-                        onClick={() => { setKindFilters(current => current.includes(k) ? current.filter(x => x !== k) : [...current, k]); setKindFilter(k) }}>
+                        onClick={() => {
+                          const next = kindFilters.includes(k) ? kindFilters.filter(x => x !== k) : [...kindFilters, k]
+                          setKindFilters(next)
+                          /* `kindFilter` là bản sao MỘT lựa chọn (địa chỉ `?k=`,
+                             bộ lọc đã lưu, chip bỏ được trên hàng chính) nên phải
+                             đổi theo: bỏ chọn loại cuối cùng mà nó vẫn giữ tên
+                             loại đó thì chip "đang lọc" còn hiện trong khi danh
+                             sách đã hết lọc. */
+                          setKindFilter(next.length === 1 ? next[0] : 'all')
+                        }}>
                         <i className="kswatch" aria-hidden="true" />{k}
                       </button>
                     ))}
@@ -1949,7 +2055,7 @@ function AppInner() {
           onCancelOrder={doCancelOrder} userName={viewer.name} live={hasSupabase}
         />
       </Suspense>
-    </>
+    </NavProvider>
   )
 }
 

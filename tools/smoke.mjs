@@ -1373,6 +1373,209 @@ where = 'bài trả phí'
   await tick(250)
 }
 
+/* ---------- 10d. TRANG CÁ NHÂN CÔNG KHAI + "BẤM MỘT BÀI PHẢI RA ĐÚNG BÀI ĐÓ" ----------
+   Bốn lỗi người dùng báo trong hai ngày, kiểm lại bằng ĐƯỜNG BẤM THẬT:
+     · bấm tên người gửi → trang cá nhân mở, KHÔNG tải lại trang (không màn chờ);
+     · bấm "Back to board" → về bảng;
+     · bấm một bài trong Recent requests → bảng lọc sẵn ĐÚNG bài đó, kể cả khi
+       bài đã completed và kể cả khi đang bật chip lọc nào đó;
+     · và tất cả vẫn chạy khi `pushState` bị chặn (iframe sandbox / file://).
+   Dữ liệu mẫu có sẵn đúng ca cần: `demo-user` gửi "Get Up" (NewJeans) và bài đó
+   ĐÃ XONG — nghĩa là `f=top`, một chip `Queue` còn sót, hay một chip loại bài
+   còn sót đều đủ để làm nó biến mất. Đây là phép kiểm end-to-end cho những gì
+   profileNav.test.js giữ bằng hợp đồng trên mã nguồn. */
+{
+  where = 'trang cá nhân công khai'
+  const goto = async (path, ready, ms = 4000) => {
+    window.history.pushState({}, '', path)
+    window.dispatchEvent(new window.Event('popstate'))
+    const ok = await waitFor(ready, ms)
+    await tick(220)
+    return ok
+  }
+  const splashUp = () => !!q('.splash:not(.hide)')
+  const items = () => qa('.list .row, .list .grow')
+  const searched = () => q('input.search')?.value || ''
+  /* Nhãn chip KHÔNG kèm con số: `<b class="fnum">` đứng sát nhãn nên
+     textContent là "Queue12" — muốn so nhãn thì phải bóc số ra trước. */
+  const chipLabel = (c) => (c.textContent || '').replace(/\s+/g, ' ').replace(/\d+$/, '').trim()
+  const onChips = () => qa('.fchip.on').map(chipLabel)
+  /* Nhãn của bốn chip GIAI ĐOẠN (i18n: filter.queued/picked/in_progress/completed).
+     Những chip còn lại trong dải là cách nhìn (Newest/Top voted/Following). */
+  const STAGE = /^(Queue|Up next|In progress|Done)$/
+  const chip = (re) => qa('.fchip').find(c => re.test(chipLabel(c)))
+  const before = problems.length
+  const quiet = (label) => check(`${label}: không có lỗi mới trong console`, problems.length === before,
+    problems.slice(before).map(x => x.text).join(' / ').slice(0, 180))
+
+  /* (1) BẤM TÊN NGƯỜI GỬI TRÊN BẢNG */
+  await goto('/', () => !q('.splash') && items().length > 0)
+  const person = q('.requester-link')
+  check('bảng có tên người gửi bấm được', !!person, (q('.list')?.textContent || '').slice(0, 120))
+  const personHref = person?.getAttribute('href') || ''
+  const uid = new URLSearchParams(personHref.replace(/^[^?]*\??/, '')).get('profile')
+  check('link người gửi là THẺ THẬT dạng ?profile=<id> (host tĩnh không phục vụ /u/)',
+    !!uid && personHref.startsWith('/?profile='), personHref)
+  await click(person)
+  check('bấm tên người gửi: trang cá nhân mở ra',
+    await waitFor(() => !!q('.public-profile-head'), 3000), text().slice(0, 140))
+  check('mở trang cá nhân KHÔNG tải lại trang (không màn chờ)', !splashUp())
+  check('trang cá nhân hiện thay cho danh sách bảng', !q('.list'))
+  check('địa chỉ mang đúng tham số profile', uid
+    && new URLSearchParams(window.location.search).get('profile') === uid, window.location.search)
+  check('trang cá nhân có ba ô số liệu', qa('.public-stats > div').length === 3,
+    `${qa('.public-stats > div').length} ô`)
+  check('có nút chia sẻ và nút quay lại', !!q('.profile-share') && !!q('.profile-back'))
+  check('nút quay lại là một link thật (middle-click / Back của trình duyệt còn dùng được)',
+    q('.profile-back')?.tagName === 'A' && !!q('.profile-back')?.getAttribute('href'),
+    q('.profile-back')?.outerHTML?.slice(0, 90))
+
+  /* (2) RECENT REQUESTS: link phải dựng được từ dữ liệu thật */
+  const recent = qa('.public-request-link')
+  check('trang cá nhân liệt kê Recent requests', recent.length > 0, `${recent.length} bài`)
+  check('mỗi Recent request là link trỏ về bảng, từ khoá KHÔNG rỗng',
+    recent.length > 0 && recent.every(a => {
+      const h = a.getAttribute('href') || ''
+      const p = new URLSearchParams(h.replace(/^[^?]*\??/, ''))
+      return h.startsWith('/?f=newest&q=') && p.get('f') === 'newest' && (p.get('q') || '').trim().length > 2
+    }), recent.map(a => a.getAttribute('href')).join(' | ').slice(0, 200))
+  check('mỗi Recent request có nhãn trạng thái (không phải chữ `undefined`)',
+    qa('.public-state').length === recent.length
+    && qa('.public-state').every(e => (e.textContent || '').trim().length > 2),
+    qa('.public-state').map(e => e.textContent).join(' | '))
+
+  /* (3) BẤM MỘT BÀI ĐÃ XONG — đúng ca đã báo lỗi */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  const doneLink = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
+  check('trang của demo-user có bài ĐÃ XONG (Get Up) để bấm', !!doneLink,
+    qa('.public-request-link').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
+  if (doneLink) {
+    await click(doneLink)
+    check('bấm Recent Request: về bảng và trang cá nhân đóng',
+      await waitFor(() => !!q('.list') && !q('.public-profile'), 3000))
+    check('về bảng KHÔNG tải lại trang (không màn chờ)', !splashUp())
+    check('ô tìm kiếm mang đúng "tên bài nghệ sĩ"', searched() === 'Get Up NewJeans', `"${searched()}"`)
+    check('bảng hiện ĐÚNG bài đó', items().length > 0 && /Get Up/.test(q('.list')?.textContent || ''),
+      `số mục=${items().length} · ${(q('.list')?.textContent || '').replace(/\s+/g, ' ').slice(0, 120)}`)
+    check('bài đã completed không bị loại (link không dùng f=top)',
+      /Completed/i.test(q('.list')?.textContent || ''), (q('.list')?.textContent || '').slice(0, 120))
+    check('không chip GIAI ĐOẠN nào còn bật', !onChips().some(c => STAGE.test(c)), onChips().join(' | '))
+    check('chip loại bài đã về "All types"', onChips().some(c => /All types/i.test(c)), onChips().join(' | '))
+    check('địa chỉ là ?f=newest&q=… để dán cho người khác được',
+      new URLSearchParams(window.location.search).get('f') === 'newest'
+      && /Get\+Up|%20/.test(window.location.search), window.location.search)
+  }
+
+  /* (4) LỖI ĐÃ BÁO: đang BẬT chip lọc rồi mới bấm bài */
+  await goto('/', () => items().length > 0)
+  /* Chỉ bấm khi chip CHƯA bật: `goto('/')` khôi phục bộ lọc đã lưu trong
+     localStorage, nên Queue có thể đang bật sẵn — bấm vào lúc đó là TẮT nó đi
+     (và về "Newest" theo luật chip giai đoạn cuối cùng). */
+  if (!onChips().some(c => STAGE.test(c))) await click(chip(STAGE))                 // Queue
+  if (!onChips().some(c => /Color Coded/.test(c))) await click(chip(/^Color Coded Lyrics/))
+  await tick(420)                                // chờ nhịp ghi URL + localStorage (320ms)
+  check('đã bật được chip giai đoạn + chip loại bài',
+    onChips().some(c => STAGE.test(c)) && onChips().some(c => /Color Coded/.test(c)), onChips().join(' | '))
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  const doneLink2 = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
+  if (doneLink2) {
+    await click(doneLink2)
+    await waitFor(() => !!q('.list'), 3000)
+    check('chip lọc còn bật từ trước: bài đã xong VẪN tìm thấy',
+      /Get Up/.test(q('.list')?.textContent || '') && items().length > 0,
+      `chip đang bật: ${onChips().join(' | ')} · q="${searched()}"`)
+    check('và cả hai bộ lọc nhiều-chọn đã được dọn',
+      !onChips().some(c => STAGE.test(c)) && onChips().some(c => /All types/i.test(c)), onChips().join(' | '))
+  } else {
+    check('chip lọc còn bật từ trước: mở lại được trang cá nhân', false, 'không thấy link Get Up')
+  }
+
+  /* (5) THẺ "THIS WEEK" CŨNG PHẢI ĐI TRONG APP VÀ TÌM RA BÀI */
+  await goto('/', () => items().length > 0)
+  const weekly = q('.weekly-card')
+  check('bảng có thẻ "This week"', !!weekly, (q('.nowbar.weekly')?.textContent || '(không có khối This week)').slice(0, 100))
+  if (weekly) {
+    const name = (weekly.querySelector('b')?.textContent || '').trim()
+    check('thẻ This week trỏ về bảng bằng f=newest (không phải f=top)',
+      (weekly.getAttribute('href') || '').startsWith('/?f=newest&q='), weekly.getAttribute('href'))
+    await click(weekly)
+    check('bấm thẻ This week: đi trong app, tìm ra bài, không màn chờ',
+      (await waitFor(() => searched().length > 0 && items().length > 0, 3000)) && !splashUp(),
+      `q="${searched()}" · số mục=${items().length} · bài trên thẻ="${name}"`)
+  }
+
+  /* (6) TÁC GIẢ BÌNH LUẬN CŨNG LÀ MỘT LINK TRANG CÁ NHÂN */
+  await goto('/', () => items().length > 0)
+  const toggle = q('.comments-toggle')
+  check('hàng request có nút Comments', !!toggle)
+  if (toggle) {
+    await click(toggle)
+    const box = await waitFor(() => !!q('.comment-form input'), 3000)
+    check('mở được khung bình luận', box)
+    if (box) {
+      await type(q('.comment-form input'), ' smoke: link trang ca nhan ')
+      await click(q('.comment-form button[type="submit"]'))
+      const posted = await waitFor(() => qa('.comment').length > 0, 3000)
+      check('gửi được bình luận (đường ghi demo)', posted, `${qa('.comment').length} bình luận`)
+      const author = q('.comment-author')
+      check('bình luận có tên tác giả bấm được', !!author && (author.getAttribute('href') || '').startsWith('/?profile='),
+        author?.getAttribute('href') || (q('.comments-list')?.textContent || '').slice(0, 100))
+      if (author) {
+        await click(author)
+        check('bấm tên tác giả: mở trang cá nhân, không tải lại trang',
+          (await waitFor(() => !!q('.public-profile-head'), 3000)) && !splashUp(), text().slice(0, 120))
+      }
+    }
+  }
+
+  /* (7) BACK TO BOARD */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await click(q('.profile-back'))
+  check('bấm "Back to board": về bảng, trang cá nhân đóng, không màn chờ',
+    (await waitFor(() => !!q('.list') && !q('.public-profile'), 3000)) && !splashUp())
+  quiet('trang cá nhân công khai')
+
+  /* (8) MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn mà vẫn đi được.
+     Đây là vế quan trọng nhất: bản xem trước của nền tảng chạy trong iframe
+     sandbox, `pushState` ném SecurityError. Bản cũ gọi `pushState` TRƯỚC khi đổi
+     state nên cú bấm chết ở đó — "bấm profile bị quay về trang chủ". */
+  where = 'trang cá nhân · iframe bị sandbox'
+  const realPush2 = window.history.pushState
+  const realReplace2 = window.history.replaceState
+  const boom2 = () => { throw new window.DOMException('The operation is insecure.', 'SecurityError') }
+  window.history.pushState = boom2
+  window.history.replaceState = boom2
+  try {
+    const before2 = problems.length
+    /* Về bảng BẰNG BẤM (không đẩy địa chỉ được nữa): mục Requests trong menu. */
+    await click(qa('.side-nav .side-item').find(a => /^Requests/.test((a.textContent || '').trim())))
+    await waitFor(() => items().length > 0, 3000)
+    await tick(220)
+    const person2 = q('.requester-link')
+    check('địa chỉ bị chặn: bảng vẫn còn tên người gửi để bấm', !!person2)
+    if (person2) {
+      await click(person2)
+      check('địa chỉ bị chặn: bấm tên người gửi VẪN mở trang cá nhân',
+        await waitFor(() => !!q('.public-profile-head'), 3000), text().slice(0, 140))
+      const anyLink = qa('.public-request-link')[0]
+      if (anyLink) {
+        await click(anyLink)
+        check('địa chỉ bị chặn: bấm một bài VẪN về bảng và lọc đúng bài đó',
+          (await waitFor(() => !!q('.list') && searched().length > 0, 3000)) && items().length > 0,
+          `q="${searched()}" · số mục=${items().length}`)
+      }
+    }
+    check('địa chỉ bị chặn: không có lỗi mới trong console', problems.length === before2,
+      problems.slice(before2).map(x => x.text).join(' / ').slice(0, 180))
+  } finally {
+    window.history.pushState = realPush2
+    window.history.replaceState = realReplace2
+    where = 'trang cá nhân công khai'
+  }
+  /* Dọn trạng thái để phần kết luận không thừa hưởng một danh sách đang lọc. */
+  await goto('/', () => items().length > 0)
+}
+
 /* ---------- 11. kết luận ---------- */
 where = 'kết thúc'
 const runtime = problems.filter(p => p.kind !== 'warn')

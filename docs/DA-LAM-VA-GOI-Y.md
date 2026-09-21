@@ -1,6 +1,7 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
-Cập nhật 19/09/2026 · nhánh `arena/01a0b7c0-color-coded-lyrics-cf-new`
+Cập nhật 21/09/2026 · nhánh `arena/01a0c255-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
+nằm ở cuối file** (phần V — vòng 18); các con số ngay dưới đây là của mốc 19/09
 So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
 `npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
 `npx oxlint` **0 lỗi**. Bản dựng hiện tại: `index-BxQ09EV7.js` 359 kB.
@@ -1042,3 +1043,98 @@ người "sửa cho dễ nhìn": rãnh 4px, khối ≤ 220px, số 10,5px nét 5
 `npm test` → **375 ca / 374 đạt / 0 lỗi / 1 skip**. `npm run smoke` → **249/249**. `npx oxlint`
 → **0 lỗi, 13 cảnh báo**. `npm run build` → OK: `index-B5awy9PP.js` 294,6 kB (gzip 91,7 kB),
 CSS 119,0 kB.
+
+---
+
+## Phần V — vòng 18: một cú bấm, bốn chỗ hỏng (21/09/2026)
+
+Chủ dự án gửi bảng tổng hợp của phiên trước, trong đó bốn lỗi quanh **trang cá nhân công khai**
+còn treo: bấm tên người gửi thì "quay về trang chủ", *Back to board* không ăn, bấm một bài trong
+*Recent requests* không ra bài, và gõ `POP OFF LE SSERAFIM` thì bảng nói **không có kết quả**.
+Truy tới nơi thì bốn triệu chứng đó là bốn mặt của cùng một cách làm: *mỗi link nội bộ tự ghép
+địa chỉ bằng tay rồi tự gọi `pushState`*.
+
+### V1. Bốn nguyên nhân gốc
+
+| # | Nguyên nhân | Người dùng thấy gì | Vì sao khó bắt |
+|---|---|---|---|
+| 1 | Ba chỗ gọi thẳng `window.history.pushState(...)` trong `onClick`. `pushState` **ném** `SecurityError` trong iframe bị sandbox, trên `file://`, trong chế độ riêng tư của vài trình duyệt — mà `preventDefault()` đã chạy **trước** đó | Bấm tên người gửi / tác giả bình luận / một bài trong trang cá nhân: **không gì xảy ra cả** | Repo đã có `lib/history.js` sinh ra cho đúng lỗi này (vòng 11 sửa ca "bảng quản trị hỏng toàn bộ" cũng vì nó) — ba link mới chỉ là không đi qua cửa đó. Trên bản deploy thật (không sandbox) chúng lại chạy, nên không lộ trong lúc làm |
+| 2 | "Trang cá nhân đang mở" được đọc từ `window.location` **lúc render**, không phải state | Cùng cú bấm đó: có khi địa chỉ đổi mà màn hình đứng yên | React bỏ qua lượt render nếu mọi `setState` trong handler trùng giá trị; còn khi (1) xảy ra thì địa chỉ không đổi, tức là không có gì để đọc |
+| 3 | Từ khoá dựng `tên bài + nghệ sĩ`; chuỗi để dò của hàng là `nghệ sĩ + tên bài + loại + người gửi`; so bằng **MỘT** phép `includes` cả cụm | `Pop Off LE SSERAFIM` → trang trống cho **chính bài đó** | Thứ tự "nghệ sĩ trước" là thứ tự của CSDL, còn **mọi** đường link vào bảng (thẻ *This week*, *Recent requests*, nút chia sẻ) đều dựng theo thứ tự ngược lại |
+| 4 | `fetchPublicProfile` (đường Supabase) chỉ `select('status, votes')` | Trên bản deploy: *Recent requests* không có tên bài → link `?q=` **rỗng**, `key` của 8 hàng trùng nhau | Chế độ demo dùng hàng mẫu có đủ mọi cột nên không lộ — hỏng đúng ở chỗ không ai bấm thử |
+
+### V2. Đã sửa
+
+| File | Việc |
+|---|---|
+| **`src/lib/nav.js`** (mới) | Context ba hàm `openProfile` / `openSong` / `closeProfile`, và `spaLink(fn, arg)`: thẻ **giữ `href` thật** (middle-click, "mở trong tab mới", trình đọc màn hình — và là đường lùi khi component được dựng ngoài App), còn bấm thường thì đổi **state**. Không có đường SPA thì `spaLink` trả về `undefined` để React **không gắn handler**, cú bấm đi theo href. Khác `useNotify` (ném khi thiếu provider) là có lý do: nav là thứ tuỳ chọn |
+| **`src/lib/history.js`** | Thêm cửa DỰNG địa chỉ cạnh cửa GHI địa chỉ: `profileUrl()`, `songQuery()`, `boardSearchUrl()` (luôn kèm `f=newest`), `absolute()`. Trước đó năm chỗ tự ghép chuỗi và ghép **năm kiểu** khác nhau |
+| **`src/App.jsx`** | `profileId` là **state** (khởi tạo + đọc lại lúc Back/Forward bằng `readProfileId()` — đúng hai lần chạm vào địa chỉ); `openProfile`/`closeProfile`/`openSong` đổi state TRƯỚC rồi mới `pushUrl`. Bộ hẹn giờ ghi URL **hỏi lại lúc sắp ghi** (trong 320ms chờ đó người dùng kịp mở trang cá nhân — ghi đè là xoá mất địa chỉ vừa mở). `shareSong` và hai thẻ *This week* đi qua `boardSearchUrl` |
+| **`src/lib/board.js`** | `searchTerms()` / `allTermsIn()` / `searchHit()`: bỏ dấu, so **THEO TỪ**, bỏ từ chỉ có dấu câu. Và `filterBoard()` / `chainRows()`: khối lọc bảng dời ra khỏi App.jsx để kiểm thử được bằng dữ liệu giả |
+| **`src/lib/db.js`** | `fetchPublicProfile` chọn đủ cột (`id, title, artist, kind, status, votes, created_at, picked_at, video_url`), sắp **mới nhất trước**, lọc cả `pending` lẫn `denied` (RLS cho đọc cả bảng `requests`, nên lọc là việc của chỗ này), và một `publicProfileShape()` để hai đường demo/Supabase không thể trả về hai hình dạng |
+| **`src/components/PublicProfile.jsx`** | Trạng thái **đang tải** riêng (trước đây in *"Profile not found."* trong ~200ms đầu — nói dối về một thứ chỉ là chưa tới); link đi qua `spaLink`; *Back to board* là thẻ `<a href="/">` chứ không phải nút; nhãn trạng thái qua `statusLabel`; hàng thiếu tên thì **không dựng link**; URL chia sẻ dựng từ `userId` (không lấy `location.href` — khi `pushState` bị chặn thì đó là địa chỉ của bảng) |
+| **`src/components/Comments.jsx`** | Tên tác giả đi qua `profileUrl` + `spaLink` |
+| **`src/components/AdminPanel.jsx`** | Ô tìm của admin dùng `allTermsIn` — cùng một phép bỏ dấu và cùng một cách so theo từ với bảng công khai |
+
+### V3. Nhãn "Votes given" là một lời nói dối
+
+Con số đó là `sum(requests.votes)` — **tổng phiếu mà các bài của người đó nhận được**. Phiếu họ
+đi bỏ cho người khác không đọc được ở đây: RLS của `votes` là *read own votes*, người lạ hỏi là
+nhận về rỗng. Nhãn đã đổi thành **Votes received**, và huy hiệu thành *"10 votes earned"*. Một
+con số đúng với một cái nhãn sai thì vẫn là nói dối — và đây là loại lỗi không có phép kiểm nào
+bắt được ngoài việc đọc lại chính câu chữ của mình.
+
+### V4. Hai bộ lọc lệch nhau — lỗi cùng họ, tìm ra trong lúc truy
+
+Bảng có **hai** state cho cùng một việc: `statusFilters`/`kindFilters` (chọn NHIỀU) là thứ thật
+sự lọc, còn `filter`/`kindFilter` (chọn MỘT) là bản sao dùng cho địa chỉ `?f=`/`?k=` và cho bộ
+lọc đã lưu. Ba chỗ để hai bản lệch nhau:
+
+| Chỗ | Trước | Sau |
+|---|---|---|
+| Bỏ chọn chip giai đoạn **cuối cùng** | `statusFilters` rỗng nhưng `filter` vẫn là giai đoạn vừa bỏ → danh sách lọc **y như cũ** trong khi chip đã tắt | Về `newest` (cả bảng) — chip tắt thì lọc cũng phải tắt |
+| Bỏ chọn loại bài cuối cùng | `kindFilters` rỗng, `kindFilter` vẫn giữ tên loại → chip "đang lọc theo loại" còn hiện, dòng *"đang xem n/mục"* còn đó | `kindFilter` = `next.length === 1 ? next[0] : 'all'` |
+| Chip "bỏ lọc loại bài" trên hàng chính | Chỉ `setKindFilter('all')` — chip biến mất mà danh sách **vẫn thiếu bài** | Dọn cả `kindFilters` |
+
+Cùng họ với chúng là ba đường "nhảy tới một bài" (`jumpToSong` từ hộp thông báo, `showAllPicked`
+từ nút *View all*, và `openSong` mới): cả ba đều phải **dọn cả hai bộ lọc nhiều-chọn**, vì
+`statusFilters` THẮNG `filter` trong `filterBoard` — không dọn thì tin thông báo bảo "bấm vào
+đây để xem bài của bạn" mà bảng hiện trang trống.
+
+### V5. Vì sao link tới MỘT BÀI phải là `f=newest`, không phải `f=top`
+
+`top` là danh sách bài **đang xin phiếu**: nó cố ý loại bài đã xong và bài đã vào dây chuyền
+(nút vote của chúng đã khóa). Vậy nên:
+
+- thẻ *Most voted* tuần trỏ vào `?f=top&q=…` — mà bài nổi nhất tuần thường **đang được làm**,
+  tức là link mở ra trang trống;
+- nút **chia sẻ** một bài vừa được chốt cũng gửi đi link chết — người nhận không phân biệt được
+  "bài bị xoá" với "link hỏng";
+- *Recent requests* của trang cá nhân: bài đã completed (đúng ca chủ dự án báo) biến mất.
+
+`newest` thấy **mọi** bài trên bảng, nên nó là cách nhìn duy nhất đúng cho một link dẫn tới một
+bài cụ thể. `top` vẫn giữ nguyên nghĩa của nó ở chỗ người dùng tự chọn: "đang xin phiếu".
+
+### V6. Hai bài kiểm cũ phải đổi theo — và vì sao đó là đổi đúng
+
+| Bài kiểm | Trước | Nay |
+|---|---|---|
+| `boardSync.test.js` | đòi App.jsx chứa `pub.filter(inChain)` và `if (filter === 'in_progress') base = picked` | đòi **`lib/board.js`** định nghĩa `chainRows` lọc bằng `inChain`, và App.jsx phải **gọi** `chainRows(pub)` + `filterBoard({...})` — khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả |
+| `board.test.js` | đòi App.jsx/AdminPanel.jsx chứa `fold(` | đòi App.jsx dùng `filterBoard(`, AdminPanel dùng `allTermsIn(`, **không** file nào còn `.includes(fold(`, và `normalize('NFD')` chỉ xuất hiện đúng **một** lần trong toàn repo |
+| `cssFilterBar.test.js` | đòi chip bỏ lọc loại bài có `onClick={() => setKindFilter('all')}` | đòi `setKindFilters([]); setKindFilter('all')` — tức là dọn bộ lọc **thật**, không chỉ bản sao |
+
+### V7. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **400 ca / 399 đạt / 0 lỗi / 1 skip** (vòng 17: 375 ca). Mới: `src/lib/profileNav.test.js` **14 ca** (dựng địa chỉ, `spaLink` chạy thật với sự kiện giả, và bảy hợp đồng trên mã nguồn: không ai tự `pushState`, không ai tự ghép chuỗi địa chỉ, mọi link nội bộ là thẻ thật + `spaLink`, trang cá nhân là state, `openSong` dọn cả hai bộ lọc, `setBooting(true)` không tồn tại, câu truy vấn trang cá nhân chọn đủ cột) và **+11 ca** trong `board.test.js` cho `searchHit`/`filterBoard`/`chainRows` |
+| `npm run smoke` | ✅ **287/287 mục đạt** (vòng 17: 249). Mục **10d** mới đi bằng đường bấm thật: bấm tên người gửi → trang cá nhân mở, **không màn chờ**; soi href của từng *Recent request*; bấm bài **đã completed** (Get Up / NewJeans) → bảng hiện đúng bài, ô tìm mang `Get Up NewJeans`, không chip giai đoạn nào còn bật; **bật chip lọc trước rồi mới bấm** (đúng ca đã báo); thẻ *This week*; gửi một bình luận rồi bấm tên tác giả; *Back to board*; và lặp lại tất cả trong **iframe bị sandbox** (`pushState`/`replaceState` ném `SecurityError`) |
+| `npx oxlint` | ✅ **0 lỗi, 19 cảnh báo** — nền trước vòng là 21: bớt được hai (`useMemo` thừa dep `kindFilter`, và một `set-state-in-effect` tránh được nhờ gộp "đang tải" vào cùng một state với "tải cho ai") |
+| `npm run build` | ✅ sạch — `index-DwxZpI5J.js` 304,06 kB (gzip 94,38 kB), CSS 131,53 kB |
+
+**Một chi tiết đáng nhớ về cách viết chú thích trong repo này:** `jsxHtml.test.js` quét THÔ mã
+nguồn `.jsx`, nên chữ `<a>` viết trong một **chú thích** cũng được đếm là một thẻ mở — và vì nó
+không có thẻ đóng, mọi thẻ tương tác phía sau trong file đó bị báo là "lồng control vào control".
+Hai mươi ba "lỗi" hiện ra từ một dấu `<a>` trong chú thích. Quy tắc: trong file `.jsx`, đừng viết
+tên thẻ kèm dấu nhọn trong chú thích (`profileNav.test.js` nay lột chú thích trước khi quét, và
+giữ nguyên số dòng để thông báo còn trỏ đúng chỗ).

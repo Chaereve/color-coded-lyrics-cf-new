@@ -17,6 +17,11 @@
    bằng dữ liệu giả mà không phải dựng cả giao diện.
    ========================================================= */
 
+/* `inChain`/`isPicked` là luật của MỘT dòng (đã chốt? đang làm?) và nằm ở
+   meta.js — board.js mượn chứ không định nghĩa lại: một luật mà hai chỗ viết
+   thì sau một lần sửa, bảng và khối Up next kể hai câu chuyện khác nhau. */
+import { inChain, isPicked } from './meta.js'
+
 const ts = (v) => +new Date(v) || 0
 
 /* Chuẩn hoá một trường thành chuỗi so sánh được — kể cả khi nó không phải
@@ -49,6 +54,52 @@ export const fold = (s) => (s || '').toString().toLowerCase()
   .replace(/đ/g, 'd')
   .replace(/\s+/g, ' ')
   .trim()
+
+/* =========================================================
+   TÌM KIẾM — so TỪNG TỪ, không so cả chuỗi
+   ---------------------------------------------------------
+   Bản cũ là MỘT phép `includes` trên cả cụm:
+       fold(`${artist} ${title} ${kind} ${requester}`).includes(fold(q))
+   Nghĩa là từ khoá chỉ khớp khi người gõ viết ĐÚNG THỨ TỰ các trường của
+   hàng. Mà thứ tự đó (`nghệ sĩ` trước, `tên bài` sau) là thứ tự của CSDL,
+   không phải thứ tự người ta gõ — và mọi đường dẫn vào bảng đều dựng từ
+   khoá theo thứ tự NGƯỢC LẠI (`tên bài` trước, `nghệ sĩ` sau):
+       · thẻ "This week"               → `?q=<title> <artist>`
+       · Recent requests ở trang cá nhân → `?q=<title> <artist>`
+   Hệ quả thật: bấm một bài trong trang cá nhân của người gửi thì bảng hiện
+   "không có kết quả" cho CHÍNH bài đó — `Pop Off LE SSERAFIM` không phải là
+   chuỗi con của `LE SSERAFIM Pop Off Color Coded Lyrics swanlychae`.
+
+   Sửa ở tầng so sánh, không phải ở tầng dựng link: đổi sang AND-theo-từ thì
+   thứ tự không còn quan trọng, và hai cách gõ ("Pop Off LE SSERAFIM",
+   "LE SSERAFIM Pop Off") đều ra đúng một bài. Một từ khoá nhiều từ vẫn tìm
+   được bài có tên ghép (`ive switch`) vì mỗi từ được dò độc lập.
+
+   Trả lời hai câu hỏi khác nhau nên tách hai hàm:
+       · allTermsIn(haystack, q) — cho chỗ tự dựng chuỗi để dò (bảng Admin dò
+         cả ghi chú / trạng thái / loại đơn)
+       · searchHit(row, q)       — cho MỘT hàng request: chuỗi dò do chính hàm
+         này định nghĩa, nên bảng công khai và mọi đường link vào bảng không
+         thể lệch nhau.
+   ========================================================= */
+/* Từ khoá rỗng → không từ nào → không lọc gì. Từ chỉ có dấu câu (`-`, `·`,
+   `()`) cũng bị bỏ: người ta dán "Pop Off - LE SSERAFIM" từ tiêu đề video, và
+   một từ `-` không có trong hàng nào cả sẽ làm cả phép tìm về rỗng. */
+export const searchTerms = (q) => fold(q).split(' ')
+  .filter(term => /[\p{L}\p{N}]/u.test(term))
+
+export const allTermsIn = (haystack, q) => {
+  const terms = searchTerms(q)
+  if (!terms.length) return true
+  const hay = fold(haystack)
+  return terms.every(term => hay.includes(term))
+}
+
+/* Các trường công khai của một hàng: đúng bốn trường người đọc nhìn thấy trên
+   bảng (nghệ sĩ, tên bài, loại, người gửi). Không dò `note`/`link` ở bảng công
+   khai — đó là chữ admin ghi cho mình. */
+export const searchHit = (r, q) =>
+  allTermsIn(`${r?.artist} ${r?.title} ${r?.kind} ${r?.requester}`, q)
 
 /* Nhat ra nhung request CUNG MOT BAI (cung artist + title, khong phan biet
    hoa thuong / khoang trong thua) ma van con "song" (queued | in_progress).
@@ -343,7 +394,7 @@ export function voteTotals(rows) {
    có ba người gửi thì cả ba dòng nằm chung một thẻ, không nhân ba con số).
    `total` là số bài — hằng đẳng thức queued + picked + in_progress + completed
    === total được test giữ, nên không ai lặng lẽ bỏ rơi một giai đoạn nữa. */
-const STAGES = ['queued', 'picked', 'in_progress', 'completed']
+export const STAGES = ['queued', 'picked', 'in_progress', 'completed']
 export function stageCounts(rows) {
   const rank = new Map()
   for (const r of rows || []) {
@@ -368,6 +419,60 @@ export function stageCounts(rows) {
    thì badge ghi 3 mà dưới chỉ có 1 thẻ — đó là kiểu "lệch số" người dùng nhìn
    ra ngay mà không gọi được tên. */
 export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
+
+/* DÂY CHUYỀN đã chốt, bài đang chạy lên trước rồi tới ngày chốt — nguồn của
+   khối Up next VÀ của hai tab "Up next"/"In progress". Cùng một tập thì badge,
+   nắp khối và danh sách không thể lệch nhau (xem boardSync.test.js). */
+export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
+  (a.status === 'in_progress' ? 0 : 1) - (b.status === 'in_progress' ? 0 : 1)
+  || ((+new Date(a.picked_at) || 0) - (+new Date(b.picked_at) || 0)))
+
+/* =========================================================
+   LỌC BẢNG — MỘT hàm cho mọi đường vào bảng
+   ---------------------------------------------------------
+   Khối này từng nằm trong App.jsx (`const visible = useMemo(...)`), tức là
+   không có cách nào kiểm thử nó mà không dựng cả giao diện. Mà đây đúng là
+   chỗ sinh ra lỗi người dùng báo: "bấm một bài trong trang cá nhân thì bảng
+   nói KHÔNG CÓ KẾT QUẢ" — từ khoá đúng, nhưng một bộ lọc CÒN SÓT (chip
+   `Queued` bật từ lần trước, hoặc `f=top` mà link cũ để lại) đã giấu bài đó.
+   Tách ra đây để mỗi vế của luật đó có một ca kiểm thử.
+
+   Thứ tự áp dụng:
+     1. `statusFilters` (chọn NHIỀU giai đoạn) thắng `filter` khi có mặt;
+     2. rỗng thì `filter` quyết định tập nền: queued / picked / in_progress /
+        completed / newest (cả bảng);
+     3. `top` CHỈ liệt kê bài đang xin phiếu — bài đã xong hoặc đã vào dây
+        chuyền bị loại. Vì vậy một link muốn dẫn tới MỘT BÀI BẤT KỲ phải dùng
+        `newest`; dùng `top` là bấm vào bài đang làm rồi nhận trang trống;
+     4. `watch` lấy từ `rows`, không từ `pub`: người theo dõi muốn thấy cả bài
+        đang chờ duyệt / bị từ chối của chính mình;
+     5. `kindFilters` rỗng nghĩa là mọi loại bài;
+     6. từ khoá đi qua `searchHit` (bỏ dấu + so theo từ).
+   ========================================================= */
+export function filterBoard(opts = {}) {
+  const {
+    pub = [], rows = [], filter = 'queued',
+    statusFilters = [], kindFilters = [], q = '', watchedSet = new Set(),
+  } = opts
+  const picked = opts.picked || chainRows(pub)
+  let base = real(pub)
+  if (statusFilters.length) {
+    base = base.filter(r => statusFilters.some(s => s === 'picked'
+      ? isPicked(r) && r.status !== 'in_progress'
+      : s === 'in_progress' ? r.status === 'in_progress'
+      : s === 'queued' ? r.status === 'queued' && !r.picked_at
+      : s === 'completed' && r.status === 'completed'))
+  } else if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
+  else if (filter === 'picked' || filter === 'in_progress') base = picked
+  else if (filter === 'completed') base = base.filter(r => r.status === 'completed')
+  /* `newest` và `top` giữ tập nền rồi mới lọc tiếp ở hai dòng dưới. */
+  if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
+  if (filter === 'watch') base = real(rows).filter(r => watchedSet.has(groupKey(r)))
+  if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
+  const t = (q ?? '').trim()
+  if (t) base = base.filter(r => searchHit(r, t))
+  return base
+}
 
 /* Danh sách cuối cùng để render + phân trang: cụm nhiều dòng thành một
    thẻ gập/mở được, cụm một dòng giữ nguyên hàng thường. */

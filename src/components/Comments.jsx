@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { addComment, deleteComment, fetchComments } from '../lib/db'
 import { useNotify } from '../lib/notify.jsx'
+import { profileUrl } from '../lib/history'
+import { useNav, spaLink } from '../lib/nav.js'
 
 export default function Comments({ requestId, user, onLogin }) {
   const [open, setOpen] = useState(false)
@@ -10,6 +12,9 @@ export default function Comments({ requestId, user, onLogin }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { push } = useNotify()
+  /* Tên tác giả là một link nội bộ: đi qua context nav thay vì tự ghi địa chỉ
+     (xem lib/nav.js vì sao `pushState` trần làm link chết trong iframe). */
+  const nav = useNav()
   useEffect(() => { if (!open) return; setError(''); fetchComments(requestId).then(setItems).catch(() => { setError('Could not load comments.'); push({ tone: 'err', title: 'Comments', body: 'Could not load comments.' }) }) }, [open, requestId, push])
   const submit = async e => {
     e.preventDefault(); const clean = body.trim(); if (!clean) return
@@ -24,7 +29,7 @@ export default function Comments({ requestId, user, onLogin }) {
       <Icon name="info" size={14} /> {open ? 'Hide comments' : 'Comments'}{items.length > 0 && <b>{items.length}</b>}
     </button>
     {open && <div className="comments-panel">
-      {items.length ? <div className="comments-list">{items.map(c => <div className="comment" key={c.id}>{c.user_id ? <a className="comment-author" href={`/?profile=${encodeURIComponent(c.user_id)}`} onClick={e => { e.preventDefault(); window.history.pushState({}, '', `/?profile=${encodeURIComponent(c.user_id)}`); window.dispatchEvent(new PopStateEvent('popstate')) }}>{c.author || 'Member'}</a> : <b>{c.author || 'Member'}</b>}<span>{c.body}</span>{user?.id === c.user_id && <button type="button" className="comment-delete" title="Remove comment" aria-label="Remove comment" onClick={async () => { try { await deleteComment(c.id); setItems(x => x.filter(y => y.id !== c.id)); push({ tone: 'ok', title: 'Comment removed', body: 'Your comment was removed.' }) } catch { push({ tone: 'err', title: 'Comment failed', body: 'Could not remove comment.' }) } }}><Icon name="close" size={13} /></button>}</div>)}</div> : <p className="comments-empty">No comments yet.</p>}
+      {items.length ? <div className="comments-list">{items.map(c => <div className="comment" key={c.id}>{c.user_id ? <a className="comment-author" href={profileUrl(c.user_id)} onClick={spaLink(nav.openProfile, c.user_id)}>{c.author || 'Member'}</a> : <b>{c.author || 'Member'}</b>}<span>{c.body}</span>{user?.id === c.user_id && <button type="button" className="comment-delete" title="Remove comment" aria-label="Remove comment" onClick={async () => { try { await deleteComment(c.id); setItems(x => x.filter(y => y.id !== c.id)); push({ tone: 'ok', title: 'Comment removed', body: 'Your comment was removed.' }) } catch { push({ tone: 'err', title: 'Comment failed', body: 'Could not remove comment.' }) } }}><Icon name="close" size={13} /></button>}</div>)}</div> : <p className="comments-empty">No comments yet.</p>}
       <form className="comment-form" onSubmit={submit}><input maxLength="180" value={body} onChange={e => setBody(e.target.value)} placeholder={user ? 'Write a comment…' : 'Sign in to comment'} /><button type="submit" disabled={busy || !body.trim()} aria-label="Post comment"><Icon name="compose" size={15} /></button></form>
       {error && <small className="comment-error">{error}</small>}
     </div>}

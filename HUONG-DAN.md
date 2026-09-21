@@ -3079,3 +3079,100 @@ deploy:
 - Bật *giảm chuyển động* trong hệ điều hành rồi tải lại: nội dung phải hiện **ngay**,
   không có hàng nào đứng im ở trạng thái trong suốt (đây chính là khe hở
   `animation-delay` đã nhắc ở trên).
+
+---
+
+## Trang cá nhân công khai, bình luận, và cách đi lại trong app (vòng 18 — 21/09/2026)
+
+### Trang cá nhân công khai
+
+Mở bằng cách bấm vào **tên người gửi** trên một hàng request, hoặc **tên tác giả** của một bình
+luận. Địa chỉ là `/?profile=<user-id>` — dạng **tham số**, không phải `/u/<id>`: host tĩnh chỉ
+phục vụ `index.html` cho đúng `/` (xem `public/_redirects`), nên một link `/u/…` dán ra ngoài là
+404. App vẫn **đọc** được `/u/<id>` cho những link cũ đã lỡ dán.
+
+| Hiện | Không hiện |
+|---|---|
+| Ảnh đại diện (hoặc chữ cái đầu của tên), tên | Email |
+| Ba ô số: **Requests** · **Completed** · **Votes received** | Số dư vote / bonus |
+| Huy hiệu: *First request* (≥1 bài) · *First completion* (≥1 bài xong) · *10 votes earned* | Đơn hàng, lịch sử vote từng dòng |
+| **Recent requests**: 8 bài mới nhất, mỗi bài là một link về bảng | Bài đang **chờ duyệt** (`pending`) và bài **bị từ chối** (`denied`) — RLS cho đọc cả bảng `requests`, nên lọc hai trạng thái đó là việc của `fetchPublicProfile` |
+
+Hai điều cần nhớ khi sửa chỗ này:
+
+1. **"Votes received", không phải "Votes given".** Con số là tổng phiếu mà các bài của người đó
+   **nhận được**. Phiếu họ đi bỏ cho người khác không đọc được: RLS của `votes` là *read own
+   votes*, người lạ hỏi là nhận về rỗng. Muốn đổi nhãn thì đổi luôn phép tính, đừng đổi một mình
+   nhãn.
+2. **Nút *Share profile* dựng URL từ `userId`**, không lấy `window.location.href` — trong iframe
+   bị sandbox (bản xem trước của nền tảng) địa chỉ trên thanh có thể vẫn là địa chỉ của bảng, và
+   copy ra sẽ là link sai.
+
+*Back to board* trả về **đúng chỗ vừa rời đi**: cả địa chỉ lẫn mục đang đứng (mở trang cá nhân từ
+*Của tôi* thì quay về *Của tôi*, không bị đẩy ra bảng). Bộ lọc của bảng không bị đụng tới trong
+lúc trang cá nhân mở, nên quay về là thấy đúng danh sách cũ.
+
+### Bình luận trên một request
+
+Nút **Comments** nằm ở cuối mỗi hàng. Mở ra là khung nội tuyến (không phải hộp thoại), nên vừa
+đọc bình luận vừa thấy hàng đó.
+
+- Khách bấm vào ô nhập thì **LoginGate** mở (đúng luồng "xem được, làm thì phải đăng nhập");
+- 1–180 ký tự, nút gửi tự khoá khi rỗng; lỗi hiện ngay trong khung + một toast;
+- Người viết xoá được bình luận của **mình** (icon × ở góc phải cùng hàng); admin xoá được bất kỳ
+  bình luận nào — cả hai đều là policy RLS, không phải chỉ ẩn nút trên giao diện;
+- xoá là **xoá mềm** (`deleted_at`), nên về sau còn làm được mục kiểm duyệt;
+- đọc tối đa 20 bình luận mới nhất cho mỗi request;
+- chế độ demo (chưa nối Supabase) lưu bình luận vào `localStorage`: đóng/mở khung, tải lại trang
+  vẫn còn.
+
+### Tìm kiếm trên bảng: so THEO TỪ
+
+`searchHit()` trong `src/lib/board.js` là chỗ duy nhất định nghĩa phép tìm: bỏ dấu tiếng Việt
+(kể cả chữ **đ**), hạ chữ thường, gom khoảng trắng thừa, bỏ những từ chỉ có dấu câu, rồi đòi
+**mỗi từ** xuất hiện đâu đó trong `nghệ sĩ + tên bài + loại bài + người gửi`.
+
+Hệ quả mà người dùng thấy: `Pop Off LE SSERAFIM`, `LE SSERAFIM Pop Off`, `pop off`, và
+`Pop Off - LE SSERAFIM` (dán từ tiêu đề video) đều ra **cùng một bài**. Bản cũ so cả cụm bằng một
+phép `includes`, nên chỉ cách gõ đúng thứ tự cột của CSDL là có kết quả — và mọi link trong app
+thì dựng theo thứ tự ngược lại.
+
+Ô tìm của **bảng Admin** dùng `allTermsIn()` của cùng file đó (chuỗi dò khác: admin dò thêm ghi
+chú và trạng thái), nên hai màn hình không thể trả lời khác nhau cho cùng một từ khoá.
+`q` vẫn **không** được nhớ giữa các phiên: mở lại web mà danh sách tự dưng rỗng vì một từ khoá
+cũ là kiểu bực mình không ai gọi được tên.
+
+### Quy tắc cho người sửa sau: thêm một link nội bộ
+
+Mọi link trỏ vào chính app (trang cá nhân, một bài trên bảng) phải đi qua **hai cửa**:
+
+```jsx
+import { profileUrl, boardSearchUrl } from '../lib/history'   // DỰNG địa chỉ
+import { useNav, spaLink } from '../lib/nav.js'                // ĐI trong app
+
+const nav = useNav()
+<a className="requester-link" href={profileUrl(r.user_id)}
+   onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a>
+```
+
+Bốn điều không được làm, và lý do:
+
+| Đừng | Vì sao |
+|---|---|
+| Tự gọi `window.history.pushState` | Nó **ném** `SecurityError` trong iframe sandbox / `file://` / chế độ riêng tư. `lib/history.js` bọc try/catch cho đúng việc này |
+| Tự phát `PopStateEvent` để "báo app đọc lại" | Nghĩa là đang coi **địa chỉ** là nguồn sự thật. Nay state đổi trước, địa chỉ là bản sao |
+| Tự ghép chuỗi `?profile=` / `?f=top&q=` | Năm chỗ từng ghép năm kiểu, và một trong số đó dùng `f=top` — là cách nhìn **loại** bài đã xong/đã vào dây chuyền, nên link tới một bài đang làm là link chết |
+| Bỏ `href` | Middle-click, "mở trong tab mới", copy link, và trình đọc màn hình đều cần nó; `spaLink` trả về `undefined` khi không có đường SPA để cú bấm đi theo href thật |
+
+`profileNav.test.js` giữ cả bốn điều trên bằng hợp đồng trên mã nguồn: làm sai là `npm test` đỏ.
+
+### Kiểm tra lại bằng gì
+
+```bash
+npm test        # 400 ca — có 14 ca của profileNav.test.js và 11 ca searchHit/filterBoard
+npm run smoke   # 287 mục — mục 10d đi bằng đường bấm thật, kể cả trong iframe bị sandbox
+```
+
+Muốn soi bằng mắt: mở bảng → bấm tên người gửi → trang cá nhân → bấm một bài **đã completed**
+trong *Recent requests* → bảng phải hiện đúng bài đó với ô tìm đã điền sẵn. Lặp lại sau khi tự
+bật một chip lọc (Queue + một loại bài): bài đó **vẫn** phải hiện.

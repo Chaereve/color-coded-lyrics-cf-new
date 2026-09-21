@@ -4066,7 +4066,11 @@ body {
 .comment { position: relative; padding-right: 28px; }
 .comment-delete { position: absolute; top: -2px; right: 0; }
 .public-profile { max-width: 680px; margin: 0 auto; padding: 24px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
-.profile-back { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--txt-3); cursor: pointer; }
+/* "Back to board" là một THẺ <a> (đi trong app bằng spaLink, nhưng vẫn là link
+   thật để mở tab mới / bấm Back của trình duyệt) — nên ngoài số đo của nút còn
+   cần `text-decoration: none` và `font: inherit`, hai thứ trình duyệt mặc định
+   cho link chứ không cho button. */
+.profile-back { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: var(--txt-3); cursor: pointer; font: inherit; text-decoration: none; }
 .profile-back:hover { color: var(--a-2); }
 .public-profile-head { display: flex; align-items: center; gap: 14px; margin-top: 28px; }
 .public-avatar { display: grid; place-items: center; width: 64px; height: 64px; overflow: hidden; border-radius: 50%; background: var(--a-soft); color: var(--a-2); font-size: 24px; font-weight: 700; }

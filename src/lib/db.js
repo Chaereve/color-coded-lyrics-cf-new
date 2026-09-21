@@ -231,18 +231,59 @@ export async function signOut() {
   } catch { /* ignore */ }
 }
 
+/* ===================== TRANG CÁ NHÂN CÔNG KHAI =====================
+   Ba quy tắc, và cả ba đều là lỗi đã gặp thật:
+
+   1. CHỈ những hàng người ngoài được thấy trên bảng. RLS cho đọc CẢ bảng
+      `requests` (`using (true)`), nên lọc `pending`/`denied` là việc của chỗ
+      này: một bài chưa duyệt thì người lạ chưa được biết tên, và bài bị từ
+      chối là chuyện riêng của người gửi.
+   2. `recent` phải mang ĐỦ cột để dựng link. Bản cũ chọn đúng `status, votes`
+      nên `recent` không có `title`/`artist`/`id`: UI dựng ra
+      `?f=newest&q=` RỖNG và `key` của cả tám hàng trùng nhau. Ở chế độ demo
+      lỗi này không lộ (hàng mẫu có đủ mọi cột) — nó chỉ hiện trên bản deploy,
+      tức là đúng chỗ không ai bấm thử.
+   3. Con số `votes` là TỔNG PHIẾU MÀ CÁC BÀI CỦA NGƯỜI ĐÓ NHẬN ĐƯỢC. Số phiếu
+      họ ĐI BỎ cho người khác không đọc được ở đây: RLS của `votes` là
+      "read own votes", người lạ hỏi là nhận về rỗng. Nhãn trên UI phải nói
+      đúng điều đó ("Votes received") — một con số đúng với một cái nhãn sai thì
+      vẫn là nói dối. */
+export const PUBLIC_RECENT = 8
+
+const publicRequestsOf = (rows) => (rows || [])
+  .filter(r => r && r.status !== 'pending' && r.status !== 'denied')
+  .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+
+const publicProfileShape = (profile, rows) => {
+  const visible = publicRequestsOf(rows)
+  return {
+    ...profile,
+    requests: visible.length,
+    completed: visible.filter(r => r.status === 'completed').length,
+    votes: visible.reduce((n, r) => n + Number(r.votes || 0), 0),
+    recent: visible.slice(0, PUBLIC_RECENT),
+  }
+}
+
 export async function fetchPublicProfile(userId) {
   if (!userId) return null
   if (!hasSupabase) {
     const rows = demoRows().filter(r => r.user_id === userId)
-    return { id: userId, name: rows[0]?.requester || 'Demo User', avatar_url: null, requests: rows.length, completed: rows.filter(r => r.status === 'completed').length, votes: rows.reduce((n, r) => n + Number(r.votes || 0), 0), recent: rows.slice(0, 8) }
+    return publicProfileShape(
+      { id: userId, name: rows[0]?.requester || 'Demo User', avatar_url: null }, rows)
   }
   const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
-    supabase.from('requests').select('status, votes').eq('user_id', userId).neq('status', 'denied'),
+    /* Hai `.neq` ở đây chỉ để KHÔNG TẢI về những hàng kiểu gì cũng bị bỏ;
+       luật lọc thật nằm trong `publicRequestsOf` để cả hai đường (demo /
+       Supabase) trả lời giống nhau. */
+    supabase.from('requests')
+      .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url')
+      .eq('user_id', userId).neq('status', 'pending').neq('status', 'denied')
+      .order('created_at', { ascending: false }),
   ])
   if (pe) throw pe; if (re) throw re; if (!p) return null
-  return { ...p, requests: rs?.length || 0, completed: rs?.filter(r => r.status === 'completed').length || 0, votes: rs?.reduce((n, r) => n + Number(r.votes || 0), 0) || 0, recent: rs?.slice(0, 8) || [] }
+  return publicProfileShape(p, rs)
 }
 
 /* ======================== READ ======================== */
