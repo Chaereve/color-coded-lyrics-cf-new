@@ -1275,3 +1275,50 @@ Chi tiết đáng nhớ khi viết test render cho bục: `html.split('<div clas
 split chứa toàn bộ phần trước bục — bao gồm khối `lb-me` có tên alice — nên `.find(b =>
 b.includes('alice'))` bắt nhầm chunk đó. Sửa: split theo `'<div class="lb-pod p'` (có khoảng
 trắng + chữ `p` của `p1/p2/p3`) và tìm theo `title="alice"` chứ không theo tên trần.
+
+### W6. Vòng 19+1: người dùng chê bố cục — "chuyển qua lại các mục chưa tốt, nhìn rối"
+
+Phản hồi nguyên văn: *"phần chuyển qua lại các mục trong leaderboard làm chưa đc tốt và nhìn bố
+cục rối"*. Soi lại bản W4 thì thấy hai bệnh thật, đều là quyết định vội của vòng trước:
+
+**Bệnh 1 — ba hàng viền đáy chồng nhau.** `lb-bar` (tiêu đề + nút xếp), rồi `lb-periodrow`
+(hàng nút mùa + khoảng ngày), rồi `lb-votes-note` (hàng chú thích phiếu) — người xem phải đi
+qua BA đường kẻ ngang trước khi thấy một con số nào. Hai hàng sau mỗi hàng chỉ chở một mẩu
+thông tin nhỏ (ba nút, một con tem ngày, một câu chú thích) nhưng mỗi hàng chiếm trọn chiều
+rộng bảng kèm viền đáy riêng: chi phí bố cục gấp ba lần nội dung.
+
+**Bệnh 2 — hai nhóm nút giống hệt nhau.** Nút mùa và nút sắp xếp đều là viên thuốc `lb-segb`
+sáng màu khi bật, đặt gần nhau thành một ma trận 3×2 nút cùng nước sơn. Không có gì trên màn
+hình nói được nhóm nào đổi DỮ LIỆU (mùa) và nhóm nào đổi CÁCH NHÌN (sắp xếp) — đúng thứ mà
+cả repo này luôn đòi: *chức năng khác nhau thì nước sơn phải khác nhau*.
+
+**Bệnh 3 (tự bắt thêm) — đổi mùa không có phản hồi chuyển động.** Bục và bảng chỉ đổi số tại
+chỗ; `podIn`/`rowIn` là animation mount-once nên không phát lại. Cú bấm đổi cả phạm vi dữ liệu
+mà màn hình chỉ "nhảy số" — cảm giác như bảng bị lỗi.
+
+Sửa cả ba, không thêm hàng nào:
+
+| Trước | Sau |
+|---|---|
+| 3 hàng có viền đáy trước bục | **1 thanh duy nhất**: chữ trái (kicker · tiêu đề · câu luật · chú thích phiếu), điều khiển phải (`lb-bar-ctl`) hai tầng |
+| Nút mùa = viên thuốc giống nút xếp | Nút mùa = **tab gạch chân** (`lb-tab`, gạch chạy dưới chữ, trượt ngang khi chuyển); nút xếp giữ viên thuốc. Class `lb-segb` vẫn được GIỮ trên tab để luật mobile có sẵn (tràn ngang, min-height 40px) tự áp vào |
+| Khoảng ngày chiếm chỗ riêng trong `lb-periodrow` | Con tem `lb-range` nằm **ngay trong câu luật** — luật và phạm vi của luật đọc trong một hơi |
+| Đổi mùa: số nhảy tại chỗ | `key={'top-'+period}` / `key={'tbl-'+period}` trên bục và vỏ bảng: đổi mùa là **remount**, hai nhịp đổ xuống phát lại. Đổi cách sắp xếp thì KHÔNG remount (useCountUp tự đếm số cũ → mới) — hai cú chuyển, hai phản hồi khác nhau, có lý do |
+| Bảng trống: nhánh return riêng, cấu trúc header khác | **Một return duy nhất**, `isEmpty` chỉ giấu phần thân; tab mùa luôn còn (đường về *All time*), nhóm nút xếp bị giấu khi không có gì để xếp |
+
+Hai lỗi bị chính hàng rào test của repo bắt trong lúc sửa, đáng ghi lại:
+
+- `cssTokens.test.js` bắt `var(--txt-1)` — token **không tồn tại** (thang chữ của app là
+  `--txt`, `--txt-2`, `--txt-3`). CSS không có token đó không báo lỗi cũng không sập: nó âm thầm
+  rơi về giá trị kế thừa, tức là màu chữ của tab đang chọn sẽ do may rủi quyết định. Đúng loại
+  lỗi mà test token sinh ra để bắt.
+- `npm run smoke` bắt React warning *"two children with the same key"*: cả `lb-top` lẫn
+  `lb-twrap` cùng mang `key={period}` mà hai khối là **anh em ruột** trong cùng một children
+  array. Test render tĩnh không bắt được (warning chỉ nổi khi React reconcile thật trong
+  jsdom) — smoke mới là lưới đúng tầng. Sửa thành hai key khác tiền tố (`top-`/`tbl-`).
+
+Kiểm thử: `Leaderboard.test.js` **+2 ca** khoá bố cục mới (một thanh điều khiển duy nhất, tab
+mùa mang `lb-tab` còn nút xếp thì không, tem khoảng ngày nằm trong câu luật, bảng trống giấu
+viên thuốc nhưng giữ tab mùa) — 416 ca / 415 đạt / 0 lỗi / 1 skip; smoke 296/296; oxlint 0 lỗi
+20 cảnh báo; build sạch. Toàn bộ selector mà smoke đang dùng (`.lb-periodseg`, `.lb-range`,
+`.lb-votes-note`) sống sót qua cuộc dọn — đổi nước sơn, không đổi hợp đồng.

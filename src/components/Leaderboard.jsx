@@ -76,18 +76,21 @@ function PodiumFace({ p, place, max, sort }) {
   )
 }
 
-/* Nhãn ba núm mùa gọi t() NGUYÊN VĂN từng key thay vì ghép động: từ điển có
-   test khoá chết, và họ `rank.period.*` không được họ ghép động nào che. */
-
-/* Núm chọn mùa — dùng chung cho cả bảng có dữ liệu lẫn bảng trống, để người
-   xem luôn có đường quay về 'All time' kể cả khi mùa đang xem chưa có gì. */
+/* Núm chọn mùa — TAB GẠCH CHÂN, không phải viên thuốc: trên cùng một thanh
+   điều khiển có hai nhóm nút, và hai nhóm viên thuốc giống hệt nhau chính là
+   thứ làm bố cục cũ đọc như một ma trận nút (người xem không phân biệt được
+   nhóm nào đổi DỮ LIỆU, nhóm nào đổi CÁCH NHÌN). Gạch chân dưới chữ là kiểu
+   vẫn dùng cho "chuyển phạm vi đang xem", còn viên thuốc sáng màu dành riêng
+   cho cách sắp xếp. Class `lb-segb` được GIỮ LẠI để các luật mobile có sẵn
+   (tràn ngang, min-height 40px) tự áp vào, `lb-tab` chỉ đổi nước sơn.
+   Nhãn gọi t() nguyên văn từng key vì từ điển có test khoá chết. */
 function PeriodSeg({ period, setPeriod }) {
   const { t } = useI18n()
   return (
-    <div className="lb-seg lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
+    <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
       {PERIODS.map((p, i) => (
-        <button key={p.k} type="button" className={`lb-segb${period === p.k ? ' on' : ''}`}
-          style={{ '--c': 'var(--a-2)', '--i': i }} onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
+        <button key={p.k} type="button" className={`lb-segb lb-tab${period === p.k ? ' on' : ''}`}
+          style={{ '--i': i }} onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
           {p.k === 'all' ? t('rank.period.all') : p.k === 'week' ? t('rank.period.week') : t('rank.period.month')}
         </button>
       ))}
@@ -131,84 +134,80 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
   const win = period === 'all' ? null : seasonWindow(period, nowMs)
   const range = win ? seasonLabel(period, nowMs) : null
 
-  if (!ranked.length) {
-    /* Mùa chưa có gì không được hiện như "bảng hỏng" — nó là một câu trả lời
-       thật ("tuần này chưa có bài nào xong"), khác với bảng tổng trống. */
-    return (
-      <div className="lb" data-reveal>
-        <div className="lb-bar">
-          <div className="lb-bar-tx">
-            <span className="lb-kicker">{t('rank.kicker')}</span>
-            <h2 className="lb-title">{t('rank.title')}</h2>
-            {period !== 'all' && <p className="lb-rule">{t(`rank.periodRule.${sort.k}`)}</p>}
-          </div>
-        </div>
-        <div className="lb-periodrow">
-          <PeriodSeg period={period} setPeriod={setPeriod} />
-          {range && (
-            <span className="lb-range">
-              {t('rank.range', { from: range.from, to: range.to })}
-            </span>
-          )}
-        </div>
-        <div className="empty">{t(`rank.emptyPeriod.${period}`)}</div>
-      </div>
-    )
-  }
+  const isEmpty = !ranked.length
 
+  /* MỘT thanh điều khiển duy nhất. Bản trước xếp ba hàng có viền đáy chồng lên
+     nhau (tiêu đề + nút xếp / hàng nút mùa / hàng chú thích phiếu) rồi mới tới
+     bục — người xem phải đọc qua ba đường kẻ ngang trước khi thấy một con số,
+     và hai nhóm viên thuốc giống hệt nhau không nói được nhóm nào làm gì.
+     Nay: chữ bên trái (kicker, tiêu đề, câu luật kèm TEM khoảng ngày, chú
+     thích phiếu), điều khiển bên phải xếp hai tầng — tab mùa ở trên, viên thuốc
+     sắp xếp ở dưới. Còn đúng MỘT đường viền đáy trước khi vào nội dung. */
   return (
     <div className="lb" data-reveal>
       <div className="lb-bar">
         <div className="lb-bar-tx">
           <span className="lb-kicker">{t('rank.kicker')}</span>
           <h2 className="lb-title">{t('rank.title')}</h2>
-          {/* Câu nói rõ luật đang chạy. Không còn nhánh riêng cho "điểm": mỗi
-              cách xếp chỉ có ĐÚNG MỘT con số, nên câu luật đọc thẳng từ khoá
-              của nó và không thể lệch khỏi phép tính đang chạy. */}
-          {/* Đang xem mùa nào thì câu luật nói đúng mùa đó — không để người xem
-              tự đoán ba con số trên bảng là của cả thời gian hay của tuần. */}
-          <p className="lb-rule">{period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}</p>
+          {/* Câu nói rõ luật đang chạy — đang xem mùa nào thì luật nói đúng mùa
+              đó, và khoảng ngày nằm NGAY TRONG câu luật dưới dạng một con tem:
+              "tuần này" không bao giờ là một từ mơ hồ, mà cũng không chiếm
+              riêng một hàng chỉ để in tám ký tự. */}
+          {!isEmpty && (
+            <p className="lb-rule">
+              {period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}
+              {range && <span className="lb-range">{t('rank.range', { from: range.from, to: range.to })}</span>}
+            </p>
+          )}
+          {/* Xem theo mùa thì cột phiếu là phiếu CỘNG DỒN của bài gửi trong mùa
+              (bảng votes không có mốc thời gian theo bài). Chú thích đặt ở cấp
+              BẢNG, ngay dưới câu luật — sự thật về dữ liệu của cả một cột thì
+              không được phép biến mất khi người xem chưa có tên trên bảng. */}
+          {!isEmpty && period !== 'all' && <p className="lb-votes-note">{t('rank.votesNote')}</p>}
         </div>
-        <div className="lb-seg" role="group" aria-label={t('rank.sortLabel')}>
-          {SORTS.map((s, i) => (
-            <button key={s.k} type="button" className={`lb-segb${sort.k === s.k ? ' on' : ''}`}
-              style={{ '--c': s.tone, '--i': i }} onClick={() => setSort(s)} aria-pressed={sort.k === s.k}>
-              {t(`rank.sort.${s.k}`)}
-            </button>
-          ))}
+        <div className="lb-bar-ctl">
+          <PeriodSeg period={period} setPeriod={setPeriod} />
+          {/* Bảng trống thì không còn gì để sắp xếp — giấu nhóm nút cách xếp,
+              nhưng GIỮ nút mùa: mùa trống là một câu trả lời thật ("tuần này
+              chưa có gì"), và người xem phải còn đường quay về All time. */}
+          {!isEmpty && (
+            <div className="lb-seg" role="group" aria-label={t('rank.sortLabel')}>
+              {SORTS.map((s, i) => (
+                <button key={s.k} type="button" className={`lb-segb${sort.k === s.k ? ' on' : ''}`}
+                  style={{ '--c': s.tone, '--i': i }} onClick={() => setSort(s)} aria-pressed={sort.k === s.k}>
+                  {t(`rank.sort.${s.k}`)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Hàng mùa giải: ba góc thời gian + khoảng ngày đang tính (giờ Việt Nam).
-          Khoảng ngày PHẢI in ra: "tuần này" là từ mơ hồ nếu không nói tuần
-          nào tới tuần nào, và người xem ở múi giờ khác phải tự đổi được. */}
-      <div className="lb-periodrow">
-        <PeriodSeg period={period} setPeriod={setPeriod} />
-        {range && (
-          <span className="lb-range">
-            {t('rank.range', { from: range.from, to: range.to })}
-          </span>
-        )}
-      </div>
-      {/* Xem theo mùa thì cột phiếu là phiếu CỘNG DỒN của bài gửi trong mùa
-          (bảng votes không có mốc thời gian theo bài). Chú thích đặt ở cấp
-          BẢNG chứ không nhét vào hàng "bạn": đây là sự thật về dữ liệu của cả
-          cột, không phải của riêng ai, và không được phép biến mất khi người
-          xem chưa có tên trên bảng. */}
-      {period !== 'all' && <p className="lb-votes-note">{t('rank.votesNote')}</p>}
+      {isEmpty && <div className="empty">{t(`rank.emptyPeriod.${period}`)}</div>}
 
-      <div className={`lb-top c${Math.min(podium.length, 3)}`}>
+      {!isEmpty && (
+      /* `key` theo mùa: đổi mùa là DỰNG LẠI bục và bảng để hai nhịp đổ xuống
+         (podIn của bục, rowIn so le của từng hàng) phát lại từ đầu. Không có
+         nó, cú bấm đổi mùa chỉ làm các con số nhảy cóc tại chỗ — bảng trông
+         như bị lỗi hơn là vừa chuyển phạm vi. Đổi cách sắp xếp thì KHÔNG remount
+         (useCountUp tự đếm từ số cũ sang số mới, và hàng thì vẫn là từng đó
+         người, chỉ đổi chỗ) — hai cú chuyển, hai phản hồi khác nhau, có lý.
+         Key của bục và của vỏ bảng phải KHÁC nhau (`top-`/`tbl-`): hai khối
+         là anh em ruột trong cùng một children array, trùng key là React
+         cảnh báo "two children with the same key" ngay trên console. */
+      <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>
         {/* thứ tự trên màn hình: 2 · 1 · 3 — người xem đọc ra ngay ai nhất */}
         {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
           <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} max={max} sort={sort} />
         ))}
       </div>
+      )}
 
       {rest.length > 0 && (
         /* Vỏ cuộn ngang dự phòng: table-layout: fixed làm bảng không bao giờ
            tràn nữa, nhưng nếu một ngày nào đó tràn (font lạ, chữ dài bất
            ngờ) thì cuộn NGANG trong khung thay vì bị .lb cắt lụm mất cột. */
-        <div className="lb-twrap">
+        <div key={`tbl-${period}`} className="lb-twrap">
           <table className="lb-table" ref={tableRef}>
           <thead>
             <tr>
@@ -257,7 +256,7 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
 
       <Pager {...pg} onChange={pg.setPage} scrollTo={tableRef} />
 
-      <div className={`lb-me${me ? ' has' : ''}`}>
+      {!isEmpty && <div className={`lb-me${me ? ' has' : ''}`}>
         {me ? (
           <>
             <span className="lb-me-rk">{me.place}</span>
@@ -274,7 +273,7 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         ) : (
           <span className="lb-me-nm">{t('rank.noMe')}</span>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

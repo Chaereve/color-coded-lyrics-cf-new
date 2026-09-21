@@ -2412,17 +2412,30 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-segb.on { color: #0a0c10; background: var(--c); box-shadow: 0 3px 14px -6px var(--c) }
 .lb-segb:active { transform: scale(.97) }
 
-/* ---- hàng mùa giải (All time · This week · This month) ----
-   Cùng kiểu viên thuốc với nhóm nút sắp xếp, nhưng nằm trên hàng riêng có
-   viền đáy: đổi mùa là đổi TOÀN BỘ con số trên bảng, không phải đổi góc nhìn
-   trên cùng một tập dữ liệu — tách hàng để cú đổi không bị đọc nhầm là một
-   bộ lọc nhỏ. Khoảng ngày in bên phải, chữ mono nhỏ như một con tem. */
-.lb-periodrow { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line) }
-.lb-range { font-family: var(--mono); font-size: 10.5px; letter-spacing: .4px; color: var(--txt-3) }
-/* chú thích cột phiếu của bảng mùa — sự thật về dữ liệu, không phải trang trí */
-.lb-votes-note { margin: 0; padding: 8px 16px; font-size: 10.5px; line-height: 1.4;
-  color: var(--txt-3); border-bottom: 1px solid var(--line) }
+/* ---- bộ chuyển mùa (All time · This week · This month) ----
+   TAB GẠCH CHÂN, không phải viên thuốc: cùng một thanh điều khiển có hai nhóm
+   nút, và hai nhóm viên thuốc giống hệt nhau là thứ làm bố cục cũ rối — không
+   phân biệt được nhóm nào đổi dữ liệu, nhóm nào đổi cách nhìn. Gạch chân dưới
+   chữ = "phạm vi đang xem", viên thuốc sáng màu = "cách sắp xếp". Nền gạch
+   chân chạy ngang cả nhóm (lb-bar-ctl) để ba tab đọc thành MỘT hàng tab thật,
+   và vệt sáng của tab đang chọn trượt ngang khi chuyển (transition trên
+   transform) — cú bấm có phản hồi ngay trên chính núm, không chỉ trong bảng. */
+.lb-bar-ctl { display: flex; flex-direction: column; align-items: stretch; gap: 9px }
+.lb-tabs { position: relative; display: flex; justify-content: flex-end;
+  border-bottom: 1px solid var(--line-2) }
+.lb-tab { padding: 5px 11px 6px; border-radius: 0; background: none;
+  color: var(--txt-3); font-size: 11.5px; text-transform: none }
+.lb-tab:hover { color: var(--txt-2); background: none }
+.lb-tab.on { color: var(--txt); background: none; box-shadow: none }
+.lb-tab::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--a-2);
+  transform: scaleX(0); transition: transform var(--t-2) var(--e-out) }
+.lb-tab.on::after { transform: scaleX(1) }
+/* tem khoảng ngày — nằm NGAY TRONG câu luật, không chiếm hàng riêng */
+.lb-range { margin-left: 7px; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-2); white-space: nowrap }
+/* chú thích cột phiếu của bảng mùa — sự thật về dữ liệu, cùng giọng với câu luật */
+.lb-votes-note { margin: 4px 0 0; font-size: 10.5px; line-height: 1.35; color: var(--txt-3); max-width: 46ch }
 
 /* ---- bục 1/2/3 ---- */
 .lb-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) }
@@ -4036,9 +4049,14 @@ body {
    desktop table. */
 @media (max-width: 620px) {
   .lb-bar { gap: 14px; }
+  .lb-bar-ctl { width: 100%; }
   .lb-seg { width: 100%; overflow-x: auto; scrollbar-width: none; }
   .lb-seg::-webkit-scrollbar { display: none; }
   .lb-segb { flex: 1 0 auto; min-height: 40px; }
+  /* tab mùa trên cảm ứng: tràn ngang như nhóm viên thuốc, nhưng giữ gạch chân
+     sát mép dưới của tab (min-height đẩy chữ lên giữa, ::after vẫn ở đáy) */
+  .lb-tabs { width: 100%; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .lb-tabs::-webkit-scrollbar { display: none; }
   .lb-top { gap: 6px; padding-inline: 8px; }
   .lb-pod { padding-inline: 4px; }
   .lb-pod .lb-av.lg { width: 42px; height: 42px; }

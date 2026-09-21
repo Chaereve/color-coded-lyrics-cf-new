@@ -180,3 +180,45 @@ test('mùa chưa có gì: câu trả lời thật, không phải "bảng hỏng"
   assert.ok(html.includes('lb-periodseg'), 'bảng trống vẫn phải còn núm đổi mùa')
   assert.ok(!html.includes('lb-pod'), 'không vẽ bục cho một mùa không có ai')
 })
+
+/* ---------- BỐ CỤC THANH ĐIỀU KHIỂN (vòng 19+1) ----------
+   Người dùng báo: "chuyển qua lại các mục chưa tốt và bố cục rối". Hai bệnh
+   của bản cũ: (1) BA hàng có viền đáy chồng nhau trước khi thấy bục — tiêu
+   đề+nút xếp, hàng nút mùa, hàng chú thích phiếu; (2) hai nhóm nút là hai
+   nhóm VIÊN THUỐC giống hệt, không đọc được nhóm nào đổi dữ liệu, nhóm nào
+   đổi cách nhìn. Ca này chốt bố cục mới bằng cấu trúc HTML. */
+
+test('một thanh điều khiển duy nhất: tab mùa gạch chân + viên thuốc sắp xếp, không còn hàng riêng', async () => {
+  const html = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
+    initialPeriod: 'week', now: NOW })
+  /* không còn hàng mùa / hàng chú thích đứng riêng với viền đáy của chúng */
+  assert.ok(!html.includes('lb-periodrow'), 'hàng nút mùa riêng phải bị gỡ')
+  /* cả hai nhóm nút nằm TRONG cùng một cột điều khiển (lb-bar-ctl): nhóm mùa
+     là TAB (mọi nút đều mang lb-tab), nhóm xếp là VIÊN THUỐC (không nút nào
+     mang lb-tab) — hai nước sơn khác nhau, đọc một lần là biết nhóm nào làm gì */
+  const ctl = html.split('lb-bar-ctl')[1]
+  assert.ok(ctl, 'hai nhóm nút phải nằm trong lb-bar-ctl')
+  const tabsBox = ctl.split(/<div class="lb-seg"/)[0]
+  assert.ok(tabsBox.includes('lb-tabs lb-periodseg'), 'nhóm mùa phải là tab (lb-tabs)')
+  const tabBtns = [...tabsBox.matchAll(/class="lb-segb([^"]*)"/g)]
+  assert.equal(tabBtns.length, 3, 'nhóm mùa có đúng ba nút')
+  assert.ok(tabBtns.every((m) => m[1].includes('lb-tab')), 'mọi nút mùa phải mang lớp lb-tab')
+  const pillsBox = ctl.split(/<div class="lb-seg"/)[1] || ''
+  const pillBtns = [...pillsBox.matchAll(/class="lb-segb([^"]*)"/g)].slice(0, 3)
+  assert.equal(pillBtns.length, 3, 'nhóm sắp xếp có đúng ba nút')
+  assert.ok(pillBtns.every((m) => !m[1].includes('lb-tab')),
+    'nút sắp xếp KHÔNG được mang lb-tab — hai nhóm phải khác nước sơn')
+  /* khoảng ngày là con tem TRONG câu luật, không phải một hàng riêng */
+  const rule = html.match(/<p class="lb-rule">[\s\S]*?<\/p>/)[0]
+  assert.ok(rule.includes('lb-range'), 'khoảng ngày phải nằm trong câu luật')
+  assert.ok(rule.includes('22/09') && rule.includes('28/09'))
+})
+
+test('bảng trống: giấu viên thuốc sắp xếp nhưng GIỮ tab mùa để còn đường về All time', async () => {
+  const html = await render({ rows: [], allRows: [], ranking: [], meId: 'me',
+    initialPeriod: 'week', now: NOW })
+  assert.ok(html.includes('lb-periodseg'), 'tab mùa phải còn khi bảng trống')
+  assert.ok(!html.includes('rank.sortLabel') && !/lb-seg" role/.test(html),
+    'bảng trống thì không còn gì để sắp xếp — nhóm viên thuốc phải giấu')
+  assert.match(html, /No requests yet this week/)
+})
