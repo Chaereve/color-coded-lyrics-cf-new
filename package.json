@@ -1,34 +1,28 @@
 {
-  "name": "ccl-requests",
+  "name": "react-vite-tailwind",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
-    "test": "node --test \"src/**/*.test.js\" \"supabase/tests/**/*.test.js\" \"worker/**/*.test.js\"",
-    "preview": "vite preview",
-    "test:spin:db": "node --test supabase/tests/dailySpin.test.js",
-    "backup:db": "bash scripts/backup-db.sh",
-    "backup:verify": "bash scripts/verify-backup.sh",
-    "smoke": "node tools/smoke.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@fingerprintjs/fingerprintjs": "^5.2.0",
-    "@supabase/supabase-js": "^2.109.0",
-    "lucide-react": "^1.47.0",
-    "qrcode": "^1.5.4",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "clsx": "2.1.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tailwind-merge": "3.4.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.1.0",
-    "jsdom": "^30.1.0",
-    "oxlint": "^1.79.0",
-    "pg": "^8.23.0",
-    "vite": "^8.2.2"
+    "@tailwindcss/vite": "4.1.17",
+    "@types/node": "22.19.17",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-singlefile": "2.3.0"
   }
 }

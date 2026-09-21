@@ -3,52 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chaereve — Request Page</title>
-    <meta name="description" content="Request and vote for colour-coded lyric videos, full albums, 1-hour loops and Shorts by @chaereve." />
-    <!-- Canonical: SPA phục vụ MỌI đường dẫn bằng một index.html (xem
-         _redirects), nên không có nó thì `/`, `/?f=done`, `/daily-spin` đều
-         là "trang trùng nội dung" trong mắt Google và thứ hạng bị chia nhỏ.
-         Đây là giá trị cho lần tải đầu; mỗi lần đổi route, src/App.jsx cập
-         nhật lại thẻ này theo origin thật nên deploy ở Vercel/Workers vẫn đúng. -->
-    <link rel="canonical" href="https://chaereve.pages.dev/" />
+    <title>Chaereve — Under Maintenance</title>
+    <meta
+      name="description"
+      content="Chaereve is getting an upgrade and expects to reopen in about seven days. Your requests, votes, and wallet balance are safe."
+    />
+    <!-- Keep the temporary maintenance page out of search results. -->
+    <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#0a0c10" />
     <meta name="color-scheme" content="dark" />
-    <!-- màu nền đặt sớm để khung hình đầu tiên không loá trắng rồi mới tối xuống -->
-    <style>html{background:#0a0c10}body{margin:0}</style>
 
-    <link rel="icon" type="image/png" href="/favicon-64.png?v=2" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Chaereve" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <link rel="preload" href="/fonts/bvp-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/archivo-display.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- ảnh bìa + avatar lấy từ hai host này: nối trước để TLS xong trước khi cần -->
-    <link rel="preconnect" href="https://i.ytimg.com" crossorigin />
-    <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin />
+    <!-- Embedded favicon keeps this page independent from the main app. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234d40f0'/%3E%3Cpath d='M40 15v23.6a6.5 6.5 0 1 1-4-6V22.6L24.6 25.4v17.2a6.5 6.5 0 1 1-4-6V22.4L40 15z' fill='white'/%3E%3C/svg%3E"
+    />
 
-    <!-- Xem trước khi dán link vào Telegram, Discord, Facebook…
-         og:image PHẢI là URL tuyệt đối: crawler của Telegram/Discord/Facebook
-         đọc index.html thô, không có "origin của trang" để ghép với đường dẫn
-         tương đối — để `/logo-192.png` thì phần lớn nơi hiện link sẽ không có
-         ảnh nào. og:url cũng phải tuyệt đối vì lý do tương tự. -->
+    <!-- The same typefaces used by the main Chaereve app. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Archivo:wght@700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Chaereve" />
-    <meta property="og:url" content="https://chaereve.pages.dev/" />
-    <meta property="og:title" content="Chaereve — Request Page" />
-    <meta property="og:description" content="Request and vote for colour-coded lyric videos by @chaereve." />
+    <meta property="og:title" content="Chaereve — Under Maintenance" />
+    <meta
+      property="og:description"
+      content="Chaereve is getting an upgrade and expects to reopen in about seven days. Your requests, votes, and wallet balance are safe."
+    />
     <meta property="og:image" content="https://chaereve.pages.dev/logo-192.png" />
-    <meta property="og:image:width" content="192" />
-    <meta property="og:image:height" content="192" />
-    <meta property="og:image:alt" content="Chaereve logo" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Chaereve — Request Page" />
-    <meta name="twitter:description" content="Request and vote for colour-coded lyric videos by @chaereve." />
-    <meta name="twitter:image" content="https://chaereve.pages.dev/logo-192.png" />
+
+    <!-- Paint the dark background before the application bundle loads. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0a0c10;
+        color: #e9edf3;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <noscript>
+      <div
+        style="
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          font-family: system-ui, sans-serif;
+          text-align: center;
+          padding: 24px;
+        "
+      >
+        <strong style="font-size: 20px">Chaereve is under maintenance</strong>
+        <span style="color: #9aa4b2">
+          We are making Chaereve better and will be back soon.
+        </span>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
