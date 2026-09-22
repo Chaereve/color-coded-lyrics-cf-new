@@ -1,7 +1,8 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
-Cập nhật 21/09/2026 · nhánh `arena/01a0c255-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
-nằm ở cuối file** (phần V — vòng 18); các con số ngay dưới đây là của mốc 19/09
+Cập nhật 22/09/2026 · nhánh `arena/01a0c8a3-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
+nằm ở cuối file** (phần XIII — vòng 23: `npm test` 459 ca, `npm run smoke` 326/326); các con số
+ngay dưới đây là của mốc 19/09
 So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
 `npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
 `npx oxlint` **0 lỗi**. Bản dựng hiện tại: `index-BxQ09EV7.js` 359 kB.
@@ -1551,3 +1552,46 @@ Monetag/PropellerAds cần xác nhận bằng văn bản rewarded web + incentiv
 postback cho đúng placement/GEO trước khi thêm SDK. Vì vậy vòng này chỉ thêm tài liệu
 rà soát ở `docs/DAILY-SPIN-ADS.md`, không biến Daily Spin hiện tại thành một lời hứa
 "xem quảng cáo chắc chắn nhận vote".
+
+## Phần XIII — vòng 23: bốn lỗi chủ dự án báo trực tiếp (22/09/2026)
+
+Bốn lỗi, không lỗi nào cần suy đoán: chủ dự án bấm vào và thấy hỏng. Cả bốn đều thuộc loại
+"im lặng" — không có thông báo lỗi nào, chỉ có một khối trắng, một khung đen, hoặc một nút
+không dẫn tới đâu.
+
+| Lỗi báo | Gốc rễ | Cách sửa |
+|---|---|---|
+| Không có đường nào tới màn đăng nhập | Hàng tiêu đề chỉ có chuông thông báo; `Sidebar` gọi `go('mine')` cho *About me* mà không ai mở cổng đăng nhập; khối hồ sơ của khách là một form rỗng với nút Save không chạy | Nút **Đăng nhập** (`GoogleIcon` + `gate.signIn`) đứng NGAY SAU chuông trong `.mainhead`, dưới 620px chỉ còn biểu tượng nhưng vẫn có `aria-label`/`title`; hàm `navTo()` mở cổng khi khách bấm *About me*; hai mục cần tài khoản (*About me*, *Daily Spin*) có khối mời đăng nhập thật (`SignInPanel`) thay vì trang trắng |
+| Preview trong Hall of Fame: màn hình đen | Player cũ dựng bằng **YouTube IFrame Player API** → chèn `<script src="https://www.youtube.com/iframe_api">`, mà CSP `script-src 'self'` (`public/_headers`) chặn im lặng script đó. Promise `loadYT()` không bao giờ resolve, khung 16:9 chỉ còn nền `#0b0d12` | `<iframe>` nhúng thẳng `youtube-nocookie.com/embed/<id>?autoplay=1&start=0&end=30…` — CSP đã cho `frame-src` sẵn, không script bên thứ ba. Thêm **ảnh bìa nằm sau iframe** (mạng chậm/adblock vẫn thấy hình), nhánh `<video>` cho mp4/webm/ogv/mov/m4v, câu `preview.noEmbed` cho link lạ; Esc + bấm nền đóng, khoá cuộn nền |
+| Đặt avatar GIF không được | Trần dung lượng hai nơi lệch nhau: phía trình duyệt hứa **2,5 MB**, `update_my_profile()` chặn ở **200.000 ký tự** (`length(p_avatar) > 200000` → `err.avatarBig`). GIF 1–2 MB vì thế qua được cửa chọn file ("GIF sẵn sàng"), tới lúc Save mới bị database từ chối | Trần client suy TỪ trần database: `AVATAR_STORED_CHARS = 200000`, `ANIMATED_AVATAR_MAX_BYTES` trừ tiền tố data URL và phần đệm base64 (~146 KB). Chặn ngay khi chọn file, kèm nút **"Dùng khung đầu tiên (ảnh tĩnh)"** đi qua đúng cropper ảnh tĩnh; gặp `err.avatarBig` từ database thì thông báo cũng mở lại lối thoát đó. Trần cũ 2,5 MB đã xoá khỏi mã, `HUONG-DAN.md`, `BUOC-THU-CONG.md`, `BAO-CAO-BAN-GIAO.md` |
+| Daily Spin trống trơn | Khối vòng quay chỉ được dựng khi đã có tài khoản (`{user && …}`), nên khách chưa đăng nhập vào mục này gặp trang trắng — không chữ, không lý do, không nút | Khách thấy `SignInPanel` (tiêu đề + lý do + nút Google); người đã đăng nhập không đổi gì. Cùng cách xử lý cho *About me* |
+
+Hai lỗi tự gây ra, ghi lại để lần sau không lặp:
+
+- **`propContract.test.js` đọc CHỮ trong comment như mã.** Chú thích mô tả khối mời đăng nhập
+  có viết `{user && <DailySpin/>}` — bài kiểm tưởng đó là một call site thật và báo thiếu sáu
+  prop bắt buộc ở `App.jsx:200`. Nói cách khác: trong repo này **không được viết cú pháp JSX
+  trong comment**. Đã sửa lại câu chữ.
+- **Mở cổng đăng nhập trong `go()` làm oxlint gán `set-state-in-effect` cho MỌI effect gọi `go`**
+  (effect chuyển hướng `/admin`), đẩy cảnh báo lên 29. Cổng đăng nhập là chuyện của ĐƯỜNG BẤM,
+  không phải của việc chuyển mục, nên nó nằm trong wrapper `navTo()` — số cảnh báo còn thấp hơn nền.
+
+### XIII1. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **459 ca / 458 đạt / 0 lỗi / 1 skip** (vòng 22: 454). `avatar.test.js` từ 1 ca chữ nghĩa lên **6 ca**: chạy THẬT `processAnimatedAvatar` với `FileReader` giả — GIF vừa trần đi nguyên bytes (còn chuyển động), GIF quá trần bị chặn TRƯỚC khi dựng chuỗi base64, trần client khớp trần database sát từng byte, SQL vẫn giữ `length(p_avatar) > 200000`, và giao diện nói ra con số + mở lối thoát |
+| `npm run smoke` | ✅ **326/326** (vòng 22: 301) — hai lượt mới dựng app trong jsdom rồi BẤM THẬT: *4c* kiểm khách chưa đăng nhập (nút Đăng nhập đứng sau chuông, cổng mở ra và Esc đóng được, *About me* / *Daily Spin* không còn trắng), *5b* kiểm preview Hall of Fame (không có `<script>` nào của YouTube trong tài liệu — đúng thứ đã làm khung đen — iframe đúng `youtube-nocookie`, giữ `end=30`, có ảnh bìa, Esc đóng được) |
+| `npx oxlint` | ✅ 0 lỗi, **26 cảnh báo** — thấp hơn nền 28 vì bản viết lại `VideoPreviewModal` bỏ được hai cảnh báo `exhaustive-deps` của player cũ |
+| `npm run build` | ✅ sạch — `index-CUQJ6K5E.js` 336,94 kB (gzip 103,40 kB) |
+
+### XIII2. Còn nợ
+
+- **Chưa kiểm được bằng mắt trên trình duyệt thật**: môi trường này không có mạng ra ngoài, nên
+  phần "video có thật sự chạy" chỉ chốt được ở mức cấu trúc (không script bên thứ ba, iframe
+  đúng URL, có ảnh bìa). Việc cần làm khi có mạng: mở Hall of Fame, bấm một thẻ, xem video chạy
+  và tự dừng ở giây 30.
+- **GIF lớn hơn ~146 KB vẫn không lưu được nguyên chuyển động** — đó là trần của database, không
+  phải lỗi. Muốn nhận GIF nặng hơn thì phải nới `update_my_profile()` (migration mới) hoặc bật
+  Cloudinary (`VITE_CLOUDINARY_CLOUD` + `VITE_CLOUDINARY_PRESET`) — khi đó trần là 8 MB và ảnh
+  chỉ lưu URL.

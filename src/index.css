@@ -274,7 +274,19 @@ button { font-family: inherit; }
 @keyframes sheen { to { transform: translateX(100%) } }
 
 /* ================= LOGIN ================= */
-.gate { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+/* LỚP PHỦ, KHÔNG PHẢI MỘT KHỐI TRONG LUỒNG (xem đầu LoginGate.jsx).
+   Trước đây khối này là `min-height:100%` nằm trong luồng văn bản: bấm Vote ở
+   giữa bảng thì thẻ đăng nhập được chèn vào ĐẦU tài liệu — người vừa bấm không
+   thấy nó đâu cả, chỉ thấy trang nhảy một cái. z-index 90: trên sidebar (60),
+   trên bảng thưởng xếp hạng (80), dưới thanh màn chờ (100) và dưới toast (95)
+   để thông báo vẫn đọc được. */
+.gate-scrim {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+  padding: 24px; overflow: auto;
+  background: rgba(6,7,9,.66);
+  backdrop-filter: blur(7px) saturate(120%); -webkit-backdrop-filter: blur(7px) saturate(120%);
+  animation: fadeIn .18s var(--e-soft) both;
+}
 .gate-credit { position: fixed; bottom: 22px; left: 16px; right: 16px; text-align: center;
   color: var(--txt-3); font-size: 11.5px; animation: rise .5s var(--e-out) .46s both; }
 
@@ -285,6 +297,18 @@ button { font-family: inherit; }
   border: 1px solid var(--line); border-radius: var(--r-lg); padding: 36px 30px;
   box-shadow: var(--sh-3), var(--ring);
 }
+/* Nút thoát nằm ở góc khối: cửa sổ này có thể do một cú bấm tình cờ gọi ra,
+   nên phải đóng được bằng một cú bấm khác (Esc và bấm ra ngoài cũng vậy). */
+.gate-x {
+  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+  display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--txt-2);
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+}
+.gate-x:hover { color: var(--txt); border-color: #3c4550; background: var(--surface-3); }
+.gate-x:active { transform: scale(.94); }
+.gate-x:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 .gate-card h1 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0 0 8px; letter-spacing: .2px; }
 .gate-card p { color: var(--txt-2); font-size: 13.5px; margin: 0 0 24px; line-height: 1.6; }
 .btn-google {
@@ -1210,6 +1234,9 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
   font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--txt); }
 .prof-h2 svg { color: var(--txt-3); }
 .prof-head-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+/* Lối ra khi ảnh động vượt trần dung lượng: đứng ngay dưới câu báo lỗi, cùng
+   một cột chữ với khối hồ sơ — không phải một nút nổi ở đâu khác. */
+.prof-still { margin-top: 8px; }
 @media (max-width: 620px) {
   .prof-card { padding: 13px 13px 15px; }
   /* máy hẹp: ảnh đại diện và hai nút xếp dọc, không còn chỗ cho hàng ngang */
@@ -3894,8 +3921,15 @@ html[data-section="spin"] .bgfx { display: none; }
 .video-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 16px; }
 .video-preview-head h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 16px var(--display); }
 .video-preview-head span { display: block; margin-top: 3px; color: var(--txt-3); font-size: 11px; }
-.video-preview-frame { aspect-ratio: 16 / 9; background: #000; }
-.video-preview-frame iframe { width: 100%; height: 100%; border: 0; }
+/* Khung 16:9: ảnh bìa nằm DƯỚI, iframe phủ LÊN khi nó vẽ xong. Trước đây khung
+   chỉ có `background:#000` và nội dung do một script của YouTube dựng — script
+   bị CSP chặn thì cả khung là một tấm đen (xem đầu VideoPreviewModal.jsx). */
+.video-preview-frame { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+.video-preview-frame iframe { position: relative; z-index: 1; width: 100%; height: 100%; border: 0; display: block; }
+.video-preview-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.video-preview-file { width: 100%; height: 100%; display: block; background: #000; }
+.video-preview-fallback { position: absolute; inset: 0; display: grid; place-items: center; margin: 0;
+  padding: 18px 22px; text-align: center; color: var(--txt-2); font-size: 12.5px; line-height: 1.6; }
 .video-preview-foot { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); }
 @media (max-width: 620px) { .video-preview-scrim { padding: 10px; } .video-preview-head h2 { font-size: 14px; } }
 .hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -4454,3 +4488,33 @@ img, video, iframe { max-width: 100%; }
   }
   .icon-btn { width: 32px; height: 32px; }
 }
+
+/* =========================================================
+   NÚT ĐĂNG NHẬP Ở HÀNG TIÊU ĐỀ (vòng 23)
+   ---------------------------------------------------------
+   Người chưa đăng nhập cần MỘT chỗ bấm nhìn thấy được, đứng cạnh
+   chuông thông báo: trước đây màn đăng nhập chỉ hiện ra khi bấm vào
+   một việc cần tài khoản (vote / gửi request / About me), mà nút
+   chuông thì đứng một mình ở góc phải — không có dấu hiệu nào nói
+   rằng trang này có tài khoản.
+
+   Nút đi ngay sau chuông. Máy hẹp (≤620px) giữ lại icon Google và
+   bỏ chữ: hàng tiêu đề lúc đó đã có nút ☰, tiêu đề, chuông và nút
+   "New request" — thêm một nhãn chữ nữa là tiêu đề bị ép lại.
+   aria-label + title giữ nguyên tên nút cho trình đọc màn hình.
+   ========================================================= */
+.head-signin { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 7px 12px; }
+.head-signin svg { flex: 0 0 auto; }
+@media (max-width: 620px) {
+  .head-signin { padding: 7px 9px; }
+  .head-signin-tx { display: none; }
+}
+
+/* Khối mời đăng nhập (About me / Daily Spin khi chưa có tài khoản): cùng dáng
+   với các khối trạng thái rỗng khác, nhưng có MỘT việc để bấm. */
+.signin-panel { padding: 46px 20px; }
+.signin-panel-btn { margin-top: 14px; }
+
+/* Nút đăng nhập ở chân sidebar: cùng dáng với nút New request (một khối chìm
+   có ô icon), nhưng đứng cuối nên không cần khoảng đệm dưới. */
+.side-foot .side-signin { margin-bottom: 8px; }

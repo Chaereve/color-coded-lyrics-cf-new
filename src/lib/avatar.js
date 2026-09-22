@@ -13,8 +13,38 @@ export const AVATAR_PX = 128          // đủ nét cho mọi chỗ hiển thị
 export const AVATAR_QUALITY = 0.72
 export const MAX_FILE_MB = 8
 
-const CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD
-const PRESET = import.meta.env.VITE_CLOUDINARY_PRESET
+/* =========================================================
+   TRẦN DUNG LƯỢNG ẢNH ĐỘNG = TRẦN CỦA DATABASE
+   ---------------------------------------------------------
+   Ảnh tĩnh đi qua canvas nên luôn nhỏ (~5-15 KB). Ảnh ĐỘNG (GIF / WebP
+   động) không được vẽ lại — vẽ là mất chuyển động — nên nó vào thẳng
+   `avatar_url` dưới dạng data URL, và ở đó có một trần CỨNG do
+   `update_my_profile()` đặt: `length(p_avatar) > 200000` là raise
+   `err.avatarBig` (xem supabase/schema.sql và migration security audit).
+
+   Bản trước hứa "tối đa 2,5 MB" ở phía trình duyệt trong khi database chỉ
+   nhận 200.000 ký tự: người dùng chọn một GIF 1-2 MB, app báo "GIF sẵn
+   sàng", rồi bấm Save là lỗi — đúng lỗi "set avt = gif không được".
+   Con số dưới đây là bản sao DUY NHẤT của trần đó ở phía client, và
+   avatar.test.js chốt nó khớp với SQL.
+   ========================================================= */
+export const AVATAR_STORED_CHARS = 200000
+
+/* data URL động: base64 nở ra 4/3, cộng tiền tố `data:image/gif;base64,`
+   và tối đa 4 ký tự đệm `=`. Trừ hết rồi quy về byte ảnh gốc — đây là số
+   byte LỚN NHẤT chắc chắn còn nằm dưới trần, không phải con số ước lượng. */
+const ANIMATED_DATA_PREFIX = 'data:image/gif;base64,'
+export const ANIMATED_AVATAR_MAX_BYTES =
+  Math.floor(((AVATAR_STORED_CHARS - ANIMATED_DATA_PREFIX.length - 4) * 3) / 4)
+export const ANIMATED_AVATAR_MAX_KB = Math.round(ANIMATED_AVATAR_MAX_BYTES / 1024)
+
+/* `import.meta.env` chỉ có khi Vite dựng app; dưới `node --test` nó là
+   undefined. Đọc qua một biến đã che để module còn IMPORT ĐƯỢC trong test —
+   avatar.test.js chạy thật đường lưu ảnh động, chứ không chỉ đọc mã nguồn.
+   (Cùng cách AdminPanel.jsx đã dùng: `import.meta.env?.DEV`.) */
+const ENV = import.meta.env || {}
+const CLOUD = ENV.VITE_CLOUDINARY_CLOUD
+const PRESET = ENV.VITE_CLOUDINARY_PRESET
 export const usesCloudinary = !!(CLOUD && PRESET)
 
 /* code là key trong từ điển (err.*), vars để điền {mb}… — errMsg(t, e) dịch ra chữ */
@@ -136,10 +166,29 @@ export async function isAnimatedWebp(file) {
 
 export async function processAnimatedAvatar(file) {
   if (!file || (file.type !== 'image/gif' && file.type !== 'image/webp')) throw err('err.avatarType')
-  if (file.size > (usesCloudinary ? MAX_FILE_MB : 2.5) * 1024 * 1024) throw err('err.avatarBig')
   await validateImageFile(file)
-  const url = usesCloudinary ? await toCloudinary(file) : await blobToDataUrl(file)
-  return { url, bytes: file.size, hosted: usesCloudinary }
+  if (usesCloudinary) {
+    if (file.size > MAX_FILE_MB * 1024 * 1024) throw err('err.avatarBig')
+    return { url: await toCloudinary(file), bytes: file.size, hosted: true }
+  }
+  /* Không có Cloudinary thì ảnh động phải nằm trong trần của database —
+     chặn Ở ĐÂY, trước khi dựng chuỗi, để lỗi đến từ nơi biết con số. */
+  if (file.size > ANIMATED_AVATAR_MAX_BYTES) {
+    throw err('err.avatarAnimBig', {
+      kb: Math.max(1, Math.round(file.size / 1024)),
+      max: ANIMATED_AVATAR_MAX_KB,
+    })
+  }
+  const url = await blobToDataUrl(file)
+  /* File có thể nhỏ nhưng mã hoá base64 dài hơn dự tính (đệm, ký tự thừa):
+     đo lại chuỗi THẬT rồi mới trả về, thay vì tin vào phép tính. */
+  if (url.length > AVATAR_STORED_CHARS) {
+    throw err('err.avatarAnimBig', {
+      kb: Math.max(1, Math.round(file.size / 1024)),
+      max: ANIMATED_AVATAR_MAX_KB,
+    })
+  }
+  return { url, bytes: file.size, hosted: false }
 }
 
 /** Kiểm tra nhanh file người dùng chọn trước khi đọc bytes/ảnh. */

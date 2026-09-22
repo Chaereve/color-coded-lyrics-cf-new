@@ -3307,3 +3307,30 @@ một loại bài): bài đó **vẫn** phải hiện.
   Worker schedule hoặc SQL Editor.
 - Admin có thêm tab **Expired** và nút **Start production** để chuyển request queued
   sang `in_progress` (gom cùng bài theo luật cũ).
+
+## Vòng 23 — bốn lỗi anh/chị báo trực tiếp (22/09/2026)
+
+Bốn việc dưới đây đều là lỗi **nhìn thấy được**, nên mỗi lỗi đi kèm một phép kiểm trong
+`npm run smoke` để nó không quay lại (xem chú thích trong `tools/smoke.mjs`, mục *4c* và *5b*).
+
+- **Có lối vào màn đăng nhập.** Trước đây hàng tiêu đề chỉ có chuông thông báo, và bấm vào
+  *About me* khi chưa đăng nhập chỉ ra một khối hồ sơ rỗng: không có chỗ nào mở màn đăng nhập.
+  Nay **nút Đăng nhập (biểu tượng Google) nằm ngay sau chuông** ở góc phải; dưới 620px nút chỉ
+  còn biểu tượng nhưng vẫn bấm được. Khách bấm vào những việc cần tài khoản — *About me*,
+  *Daily Spin* — thì màn đăng nhập **tự mở**, và phía sau là một khối mời đăng nhập có nút,
+  thay vì trang trắng. Chân sidebar của khách cũng có nút Đăng nhập (bỏ nút *Sign out* vô nghĩa
+  với người chưa vào).
+- **Hall of Fame mở preview được, không còn khung đen.** Bản cũ dựng player bằng YouTube IFrame
+  Player API, tức là nạp `<script src="https://www.youtube.com/iframe_api">` — mà CSP của site
+  (`public/_headers`) chỉ cho `script-src 'self'`, nên script bị chặn im lặng và khung 16:9 chỉ
+  còn nền đen. Nay khung xem là một `<iframe>` nhúng thẳng `youtube-nocookie.com` (CSP đã cho
+  `frame-src` từ trước): **không script bên thứ ba**, video tự dừng ở giây 30, phía sau còn một
+  **ảnh bìa** nên mạng chậm cũng thấy hình. Video không phải YouTube (mp4, link lạ) vẫn mở được
+  hộp này và có câu giải thích + nút mở tab mới.
+- **GIF avatar lưu được.** Database chặn ảnh ở 200.000 ký tự, còn phía trình duyệt lại hứa
+  "tối đa 2,5 MB": chọn GIF 1–2 MB thì app báo *"GIF sẵn sàng"*, bấm Save mới lỗi. Nay trần của
+  client **đúng bằng** trần của database (~146 KB cho GIF), kiểm ngay khi chọn file, và khi quá
+  lớn thì có nút **"Dùng khung đầu tiên (ảnh tĩnh)"** để ảnh vẫn vào hồ sơ được.
+- **Daily Spin không còn trống.** Khách chưa đăng nhập vào mục này trước đây gặp trang trắng
+  (khối vòng quay chỉ dựng khi đã có tài khoản). Nay khách thấy khối mời đăng nhập có nút Google
+  và lý do rõ ràng; người đã đăng nhập vẫn thấy vòng quay như cũ.

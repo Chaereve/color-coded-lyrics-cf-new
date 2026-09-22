@@ -45,6 +45,12 @@ const S = {
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
   'prof.gifReady': 'Animated GIF ready ({kb} KB). Save your profile to keep it moving.',
+  /* Trần dung lượng THẬT của ảnh động: bản lưu trong database bị chặn ở
+     200.000 ký tự (update_my_profile), nên ảnh động phải nằm dưới ~146 KB.
+     Chữ này nói thẳng con số và việc cần làm, thay vì để người dùng bấm Save
+     rồi nhận một câu "ảnh quá lớn" không nói gì. */
+  'prof.gifTooBig': 'This GIF is {kb} KB — animated avatars can be at most {max} KB. Use the first frame, or a smaller GIF.',
+  'prof.gifStill': 'Use the first frame (static)',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',
@@ -529,6 +535,10 @@ const S = {
   'preview.close': 'Close preview',
   'preview.thirty': '30-second preview',
   'preview.open': 'Open full video on YouTube',
+  /* Link của bài đã xong không phải YouTube và cũng không phải file video:
+     hộp vẫn mở, nói ra lý do, và để nút bên dưới mở ở tab mới. */
+  'preview.openLink': 'Open the original link',
+  'preview.noEmbed': 'This link cannot play inside the page. Use the button below to open it.',
   'expiry.label': 'Expired',
   'expiry.delete': 'Expire and delete',
   /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
@@ -760,6 +770,15 @@ const S = {
   'gate.perk1': '{n} free votes per day',
   'gate.perk2': '{n} requests per hour',
   'gate.perk3': 'Paid requests start first',
+  /* Nút Đăng nhập ở đầu trang, cạnh chuông thông báo. Chữ ngắn vì nó đứng
+     trong hàng tiêu đề — chỗ đắt nhất của trang. */
+  'gate.signIn': 'Sign in',
+  'gate.close': 'Close the sign-in window',
+  /* Khối mời đăng nhập THAY CHỖ nội dung riêng tư khi chưa đăng nhập: mục
+     About me và Daily Spin (trước đây hai chỗ đó để trống trơn). */
+  'gate.needTitle': 'Sign in to open this page',
+  'gate.needBody': 'Your profile, your requests and your daily spins belong to an account.',
+  'gate.needSpin': 'Sign in to spin — two free spins a day, and the votes land on your account.',
 
 
   /* bang dieu hanh */
@@ -942,6 +961,7 @@ const S = {
   'err.nameShort': 'Name needs at least 2 characters.',
   'err.avatarType': 'That file is not an image.',
   'err.avatarBig': 'That image is too large.',
+  'err.avatarAnimBig': 'Animated GIF is {kb} KB — the limit is {max} KB. Try a smaller one.',
   'err.avatarRead': 'Could not read that image. Use a JPG, PNG or GIF.',
   'err.avatarUpload': 'Upload failed. Try again.',
   'err.notVoted': 'You have not cast that many votes here.',

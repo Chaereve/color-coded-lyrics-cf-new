@@ -48,6 +48,18 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
   const countCbRef = useRef(onCountChange)
   useEffect(() => { countCbRef.current = onCountChange })
 
+  /* SỐ BÌNH LUẬN ĐI RA NGOÀI Ở MỘT EFFECT, KHÔNG Ở TRONG UPDATER.
+     Bản trước gọi `countCbRef.current?.(updated.length)` ngay bên trong hàm
+     cập nhật của `setItems` — hàm đó chạy TRONG LÚC RENDER, nên nó gọi
+     setState của component cha giữa lượt render của con. React báo đúng lỗi
+     này ("Cannot update a component while rendering a different component") và
+     có quyền bỏ qua/áp dụng hai lần. Nay updater chỉ trả về mảng mới, còn con
+     số báo ra ngoài ở đây — chạy sau khi state đã chốt. */
+  useEffect(() => {
+    if (!open) return
+    countCbRef.current?.(items.length)
+  }, [items.length, open])
+
   useEffect(() => {
     if (!open) return
     fetchComments(requestId).then(res => {
@@ -77,11 +89,7 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
     setBusy(true); setError('')
     try {
       const next = await addComment(requestId, user.id, clean, replyTo?.id || null)
-      setItems(x => {
-        const updated = [next, ...x]
-        countCbRef.current?.(updated.length)
-        return updated
-      })
+      setItems(x => [next, ...x])
       setBody(''); setReplyTo(null)
       push({ tone: 'ok', title: t('comment.posted'), body: t('comment.posted') })
     } catch (err) {
@@ -97,11 +105,9 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
   const remove = async (c) => {
     try {
       await deleteComment(c.id)
-      setItems(prev => {
-        const remaining = prev.filter(y => y.id !== c.id && y.parent_id !== c.id)
-        countCbRef.current?.(remaining.length)
-        return remaining
-      })
+      /* Xoá cả reply con đi kèm (cascade ở database, dọn ở đây cho khớp) —
+         con số mới tự đi ra ngoài qua effect ở đầu tệp. */
+      setItems(prev => prev.filter(y => y.id !== c.id && y.parent_id !== c.id))
       push({ tone: 'ok', title: t('comment.removed'), body: t('comment.removed') })
     } catch (err) {
       const msg = err?.code ? errMsg(t, err) : t('comment.failed')

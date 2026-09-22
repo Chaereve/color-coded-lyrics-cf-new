@@ -1,5 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
+import GoogleIcon from './components/GoogleIcon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
@@ -188,6 +189,33 @@ function Stat({ c, v, label, why }) {
     <div className="stat" style={{ '--c': c }} title={why}>
       <Num v={v} />
       <span>{label}</span>
+    </div>
+  )
+}
+
+/* =========================================================
+   KHỐI MỜI ĐĂNG NHẬP — CHỖ ĐỨNG CỦA MỤC RIÊNG TƯ KHI CHƯA CÓ TÀI KHOẢN
+   ---------------------------------------------------------
+   LỖI ĐÃ GẶP THẬT: "Daily Spin trống trơn". Mục spin chỉ dựng vòng
+   quay KHI ĐÃ CÓ người đăng nhập, nên khách nhận một trang trắng —
+   không chữ, không lý do, không nút. Mục About me thì ngược lại: nó
+   dựng nguyên khối sửa hồ sơ cho khách, với ô tên trống và nút Lưu
+   không bao giờ chạy được (update_my_profile raise `err.signin`).
+
+   Cả hai chỗ nay dùng đúng một khối: nói ra vì sao trang này cần tài
+   khoản, và cho một nút mở màn đăng nhập (cửa sổ nổi đã có nút X, nên
+   người dùng không bị kẹt trong đó).
+   ========================================================= */
+function SignInPanel({ title, body, onSignIn }) {
+  const { t } = useI18n()
+  return (
+    <div className="empty signin-panel">
+      <span className="empty-ico" aria-hidden="true"><Icon name="user" size={18} /></span>
+      <b>{title}</b>
+      <small>{body}</small>
+      <button type="button" className="btn btn-primary signin-panel-btn" onClick={onSignIn}>
+        <GoogleIcon size={15} />{t('gate.google')}
+      </button>
     </div>
   )
 }
@@ -495,6 +523,20 @@ function AppInner() {
        nhập/đăng xuất (mục Admin chỉ có mặt với admin), và hướng chuyển cảnh
        được tính từ nó. */
   }, [section, navOrder])
+
+  /* ĐIỀU HƯỚNG TỚI MỘT MỤC TỪ MENU — và đây là chỗ duy nhất mở màn đăng nhập
+     theo lượt bấm. About me là trang CỦA MÌNH: khách bấm vào ảnh đại diện hay
+     tên mục đó phải thấy ngay màn đăng nhập (chủ dự án báo đúng lỗi này), chứ
+     không phải một khối hồ sơ rỗng. Không chặn việc đi tới mục — phía sau lớp
+     phủ, mục đó dựng khối mời đăng nhập (xem `SignInPanel`), nên đóng cửa sổ
+     lại vẫn có chỗ đứng, và F5 vào `/profile` cũng vậy.
+     Đặt ở đây chứ không trong `go`: `go` được gọi từ một effect (đá người
+     không phải admin ra khỏi `/admin`), mà setState trong effect là thứ lint
+     của repo này đang đếm — thêm một cảnh báo mới cho một việc phụ là lỗ. */
+  const navTo = useCallback((k) => {
+    if (k === 'mine' && !user) setAuthPrompt(true)
+    go(k)
+  }, [user, go])
 
   /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
      tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
@@ -1618,18 +1660,21 @@ function AppInner() {
     <NavProvider value={nav}>
       <Splash hide />
       {authPrompt && !user && (
-        <LoginGate onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }} />
+        <LoginGate
+          onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }}
+          onClose={() => setAuthPrompt(false)} />
       )}
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
-        sections={navOrder()} routes={ROUTES} section={section} onNavigate={go}
+        sections={navOrder()} routes={ROUTES} section={section} onNavigate={navTo}
         user={viewer} counts={counts}
         open={menu} onClose={() => setMenu(false)}
         collapsed={collapsed} onToggle={toggleSide}
         onNewRequest={() => openModal('request')}
-        onAbout={() => go('mine')}
+        onAbout={() => navTo('mine')}
         onSignOut={doSignOut}
+        onSignIn={() => setAuthPrompt(true)}
       />
 
       <div className={`shell${collapsed ? ' min' : ''}`}>
@@ -1667,6 +1712,19 @@ function AppInner() {
             onBuy={() => { setBellOpen(false); openModal('buy') }}
             onPrefs={doSetPrefs}
           />
+          {/* LỐI VÀO MÀN ĐĂNG NHẬP, NGAY CẠNH CHUÔNG. Mọi việc cần tài khoản
+              (vote, gửi request, About me) đều tự mở cửa sổ này; nhưng một
+              người mới vào chỉ nhìn thấy bảng request — không có dấu hiệu nào
+              nói trang này có tài khoản, và không có đường nào để đăng nhập
+              trước khi đụng vào một việc. Nút này là đường đó. */}
+          {!user && (
+            <button type="button" className="btn btn-primary head-signin"
+              onClick={() => setAuthPrompt(true)}
+              aria-label={t('gate.signIn')} title={t('gate.signIn')}>
+              <GoogleIcon size={15} />
+              <span className="head-signin-tx">{t('gate.signIn')}</span>
+            </button>
+          )}
           <button className="btn btn-primary only-narrow" onClick={() => openModal('request')}>
             {t('btn.newRequest')}
           </button>
@@ -2033,11 +2091,17 @@ function AppInner() {
         )}
 
         {section === 'spin' && (
-          <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-            {user && <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
-              purchased={voteStatus.purchased} bonus={voteStatus.bonus}
-              onBalance={applySpinBalance} onVote={() => openModal('vote')} />}
-          </Suspense>
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
+              <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
+                purchased={voteStatus.purchased} bonus={voteStatus.bonus}
+                onBalance={applySpinBalance} onVote={() => openModal('vote')} />
+            </Suspense>
+          ) : (
+            /* Trang trắng là câu trả lời tồi: nó không nói vì sao, cũng không
+               cho đường đi tiếp. Xem SignInPanel ở đầu tệp. */
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needSpin')} onSignIn={() => setAuthPrompt(true)} />
+          )
         )}
 
         {/* ======= MỤC 2: XẾP HẠNG ======= */}
@@ -2049,7 +2113,14 @@ function AppInner() {
         )}
 
         {/* ======= MỤC 3: CỦA TÔI ======= */}
-        {section === 'mine' && (
+        {/* Chưa đăng nhập thì mục này KHÔNG dựng khối sửa hồ sơ: `viewer` là một
+            người rỗng, nút Lưu chỉ dẫn tới `err.signin`, và người dùng tưởng
+            hồ sơ của mình vừa biến mất. Một lời mời đăng nhập là câu trả lời
+            đúng cho câu hỏi "hồ sơ của tôi đâu". */}
+        {section === 'mine' && !user && (
+          <SignInPanel title={t('gate.needTitle')} body={t('gate.needBody')} onSignIn={() => setAuthPrompt(true)} />
+        )}
+        {section === 'mine' && user && (
           <>
             {/* HỒ SƠ NẰM NGAY ĐẦU MỤC "ABOUT ME" (vòng 12). Trước đây sửa hồ sơ
                 là một hộp thoại riêng, mở từ ảnh đại diện ở chân sidebar — hai

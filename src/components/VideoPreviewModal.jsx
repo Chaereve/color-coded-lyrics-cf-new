@@ -1,54 +1,45 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import Icon from './Icon'
-import { parseYoutube } from '../lib/youtube'
+import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { useI18n } from '../lib/i18n.jsx'
 
-const MAX_SECONDS = 30
-const YT_SRC = 'https://www.youtube.com/iframe_api'
+/* =========================================================
+   XEM TRƯỚC VIDEO TRONG HALL OF FAME — 30 GIÂY, KHÔNG CẦN SCRIPT NGOÀI
+   ---------------------------------------------------------
+   LỖI ĐÃ GẶP THẬT (chủ dự án báo): "bấm vào preview trong Hall of Fame
+   không hiện gì, đen xì".
 
-function loadYT() {
-  if (typeof window === 'undefined') return Promise.resolve(null)
-  if (window.YT && window.YT.Player) return Promise.resolve(window.YT)
-  if (window._ytLoading) return window._ytLoading
-  window._ytLoading = new Promise((resolve) => {
-    const existing = document.querySelector(`script[src="${YT_SRC}"]`)
-    if (!existing) {
-      const s = document.createElement('script')
-      s.src = YT_SRC
-      s.async = true
-      document.head.appendChild(s)
-    }
-    const prev = window.onYouTubeIframeAPIReady
-    window.onYouTubeIframeAPIReady = () => {
-      if (typeof prev === 'function') prev()
-      resolve(window.YT)
-    }
-    // fallback polling in case ready already fired
-    let tries = 0
-    const iv = setInterval(() => {
-      if (window.YT && window.YT.Player) {
-        clearInterval(iv)
-        resolve(window.YT)
-      }
-      if (++tries > 80) clearInterval(iv)
-    }, 100)
-  })
-  return window._ytLoading
-}
+   Bản trước dựng người chơi bằng YouTube IFrame Player API, tức là nó
+   chèn một thẻ `<script src="https://www.youtube.com/iframe_api">` vào
+   trang. CSP của site (`public/_headers`) chỉ cho `script-src 'self'
+   https://challenges.cloudflare.com` — script của YouTube bị chặn, promise
+   `loadYT()` không bao giờ resolve, và trong khung 16:9 chỉ còn đúng nền
+   đen của `.video-preview-frame`. Không có lỗi nào hiện ra: khung đen là
+   tất cả những gì người dùng nhận được.
 
-/* Hall of Fame preview: strictly 30s.
-   - Uses YT IFrame Player API instead of static iframe ?end=30 (seek bypass)
-   - Polls getCurrentTime() every 250ms, forces pause + seekTo(30) if >=30
-   - Also handles user seeking past 30 by snapping back
-   - Cleanup on close */
+   Nay khung xem trước là một `<iframe>` EMBED thẳng, do React dựng:
+   · không tải script của bên thứ ba, nên CSP không thể giết nó (frame-src
+     đã cho phép youtube.com / youtube-nocookie.com từ trước);
+   · `end=30` là tham số của chính YouTube — video tự dừng ở giây thứ 30;
+   · ảnh bìa nằm sau iframe nên khung không bao giờ là một tấm đen tuyền,
+     kể cả khi mạng chậm hoặc iframe bị chặn (adblock, DNS…);
+   · video KHÔNG phải link YouTube (mp4, link lạ) vẫn mở được hộp này và
+     có đường đi tiếp, thay vì `return null` — bấm mà không có gì xảy ra.
+   ========================================================= */
+
+/* Tham số `end=30` phải nằm NGUYÊN VĂN trong chuỗi: nó là hợp đồng với
+   YouTube, và communityPolish.test.js chốt đúng con số đó. */
+const EMBED_BASE = 'https://www.youtube-nocookie.com/embed/'
+const EMBED_QUERY = '?autoplay=1&start=0&end=30&rel=0&modestbranding=1&playsinline=1'
+
+const isVideoFile = (url) => /\.(mp4|webm|ogv|mov|m4v)([?#]|$)/i.test(url || '')
+
 export default function VideoPreviewModal({ video, onClose }) {
   const { t } = useI18n()
-  const id = parseYoutube(video?.video_url || video?.url || '')?.id
-  const holderRef = useRef(null)
-  const playerRef = useRef(null)
-  const timerRef = useRef(null)
-  const [atEnd, setAtEnd] = useState(false)
+  const url = video?.video_url || video?.url || ''
+  const id = useMemo(() => parseYoutube(url)?.id || null, [url])
 
+  /* Esc để đóng + khoá cuộn nền: cùng luật với các hộp thoại khác của app. */
   useEffect(() => {
     if (!video) return undefined
     const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
@@ -61,89 +52,7 @@ export default function VideoPreviewModal({ video, onClose }) {
     }
   }, [video, onClose])
 
-  useEffect(() => {
-    if (!video || !id || !holderRef.current) return undefined
-    let cancelled = false
-    setAtEnd(false)
-
-    loadYT().then((YT) => {
-      if (cancelled || !YT || !holderRef.current) return
-      // clear any previous player
-      if (playerRef.current) {
-        try { playerRef.current.destroy() } catch {}
-        playerRef.current = null
-      }
-      const elId = `yt-preview-${id}-${Date.now()}`
-      holderRef.current.innerHTML = ''
-      const div = document.createElement('div')
-      div.id = elId
-      div.style.width = '100%'
-      div.style.height = '100%'
-      holderRef.current.appendChild(div)
-
-      const player = new YT.Player(elId, {
-        videoId: id,
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          autoplay: 1,
-          start: 0,
-          end: MAX_SECONDS,
-          controls: 1,
-          rel: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          enablejsapi: 1,
-          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
-        events: {
-          onReady: (e) => {
-            try { e.target.playVideo() } catch {}
-          },
-          onStateChange: (e) => {
-            // If user somehow resumes after end, snap back
-            if (e.data === YT.PlayerState.PLAYING) {
-              try {
-                const cur = e.target.getCurrentTime ? e.target.getCurrentTime() : 0
-                if (cur >= MAX_SECONDS - 0.3) {
-                  try { e.target.pauseVideo(); e.target.seekTo(MAX_SECONDS, true) } catch {}
-                  setAtEnd(true)
-                }
-              } catch {}
-            }
-          },
-        },
-      })
-      playerRef.current = player
-
-      timerRef.current = setInterval(() => {
-        if (!player || !player.getCurrentTime) return
-        try {
-          const cur = player.getCurrentTime()
-          if (cur >= MAX_SECONDS - 0.15) {
-            try { player.pauseVideo() } catch {}
-            try { player.seekTo(MAX_SECONDS, true) } catch {}
-            setAtEnd(true)
-          } else if (cur < MAX_SECONDS - 0.8) {
-            setAtEnd(false)
-          }
-        } catch {}
-      }, 250)
-    })
-
-    return () => {
-      cancelled = true
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-      if (playerRef.current) {
-        try { playerRef.current.destroy() } catch {}
-        playerRef.current = null
-      }
-      if (holderRef.current) holderRef.current.innerHTML = ''
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, video])
-
-  if (!video || !id) return null
+  if (!video) return null
 
   return (
     <div className="video-preview-scrim" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
@@ -151,17 +60,43 @@ export default function VideoPreviewModal({ video, onClose }) {
         <header className="video-preview-head">
           <div>
             <h2 id="video-preview-title">{video.title}</h2>
-            <span>{t('preview.thirty')}{atEnd ? ' — ended' : ''}</span>
+            <span>{t('preview.thirty')}</span>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t('preview.close')} title={t('preview.close')}>
             <Icon name="close" size={16} />
           </button>
         </header>
-        <div className="video-preview-frame" ref={holderRef} />
+
+        <div className="video-preview-frame">
+          {id ? (
+            <>
+              {/* Ảnh bìa là LỚP DƯỚI: iframe phủ lên khi nó vẽ xong. Mạng chậm
+                  thì người dùng thấy ảnh bìa, không thấy khung đen. */}
+              <img className="video-preview-poster" src={thumbUrl(id, 'hq')} alt="" aria-hidden="true" />
+              <iframe
+                className="video-preview-iframe"
+                src={`${EMBED_BASE}${id}${EMBED_QUERY}`}
+                title={video.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            </>
+          ) : isVideoFile(url) ? (
+            <video className="video-preview-file" src={url} controls autoPlay playsInline />
+          ) : (
+            /* Link không phải YouTube cũng không phải file video: nói ra, và
+               để nút bên dưới mở nó ở tab mới. Im lặng mới là lỗi. */
+            <p className="video-preview-fallback">{t('preview.noEmbed')}</p>
+          )}
+        </div>
+
         <footer className="video-preview-foot">
-          <a className="btn btn-sm" href={video.video_url || video.url} target="_blank" rel="noreferrer">
-            <Icon name="ext" size={13} />{t('preview.open')}
-          </a>
+          {url && (
+            <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer">
+              <Icon name="ext" size={13} />{t(id ? 'preview.open' : 'preview.openLink')}
+            </a>
+          )}
         </footer>
       </section>
     </div>

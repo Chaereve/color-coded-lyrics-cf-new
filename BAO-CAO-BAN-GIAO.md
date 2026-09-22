@@ -3,7 +3,7 @@
 ---
 
 ### 1. Đã hoàn thành (Liệt kê theo từng hạng mục & File chính)
-- **Avatar GIF/WebP nén dung lượng:** Hỗ trợ tải `.gif` và animated `.webp` giữ nguyên chuyển động, chốt trần dung lượng 2.5 MB, ảnh tĩnh nén tự động về WebP 128x128 pixel (~10–15 KB).  
+- **Avatar GIF/WebP nén dung lượng:** Hỗ trợ tải `.gif` và animated `.webp` giữ nguyên chuyển động, trần dung lượng khớp đúng `update_my_profile()` của database (200.000 ký tự, ~146 KB cho GIF dạng data URL — con số nằm ở `AVATAR_STORED_CHARS` trong `src/lib/avatar.js`), ảnh tĩnh nén tự động về WebP 128x128 pixel (~10–15 KB).  
   *Files:* `src/lib/avatar.js`, `src/components/ProfilePanel.jsx`.
 - **UI Reply & phản hồi (Image 1):** Thẻ phản hồi con có viền trái tím nổi bật (`border-left: 3px solid var(--a-2)`), thụt lề 16px, khối `Replying to @user` chuyển sang nền tím nhạt, nút Cancel bo tròn dạng viên thuốc tinh tế.  
   *Files:* `src/components/Comments.jsx`, `src/index.css`.
