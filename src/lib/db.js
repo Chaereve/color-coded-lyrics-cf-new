@@ -382,6 +382,13 @@ export async function fetchCommentCounts(requestIds = null) {
   }
 }
 
+export async function settleCurrentSeasonRewards(seasonType = 'week') {
+  if (!hasSupabase) return []
+  const { data, error } = await supabase.rpc('settle_current_season_rewards', { p_season_type: seasonType })
+  if (error) throw error
+  return data || []
+}
+
 export async function fetchAllCommentsForAdmin(limit = 100) {
   if (!hasSupabase) {
     const all = []

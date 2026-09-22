@@ -200,32 +200,29 @@ notify pgrst, 'reload schema';
 
 ---
 
-### 1.2. Cách thức trao thưởng Leaderboard (Season Rewards)
+### 1.2. Cơ chế chốt thưởng Leaderboard Tự động & Bảo mật (Season Rewards Settlement)
 
-Khi tuần hoặc tháng kết thúc, Admin có thể chạy trao thưởng cho Top 3 người dùng bằng một câu lệnh đơn giản qua hàm `public.grant_season_reward`:
+Bảng xếp hạng được thiết lập cơ chế trao thưởng **tự động, bảo mật và chống trùng lặp 100%**:
+- **Bảng lưu trữ kiểm toán:** `public.season_rewards_log` có ràng buộc duy nhất `unique (season_type, period_key, rank)` và `unique (season_type, period_key, user_id)`. Bất kể lệnh chốt chạy bao nhiêu lần, giải thưởng cho kỳ đó **chỉ được trao đúng 1 lần duy nhất**, không bao giờ bị cộng đúp số dư.
+- **Quy tắc phân định khi đồng hạng (Tie-Breaker):**
+  1. Ưu tiên 1: Người có **số bài hoàn thành (Completed)** nhiều nhất.
+  2. Ưu tiên 2: Người có **tổng số vote** nhận được nhiều nhất.
+  3. Ưu tiên 3: Người có **tổng số yêu cầu (Submitted)** nhiều nhất.
+  4. Phá hòa (Tie-breaker cuối): Người đạt mốc sớm hơn dựa trên thời gian tạo yêu cầu đầu tiên trong kỳ (`min(created_at) asc`).
 
+#### Lệnh chốt thưởng tự động trong SQL Editor (Chỉ 1 dòng lệnh)
+
+Khi kỳ xếp hạng kết thúc (23:59 Chủ Nhật hoặc 23:59 ngày cuối tháng theo giờ Việt Nam):
 ```sql
--- Ví dụ: Trao thưởng Tuần cho Top 3:
--- Hạng 1: +15 bonus votes
-select public.grant_season_reward('<USER_ID_TOP_1>', 15, 0, 'Weekly #1 Winner');
--- Hạng 2: +10 bonus votes
-select public.grant_season_reward('<USER_ID_TOP_2>', 10, 0, 'Weekly #2 Winner');
--- Hạng 3: +5 bonus votes
-select public.grant_season_reward('<USER_ID_TOP_3>', 5, 0, 'Weekly #3 Winner');
+-- 1. Tự động chốt và trao thưởng Tuần cho Top 3 (+15, +10, +5 votes):
+select public.settle_current_season_rewards('week');
 
--- Ví dụ: Trao thưởng Tháng cho Top 3:
--- Hạng 1: +50 bonus votes + 1 bonus request
-select public.grant_season_reward('<USER_ID_TOP_1>', 50, 1, 'Monthly Champion');
--- Hạng 2: +30 bonus votes
-select public.grant_season_reward('<USER_ID_TOP_2>', 30, 0, 'Monthly Runner-up');
--- Hạng 3: +20 bonus votes
-select public.grant_season_reward('<USER_ID_TOP_3>', 20, 0, 'Monthly #3 Winner');
+-- 2. Tự động chốt và trao thưởng Tháng cho Top 3 (+50 votes & +1 request, +30, +20):
+select public.settle_current_season_rewards('month');
 ```
+*Hàm sẽ tự động quét top 3 người dùng hợp lệ, cộng trực tiếp votes/requests vào tài khoản, gửi thông báo chuông chúc mừng và ghi nhận lịch sử vào `season_rewards_log`.*
 
-Hàm này sẽ tự động:
-1. Cộng trực tiếp `bonus_credits` vào ví của người dùng.
-2. Cộng `bonus_requests` (nếu có).
-3. Tự động gửi thông báo chúc mừng tới chuông thông báo của người nhận.
+*(Tùy chọn: Nếu dự án của bạn có bật extension `pg_cron` trong Supabase, lệnh trên có thể tự động chạy định kỳ vào 23:59 Chủ Nhật hàng tuần và 23:59 ngày cuối tháng).*
 
 ---
 
