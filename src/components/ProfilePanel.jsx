@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { updateProfile } from '../lib/db'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { loadImage, centerCrop, processAvatar, processAnimatedAvatar, checkFile, isAnimatedWebp } from '../lib/avatar'
+import { loadImage, centerCrop, processAvatar, processAnimatedAvatar, checkFile, isAnimatedWebp, usesCloudinary, ANIMATED_AVATAR_MAX_BYTES, ANIMATED_AVATAR_MAX_KB } from '../lib/avatar'
 import AvatarCropper from './AvatarCropper'
 
 /* SỬA HỒ SƠ — NAY LÀ MỘT KHỐI CỦA TRANG "ABOUT ME", KHÔNG CÒN HỘP THOẠI.
@@ -29,6 +29,11 @@ export default function ProfilePanel({ user, onSaved }) {
 
   /* đang chỉnh khung: giữ ảnh gốc + vùng cắt hiện tại */
   const [editing, setEditing] = useState(null)   // { img, url }
+  /* File ảnh ĐỘNG vừa chọn: giữ lại để còn mời người dùng lấy khung đầu tiên
+     khi ảnh vượt trần của database (ảnh tĩnh vẫn lưu được ngay). Xem
+     `useStillFrame` bên dưới. */
+  const animRef = useRef(null)
+  const [tooBigKb, setTooBigKb] = useState(null)
   const cropRef = useRef(null)
   const onCropChange = useCallback((c) => { cropRef.current = c }, [])
 
@@ -43,6 +48,7 @@ export default function ProfilePanel({ user, onSaved }) {
     setName(user?.name || '')
     setAvatar(user?.avatar || null)
     setMsg(null)
+    setTooBigKb(null)
     reset()
   }, [user?.name, user?.avatar, reset])
 
@@ -53,12 +59,24 @@ export default function ProfilePanel({ user, onSaved }) {
     e.target.value = ''
     if (!file) return
     setMsg(null)
+    setTooBigKb(null)
+    animRef.current = null
     try {
       checkFile(file)
       /* GIF và animated WebP đi thẳng vào bộ lưu trữ/data URL: canvas chỉ lấy frame đầu nên
          không được dùng cho ảnh động. JPG/PNG/WebP tĩnh vẫn qua cropper nén lại. */
       const isAnim = file.type === 'image/gif' || (file.type === 'image/webp' && await isAnimatedWebp(file))
       if (file.type === 'image/gif' || isAnim) {
+        animRef.current = file
+        const kb = Math.max(1, Math.round(file.size / 1024))
+        /* Chưa cấu hình Cloudinary thì ảnh động phải nằm dưới trần của database
+           (~146 KB). Kiểm NGAY TẠI ĐÂY để câu trả lời đến trước khi người dùng
+           bấm Save — bản trước báo "GIF sẵn sàng" rồi Save mới lỗi. */
+        if (!usesCloudinary && file.size > ANIMATED_AVATAR_MAX_BYTES) {
+          setTooBigKb(kb)
+          setMsg({ t: 'err', m: t('prof.gifTooBig', { kb, max: ANIMATED_AVATAR_MAX_KB }) })
+          return
+        }
         const { url, bytes } = await processAnimatedAvatar(file)
         reset()
         setAvatar(url)
@@ -70,6 +88,22 @@ export default function ProfilePanel({ user, onSaved }) {
       reset()
       setEditing({ img, url })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
+  }
+
+  /* LỐI RA CHO ẢNH ĐỘNG QUÁ LỚN: lấy khung đầu tiên (canvas chỉ vẽ được khung
+     đầu — đúng thứ mà đường ảnh động cố tránh) rồi cho đi qua đúng khung cắt
+     của ảnh tĩnh, nên ảnh vẫn vào hồ sơ được thay vì bế tắc. */
+  const useStillFrame = async () => {
+    const file = animRef.current
+    if (!file) return
+    setMsg(null)
+    try {
+      const { img, url } = await loadImage(file)
+      cropRef.current = centerCrop(img)
+      setTooBigKb(null)
+      reset()
+      setEditing({ img, url })
+    } catch (e) { setMsg({ t: 'err', m: errMsg(t, e) }) }
   }
 
   const applyCrop = async () => {
@@ -89,13 +123,36 @@ export default function ProfilePanel({ user, onSaved }) {
     try {
       await updateProfile({ name, avatar })
       await onSaved()
-    } catch (e) { setMsg({ t: 'err', m: errMsg(t, e) }) }
+    } catch (e) {
+      /* Database là nơi giữ trần thật (200.000 ký tự) — nó có thể từ chối một
+         ảnh mà phía client tưởng là vừa, ví dụ khi bản deploy chưa theo kịp.
+         Gặp đúng mã đó thì nói ra con số + việc cần làm, và mở luôn lối lấy
+         khung đầu tiên nếu file gốc còn trong tay. */
+      if (e?.message === 'err.avatarBig' && typeof avatar === 'string' && avatar.startsWith('data:')) {
+        const kb = Math.max(1, Math.round(avatar.length * 3 / 4 / 1024))
+        if (animRef.current) setTooBigKb(kb)
+        setMsg({ t: 'err', m: t('prof.gifTooBig', { kb, max: ANIMATED_AVATAR_MAX_KB }) })
+      } else setMsg({ t: 'err', m: errMsg(t, e) })
+    }
     finally { setBusy(false) }
   }
 
   const initial = (name || '?').trim()[0]?.toUpperCase() || '?'
   const dirty = name.trim() !== (user?.name || '') || avatar !== (user?.avatar || null)
   const tooShort = name.trim().length < 2
+
+  /* Câu thông báo + lối ra khi ảnh động quá lớn: hai thứ luôn đi cùng nhau, ở
+     cả hai nhánh của khối (đang cắt ảnh / đang xem), nên gom một chỗ. */
+  const noteBlock = (
+    <>
+      {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
+      {tooBigKb !== null && (
+        <button type="button" className="btn btn-sm prof-still" disabled={busy} onClick={useStillFrame}>
+          <Icon name="preview" size={13} />{t('prof.gifStill')}
+        </button>
+      )}
+    </>
+  )
 
   return (
     <section className="prof-card" aria-label={t('prof.title')}>
@@ -123,7 +180,7 @@ export default function ProfilePanel({ user, onSaved }) {
       {editing ? (
         <>
           <AvatarCropper img={editing.img} onChange={onCropChange} />
-          {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
+          {noteBlock}
           <div className="prof-acts">
             <button className="btn" onClick={reset} disabled={busy}>{t('prof.cancel')}</button>
             <button className="btn btn-primary" onClick={applyCrop} disabled={busy}>
@@ -159,7 +216,7 @@ export default function ProfilePanel({ user, onSaved }) {
               onKeyDown={e => { if (e.key === 'Enter' && dirty && !busy && !tooShort) save() }} />
           </div>
 
-          {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
+          {noteBlock}
         </>
       )}
     </section>

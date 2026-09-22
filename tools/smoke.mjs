@@ -205,6 +205,82 @@ where = 'sidebar'
   check('trang chủ có dòng phụ dưới tiêu đề', !!sub, sub?.textContent)
 }
 
+/* ---------- 4c. KHÁCH CHƯA ĐĂNG NHẬP (vòng 23) ----------
+   Ba lỗi chủ dự án báo đều nằm ở đây, và cả ba chỉ thấy được khi dựng app ở
+   trạng thái KHÁCH — tức trước khi bấm "Continue with Google" ở phần 6:
+     · không có lối vào màn đăng nhập: chỉ có chuông thông báo ở góc phải;
+     · bấm vào About me lại ra một khối hồ sơ rỗng thay vì màn đăng nhập;
+     · mục Daily Spin trắng trơn.
+   Lượt kiểm này cố ý chạy TRƯỚC khi đăng nhập demo. */
+where = 'khách chưa đăng nhập'
+{
+  const head = q('.mainhead')
+  const kids = [...(head?.children || [])]
+  const bellAt = kids.findIndex(el => el.classList.contains('nt'))
+  const signAt = kids.findIndex(el => el.classList.contains('head-signin'))
+  check('khách có nút Đăng nhập ở hàng tiêu đề', signAt >= 0,
+    kids.map(el => el.className.split(' ')[0]).join(' · '))
+  check('nút Đăng nhập đứng NGAY SAU chuông thông báo', signAt === bellAt + 1,
+    `chuông #${bellAt}, đăng nhập #${signAt}`)
+  check('chân sidebar của khách có nút Đăng nhập, không còn nút Sign out',
+    !!q('.side-foot .side-signin') && !q('.side-foot .side-out'))
+
+  await click(q('.head-signin'))
+  const scrim = q('.gate-scrim')
+  check('bấm nút Đăng nhập là màn đăng nhập hiện ra', !!scrim && !!q('.gate-scrim .gate-card'), !!scrim)
+  /* LỖI CŨ: khối này nằm TRONG LUỒNG văn bản (min-height:100%) nên nó được
+     chèn vào đầu tài liệu, đẩy cả trang xuống — bấm ở giữa bảng thì không ai
+     thấy nó. Chốt bằng cấu trúc: hộp thoại phải nằm TRONG lớp phủ. */
+  check('màn đăng nhập là lớp phủ, có hộp thoại và nút đóng',
+    !!scrim && scrim.classList.contains('gate-scrim') && !!q('.gate-scrim [role="dialog"][aria-modal="true"]') && !!q('.gate-x'))
+  check('hộp thoại đăng nhập có tên đọc được cho trình đọc màn hình',
+    q('.gate-scrim [role="dialog"]')?.getAttribute('aria-labelledby') === 'gate-title' && !!q('#gate-title'))
+
+  /* Esc phải đóng được: người dùng có quyền thoát khỏi thứ mình không gọi ra. */
+  await act(async () => {
+    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  await tick(120)
+  check('Esc đóng được màn đăng nhập', !q('.gate-scrim'))
+
+  /* ABOUT ME của khách: mở màn đăng nhập + phía sau là khối mời đăng nhập,
+     KHÔNG phải khối hồ sơ rỗng với nút Lưu không chạy được. */
+  const aboutItem = qa('.side-item').find(el => /About me/i.test(el.textContent || ''))
+  if (aboutItem) {
+    await click(aboutItem)
+    await tick(180)
+    check('khách bấm About me là màn đăng nhập tự mở', !!q('.gate-scrim'))
+    check('khách không thấy khối sửa hồ sơ rỗng', !q('#prof-name') && !q('.prof-card'))
+    check('About me của khách có khối mời đăng nhập với nút Google',
+      !!q('.signin-panel') && !!q('.signin-panel .signin-panel-btn'))
+    await act(async () => {
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await tick(120)
+  } else {
+    check('sidebar có mục About me để bấm', false, (q('.side-nav')?.textContent || '').slice(0, 80))
+  }
+
+  /* DAILY SPIN của khách: trước đây `{user && <DailySpin/>}` cho ra một trang
+     trắng. Nay phải có chữ, lý do và một nút. */
+  const spinItem = qa('.side-item').find(el => /Daily Spin/i.test(el.textContent || ''))
+  if (spinItem) {
+    await click(spinItem)
+    await tick(180)
+    check('Daily Spin của khách không còn trống trơn',
+      !!q('.signin-panel') && (text().length > 120), `${text().length} ký tự`)
+    check('Daily Spin của khách chỉ cho khối mời đăng nhập, không dựng vòng quay',
+      !q('.daily-spin') && !q('.spin-sector'))
+  } else {
+    check('sidebar có mục Daily Spin để bấm', false, (q('.side-nav')?.textContent || '').slice(0, 80))
+  }
+
+  /* Trả màn hình về bảng request: các phần sau giả định đang đứng ở đó. */
+  const boardItem = qa('.side-item').find(el => /Requests/i.test(el.textContent || ''))
+  if (boardItem) { await click(boardItem); await tick(160) }
+  check('khách quay lại được bảng request', !!q('.board') || qa('.row, .grow').length > 0)
+}
+
 /* ---------- 5. trang chủ ---------- */
 where = 'trang chủ'
 const rows = qa('.row, .grow')
@@ -338,6 +414,58 @@ if (upNextChip) {
 }
 const queueChip = qa('.fchip').find(c => /Queue/i.test(c.textContent || ''))
 if (queueChip) await click(queueChip)
+
+/* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23) ----------
+   LỖI CHỦ DỰ ÁN BÁO: "bấm preview ở Hall of Fame không hiện gì, đen xì".
+   Nguyên nhân nằm ở chỗ khó thấy bằng mắt thường: người chơi cũ dựng bằng
+   YouTube IFrame Player API, mà API đó nạp `<script src="youtube.com/iframe_api">`.
+   CSP của site chỉ cho `script-src 'self'`, nên script bị chặn im lặng,
+   promise của người chơi không bao giờ chạy tiếp, và cái khung chỉ còn nền đen.
+
+   Vì thế lượt kiểm này soi ĐÚNG thứ đã chết lần trước: trong tài liệu KHÔNG
+   được có thẻ script nào của YouTube, và khung xem phải có một phần tử thật
+   để vẽ ra (iframe nhúng thẳng, ảnh bìa, hoặc câu giải thích).
+   Trong jsdom không có mạng, nên đây là bài kiểm CẤU TRÚC — thứ duy nhất
+   quyết định khung có đen hay không ở trình duyệt thật. */
+where = 'xem trước video (Hall of Fame)'
+{
+  const cards = qa('.hall-card')
+  check('trang chủ có thẻ Hall of Fame để bấm preview', cards.length > 0, `${cards.length} thẻ`)
+  if (cards.length > 0) {
+    await click(cards[0])
+    await tick(160)
+    check('bấm thẻ Hall of Fame là khung xem trước mở ra',
+      !!q('.video-preview-scrim') && !!q('.video-preview'))
+    check('khung xem trước là hộp thoại có tên đọc được',
+      q('.video-preview')?.getAttribute('role') === 'dialog' &&
+      q('.video-preview')?.getAttribute('aria-labelledby') === 'video-preview-title' &&
+      !!q('#video-preview-title'))
+    const frame = q('.video-preview-frame')
+    check('khung xem trước không rỗng (luôn có thứ để vẽ)',
+      !!frame && frame.children.length > 0, `${frame ? frame.children.length : 0} phần tử`)
+    check('KHÔNG nạp script của YouTube (đúng thứ đã làm khung đen)',
+      qa('script[src*="youtube"], script[src*="ytimg"]').length === 0,
+      qa('script').map(s => s.getAttribute('src')).filter(Boolean).join(' · '))
+    const iframe = q('.video-preview-iframe')
+    check('video YouTube chạy bằng iframe nhúng thẳng (không cần script ngoài)',
+      !!iframe, iframe ? iframe.getAttribute('src') : 'không có iframe')
+    check('iframe nhúng đúng link youtube-nocookie của bài đó',
+      /^https:\/\/www\.youtube-nocookie\.com\/embed\/[A-Za-z0-9_-]{6,}/.test(iframe?.getAttribute('src') || ''),
+      iframe?.getAttribute('src'))
+    check('vẫn giữ mốc 30 giây của bản trước', /end=30/.test(iframe?.getAttribute('src') || ''))
+    check('iframe có nhãn cho trình đọc màn hình', !!iframe?.getAttribute('title'))
+    const poster = q('.video-preview-poster')
+    check('có ảnh bìa nằm sau iframe (mạng chậm vẫn thấy hình, không thấy đen)',
+      !!poster && /i\.ytimg\.com\/vi\//.test(poster.getAttribute('src') || ''),
+      poster?.getAttribute('src'))
+    check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-foot a'))
+    await act(async () => {
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await tick(140)
+    check('Esc đóng được khung xem trước', !q('.video-preview-scrim'))
+  }
+}
 
 /* ---------- 6. form request ---------- */
 where = 'form request'
@@ -1615,6 +1743,39 @@ where = 'bài trả phí'
   check('bấm "Back to board": về bảng, trang cá nhân đóng, không màn chờ',
     (await waitFor(() => !!q('.list') && !q('.public-profile'), 3000)) && !splashUp())
   quiet('trang cá nhân công khai')
+
+  /* (7b) HAI TRANG CHỒNG LÊN NHAU — LỖI CHỦ DỰ ÁN BÁO (vòng 24)
+     Ảnh chụp gửi kèm: khối trang cá nhân của người khác (Requests / Completed /
+     Votes received, streak, Achievements, Recent requests) nằm TRÊN, và ngay
+     dưới nó là "Daily bonus wheel" của mục Daily Spin — hai trang trong cùng
+     một tài liệu. Gốc rễ: trang cá nhân là một TRANG sống trong mục Bảng, còn
+     `section` đổi độc lập; bản trước chỉ mục Bảng có `!profileId`, nên bấm mục
+     nào khác là mục đó dựng thêm NGAY DƯỚI trang cá nhân.
+     Ba phép kiểm: trang cá nhân đóng lại, mục vừa bấm dựng đúng khối của nó,
+     và cả tài liệu chỉ còn MỘT trang. */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  const spinTab = qa('.side-nav .side-item').find(a => /Daily Spin/i.test(a.textContent || ''))
+  check('menu có mục Daily Spin để bấm sang', !!spinTab,
+    qa('.side-nav .side-item').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
+  if (spinTab) {
+    await click(spinTab)
+    await waitFor(() => !q('.public-profile'), 3000)
+    await tick(240)
+    check('bấm Daily Spin khi đang mở trang cá nhân: trang cá nhân ĐÓNG lại',
+      !q('.public-profile'), qa('.public-profile') ? 'khối trang cá nhân vẫn còn' : '')
+    check('mục vừa bấm dựng đúng khối của nó (vòng quay hiện ra)',
+      !!q('.daily-spin'), (q('.sect')?.textContent || '').replace(/\s+/g, ' ').slice(0, 120))
+    check('tài liệu chỉ còn MỘT trang, không chồng hai trang',
+      qa('.public-profile').length + qa('.daily-spin').length === 1,
+      `trang cá nhân=${qa('.public-profile').length} · vòng quay=${qa('.daily-spin').length}`)
+    check('địa chỉ thôi nói về trang cá nhân vừa rời (F5 không mở lại nó)',
+      !new URLSearchParams(window.location.search).has('profile'), window.location.search)
+  }
+  /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
+  await goto('/', () => items().length > 0)
+  check('quay lại bảng: danh sách có hàng và không còn trang nào khác',
+    items().length > 0 && !q('.public-profile') && !q('.daily-spin'),
+    `số mục=${items().length}`)
 
   /* (8) MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn mà vẫn đi được.
      Đây là vế quan trọng nhất: bản xem trước của nền tảng chạy trong iframe

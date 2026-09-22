@@ -1,7 +1,8 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
-Cập nhật 21/09/2026 · nhánh `arena/01a0c255-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
-nằm ở cuối file** (phần V — vòng 18); các con số ngay dưới đây là của mốc 19/09
+Cập nhật 22/09/2026 · nhánh `arena/01a0c8a3-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
+nằm ở cuối file** (phần XIV — vòng 24: `npm test` 468 ca, `npm run smoke` 332/332); các con số
+ngay dưới đây là của mốc 19/09
 So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
 `npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
 `npx oxlint` **0 lỗi**. Bản dựng hiện tại: `index-BxQ09EV7.js` 359 kB.
@@ -1551,3 +1552,114 @@ Monetag/PropellerAds cần xác nhận bằng văn bản rewarded web + incentiv
 postback cho đúng placement/GEO trước khi thêm SDK. Vì vậy vòng này chỉ thêm tài liệu
 rà soát ở `docs/DAILY-SPIN-ADS.md`, không biến Daily Spin hiện tại thành một lời hứa
 "xem quảng cáo chắc chắn nhận vote".
+
+## Phần XIII — vòng 23: bốn lỗi chủ dự án báo trực tiếp (22/09/2026)
+
+Bốn lỗi, không lỗi nào cần suy đoán: chủ dự án bấm vào và thấy hỏng. Cả bốn đều thuộc loại
+"im lặng" — không có thông báo lỗi nào, chỉ có một khối trắng, một khung đen, hoặc một nút
+không dẫn tới đâu.
+
+| Lỗi báo | Gốc rễ | Cách sửa |
+|---|---|---|
+| Không có đường nào tới màn đăng nhập | Hàng tiêu đề chỉ có chuông thông báo; `Sidebar` gọi `go('mine')` cho *About me* mà không ai mở cổng đăng nhập; khối hồ sơ của khách là một form rỗng với nút Save không chạy | Nút **Đăng nhập** (`GoogleIcon` + `gate.signIn`) đứng NGAY SAU chuông trong `.mainhead`, dưới 620px chỉ còn biểu tượng nhưng vẫn có `aria-label`/`title`; hàm `navTo()` mở cổng khi khách bấm *About me*; hai mục cần tài khoản (*About me*, *Daily Spin*) có khối mời đăng nhập thật (`SignInPanel`) thay vì trang trắng |
+| Preview trong Hall of Fame: màn hình đen | Player cũ dựng bằng **YouTube IFrame Player API** → chèn `<script src="https://www.youtube.com/iframe_api">`, mà CSP `script-src 'self'` (`public/_headers`) chặn im lặng script đó. Promise `loadYT()` không bao giờ resolve, khung 16:9 chỉ còn nền `#0b0d12` | `<iframe>` nhúng thẳng `youtube-nocookie.com/embed/<id>?autoplay=1&start=0&end=30…` — CSP đã cho `frame-src` sẵn, không script bên thứ ba. Thêm **ảnh bìa nằm sau iframe** (mạng chậm/adblock vẫn thấy hình), nhánh `<video>` cho mp4/webm/ogv/mov/m4v, câu `preview.noEmbed` cho link lạ; Esc + bấm nền đóng, khoá cuộn nền |
+| Đặt avatar GIF không được | Trần dung lượng hai nơi lệch nhau: phía trình duyệt hứa **2,5 MB**, `update_my_profile()` chặn ở **200.000 ký tự** (`length(p_avatar) > 200000` → `err.avatarBig`). GIF 1–2 MB vì thế qua được cửa chọn file ("GIF sẵn sàng"), tới lúc Save mới bị database từ chối | Trần client suy TỪ trần database: `AVATAR_STORED_CHARS = 200000`, `ANIMATED_AVATAR_MAX_BYTES` trừ tiền tố data URL và phần đệm base64 (~146 KB). Chặn ngay khi chọn file, kèm nút **"Dùng khung đầu tiên (ảnh tĩnh)"** đi qua đúng cropper ảnh tĩnh; gặp `err.avatarBig` từ database thì thông báo cũng mở lại lối thoát đó. Trần cũ 2,5 MB đã xoá khỏi mã, `HUONG-DAN.md`, `BUOC-THU-CONG.md`, `BAO-CAO-BAN-GIAO.md` |
+| Daily Spin trống trơn | Khối vòng quay chỉ được dựng khi đã có tài khoản (`{user && …}`), nên khách chưa đăng nhập vào mục này gặp trang trắng — không chữ, không lý do, không nút | Khách thấy `SignInPanel` (tiêu đề + lý do + nút Google); người đã đăng nhập không đổi gì. Cùng cách xử lý cho *About me* |
+
+Hai lỗi tự gây ra, ghi lại để lần sau không lặp:
+
+- **`propContract.test.js` đọc CHỮ trong comment như mã.** Chú thích mô tả khối mời đăng nhập
+  có viết `{user && <DailySpin/>}` — bài kiểm tưởng đó là một call site thật và báo thiếu sáu
+  prop bắt buộc ở `App.jsx:200`. Nói cách khác: trong repo này **không được viết cú pháp JSX
+  trong comment**. Đã sửa lại câu chữ.
+- **Mở cổng đăng nhập trong `go()` làm oxlint gán `set-state-in-effect` cho MỌI effect gọi `go`**
+  (effect chuyển hướng `/admin`), đẩy cảnh báo lên 29. Cổng đăng nhập là chuyện của ĐƯỜNG BẤM,
+  không phải của việc chuyển mục, nên nó nằm trong wrapper `navTo()` — số cảnh báo còn thấp hơn nền.
+
+### XIII1. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **459 ca / 458 đạt / 0 lỗi / 1 skip** (vòng 22: 454). `avatar.test.js` từ 1 ca chữ nghĩa lên **6 ca**: chạy THẬT `processAnimatedAvatar` với `FileReader` giả — GIF vừa trần đi nguyên bytes (còn chuyển động), GIF quá trần bị chặn TRƯỚC khi dựng chuỗi base64, trần client khớp trần database sát từng byte, SQL vẫn giữ `length(p_avatar) > 200000`, và giao diện nói ra con số + mở lối thoát |
+| `npm run smoke` | ✅ **326/326** (vòng 22: 301) — hai lượt mới dựng app trong jsdom rồi BẤM THẬT: *4c* kiểm khách chưa đăng nhập (nút Đăng nhập đứng sau chuông, cổng mở ra và Esc đóng được, *About me* / *Daily Spin* không còn trắng), *5b* kiểm preview Hall of Fame (không có `<script>` nào của YouTube trong tài liệu — đúng thứ đã làm khung đen — iframe đúng `youtube-nocookie`, giữ `end=30`, có ảnh bìa, Esc đóng được) |
+| `npx oxlint` | ✅ 0 lỗi, **26 cảnh báo** — thấp hơn nền 28 vì bản viết lại `VideoPreviewModal` bỏ được hai cảnh báo `exhaustive-deps` của player cũ |
+| `npm run build` | ✅ sạch — `index-CUQJ6K5E.js` 336,94 kB (gzip 103,40 kB) |
+
+### XIII2. Còn nợ
+
+- **Chưa kiểm được bằng mắt trên trình duyệt thật**: môi trường này không có mạng ra ngoài, nên
+  phần "video có thật sự chạy" chỉ chốt được ở mức cấu trúc (không script bên thứ ba, iframe
+  đúng URL, có ảnh bìa). Việc cần làm khi có mạng: mở Hall of Fame, bấm một thẻ, xem video chạy
+  và tự dừng ở giây 30.
+- **GIF lớn hơn ~146 KB vẫn không lưu được nguyên chuyển động** — đó là trần của database, không
+  phải lỗi. Muốn nhận GIF nặng hơn thì phải nới `update_my_profile()` (migration mới) hoặc bật
+  Cloudinary (`VITE_CLOUDINARY_CLOUD` + `VITE_CLOUDINARY_PRESET`) — khi đó trần là 8 MB và ảnh
+  chỉ lưu URL.
+
+## Phần XIV — vòng 24: "hai trang chồng lên nhau" (22/09/2026)
+
+Chủ dự án gửi hai ảnh chụp: *"lúc bấm vào màn hình login và bấm vào profile người khác xong
+chuyển sang tab khác trong trang thì bị lỗi chồng trang như 2 hình (lỗi này bị ở mọi trang)"*.
+Đọc kỹ hai ảnh thì đây là **hai lỗi khác nhau**, và chỉ một trong hai là lỗi mới.
+
+| Ảnh | Thấy gì | Kết luận |
+|---|---|---|
+| 1 | Thẻ đăng nhập ở đầu trang (bị cắt phần trên), khoảng trống, rồi mới tới `Requests` + bốn ô thống kê + dải Featured | Đây là **khối trong luồng văn bản**: thẻ đăng nhập được chèn vào đầu tài liệu và đẩy cả bảng xuống. Đúng lỗi đã sửa ở **vòng 23** (lớp phủ `position: fixed` + nút Đăng nhập ở hàng tiêu đề). Ảnh không có nút × trên thẻ và không có nút Đăng nhập cạnh chuông → bản chạy trong ảnh là bản deploy **cũ** |
+| 2 | Khối trang cá nhân (`Requests / Completed / Votes received`, streak, Achievements, Recent requests) rồi ngay dưới là **Daily bonus wheel** | **Lỗi mới, lỗi thật trong mã**: hai trang nằm trong cùng một tài liệu, xếp dọc theo nhau |
+
+### XIV1. Gốc rễ của ảnh 2 — một TRANG bị đối xử như một MỤC
+
+Trang cá nhân công khai (`profileId`) được vẽ **song song** với mục đang chọn, chứ không phải
+*thay cho* nó:
+
+- `openProfile` đặt `section='board'` + `profileId=<id>` — nghĩa là trang cá nhân sống trong
+  mục Bảng;
+- nhưng chỉ khối Bảng có `!profileId`. Ba mục còn lại — Daily Spin, Xếp hạng, About me — và cả
+  trang quản trị **không có** điều kiện đó.
+
+Nên: mở trang cá nhân của người khác rồi bấm một mục khác trong menu → mục đó dựng thêm khối
+của mình **ngay dưới** trang cá nhân. Ảnh 2 là đúng ca đó với mục Daily Spin. Và đó cũng là lý
+do câu "lỗi này bị ở mọi trang": mục nào cũng ra thêm một trang.
+
+### XIV2. Bốn chỗ đã sửa
+
+1. **MỘT lá cờ `onProfile`, cả sáu khối mục đi qua nó** (Bảng, Daily Spin, Xếp hạng, About me
+   ×2 trạng thái đăng nhập, quản trị). Không còn đường nào dựng hai trang một lúc — kể cả khi
+   dán tay `/?profile=…` lúc đang ở mục khác, hay khi bấm Back/Forward.
+2. **Bấm một mục trong menu là ĐÓNG trang cá nhân** (`navTo`) — vì "chuyển sang tab khác" là ý
+   định *đổi trang*, không phải *mở thêm trang*. Trang cá nhân vẫn còn nút *Back to board*
+   riêng nên không ai mất đường về.
+3. **Địa chỉ thôi nói về trang cá nhân vừa rời** (`searchWithoutProfile`, `lib/history.js`).
+   Bản cũ dùng thẳng `window.location.search` khi ghi địa chỉ mục Bảng, nên tham số `profile`
+   đi theo và **F5 mở lại đúng cái trang vừa rời** — cùng một lỗi ở tầng địa chỉ.
+4. **Chuyển cảnh giữa hai mục đi qua một cửa duy nhất** (`src/lib/viewTransition.js`).
+   View Transitions là thứ duy nhất trong app vẽ **ảnh chụp** của trang cũ lên trên trang mới,
+   nên nó là ứng viên đầu tiên khi người dùng nói "chồng trang". Nó không tự sinh ảnh sai:
+   nó chụp DOM ở hai thời điểm, và thứ làm ảnh ghép sai là những gì xảy ra **giữa hai lần
+   chụp**. Bốn luật nay nằm trong một chỗ:
+   - không có API (Firefox cũ, jsdom) → đổi thẳng;
+   - người dùng xin giảm chuyển động → đổi thẳng;
+   - **đang có chuyến bay → đổi thẳng, KHÔNG mở chuyến thứ hai** (bấm hai mục liên tiếp trong
+     0,4 giây: lần chụp thứ hai sẽ chụp luôn ảnh của chuyến thứ nhất đang nằm trên màn hình —
+     ảnh của ảnh, nhiều lớp trang);
+   - xong / hỏng / bị bỏ (`skipTransition`) → **luôn dọn** `data-nav` và nhả cờ. Bản cũ đặt
+     `data-nav` rồi để nguyên vĩnh viễn: hướng đi của lần chuyển cảnh trước thành hướng của
+     mọi lần sau, và một chuyến hỏng là kẹt cờ.
+
+### XIV3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **468 ca / 467 đạt / 0 lỗi / 1 skip** (vòng 23: 459). Mới: `viewTransition.test.js` **6 ca** chạy thật `createSectionTransition` với `document` giả (không API; giảm chuyển động; mở đúng một chuyến + dọn `data-nav`; hướng lạ → `fwd`; chuyến bị bỏ vẫn dọn và không kẹt cờ; **đang bay thì không mở chuyến thứ hai**; API chết vẫn tới nơi) và `profileNav.test.js` **+3 ca** (mọi mục dùng chung `onProfile`; `navTo` đóng trang cá nhân; `searchWithoutProfile` giữ tham số bảng, bỏ `profile`) |
+| `npm run smoke` | ✅ **332/332** (vòng 23: 326) — mục *10e* bấm thật: mở `/?profile=demo-user`, bấm *Daily Spin* trong menu, rồi khẳng định tài liệu chỉ còn MỘT trang. **Đã chạy lại với mã CŨ** để chắc phép kiểm bắt được lỗi: `330/332`, đỏ đúng hai mục, kèm `trang cá nhân=1 · vòng quay=1` — đúng như ảnh chụp |
+| `npx oxlint` | ✅ 0 lỗi, **26 cảnh báo** — bằng nền, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-BZ8OCtKy.js` 337,36 kB (gzip 103,61 kB) |
+
+### XIV4. Còn nợ
+
+- **Ảnh 1 chỉ hết khi bản sửa vòng 23 được deploy.** Trên miền thật, thẻ đăng nhập vẫn còn là
+  khối trong luồng (đẩy cả trang xuống) cho tới khi bản này lên. Sau khi deploy, phép kiểm
+  tương ứng nằm ở `tools/smoke.mjs` mục *4c*.
+- Chưa xem được bằng mắt trên trình duyệt thật (môi trường này không có mạng ra ngoài), nên
+  phần "chuyển cảnh có còn nhấp nháy không" vẫn chỉ chốt được ở mức logic + DOM. Việc cần làm
+  khi có mạng: bấm liên tiếp vài mục trong menu và xem có thấy hai trang lồng nhau không.

@@ -35,7 +35,7 @@ export default function Sidebar({
   sections, routes, section, onNavigate,
   user, counts,
   open, onClose, collapsed, onToggle,
-  onNewRequest, onAbout, onSignOut,
+  onNewRequest, onAbout, onSignOut, onSignIn,
 }) {
   const { t } = useI18n()
   const closeRef = useRef(null)
@@ -71,6 +71,11 @@ export default function Sidebar({
     return () => cancelAnimationFrame(id)
   }, [section, collapsed, sections])
 
+  /* `user` LUÔN là một object: App truyền `viewer` (người xem) để mọi chỗ khác
+     không phải kiểm tra null. Người chưa đăng nhập là người KHÔNG CÓ ID — hỏi
+     `user` là truthy thì khách bị đối xử như người đã đăng nhập (chân sidebar
+     dựng nút Sign out không có gì để đăng xuất). */
+  const signedIn = !!user?.id
   const initials = (user?.name || '?').trim()[0].toUpperCase()
   const NAV_ICON = { board: 'board', spin: 'spin', ranking: 'cup', mine: 'user', admin: 'shield' }
   const adminTotal = counts.pending + counts.orders + Number(counts.expired || 0)
@@ -171,21 +176,34 @@ export default function Sidebar({
         </div>
 
         <div className="side-foot">
-          {/* Ảnh đại diện ở chân sidebar KHÔNG mở hộp thoại nữa: nó đưa về mục
-              About me, nơi có cả hồ sơ lẫn request của mình. Một việc, một
-              đường. */}
-          <button type="button" className="side-user" onClick={fire(onAbout)} title={collapsed ? user?.name : t('prof.title')}>
-            {user?.avatar
-              ? <img className={`avatar lg${user.isAdmin ? ' admin' : ''}`} src={user.avatar} alt="" referrerPolicy="no-referrer" />
-              : <span className={`avatar lg${user?.isAdmin ? ' admin' : ''}`}>{initials}</span>}
-            <span className="side-user-tx side-tx">
-              <b>{user?.name}</b>
-              <small>{t('nav.mine')}</small>
-            </span>
-          </button>
-          <button type="button" className="side-out" onClick={fire(onSignOut)} title={tip(t('menu.signOut'))}>
-            <Icon name="out" size={15} className="sico" /><span className="side-tx">{t('menu.signOut')}</span>
-          </button>
+          {/* KHÁCH: chân sidebar trước đây vẫn dựng ảnh đại diện rỗng ("?") và
+              một nút "Sign out" không có gì để đăng xuất — hai thứ vô nghĩa
+              chiếm đúng chỗ mà lối vào tài khoản đáng ra phải nằm. Nay khách
+              thấy MỘT nút đăng nhập ở đó; người đã đăng nhập vẫn như cũ.
+              Ảnh đại diện KHÔNG mở hộp thoại: nó đưa về mục About me, nơi có
+              cả hồ sơ lẫn request của mình. Một việc, một đường. */}
+          {signedIn ? (
+            <>
+              <button type="button" className="side-user" onClick={fire(onAbout)} title={collapsed ? user.name : t('prof.title')}>
+                {user.avatar
+                  ? <img className={`avatar lg${user.isAdmin ? ' admin' : ''}`} src={user.avatar} alt="" referrerPolicy="no-referrer" />
+                  : <span className={`avatar lg${user.isAdmin ? ' admin' : ''}`}>{initials}</span>}
+                <span className="side-user-tx side-tx">
+                  <b>{user.name}</b>
+                  <small>{t('nav.mine')}</small>
+                </span>
+              </button>
+              <button type="button" className="side-out" onClick={fire(onSignOut)} title={tip(t('menu.signOut'))}>
+                <Icon name="out" size={15} className="sico" /><span className="side-tx">{t('menu.signOut')}</span>
+              </button>
+            </>
+          ) : (
+            <button type="button" className="side-cta side-signin" onClick={fire(onSignIn)}
+              title={tip(t('gate.signIn'))} aria-label={t('gate.signIn')}>
+              <span className="cta-ico" aria-hidden="true"><Icon name="user" size={14} /></span>
+              <span className="side-tx">{t('gate.signIn')}</span>
+            </button>
+          )}
           <div className="side-copy side-tx">© {new Date().getFullYear()} CHAEREVE</div>
         </div>
       </aside>

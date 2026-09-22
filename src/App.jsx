@@ -1,5 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
+import GoogleIcon from './components/GoogleIcon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
 import LoginGate from './components/LoginGate'
@@ -32,7 +33,8 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery } from './lib/history'
+import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
+import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
@@ -145,8 +147,11 @@ const readBoard = () => {
   }
 }
 
-const VT = typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
 const REDUCED = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+/* MỘT cửa cho chuyển cảnh giữa hai mục (xem lib/viewTransition.js): nó giữ cờ
+   "đang bay" nên hai cú bấm liên tiếp không thể mở hai chuyến cùng lúc — đúng
+   cách sinh ra hai tấm ảnh chụp lồng nhau = "chồng trang". */
+const sectionTransition = createSectionTransition({ reduced: REDUCED })
 
 /* BA NHÓM, ĐÚNG THỨ TỰ NGƯỜI TA ĐỌC BẢNG.
    `c` là màu VẠCH của mục (CSS đọc qua biến `--c`), `ax` là nhóm — mục đầu
@@ -188,6 +193,33 @@ function Stat({ c, v, label, why }) {
     <div className="stat" style={{ '--c': c }} title={why}>
       <Num v={v} />
       <span>{label}</span>
+    </div>
+  )
+}
+
+/* =========================================================
+   KHỐI MỜI ĐĂNG NHẬP — CHỖ ĐỨNG CỦA MỤC RIÊNG TƯ KHI CHƯA CÓ TÀI KHOẢN
+   ---------------------------------------------------------
+   LỖI ĐÃ GẶP THẬT: "Daily Spin trống trơn". Mục spin chỉ dựng vòng
+   quay KHI ĐÃ CÓ người đăng nhập, nên khách nhận một trang trắng —
+   không chữ, không lý do, không nút. Mục About me thì ngược lại: nó
+   dựng nguyên khối sửa hồ sơ cho khách, với ô tên trống và nút Lưu
+   không bao giờ chạy được (update_my_profile raise `err.signin`).
+
+   Cả hai chỗ nay dùng đúng một khối: nói ra vì sao trang này cần tài
+   khoản, và cho một nút mở màn đăng nhập (cửa sổ nổi đã có nút X, nên
+   người dùng không bị kẹt trong đó).
+   ========================================================= */
+function SignInPanel({ title, body, onSignIn }) {
+  const { t } = useI18n()
+  return (
+    <div className="empty signin-panel">
+      <span className="empty-ico" aria-hidden="true"><Icon name="user" size={18} /></span>
+      <b>{title}</b>
+      <small>{body}</small>
+      <button type="button" className="btn btn-primary signin-panel-btn" onClick={onSignIn}>
+        <GoogleIcon size={15} />{t('gate.google')}
+      </button>
     </div>
   )
 }
@@ -419,6 +451,19 @@ function AppInner() {
      chứng chủ dự án báo: "bấm profile bị quay về trang chủ" và "bấm không được
      gì". State đổi trước, địa chỉ ghi sau bằng `pushUrl` (không bao giờ ném). */
   const [profileId, setProfileId] = useState(readProfileId)
+  /* TRANG CÁ NHÂN CÔNG KHAI LÀ MỘT TRANG, KHÔNG PHẢI MỘT MỤC.
+     ---------------------------------------------------------
+     Nó chỉ tồn tại trong mục Bảng (`openProfile` còn tự đặt `section='board'`),
+     nên MỌI khối của các mục khác phải đứng ngoài nó. Bản trước chỉ mục Bảng có
+     `!profileId`; ba mục còn lại cứ thế dựng thêm, và kết quả là hai trang nằm
+     chồng nhau: khối trang cá nhân của người khác ở trên, mục vừa bấm ở dưới —
+     đúng ảnh chụp chủ dự án gửi ("bấm vào profile người khác xong chuyển sang
+     tab khác trong trang thì bị chồng trang", ảnh: trang cá nhân rồi ngay dưới
+     là "Daily bonus wheel").
+     Nay cả năm khối đều đi qua CÙNG một lá cờ, nên không có đường nào dựng hai
+     trang một lúc — kể cả khi địa chỉ bị dán tay (`/?profile=…` lúc đang ở
+     mục khác) hay khi người dùng bấm Back/Forward. */
+  const onProfile = !!profileId
   // The shared aurora sits outside the lazy page. Set its route mode before
   // paint so Daily Spin stays flat on direct loads, navigation and history.
   useLayoutEffect(() => {
@@ -477,24 +522,45 @@ function AppInner() {
       const narrow = window.matchMedia?.('(max-width: 899px)').matches
       window.scrollTo({ top: 0, behavior: narrow ? 'auto' : 'smooth' })
       /* Chỉ mục Bảng mới có tham số sống ở địa chỉ (`?f=top&q=…`); trang quản
-         trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây. */
-      const qs = k === 'board' ? window.location.search : ''
+         trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây.
+         Và tham số `profile` KHÔNG được đi theo: nếu đi theo thì đang ở trang
+         cá nhân của người khác, bấm sang mục khác (trang cá nhân đã đóng) mà
+         F5 lại mở lại đúng trang vừa rời. */
+      const qs = k === 'board' ? searchWithoutProfile(window.location.search) : ''
       if (ROUTES[k] + qs !== window.location.pathname + window.location.search) {
         pushUrl({ s: k }, ROUTES[k] + qs)
       }
     }
-    if (VT && !REDUCED()) {
-      const order = navOrder()
-      const dir = order.indexOf(k) >= order.indexOf(section) ? 'fwd' : 'back'
-      document.documentElement.dataset.nav = dir
-      document.startViewTransition(run)
-      return
-    }
-    run()
+    const order = navOrder()
+    const dir = order.indexOf(k) >= order.indexOf(section) ? 'fwd' : 'back'
+    /* Hướng đi phải tính TRƯỚC khi đổi mục, và việc đổi mục phải nằm gọn trong
+       một lần gọi đồng bộ — xem lib/viewTransition.js để biết vì sao (hai chuyến
+       chuyển cảnh cùng lúc là hai tấm ảnh chụp lồng nhau). */
+    sectionTransition(dir, run)
     /* `navOrder` phải có trong danh sách phụ thuộc: nó đổi khi người dùng đăng
        nhập/đăng xuất (mục Admin chỉ có mặt với admin), và hướng chuyển cảnh
        được tính từ nó. */
   }, [section, navOrder])
+
+  /* ĐIỀU HƯỚNG TỚI MỘT MỤC TỪ MENU — và đây là chỗ duy nhất mở màn đăng nhập
+     theo lượt bấm. About me là trang CỦA MÌNH: khách bấm vào ảnh đại diện hay
+     tên mục đó phải thấy ngay màn đăng nhập (chủ dự án báo đúng lỗi này), chứ
+     không phải một khối hồ sơ rỗng. Không chặn việc đi tới mục — phía sau lớp
+     phủ, mục đó dựng khối mời đăng nhập (xem `SignInPanel`), nên đóng cửa sổ
+     lại vẫn có chỗ đứng, và F5 vào `/profile` cũng vậy.
+     Đặt ở đây chứ không trong `go`: `go` được gọi từ một effect (đá người
+     không phải admin ra khỏi `/admin`), mà setState trong effect là thứ lint
+     của repo này đang đếm — thêm một cảnh báo mới cho một việc phụ là lỗ.
+
+     VÀ: bấm một mục trong menu là ý định ĐỔI TRANG. Trang cá nhân công khai
+     đang mở phải đóng lại ở đây — không đóng thì nó ở lại phía TRÊN mục vừa
+     bấm, hai trang chồng lên nhau (đúng ảnh chụp chủ dự án gửi: khối trang cá
+     nhân của người khác, rồi ngay dưới là "Daily bonus wheel"). */
+  const navTo = useCallback((k) => {
+    if (k === 'mine' && !user) setAuthPrompt(true)
+    if (onProfile) setProfileId(null)
+    go(k)
+  }, [user, go, onProfile])
 
   /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
      tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
@@ -1618,18 +1684,21 @@ function AppInner() {
     <NavProvider value={nav}>
       <Splash hide />
       {authPrompt && !user && (
-        <LoginGate onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }} />
+        <LoginGate
+          onDemoLogin={(u) => { setUser(u); setAuthPrompt(false) }}
+          onClose={() => setAuthPrompt(false)} />
       )}
       <a className="skip-link" href="#main">Skip to content</a>
 
       <Sidebar
-        sections={navOrder()} routes={ROUTES} section={section} onNavigate={go}
+        sections={navOrder()} routes={ROUTES} section={section} onNavigate={navTo}
         user={viewer} counts={counts}
         open={menu} onClose={() => setMenu(false)}
         collapsed={collapsed} onToggle={toggleSide}
         onNewRequest={() => openModal('request')}
-        onAbout={() => go('mine')}
+        onAbout={() => navTo('mine')}
         onSignOut={doSignOut}
+        onSignIn={() => setAuthPrompt(true)}
       />
 
       <div className={`shell${collapsed ? ' min' : ''}`}>
@@ -1667,6 +1736,19 @@ function AppInner() {
             onBuy={() => { setBellOpen(false); openModal('buy') }}
             onPrefs={doSetPrefs}
           />
+          {/* LỐI VÀO MÀN ĐĂNG NHẬP, NGAY CẠNH CHUÔNG. Mọi việc cần tài khoản
+              (vote, gửi request, About me) đều tự mở cửa sổ này; nhưng một
+              người mới vào chỉ nhìn thấy bảng request — không có dấu hiệu nào
+              nói trang này có tài khoản, và không có đường nào để đăng nhập
+              trước khi đụng vào một việc. Nút này là đường đó. */}
+          {!user && (
+            <button type="button" className="btn btn-primary head-signin"
+              onClick={() => setAuthPrompt(true)}
+              aria-label={t('gate.signIn')} title={t('gate.signIn')}>
+              <GoogleIcon size={15} />
+              <span className="head-signin-tx">{t('gate.signIn')}</span>
+            </button>
+          )}
           <button className="btn btn-primary only-narrow" onClick={() => openModal('request')}>
             {t('btn.newRequest')}
           </button>
@@ -1676,7 +1758,7 @@ function AppInner() {
         {profileId && <PublicProfile userId={profileId} onBack={closeProfile} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
-        {section === 'board' && !profileId && (
+        {section === 'board' && !onProfile && (
           /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
@@ -2032,24 +2114,37 @@ function AppInner() {
           </div>
         )}
 
-        {section === 'spin' && (
-          <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-            {user && <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
-              purchased={voteStatus.purchased} bonus={voteStatus.bonus}
-              onBalance={applySpinBalance} onVote={() => openModal('vote')} />}
-          </Suspense>
+        {section === 'spin' && !onProfile && (
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
+              <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
+                purchased={voteStatus.purchased} bonus={voteStatus.bonus}
+                onBalance={applySpinBalance} onVote={() => openModal('vote')} />
+            </Suspense>
+          ) : (
+            /* Trang trắng là câu trả lời tồi: nó không nói vì sao, cũng không
+               cho đường đi tiếp. Xem SignInPanel ở đầu tệp. */
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needSpin')} onSignIn={() => setAuthPrompt(true)} />
+          )
         )}
 
         {/* ======= MỤC 2: XẾP HẠNG ======= */}
         {/* `allRows` nuôi bảng mùa giải (tuần/tháng): số tổng trong `rows` là
             của view thật, không cắt theo thời gian được — mùa phải gom lại từ
             chính các hàng request (luật ở src/lib/season.js, không migration). */}
-        {section === 'ranking' && (
+        {section === 'ranking' && !onProfile && (
           <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
         )}
 
         {/* ======= MỤC 3: CỦA TÔI ======= */}
-        {section === 'mine' && (
+        {/* Chưa đăng nhập thì mục này KHÔNG dựng khối sửa hồ sơ: `viewer` là một
+            người rỗng, nút Lưu chỉ dẫn tới `err.signin`, và người dùng tưởng
+            hồ sơ của mình vừa biến mất. Một lời mời đăng nhập là câu trả lời
+            đúng cho câu hỏi "hồ sơ của tôi đâu". */}
+        {section === 'mine' && !onProfile && !user && (
+          <SignInPanel title={t('gate.needTitle')} body={t('gate.needBody')} onSignIn={() => setAuthPrompt(true)} />
+        )}
+        {section === 'mine' && !onProfile && user && (
           <>
             {/* HỒ SƠ NẰM NGAY ĐẦU MỤC "ABOUT ME" (vòng 12). Trước đây sửa hồ sơ
                 là một hộp thoại riêng, mở từ ảnh đại diện ở chân sidebar — hai
@@ -2141,7 +2236,7 @@ function AppInner() {
             nên dải số liệu (rộng hết màn hình) chui xuống dưới sidebar: ô đầu
             tiên bị cắt, các thanh công cụ kéo dài hết mép phải. Nay nó đứng
             cùng chỗ với bốn mục kia, trong `.sect` của `.main`. */}
-        {user?.isAdmin && section === ADMIN_ONLY && (
+        {user?.isAdmin && section === ADMIN_ONLY && !onProfile && (
           /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
              từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
              và người dùng chỉ thấy trang trắng — không còn menu, không đường về.

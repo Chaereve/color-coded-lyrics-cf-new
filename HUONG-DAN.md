@@ -3307,3 +3307,82 @@ một loại bài): bài đó **vẫn** phải hiện.
   Worker schedule hoặc SQL Editor.
 - Admin có thêm tab **Expired** và nút **Start production** để chuyển request queued
   sang `in_progress` (gom cùng bài theo luật cũ).
+
+## Vòng 23 — bốn lỗi anh/chị báo trực tiếp (22/09/2026)
+
+Bốn việc dưới đây đều là lỗi **nhìn thấy được**, nên mỗi lỗi đi kèm một phép kiểm trong
+`npm run smoke` để nó không quay lại (xem chú thích trong `tools/smoke.mjs`, mục *4c* và *5b*).
+
+- **Có lối vào màn đăng nhập.** Trước đây hàng tiêu đề chỉ có chuông thông báo, và bấm vào
+  *About me* khi chưa đăng nhập chỉ ra một khối hồ sơ rỗng: không có chỗ nào mở màn đăng nhập.
+  Nay **nút Đăng nhập (biểu tượng Google) nằm ngay sau chuông** ở góc phải; dưới 620px nút chỉ
+  còn biểu tượng nhưng vẫn bấm được. Khách bấm vào những việc cần tài khoản — *About me*,
+  *Daily Spin* — thì màn đăng nhập **tự mở**, và phía sau là một khối mời đăng nhập có nút,
+  thay vì trang trắng. Chân sidebar của khách cũng có nút Đăng nhập (bỏ nút *Sign out* vô nghĩa
+  với người chưa vào).
+- **Hall of Fame mở preview được, không còn khung đen.** Bản cũ dựng player bằng YouTube IFrame
+  Player API, tức là nạp `<script src="https://www.youtube.com/iframe_api">` — mà CSP của site
+  (`public/_headers`) chỉ cho `script-src 'self'`, nên script bị chặn im lặng và khung 16:9 chỉ
+  còn nền đen. Nay khung xem là một `<iframe>` nhúng thẳng `youtube-nocookie.com` (CSP đã cho
+  `frame-src` từ trước): **không script bên thứ ba**, video tự dừng ở giây 30, phía sau còn một
+  **ảnh bìa** nên mạng chậm cũng thấy hình. Video không phải YouTube (mp4, link lạ) vẫn mở được
+  hộp này và có câu giải thích + nút mở tab mới.
+- **GIF avatar lưu được.** Database chặn ảnh ở 200.000 ký tự, còn phía trình duyệt lại hứa
+  "tối đa 2,5 MB": chọn GIF 1–2 MB thì app báo *"GIF sẵn sàng"*, bấm Save mới lỗi. Nay trần của
+  client **đúng bằng** trần của database (~146 KB cho GIF), kiểm ngay khi chọn file, và khi quá
+  lớn thì có nút **"Dùng khung đầu tiên (ảnh tĩnh)"** để ảnh vẫn vào hồ sơ được.
+- **Daily Spin không còn trống.** Khách chưa đăng nhập vào mục này trước đây gặp trang trắng
+  (khối vòng quay chỉ dựng khi đã có tài khoản). Nay khách thấy khối mời đăng nhập có nút Google
+  và lý do rõ ràng; người đã đăng nhập vẫn thấy vòng quay như cũ.
+
+## Vòng 24 — "hai trang chồng lên nhau" (22/09/2026)
+
+Chủ dự án gửi hai ảnh chụp và nói: *"lúc bấm vào màn hình login và bấm vào profile người
+khác xong chuyển sang tab khác trong trang thì bị lỗi chồng trang … lỗi này bị ở mọi trang"*.
+Hai ảnh đó là hai lỗi khác nhau, không phải một:
+
+- **Ảnh 1 (màn đăng nhập):** thẻ đăng nhập nằm ở đầu trang và toàn bộ bảng request bị đẩy
+  xuống dưới nó — tức là **khối trong luồng văn bản**, đúng lỗi đã sửa ở vòng 23 (nút Đăng
+  nhập ở hàng tiêu đề + lớp phủ `position: fixed`). Ảnh chụp không có nút × trên thẻ và
+  không có nút Đăng nhập cạnh chuông → bản đang chạy là bản deploy **cũ**, chưa có bản sửa
+  của vòng 23.
+- **Ảnh 2 (trang cá nhân + Daily Spin):** đây là lỗi MỚI, và là lỗi thật trong mã: trang cá
+  nhân công khai là một **TRANG** sống trong mục Bảng, nhưng chỉ mục Bảng có điều kiện
+  `!profileId`. Ba mục còn lại (Daily Spin, Xếp hạng, About me) và cả trang quản trị cứ thế
+  dựng thêm khối của mình **ngay dưới** trang cá nhân — mở profile người khác rồi bấm sang
+  mục nào là mục đó hiện ra phía dưới, hai trang xếp dọc theo nhau. Ảnh chụp cho thấy đúng
+  thứ tự đó: `Requests / Completed / Votes received`, streak, Achievements, Recent requests
+  (các khối của trang cá nhân) rồi ngay dưới là **Daily bonus wheel**.
+
+### Đã sửa
+
+- **Một lá cờ duy nhất cho "đang mở trang cá nhân"** (`onProfile`), và cả sáu khối mục đều
+  đi qua nó. Không còn đường nào dựng hai trang một lúc — kể cả khi dán tay `/?profile=…`
+  lúc đang ở mục khác, hay khi bấm Back/Forward của trình duyệt.
+- **Bấm một mục trong menu là đóng trang cá nhân đang mở** (`navTo`). Trang cá nhân có nút
+  *Back to board* riêng, nên không mất đường về.
+- **Địa chỉ thôi nói về trang cá nhân vừa rời** (`searchWithoutProfile`): bản cũ giữ nguyên
+  `window.location.search`, nên vừa đóng trang cá nhân mà F5 lại mở lại đúng nó.
+- **Chuyển cảnh giữa hai mục đi qua một cửa duy nhất** (`src/lib/viewTransition.js`).
+  View Transitions là thứ duy nhất trong app vẽ ẢNH CHỤP của trang cũ lên trên trang mới,
+  nên nó cũng là thứ có thể sinh ra ảnh ghép sai: bấm hai mục liên tiếp trong lúc chuyến
+  0,4 giây chưa xong là lần chụp thứ hai chụp luôn cả ảnh của chuyến thứ nhất (ảnh của ảnh,
+  nhiều lớp trang). Nay: đang có chuyến thì lần bấm sau đi thẳng (vẫn tới nơi, chỉ không có
+  chuyển cảnh), API chết thì vẫn tới nơi, và `data-nav` luôn được dọn sau khi chuyến xong —
+  bản cũ để nó nằm lại vĩnh viễn, dạy sai hướng cho chuyến sau.
+
+### Kiểm thử
+
+`npm test` **468 ca / 467 đạt / 0 lỗi / 1 skip** (vòng 23: 459). `src/lib/viewTransition.test.js`
+là 6 ca mới, chạy thật `createSectionTransition` với `document` giả — trong đó có ca "đang có
+chuyến bay thì KHÔNG mở chuyến thứ hai" (đúng thứ sinh ra ảnh chụp lồng nhau) và ca "API chết
+thì người dùng vẫn tới nơi". `profileNav.test.js` thêm 3 ca khoá vế chồng trang: mọi mục dùng
+chung lá cờ, menu đóng trang cá nhân, địa chỉ sạch tham số `profile`.
+
+`npm run smoke` **332/332** (vòng 23: 326) — mục *10e* mới của `tools/smoke.mjs` bấm thật:
+mở `/?profile=demo-user` rồi bấm *Daily Spin* trong menu, và khẳng định **tài liệu chỉ còn MỘT
+trang** (`.public-profile` + `.daily-spin` phải bằng đúng 1). Ca này đã được chạy thử với mã
+CŨ để chắc nó bắt được lỗi: kết quả `330/332`, đỏ đúng hai phép kiểm, kèm dòng
+`trang cá nhân=1 · vòng quay=1` — đúng như ảnh chụp.
+
+`npx oxlint` 0 lỗi / 26 cảnh báo (không tăng). `npm run build` sạch (`index-BZ8OCtKy.js` 337 kB).

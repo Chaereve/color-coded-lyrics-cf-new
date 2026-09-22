@@ -259,7 +259,15 @@ Kết quả đạt chuẩn:
 - **Cho phép định dạng `.gif` và `.webp` động:**
   - Avatar tĩnh (JPG, PNG, WebP tĩnh) tự động được đưa qua cropper và nén về ảnh WebP chuẩn 128x128 pixel siêu nhẹ (~10-15KB).
   - Avatar động (GIF hoặc WebP có cờ VP8X animation) sẽ được giữ nguyên chuyển động mà không bị canvas "đóng băng" ở khung hình đầu tiên.
-  - Áp dụng hạn mức dung lượng tối đa **2.5 MB** cho ảnh động khi lưu trữ trực tiếp (tránh tràn `localStorage` và nghẽn băng thông database).
+  - Áp dụng hạn mức dung lượng cho ảnh động **đúng bằng trần của database**: `update_my_profile()`
+    chặn ở `length(p_avatar) > 200000` ký tự (raise `err.avatarBig`), tức khoảng **146 KB** file
+    GIF dưới dạng data URL base64. Con số này nằm một chỗ ở `src/lib/avatar.js`
+    (`AVATAR_STORED_CHARS` / `ANIMATED_AVATAR_MAX_BYTES`) và `avatar.test.js` chốt nó khớp với SQL.
+    *(Trước đây ghi 2.5 MB — sai, và chính là lỗi "chọn GIF xong bấm Save là báo lỗi": chọn file thì
+    app báo "GIF sẵn sàng", tới lúc lưu mới bị database từ chối.)*
+  - GIF quá trần bị chặn **ngay khi chọn file** (không đợi tới lúc Save), kèm nút
+    **"Dùng khung đầu tiên (ảnh tĩnh)"** để ảnh vẫn vào hồ sơ được; nếu database từ chối vì lý do
+    dung lượng thì thông báo cũng mở lại đúng lối thoát đó.
   - Nếu đã cấu hình Cloudinary (`VITE_CLOUDINARY_URL`), ảnh sẽ được tự động tối ưu qua Cloudinary CDN (`f_auto,q_auto`).
   - Hiển thị thông báo thân thiện kèm dung lượng nén thực tế (ví dụ: `Avatar động sẵn sàng (142 KB)`).
 

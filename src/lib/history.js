@@ -81,6 +81,19 @@ export const boardSearchUrl = (title, artist) => {
   return `/?${p.toString()}`
 }
 
+/** Bỏ tham số `profile` khỏi chuỗi truy vấn, giữ nguyên phần còn lại.
+ *
+ *  Đang mở trang cá nhân của người khác mà bấm sang một mục trong menu thì
+ *  trang cá nhân phải đóng lại — nhưng địa chỉ vẫn còn `?profile=…`, và F5 là
+ *  nó mở lại đúng cái trang vừa rời. Đi qua đây thì địa chỉ thôi nói về trang
+ *  cá nhân, còn bộ lọc của bảng (`f`, `k`, `q`) vẫn nguyên. */
+export function searchWithoutProfile(search) {
+  const p = new URLSearchParams(search || '')
+  p.delete('profile')
+  const rest = p.toString()
+  return rest ? `?${rest}` : ''
+}
+
 /** Đường dẫn tương đối thành URL TUYỆT ĐỐI — thứ duy nhất dán ra ngoài được.
  *  (`og:image` từng là đường dẫn tương đối và Telegram/Discord không hiện ảnh
  *  xem trước: crawler đọc HTML thô, không có origin để ghép — cùng một bài học.)

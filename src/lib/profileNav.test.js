@@ -26,7 +26,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { extname, join } from 'node:path'
-import { absolute, boardSearchUrl, profileUrl, songQuery } from './history.js'
+import { absolute, boardSearchUrl, profileUrl, songQuery, searchWithoutProfile } from './history.js'
 import { spaLink } from './nav.js'
 
 const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
@@ -263,4 +263,64 @@ test('PublicProfile không dựng link từ hàng thiếu tên, và nhãn trạn
      số phiếu người đó đi bỏ KHÔNG đọc được ở đây — nhãn sai là nói dối. */
   assert.match(pp, /Votes received/, 'nhãn phải đúng nghĩa con số (tổng phiếu các bài của họ nhận được)')
   assert.doesNotMatch(pp, /Votes given/)
+})
+
+/* =========================================================
+   4. HAI TRANG KHÔNG ĐƯỢC CHỒNG LÊN NHAU (vòng 24)
+   ---------------------------------------------------------
+   LỖI CHỦ DỰ ÁN BÁO: "bấm vào profile người khác xong chuyển sang tab khác
+   trong trang thì bị lỗi chồng trang" — ảnh chụp cho thấy khối trang cá nhân
+   của người khác (Requests / Completed / Votes received, streak, Achievements,
+   Recent requests) ở TRÊN, và ngay dưới là "Daily bonus wheel" của mục Daily
+   Spin. Hai trang cùng nằm trong một tài liệu, xếp dọc theo nhau.
+
+   Gốc rễ: trang cá nhân công khai chỉ được vẽ khi `profileId` có giá trị, và
+   `section` đổi độc lập với nó. Chỉ mục Bảng có `!profileId`; ba mục còn lại
+   cứ thế dựng thêm khối của mình. Bấm sang mục nào cũng ra thêm một trang.
+
+   Ba vế dưới đây khoá lại cách chữa: MỘT lá cờ dùng chung, menu đóng trang cá
+   nhân khi bấm, và địa chỉ thôi nói về trang cá nhân vừa rời (F5 không được
+   mở lại nó). `tools/smoke.mjs` mục 10e bấm thật để chốt cùng điều này.
+   ========================================================= */
+test('mọi mục của app đều đứng ngoài trang cá nhân — cùng MỘT lá cờ', () => {
+  assert.match(app, /const onProfile = !!profileId/,
+    'phải có một lá cờ duy nhất cho "đang mở trang cá nhân"')
+  /* Không còn chỗ nào tự so `profileId` trong điều kiện dựng khối: mọi mục đi
+     qua `onProfile`, nên thêm một mục mới mà quên là bài kiểm này đỏ. */
+  assert.doesNotMatch(app, /\{section === '[a-z_]+' && !profileId/,
+    'điều kiện dựng mục phải dùng onProfile, không so profileId trực tiếp')
+  for (const [label, re] of [
+    ['bảng', /\{section === 'board' && !onProfile && \(/],
+    ['Daily Spin', /\{section === 'spin' && !onProfile && \(/],
+    ['xếp hạng', /\{section === 'ranking' && !onProfile && \(/],
+    ['About me (khách)', /\{section === 'mine' && !onProfile && !user && \(/],
+    ['About me (đã đăng nhập)', /\{section === 'mine' && !onProfile && user && \(/],
+    ['quản trị', /section === ADMIN_ONLY && !onProfile && \(/],
+  ]) {
+    assert.match(app, re, `khối "${label}" phải có !onProfile — thiếu là hai trang chồng nhau`)
+  }
+  /* Và không mục nào được dựng khối RIÊNG khi đang mở trang cá nhân: đếm số
+     lần `onProfile` xuất hiện trong phần render (>= 6 chỗ vừa khoá ở trên). */
+  assert.ok((app.match(/&& !onProfile/g) || []).length >= 6,
+    'phải đủ sáu khối dùng chung lá cờ')
+})
+
+test('bấm một mục trong menu là ĐÓNG trang cá nhân đang mở', () => {
+  const body = app.match(/const navTo = useCallback\(([\s\S]*?)\n  \}, \[/)?.[1]
+  assert.ok(body, 'không tìm thấy navTo')
+  assert.match(body, /if \(onProfile\) setProfileId\(null\)/,
+    'không đóng thì trang cá nhân nằm lại phía trên mục vừa bấm')
+  assert.match(body, /go\(k\)/, 'navTo vẫn phải đi tới mục đã bấm')
+  assert.match(body, /onProfile/, 'navTo phải phụ thuộc vào lá cờ này')
+})
+
+test('rời trang cá nhân thì địa chỉ cũng thôi nói về nó (F5 không mở lại)', () => {
+  assert.equal(searchWithoutProfile('?profile=abc-123'), '')
+  assert.equal(searchWithoutProfile('?f=newest&q=Get+Up&profile=abc'), '?f=newest&q=Get+Up',
+    'tham số của bảng phải giữ nguyên')
+  assert.equal(searchWithoutProfile('?f=top'), '?f=top')
+  assert.equal(searchWithoutProfile(''), '')
+  assert.equal(searchWithoutProfile(null), '')
+  assert.match(app, /const qs = k === 'board' \? searchWithoutProfile\(window\.location\.search\) : ''/,
+    'đổi mục phải đi qua searchWithoutProfile — bản cũ dùng thẳng window.location.search nên tham số profile đi theo')
 })
