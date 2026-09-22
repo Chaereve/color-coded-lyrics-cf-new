@@ -1,7 +1,8 @@
 /* Khoá định tuyến Pages Functions cho lá chắn Edge.
    File này CỐ Ý nằm ở worker/ chứ không nằm dưới functions/: Pages biến MỌI
    file .js trong functions/ thành một route công khai, nên nhét test vào đó là
-   tự tạo endpoint lạ trên production. Test đầu tiên dưới đây khoá đúng điều đó.
+   tự tạo endpoint lạ trên production. Test "đúng 3 route" khoá đúng điều đó.
+   Test "_worker.js" khoá việc Pages bỏ Functions khi output có file đó.
    Ba điều được khoá ở đây:
      1. functions/ chỉ chứa đúng 3 route /api/* (không sót file lạ thành route).
      2. Ba route trả JSON đúng mã/khoá lỗi như bản Workers — kể cả khi thiếu
@@ -10,7 +11,7 @@
         fallback trên production. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 
 import worker, { healthResponse, spinRoute, voteRoute } from './index.js'
 import { onRequest as health } from '../functions/api/daily-spin/health.js'
@@ -32,6 +33,17 @@ const goodSpinBody = () => ({
   expected_user_id: crypto.randomUUID(), fp_hash: hex64('b'), user_token: 'jwt-gia',
 })
 const goodVoteBody = () => ({ request_id: crypto.randomUUID(), delta: 1, user_token: 'jwt-gia' })
+
+/* public/_worker.js được Vite copy thành dist/_worker.js. Pages coi đó là
+   Advanced mode và BỎ QUA functions/. _routes.json lại chỉ đưa /api/* vào
+   worker đó, nên trang chủ vẫn hiện còn POST /api/vote/cast trả HTML 503
+   "Under Maintenance" — client không parse được JSON và báo err.voteGate. */
+test('không ship _worker.js bảo trì — nó nuốt /api/vote/cast', () => {
+  for (const rel of ['../_worker.js', '../public/_worker.js']) {
+    assert.equal(existsSync(new URL(rel, import.meta.url)), false,
+      `${rel} khiến Pages bỏ Functions và vote chết với err.voteGate`)
+  }
+})
 
 test('functions/ chỉ chứa đúng 3 route — file lạ sẽ thành endpoint công khai', () => {
   const dir = new URL('../functions/', import.meta.url)

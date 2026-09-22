@@ -3,6 +3,7 @@ import { parseYoutube } from './youtube'
 import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
+import { gateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
@@ -587,8 +588,9 @@ export async function fetchDailySpinStatus() {
 
 /* Khi đã bật cổng Edge (VITE_SPIN_GATE_URL — Pages Functions trên production),
    lượt quay đi qua lá chắn Edge: Turnstile + KV check fingerprint/IP trước, rồi
-   cổng uỷ quyền RPC bằng JWT của chính người dùng. Không có gate (hoặc cổng thiếu
-   KV/secret) thì gọi thẳng RPC như trước đây — app không chết vì cổng. */
+   cổng uỷ quyền RPC bằng JWT của chính người dùng. Cổng không chạy (HTML bảo trì,
+   thiếu secret, mất mạng trước khi có phản hồi) thì gọi thẳng RPC — app không
+   chết vì cổng. Timeout thì không gọi lại: request có thể đã ghi thưởng. */
 async function performSpinViaGate(requestId, userId) {
   const token = await spinDevice()
   /* Vân tay KHÔNG bắt buộc: FingerprintJS có thể bị chặn (adblock, mạng, chính
@@ -615,11 +617,16 @@ async function performSpinViaGate(requestId, userId) {
         fp_hash: fpHash, turnstile_token: captchaToken, user_token: userToken,
       }),
     })
-  } catch {
-    throw new Error('err.spinGate')
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('err.spinGate')
+    throw Object.assign(new Error('err.spinGate'), { gateDown: true })
   } finally { clearTimeout(timeout) }
+  const contentType = response.headers.get('content-type') || ''
   let data = null
-  try { data = await response.json() } catch { throw new Error('err.spinGate') }
+  try { data = await response.json() } catch { data = null }
+  if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+    throw Object.assign(new Error('err.spinGate'), { gateDown: true })
+  }
   if (!response.ok) {
     // Cổng từ chối: { error: 'err.xxx' }. PostgREST chuyển tiếp: { message: 'err.xxx' }.
     const key = data?.error
@@ -630,7 +637,13 @@ async function performSpinViaGate(requestId, userId) {
 }
 
 export async function performDailySpin(requestId, userId) {
-  if (hasSupabase && SPIN_GATE_URL) return performSpinViaGate(requestId, userId)
+  if (hasSupabase && SPIN_GATE_URL) {
+    try {
+      return await performSpinViaGate(requestId, userId)
+    } catch (e) {
+      if (!e?.gateDown) throw e
+    }
+  }
   const token = await spinDevice()
   if (!hasSupabase) {
     return withSpinLock('ccl.spin.demo', () => {
@@ -886,15 +899,34 @@ async function castVoteViaGate(id, delta) {
         turnstile_token: captchaToken, user_token: userToken,
       }),
     })
-  } catch {
-    throw appError('err.voteGate')
+  } catch (e) {
+    // Hết giờ: cổng có thể đã ghi phiếu. Không gọi RPC lần hai.
+    if (e?.name === 'AbortError') throw appError('err.voteGate')
+    throw Object.assign(appError('err.voteGate'), { gateDown: true })
   } finally { clearTimeout(timeout) }
 
+  const contentType = response.headers.get('content-type') || ''
   let data = null
-  try { data = await response.json() } catch { throw appError('err.voteGate') }
+  try { data = await response.json() } catch { data = null }
+  /* HTML bảo trì / SPA fallback / 503 thiếu secret: phiếu chưa được ghi.
+     gateDown để castVote gọi thẳng RPC thay vì báo "không tới được service". */
+  if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+    throw Object.assign(appError('err.voteGate'), { gateDown: true })
+  }
   if (!response.ok) throw gateError(data, 'err.voteGate')
   const r = Array.isArray(data) ? data[0] : data
   return { myVotes: r?.my_votes ?? 0 }
+}
+
+async function castVoteDirect(id, delta) {
+  let fpHash = null
+  try { fpHash = await fingerprintHash() } catch { /* vote vẫn tiếp tục */ }
+  const { data, error } = await supabase.rpc('cast_vote', {
+    p_request_id: id, p_delta: delta, p_fp_hash: fpHash,
+  })
+  if (error) throw rpcError(error)
+  const r = Array.isArray(data) ? data[0] : data
+  return { myVotes: r.my_votes }
 }
 
 export async function castVote(id, delta = 1) {
@@ -953,19 +985,17 @@ export async function castVote(id, delta = 1) {
     return { myVotes: votes.filter(v => v.id === id).length }
   }
 
-  if (VOTE_GATE_URL) return castVoteViaGate(id, Math.trunc(delta))
+  if (VOTE_GATE_URL) {
+    try {
+      return await castVoteViaGate(id, Math.trunc(delta))
+    } catch (e) {
+      // Cổng chết (trang bảo trì HTML, thiếu secret, mạng đứt trước phản hồi)
+      // thì phiếu vẫn phải vào. Từ chối thật (hết vote, captcha, đã chốt) thì không.
+      if (!e?.gateDown) throw e
+    }
+  }
 
-  // Chưa bật cổng Edge: gọi thẳng RPC như cũ, nhưng vẫn gửi vân tay để hạn mức
-  // theo vân tay trong Postgres hoạt động. Không lấy được vân tay (trình duyệt
-  // riêng tư, chặn script) thì vote vẫn chạy, chỉ mất lớp đó.
-  let fpHash = null
-  try { fpHash = await fingerprintHash() } catch { /* vote vẫn tiếp tục */ }
-  const { data, error } = await supabase.rpc('cast_vote', {
-    p_request_id: id, p_delta: delta, p_fp_hash: fpHash,
-  })
-  if (error) throw rpcError(error)
-  const r = Array.isArray(data) ? data[0] : data
-  return { myVotes: r.my_votes }
+  return castVoteDirect(id, delta)
 }
 
 export async function deleteRequest(id) {
