@@ -1308,16 +1308,19 @@ function AppInner() {
       next.set(id, Math.max(0, (next.get(id) || 0) + n))
       return next
     })
-    bump(delta); mine(delta)
     try {
       await castVote(id, delta)
-      if (delta < 0) sfx.unvote(); else sfx.vote()
-      await loadBoard(user)
     } catch (e) {
-      bump(-delta); mine(-delta)
       flash('err', errMsg(t, e))
       throw e
     }
+    /* Cộng số trên bảng SAU khi phiếu đã vào. Cộng trước rồi cổng từ chối
+       sẽ bắn toast "First in line" cho một phiếu không tồn tại — đúng ảnh
+       người dùng thấy cạnh lỗi err.voteGate. Làm mới bảng lỗi sau đó không
+       được báo như phiếu thất bại: phiếu đã nằm trong database. */
+    bump(delta); mine(delta)
+    if (delta < 0) sfx.unvote(); else sfx.vote()
+    try { await loadBoard(user) } catch { /* realtime sẽ kéo bảng lại */ }
   }
   const doSubmit = async (form, paid, useBonus = false) => {
     if (!user) { setModal(false); setAuthPrompt(true); return }
