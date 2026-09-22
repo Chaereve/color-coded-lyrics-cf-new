@@ -40,7 +40,10 @@ revoke insert, update, delete on public.settings from anon, authenticated;
 revoke insert, update, delete on public.media    from anon, authenticated;
 
 -- 2. votes: chi doc hang cua minh -------------------------------------------
+-- Drop both the old policy name and the final policy name so this whole
+-- schema remains safe to run again after a previous run reached this block.
 drop policy if exists "read votes" on public.votes;
+drop policy if exists "read own votes" on public.votes;
 create policy "read own votes" on public.votes
   for select to authenticated
   using (user_id = auth.uid() or public.is_admin());

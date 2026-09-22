@@ -1562,10 +1562,11 @@ function AppInner() {
   const myAchievementMetrics = useMemo(() => ({
     longestStreak: myActivity ? streakStats(myActivity).longest : 0,
     requests: mineRows.length,
+    paidRequests: mineRows.filter(r => r.is_paid).length,
     completed: myStats?.completed ?? 0,
     rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
     votesCast: myTotalVotesCast,
-  }), [myActivity, mineRows.length, myStats, fullRanking, user?.id, myTotalVotesCast])
+  }), [myActivity, mineRows, myStats, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
