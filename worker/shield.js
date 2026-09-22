@@ -63,31 +63,39 @@ export async function shieldCheck(kv, { ip, fpHash, nowMs = Date.now(), limit = 
   const [fpRaw, ipRaw] = await Promise.all([kv.get(fpKey(fpHash)), kv.get(ipKey(ip))])
   const fp = fpState(fpRaw, day)
   const net = ipState(ipRaw, day)
+  const ttl = ttlUntilVnMidnight(nowMs)
   if (net.blocked) return { ok: false, reason: 'err.spinEdgeIp' }
   if (fp.used >= limit) return { ok: false, reason: 'err.spinEdgeFp' }
   if (!net.fps.includes(fpHash) && net.fps.length >= maxFpPerIp) {
-    await kv.put(ipKey(ip), JSON.stringify({ ...net, blocked: 1 }), { expirationTtl: ttlUntilVnMidnight(nowMs) })
+    await kv.put(ipKey(ip), JSON.stringify({ ...net, blocked: 1 }), { expirationTtl: ttl })
     return { ok: false, reason: 'err.spinEdgeIp' }
   }
-  return { ok: true }
+  return { ok: true, _state: { fp, net, day, ttl } }
 }
 
 /* Chỉ gọi SAU khi Supabase đã ghi ledger thành công (và không phải replay):
    đếm thêm một lượt cho fingerprint và ghi nhận fingerprint vào IP.
-   Ghi sau thay vì trước để một lượt quay lỗi mạng không ăn mất hạn mức. */
-export async function shieldCommit(kv, { ip, fpHash, nowMs = Date.now() } = {}) {
-  const day = vnDay(nowMs)
-  const ttl = { expirationTtl: ttlUntilVnMidnight(nowMs) }
-  const [fpRaw, ipRaw] = await Promise.all([kv.get(fpKey(fpHash)), kv.get(ipKey(ip))])
-  const fp = fpState(fpRaw, day)
-  const net = ipState(ipRaw, day)
+   Ghi sau thay vì trước để một lượt quay lỗi mạng không ăn mất hạn mức.
+   Nhận _state từ shieldCheck để tránh 2 KV reads thừa (4 reads -> 2 reads / spin). */
+export async function shieldCommit(kv, { ip, fpHash, nowMs = Date.now(), _state } = {}) {
+  let fp, net, day, ttl
+  if (_state && _state.day === vnDay(nowMs)) {
+    ;({ fp, net, day, ttl } = _state)
+  } else {
+    day = vnDay(nowMs)
+    ttl = ttlUntilVnMidnight(nowMs)
+    const [fpRaw, ipRaw] = await Promise.all([kv.get(fpKey(fpHash)), kv.get(ipKey(ip))])
+    fp = fpState(fpRaw, day)
+    net = ipState(ipRaw, day)
+  }
+  const exp = { expirationTtl: ttl }
   await Promise.all([
-    kv.put(fpKey(fpHash), JSON.stringify({ d: day, used: fp.used + 1 }), ttl),
+    kv.put(fpKey(fpHash), JSON.stringify({ d: day, used: fp.used + 1 }), exp),
     kv.put(ipKey(ip), JSON.stringify({
       d: day,
       fps: net.fps.includes(fpHash) ? net.fps : [...net.fps, fpHash].slice(-64),
       blocked: net.blocked,
-    }), ttl),
+    }), exp),
   ])
 }
 
@@ -102,19 +110,26 @@ export async function shieldCommit(kv, { ip, fpHash, nowMs = Date.now() } = {}) 
 export const voteKey = fpHash => `vc:${fpHash}`
 
 export async function voteShieldCheck(kv, { fpHash, nowMs = Date.now(), limit = VOTE_MAX_CALLS_PER_FP } = {}) {
-  if (!fpHash) return { ok: true }        // không có vân tay: Postgres vẫn chặn phần quan trọng
+  if (!fpHash) return { ok: true }
   const day = vnDay(nowMs)
-  const state = fpState(await kv.get(voteKey(fpHash)), day)
+  const raw = await kv.get(voteKey(fpHash))
+  const state = fpState(raw, day)
   if (state.used >= limit) return { ok: false, reason: 'err.voteEdgeFp' }
-  return { ok: true }
+  return { ok: true, _state: { state, day, ttl: ttlUntilVnMidnight(nowMs) } }
 }
 
 /* Chỉ đếm SAU khi Postgres đã ghi phiếu thành công: một lượt lỗi mạng không
-   được ăn mất hạn mức của người dùng. */
-export async function voteShieldCommit(kv, { fpHash, nowMs = Date.now() } = {}) {
+   được ăn mất hạn mức của người dùng. Nhận _state để tránh 1 KV read thừa. */
+export async function voteShieldCommit(kv, { fpHash, nowMs = Date.now(), _state } = {}) {
   if (!fpHash) return
-  const day = vnDay(nowMs)
-  const state = fpState(await kv.get(voteKey(fpHash)), day)
+  let state, day, ttl
+  if (_state && _state.day === vnDay(nowMs)) {
+    ;({ state, day, ttl } = _state)
+  } else {
+    day = vnDay(nowMs)
+    ttl = ttlUntilVnMidnight(nowMs)
+    state = fpState(await kv.get(voteKey(fpHash)), day)
+  }
   await kv.put(voteKey(fpHash), JSON.stringify({ d: day, used: state.used + 1 }),
-    { expirationTtl: ttlUntilVnMidnight(nowMs) })
+    { expirationTtl: ttl ?? ttlUntilVnMidnight(nowMs) })
 }

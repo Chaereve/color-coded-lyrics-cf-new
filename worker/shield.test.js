@@ -21,7 +21,7 @@ const run = async (kv, over = {}) => shieldCheck(kv, { ip: IP, fpHash: fp(1), no
 
 test('a fresh fingerprint on a fresh IP passes and commits one used spin', async () => {
   const kv = new FakeKV()
-  assert.deepEqual(await run(kv), { ok: true })
+  assert.equal((await run(kv)).ok, true)
   await shieldCommit(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })
   assert.equal(JSON.parse(kv.store.get(fpKey(fp(1))).value).used, 1)
   assert.deepEqual(JSON.parse(kv.store.get(ipKey(IP)).value).fps, [fp(1)])
@@ -32,19 +32,21 @@ test('a fresh fingerprint on a fresh IP passes and commits one used spin', async
 test('the same fingerprint may spin exactly SHIELD_LIMIT times, then is blocked', async () => {
   const kv = new FakeKV()
   for (let i = 0; i < SHIELD_LIMIT; i++) {
-    assert.deepEqual(await run(kv), { ok: true })
+    assert.equal((await run(kv)).ok, true)
     await shieldCommit(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })
   }
-  assert.deepEqual(await run(kv), { ok: false, reason: 'err.spinEdgeFp' })
+  const blocked = await run(kv)
+  assert.equal(blocked.ok, false)
+  assert.equal(blocked.reason, 'err.spinEdgeFp')
   // KV hết hạn giả lập qua ngày mới: hạn mức mở lại.
-  assert.deepEqual(await run(kv, { nowMs: NOW + 86_400_000 }), { ok: true })
+  assert.equal((await run(kv, { nowMs: NOW + 86_400_000 })).ok, true)
 })
 
 test('same IP with different fingerprints is allowed (shared Wi-Fi)...', async () => {
   const kv = new FakeKV()
   for (let i = 1; i <= SHIELD_MAX_FP_PER_IP; i++) {
     const hash = fp(i)
-    assert.deepEqual(await shieldCheck(kv, { ip: IP, fpHash: hash, nowMs: NOW }), { ok: true })
+    assert.equal((await shieldCheck(kv, { ip: IP, fpHash: hash, nowMs: NOW })).ok, true)
     await shieldCommit(kv, { ip: IP, fpHash: hash, nowMs: NOW })
   }
   assert.equal(JSON.parse(kv.store.get(ipKey(IP)).value).fps.length, SHIELD_MAX_FP_PER_IP)
@@ -57,22 +59,25 @@ test('...but a 6th fingerprint on one IP locks the IP for the whole day', async 
     await shieldCommit(kv, { ip: IP, fpHash: fp(i), nowMs: NOW })
   }
   const sixth = await shieldCheck(kv, { ip: IP, fpHash: fp(600), nowMs: NOW })
-  assert.deepEqual(sixth, { ok: false, reason: 'err.spinEdgeIp' })
+  assert.equal(sixth.ok, false)
+  assert.equal(sixth.reason, 'err.spinEdgeIp')
   assert.equal(JSON.parse(kv.store.get(ipKey(IP)).value).blocked, 1)
   // Khoá IP chặn cả fingerprint cũ lẫn mới từ cùng đường mạng, tới hết ngày.
-  assert.deepEqual(await shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW }), { ok: false, reason: 'err.spinEdgeIp' })
-  assert.deepEqual(await shieldCheck(kv, { ip: IP, fpHash: fp(700), nowMs: NOW }), { ok: false, reason: 'err.spinEdgeIp' })
+  const b1 = await shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })
+  assert.equal(b1.ok, false); assert.equal(b1.reason, 'err.spinEdgeIp')
+  const b2 = await shieldCheck(kv, { ip: IP, fpHash: fp(700), nowMs: NOW })
+  assert.equal(b2.ok, false); assert.equal(b2.reason, 'err.spinEdgeIp')
   // Fingerprint cũ quay từ mạng khác vẫn bình thường: khoá theo IP, không vạ lây.
-  assert.deepEqual(await shieldCheck(kv, { ip: '198.51.100.9', fpHash: fp(1), nowMs: NOW }), { ok: true })
+  assert.equal((await shieldCheck(kv, { ip: '198.51.100.9', fpHash: fp(1), nowMs: NOW })).ok, true)
   // Ngày mới (TTL rơi) mở khoá lại.
-  assert.deepEqual(await shieldCheck(kv, { ip: IP, fpHash: fp(600), nowMs: NOW + 86_400_000 }), { ok: true })
+  assert.equal((await shieldCheck(kv, { ip: IP, fpHash: fp(600), nowMs: NOW + 86_400_000 })).ok, true)
 })
 
 test('stale values from another day are ignored even if TTL has not dropped', async () => {
   const kv = new FakeKV()
   await kv.put(fpKey(fp(1)), JSON.stringify({ d: '2026-09-07', used: 9 }))
   await kv.put(ipKey(IP), JSON.stringify({ d: '2026-09-07', fps: [fp(9)], blocked: 1 }))
-  assert.deepEqual(await run(kv), { ok: true })
+  assert.equal((await run(kv)).ok, true)
 })
 
 test('VN day + TTL boundaries: midnight reset, never a sub-minute TTL', () => {
@@ -92,23 +97,25 @@ test('vote: đếm riêng khoá vc:, không ăn vào hạn mức của vòng qua
   assert.equal(JSON.parse(kv.store.get(voteKey(fp(1))).value).used, 1)
   assert.equal(kv.store.get(fpKey(fp(1))), undefined, 'không được đụng vào bộ đếm spin')
   // hai lượt quay vẫn còn nguyên sau khi đã vote
-  assert.deepEqual(await shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW }), { ok: true })
+  assert.equal((await shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })).ok, true)
 })
 
 test('vote: chặn khi một vân tay gọi quá trần trong ngày, mở lại hôm sau', async () => {
   const kv = new FakeKV()
   const call = (over = {}) => voteShieldCheck(kv, { fpHash: fp(2), nowMs: NOW, limit: 3, ...over })
   for (let i = 0; i < 3; i++) {
-    assert.deepEqual(await call(), { ok: true })
+    assert.equal((await call()).ok, true)
     await voteShieldCommit(kv, { fpHash: fp(2), nowMs: NOW })
   }
-  assert.deepEqual(await call(), { ok: false, reason: 'err.voteEdgeFp' })
-  assert.deepEqual(await call({ nowMs: NOW + 86_400_000 }), { ok: true })
+  const blocked = await call()
+  assert.equal(blocked.ok, false)
+  assert.equal(blocked.reason, 'err.voteEdgeFp')
+  assert.equal((await call({ nowMs: NOW + 86_400_000 })).ok, true)
 })
 
 test('vote: không có vân tay thì vẫn cho đi tiếp — Postgres mới là chốt chặn', async () => {
   const kv = new FakeKV()
-  assert.deepEqual(await voteShieldCheck(kv, { fpHash: null, nowMs: NOW }), { ok: true })
+  assert.equal((await voteShieldCheck(kv, { fpHash: null, nowMs: NOW })).ok, true)
   await voteShieldCommit(kv, { fpHash: null, nowMs: NOW })
   assert.equal(kv.store.size, 0, 'không ghi rác vào KV')
 })

@@ -335,18 +335,67 @@ export async function fetchComments(requestId) {
   if (!hasSupabase) {
     try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
   }
-  const { data, error } = await supabase.from('request_comments')
-    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
-    .eq('request_id', requestId).is('deleted_at', null)
-    .order('created_at', { ascending: false }).limit(20)
-  if (error) throw error
-  return (data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
+  // Try full query with profiles join + deleted_at, fallback progressively
+  const tryQuery = async (withDeleted, withProfiles) => {
+    let q = supabase.from('request_comments')
+      .select(withProfiles
+        ? 'id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)'
+        : 'id, request_id, user_id, parent_id, body, created_at')
+      .eq('request_id', requestId)
+    if (withDeleted) q = q.is('deleted_at', null)
+    q = q.order('created_at', { ascending: false }).limit(20)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  }
+  try {
+    const data = await tryQuery(true, true)
+    return data.map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
+  } catch (e1) {
+    if (isMissingSchemaObject(e1)) {
+      // table not yet migrated – treat as empty, don't show error toast
+      return []
+    }
+    try {
+      const data = await tryQuery(false, true)
+      return data.map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
+    } catch (e2) {
+      if (isMissingSchemaObject(e2)) return []
+      try {
+        const data = await tryQuery(false, false)
+        return data.map(c => ({ ...c, author: 'Member', avatar: null }))
+      } catch (e3) {
+        if (isMissingSchemaObject(e3)) return []
+        throw e3
+      }
+    }
+  }
 }
 
 export async function deleteComment(commentId) {
-  if (!commentId || !hasSupabase) return true
-  const { error } = await supabase.from('request_comments').delete().eq('id', commentId)
+  if (!commentId) return true
+  if (!hasSupabase) {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('ccl.comments.')) {
+          let items = JSON.parse(localStorage.getItem(key) || '[]')
+          const before = items.length
+          items = items.filter(x => x.id !== commentId && x.parent_id !== commentId)
+          if (items.length !== before) localStorage.setItem(key, JSON.stringify(items))
+        }
+      }
+    } catch {}
+    return true
+  }
+  // Use select to detect if RLS blocked (returns 0 rows)
+  const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    // Could be RLS blocked or already deleted – try to check if comment still exists
+    const { data: still } = await supabase.from('request_comments').select('id').eq('id', commentId).maybeSingle()
+    if (still) throw new Error('err.commentDeleteDenied')
+  }
   return true
 }
 
@@ -372,20 +421,29 @@ export async function fetchCommentCounts(requestIds = null) {
     } catch {}
     return counts
   }
-  try {
-    let query = supabase.from('request_comments').select('request_id').is('deleted_at', null)
+  const run = async (withDeleted) => {
+    let query = supabase.from('request_comments').select('request_id')
+    if (withDeleted) query = query.is('deleted_at', null)
     if (Array.isArray(requestIds) && requestIds.length > 0) {
       query = query.in('request_id', requestIds)
     }
     const { data, error } = await query
-    if (error || !data) return {}
+    if (error) throw error
     const counts = {}
-    for (const c of data) {
+    for (const c of data || []) {
       if (c.request_id) counts[c.request_id] = (counts[c.request_id] || 0) + 1
     }
     return counts
-  } catch {
-    return {}
+  }
+  try {
+    return await run(true)
+  } catch (e) {
+    if (isMissingSchemaObject(e)) return {}
+    try {
+      return await run(false)
+    } catch {
+      return {}
+    }
   }
 }
 
@@ -410,19 +468,39 @@ export async function fetchAllCommentsForAdmin(limit = 100) {
     } catch {}
     return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
   }
-  const { data, error } = await supabase.from('request_comments')
-    .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return (data || []).map(c => ({
-    ...c,
-    author: c.profiles?.name || 'Member',
-    avatar: c.profiles?.avatar_url || null,
-    songTitle: c.requests?.title || '',
-    songArtist: c.requests?.artist || '',
-  }))
+  const tryFetch = async (withDeleted) => {
+    let q = supabase.from('request_comments')
+      .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
+    if (withDeleted) q = q.is('deleted_at', null)
+    q = q.order('created_at', { ascending: false }).limit(limit)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  }
+  try {
+    const data = await tryFetch(true)
+    return data.map(c => ({
+      ...c,
+      author: c.profiles?.name || 'Member',
+      avatar: c.profiles?.avatar_url || null,
+      songTitle: c.requests?.title || '',
+      songArtist: c.requests?.artist || '',
+    }))
+  } catch (e) {
+    if (isMissingSchemaObject(e)) return []
+    try {
+      const data = await tryFetch(false)
+      return data.map(c => ({
+        ...c,
+        author: c.profiles?.name || 'Member',
+        avatar: c.profiles?.avatar_url || null,
+        songTitle: c.requests?.title || '',
+        songArtist: c.requests?.artist || '',
+      }))
+    } catch {
+      return []
+    }
+  }
 }
 
 export async function adminDeleteComment(commentId) {
@@ -442,8 +520,9 @@ export async function adminDeleteComment(commentId) {
     } catch {}
     return true
   }
-  const { error } = await supabase.from('request_comments').delete().eq('id', commentId)
+  const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
   if (error) throw error
+  // Even if 0 rows (already deleted), treat as success for admin
   return true
 }
 
@@ -451,7 +530,7 @@ export async function addComment(requestId, userId, body, parentId = null) {
   const clean = String(body || '').trim()
   if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
   if (!hasSupabase) {
-    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: 'You' }
+    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: 'You', avatar: null }
     try {
       const key = `ccl.comments.${requestId}`
       const old = JSON.parse(localStorage.getItem(key) || '[]')
@@ -459,9 +538,30 @@ export async function addComment(requestId, userId, body, parentId = null) {
     } catch { /* storage blocked; current session still receives next */ }
     return next
   }
-  const { data, error } = await supabase.from('request_comments').insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean }).select('id, request_id, user_id, parent_id, body, created_at').single()
-  if (error) throw error
-  return { ...data, author: 'You' }
+  // First try with parent_id, fallback without if column missing
+  const attempt = async (withParent) => {
+    const payload = withParent
+      ? { request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean }
+      : { request_id: requestId, user_id: userId, body: clean }
+    const { data, error } = await supabase.from('request_comments').insert(payload).select('id, request_id, user_id, parent_id, body, created_at').single()
+    if (error) throw error
+    return data
+  }
+  try {
+    const data = await attempt(true)
+    return { ...data, author: 'You', avatar: null }
+  } catch (e) {
+    if (e?.code === 'PGRST204' || /parent_id/.test(e?.message || '')) {
+      // column missing – retry without parent
+      try {
+        const data = await attempt(false)
+        return { ...data, author: 'You', avatar: null }
+      } catch (e2) {
+        throw rpcError(e2)
+      }
+    }
+    throw rpcError(e)
+  }
 }
 
 export async function fetchRequests() {

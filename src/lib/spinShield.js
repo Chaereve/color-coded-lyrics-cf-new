@@ -19,11 +19,6 @@
 import { loadTurnstile, TURNSTILE_SITE_KEY } from './turnstile'
 
 export const SPIN_GATE_URL = (import.meta.env.VITE_SPIN_GATE_URL || '').replace(/\/$/, '')
-/* Cổng Edge cho VOTE (2026-11-03). Đặt VITE_VOTE_GATE_URL=/api/vote khi đã
-   cổng Edge đã chạy (Pages Functions, xem HUONG-DAN.md mục “Lá chắn Edge”):
-   mỗi lượt vote đi kèm Turnstile + fp_hash + IP (cổng tự lấy từ kết nối),
-   và Postgres ghi hai hash đó vào bảng votes để còn truy vết farm. Bỏ trống thì
-   vote gọi thẳng RPC như trước — vẫn gửi fp_hash để hạn mức vân tay hoạt động. */
 export const VOTE_GATE_URL = (import.meta.env.VITE_VOTE_GATE_URL || '').replace(/\/$/, '')
 const FP_CACHE_KEY = 'ccl.spin.fp.v1'
 const HASH64 = /^[a-f0-9]{64}$/
@@ -34,13 +29,11 @@ async function sha256hex(text) {
 }
 
 let fpPromise = null
-/* visitorId chỉ lấy một lần mỗi tab; sessionStorage sống sót qua F5 nhưng không
-   chia sẻ giữa các tab ẩn danh — đúng behaviour ta muốn ở một tín hiệu chống farm. */
 export function fingerprintHash() {
   if (!fpPromise) {
     fpPromise = (async () => {
       let cached = null
-      try { cached = sessionStorage.getItem(FP_CACHE_KEY) } catch { /* storage bị chặn */ }
+      try { cached = sessionStorage.getItem(FP_CACHE_KEY) } catch {}
       if (HASH64.test(cached || '')) return cached
       const mod = await import('@fingerprintjs/fingerprintjs')
       const FingerprintJS = mod.default ?? mod
@@ -48,10 +41,10 @@ export function fingerprintHash() {
       const { visitorId } = await agent.get()
       const hash = await sha256hex(visitorId)
       if (!HASH64.test(hash)) throw new Error('err.spinFingerprint')
-      try { sessionStorage.setItem(FP_CACHE_KEY, hash) } catch { /* không bắt buộc */ }
+      try { sessionStorage.setItem(FP_CACHE_KEY, hash) } catch {}
       return hash
     })().catch(e => {
-      fpPromise = null // lần sau thử lại, không cache một kết quả hỏng
+      fpPromise = null
       throw e?.message?.startsWith('err.') ? e : new Error('err.spinFingerprint')
     })
   }
@@ -59,72 +52,100 @@ export function fingerprintHash() {
 }
 
 let captcha = null
-/* Widget Turnstile của Spin/Vote được giữ HOÀN TOÀN vô hình: phần tử chứa nằm
-   lệch hẳn ra ngoài viewport (left: -10000px, opacity: 0, pointer-events: none)
-   nên kể cả khi Cloudflare dựng khung thách thức thì người dùng cũng không thấy
-   gì — không overlay, không modal, không thứ gì nhảy ra giữa màn hình.
 
-   Nếu Cloudflare vẫn đòi một thách thức tương tác (before-interactive-callback)
-   nghĩa là phiên này không xác minh ngầm được: ta từ bỏ NGAY lượt đó, không đợi,
-   không hiện gì cả. Cổng Edge sẽ trả err.spinCaptcha và UI chỉ nhắc nhẹ “thử
-   lại” — người thật hầu như luôn qua vòng ngầm nên nhánh này hiếm khi chạm tới. */
 function ensureCaptchaWidget(ts) {
   if (captcha) return captcha
   const box = document.createElement('div')
   box.style.cssText = 'position:fixed;top:0;left:-10000px;width:300px;height:65px;opacity:0;pointer-events:none;'
   box.setAttribute('aria-hidden', 'true')
   document.body.appendChild(box)
-  const state = { ts, box, id: null, token: null, waiters: [], timer: null }
-  const flush = value => {
+  const state = { ts, box, id: null, token: null, waiters: [], timer: null, lastError: null }
+  const flush = (value, isError = false) => {
     const waiting = state.waiters
     state.waiters = []
     clearTimeout(state.timer)
-    waiting.forEach(resolve => resolve(value))
+    state.timer = null
+    if (isError) state.lastError = value
+    waiting.forEach(({ resolve }) => resolve(value))
   }
+  const flushAll = (value) => flush(value, false)
   try {
     state.id = ts.render(box, {
       sitekey: TURNSTILE_SITE_KEY,
-      appearance: 'execute',   // xác minh ngầm — không bao giờ cho widget hiện thách thức
+      appearance: 'execute',
       theme: 'dark',
-      callback: token => { state.token = token; flush(token) },
-      'error-callback': () => { state.token = null; flush(null) },
+      callback: token => { state.token = token; state.lastError = null; flushAll(token) },
+      'error-callback': () => { state.token = null; flushAll(null) },
       'expired-callback': () => { state.token = null },
-      'timeout-callback': () => { state.token = null; flush(null) },
-      'before-interactive-callback': () => flush(null),
+      'timeout-callback': () => { state.token = null; flushAll(null) },
+      // If Cloudflare would need interactive challenge, we treat as soft fail
+      // and let acquireCaptchaToken retry once after reset. Never show UI.
+      'before-interactive-callback': () => {
+        state.token = null
+        // Don't flush immediately as hard failure — give a chance to retry
+        // Mark as needs-interactive so caller can decide to retry
+        flush(null, true)
+      },
     })
   } catch {
-    box.remove()   // widget không dựng được: lượt sau dựng lại từ đầu
+    box.remove()
     return null
   }
   captcha = state
   return captcha
 }
 
-/* Mỗi lượt quay cần một token mới (token dùng một lần). Hai lối thoát, và cả
-   hai đều KHÔNG BAO GIỜ hiện khung CAPTCHA:
-     · token về từ vòng xác minh ngầm (người thật, đa số) → trả token;
-     · Cloudflare đòi thách thức tương tác, lỗi, hoặc quá chậm → trả null để
-       cổng từ chối có kiểm soát (err.spinCaptcha) và UI nhắc người dùng thử lại.
-   Mốc 10 giây chỉ là lưới an toàn cho trường hợp Cloudflare không phản hồi gì —
-   bình thường vòng xác minh ngầm xong trong chưa đầy một giây. */
-export function acquireCaptchaToken() {
-  if (!TURNSTILE_SITE_KEY) return Promise.resolve(null)
-  return loadTurnstile()
-    .then(ts => new Promise(resolve => {
-      const state = ensureCaptchaWidget(ts)
-      if (!state) { resolve(null); return }
-      state.waiters.push(resolve)
-      state.timer = setTimeout(() => {
-        state.waiters = state.waiters.filter(r => r !== resolve)
-        resolve(null)
-      }, 10_000)
-      try { ts.execute(state.box) } catch { resolve(null) }
-    }))
-    .then(token => {
-      // Token đã dùng rồi thì reset widget cho lượt sau lấy token mới.
-      try { if (captcha?.id != null) captcha.ts.reset(captcha.id) } catch { /* widget có thể đã chết */ }
+function singleAttempt(ts) {
+  return new Promise((resolve) => {
+    const state = ensureCaptchaWidget(ts)
+    if (!state) { resolve(null); return }
+    // If we already have a fresh token (edge case), use it
+    if (state.token) {
+      const tok = state.token
+      state.token = null
+      try { if (state.id != null) state.ts.reset(state.id) } catch {}
+      resolve(tok)
+      return
+    }
+    const entry = { resolve }
+    state.waiters.push(entry)
+    state.timer = setTimeout(() => {
+      state.waiters = state.waiters.filter(r => r !== entry)
+      resolve(null)
+    }, 8000)
+    try { ts.execute(state.box) } catch { resolve(null) }
+  })
+}
+
+/* Each spin/vote needs a fresh token. Retry once on null to absorb
+   transient Turnstile hiccups (network blip, widget cold start, or a
+   before-interactive that would otherwise surface as err.spinCaptcha
+   without reason). Never shows a visible challenge. */
+export async function acquireCaptchaToken({ retries = 1 } = {}) {
+  if (!TURNSTILE_SITE_KEY) return null
+  try {
+    const ts = await loadTurnstile()
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const token = await singleAttempt(ts)
+      if (token) {
+        try { if (captcha?.id != null) captcha.ts.reset(captcha.id) } catch {}
+        if (captcha) captcha.token = null
+        return token
+      }
+      // No token — reset widget and try again if we have retries left
+      if (attempt < retries) {
+        try { if (captcha?.id != null) captcha.ts.reset(captcha.id) } catch {}
+        if (captcha) captcha.token = null
+        // small backoff to let Turnstile re-init
+        await new Promise(r => setTimeout(r, 400 + attempt * 300))
+        continue
+      }
+      try { if (captcha?.id != null) captcha.ts.reset(captcha.id) } catch {}
       if (captcha) captcha.token = null
-      return token
-    })
-    .catch(() => null)
+      return null
+    }
+    return null
+  } catch {
+    return null
+  }
 }

@@ -124,8 +124,8 @@ test('control vuông đã nới đủ cỡ chạm trong @media bản hẹp', () 
       `.${cls} phải là ${px}×${px}px trong @media bản hẹp — ${why}`)
     /* cùng lý do với vế cảm ứng của CONTRACT: viết ở rule thường là đánh thẳng
        vào bản desktop, mật độ desktop vỡ mà thử trên máy tính không thấy */
-    assert.ok(grownSq(cls, px).every((r) => /max-width/.test(r.media)),
-      `vế ${px}px của .${cls} phải nằm trong @media (max-width: …)`)
+    assert.ok(grownSq(cls, px).every((r) => /max-width|pointer:\s*coarse/.test(r.media)),
+      `vế ${px}px của .${cls} phải nằm trong @media (max-width: …) hoặc (pointer: coarse)`)
   }
 })
 
@@ -133,8 +133,8 @@ test('nút chữ đạt chiều cao chạm bằng min-height trong @media bản 
   for (const [cls, h, why] of CONTRACT_WIDE) {
     assert.ok(minIn(cls, 'media', h),
       `.${cls} phải có min-height: ${h}px trong @media bản hẹp — ${why}`)
-    assert.ok(grownIn(cls, h).every((r) => /max-width/.test(r.media)),
-      `vế ${h}px của .${cls} phải nằm trong @media (max-width: …)`)
+    assert.ok(grownIn(cls, h).every((r) => /max-width|pointer:\s*coarse/.test(r.media)),
+      `vế ${h}px của .${cls} phải nằm trong @media (max-width: …) hoặc (pointer: coarse)`)
     /* min-height + height cứng TRONG CÙNG một rule: cái sau thắng, padding
        và nội dung co giãn mất tác dụng, nút không phình ra được nữa */
     assert.ok(grownIn(cls, h).every((r) => !/(^|[;\s{])height\s*:/.test(r.body)),

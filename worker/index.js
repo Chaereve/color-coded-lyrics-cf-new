@@ -126,7 +126,6 @@ export async function handleSpin(request, env) {
     })
     const text = await spin.text()
     if (!spin.ok) {
-      // Lỗi PostgREST/SQL (hết lượt, đổi tài khoản…) trả nguyên văn cho client dịch.
       return new Response(text, { status: spin.status, headers: JSON_HEADERS })
     }
 
@@ -134,7 +133,7 @@ export async function handleSpin(request, env) {
     let result = null
     try { result = JSON.parse(text) } catch { /* phản hồi lạ: bỏ qua đếm */ }
     if (result && !result.replayed) {
-      try { await shieldCommit(env.SPIN_SHIELD, { ip, fpHash }) } catch { /* KV lỗi không làm mất thưởng */ }
+      try { await shieldCommit(env.SPIN_SHIELD, { ip, fpHash, _state: check._state }) } catch { /* KV lỗi không làm mất thưởng */ }
     }
     return new Response(text, { status: 200, headers: JSON_HEADERS })
   } catch {
@@ -173,9 +172,11 @@ export async function handleVote(request, env) {
       if (!captcha || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, captcha, ip))) return deny('err.spinCaptcha')
     }
 
+    let voteCheckState = null
     if (env.SPIN_SHIELD) {
       const check = await voteShieldCheck(env.SPIN_SHIELD, { fpHash: fp })
       if (!check.ok) return deny(check.reason, 429)
+      voteCheckState = check._state
     }
 
     const res = await callRpc(env, 'cast_vote', userToken, {
@@ -188,7 +189,7 @@ export async function handleVote(request, env) {
     if (!res.ok) return new Response(text, { status: res.status, headers: JSON_HEADERS })
 
     if (env.SPIN_SHIELD) {
-      try { await voteShieldCommit(env.SPIN_SHIELD, { fpHash: fp }) } catch { /* KV lỗi không làm mất phiếu */ }
+      try { await voteShieldCommit(env.SPIN_SHIELD, { fpHash: fp, _state: voteCheckState }) } catch { /* KV lỗi không làm mất phiếu */ }
     }
     return new Response(text, { status: 200, headers: JSON_HEADERS })
   } catch {

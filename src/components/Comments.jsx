@@ -4,7 +4,7 @@ import { addComment, deleteComment, fetchComments } from '../lib/db'
 import { useNotify } from '../lib/notify.jsx'
 import { profileUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
-import { useI18n } from '../lib/i18n.jsx'
+import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { timeAgo } from '../lib/meta'
 
 function initials(name = '') {
@@ -77,12 +77,15 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
     setBusy(true); setError('')
     try {
       const next = await addComment(requestId, user.id, clean, replyTo?.id || null)
-      setItems(x => [next, ...x])
+      setItems(x => {
+        const updated = [next, ...x]
+        countCbRef.current?.(updated.length)
+        return updated
+      })
       setBody(''); setReplyTo(null)
-      countCbRef.current?.(items.length + 1)
       push({ tone: 'ok', title: t('comment.posted'), body: t('comment.posted') })
     } catch (err) {
-      const message = err?.message === 'err.commentInvalid' ? t('err.commentInvalid') : t('comment.failed')
+      const message = err?.message === 'err.commentInvalid' ? t('err.commentInvalid') : err?.code ? errMsg(t, err) : t('comment.failed')
       setError(message); push({ tone: 'err', title: t('comment.failed'), body: message })
     } finally { setBusy(false) }
   }
@@ -94,11 +97,16 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
   const remove = async (c) => {
     try {
       await deleteComment(c.id)
-      const remaining = items.filter(y => y.id !== c.id && y.parent_id !== c.id)
-      setItems(remaining)
-      countCbRef.current?.(remaining.length)
+      setItems(prev => {
+        const remaining = prev.filter(y => y.id !== c.id && y.parent_id !== c.id)
+        countCbRef.current?.(remaining.length)
+        return remaining
+      })
       push({ tone: 'ok', title: t('comment.removed'), body: t('comment.removed') })
-    } catch { push({ tone: 'err', title: t('comment.failed'), body: t('comment.failed') }) }
+    } catch (err) {
+      const msg = err?.code ? errMsg(t, err) : t('comment.failed')
+      push({ tone: 'err', title: t('comment.failed'), body: msg })
+    }
   }
 
   const row = (c, nested = false) => (
@@ -115,7 +123,7 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
               {t('comment.reply')}
             </button>
           )}
-          {user?.id === c.user_id && (
+          {(user?.isAdmin || user?.id === c.user_id) && (
             <button type="button" className="comment-delete" title={t('comment.remove')} aria-label={t('comment.remove')} onClick={() => remove(c)}>
               <Icon name="close" size={13} />
             </button>
