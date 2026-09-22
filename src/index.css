@@ -2533,8 +2533,20 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-table th { font: 600 10px/1 var(--mono); letter-spacing: .3px; color: var(--txt-3);
   text-align: left; padding: 9px 14px; background: rgba(255,255,255,.015) }
 .lb-table td { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--line); vertical-align: middle }
-.lb-table th.num, .lb-table td.num { text-align: right }
-.lb-table th.c-rk, .lb-table td.c-rk { width: 42px; text-align: center }
+.lb-table th.num, .lb-table td.num { text-align: right; white-space: nowrap }
+/* Cột hạng: * { box-sizing: border-box } nên width PHẢI chứa cả padding.
+   42px cũ trừ 14px×2 chỉ còn ~14px cho chữ — "10" trở đi bị bẻ thành hai dòng
+   (và .lb { overflow-wrap: anywhere } ở cuối tệp còn cho phép bẻ từng chữ số).
+   padding-inline khai ở selector .c-rk (0,2,1) để các luật padding của
+   th/td phía dưới (0,1,1), kể cả shorthand `padding`, không ăn mất chỗ của số.
+   52px − 6px×2 = 40px: đủ bốn chữ số mono 12px, # và số cùng một trục giữa. */
+.lb-table th.c-rk, .lb-table td.c-rk {
+  width: 52px; padding-inline: 6px; text-align: center;
+  white-space: nowrap; overflow-wrap: normal; word-break: normal;
+}
+/* Ô bảng không được thừa kế overflow-wrap: anywhere từ .lb — nếu không,
+   header "requests" và số hạng bị xé giữa chữ dù đã nowrap ở vài ô. */
+.lb-table th, .lb-table td { overflow-wrap: normal; word-break: normal }
 .lb-table tbody tr { position: relative; animation: rowIn .34s var(--e-out) both; animation-delay: calc(min(var(--i, 0), 8) * 24ms);
   transition: background var(--t-1) var(--e-soft) }
 .lb-table tbody tr:hover { background: rgba(255,255,255,.03) }
@@ -2544,7 +2556,10 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-table td.c-pl { position: relative; min-width: 0 }
 .lb-pl-in { display: flex; align-items: center; gap: 9px; min-width: 0 }
 /* (.lb-nm đã định nghĩa đầy đủ ở khối trên — ellipsis để chịu tên dài) */
-.lb-you { font-size: 10px; color: var(--a-2); border: 1px solid var(--line-2); padding: 0 5px; border-radius: var(--r-sm) }
+.lb-you { flex: none; font-size: 10px; color: var(--a-2); border: 1px solid var(--line-2); padding: 0 5px; border-radius: var(--r-sm); white-space: nowrap }
+/* Ảnh trong ô tên không được co theo `img { max-width: 100% }` — co là hàng
+   hạng trông như số đè lên avatar. */
+.lb-table .lb-av { width: 26px; height: 26px; max-width: none; flex: none }
 /* Vạch dưới tên = tỉ lệ so với người dẫn đầu: đọc được cả một cột trong một
    cái lướt. Vạch PHẲNG một màu — bản trước cho nó chạy gradient sang trong
    suốt, đúng kiểu "thanh chỉ báo có gradient" mà vòng 11 đã gỡ ở thanh tiến
@@ -2675,7 +2690,9 @@ html[data-section="spin"] .bgfx { display: none; }
    vài chục px. Thu thêm một nấc nữa ở đây cho an toàn. */
 @media (max-width: 380px) {
   .lb-table th, .lb-table td { padding: 8px 8px }
-  .lb-table th.c-rk, .lb-table td.c-rk { width: 38px }
+  /* Không thu cột hạng: 38px cũ + padding thắng ở khối sau làm số từ 10
+     bẻ đôi. 52px giữ nguyên ngân sách chữ số; tên vẫn còn chỗ nhờ ellipsis. */
+  .lb-table th.c-rk, .lb-table td.c-rk { width: 52px }
   .lb-table th:nth-child(3) { width: 72px }
   .lb-table th:nth-child(5) { width: 60px }
 }
