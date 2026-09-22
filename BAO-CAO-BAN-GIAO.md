@@ -333,6 +333,12 @@ notify pgrst, 'reload schema';
   và hiện thẻ *"That’s the end of the preview"* kèm hai nút — *Watch the preview again* và *Open
   full video on YouTube*. Nút *Watch the preview again* phải chạy lại từ đầu. Nếu khung vẫn phát
   tiếp sau vạch 30 giây thì bản deploy chưa có bản sửa vòng 25 (xem `HUONG-DAN.md`, mục cuối).
+- **Preview trong Hall of Fame (giao diện YouTube):** Trong khung xem trước, **thanh điều khiển
+  của YouTube phải biến mất** — chỉ còn **một nút play/pause ở giữa** do trang tự vẽ (đang phát
+  thì nút mờ đi, rê chuột vào khung là hiện lại), và thanh **0→30 giây** ở chân hộp kéo được để
+  tua trong phạm vi 30 giây. Hai thứ của YouTube **không tắt được** và sẽ còn thấy khi tạm dừng:
+  tiêu đề video ở mép trên và nút *Watch on YouTube* (YouTube bỏ tham số `modestbranding` từ 2023).
+  Chi tiết: `HUONG-DAN.md` mục *Vòng 26*.
 - **About me (`/profile`):** Tải avatar GIF/WebP; kiểm tra khoảng cách giữa Achievement index và Stats; bấm `View all achievements (10)`.
 
 ---

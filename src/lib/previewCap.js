@@ -131,6 +131,67 @@ export function overCap(seconds, limit = PREVIEW_SECONDS) {
   return Number.isFinite(s) && s >= limit
 }
 
+/* VỊ TRÍ ĐANG XEM, đọc từ gói thông tin của player.
+   ---------------------------------------------------------
+   Một chỗ dễ sai và đã sai thật: trong lúc chạy QUẢNG CÁO, `currentTime` mà
+   player báo là thời gian của **quảng cáo**, không phải của video (quảng cáo
+   tính từ 0 và có `duration` riêng). Đem con số đó so với mốc 30 giây thì một
+   pre-roll 35 giây — hoặc một quảng cáo dài bất kỳ — sẽ làm phần xem trước kết
+   thúc trong khi video còn chưa bắt đầu.
+
+   Dấu hiệu nhận ra quảng cáo, cả hai đều do player tự gửi:
+     · `playerState === -1` trong lúc có `currentTime` đang chạy — trạng thái
+       này chỉ có khi player đang phục vụ nội dung xen vào;
+     · `videoData.isAd` (một số bằng 1).
+   Còn một dấu hiệu nữa nằm ở chỗ khác: mốc thời gian *không lùi* bao giờ. Thấy
+   `currentTime` nhảy về nhỏ hơn hẳn giá trị trước đó là quảng cáo vừa kết thúc
+   và video vừa bắt đầu lại từ 0 — xem `keptTime`. */
+function isAd(info) {
+  if (Number(info?.playerState) === -1) return true
+  const vd = info?.videoData
+  return !!(vd && typeof vd === 'object' && Number(vd.isAd) === 1)
+}
+
+/**
+ * Vị trí của VIDEO (không phải của quảng cáo).
+ * @returns {{seconds:number, ad:boolean}|null} null = chưa biết gì
+ */
+export function playhead(info) {
+  const s = Number(info?.currentTime)
+  if (!Number.isFinite(s)) return null
+  return { seconds: s, ad: isAd(info) }
+}
+
+/* Thời gian không lùi: trong lúc quảng cáo, vẫn phải nhớ vị trí thật của video
+   để khi quảng cáo hết thì chỗ đang xem không tụt về 0. */
+export function keptTime(prevSeconds, nextSeconds) {
+  const prev = Number(prevSeconds)
+  const next = Number(nextSeconds)
+  if (!Number.isFinite(next)) return Number.isFinite(prev) ? prev : 0
+  if (Number.isFinite(prev) && next < prev - 0.5) return prev
+  return next
+}
+
+/* Nút play/pause tự vẽ của khung xem trước đang nên hiện gì.
+   ---------------------------------------------------------
+   Đây là câu hỏi KHÔNG có câu trả lời đúng ở đâu khác: player không hứa một
+   giao thức `postMessage` nào, nên nút phải đọc ra từ hai thứ nó có. Trạng
+   thái là thứ duy nhất người dùng nói ra (họ vừa bấm), `info` là thứ player tự
+   kể. Hai nguồn đều vắng thì đoán theo ý định ban đầu (`wantPlay`).
+     · đang chạy quảng cáo → nút không có việc gì để làm, nói ra (`blocked`);
+     · người dùng vừa bấm → tin họ ngay, không chờ player xác nhận;
+     · chưa bấm gì → tin thứ player kể (1 = đang phát, 2 = đang dừng);
+     · chưa kịp biết gì (iframe vừa dựng) → theo `wantPlay`. */
+export function playButtonView({ state, info, wantPlay }) {
+  if (isAd(info)) return { blocked: true, playing: false }
+  if (state === 1) return { blocked: false, playing: true }
+  if (state === 2) return { blocked: false, playing: false }
+  const ps = Number(info?.playerState)
+  if (ps === 1) return { blocked: false, playing: true }
+  if (ps === 2) return { blocked: false, playing: false }
+  return { blocked: false, playing: !!wantPlay }
+}
+
 /* Phần trăm cho thanh tiến trình, kẹp sẵn về 0..100 ở đây (component không
    phải kiểm lại, và giá trị rác không làm bố cục nhảy). */
 export function previewPct(seconds, limit = PREVIEW_SECONDS) {

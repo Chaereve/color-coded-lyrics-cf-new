@@ -1739,3 +1739,85 @@ làm nó cắt. Nay hàm xem lại **xoá hết những gì player cũ kể** tr
   người xem thường, không chặn người tua) và đồng hồ treo tường (vẫn cắt, nhưng cắt theo giờ mở
   khung chứ không theo vị trí đang phát). Dấu hiệu nhận ra: thẻ hết phần xem trước hiện ra đúng
   ~31 giây sau khi mở khung, kể cả khi vừa bấm tạm dừng.
+
+## Phần XVI — vòng 26: ẩn giao diện YouTube, chỉ còn play/pause (22/09/2026)
+
+Yêu cầu của chủ dự án, nguyên văn: *"bạn có thể ẩn mấy cái giao diện của YouTube lúc chiếu video
+đc ko, chỉ bấm play/pause đc thoii"*. Đây là việc **thay giao diện điều khiển**, không phải chỉ
+thêm một tham số — và nó chạm trực tiếp vào mốc 30 giây vừa làm xong ở vòng 25, nên phải làm cùng
+lúc để không mở lại đường vòng.
+
+### XVI1. Tắt giao diện YouTube
+
+| Tham số | Việc nó làm |
+|---|---|
+| `controls=0` | bỏ **thanh điều khiển** — trong đó có nút *Watch on YouTube*, thanh thời gian, âm lượng, cài đặt, logo kênh |
+| `disablekb=1` | bỏ **phím tắt của player**: `[l]`/`[→]` nhảy 10 giây, `[0-9]` nhảy theo phần trăm — đúng hai đường vòng qua mốc 30 giây |
+| `autoplay=1` | (đã có từ vòng 25) cũng là thứ giữ cho nút *Watch on YouTube* không hiện |
+
+Đổi lại phải **tự vẽ** phần điều khiển, và chỉ một nút — đúng yêu cầu:
+
+- **Nút play/pause** ở giữa khung (`PreviewControls`), gửi `playVideo` / `pauseVideo` qua chính
+  kênh postMessage của vòng 25. Trạng thái đọc qua `playButtonView()`: `onStateChange` của player
+  là nguồn đúng nhất, rồi `playerState` trong gói tin, cuối cùng là ý định của người xem khi họ
+  vừa bấm (nút đổi ngay, không chờ player xác nhận).
+- **Lớp điều khiển phủ kín khung**, nên cú bấm **không bao giờ lọt vào iframe** — không có giao
+  diện nào của YouTube lộ ra, kể cả khi người xem bấm vào giữa video. Bấm vào vùng video (ngoài
+  nút) cũng là play/pause, đúng thói quen của mọi player.
+- **Đang phát thì nút mờ đi** để không che hình; rê chuột vào khung hoặc Tab tới nó là hiện lại.
+  Đang dừng thì luôn hiện — lúc ấy nó là việc duy nhất làm được.
+- **Thanh 0→30 giây ở chân hộp nay kéo được**: kéo/ bấm là gửi `seekTo`, mũi lên/xuống nhích 1
+  giây. Tua vẫn có, nhưng không còn đường tua RA NGOÀI phần xem trước (mốc kẹp ở `seekTo`, và vòng
+  canh vẫn cắt nếu player báo về một vị trí quá mốc).
+
+### XVI2. Quảng cáo pre-roll: sửa luôn lỗi của vòng 25
+
+Vòng 25 ghi lại một "chỗ đã biết là cố ý": pre-roll dài hơn 30 giây cũng bị tính là quá mốc, vì
+`currentTime` mà player báo trong lúc chạy quảng cáo là thời gian **của quảng cáo**. Vòng này sửa
+hẳn, và cách sửa cũng cần cho yêu cầu mới:
+
+- `playhead(info)` trả về vị trí **của video**, kèm cờ `ad` (hai dấu hiệu player tự gửi:
+  `playerState === -1` và `videoData.isAd`). Quảng cáo không được tính vào mốc 30 giây.
+- `keptTime(prev, next)` giữ mốc thời gian **không lùi**: quảng cáo hết, player báo về 0 thì chỗ
+  đang xem không tụt về 0.
+- Nút play/pause **tự tắt** trong lúc quảng cáo (bấm pause vào quảng cáo chỉ tổ đứng hình ở một
+  tấm hình quảng cáo), kèm `title` nói ra lý do.
+
+### XVI3. Một lỗi tự gây ra, oxlint bắt được ngay
+
+Bản đầu đọc thẳng `stateRef.current` / `infoRef.current` **trong lúc render** để quyết định nút
+đang hiện gì — React cấm (giá trị có thể cũ so với lần vẽ trước) và luật `refs` của React Compiler
+báo đỏ. Nay trạng thái nút là **state** (`playState`), được đẩy vào từ hai chỗ (bộ nghe sự kiện và
+vòng canh 250ms), và chỉ `setState` khi giá trị **đổi** — gói tin của player về vài lần mỗi giây,
+`setState` với giá trị cũ chỉ tổ bắt React vẽ lại vô ích. Ý định của người xem (`wantRef`) nằm
+trong ref vì vòng canh không được dựng lại mỗi cú bấm (dựng lại là đồng hồ treo tường đếm lại từ 0).
+
+### XVI4. Còn lại gì của YouTube (nói thẳng)
+
+- **Tiêu đề video + tên kênh ở mép trên** và **nút *Watch on YouTube* khi tạm dừng**: YouTube bỏ
+  tham số `modestbranding` từ 2023 và tới nay **không có tham số nào tắt hai thứ đó**. Chúng nằm
+  trong iframe khác tên miền nên trang không chạm tới được (CSS cũng không xuyên được vào iframe).
+  Thực tế: chúng tự mờ đi khi đang phát, và khung này **tự phát** ngay khi mở nên người xem bình
+  thường không thấy; chỉ hiện khi người xem tạm dừng hoặc rê chuột lên mép trên. Nút mở video đầy
+  đủ của mình (chân hộp + thẻ hết phần xem trước) là đường đi chính thức.
+- **Quảng cáo** không tắt được (đó là tiền của kênh).
+- Nếu trình duyệt **chặn tự phát** (người dùng bật "chặn tự phát"), YouTube có thể hiện nút play
+  lớn của chính nó bên trong iframe; cú bấm vẫn không tới được nó (lớp của trang ở trên), nhưng
+  nút của mình ở đó và bấm là chạy — vì `allow="… autoplay …"` đã bật từ trước.
+
+### XVI5. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **491 đạt / 0 lỗi / 2 skip** (vòng 25: 487 đạt — **+4 ca**): `previewCap.test.js` thêm 3 ca (`playhead` — quảng cáo không tính là vị trí video; `keptTime` — thời gian không lùi; `playButtonView` — thứ tự tin cậy và tắt trong lúc quảng cáo), `communityPolish.test.js` thêm 1 ca chốt `controls=0` + `disablekb=1` + `autoplay=1` và sự tồn tại của nút play/pause tự vẽ |
+| `npm run smoke` | ✅ **348/348** (vòng 25: 337, **+11 check**) — mục *5b* nay kiểm cả: URL nhúng tắt giao diện YouTube; có nút play/pause tự vẽ và thanh tua `role="slider"`; **bấm nút thật** và bắt lệnh gửi ra bằng cách chặn `contentWindow.postMessage` (jsdom không có mạng) — thấy đúng `pauseVideo` / `playVideo`; nút đổi trạng thái ngay; bấm vào giữa video cũng gửi lệnh và không lọt vào YouTube; khung đang phát thì nút mờ đi; **đang chạy quảng cáo thì nút tự tắt và không cắt nhầm**; quảng cáo hết thì đồng hồ không tụt về 0. **Đã chạy lại với mã CŨ (vòng 25): `337/346`, đỏ đúng 9 phép kiểm của ca này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền (hai cảnh báo `refs` do bản nháp gây ra đã được xử lý bằng cách đưa trạng thái nút vào state, và `PreviewControls` thành component riêng) |
+| `npm run build` | ✅ sạch — `index-BhIBp-T1.js` 343,03 kB (gzip 105,29 kB) |
+
+### XVI6. Còn nợ
+
+- **Chưa xem được bằng mắt trên trình duyệt thật** (không có mạng ra ngoài). Việc cần làm khi có
+  mạng: mở Hall of Fame → bấm một thẻ → kiểm bốn điều: (1) không thấy thanh điều khiển của
+  YouTube; (2) nút giữa khung bấm được, đổi hình theo trạng thái; (3) kéo thanh 0→30 giây thì
+  video nhảy đúng chỗ và **không vượt qua 30 giây**; (4) rê chuột lên mép trên khung xem còn thấy
+  gì của YouTube (kỳ vọng: tiêu đề + *Watch on YouTube* chỉ hiện khi tạm dừng — thứ không tắt được).

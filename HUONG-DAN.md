@@ -3296,8 +3296,9 @@ một loại bài): bài đó **vẫn** phải hiện.
 - **Comments** có reply một cấp. Reply lưu `request_comments.parent_id`, nên tải lại
   trang vẫn giữ quan hệ; xóa comment gốc cũng dọn reply con theo cascade.
 - **Hall of Fame** mở popup YouTube với `start=0&end=30`, thay vì đá người xem sang
-  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup. *(Mốc 30 giây
-  thành luật thật — chặn cả khi tua — ở **Vòng 25**, cuối tài liệu.)*
+  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup. *(Mốc 30 giây thành
+  luật thật ở **Vòng 25**, và giao diện YouTube bị ẩn — chỉ còn nút play/pause — ở
+  **Vòng 26**, cả hai ở cuối tài liệu.)*
 - **Achievement index** ở About me luôn liệt kê cả mốc đã đạt và chưa đạt: streak
   7/30/100, request đầu tiên, completion đầu tiên, top 10 và podium. Phần thưởng là
   badge/title hiển thị; không có vote weight ẩn.
@@ -3446,3 +3447,53 @@ Mở **Hall of Fame**, bấm một thẻ, rồi **kéo thanh thời gian qua v�
 ngay và hiện thẻ hết phần xem trước; bấm *Watch the preview again* phải chạy lại từ đầu. Phép kiểm
 tự động nằm ở `tools/smoke.mjs` mục *5b* (giả làm player gửi `currentTime` 12 giây rồi 47 giây);
 lượt chạy với mã CŨ cho `333/336`, đỏ đúng ba phép kiểm của ca này.
+
+## Vòng 26 — ẩn giao diện YouTube, chỉ còn play/pause (22/09/2026)
+
+Yêu cầu của chủ dự án: *"ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ bấm play/pause
+được thôi"*. Đây là việc **thay cả giao diện điều khiển**, không phải thêm một tham số — nên nó
+được làm cùng lúc với mốc 30 giây (Vòng 25) để không mở lại đường vòng.
+
+### Tắt gì, bằng gì
+
+| Tham số trong URL nhúng | Việc nó làm |
+|---|---|
+| `controls=0` | bỏ **thanh điều khiển** — trong đó có nút *Watch on YouTube*, thanh thời gian, âm lượng, cài đặt, logo kênh |
+| `disablekb=1` | bỏ **phím tắt của player**: `[l]`/`[→]` nhảy 10 giây, `[0-9]` nhảy theo phần trăm — hai đường vòng qua mốc 30 giây |
+| `autoplay=1` | (đã có) cũng là thứ giữ cho nút *Watch on YouTube* không hiện |
+
+Đổi lại, trang **tự vẽ đúng một nút**:
+
+- **Nút play/pause** giữa khung (`PreviewControls` trong `VideoPreviewModal.jsx`), gửi
+  `playVideo` / `pauseVideo` qua kênh postMessage của Vòng 25. Trạng thái nút đọc qua
+  `playButtonView()` trong `src/lib/previewCap.js`; vừa bấm thì nút đổi ngay, không chờ player.
+- **Lớp điều khiển phủ kín khung** nên cú bấm không bao giờ lọt vào iframe — không có giao diện
+  YouTube nào lộ ra, kể cả khi bấm vào giữa video. Bấm vào vùng video (ngoài nút) cũng là
+  play/pause, đúng thói quen của mọi player.
+- **Đang phát thì nút mờ đi** (không che hình), rê chuột vào khung hoặc Tab tới nó là hiện lại.
+  CSS nằm ở `.video-preview-controls.is-playing` trong `src/index.css`.
+- **Thanh 0→30 giây ở chân hộp nay kéo được**: kéo là gửi `seekTo`, mũi lên/xuống nhích 1 giây.
+  Tua vẫn có, nhưng **không tua ra ngoài 30 giây** được (mốc bị kẹp ngay trong `seekTo`, và vòng
+  canh vẫn cắt nếu player báo về vị trí quá mốc).
+- **Quảng cáo pre-roll**: nút tự tắt trong lúc quảng cáo, và thời gian của quảng cáo **không**
+  được tính vào mốc 30 giây (`playhead()` + `keptTime()`). Quảng cáo hết thì chỗ đang xem không
+  tụt về 0.
+
+### Thứ vẫn còn của YouTube (nói thẳng, không hứa quá)
+
+- **Tiêu đề video + tên kênh ở mép trên**, và **nút *Watch on YouTube* khi tạm dừng**: YouTube bỏ
+  tham số `modestbranding` từ 2023 và tới nay không có tham số nào tắt hai thứ đó. Chúng nằm
+  trong iframe khác tên miền nên trang không chạm tới được (CSS cũng không xuyên vào iframe).
+  Thực tế chúng tự mờ khi đang phát, và khung tự phát ngay khi mở — chỉ thấy khi người xem tạm
+  dừng hoặc rê chuột lên mép trên.
+- **Quảng cáo** không tắt được (đó là tiền của kênh).
+- Nếu trình duyệt **chặn tự phát**, YouTube có thể hiện nút play lớn của nó bên trong iframe; cú
+  bấm không tới được nó (lớp của trang ở trên), nhưng nút của mình ở đó và bấm là chạy.
+
+### Kiểm tra bằng tay sau khi deploy
+
+Mở **Hall of Fame** → bấm một thẻ → kiểm bốn điều: (1) không thấy thanh điều khiển của YouTube;
+(2) nút giữa khung bấm được và đổi hình theo trạng thái; (3) kéo thanh 0→30 giây thì video nhảy
+đúng chỗ và **không vượt qua 30 giây**; (4) tạm dừng xem còn gì của YouTube hiện ra (kỳ vọng:
+tiêu đề + *Watch on YouTube* — hai thứ không tắt được). Phép kiểm tự động nằm ở `tools/smoke.mjs`
+mục *5b*: nó bấm nút thật và bắt lệnh gửi ra khỏi trang; lượt chạy với mã CŨ cho `337/346`.

@@ -13,6 +13,7 @@ import assert from 'node:assert/strict'
 import {
   PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN,
   handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
+  playhead, keptTime, playButtonView,
 } from './previewCap.js'
 
 test('mốc xem trước là 30 giây, một số nguyên dương', () => {
@@ -111,6 +112,56 @@ test('luật cắt: đúng mốc 30 giây, và giá trị lạ thì KHÔNG cắt
   assert.equal(overCap(NaN), false)
   assert.equal(overCap('abc'), false)
   assert.equal(overCap(5, 5), true, 'mốc truyền vào phải được tôn trọng')
+})
+
+/* Quảng cáo pre-roll cũng gửi `currentTime`, nhưng đó là thời gian CỦA QUẢNG
+   CÁO. Đem nó so với mốc 30 giây thì một pre-roll 35 giây kết thúc phần xem
+   trước trong khi video còn chưa bắt đầu — đúng loại lỗi im lặng. */
+test('vị trí đang xem: quảng cáo không được tính là vị trí của video', () => {
+  assert.deepEqual(playhead({ currentTime: 12 }), { seconds: 12, ad: false })
+  assert.deepEqual(playhead({ currentTime: 12, playerState: 1 }), { seconds: 12, ad: false })
+
+  /* Hai dấu hiệu player tự gửi: playerState -1 trong lúc có thời gian chạy,
+     và videoData.isAd. */
+  assert.deepEqual(playhead({ currentTime: 33, playerState: -1 }), { seconds: 33, ad: true })
+  assert.deepEqual(playhead({ currentTime: 33, videoData: { isAd: 1 } }), { seconds: 33, ad: true })
+  assert.deepEqual(playhead({ currentTime: 33, playerState: -1, videoData: { isAd: 1 } }),
+    { seconds: 33, ad: true })
+
+  assert.equal(playhead({}), null)
+  assert.equal(playhead({ currentTime: 'x' }), null)
+  assert.equal(playhead(null), null)
+})
+
+test('thời gian không lùi: quảng cáo hết thì chỗ đang xem không tụt về 0', () => {
+  assert.equal(keptTime(0, 5), 5)
+  assert.equal(keptTime(12, 12.4), 12.4, 'nhích lên bình thường thì theo player')
+  assert.equal(keptTime(12.5, 0), 12.5, 'quảng cáo vừa hết, video bắt đầu lại từ 0')
+  assert.equal(keptTime(12.5, 1), 12.5)
+  assert.equal(keptTime(12, 11.8), 11.8, 'lùi nửa giây là chuyện bình thường, không phải quảng cáo')
+  assert.equal(keptTime(undefined, 7), 7)
+  assert.equal(keptTime(9, undefined), 9)
+  assert.equal(keptTime(undefined, undefined), 0)
+})
+
+test('nút play/pause tự vẽ: đọc từ trạng thái player, và tắt trong lúc quảng cáo', () => {
+  assert.deepEqual(playButtonView({ state: 1, info: {}, wantPlay: null }), { blocked: false, playing: true })
+  assert.deepEqual(playButtonView({ state: 2, info: {}, wantPlay: null }), { blocked: false, playing: false })
+
+  /* Trạng thái là thứ người dùng vừa nói ra → tin nó hơn lời player. */
+  assert.equal(playButtonView({ state: 1, info: { playerState: 2 }, wantPlay: false }).playing, true)
+  /* Chưa bấm gì → theo lời player. */
+  assert.equal(playButtonView({ state: null, info: { playerState: 1 }, wantPlay: null }).playing, true)
+  assert.equal(playButtonView({ state: null, info: { playerState: 2 }, wantPlay: null }).playing, false)
+  /* Iframe vừa dựng, chưa ai nói gì → theo ý định ban đầu (tự phát). */
+  assert.equal(playButtonView({ state: null, info: {}, wantPlay: null }).playing, false)
+  assert.equal(playButtonView({ state: null, info: {}, wantPlay: true }).playing, true)
+
+  /* Quảng cáo đang chạy: nút không có việc gì để làm. */
+  assert.deepEqual(playButtonView({ state: 1, info: { currentTime: 8, playerState: -1 }, wantPlay: null }),
+    { blocked: true, playing: false })
+  assert.deepEqual(playButtonView({ state: 1, info: { videoData: { isAd: 1 } }, wantPlay: true }),
+    { blocked: true, playing: false })
 })
 
 test('thanh tiến trình kẹp về 0..100 và không nhận giá trị rác', () => {

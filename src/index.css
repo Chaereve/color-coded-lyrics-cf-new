@@ -3963,12 +3963,38 @@ html[data-section="spin"] .bgfx { display: none; }
    tiến độ request) — con số nằm cạnh vạch, `tabular-nums` để số không nhảy. */
 .video-preview-tick { display: flex; align-items: center; gap: 8px; min-width: 0;
   color: var(--txt-3); font: 500 11px var(--mono); font-variant-numeric: tabular-nums; }
+/* Thanh thời gian là control THẬT của trang (kéo để tua trong 30 giây), không
+   phải hình vẽ cho đẹp — nên nó có vùng chạm 22px và một vòng focus. */
+.video-preview-bar { display: block; padding: 9px 0; cursor: pointer; touch-action: none;
+  border-radius: var(--r-sm); }
 .video-preview-track { position: relative; display: block; width: 92px; height: 4px;
   border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .video-preview-track i { display: block; height: 100%; width: var(--pv); border-radius: inherit;
   background: var(--a-2); transition: width 240ms var(--e-soft); }
+/* Núm kéo: nhỏ, nhưng phải thấy được là thanh này kéo được. */
+.video-preview-track u { position: absolute; top: 50%; left: var(--pv); width: 9px; height: 9px;
+  margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--txt); box-shadow: var(--ring); }
 /* Cùng luật với .prog-track: người xin giảm chuyển động thì vạch nhảy thẳng. */
 @media (prefers-reduced-motion: reduce) { .video-preview-track i { transition: none } }
+/* Nút play/pause TỰ VẼ — thanh điều khiển của YouTube đã tắt (`controls=0`),
+   nên đây là control duy nhất của khung, và nó nằm ở lớp riêng TRÊN iframe:
+   cú bấm không bao giờ tới được player (không có UI YouTube nào lộ ra). */
+.video-preview-controls { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; }
+.video-preview-toggle { display: grid; place-items: center; width: 56px; height: 56px; padding: 0;
+  border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; cursor: pointer;
+  background: rgba(8, 10, 15, .52); color: #fff; backdrop-filter: blur(3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
+.video-preview-toggle:hover:not(:disabled) { background: rgba(8, 10, 15, .72); transform: scale(1.06); }
+.video-preview-toggle:disabled { cursor: not-allowed; opacity: .5; }
+/* Đang phát thì nút mờ hẳn đi để không che hình — nhưng rê chuột vào khung, hoặc
+   bấm Tab tới nó, là nó hiện lại. Đang dừng thì luôn hiện: lúc ấy nó là việc
+   duy nhất làm được. */
+.video-preview-toggle { transition: opacity var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
+.video-preview-controls.is-playing .video-preview-toggle { opacity: 0; }
+.video-preview-controls.is-playing:hover .video-preview-toggle,
+.video-preview-controls.is-playing .video-preview-toggle:focus-visible { opacity: 1; }
+@media (max-width: 620px) { .video-preview-toggle { width: 48px; height: 48px; } }
 @media (max-width: 620px) { .video-preview-scrim { padding: 10px; } .video-preview-head h2 { font-size: 14px; } }
 .hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .hall-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
