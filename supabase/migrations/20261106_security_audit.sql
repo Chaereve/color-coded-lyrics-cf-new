@@ -75,15 +75,7 @@ alter table public.requests add constraint requests_progress_range check (progre
 -- =========================================================
 -- Public profiles need streak totals, not the exact calendar of another user.
 -- Keep raw dates for the owner/achievement engine and expose only aggregates.
-drop policy if exists "read activity days" on public.activity_days;
-drop policy if exists "read own activity days" on public.activity_days;
-
-create policy "read own activity days" on public.activity_days
-  for select to authenticated
-  using (user_id = auth.uid() or public.is_admin());
-  for select to authenticated using (user_id = auth.uid() or public.is_admin());
-revoke select on public.activity_days from anon, authenticated;
-grant select on public.activity_days to authenticated;
+drop policy if exists "read activity days"
 
 create or replace function public.public_streak(p_user_id uuid)
 returns jsonb language plpgsql security definer stable set search_path = public as $$
