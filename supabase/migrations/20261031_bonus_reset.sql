@@ -24,6 +24,11 @@ alter table public.profiles
   add constraint profiles_bonus_credits_nonneg check (bonus_credits >= 0);
 
 -- 2) So du hien thi = vote da mua + bonus (giu nguyen khoa tra ve `credits`).
+-- PostgreSQL không cho CREATE OR REPLACE đổi RETURNS TABLE,
+-- nên xóa function cũ trước khi tạo lại.
+-- Chỉ xóa function, không xóa bảng hoặc dữ liệu.
+drop function if exists public.my_vote_status();
+
 create or replace function public.my_vote_status()
 returns table (free_used int, free_limit int, credits int)
 language plpgsql stable security definer set search_path = public as $$
