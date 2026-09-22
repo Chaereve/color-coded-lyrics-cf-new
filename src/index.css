@@ -3976,16 +3976,46 @@ html[data-section="spin"] .bgfx { display: none; }
   margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--txt); box-shadow: var(--ring); }
 /* Cùng luật với .prog-track: người xin giảm chuyển động thì vạch nhảy thẳng. */
 @media (prefers-reduced-motion: reduce) { .video-preview-track i { transition: none } }
+/* MẶT NẠ PHỦ BỐN MÉP KHUNG VIDEO — xem CHROME_COVER trong src/lib/previewCap.js
+   để biết số đo và lý do (YouTube vẽ tiêu đề, logo, CC, chất lượng, nút share và
+   tấm "Video khác" BÊN TRONG iframe; CSS của trang không chạm tới được, nên chỉ
+   còn cách phủ lên).
+   Bốn dải là kính mờ: `backdrop-filter` làm mờ + tối chính những điểm ảnh của
+   video phía sau, nên mép khung trông như một viền mờ tự nhiên chứ không phải
+   băng dính đen; lớp gradient phía trên lo phần tối dần về phía mép.
+   `pointer-events: none` để cú bấm vẫn tới được lớp điều khiển ở trên.
+   Bốn dải nhô ra ngoài khung 14px: đè lên cả phần bo góc và mép iframe, nơi
+   trước đây còn lộ vệt của player. */
+.video-preview-masks { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.video-preview-masks i { position: absolute; display: block;
+  backdrop-filter: blur(18px) brightness(.62) saturate(1.05); }
+.vp-m-top { left: -14px; right: -14px; top: -14px; height: calc(var(--vp-top) + 14px);
+  background: linear-gradient(180deg, rgba(6, 8, 12, .84), rgba(6, 8, 12, .3)); }
+.vp-m-bottom { left: -14px; right: -14px; bottom: -14px; height: calc(var(--vp-bottom) + 14px);
+  background: linear-gradient(0deg, rgba(6, 8, 12, .86), rgba(6, 8, 12, .3)); }
+.vp-m-left { top: -14px; bottom: -14px; left: -14px; width: calc(var(--vp-left) + 14px);
+  background: linear-gradient(90deg, rgba(6, 8, 12, .6), rgba(6, 8, 12, 0)); }
+.vp-m-right { top: -14px; bottom: -14px; right: -14px; width: calc(var(--vp-right) + 14px);
+  background: linear-gradient(270deg, rgba(6, 8, 12, .6), rgba(6, 8, 12, 0)); }
+/* Trình duyệt không có `backdrop-filter` (hoặc nó không lấy được mặt phẳng của
+   iframe) thì bốn dải vẫn là bốn tấm tối dần — vẫn che, chỉ là không mờ. */
+@supports not (backdrop-filter: blur(2px)) {
+  .video-preview-masks i { background-color: rgba(6, 8, 12, .72); }
+}
+
 /* Nút play/pause TỰ VẼ — thanh điều khiển của YouTube đã tắt (`controls=0`),
    nên đây là control duy nhất của khung, và nó nằm ở lớp riêng TRÊN iframe:
-   cú bấm không bao giờ tới được player (không có UI YouTube nào lộ ra). */
+   cú bấm không bao giờ tới được player (không có UI YouTube nào lộ ra).
+   Nút cũng che luôn nút play lớn mà player tự vẽ ở giữa khi video đang dừng:
+   nền mờ + tối (blur 10px, brightness .7) làm nó tan vào nền. */
 .video-preview-controls { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; }
 .video-preview-toggle { display: grid; place-items: center; width: 56px; height: 56px; padding: 0;
   border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; cursor: pointer;
-  background: rgba(8, 10, 15, .52); color: #fff; backdrop-filter: blur(3px);
+  background: rgba(8, 10, 15, .82); color: #fff;
+  backdrop-filter: blur(10px) brightness(.7);
   box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
   transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
-.video-preview-toggle:hover:not(:disabled) { background: rgba(8, 10, 15, .72); transform: scale(1.06); }
+.video-preview-toggle:hover:not(:disabled) { background: rgba(8, 10, 15, .92); transform: scale(1.06); }
 .video-preview-toggle:disabled { cursor: not-allowed; opacity: .5; }
 /* Đang phát thì nút mờ hẳn đi để không che hình — nhưng rê chuột vào khung, hoặc
    bấm Tab tới nó, là nó hiện lại. Đang dừng thì luôn hiện: lúc ấy nó là việc

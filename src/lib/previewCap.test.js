@@ -11,7 +11,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN,
+  PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, CHROME_COVER,
   handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
   playhead, keptTime, playButtonView,
 } from './previewCap.js'
@@ -162,6 +162,41 @@ test('nút play/pause tự vẽ: đọc từ trạng thái player, và tắt tro
     { blocked: true, playing: false })
   assert.deepEqual(playButtonView({ state: 1, info: { videoData: { isAd: 1 } }, wantPlay: true }),
     { blocked: true, playing: false })
+})
+
+/* MẶT NẠ PHỦ MÉP KHUNG — bài kiểm HÌNH HỌC, không phải bài kiểm chữ nghĩa.
+   -------------------------------------------------------------------------
+   Hình chữ nhật dưới đây là giao diện YouTube đọc từ ảnh chụp của chủ dự án
+   ("vẫn chưa ẩn hoàn toàn giao diện yt"), quy ra % của khung video (914×537):
+   tiêu đề + avatar kênh ở mép trên, tấm "Video khác" và cụm logo / CC / chất
+   lượng / share / nút ⋮ ở mép dưới. Chúng nằm BÊN TRONG iframe khác tên miền
+   nên không tắt được bằng tham số, cũng không chạm tới được bằng CSS — chỉ có
+   thể PHỦ LÊN. Bài này khẳng định: với CHROME_COVER hiện tại, từng thứ một
+   trong số đó nằm TRỌN trong một dải mặt nạ.
+   Sửa CHROME_COVER nhỏ đi là bài này đỏ, và đỏ ở đúng mép sẽ lộ giao diện. */
+const YT_CHROME = {
+  'tiêu đề + avatar kênh': { x: 0, y: 4, w: 100, h: 9 },
+  'nút ⋮ của player': { x: 94, y: 2, w: 6, h: 5 },
+  'tấm "Video khác"': { x: 38, y: 80, w: 34, h: 14 },
+  'logo YouTube': { x: 76, y: 91, w: 20, h: 4 },
+  'biểu tượng CC': { x: 9, y: 93, w: 7, h: 6 },
+  'ô chất lượng (4K)': { x: 92, y: 92, w: 7, h: 6 },
+  'nút share': { x: 1, y: 88, w: 6, h: 4 },
+}
+
+test('mặt nạ bốn mép che TRỌN giao diện YouTube còn sót (ảnh chụp 22/09)', () => {
+  const bands = [
+    { x: 0, y: 0, w: 100, h: CHROME_COVER.top },
+    { x: 0, y: 100 - CHROME_COVER.bottom, w: 100, h: CHROME_COVER.bottom },
+    { x: 0, y: 0, w: CHROME_COVER.left, h: 100 },
+    { x: 100 - CHROME_COVER.right, y: 0, w: CHROME_COVER.right, h: 100 },
+  ]
+  const inside = (r, b) => r.x >= b.x - 0.01 && r.y >= b.y - 0.01
+    && r.x + r.w <= b.x + b.w + 0.01 && r.y + r.h <= b.y + b.h + 0.01
+  const holes = Object.entries(YT_CHROME)
+    .filter(([, r]) => !bands.some((b) => inside(r, b)))
+    .map(([name]) => name)
+  assert.deepEqual(holes, [], `những thứ này sẽ lộ ra: ${holes.join(', ')}`)
 })
 
 test('thanh tiến trình kẹp về 0..100 và không nhận giá trị rác', () => {

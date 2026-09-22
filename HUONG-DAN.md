@@ -3298,7 +3298,7 @@ một loại bài): bài đó **vẫn** phải hiện.
 - **Hall of Fame** mở popup YouTube với `start=0&end=30`, thay vì đá người xem sang
   tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup. *(Mốc 30 giây thành
   luật thật ở **Vòng 25**, và giao diện YouTube bị ẩn — chỉ còn nút play/pause — ở
-  **Vòng 26**, cả hai ở cuối tài liệu.)*
+  **Vòng 26–27**, cả ba ở cuối tài liệu.)*
 - **Achievement index** ở About me luôn liệt kê cả mốc đã đạt và chưa đạt: streak
   7/30/100, request đầu tiên, completion đầu tiên, top 10 và podium. Phần thưởng là
   badge/title hiển thị; không có vote weight ẩn.
@@ -3497,3 +3497,52 @@ Mở **Hall of Fame** → bấm một thẻ → kiểm bốn điều: (1) không
 đúng chỗ và **không vượt qua 30 giây**; (4) tạm dừng xem còn gì của YouTube hiện ra (kỳ vọng:
 tiêu đề + *Watch on YouTube* — hai thứ không tắt được). Phép kiểm tự động nằm ở `tools/smoke.mjs`
 mục *5b*: nó bấm nút thật và bắt lệnh gửi ra khỏi trang; lượt chạy với mã CŨ cho `337/346`.
+
+## Vòng 27 — phủ nốt giao diện YouTube còn sót (22/09/2026)
+
+Chủ dự án báo lần thứ ba, kèm ảnh chụp: *"vẫn chưa ẩn hoàn toàn giao diện yt"*. Vòng 26 mới ẩn
+được **thanh điều khiển**, còn trong ảnh vẫn nguyên: **tiêu đề + avatar kênh** (mép trên), **logo
+YouTube, CC, ô chất lượng 4K, nút share** (mép dưới), và **tấm "Video khác"** (nội dung gợi ý).
+
+### Vì sao không phải thiếu tham số
+
+| Thứ còn sót | Vì sao không tắt được |
+|---|---|
+| tiêu đề + avatar kênh, tấm "Video khác", logo, CC, chất lượng, share, nút ⋮ | **không nằm trong thanh điều khiển** → `controls=0` không đụng tới |
+| logo | `modestbranding` — tham số duy nhất từng bỏ được logo — **đã bị YouTube bỏ từ 2023** |
+| tất cả | nằm **trong iframe khác tên miền**: CSS của trang không xuyên vào được, JS cũng không đọc được DOM bên trong |
+
+Không có công tắc nào. Cách duy nhất còn lại là **phủ lên**.
+
+### Bốn dải mặt nạ — số đo trong `CHROME_COVER` (`src/lib/previewCap.js`)
+
+| Dải | Che gì | Con số (theo % khung video) |
+|---|---|---|
+| trên | tiêu đề + avatar kênh, nút ⋮ | **15%** (chỗ cần che cao nhất là 13%) |
+| dưới | tấm "Video khác", logo, CC, ô chất lượng, nút share | **24%** (tấm gợi ý bắt đầu ở 80%) |
+| trái / phải | vệt mép player, bo góc, vệt sáng ô chất lượng khi mở | **4%** mỗi bên |
+
+Dải **nhô ra ngoài khung 14px** để đè cả phần bo góc và mép iframe. Đây là **kính mờ**
+(`backdrop-filter: blur(18px) brightness(.62)`), không phải thanh đen đặc: nó làm mờ + tối chính
+những điểm ảnh của video phía sau, nên mép khung trông như một viền mờ ăn theo màu video, rồi
+gradient tối dần về phía mép. Nút play/pause tự vẽ được làm đục hơn để che luôn **nút play lớn mà
+player vẽ ở giữa** khi video đang dừng.
+
+Muốn đổi số: sửa `CHROME_COVER` là đủ (JSX đọc từ đó, smoke so lại đúng con số đó). Nhưng sửa nhỏ
+đi thì `previewCap.test.js` báo đỏ — bài kiểm hình học giữ bảy hình chữ nhật đọc từ ảnh chụp và
+đòi từng thứ nằm trọn trong một dải.
+
+### Giá phải trả (nói thẳng)
+
+- **Mép bị phủ là mép bị mất hình**: 15% trên + 24% dưới. Đổi lại: không còn giao diện YouTube.
+  Với khung xem trước 30 giây thì nội dung chính của video nằm giữa khung, nên đây là lựa chọn có
+  ý thức. Muốn giữ trọn hình thì phải quay lại chấp nhận giao diện YouTube.
+- **Còn lại của player là những gì nó vẽ ở CHÍNH GIỮA khung** (nút play lớn khi đang dừng, nhịp
+  nháy pause) — nút của trang nằm đè lên đó.
+
+### Kiểm tra bằng tay sau khi deploy
+
+Mở **Hall of Fame** → bấm một thẻ → soi bốn mép: mép trên hết tiêu đề/avatar kênh, mép dưới hết
+logo/CC/chất lượng/share, giữa khung hết tấm "Video khác". Phép kiểm tự động ở `tools/smoke.mjs`
+mục *5b* (kiểm có mặt nạ, đúng bốn dải, và số đo khớp `CHROME_COVER`); lượt chạy với mã CŨ cho
+`349/351`.

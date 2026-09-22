@@ -124,6 +124,35 @@ export function mergeInfo(prev, patch) {
   return out
 }
 
+/* =========================================================
+   MẶT NẠ PHỦ GIAO DIỆN YOUTUBE — số đo, và vì sao lại phải phủ
+   ---------------------------------------------------------
+   Chủ dự án báo lần thứ ba, kèm ảnh chụp: "vẫn chưa ẩn hoàn toàn giao diện
+   yt". Trong ảnh còn nguyên tiêu đề + avatar kênh ở mép trên, logo YouTube,
+   biểu tượng CC, ô chất lượng (4K) và nút share ở mép dưới, cùng tấm
+   "Video khác" (nội dung gợi ý) — tất cả là những thứ YouTube VẼ BÊN TRONG
+   iframe.
+
+   Đó là giới hạn thật, không phải thiếu tham số:
+     · `controls=0` bỏ thanh điều khiển, nhưng tiêu đề/kênh và tấm gợi ý không
+       nằm trong thanh điều khiển;
+     · `modestbranding` (thứ từng bỏ được logo) đã bị YouTube bỏ từ 2023;
+     · iframe là tên miền khác nên CSS của trang KHÔNG xuyên vào được, cũng
+       không đọc được DOM bên trong (nên cũng không "nhìn" mà ẩn theo).
+   Cách duy nhất còn lại: PHỦ LÊN — bốn dải mờ ở bốn mép khung.
+
+   Số đo dưới đây lấy từ chính ảnh chụp của chủ dự án (914×537 px là khung
+   video, quy ra % của khung):
+     · tiêu đề + avatar: 4% .. 13% chiều cao  → dải trên 15% là đủ, dư 2%;
+     · tấm "Video khác": 80% .. 94% chiều cao  → dải dưới 24% là đủ, dư 4%;
+     · logo / CC / chất lượng / nút share: 88% .. 99% → nằm trong dải dưới;
+     · mép trái/phải: vệt mờ 4% đủ che dấu vết của player (nút share ở mép
+       trái, bo góc, vệt sáng của ô chất lượng khi mở).
+   Dải là MẶT NẠ MỜ (blur + tối đi) chứ không phải thanh đen đặc: nó vẫn cho
+   thấy màu của video phía sau, nên khung trông như một khung có viền mờ tự
+   nhiên, không phải một khung bị dán băng dính đen. */
+export const CHROME_COVER = { top: 15, right: 4, bottom: 24, left: 4 }
+
 /* ĐÃ CHẠM MỐC CHƯA? Số vắng/không phải số thì câu trả lời là "chưa biết" —
    thà không cắt còn hơn cắt nhầm một khung chưa kịp chạy. */
 export function overCap(seconds, limit = PREVIEW_SECONDS) {

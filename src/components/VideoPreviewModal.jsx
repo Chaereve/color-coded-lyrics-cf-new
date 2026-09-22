@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import {
-  PREVIEW_SECONDS, PLAYER_ORIGIN, handshake, command,
+  PREVIEW_SECONDS, PLAYER_ORIGIN, CHROME_COVER, handshake, command,
   readWidgetEvent, mergeInfo, overCap, playhead, keptTime, playButtonView, previewPct,
 } from '../lib/previewCap.js'
 import { useI18n } from '../lib/i18n.jsx'
@@ -70,6 +70,14 @@ import { useI18n } from '../lib/i18n.jsx'
        tua RA NGOÀI phần xem trước.
      · Không vẽ thanh âm lượng / toàn màn hình / cài đặt / logo kênh / tiêu đề
        của YouTube — đó chính là "mấy cái giao diện" cần ẩn.
+
+   LỖI ĐÃ GẶP THẬT, LẦN 3 (chủ dự án gửi ảnh chụp): "vẫn chưa ẩn hoàn toàn giao
+   diện yt". `controls=0` chỉ bỏ thanh điều khiển; tiêu đề + avatar kênh ở mép
+   trên, logo YouTube / CC / ô chất lượng / nút share ở mép dưới, và tấm
+   "Video khác" thì vẫn nguyên — chúng KHÔNG nằm trong thanh điều khiển, và
+   iframe khác tên miền nên CSS của trang không chạm tới được. Đó là lý do bốn
+   dải mặt nạ phủ mép khung (xem `CHROME_COVER` trong previewCap.js để biết số
+   đo và vì sao chọn phủ thay vì tắt).
 
    Pre-roll thì không tắt được (đó là tiền của kênh), nhưng nút play/pause TỰ
    TẮT trong lúc quảng cáo đang chạy: bấm pause vào quảng cáo chỉ tổ đứng hình
@@ -409,7 +417,22 @@ export default function VideoPreviewModal({ video, onClose }) {
           onLoad={() => send(handshake())}
           allowFullScreen
         />
-        {/* Nút DUY NHẤT của khung: play/pause (xem PreviewControls). */}
+        {/* MẶT NẠ BỐN MÉP: che tiêu đề/kênh, logo, CC, chất lượng, nút share và
+            tấm "Video khác" — những thứ YouTube vẽ bên trong iframe mà trang
+            không tắt được (xem CHROME_COVER trong previewCap.js). Số đo là biến
+            CSS để số nằm ở MỘT chỗ, và smoke kiểm được đúng con số đó. */}
+        <div className="video-preview-masks" aria-hidden="true"
+          style={{
+            '--vp-top': `${CHROME_COVER.top}%`, '--vp-bottom': `${CHROME_COVER.bottom}%`,
+            '--vp-left': `${CHROME_COVER.left}%`, '--vp-right': `${CHROME_COVER.right}%`,
+          }}>
+          <i className="vp-m-top" />
+          <i className="vp-m-bottom" />
+          <i className="vp-m-left" />
+          <i className="vp-m-right" />
+        </div>
+        {/* Nút DUY NHẤT của khung: play/pause (xem PreviewControls). Nó đứng
+            TRÊN mặt nạ và che luôn nút play lớn mà player tự vẽ ở giữa. */}
         <PreviewControls playing={playState.playing} blocked={playState.blocked} onToggle={toggle} />
       </>
     )

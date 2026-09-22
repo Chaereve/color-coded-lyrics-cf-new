@@ -1821,3 +1821,71 @@ trong ref vì vòng canh không được dựng lại mỗi cú bấm (dựng l�
   YouTube; (2) nút giữa khung bấm được, đổi hình theo trạng thái; (3) kéo thanh 0→30 giây thì
   video nhảy đúng chỗ và **không vượt qua 30 giây**; (4) rê chuột lên mép trên khung xem còn thấy
   gì của YouTube (kỳ vọng: tiêu đề + *Watch on YouTube* chỉ hiện khi tạm dừng — thứ không tắt được).
+
+## Phần XVII — vòng 27: phủ nốt giao diện YouTube còn sót (22/09/2026)
+
+Chủ dự án báo lần thứ ba, lần này kèm **ảnh chụp**: *"vẫn chưa ẩn hoàn toàn giao diện yt"*. Trong
+ảnh còn nguyên: **tiêu đề + avatar kênh** ở mép trên, **logo YouTube, biểu tượng CC, ô chất lượng
+4K, nút share** ở mép dưới, và **tấm "Video khác"** (nội dung gợi ý) phủ giữa khung. Vòng 26 mới
+làm được một nửa việc, và lý do là **giới hạn thật**, không phải thiếu tham số.
+
+### XVII1. Vì sao `controls=0` không đủ — và không có tham số nào đủ
+
+| Thứ còn sót | Vì sao không tắt được |
+|---|---|
+| tiêu đề + avatar kênh, tấm "Video khác", logo, CC, chất lượng, share, nút ⋮ | **không nằm trong thanh điều khiển**, nên `controls=0` không đụng tới |
+| logo / nút *Watch on YouTube* ở mép dưới | `modestbranding` — tham số duy nhất từng bỏ được logo — **đã bị YouTube bỏ từ 2023** |
+| tất cả những thứ trên | nằm **bên trong iframe khác tên miền**: CSS của trang không xuyên vào được, JS cũng không đọc được DOM bên trong (nên không thể "nhìn thấy rồi ẩn theo") |
+
+Nói ngắn: **không có công tắc**. Cách duy nhất còn lại là **phủ lên** — và đó là việc của vòng này.
+
+### XVII2. Bốn dải mặt nạ, số đo lấy từ chính ảnh chụp
+
+`CHROME_COVER` trong `src/lib/previewCap.js` là nguồn số duy nhất; khung video trong ảnh là
+914×537 px, quy ra % chiều cao/chiều rộng khung:
+
+| Dải | Che gì | Vì sao con số đó |
+|---|---|---|
+| trên **15%** | tiêu đề + avatar kênh (4%..13%), nút ⋮ (2%..7%) | dư 2% so với chỗ cao nhất phải che |
+| dưới **24%** | tấm "Video khác" (80%..94%), logo (91%..95%), CC (93%..99%), chất lượng (92%..98%), share (88%..92%) | dư 4% dưới chỗ bắt đầu của tấm gợi ý |
+| trái / phải **4%** | vệt mép của player, bo góc, vệt sáng của ô chất lượng khi mở | mỏng nhất mà vẫn phủ hết mép |
+
+Bốn dải **nhô ra ngoài khung 14px** để đè cả phần bo góc và mép iframe — chỗ trước đây lộ vệt.
+
+Dải là **kính mờ**, không phải băng dính đen: `backdrop-filter: blur(18px) brightness(.62)` làm
+mờ và tối **chính những điểm ảnh của video phía sau**, nên mép khung trông như một viền mờ ăn
+theo màu video (kiểu ambient mode), rồi một lớp gradient tối dần về phía mép. Nút play/pause tự
+vẽ cũng được làm đục hơn (`rgba(8,10,15,.82)` + `blur(10px) brightness(.7)`) để **che luôn nút
+play lớn mà player tự vẽ ở giữa** khi video đang dừng.
+
+Ba điều đã cân nhắc và **cố ý không làm**:
+
+- **Không kéo iframe to lên rồi cắt bớt.** Phóng to để phần nhìn thấy vẫn đủ 16:9 thì ảnh bị
+  zoom (mất nét), mà giao diện YouTube cũng phóng theo và vẫn nằm trong vùng nhìn thấy.
+- **Không đặt lại vị trí tấm gợi ý.** Tấm đó nằm bên trong iframe; không có cách nào chạm tới.
+- **Không tô đen đặc bốn dải.** Thanh đen đặc thì che được, nhưng khung thành cái hộp bị dán
+  băng dính; kính mờ che y như vậy mà vẫn ăn theo màu video.
+
+### XVII3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **493 đạt / 0 lỗi / 2 skip** (vòng 26: 491 đạt — **+2 ca**). Mới: **bài kiểm HÌNH HỌC** trong `previewCap.test.js` — bảy hình chữ nhật giao diện YouTube đọc từ ảnh chụp (tiêu đề/kênh, nút ⋮, tấm "Video khác", logo, CC, chất lượng, share) phải nằm **trọn** trong một trong bốn dải; sửa `CHROME_COVER` nhỏ đi là đỏ ngay, và đỏ ở đúng mép sẽ lộ giao diện. Thêm 1 ca ở `communityPolish.test.js`: dải trên ≥ 13%, dải dưới ≥ 20%, và tổng hai dải < 50% (không được phủ quá nửa khung, không thì hết chỗ xem video) |
+| `npm run smoke` | ✅ **351/351** (vòng 26: 348, **+3 check**): có mặt nạ và **đúng bốn dải**; số đo trong DOM khớp `CHROME_COVER` (smoke **import chính mô-đun** rồi so, không chép lại con số); mặt nạ không chặn cú bấm. **Đã chạy lại với mã CŨ (vòng 26): `349/351`, đỏ đúng hai phép kiểm của ca này** (`không có` mặt nạ) |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-*.js` 343 kB |
+
+### XVII4. Còn nợ
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài). Việc cần làm khi có mạng:
+  mở Hall of Fame → bấm một thẻ → soi bốn mép: mép trên không còn tiêu đề/avatar kênh, mép dưới
+  không còn logo/CC/chất lượng/share, giữa khung không còn tấm "Video khác". Thứ duy nhất còn lại
+  là **những gì player vẽ ở CHÍNH GIỮA khung** (nút play lớn khi đang dừng, nhịp nháy pause) —
+  nút play/pause của trang nằm đè lên đó, nhưng nếu ảnh chụp cho thấy còn viền của nút YouTube
+  thì bước tiếp theo là phóng to nút của trang cho phủ kín hơn.
+- **`backdrop-filter` trên iframe khác tên miền** là chỗ phụ thuộc trình duyệt. Nếu trình duyệt
+  không lấy được mặt phẳng của iframe, bốn dải vẫn là bốn tấm tối dần (đã có nhánh
+  `@supports not`), tức vẫn che — chỉ mất vẻ "kính mờ ăn theo màu video".
+- **Mép bị phủ là mép bị mất hình**: 15% trên + 24% dưới. Đây là giá phải trả để không còn giao
+  diện YouTube, và là lựa chọn có ý thức cho một khung xem trước 30 giây (nội dung chính của
+  video nằm giữa khung). Muốn giữ trọn hình thì phải quay lại chấp nhận giao diện YouTube.

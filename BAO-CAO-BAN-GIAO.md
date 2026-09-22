@@ -339,6 +339,12 @@ notify pgrst, 'reload schema';
   tua trong phạm vi 30 giây. Hai thứ của YouTube **không tắt được** và sẽ còn thấy khi tạm dừng:
   tiêu đề video ở mép trên và nút *Watch on YouTube* (YouTube bỏ tham số `modestbranding` từ 2023).
   Chi tiết: `HUONG-DAN.md` mục *Vòng 26*.
+- **Preview trong Hall of Fame (giao diện YouTube, phần còn sót):** trong khung xem trước, bốn
+  mép khung được **phủ một dải kính mờ**: mép trên không còn **tiêu đề + avatar kênh**, mép dưới
+  không còn **logo YouTube, CC, ô chất lượng, nút share, tấm "Video khác"**. Đây là giới hạn thật
+  của YouTube (những thứ đó nằm trong iframe khác tên miền, không tham số nào tắt được), nên phải
+  phủ — và **mép bị phủ là mép bị mất hình** (15% trên + 24% dưới). Chi tiết: `HUONG-DAN.md` mục
+  *Vòng 27*.
 - **About me (`/profile`):** Tải avatar GIF/WebP; kiểm tra khoảng cách giữa Achievement index và Stats; bấm `View all achievements (10)`.
 
 ---

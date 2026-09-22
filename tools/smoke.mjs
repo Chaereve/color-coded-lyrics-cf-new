@@ -95,6 +95,9 @@ const { createElement, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const App = (await server.ssrLoadModule('/src/App.jsx')).default
 const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+/* Số đo mặt nạ lấy từ CHÍNH mô-đun, không chép lại: smoke kiểm "khung có phủ
+   đúng con số mà mã đang dùng" chứ không phải "khung có phủ con số nào đó". */
+const { CHROME_COVER } = await server.ssrLoadModule('/src/lib/previewCap.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
 
 const container = window.document.getElementById('root')
@@ -480,6 +483,22 @@ where = 'xem trước video (Hall of Fame)'
       !!q('.video-preview-controls .video-preview-toggle'))
     check('thanh thời gian của trang kéo được (chỉ trong 30 giây)',
       q('.video-preview-bar')?.getAttribute('role') === 'slider')
+    /* MẶT NẠ BỐN MÉP (vòng 27): tiêu đề/kênh ở mép trên, logo/CC/chất lượng/
+       nút share và tấm "Video khác" ở mép dưới là những thứ YouTube vẽ BÊN
+       TRONG iframe — CSS của trang không chạm tới được, nên phải phủ lên. */
+    const masks = q('.video-preview-masks')
+    check('có mặt nạ phủ bốn mép khung (che giao diện YouTube)',
+      !!masks && qa('.video-preview-masks i').length === 4,
+      masks ? `${qa('.video-preview-masks i').length} dải` : 'không có')
+    check('mặt nạ dùng đúng số đo CHROME_COVER (một nguồn số, không chép lại)',
+      masks?.style.getPropertyValue('--vp-top') === `${CHROME_COVER.top}%`
+      && masks?.style.getPropertyValue('--vp-bottom') === `${CHROME_COVER.bottom}%`
+      && masks?.style.getPropertyValue('--vp-left') === `${CHROME_COVER.left}%`
+      && masks?.style.getPropertyValue('--vp-right') === `${CHROME_COVER.right}%`,
+      masks?.getAttribute('style'))
+    check('mặt nạ không chặn cú bấm (mọi thứ đi qua nó tới nút play/pause)',
+      masks?.querySelector('.vp-m-bottom') !== null
+      && !!q('.video-preview-controls .video-preview-toggle'))
 
     /* ---- TUA QUA 30 GIÂY (chủ dự án báo lần hai, vòng 25) ----
        `end=30` chỉ là chỗ đánh dấu của player: kéo thanh thời gian qua vạch đó
