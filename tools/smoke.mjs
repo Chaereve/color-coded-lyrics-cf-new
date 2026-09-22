@@ -1744,6 +1744,39 @@ where = 'bài trả phí'
     (await waitFor(() => !!q('.list') && !q('.public-profile'), 3000)) && !splashUp())
   quiet('trang cá nhân công khai')
 
+  /* (7b) HAI TRANG CHỒNG LÊN NHAU — LỖI CHỦ DỰ ÁN BÁO (vòng 24)
+     Ảnh chụp gửi kèm: khối trang cá nhân của người khác (Requests / Completed /
+     Votes received, streak, Achievements, Recent requests) nằm TRÊN, và ngay
+     dưới nó là "Daily bonus wheel" của mục Daily Spin — hai trang trong cùng
+     một tài liệu. Gốc rễ: trang cá nhân là một TRANG sống trong mục Bảng, còn
+     `section` đổi độc lập; bản trước chỉ mục Bảng có `!profileId`, nên bấm mục
+     nào khác là mục đó dựng thêm NGAY DƯỚI trang cá nhân.
+     Ba phép kiểm: trang cá nhân đóng lại, mục vừa bấm dựng đúng khối của nó,
+     và cả tài liệu chỉ còn MỘT trang. */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  const spinTab = qa('.side-nav .side-item').find(a => /Daily Spin/i.test(a.textContent || ''))
+  check('menu có mục Daily Spin để bấm sang', !!spinTab,
+    qa('.side-nav .side-item').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
+  if (spinTab) {
+    await click(spinTab)
+    await waitFor(() => !q('.public-profile'), 3000)
+    await tick(240)
+    check('bấm Daily Spin khi đang mở trang cá nhân: trang cá nhân ĐÓNG lại',
+      !q('.public-profile'), qa('.public-profile') ? 'khối trang cá nhân vẫn còn' : '')
+    check('mục vừa bấm dựng đúng khối của nó (vòng quay hiện ra)',
+      !!q('.daily-spin'), (q('.sect')?.textContent || '').replace(/\s+/g, ' ').slice(0, 120))
+    check('tài liệu chỉ còn MỘT trang, không chồng hai trang',
+      qa('.public-profile').length + qa('.daily-spin').length === 1,
+      `trang cá nhân=${qa('.public-profile').length} · vòng quay=${qa('.daily-spin').length}`)
+    check('địa chỉ thôi nói về trang cá nhân vừa rời (F5 không mở lại nó)',
+      !new URLSearchParams(window.location.search).has('profile'), window.location.search)
+  }
+  /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
+  await goto('/', () => items().length > 0)
+  check('quay lại bảng: danh sách có hàng và không còn trang nào khác',
+    items().length > 0 && !q('.public-profile') && !q('.daily-spin'),
+    `số mục=${items().length}`)
+
   /* (8) MÔI TRƯỜNG THÙ ĐỊCH: ghi địa chỉ bị chặn mà vẫn đi được.
      Đây là vế quan trọng nhất: bản xem trước của nền tảng chạy trong iframe
      sandbox, `pushState` ném SecurityError. Bản cũ gọi `pushState` TRƯỚC khi đổi

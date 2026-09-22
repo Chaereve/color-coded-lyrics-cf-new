@@ -33,7 +33,8 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery } from './lib/history'
+import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
+import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
@@ -146,8 +147,11 @@ const readBoard = () => {
   }
 }
 
-const VT = typeof document !== 'undefined' && typeof document.startViewTransition === 'function'
 const REDUCED = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+/* MỘT cửa cho chuyển cảnh giữa hai mục (xem lib/viewTransition.js): nó giữ cờ
+   "đang bay" nên hai cú bấm liên tiếp không thể mở hai chuyến cùng lúc — đúng
+   cách sinh ra hai tấm ảnh chụp lồng nhau = "chồng trang". */
+const sectionTransition = createSectionTransition({ reduced: REDUCED })
 
 /* BA NHÓM, ĐÚNG THỨ TỰ NGƯỜI TA ĐỌC BẢNG.
    `c` là màu VẠCH của mục (CSS đọc qua biến `--c`), `ax` là nhóm — mục đầu
@@ -447,6 +451,19 @@ function AppInner() {
      chứng chủ dự án báo: "bấm profile bị quay về trang chủ" và "bấm không được
      gì". State đổi trước, địa chỉ ghi sau bằng `pushUrl` (không bao giờ ném). */
   const [profileId, setProfileId] = useState(readProfileId)
+  /* TRANG CÁ NHÂN CÔNG KHAI LÀ MỘT TRANG, KHÔNG PHẢI MỘT MỤC.
+     ---------------------------------------------------------
+     Nó chỉ tồn tại trong mục Bảng (`openProfile` còn tự đặt `section='board'`),
+     nên MỌI khối của các mục khác phải đứng ngoài nó. Bản trước chỉ mục Bảng có
+     `!profileId`; ba mục còn lại cứ thế dựng thêm, và kết quả là hai trang nằm
+     chồng nhau: khối trang cá nhân của người khác ở trên, mục vừa bấm ở dưới —
+     đúng ảnh chụp chủ dự án gửi ("bấm vào profile người khác xong chuyển sang
+     tab khác trong trang thì bị chồng trang", ảnh: trang cá nhân rồi ngay dưới
+     là "Daily bonus wheel").
+     Nay cả năm khối đều đi qua CÙNG một lá cờ, nên không có đường nào dựng hai
+     trang một lúc — kể cả khi địa chỉ bị dán tay (`/?profile=…` lúc đang ở
+     mục khác) hay khi người dùng bấm Back/Forward. */
+  const onProfile = !!profileId
   // The shared aurora sits outside the lazy page. Set its route mode before
   // paint so Daily Spin stays flat on direct loads, navigation and history.
   useLayoutEffect(() => {
@@ -505,20 +522,21 @@ function AppInner() {
       const narrow = window.matchMedia?.('(max-width: 899px)').matches
       window.scrollTo({ top: 0, behavior: narrow ? 'auto' : 'smooth' })
       /* Chỉ mục Bảng mới có tham số sống ở địa chỉ (`?f=top&q=…`); trang quản
-         trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây. */
-      const qs = k === 'board' ? window.location.search : ''
+         trị tự ghi `?tab=…` khi đổi mục nên không đi qua đây.
+         Và tham số `profile` KHÔNG được đi theo: nếu đi theo thì đang ở trang
+         cá nhân của người khác, bấm sang mục khác (trang cá nhân đã đóng) mà
+         F5 lại mở lại đúng trang vừa rời. */
+      const qs = k === 'board' ? searchWithoutProfile(window.location.search) : ''
       if (ROUTES[k] + qs !== window.location.pathname + window.location.search) {
         pushUrl({ s: k }, ROUTES[k] + qs)
       }
     }
-    if (VT && !REDUCED()) {
-      const order = navOrder()
-      const dir = order.indexOf(k) >= order.indexOf(section) ? 'fwd' : 'back'
-      document.documentElement.dataset.nav = dir
-      document.startViewTransition(run)
-      return
-    }
-    run()
+    const order = navOrder()
+    const dir = order.indexOf(k) >= order.indexOf(section) ? 'fwd' : 'back'
+    /* Hướng đi phải tính TRƯỚC khi đổi mục, và việc đổi mục phải nằm gọn trong
+       một lần gọi đồng bộ — xem lib/viewTransition.js để biết vì sao (hai chuyến
+       chuyển cảnh cùng lúc là hai tấm ảnh chụp lồng nhau). */
+    sectionTransition(dir, run)
     /* `navOrder` phải có trong danh sách phụ thuộc: nó đổi khi người dùng đăng
        nhập/đăng xuất (mục Admin chỉ có mặt với admin), và hướng chuyển cảnh
        được tính từ nó. */
@@ -532,11 +550,17 @@ function AppInner() {
      lại vẫn có chỗ đứng, và F5 vào `/profile` cũng vậy.
      Đặt ở đây chứ không trong `go`: `go` được gọi từ một effect (đá người
      không phải admin ra khỏi `/admin`), mà setState trong effect là thứ lint
-     của repo này đang đếm — thêm một cảnh báo mới cho một việc phụ là lỗ. */
+     của repo này đang đếm — thêm một cảnh báo mới cho một việc phụ là lỗ.
+
+     VÀ: bấm một mục trong menu là ý định ĐỔI TRANG. Trang cá nhân công khai
+     đang mở phải đóng lại ở đây — không đóng thì nó ở lại phía TRÊN mục vừa
+     bấm, hai trang chồng lên nhau (đúng ảnh chụp chủ dự án gửi: khối trang cá
+     nhân của người khác, rồi ngay dưới là "Daily bonus wheel"). */
   const navTo = useCallback((k) => {
     if (k === 'mine' && !user) setAuthPrompt(true)
+    if (onProfile) setProfileId(null)
     go(k)
-  }, [user, go])
+  }, [user, go, onProfile])
 
   /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
      tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
@@ -1734,7 +1758,7 @@ function AppInner() {
         {profileId && <PublicProfile userId={profileId} onBack={closeProfile} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
-        {section === 'board' && !profileId && (
+        {section === 'board' && !onProfile && (
           /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
@@ -2090,7 +2114,7 @@ function AppInner() {
           </div>
         )}
 
-        {section === 'spin' && (
+        {section === 'spin' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
               <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
@@ -2108,7 +2132,7 @@ function AppInner() {
         {/* `allRows` nuôi bảng mùa giải (tuần/tháng): số tổng trong `rows` là
             của view thật, không cắt theo thời gian được — mùa phải gom lại từ
             chính các hàng request (luật ở src/lib/season.js, không migration). */}
-        {section === 'ranking' && (
+        {section === 'ranking' && !onProfile && (
           <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
         )}
 
@@ -2117,10 +2141,10 @@ function AppInner() {
             người rỗng, nút Lưu chỉ dẫn tới `err.signin`, và người dùng tưởng
             hồ sơ của mình vừa biến mất. Một lời mời đăng nhập là câu trả lời
             đúng cho câu hỏi "hồ sơ của tôi đâu". */}
-        {section === 'mine' && !user && (
+        {section === 'mine' && !onProfile && !user && (
           <SignInPanel title={t('gate.needTitle')} body={t('gate.needBody')} onSignIn={() => setAuthPrompt(true)} />
         )}
-        {section === 'mine' && user && (
+        {section === 'mine' && !onProfile && user && (
           <>
             {/* HỒ SƠ NẰM NGAY ĐẦU MỤC "ABOUT ME" (vòng 12). Trước đây sửa hồ sơ
                 là một hộp thoại riêng, mở từ ảnh đại diện ở chân sidebar — hai
@@ -2212,7 +2236,7 @@ function AppInner() {
             nên dải số liệu (rộng hết màn hình) chui xuống dưới sidebar: ô đầu
             tiên bị cắt, các thanh công cụ kéo dài hết mép phải. Nay nó đứng
             cùng chỗ với bốn mục kia, trong `.sect` của `.main`. */}
-        {user?.isAdmin && section === ADMIN_ONLY && (
+        {user?.isAdmin && section === ADMIN_ONLY && !onProfile && (
           /* Lưới an toàn: bảng quản trị là khối nặng nhất trang (năm mục, dữ liệu
              từ bốn bảng). Một trường lạ trong dữ liệu thật làm React tháo cả cây
              và người dùng chỉ thấy trang trắng — không còn menu, không đường về.

@@ -1,7 +1,7 @@
 # Đã làm gì, và còn gợi ý gì — tất cả trong gói miễn phí
 
 Cập nhật 22/09/2026 · nhánh `arena/01a0c8a3-color-coded-lyrics-cf-new` · **số kiểm thử mới nhất
-nằm ở cuối file** (phần XIII — vòng 23: `npm test` 459 ca, `npm run smoke` 326/326); các con số
+nằm ở cuối file** (phần XIV — vòng 24: `npm test` 468 ca, `npm run smoke` 332/332); các con số
 ngay dưới đây là của mốc 19/09
 So với mốc đầu phiên (`bc65c01`): **~90 file, +10 300 dòng**, `npm test` **333 ca — 332 đạt / 0 lỗi / 1 skip**,
 `npm run smoke` **58/58 mục đạt** (dựng thật cả app trong jsdom rồi bấm thử, xem mục **J** và **K**),
@@ -1595,3 +1595,71 @@ Hai lỗi tự gây ra, ghi lại để lần sau không lặp:
   phải lỗi. Muốn nhận GIF nặng hơn thì phải nới `update_my_profile()` (migration mới) hoặc bật
   Cloudinary (`VITE_CLOUDINARY_CLOUD` + `VITE_CLOUDINARY_PRESET`) — khi đó trần là 8 MB và ảnh
   chỉ lưu URL.
+
+## Phần XIV — vòng 24: "hai trang chồng lên nhau" (22/09/2026)
+
+Chủ dự án gửi hai ảnh chụp: *"lúc bấm vào màn hình login và bấm vào profile người khác xong
+chuyển sang tab khác trong trang thì bị lỗi chồng trang như 2 hình (lỗi này bị ở mọi trang)"*.
+Đọc kỹ hai ảnh thì đây là **hai lỗi khác nhau**, và chỉ một trong hai là lỗi mới.
+
+| Ảnh | Thấy gì | Kết luận |
+|---|---|---|
+| 1 | Thẻ đăng nhập ở đầu trang (bị cắt phần trên), khoảng trống, rồi mới tới `Requests` + bốn ô thống kê + dải Featured | Đây là **khối trong luồng văn bản**: thẻ đăng nhập được chèn vào đầu tài liệu và đẩy cả bảng xuống. Đúng lỗi đã sửa ở **vòng 23** (lớp phủ `position: fixed` + nút Đăng nhập ở hàng tiêu đề). Ảnh không có nút × trên thẻ và không có nút Đăng nhập cạnh chuông → bản chạy trong ảnh là bản deploy **cũ** |
+| 2 | Khối trang cá nhân (`Requests / Completed / Votes received`, streak, Achievements, Recent requests) rồi ngay dưới là **Daily bonus wheel** | **Lỗi mới, lỗi thật trong mã**: hai trang nằm trong cùng một tài liệu, xếp dọc theo nhau |
+
+### XIV1. Gốc rễ của ảnh 2 — một TRANG bị đối xử như một MỤC
+
+Trang cá nhân công khai (`profileId`) được vẽ **song song** với mục đang chọn, chứ không phải
+*thay cho* nó:
+
+- `openProfile` đặt `section='board'` + `profileId=<id>` — nghĩa là trang cá nhân sống trong
+  mục Bảng;
+- nhưng chỉ khối Bảng có `!profileId`. Ba mục còn lại — Daily Spin, Xếp hạng, About me — và cả
+  trang quản trị **không có** điều kiện đó.
+
+Nên: mở trang cá nhân của người khác rồi bấm một mục khác trong menu → mục đó dựng thêm khối
+của mình **ngay dưới** trang cá nhân. Ảnh 2 là đúng ca đó với mục Daily Spin. Và đó cũng là lý
+do câu "lỗi này bị ở mọi trang": mục nào cũng ra thêm một trang.
+
+### XIV2. Bốn chỗ đã sửa
+
+1. **MỘT lá cờ `onProfile`, cả sáu khối mục đi qua nó** (Bảng, Daily Spin, Xếp hạng, About me
+   ×2 trạng thái đăng nhập, quản trị). Không còn đường nào dựng hai trang một lúc — kể cả khi
+   dán tay `/?profile=…` lúc đang ở mục khác, hay khi bấm Back/Forward.
+2. **Bấm một mục trong menu là ĐÓNG trang cá nhân** (`navTo`) — vì "chuyển sang tab khác" là ý
+   định *đổi trang*, không phải *mở thêm trang*. Trang cá nhân vẫn còn nút *Back to board*
+   riêng nên không ai mất đường về.
+3. **Địa chỉ thôi nói về trang cá nhân vừa rời** (`searchWithoutProfile`, `lib/history.js`).
+   Bản cũ dùng thẳng `window.location.search` khi ghi địa chỉ mục Bảng, nên tham số `profile`
+   đi theo và **F5 mở lại đúng cái trang vừa rời** — cùng một lỗi ở tầng địa chỉ.
+4. **Chuyển cảnh giữa hai mục đi qua một cửa duy nhất** (`src/lib/viewTransition.js`).
+   View Transitions là thứ duy nhất trong app vẽ **ảnh chụp** của trang cũ lên trên trang mới,
+   nên nó là ứng viên đầu tiên khi người dùng nói "chồng trang". Nó không tự sinh ảnh sai:
+   nó chụp DOM ở hai thời điểm, và thứ làm ảnh ghép sai là những gì xảy ra **giữa hai lần
+   chụp**. Bốn luật nay nằm trong một chỗ:
+   - không có API (Firefox cũ, jsdom) → đổi thẳng;
+   - người dùng xin giảm chuyển động → đổi thẳng;
+   - **đang có chuyến bay → đổi thẳng, KHÔNG mở chuyến thứ hai** (bấm hai mục liên tiếp trong
+     0,4 giây: lần chụp thứ hai sẽ chụp luôn ảnh của chuyến thứ nhất đang nằm trên màn hình —
+     ảnh của ảnh, nhiều lớp trang);
+   - xong / hỏng / bị bỏ (`skipTransition`) → **luôn dọn** `data-nav` và nhả cờ. Bản cũ đặt
+     `data-nav` rồi để nguyên vĩnh viễn: hướng đi của lần chuyển cảnh trước thành hướng của
+     mọi lần sau, và một chuyến hỏng là kẹt cờ.
+
+### XIV3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **468 ca / 467 đạt / 0 lỗi / 1 skip** (vòng 23: 459). Mới: `viewTransition.test.js` **6 ca** chạy thật `createSectionTransition` với `document` giả (không API; giảm chuyển động; mở đúng một chuyến + dọn `data-nav`; hướng lạ → `fwd`; chuyến bị bỏ vẫn dọn và không kẹt cờ; **đang bay thì không mở chuyến thứ hai**; API chết vẫn tới nơi) và `profileNav.test.js` **+3 ca** (mọi mục dùng chung `onProfile`; `navTo` đóng trang cá nhân; `searchWithoutProfile` giữ tham số bảng, bỏ `profile`) |
+| `npm run smoke` | ✅ **332/332** (vòng 23: 326) — mục *10e* bấm thật: mở `/?profile=demo-user`, bấm *Daily Spin* trong menu, rồi khẳng định tài liệu chỉ còn MỘT trang. **Đã chạy lại với mã CŨ** để chắc phép kiểm bắt được lỗi: `330/332`, đỏ đúng hai mục, kèm `trang cá nhân=1 · vòng quay=1` — đúng như ảnh chụp |
+| `npx oxlint` | ✅ 0 lỗi, **26 cảnh báo** — bằng nền, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-BZ8OCtKy.js` 337,36 kB (gzip 103,61 kB) |
+
+### XIV4. Còn nợ
+
+- **Ảnh 1 chỉ hết khi bản sửa vòng 23 được deploy.** Trên miền thật, thẻ đăng nhập vẫn còn là
+  khối trong luồng (đẩy cả trang xuống) cho tới khi bản này lên. Sau khi deploy, phép kiểm
+  tương ứng nằm ở `tools/smoke.mjs` mục *4c*.
+- Chưa xem được bằng mắt trên trình duyệt thật (môi trường này không có mạng ra ngoài), nên
+  phần "chuyển cảnh có còn nhấp nháy không" vẫn chỉ chốt được ở mức logic + DOM. Việc cần làm
+  khi có mạng: bấm liên tiếp vài mục trong menu và xem có thấy hai trang lồng nhau không.

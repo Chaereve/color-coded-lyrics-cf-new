@@ -3334,3 +3334,55 @@ Bốn việc dưới đây đều là lỗi **nhìn thấy được**, nên mỗ
 - **Daily Spin không còn trống.** Khách chưa đăng nhập vào mục này trước đây gặp trang trắng
   (khối vòng quay chỉ dựng khi đã có tài khoản). Nay khách thấy khối mời đăng nhập có nút Google
   và lý do rõ ràng; người đã đăng nhập vẫn thấy vòng quay như cũ.
+
+## Vòng 24 — "hai trang chồng lên nhau" (22/09/2026)
+
+Chủ dự án gửi hai ảnh chụp và nói: *"lúc bấm vào màn hình login và bấm vào profile người
+khác xong chuyển sang tab khác trong trang thì bị lỗi chồng trang … lỗi này bị ở mọi trang"*.
+Hai ảnh đó là hai lỗi khác nhau, không phải một:
+
+- **Ảnh 1 (màn đăng nhập):** thẻ đăng nhập nằm ở đầu trang và toàn bộ bảng request bị đẩy
+  xuống dưới nó — tức là **khối trong luồng văn bản**, đúng lỗi đã sửa ở vòng 23 (nút Đăng
+  nhập ở hàng tiêu đề + lớp phủ `position: fixed`). Ảnh chụp không có nút × trên thẻ và
+  không có nút Đăng nhập cạnh chuông → bản đang chạy là bản deploy **cũ**, chưa có bản sửa
+  của vòng 23.
+- **Ảnh 2 (trang cá nhân + Daily Spin):** đây là lỗi MỚI, và là lỗi thật trong mã: trang cá
+  nhân công khai là một **TRANG** sống trong mục Bảng, nhưng chỉ mục Bảng có điều kiện
+  `!profileId`. Ba mục còn lại (Daily Spin, Xếp hạng, About me) và cả trang quản trị cứ thế
+  dựng thêm khối của mình **ngay dưới** trang cá nhân — mở profile người khác rồi bấm sang
+  mục nào là mục đó hiện ra phía dưới, hai trang xếp dọc theo nhau. Ảnh chụp cho thấy đúng
+  thứ tự đó: `Requests / Completed / Votes received`, streak, Achievements, Recent requests
+  (các khối của trang cá nhân) rồi ngay dưới là **Daily bonus wheel**.
+
+### Đã sửa
+
+- **Một lá cờ duy nhất cho "đang mở trang cá nhân"** (`onProfile`), và cả sáu khối mục đều
+  đi qua nó. Không còn đường nào dựng hai trang một lúc — kể cả khi dán tay `/?profile=…`
+  lúc đang ở mục khác, hay khi bấm Back/Forward của trình duyệt.
+- **Bấm một mục trong menu là đóng trang cá nhân đang mở** (`navTo`). Trang cá nhân có nút
+  *Back to board* riêng, nên không mất đường về.
+- **Địa chỉ thôi nói về trang cá nhân vừa rời** (`searchWithoutProfile`): bản cũ giữ nguyên
+  `window.location.search`, nên vừa đóng trang cá nhân mà F5 lại mở lại đúng nó.
+- **Chuyển cảnh giữa hai mục đi qua một cửa duy nhất** (`src/lib/viewTransition.js`).
+  View Transitions là thứ duy nhất trong app vẽ ẢNH CHỤP của trang cũ lên trên trang mới,
+  nên nó cũng là thứ có thể sinh ra ảnh ghép sai: bấm hai mục liên tiếp trong lúc chuyến
+  0,4 giây chưa xong là lần chụp thứ hai chụp luôn cả ảnh của chuyến thứ nhất (ảnh của ảnh,
+  nhiều lớp trang). Nay: đang có chuyến thì lần bấm sau đi thẳng (vẫn tới nơi, chỉ không có
+  chuyển cảnh), API chết thì vẫn tới nơi, và `data-nav` luôn được dọn sau khi chuyến xong —
+  bản cũ để nó nằm lại vĩnh viễn, dạy sai hướng cho chuyến sau.
+
+### Kiểm thử
+
+`npm test` **468 ca / 467 đạt / 0 lỗi / 1 skip** (vòng 23: 459). `src/lib/viewTransition.test.js`
+là 6 ca mới, chạy thật `createSectionTransition` với `document` giả — trong đó có ca "đang có
+chuyến bay thì KHÔNG mở chuyến thứ hai" (đúng thứ sinh ra ảnh chụp lồng nhau) và ca "API chết
+thì người dùng vẫn tới nơi". `profileNav.test.js` thêm 3 ca khoá vế chồng trang: mọi mục dùng
+chung lá cờ, menu đóng trang cá nhân, địa chỉ sạch tham số `profile`.
+
+`npm run smoke` **332/332** (vòng 23: 326) — mục *10e* mới của `tools/smoke.mjs` bấm thật:
+mở `/?profile=demo-user` rồi bấm *Daily Spin* trong menu, và khẳng định **tài liệu chỉ còn MỘT
+trang** (`.public-profile` + `.daily-spin` phải bằng đúng 1). Ca này đã được chạy thử với mã
+CŨ để chắc nó bắt được lỗi: kết quả `330/332`, đỏ đúng hai phép kiểm, kèm dòng
+`trang cá nhân=1 · vòng quay=1` — đúng như ảnh chụp.
+
+`npx oxlint` 0 lỗi / 26 cảnh báo (không tăng). `npm run build` sạch (`index-BZ8OCtKy.js` 337 kB).
