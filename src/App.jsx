@@ -50,7 +50,7 @@ import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, fetchNotifications, adminExpireRequest,
+  fetchActivityDays, fetchNotifications, adminExpireRequest, fetchCommentCounts,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -194,7 +194,7 @@ function Stat({ c, v, label, why }) {
 
 /* ---------------- một dòng request ---------------- */
 function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete, user = null,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
+  followed = false, onWatch, onShare, onLogin, hl = false, st = null, commentCount = 0, onCommentCountChange }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
@@ -256,7 +256,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
         {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
-        <Comments requestId={r.id} user={user} onLogin={onLogin} />
+        <Comments requestId={r.id} user={user} onLogin={onLogin} initialCount={commentCount} onCountChange={onCommentCountChange ? (n) => onCommentCountChange(r.id, n) : undefined} />
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
@@ -276,7 +276,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
 }
 
 function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
+  followed = false, onWatch, onShare, onLogin, hl = false, st = null, commentCounts, onCommentCountChange }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -324,7 +324,9 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
               onVote={onVote}
               onShare={onShare}
               onLogin={onLogin}
-              onDelete={onDelete} />
+              onDelete={onDelete}
+              commentCount={commentCounts?.[r.id] || 0}
+              onCommentCountChange={(n) => onCommentCountChange?.(r.id, n)} />
           ))}
         </div>
       </div>
@@ -783,10 +785,10 @@ function AppInner() {
     const version = ++balanceVersion.current
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
-      fetchActivityDays(u.id),
+      fetchActivityDays(u.id), fetchCommentCounts(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk, od, , , act] = results
+    const [r, v, vs, rk, od, , , act, cc] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
@@ -798,6 +800,7 @@ function AppInner() {
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (od.status === 'fulfilled') setOrders(od.value)
     if (act.status === 'fulfilled') setMyActivity(act.value)
+    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
   }, [user, loadMedia, loadPick])
 
@@ -810,10 +813,10 @@ function AppInner() {
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(),
       /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
          trong chính lần tải bảng này để ngọn lửa không trễ một nhịp */
-      fetchActivityDays(u.id),
+      fetchActivityDays(u.id), fetchCommentCounts(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk, act] = results
+    const [r, v, vs, rk, act, cc] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
@@ -823,6 +826,7 @@ function AppInner() {
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (act.status === 'fulfilled') setMyActivity(act.value)
+    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
   }, [user])
 
@@ -837,9 +841,10 @@ function AppInner() {
   // Account-scoped data is still loaded only after authentication.
   useEffect(() => {
     if (user) return
-    Promise.allSettled([fetchRequests(), fetchRanking()]).then(([r, rk]) => {
+    Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts()]).then(([r, rk, cc]) => {
       if (r.status === 'fulfilled') setRows(r.value)
       if (rk.status === 'fulfilled') setRanking(rk.value)
+      if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     })
   }, [user])
 
@@ -908,6 +913,22 @@ function AppInner() {
      Nạp theo tài khoản; đổi tài khoản là xoá snapshot cũ để không mang
      bảng của người này so với người kia (sẽ sinh toàn tin ảo). */
   const uid = user?.id
+  const [commentCounts, setCommentCounts] = useState({})
+  const handleCommentCountChange = useCallback((id, n) => {
+    setCommentCounts(prev => {
+      if (prev[id] === n) return prev
+      return { ...prev, [id]: n }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!rows || rows.length === 0) return
+    let active = true
+    fetchCommentCounts(rows.map(r => r.id)).then(counts => {
+      if (active && counts) setCommentCounts(prev => ({ ...prev, ...counts }))
+    }).catch(() => {})
+    return () => { active = false }
+  }, [rows])
   useEffect(() => {
     snapRef.current = null
     if (!uid) { setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS); return }
@@ -1143,7 +1164,23 @@ function AppInner() {
      archive carries the original request context without a new table. */
   const hallOfFame = useMemo(() => {
     const done = rows.filter(r => r.status === 'completed' && r.video_url)
-    return done.slice().sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at)).slice(0, 8)
+    const sorted = done.slice().sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at))
+    const seen = new Map()
+    for (const r of sorted) {
+      const ytId = parseYoutube(r.video_url)?.id
+      const k = ytId ? `yt:${ytId}` : groupKey(r)
+      if (!seen.has(k)) {
+        seen.set(k, { ...r, requesters: [r.requester].filter(Boolean), totalVotes: Number(r.votes || 0), count: 1 })
+      } else {
+        const item = seen.get(k)
+        item.count += 1
+        item.totalVotes += Number(r.votes || 0)
+        if (r.requester && !item.requesters.includes(r.requester)) {
+          item.requesters.push(r.requester)
+        }
+      }
+    }
+    return Array.from(seen.values()).slice(0, 8)
   }, [rows])
   const weeklyHighlights = useMemo(() => {
     const since = Date.now() - 7 * 86400000
@@ -1521,12 +1558,14 @@ function AppInner() {
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   const myStats = fullRanking.find(p => p.user_id === user?.id)
+  const myTotalVotesCast = useMemo(() => Array.from(myVotes.values()).reduce((a, b) => a + b, 0), [myVotes])
   const myAchievementMetrics = useMemo(() => ({
     longestStreak: myActivity ? streakStats(myActivity).longest : 0,
     requests: mineRows.length,
     completed: myStats?.completed ?? 0,
     rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
-  }), [myActivity, mineRows.length, myStats, fullRanking, user?.id])
+    votesCast: myTotalVotesCast,
+  }), [myActivity, mineRows.length, myStats, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
@@ -1670,12 +1709,23 @@ function AppInner() {
                   <span className="now-split">Completed videos</span>
                 </div>
                 <div className="hall-grid">
-                  {hallOfFame.map(r => (
-                    <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
-                      <span className="hall-play" aria-hidden="true">▶</span>
-                      <span><b>{r.title}</b><small>{r.artist} · requested by {r.requester}</small></span>
-                    </button>
-                  ))}
+                  {hallOfFame.map(r => {
+                    const reqTx = r.requesters && r.requesters.length > 1
+                      ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
+                      : r.requester
+                    return (
+                      <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
+                        <span className="hall-play" aria-hidden="true">▶</span>
+                        <span>
+                          <b>{r.title}</b>
+                          <small>
+                            {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
+                            {r.count > 1 ? ` (${r.count} requests)` : ''}
+                          </small>
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               </section>
             )}
@@ -1941,7 +1991,9 @@ function AppInner() {
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
                         followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
+                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)}
+                        commentCounts={commentCounts}
+                        onCommentCountChange={handleCommentCountChange} />
                       )
                     : (
                       <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i} user={viewer}
@@ -1951,7 +2003,9 @@ function AppInner() {
                         onVote={openVote}
                         onDelete={doDelete}
                         followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(groupKey(e.r))} />
+                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(groupKey(e.r))}
+                        commentCount={commentCounts[e.r.id] || 0}
+                        onCommentCountChange={handleCommentCountChange} />
                       )
                   ))}
               </div>
@@ -2017,7 +2071,9 @@ function AppInner() {
                     onVote={openVote}
                     onDelete={doDelete}
                     followed={watchedSet.has(groupKey(r))} onWatch={doToggleWatch}
-                    onShare={shareSong} st={standings.get(groupKey(r))} />
+                    onShare={shareSong} st={standings.get(groupKey(r))}
+                    commentCount={commentCounts[r.id] || 0}
+                    onCommentCountChange={handleCommentCountChange} />
                 ))}
             </div>
             <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />

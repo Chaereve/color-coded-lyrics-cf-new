@@ -8,7 +8,7 @@
    Thứ tự trong mảng là thứ tự trên màn hình: việc gấp nhất đứng trước.
    ========================================================= */
 
-export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media']
+export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments']
 
 /* =========================================================
    MỖI MỤC MỘT DÒNG KHAI — nguồn duy nhất cho dải số liệu
@@ -28,6 +28,7 @@ export const ADMIN_TAB_META = [
   { k: 'orders',  label: 'adm.orders',  tone: 'var(--paid)',     count: 'orders' },
   { k: 'done',    label: 'adm.done',    tone: 'var(--done)',     count: 'done' },
   { k: 'media',   label: 'adm.media',   tone: 'var(--a-2)',      count: 'media' },
+  { k: 'comments', label: 'adm.comments', tone: 'var(--a-2)',    count: 'comments' },
 ]
 
 /* Đọc mục đang mở từ địa chỉ. Chỉ nhận giá trị có thật — một `?tab=abc` gõ tay

@@ -82,14 +82,29 @@ export async function toCloudinary(blob) {
 }
 
 /**
- * GIF phải đi thẳng qua, không qua canvas: vẽ/cắt canvas chỉ giữ frame đầu
- * và đổi nó thành WebP/JPEG, nên "hỗ trợ GIF" mà làm vậy thực ra là làm mất
- * chuyển động. Giữ nguyên blob (hoặc đưa nguyên blob lên Cloudinary) để
- * trình duyệt còn được quyền phát animation.
+ * GIF và animated WebP phải đi thẳng qua, không qua canvas: vẽ/cắt canvas chỉ giữ frame đầu
+ * và đổi nó thành WebP/JPEG tĩnh, nên làm vậy sẽ mất chuyển động.
+ * Giữ nguyên blob (hoặc đưa nguyên blob lên Cloudinary) để trình duyệt phát animation.
  */
+export async function isAnimatedWebp(file) {
+  if (!file || file.type !== 'image/webp') return false
+  try {
+    const buffer = await file.slice(0, 64).arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+      const fourcc = String.fromCharCode(...bytes.slice(12, 16))
+      if (fourcc === 'VP8X') {
+        return (bytes[20] & 0x02) !== 0
+      }
+    }
+  } catch {}
+  return false
+}
+
 export async function processAnimatedAvatar(file) {
-  if (!file || file.type !== 'image/gif') throw err('err.avatarType')
-  if (file.size > MAX_FILE_MB * 1024 * 1024) throw err('err.avatarBig')
+  if (!file || (file.type !== 'image/gif' && file.type !== 'image/webp')) throw err('err.avatarType')
+  if (file.size > (usesCloudinary ? MAX_FILE_MB : 2.5) * 1024 * 1024) throw err('err.avatarBig')
   const url = usesCloudinary ? await toCloudinary(file) : await blobToDataUrl(file)
   return { url, bytes: file.size, hosted: usesCloudinary }
 }

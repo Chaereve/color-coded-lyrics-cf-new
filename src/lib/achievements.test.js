@@ -4,7 +4,7 @@ import { ACHIEVEMENTS, achievementProgress, evaluateAchievements } from './achie
 
 test('achievement index keeps every source and cosmetic reward explicit', () => {
   assert.deepEqual(ACHIEVEMENTS.map(a => a.id), [
-    'streak7', 'streak30', 'streak100', 'firstRequest', 'firstCompletion', 'top10', 'podium',
+    'streak7', 'streak30', 'streak60', 'streak100', 'firstRequest', 'request5', 'firstCompletion', 'completion5', 'top10', 'podium', 'votesCast10', 'comment1',
   ])
   for (const a of ACHIEVEMENTS) {
     assert.ok(a.source && a.title && a.desc && a.reward && a.need > 0)
@@ -12,9 +12,9 @@ test('achievement index keeps every source and cosmetic reward explicit', () => 
 })
 
 test('streak, request, completion and leaderboard achievements evaluate independently', () => {
-  const got = evaluateAchievements({ longestStreak: 30, requests: 1, completed: 1, rank: 3 })
+  const got = evaluateAchievements({ longestStreak: 30, requests: 1, completed: 1, rank: 3, votesCast: 10, comments: 1 })
   assert.deepEqual(got.filter(a => a.earned).map(a => a.id), [
-    'streak7', 'streak30', 'firstRequest', 'firstCompletion', 'top10', 'podium',
+    'streak7', 'streak30', 'firstRequest', 'firstCompletion', 'top10', 'podium', 'votesCast10', 'comment1',
   ])
   assert.equal(got.find(a => a.id === 'streak100').progress, 30)
 })

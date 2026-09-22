@@ -576,11 +576,15 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
               </span>
               <span className="tags">
                 {dup.best && onVoteExisting && (
-                  <button type="button" className="btn btn-sm btn-primary"
+                  <button type="button" className="btn btn-sm"
                     onClick={() => onVoteExisting(dup.best)}>
                     {t('req.dupVote')}
                   </button>
                 )}
+                <button type="button" className="btn btn-sm btn-primary"
+                  onClick={next}>
+                  {t('req.dupContinue')}
+                </button>
                 {!dup.best && dup.video && (
                   <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
                     {t('req.dupWatch')}
@@ -593,6 +597,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
             <label htmlFor="rq-link">{t('req.link')}</label>
             <input id="rq-link" value={form.link} onChange={set('link')} onBlur={blur('link')}
               placeholder={t('req.linkPh')} maxLength={500}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (ready) next(); else artistRef.current?.focus()
+                }
+              }}
               aria-invalid={warnLink ? 'true' : undefined}
               aria-describedby={hasLinkHint ? 'req-link-hint' : undefined} />
             {/* Dòng dưới ô Link chỉ tồn tại khi CÓ điều gì để nói: link sai
@@ -618,6 +628,12 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           dùng bấm Gửi mà chưa từng đọc tới nó. */}
       {step === 3 && (
         <div className="req-pane" key="p3">
+          {dup && (
+            <div className="dup-step3-note" role="note">
+              <Icon name="info" size={14} />
+              <span>{t('req.dupStep3')}</span>
+            </div>
+          )}
           <div className="paidbox">
             <label className="switch" style={{ margin: 0 }}>
               <Check checked={paid} onChange={e => setPaid(e.target.checked)} />

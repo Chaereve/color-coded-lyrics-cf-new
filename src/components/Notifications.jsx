@@ -31,6 +31,7 @@ const TONE = {
   near: 'var(--paid)', lead: 'var(--done)', done: 'var(--done)', expired: 'var(--denied)', denied: 'var(--denied)',
   picked: 'var(--queued)', started: 'var(--progress)', progress: 'var(--progress)',
   approved: 'var(--queued)', votes: 'var(--a-2)',
+  comment: 'var(--a-2)', reply: 'var(--a)', mention: '#ff9800',
 }
 
 const PREF_ROWS = [
@@ -242,13 +243,14 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
   const votable = !!row && !isPicked(row) && (row.status === 'queued' || row.status === 'in_progress')
   const vars = {
     song: `${n.title} — ${n.artist}`, pct: n.pct ?? 0, votes: n.votes ?? row?.votes ?? 0, n: n.gap ?? 0,
+    author: n.author || 'Someone', comment: n.comment || n.reason || '',
   }
   return (
     <div className={`nt-i${n.read ? '' : ' new'}`} style={{ '--c': c }}>
       <button type="button" className="nt-hit" onClick={() => onOpenNotice?.(n)}>
         <span className="nt-tx">
           <span className="nt-title">{n.title} <span className="artist">— {n.artist}</span></span>
-          <span className="nt-msg">{t(`nt.n.${n.type}`, vars)}</span>
+          <span className="nt-msg">{(n.type === 'comment' || n.type === 'reply' || n.type === 'mention') ? (n.reason || t(`nt.n.${n.type}`, vars)) : t(`nt.n.${n.type}`, vars)}</span>
           {n.type === 'denied' && n.reason && <span className="nt-reason">{n.reason}</span>}
           <span className="nt-meta">
             {/* nhan to trong ten nhom thi khong lap lai nua ("Out now" da
