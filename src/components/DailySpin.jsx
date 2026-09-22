@@ -236,7 +236,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       const next = await fetchDailySpinStatus()
       if (!mounted.current || readVersion.current !== version || busy.current) return
       applyStatus(next)
-      setError('')
+      setError(next.device_account_blocked ? t('err.spinDeviceAccount') : '')
       setDeviceBroken(false)
       setPending(!!readPendingSpin(userId))
     } catch (e) {
@@ -332,7 +332,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       // Known SQL rejections rolled back, so there is nothing to recover. Keep
       // the same ID for network/unknown errors: it may have committed already.
       if (e?.code === 'P0001' || [
-        'err.spinDeviceLimit', 'err.spinAccountLimit', 'err.spinAccountChanged',
+        'err.spinDeviceLimit', 'err.spinAccountLimit', 'err.spinAccountChanged', 'err.spinDeviceAccount',
         'err.spinDevice', 'err.spinRequest', 'err.signin', 'err.spinSetup',
         // Edge từ chối trước khi chạm database: không có ledger để retry.
         'err.spinEdgeFp', 'err.spinEdgeIp', 'err.spinCaptcha', 'err.spinFingerprint',

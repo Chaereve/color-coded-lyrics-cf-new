@@ -208,17 +208,16 @@ test('countdown never displays negative time', () => {
   assert.equal(spinCountdown(-1000), '00:00:00')
 })
 
-test('switching accounts shares the two device spins and reveals only own rewards', () => {
-  const entries = []
+test('first spin binds this browser to one account until the VN day resets', () => {
+  const entries = [draw([]).entry]
+  assert.throws(() => draw(entries, { userId: 'account-b' }), /err.spinDeviceAccount/)
+  const other = demoSpinStatus({ ...input, entries, userId: 'account-b', credits: 0 })
+  assert.equal(other.device_account_blocked, true)
+  assert.equal(other.remaining, 0)
+  assert.equal(other.history.length, 0)
   entries.push(draw(entries).entry)
-  entries.push(draw(entries, { userId: 'account-b' }).entry)
-  for (const userId of ['account-a', 'account-b', 'account-c']) {
-    const status = demoSpinStatus({ ...input, entries, userId, credits: 1 })
-    assert.equal(status.device_used, 2)
-    assert.equal(status.remaining, 0)
-    assert.equal(status.history.length, userId === 'account-c' ? 0 : 1)
-    assert.throws(() => draw(entries, { userId }), /err.spinDeviceLimit/)
-  }
+  assert.throws(() => draw(entries), /err.spinDeviceLimit/)
+  assert.equal(demoSpinStatus({ ...input, entries, userId: 'account-b', now: now + 86_400_000 }).remaining, 2)
 })
 
 test('the same account gets no extra spins on another device', () => {

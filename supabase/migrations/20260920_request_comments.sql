@@ -10,6 +10,9 @@ create table if not exists public.request_comments (
   deleted_at timestamptz
 );
 
+alter table public.request_comments
+  add column if not exists parent_id uuid references public.request_comments(id) on delete cascade;
+
 create index if not exists request_comments_request_created_idx
   on public.request_comments (request_id, created_at desc);
 

@@ -7,6 +7,7 @@ import { gateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
+import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
@@ -335,40 +336,18 @@ export async function fetchComments(requestId) {
   if (!hasSupabase) {
     try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
   }
-  // Try full query with profiles join + deleted_at, fallback progressively
-  const tryQuery = async (withDeleted, withProfiles) => {
-    let q = supabase.from('request_comments')
-      .select(withProfiles
-        ? 'id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)'
-        : 'id, request_id, user_id, parent_id, body, created_at')
-      .eq('request_id', requestId)
-    if (withDeleted) q = q.is('deleted_at', null)
-    q = q.order('created_at', { ascending: false }).limit(20)
-    const { data, error } = await q
+  // Load complete threads, rather than the latest 20 rows (which may exclude
+  // their roots). Never drop the deleted filter on a failed query.
+  const items = [], pageSize = 500
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase.from('request_comments')
+      .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
+      .eq('request_id', requestId).is('deleted_at', null)
+      .order('created_at', { ascending: false }).order('id')
+      .range(from, from + pageSize - 1)
     if (error) throw error
-    return data || []
-  }
-  try {
-    const data = await tryQuery(true, true)
-    return data.map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
-  } catch (e1) {
-    if (isMissingSchemaObject(e1)) {
-      // table not yet migrated – treat as empty, don't show error toast
-      return []
-    }
-    try {
-      const data = await tryQuery(false, true)
-      return data.map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null }))
-    } catch (e2) {
-      if (isMissingSchemaObject(e2)) return []
-      try {
-        const data = await tryQuery(false, false)
-        return data.map(c => ({ ...c, author: 'Member', avatar: null }))
-      } catch (e3) {
-        if (isMissingSchemaObject(e3)) return []
-        throw e3
-      }
-    }
+    items.push(...(data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null })))
+    if (!data || data.length < pageSize) return items
   }
 }
 
@@ -381,21 +360,17 @@ export async function deleteComment(commentId) {
         if (key && key.startsWith('ccl.comments.')) {
           let items = JSON.parse(localStorage.getItem(key) || '[]')
           const before = items.length
-          items = items.filter(x => x.id !== commentId && x.parent_id !== commentId)
+          items = removeCommentSubtree(items, commentId)
           if (items.length !== before) localStorage.setItem(key, JSON.stringify(items))
         }
       }
     } catch {}
     return true
   }
-  // Use select to detect if RLS blocked (returns 0 rows)
+  // Zero affected rows is NOT success: RLS may have rejected the deletion.
   const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
-  if (error) throw error
-  if (!data || data.length === 0) {
-    // Could be RLS blocked or already deleted – try to check if comment still exists
-    const { data: still } = await supabase.from('request_comments').select('id').eq('id', commentId).maybeSingle()
-    if (still) throw new Error('err.commentDeleteDenied')
-  }
+  if (error) throw rpcError(error)
+  if (!data?.length) throw appError('err.commentDeleteDenied')
   return true
 }
 
@@ -468,100 +443,41 @@ export async function fetchAllCommentsForAdmin(limit = 100) {
     } catch {}
     return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
   }
-  const tryFetch = async (withDeleted) => {
-    let q = supabase.from('request_comments')
-      .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
-    if (withDeleted) q = q.is('deleted_at', null)
-    q = q.order('created_at', { ascending: false }).limit(limit)
-    const { data, error } = await q
-    if (error) throw error
-    return data || []
-  }
-  try {
-    const data = await tryFetch(true)
-    return data.map(c => ({
-      ...c,
-      author: c.profiles?.name || 'Member',
-      avatar: c.profiles?.avatar_url || null,
-      songTitle: c.requests?.title || '',
-      songArtist: c.requests?.artist || '',
-    }))
-  } catch (e) {
-    if (isMissingSchemaObject(e)) return []
-    try {
-      const data = await tryFetch(false)
-      return data.map(c => ({
-        ...c,
-        author: c.profiles?.name || 'Member',
-        avatar: c.profiles?.avatar_url || null,
-        songTitle: c.requests?.title || '',
-        songArtist: c.requests?.artist || '',
-      }))
-    } catch {
-      return []
-    }
-  }
+  const { data, error } = await supabase.from('request_comments')
+    .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
+    .is('deleted_at', null).order('created_at', { ascending: false }).limit(limit)
+  if (error) throw rpcError(error)
+  return (data || []).map(c => ({
+    ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null,
+    songTitle: c.requests?.title || '', songArtist: c.requests?.artist || '',
+  }))
 }
 
 export async function adminDeleteComment(commentId) {
-  if (!commentId) return true
-  if (!hasSupabase) {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('ccl.comments.')) {
-          let items = JSON.parse(localStorage.getItem(key) || '[]')
-          if (items.some(x => x.id === commentId || x.parent_id === commentId)) {
-            items = items.filter(x => x.id !== commentId && x.parent_id !== commentId)
-            localStorage.setItem(key, JSON.stringify(items))
-          }
-        }
-      }
-    } catch {}
-    return true
-  }
-  const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
-  if (error) throw error
-  // Even if 0 rows (already deleted), treat as success for admin
-  return true
+  // Server RLS checks the actual role; never trust a client-side admin flag.
+  return deleteComment(commentId)
 }
 
 export async function addComment(requestId, userId, body, parentId = null) {
   const clean = String(body || '').trim()
   if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
   if (!hasSupabase) {
-    const next = { id: `demo-comment-${Date.now()}`, request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: 'You', avatar: null }
-    try {
-      const key = `ccl.comments.${requestId}`
-      const old = JSON.parse(localStorage.getItem(key) || '[]')
-      localStorage.setItem(key, JSON.stringify([next, ...old].slice(0, 20)))
-    } catch { /* storage blocked; current session still receives next */ }
+    const key = `ccl.comments.${requestId}`
+    const old = JSON.parse(localStorage.getItem(key) || '[]')
+    if (parentId && !old.some(c => c.id === parentId && c.request_id === requestId && !c.deleted_at)) {
+      throw appError('err.commentParent')
+    }
+    const profile = readData(LS.user, {})
+    const next = { id: crypto.randomUUID(), request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: profile?.name || 'Member', avatar: profile?.avatar || null }
+    localStorage.setItem(key, JSON.stringify([next, ...old]))
     return next
   }
-  // First try with parent_id, fallback without if column missing
-  const attempt = async (withParent) => {
-    const payload = withParent
-      ? { request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean }
-      : { request_id: requestId, user_id: userId, body: clean }
-    const { data, error } = await supabase.from('request_comments').insert(payload).select('id, request_id, user_id, parent_id, body, created_at').single()
-    if (error) throw error
-    return data
-  }
-  try {
-    const data = await attempt(true)
-    return { ...data, author: 'You', avatar: null }
-  } catch (e) {
-    if (e?.code === 'PGRST204' || /parent_id/.test(e?.message || '')) {
-      // column missing – retry without parent
-      try {
-        const data = await attempt(false)
-        return { ...data, author: 'You', avatar: null }
-      } catch (e2) {
-        throw rpcError(e2)
-      }
-    }
-    throw rpcError(e)
-  }
+  // Fail closed. In particular, never retry a rejected reply without parent_id.
+  const { data, error } = await supabase.from('request_comments')
+    .insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean })
+    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)').single()
+  if (error) throw rpcError(error)
+  return { ...data, author: data.profiles?.name || 'Member', avatar: data.profiles?.avatar_url || null }
 }
 
 export async function fetchRequests() {
@@ -681,7 +597,8 @@ export async function fetchDailySpinStatus() {
       purchased: prof.vote_credits || 0, bonus: prof.bonus_credits || 0,
     })
   }
-  const { data, error } = await spinRpc('my_daily_spin_status', { p_device_token: token })
+  const fpHash = await fingerprintHash().catch(() => null)
+  const { data, error } = await spinRpc('my_daily_spin_status', { p_device_token: token, p_fp_hash: fpHash })
   if (error) throw spinSetupError(error)
   return data
 }
