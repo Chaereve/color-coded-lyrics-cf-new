@@ -48,6 +48,12 @@ const JSON_HEADERS = {
   /* Trình duyệt không được đoán kiểu tệp: response này LUÔN là JSON, và một
      response bị đoán nhầm thành HTML/script là đường chạy mã ngoài ý muốn. */
   'x-content-type-options': 'nosniff',
+  'cross-origin-resource-policy': 'same-origin',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  /* No Access-Control-Allow-Origin: the gate is same-origin by deployment
+     design, so cross-site pages cannot turn this POST endpoint into a CSRF
+     primitive. The app uses bearer tokens, never ambient auth cookies. */
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const HASH64 = /^[a-f0-9]{64}$/

@@ -20,12 +20,40 @@ export const usesCloudinary = !!(CLOUD && PRESET)
 /* code là key trong từ điển (err.*), vars để điền {mb}… — errMsg(t, e) dịch ra chữ */
 const err = (code, vars) => Object.assign(new Error(code), { code, vars })
 
+const RASTER_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_DIMENSION = 4096
+
+/** MIME headers are attacker-controlled, so check the file signature too. */
+async function hasRasterSignature(file) {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+  const starts = (...values) => values.every((v, i) => bytes[i] === v)
+  return (file.type === 'image/jpeg' && starts(0xff, 0xd8, 0xff))
+    || (file.type === 'image/png' && starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))
+    || (file.type === 'image/gif' && starts(0x47, 0x49, 0x46, 0x38))
+    || (file.type === 'image/webp' && starts(0x52, 0x49, 0x46, 0x46) &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50)
+}
+
+export async function validateImageFile(file) {
+  checkFile(file)
+  if (!(await hasRasterSignature(file))) throw err('err.avatarType')
+}
+
 /** Đọc file thành HTMLImageElement (kèm URL blob để hiển thị lúc chỉnh khung) */
-export function loadImage(file) {
+export async function loadImage(file) {
+  await validateImageFile(file)
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => resolve({ img, url })
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight ||
+          img.naturalWidth > MAX_DIMENSION || img.naturalHeight > MAX_DIMENSION) {
+        URL.revokeObjectURL(url)
+        reject(err('err.avatarRead'))
+        return
+      }
+      resolve({ img, url })
+    }
     img.onerror = () => { URL.revokeObjectURL(url); reject(err('err.avatarRead')) }
     img.src = url
   })
@@ -77,8 +105,12 @@ export async function toCloudinary(blob) {
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: 'POST', body: fd })
   if (!res.ok) throw err('err.avatarUpload')
   const json = await res.json()
-  if (!json.secure_url) throw err('err.avatarUpload')
-  return json.secure_url
+  let uploaded
+  try { uploaded = new URL(json.secure_url) } catch { throw err('err.avatarUpload') }
+  if (uploaded.protocol !== 'https:' || !uploaded.hostname.endsWith('.cloudinary.com')) {
+    throw err('err.avatarUpload')
+  }
+  return uploaded.href
 }
 
 /**
@@ -105,14 +137,15 @@ export async function isAnimatedWebp(file) {
 export async function processAnimatedAvatar(file) {
   if (!file || (file.type !== 'image/gif' && file.type !== 'image/webp')) throw err('err.avatarType')
   if (file.size > (usesCloudinary ? MAX_FILE_MB : 2.5) * 1024 * 1024) throw err('err.avatarBig')
+  await validateImageFile(file)
   const url = usesCloudinary ? await toCloudinary(file) : await blobToDataUrl(file)
   return { url, bytes: file.size, hosted: usesCloudinary }
 }
 
-/** Kiểm tra file người dùng chọn trước khi cho vào khung chỉnh */
+/** Kiểm tra nhanh file người dùng chọn trước khi đọc bytes/ảnh. */
 export function checkFile(file) {
   if (!file) throw err('err.avatarRead')
-  if (!file.type.startsWith('image/')) throw err('err.avatarType')
+  if (!RASTER_TYPES.has(file.type)) throw err('err.avatarType')
   if (file.size > MAX_FILE_MB * 1024 * 1024) throw err('err.avatarBig')
 }
 

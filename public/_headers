@@ -51,16 +51,16 @@
 #    KHÔNG kèm `includeSubDomains`/`preload` — hai thứ đó áp cho cả miền con và
 #    rất khó rút lại.
 #
-#  KHÔNG có Content-Security-Policy ở đây: CSP sai một nguồn là trang trắng,
-#  mà những nguồn thật (Supabase, i.ytimg.com, lh3.googleusercontent.com,
-#  challenges.cloudflare.com) chỉ kiểm chứng được trên bản deploy thật. Đặt
-#  một CSP chưa kiểm chứng lên trang đang chạy là đánh cược, không phải sửa lỗi.
+#  CSP dùng allowlist của các nguồn mà mã nguồn thực sự gọi. Nó intentionally
+#  cho phép style inline vì React có style props và cho phép blob/data chỉ ở
+#  những directive cần cho crop avatar, thumbnail và share card.
 # =========================================================
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=31536000
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://*.googleusercontent.com https://res.cloudinary.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://api.cloudinary.com https://api.vietqr.io https://challenges.cloudflare.com https://*.pages.dev https://*.workers.dev https://i.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://challenges.cloudflare.com; worker-src 'self' blob:; form-action 'self'; upgrade-insecure-requests
 
 # API chống farm (Daily Spin + Vote): cache là hỏng tính năng — mỗi lượt quay
 # phải là một lần hỏi máy chủ thật.

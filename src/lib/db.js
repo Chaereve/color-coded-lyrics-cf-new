@@ -6,6 +6,7 @@ import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } fr
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
+import { streakStats } from './streak.js'
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -119,8 +120,9 @@ function demoRows() {
 const demoProfile = () => {
   // Ho cu chi co vote_credits (chung 1 vi voi bonus); ban demo moi tach san
   // bonus_credits rieng nhu database that.
-  const p = readData(LS.prof, { vote_credits: 0, is_admin: true })
+  const p = readData(LS.prof, { vote_credits: 0, bonus_credits: 0, bonus_requests: 0, is_admin: true })
   if (!Number.isInteger(p.bonus_credits)) p.bonus_credits = 0
+  if (!Number.isInteger(p.bonus_requests)) p.bonus_requests = 0
   return p
 }
 
@@ -147,16 +149,22 @@ function demoMedia() {
 }
 
 /* ======================== AUTH ======================== */
-const shape = (u, p = {}) => {
+const shape = (u, p = {}, isAdmin = false) => {
   const m = u.user_metadata || {}
   return {
     id: u.id, email: u.email,
     name: p.name || m.full_name || m.name || u.email?.split('@')[0] || 'User',
     avatar: p.avatar_url || m.avatar_url || m.picture || null,
-    // so vote (da mua / bonus / tong) lay qua my_vote_status(), khong doc
-    // thang tu bang profiles
-    isAdmin: !!p.is_admin, credits: 0, purchased: 0, bonus: 0,
+    // is_admin is a server-side permission flag. It is deliberately not
+    // selected from the public profile row; ask the SECURITY DEFINER RPC.
+    isAdmin: !!isAdmin, credits: 0, purchased: 0, bonus: 0,
   }
+}
+
+async function readAuthProfile(user) {
+  const { data: p } = await supabase.from('profiles').select('id, name, avatar_url').eq('id', user.id).maybeSingle()
+  const { data: isAdmin, error } = await supabase.rpc('is_admin')
+  return shape(user, p || {}, !error && isAdmin === true)
 }
 
 export async function getUser() {
@@ -175,16 +183,14 @@ export async function getUser() {
   }
   const { data } = await supabase.auth.getUser()
   if (!data.user) return null
-  const { data: p } = await supabase.from('profiles').select('id, name, avatar_url, is_admin').eq('id', data.user.id).maybeSingle()
-  return shape(data.user, p || {})
+  return readAuthProfile(data.user)
 }
 
 export function onAuthChange(cb) {
   if (!hasSupabase) return () => {}
   const { data } = supabase.auth.onAuthStateChange(async (_e, s) => {
     if (!s?.user) return cb(null)
-    const { data: p } = await supabase.from('profiles').select('id, name, avatar_url, is_admin').eq('id', s.user.id).maybeSingle()
-    cb(shape(s.user, p || {}))
+    cb(await readAuthProfile(s.user))
   })
   return () => data.subscription.unsubscribe()
 }
@@ -506,6 +512,7 @@ export async function fetchVoteStatus() {
     const used = readData(LS.votes, []).filter(v => !v.credit && v.day === today()).length
     const prof = demoProfile()
     return { free_used: used, free_limit: FREE_VOTES_PER_DAY,
+      bonus_requests: prof.bonus_requests || 0,
       ...splitCredits({ credits: (prof.vote_credits || 0) + (prof.bonus_credits || 0),
         purchased: prof.vote_credits || 0, bonus: prof.bonus_credits || 0 }) }
   }
@@ -513,6 +520,28 @@ export async function fetchVoteStatus() {
   if (error) throw error
   const r = Array.isArray(data) ? data[0] : data
   return { free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r) }
+}
+
+/* Rewards are never accepted from the browser. The RPC calculates every
+   achievement metric, locks the profile, and inserts a unique ledger row
+   before changing balances. A missing migration is tolerated so an older
+   staging database can still load the board while it is being upgraded. */
+export async function claimAchievements() {
+  if (!hasSupabase) {
+    const prof = demoProfile()
+    return {
+      earned: [], bonus_credits: prof.bonus_credits || 0,
+      purchased: prof.vote_credits || 0,
+      credits: (prof.vote_credits || 0) + (prof.bonus_credits || 0),
+      bonus_requests: prof.bonus_requests || 0,
+    }
+  }
+  const { data, error } = await supabase.rpc('claim_achievements')
+  if (error) {
+    if (isMissingSchemaObject(error)) return null
+    throw rpcError(error)
+  }
+  return data
 }
 
 /* ======================== DAILY SPIN ======================== */
@@ -660,6 +689,18 @@ export async function fetchActivityDays(userId) {
   return (data || []).map((r) => r.day).filter(Boolean)
 }
 
+/* Public profiles receive only aggregate streak data. Raw activity dates stay
+   owner-scoped after the security migration. */
+export async function fetchPublicStreak(userId) {
+  if (!userId) return null
+  if (!hasSupabase) {
+    return streakStats(demoActivityDays(userId))
+  }
+  const { data, error } = await supabase.rpc('public_streak', { p_user_id: userId })
+  if (error) return null
+  return data
+}
+
 /* Bản demo gom dấu ngày từ BA nguồn địa phương đúng bằng bốn trigger của
    database thật: ngày gửi request (demoRows), ngày bình luận (localStorage
    theo request), ngày quay spin (LS.spins — entry đã mang `day` tính sẵn
@@ -769,10 +810,15 @@ const gateError = (payload, fallback) => {
 }
 
 /* ======================== WRITE ======================== */
-export async function addRequest(form, user, paid = false) {
+export async function addRequest(form, user, paid = false, useBonus = false) {
+  if (useBonus && !paid) throw appError('err.rewardType')
   if (!hasSupabase) {
     const rows = demoRows()
-    if (!paid) {
+    if (useBonus) {
+      const prof = demoProfile()
+      if ((prof.bonus_requests || 0) < 1) throw appError('err.noBonusRequest')
+      wr(LS.prof, { ...prof, bonus_requests: (prof.bonus_requests || 0) - 1 })
+    } else if (!paid) {
       const recent = rows.filter(r => r.user_id === user.id && !r.is_paid
         && Date.now() - new Date(r.created_at) < 36e5)
       if (recent.length >= MAX_REQUESTS_PER_HOUR)
@@ -788,12 +834,12 @@ export async function addRequest(form, user, paid = false) {
     const row = {
       id: crypto.randomUUID(), user_id: user.id, kind: form.kind,
       artist: form.artist.trim(), title: form.title.trim(), link: form.link, note: form.note,
-      requester: user.name, status: 'pending', progress: 0, votes: 0,
-      is_paid: paid, payment_status: paid ? 'awaiting' : 'none',
+      requester: user.name, status: useBonus ? 'queued' : 'pending', progress: 0, votes: 0,
+      is_paid: paid, payment_status: paid ? (useBonus ? 'paid' : 'awaiting') : 'none',
       video_url: null, deny_reason: null, created_at: new Date().toISOString(),
     }
     wr(LS.rows, [row, ...rows])
-    if (paid) {
+    if (paid && !useBonus) {
       wr(LS.orders, [{
         id: crypto.randomUUID(), user_id: user.id, kind: 'paid_request', qty: 0,
         amount_usd: PAID_REQUEST.usd, amount_vnd: PAID_REQUEST.vnd,
@@ -805,7 +851,7 @@ export async function addRequest(form, user, paid = false) {
   }
   const { data, error } = await supabase.rpc('create_request', {
     p_kind: form.kind, p_artist: form.artist, p_title: form.title,
-    p_link: form.link, p_note: form.note, p_paid: paid,
+    p_link: form.link, p_note: form.note, p_paid: paid, p_use_bonus: useBonus,
   })
   if (error) throw rpcError(error)
   return data

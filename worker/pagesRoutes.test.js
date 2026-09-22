@@ -179,7 +179,7 @@ test('_headers: không có khối bắt-all nào đặt Cache-Control', () => {
   assert.ok(all.length <= 100, 'Cloudflare cho tối đa 100 rule')
 })
 
-test('_headers: khối /* mang bốn header an toàn, và không header nào bị khai hai lần', () => {
+test('_headers: khối /* mang security headers, và không header nào bị khai hai lần', () => {
   /* Cloudflare NỐI giá trị khi cùng một header khớp hai rule (xem đầu tệp
      _headers), nên header an toàn phải nằm ở ĐÚNG MỘT khối. Khai lặp không làm
      trang hỏng, nó chỉ nhân đôi giá trị — im lặng, và lớn dần mỗi lần có người
@@ -196,16 +196,20 @@ test('_headers: khối /* mang bốn header an toàn, và không header nào b�
      rất khó rút lại — không nên tự bật cho một trang chỉ cần HTTPS. */
   assert.doesNotMatch(get('strict-transport-security') || '', /includeSubDomains|preload/i)
 
-  const names = ['x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security']
+  const names = ['x-content-type-options', 'referrer-policy', 'permissions-policy', 'strict-transport-security', 'content-security-policy']
   for (const n of names) {
     const blocks = all.filter(b => b.headers.some(h => h.name === n))
     assert.deepEqual(blocks.map(b => b.pattern), ['/*'],
       `${n} chỉ được khai ở khối /*, đang có ở: ${blocks.map(b => b.pattern).join(', ')}`)
   }
-  /* CSP: KHÔNG đặt khi chưa kiểm chứng được nguồn thật (Supabase, i.ytimg,
-     Turnstile) trên bản deploy — CSP sai một nguồn là trang trắng. */
-  assert.ok(!all.some(b => b.headers.some(h => h.name === 'content-security-policy')),
-    'chưa đặt CSP vội: phải thử trên bản deploy thật trước')
+  const csp = get('content-security-policy') || ''
+  assert.match(csp, /default-src 'self'/)
+  assert.match(csp, /script-src 'self' https:\/\/challenges\.cloudflare\.com/)
+  assert.match(csp, /connect-src[^;]*https:\/\/\*\.supabase\.co/)
+  assert.match(csp, /frame-src[^;]*https:\/\/www\.youtube\.com/)
+  assert.match(csp, /object-src 'none'/)
+  assert.match(csp, /frame-ancestors 'none'/)
+  assert.ok(!/unsafe-eval/.test(csp), 'CSP không được mở unsafe-eval')
 })
 
 test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store', () => {

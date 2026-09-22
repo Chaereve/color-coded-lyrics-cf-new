@@ -21,14 +21,13 @@ import { STREAK_MILESTONES, streakStats } from '../lib/streak.js'
    TÍCH, không tắt lại khi chuỗi hiện tại đứt — người quay lại sau một tuần
    nghỉ không bị trừng phạt thêm lần thứ hai bằng cách mất huy hiệu.
    ========================================================= */
-export default function StreakStrip({ days = null, now = null }) {
+export default function StreakStrip({ days = null, stats = null, now = null }) {
   const { t } = useI18n()
-  /* chốt mốc "bây giờ" một lần lúc dựng — cùng luật với Leaderboard: khối nhỏ
-     này không được tự trượt ngày giữa chừng, và Date.now() trần trong render
-     là thứ react(purity) bắt */
+  /* Public profiles receive aggregate stats only; the owner's view may still
+     pass raw days so the exact current streak can be calculated locally. */
   const nowMs = useMemo(() => now ?? Date.now(), [now])
-  if (!days) return null
-  const s = streakStats(days, nowMs)
+  const s = stats || (days ? streakStats(days, nowMs) : null)
+  if (!s) return null
 
   return (
     <div className="streak" role="group" aria-label={t('streak.label')}>

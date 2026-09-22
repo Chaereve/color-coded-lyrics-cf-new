@@ -12,5 +12,5 @@ test('GIF avatar bypasses canvas so animation is not reduced to the first frame'
   assert.match(src, /file\.type !== 'image\/gif'/)
   assert.match(panel, /file\.type === 'image\/gif'/)
   assert.match(panel, /processAnimatedAvatar\(file\)/)
-  assert.match(panel, /accept="image\/\*,\.gif"/)
+  assert.match(panel, /accept="image\/jpeg,image\/png,image\/gif,image\/webp"/)
 })

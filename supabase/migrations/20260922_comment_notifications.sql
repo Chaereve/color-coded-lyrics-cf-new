@@ -56,27 +56,39 @@ create or replace function public.grant_season_reward(
   p_bonus_requests int default 0,
   p_title text default null
 ) returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_target uuid;
 begin
+  if auth.uid() is not null and not public.is_admin() then
+    raise exception 'err.adminOnly';
+  end if;
+  if coalesce(p_bonus_votes, 0) < 0 or coalesce(p_bonus_requests, 0) < 0
+     or coalesce(p_bonus_votes, 0) > 1000 or coalesce(p_bonus_requests, 0) > 100 then
+    raise exception 'err.rewardInvalid';
+  end if;
+  v_target := p_user_id::uuid;
   update public.profiles
      set bonus_credits = bonus_credits + coalesce(p_bonus_votes, 0),
          bonus_requests = coalesce(bonus_requests, 0) + coalesce(p_bonus_requests, 0)
-   where id = p_user_id;
+   where id = v_target;
+  if not found then raise exception 'err.requestMissing'; end if;
 
   if coalesce(p_bonus_votes, 0) > 0 or coalesce(p_bonus_requests, 0) > 0 then
     insert into public.notifications(user_id, song_key, kind, title, reason, sig)
     values (
-      p_user_id,
+      v_target,
       'season-reward',
       'votes',
       'Season Reward: ' || coalesce(p_title, 'Top Rank'),
       'You earned ' || coalesce(p_bonus_votes, 0) || ' bonus votes' ||
         case when coalesce(p_bonus_requests, 0) > 0 then ' and ' || p_bonus_requests || ' bonus request!' else '!' end,
-      'reward|' || p_user_id || '|' || extract(epoch from now())::text
+      'reward|' || v_target::text || '|' || extract(epoch from now())::text
     ) on conflict (user_id, sig) where sig is not null do nothing;
   end if;
 end $$;
 
-grant execute on function public.grant_season_reward(text, int, int, text) to authenticated, service_role;
+revoke all on function public.grant_season_reward(text, int, int, text) from public, anon, authenticated;
+grant execute on function public.grant_season_reward(text, int, int, text) to service_role;
 
 -- Tự động tính toán và chốt thưởng mùa (Idempotent - không bao giờ cộng trùng)
 create or replace function public.settle_season_rewards(
@@ -116,7 +128,8 @@ begin
       completed_count desc,
       total_votes desc,
       total_submitted desc,
-      earliest_request asc
+      earliest_request asc,
+      r.user_id asc
     limit 3
   ) loop
     if p_season_type = 'week' then
@@ -152,7 +165,8 @@ begin
   return v_results;
 end $$;
 
-grant execute on function public.settle_season_rewards(text, text, timestamptz, timestamptz) to authenticated, service_role;
+revoke all on function public.settle_season_rewards(text, text, timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function public.settle_season_rewards(text, text, timestamptz, timestamptz) to service_role;
 
 -- Helper chốt theo kỳ hiện tại (Giờ VN - Asia/Ho_Chi_Minh UTC+7)
 create or replace function public.settle_current_season_rewards(p_season_type text)

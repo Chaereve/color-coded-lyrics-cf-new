@@ -24,7 +24,17 @@ drop policy if exists request_comments_authenticated_insert on public.request_co
 create policy request_comments_authenticated_insert
   on public.request_comments for insert
   to authenticated
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    and (
+      parent_id is null
+      or exists (
+        select 1 from public.request_comments p
+         where p.id = request_comments.parent_id
+           and p.request_id = request_comments.request_id
+      )
+    )
+  );
 
 drop policy if exists request_comments_owner_delete on public.request_comments;
 create policy request_comments_owner_delete
