@@ -95,9 +95,11 @@ const { createElement, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const App = (await server.ssrLoadModule('/src/App.jsx')).default
 const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
-/* Số đo mặt nạ lấy từ CHÍNH mô-đun, không chép lại: smoke kiểm "khung có phủ
-   đúng con số mà mã đang dùng" chứ không phải "khung có phủ con số nào đó". */
-const { CHROME_COVER } = await server.ssrLoadModule('/src/lib/previewCap.js')
+/* Số đo vệt mờ lấy từ CHÍNH mô-đun, không chép lại: smoke kiểm "khung có vẽ
+   đúng con số mà mã đang dùng" chứ không phải "khung có vẽ con số nào đó".
+   Mặc định 0 để lượt chạy với mã CŨ (chưa có FRAME_FADE) đỏ gọn ở phép kiểm
+   của nó, chứ không ném lỗi giữa lượt. */
+const { FRAME_FADE = { top: 0, bottom: 0 } } = await server.ssrLoadModule('/src/lib/previewCap.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
 
 const container = window.document.getElementById('root')
@@ -446,10 +448,10 @@ where = 'xem trước video (Hall of Fame)'
     await click(cards[0])
     await tick(160)
     check('bấm thẻ Hall of Fame là khung xem trước mở ra',
-      !!q('.video-preview-scrim') && !!q('.video-preview'))
+      !!q('.video-preview-scrim') && !!q('.video-preview-stage') && !!q('.video-preview-player'))
     check('khung xem trước là hộp thoại có tên đọc được',
-      q('.video-preview')?.getAttribute('role') === 'dialog' &&
-      q('.video-preview')?.getAttribute('aria-labelledby') === 'video-preview-title' &&
+      q('.video-preview-player')?.getAttribute('role') === 'dialog' &&
+      q('.video-preview-player')?.getAttribute('aria-labelledby') === 'video-preview-title' &&
       !!q('#video-preview-title'))
     const frame = q('.video-preview-frame')
     check('khung xem trước không rỗng (luôn có thứ để vẽ)',
@@ -469,7 +471,9 @@ where = 'xem trước video (Hall of Fame)'
     check('có ảnh bìa nằm sau iframe (mạng chậm vẫn thấy hình, không thấy đen)',
       !!poster && /i\.ytimg\.com\/vi\//.test(poster.getAttribute('src') || ''),
       poster?.getAttribute('src'))
-    check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-foot a'))
+    check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-open'))
+    check('nút ✕ nổi ngoài khung (kiểu trailer popup, không có thanh tiêu đề)',
+      !!q('.video-preview-close') && !!q('.video-preview-meta h2'))
     check('URL nhúng có enablejsapi=1 (kênh để trang tự canh mốc 30 giây)',
       /enablejsapi=1/.test(iframe?.getAttribute('src') || ''))
     /* GIAO DIỆN YOUTUBE BỊ TẮT (vòng 26): chủ dự án yêu cầu chỉ còn bấm
@@ -483,22 +487,24 @@ where = 'xem trước video (Hall of Fame)'
       !!q('.video-preview-controls .video-preview-toggle'))
     check('thanh thời gian của trang kéo được (chỉ trong 30 giây)',
       q('.video-preview-bar')?.getAttribute('role') === 'slider')
-    /* MẶT NẠ BỐN MÉP (vòng 27): tiêu đề/kênh ở mép trên, logo/CC/chất lượng/
-       nút share và tấm "Video khác" ở mép dưới là những thứ YouTube vẽ BÊN
-       TRONG iframe — CSS của trang không chạm tới được, nên phải phủ lên. */
-    const masks = q('.video-preview-masks')
-    check('có mặt nạ phủ bốn mép khung (che giao diện YouTube)',
-      !!masks && qa('.video-preview-masks i').length === 4,
-      masks ? `${qa('.video-preview-masks i').length} dải` : 'không có')
-    check('mặt nạ dùng đúng số đo CHROME_COVER (một nguồn số, không chép lại)',
-      masks?.style.getPropertyValue('--vp-top') === `${CHROME_COVER.top}%`
-      && masks?.style.getPropertyValue('--vp-bottom') === `${CHROME_COVER.bottom}%`
-      && masks?.style.getPropertyValue('--vp-left') === `${CHROME_COVER.left}%`
-      && masks?.style.getPropertyValue('--vp-right') === `${CHROME_COVER.right}%`,
-      masks?.getAttribute('style'))
-    check('mặt nạ không chặn cú bấm (mọi thứ đi qua nó tới nút play/pause)',
-      masks?.querySelector('.vp-m-bottom') !== null
-      && !!q('.video-preview-controls .video-preview-toggle'))
+    /* VỆT MỜ HAI MÉP KHUNG (vòng 28) — và cái KHÔNG còn.
+       -----------------------------------------------------------------
+       Vòng 27 phủ bốn dải lên bốn mép khung để che giao diện YouTube; chủ dự
+       án nhìn rồi nói "thấy gớm luôn" và gửi một mẫu để làm theo (100jsprojects
+       · video-trailer-popup). Vòng 28 đi theo mẫu: sân khấu đen, khung ở giữa,
+       một nút ✕. Cái còn lại chỉ là hai VỆT MỜ tan dần để mép hình hoà vào nền
+       — alpha thấp, tổng hai mép một phần tư chiều cao là hết mức. */
+    const fade = q('.video-preview-fade')
+    check('hai mép khung là vệt mờ tan dần (không phải băng che)',
+      !!fade && !!fade.querySelector('.vp-f-top') && !!fade.querySelector('.vp-f-bottom'),
+      fade ? `${fade.children.length} vệt` : 'không có')
+    check('vệt mờ dùng đúng số đo FRAME_FADE (một nguồn số, không chép lại)',
+      fade?.style.getPropertyValue('--vp-fade-top') === `${FRAME_FADE.top}%`
+      && fade?.style.getPropertyValue('--vp-fade-bottom') === `${FRAME_FADE.bottom}%`
+      && FRAME_FADE.top + FRAME_FADE.bottom <= 25,
+      `top ${FRAME_FADE.top}% · bottom ${FRAME_FADE.bottom}% · style=${fade?.getAttribute('style') || ''}`)
+    check('dải phủ bốn mép của vòng 27 đã bỏ hẳn (chủ dự án chê "gớm")',
+      !q('.video-preview-masks'))
 
     /* ---- TUA QUA 30 GIÂY (chủ dự án báo lần hai, vòng 25) ----
        `end=30` chỉ là chỗ đánh dấu của player: kéo thanh thời gian qua vạch đó
@@ -578,7 +584,7 @@ where = 'xem trước video (Hall of Fame)'
            về 0 (giờ vẫn còn nguyên phần xem trước). */
         await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 0, playerState: 1, videoData: { isAd: 0 } } }) })
         await tick(400)
-        const counter = (q('.video-preview-tick b')?.textContent || '').trim()
+        const counter = (q('.video-preview-count')?.textContent || '').trim()
         check('quảng cáo hết: đồng hồ không tụt về 0',
           /^1[0-9]s/.test(counter) || /^2[0-9]s/.test(counter), `"${counter}"`)
       } finally {

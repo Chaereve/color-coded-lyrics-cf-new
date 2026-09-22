@@ -339,12 +339,15 @@ notify pgrst, 'reload schema';
   tua trong phạm vi 30 giây. Hai thứ của YouTube **không tắt được** và sẽ còn thấy khi tạm dừng:
   tiêu đề video ở mép trên và nút *Watch on YouTube* (YouTube bỏ tham số `modestbranding` từ 2023).
   Chi tiết: `HUONG-DAN.md` mục *Vòng 26*.
-- **Preview trong Hall of Fame (giao diện YouTube, phần còn sót):** trong khung xem trước, bốn
-  mép khung được **phủ một dải kính mờ**: mép trên không còn **tiêu đề + avatar kênh**, mép dưới
-  không còn **logo YouTube, CC, ô chất lượng, nút share, tấm "Video khác"**. Đây là giới hạn thật
-  của YouTube (những thứ đó nằm trong iframe khác tên miền, không tham số nào tắt được), nên phải
-  phủ — và **mép bị phủ là mép bị mất hình** (15% trên + 24% dưới). Chi tiết: `HUONG-DAN.md` mục
-  *Vòng 27*.
+- **Preview trong Hall of Fame (bố cục "video trailer popup"):** khung xem trước giờ theo đúng mẫu
+  chủ dự án gửi (`100jsprojects` · *video-trailer-popup*): **nền tối**, video **ở giữa khung bo góc
+  có đổ bóng**, **một nút ✕ nổi ở góc phải trên khung** (không có thanh tiêu đề), và một dòng mô tả
+  mờ bên dưới (tên bài + *xem trước 30 giây* + đồng hồ + link mở video gốc). Hai mép khung chỉ là
+  **vệt mờ tan dần** để mép hình hoà vào nền — **không còn dải phủ nào** (bốn dải của vòng 27 đã bị
+  gỡ). **Đánh đổi, xin nói thẳng:** vì không còn phủ nên **tiêu đề/logo của YouTube hiện lại** trong
+  khung — không tham số nào tắt được chúng, mà che thì phải phủ (đúng thứ vừa bị chê). Phần còn lại
+  của vòng 26 vẫn nguyên: không thanh điều khiển, chỉ một nút play/pause tự vẽ, vạch 0→30 giây kéo
+  được, và **tua qua 30 giây là khung tự cắt**. Chi tiết: `HUONG-DAN.md` mục *Vòng 28*.
 - **About me (`/profile`):** Tải avatar GIF/WebP; kiểm tra khoảng cách giữa Achievement index và Stats; bấm `View all achievements (10)`.
 
 ---

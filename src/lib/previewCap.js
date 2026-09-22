@@ -125,33 +125,32 @@ export function mergeInfo(prev, patch) {
 }
 
 /* =========================================================
-   MẶT NẠ PHỦ GIAO DIỆN YOUTUBE — số đo, và vì sao lại phải phủ
+   VỆT MỜ HAI MÉP KHUNG — số đo, và vì sao KHÔNG còn dải phủ
    ---------------------------------------------------------
-   Chủ dự án báo lần thứ ba, kèm ảnh chụp: "vẫn chưa ẩn hoàn toàn giao diện
-   yt". Trong ảnh còn nguyên tiêu đề + avatar kênh ở mép trên, logo YouTube,
-   biểu tượng CC, ô chất lượng (4K) và nút share ở mép dưới, cùng tấm
-   "Video khác" (nội dung gợi ý) — tất cả là những thứ YouTube VẼ BÊN TRONG
-   iframe.
+   Bốn vòng liên tiếp quanh cùng một khung xem trước, nên ghi lại cho rõ:
 
-   Đó là giới hạn thật, không phải thiếu tham số:
-     · `controls=0` bỏ thanh điều khiển, nhưng tiêu đề/kênh và tấm gợi ý không
-       nằm trong thanh điều khiển;
-     · `modestbranding` (thứ từng bỏ được logo) đã bị YouTube bỏ từ 2023;
-     · iframe là tên miền khác nên CSS của trang KHÔNG xuyên vào được, cũng
-       không đọc được DOM bên trong (nên cũng không "nhìn" mà ẩn theo).
-   Cách duy nhất còn lại: PHỦ LÊN — bốn dải mờ ở bốn mép khung.
+     · vòng 26 — `controls=0` + `disablekb=1`: ẩn thanh điều khiển của YouTube,
+       trang tự vẽ nút play/pause;
+     · vòng 27 — chủ dự án gửi ảnh chụp "vẫn chưa ẩn hoàn toàn giao diện yt",
+       nên thêm BỐN DẢI PHỦ ở bốn mép để che tiêu đề/kênh/logo/tấm "Video khác";
+     · vòng 28 — chủ dự án nhìn bốn dải đó: "thấy gớm luôn", và gửi một mẫu để
+       làm theo (100jsprojects · *video trailer popup*).
+       Đúng là gớm: mỗi dải tối ở mép rồi cắt PHỰT về 0 ở mép trong, nên nó đọc
+       ra thành bốn tấm băng dán, kèm một vạch ngang nhìn thấy được.
 
-   Số đo dưới đây lấy từ chính ảnh chụp của chủ dự án (914×537 px là khung
-   video, quy ra % của khung):
-     · tiêu đề + avatar: 4% .. 13% chiều cao  → dải trên 15% là đủ, dư 2%;
-     · tấm "Video khác": 80% .. 94% chiều cao  → dải dưới 24% là đủ, dư 4%;
-     · logo / CC / chất lượng / nút share: 88% .. 99% → nằm trong dải dưới;
-     · mép trái/phải: vệt mờ 4% đủ che dấu vết của player (nút share ở mép
-       trái, bo góc, vệt sáng của ô chất lượng khi mở).
-   Dải là MẶT NẠ MỜ (blur + tối đi) chứ không phải thanh đen đặc: nó vẫn cho
-   thấy màu của video phía sau, nên khung trông như một khung có viền mờ tự
-   nhiên, không phải một khung bị dán băng dính đen. */
-export const CHROME_COVER = { top: 15, right: 4, bottom: 24, left: 4 }
+   Nên bản này bỏ hẳn dải phủ. Cái còn lại là hai VỆT MỜ tan dần ở mép trên/dưới
+   — hai vệt này KHÔNG nhằm che giao diện YouTube nữa; việc của chúng là để mép
+   hình hoà vào sân khấu đen của popup (kiểu trailer popup). Vì thế:
+     · alpha thấp (.55 / .6) và tan hết trước khi tới giữa khung;
+     · tổng hai mép phủ 20% chiều cao — mức của một viền, không phải tấm che.
+
+   ĐÁNH ĐỔI, ghi rõ để lần sau không ai ngạc nhiên: giao diện YouTube hiện lại —
+   tiêu đề + avatar kênh ở mép trên (lúc mới mở và khi rê chuột), logo ở mép
+   dưới. Đó là chọn lựa giữa "sạch, giống mẫu" và "không thấy gì của YouTube":
+   cả hai cùng lúc thì không có cách nào, vì mọi cách che đều phải là một tấm phủ
+   — đúng thứ vừa bị chê. Muốn quay lại che: tăng hai số dưới đây và thêm lại
+   lớp phủ có `backdrop-filter` (xem mục Vòng 27 trong HUONG-DAN.md). */
+export const FRAME_FADE = { top: 9, bottom: 11 }
 
 /* ĐÃ CHẠM MỐC CHƯA? Số vắng/không phải số thì câu trả lời là "chưa biết" —
    thà không cắt còn hơn cắt nhầm một khung chưa kịp chạy. */

@@ -1824,6 +1824,10 @@ trong ref vì vòng canh không được dựng lại mỗi cú bấm (dựng l�
 
 ## Phần XVII — vòng 27: phủ nốt giao diện YouTube còn sót (22/09/2026)
 
+> ⚠️ **Vòng 28 đã gỡ bốn dải phủ này** (chủ dự án: *"thấy gớm luôn"*). Mục dưới đây giữ lại như
+> hồ sơ của một lần đã thử — số đo, lý do, và cả ba thứ cố ý không làm — để nếu ai muốn quay lại
+> thì biết bắt đầu từ đâu. Bản đang chạy: xem **Phần XVIII**.
+
 Chủ dự án báo lần thứ ba, lần này kèm **ảnh chụp**: *"vẫn chưa ẩn hoàn toàn giao diện yt"*. Trong
 ảnh còn nguyên: **tiêu đề + avatar kênh** ở mép trên, **logo YouTube, biểu tượng CC, ô chất lượng
 4K, nút share** ở mép dưới, và **tấm "Video khác"** (nội dung gợi ý) phủ giữa khung. Vòng 26 mới
@@ -1889,3 +1893,79 @@ Ba điều đã cân nhắc và **cố ý không làm**:
 - **Mép bị phủ là mép bị mất hình**: 15% trên + 24% dưới. Đây là giá phải trả để không còn giao
   diện YouTube, và là lựa chọn có ý thức cho một khung xem trước 30 giây (nội dung chính của
   video nằm giữa khung). Muốn giữ trọn hình thì phải quay lại chấp nhận giao diện YouTube.
+
+## Phần XVIII — vòng 28: bỏ dải phủ, theo bố cục "video trailer popup" (22/09/2026)
+
+### XVIII1. Chủ dự án nói gì
+
+Vòng 27 vừa giao xong thì có hai câu:
+
+> "thấy gớm luôn tr"
+
+> "t muốn bạn làm tựa tựa v nè: `100jsprojects.com/project/video-trailer-popup`"
+
+Đọc lại vòng 27 thì thấy **chê đúng**: bốn dải là kính mờ, nhưng mép trong của chúng cắt **phựt**
+từ tối về 0 — mắt đọc ra bốn tấm băng dán quanh khung, và càng rõ vì mép cắt nằm ngay trên hình
+đang chạy. Mẫu được gửi thì ngược hẳn: **không có gì quanh khung cả** — nền đen, video ở giữa, một
+nút ✕. Vậy là **gỡ hẳn** cách phủ, đi theo mẫu.
+
+### XVIII2. Bố cục mới (và số đo `FRAME_FADE`)
+
+```
+.video-preview-scrim      nền rgba(3,4,7,.95) + blur(6px), phủ toàn màn hình, bấm ra ngoài là đóng
+└── .video-preview-stage  cột giữa, rộng min(960px, 100%)
+    ├── section.video-preview-player   role="dialog", aria-labelledby="video-preview-title"
+    │   ├── .video-preview-frame       khung 16:9, bo 12px, đổ bóng
+    │   │   ├── span.video-preview-fade   hai vệt mờ mép trên/dưới (FRAME_FADE)
+    │   │   ├── ảnh bìa + iframe + nút play/pause tự vẽ (lớp điều khiển phủ kín khung)
+    │   │   └── .video-preview-timeline    vạch 0→30 giây, kéo được
+    │   └── button.video-preview-close    ✕ nổi ở góc phải trên khung (top: -42px; điện thoại: 8px)
+    └── .video-preview-meta            h2 tên bài + "xem trước 30 giây" + đồng hồ + link mở video gốc
+```
+
+| | Số đo | Alpha | Ghi chú |
+|---|---|---|---|
+| `FRAME_FADE.top` | 9% | `.55` | `linear-gradient(180deg, rgba(0,0,0,.55), transparent)` |
+| `FRAME_FADE.bottom` | 11% | `.6` | `linear-gradient(0deg, rgba(0,0,0,.6), transparent)` |
+
+Hai vệt này **không nhằm che giao diện YouTube** — chúng chỉ để mép hình hoà vào sân khấu đen, nên
+**tan hết về `transparent`** (không còn mép cứng để mắt bắt), alpha thấp, tổng hai mép 20% chiều
+cao. `previewCap.test.js` canh: `top ≤ 14`, `bottom ≤ 16`, tổng `≤ 25`, và **không được có lại**
+`.video-preview-masks`; `communityPolish.test.js` canh tiếp: hai gradient phải có chữ `transparent`
+và vùng vệt mờ **không được** dính `backdrop-filter`/`brightness` (bộ lọc của thời kỳ dải phủ).
+
+### XVIII3. Đánh đổi — nói thẳng
+
+**Giao diện YouTube hiện lại**: tiêu đề + avatar kênh ở mép trên, logo ở mép dưới. Đây là cái giá
+trực tiếp của việc đi theo mẫu:
+
+| Cách | Được | Mất |
+|---|---|---|
+| phủ (vòng 27) | không thấy gì của YouTube | bốn tấm băng quanh khung — chủ dự án chê "gớm" |
+| mẫu (vòng 28) | sạch, đúng mẫu, không tấm nào | thấy tiêu đề/logo YouTube |
+
+Cả hai cùng lúc là **không thể**: mọi cách che đều phải là một tấm phủ. Những thứ **vẫn còn nguyên**
+của các vòng trước: `controls=0` (không thanh điều khiển, không nút *Watch on YouTube*),
+`disablekb=1`, nút play/pause tự vẽ, lớp điều khiển của trang phủ kín khung nên con trỏ không vào
+được iframe (tức phần hiện-khi-rê-chuột như CC/chất lượng/share/⋮ không có cớ xuất hiện), và **luật
+30 giây**: `end=30` + vòng canh + `cut()`, tua qua 30 giây là khung tự cắt.
+
+### XVIII4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **493 đạt / 0 lỗi / 2 skip** (vòng 27: 493 đạt — bằng, nhưng **nội dung ca đổi**: ca hình học bảy hình chữ nhật + ca "bốn dải" của vòng 27 đã bị thay bằng ca "vệt mờ tan dần, và không được dựng lại dải" + ca bố cục trailer popup) |
+| `npm run smoke` | ✅ **352/352** (vòng 27: 351, **+1 check**): `.video-preview-stage` + `.video-preview-player` là hộp thoại; có nút ✕ nổi ngoài khung; link mở video gốc giờ ở `.video-preview-open`; vệt mờ đúng số đo `FRAME_FADE`; **không còn** `.video-preview-masks`. **Đã chạy lại với mã CŨ (vòng 27): `344/352`, đỏ đúng tám phép kiểm của vòng này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-Dnvgj2bw.js` 343.31 kB (gzip 104.28 kB) |
+
+### XVIII5. Còn nợ
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài): cần mở Hall of Fame → bấm một
+  thẻ và kiểm bốn điều ghi ở `HUONG-DAN.md` mục *Vòng 28*.
+- Nếu ảnh chụp cho thấy tiêu đề/logo YouTube **che mất phần đáng xem**, các bước tiếp theo (theo thứ
+  tự nhẹ tay → mạnh tay): (1) đẩy `FRAME_FADE` lên — nhưng đó lại là băng che, phải hỏi trước;
+  (2) dựng lại lớp phủ mờ **có bo và tan** ở hai mép thay vì cắt phựt; (3) quay lại iframe to hơn
+  rồi cắt bớt (mất nét, không nên).
+- **Không có cách nào tắt** tiêu đề/logo bằng tham số: `modestbranding` đã bị YouTube bỏ từ 2023,
+  và hai thứ đó nằm ngoài thanh điều khiển. Đừng thử lại.

@@ -10,8 +10,9 @@
    ========================================================= */
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
-  PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, CHROME_COVER,
+  PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, FRAME_FADE,
   handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
   playhead, keptTime, playButtonView,
 } from './previewCap.js'
@@ -164,39 +165,40 @@ test('nút play/pause tự vẽ: đọc từ trạng thái player, và tắt tro
     { blocked: true, playing: false })
 })
 
-/* MẶT NẠ PHỦ MÉP KHUNG — bài kiểm HÌNH HỌC, không phải bài kiểm chữ nghĩa.
+/* VỆT MỜ HAI MÉP KHUNG — và cái KHÔNG còn ở đó.
    -------------------------------------------------------------------------
-   Hình chữ nhật dưới đây là giao diện YouTube đọc từ ảnh chụp của chủ dự án
-   ("vẫn chưa ẩn hoàn toàn giao diện yt"), quy ra % của khung video (914×537):
-   tiêu đề + avatar kênh ở mép trên, tấm "Video khác" và cụm logo / CC / chất
-   lượng / share / nút ⋮ ở mép dưới. Chúng nằm BÊN TRONG iframe khác tên miền
-   nên không tắt được bằng tham số, cũng không chạm tới được bằng CSS — chỉ có
-   thể PHỦ LÊN. Bài này khẳng định: với CHROME_COVER hiện tại, từng thứ một
-   trong số đó nằm TRỌN trong một dải mặt nạ.
-   Sửa CHROME_COVER nhỏ đi là bài này đỏ, và đỏ ở đúng mép sẽ lộ giao diện. */
-const YT_CHROME = {
-  'tiêu đề + avatar kênh': { x: 0, y: 4, w: 100, h: 9 },
-  'nút ⋮ của player': { x: 94, y: 2, w: 6, h: 5 },
-  'tấm "Video khác"': { x: 38, y: 80, w: 34, h: 14 },
-  'logo YouTube': { x: 76, y: 91, w: 20, h: 4 },
-  'biểu tượng CC': { x: 9, y: 93, w: 7, h: 6 },
-  'ô chất lượng (4K)': { x: 92, y: 92, w: 7, h: 6 },
-  'nút share': { x: 1, y: 88, w: 6, h: 4 },
-}
+   Bốn vòng liên tiếp quanh cùng một khung xem trước:
+     · vòng 26 ẩn thanh điều khiển của YouTube (`controls=0`) và tự vẽ nút
+       play/pause;
+     · vòng 27 phủ BỐN DẢI lên bốn mép để che giao diện YouTube còn sót — và bị
+       chủ dự án chê thẳng: *"thấy gớm luôn"*, kèm một mẫu để làm theo
+       (100jsprojects · video-trailer-popup). Chê đúng: các dải tối ở mép rồi
+       cắt phựt về 0 ở mép trong, nên nó đọc ra thành bốn tấm băng dán;
+     · vòng 28 bỏ dải phủ, đi theo bố cục của mẫu (sân khấu đen, video ở giữa,
+       một nút ✕, một dòng mô tả mờ bên dưới).
 
-test('mặt nạ bốn mép che TRỌN giao diện YouTube còn sót (ảnh chụp 22/09)', () => {
-  const bands = [
-    { x: 0, y: 0, w: 100, h: CHROME_COVER.top },
-    { x: 0, y: 100 - CHROME_COVER.bottom, w: 100, h: CHROME_COVER.bottom },
-    { x: 0, y: 0, w: CHROME_COVER.left, h: 100 },
-    { x: 100 - CHROME_COVER.right, y: 0, w: CHROME_COVER.right, h: 100 },
-  ]
-  const inside = (r, b) => r.x >= b.x - 0.01 && r.y >= b.y - 0.01
-    && r.x + r.w <= b.x + b.w + 0.01 && r.y + r.h <= b.y + b.h + 0.01
-  const holes = Object.entries(YT_CHROME)
-    .filter(([, r]) => !bands.some((b) => inside(r, b)))
-    .map(([name]) => name)
-  assert.deepEqual(holes, [], `những thứ này sẽ lộ ra: ${holes.join(', ')}`)
+   Bài kiểm này giữ ĐÚNG hai vế của vòng 28, và giữ cả vế "đừng quay lại":
+     · `FRAME_FADE` phải là VỆT MỜ: alpha thấp, hai mép cộng lại không quá 25%
+       chiều cao — mức của một viền, không phải tấm che;
+     · khung phải có hai vệt đó, và số đo trong JSX phải lấy từ FRAME_FADE;
+     · KHÔNG được có lại lớp phủ bốn mép (`.video-preview-masks`): nó là thứ
+       vừa bị chê, và nó cũng không còn việc gì — lớp điều khiển phủ kín khung
+       nên con trỏ không bao giờ vào được trong iframe, tức phần giao diện
+       hiện-khi-rê-chuột của YouTube không có cớ xuất hiện. */
+test('hai mép khung là vệt mờ tan dần, không phải dải phủ', () => {
+  for (const [k, max] of [['top', 14], ['bottom', 16]]) {
+    assert.ok(FRAME_FADE[k] > 0 && FRAME_FADE[k] <= max,
+      `FRAME_FADE.${k} = ${FRAME_FADE[k]}% — quá dày cho một vệt mờ (tối đa ${max}%)`)
+  }
+  assert.ok(FRAME_FADE.top + FRAME_FADE.bottom <= 25,
+    `hai mép cộng lại ${FRAME_FADE.top + FRAME_FADE.bottom}% — quá nửa thì không, nhưng quá 25% là thành tấm che`)
+
+  const modal = readFileSync(new URL('../components/VideoPreviewModal.jsx', import.meta.url), 'utf8')
+  assert.match(modal, /video-preview-fade/, 'khung phải có lớp vệt mờ')
+  assert.match(modal, /'--vp-fade-top': `\$\{FRAME_FADE\.top\}%`/,
+    'số đo vệt mờ phải lấy từ FRAME_FADE, không chép lại vào JSX')
+  assert.ok(!modal.includes('video-preview-masks'),
+    'lớp phủ bốn mép của vòng 27 đã bị chê là "gớm" — không được quay lại')
 })
 
 test('thanh tiến trình kẹp về 0..100 và không nhận giá trị rác', () => {

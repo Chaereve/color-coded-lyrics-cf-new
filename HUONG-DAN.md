@@ -3500,6 +3500,10 @@ mục *5b*: nó bấm nút thật và bắt lệnh gửi ra khỏi trang; lượ
 
 ## Vòng 27 — phủ nốt giao diện YouTube còn sót (22/09/2026)
 
+> ⚠️ **Đã bị thay ở vòng 28** — bốn dải phủ dưới đây bị chính chủ dự án chê là *"thấy gớm luôn"*
+> và đã được gỡ khỏi mã. Mục này giữ lại như **hồ sơ của một lần đã thử**, kèm số đo để ai muốn
+> quay lại thì biết bắt đầu từ đâu. Bản đang chạy: xem *Vòng 28* ở cuối tài liệu.
+
 Chủ dự án báo lần thứ ba, kèm ảnh chụp: *"vẫn chưa ẩn hoàn toàn giao diện yt"*. Vòng 26 mới ẩn
 được **thanh điều khiển**, còn trong ảnh vẫn nguyên: **tiêu đề + avatar kênh** (mép trên), **logo
 YouTube, CC, ô chất lượng 4K, nút share** (mép dưới), và **tấm "Video khác"** (nội dung gợi ý).
@@ -3546,3 +3550,72 @@ Mở **Hall of Fame** → bấm một thẻ → soi bốn mép: mép trên hết
 logo/CC/chất lượng/share, giữa khung hết tấm "Video khác". Phép kiểm tự động ở `tools/smoke.mjs`
 mục *5b* (kiểm có mặt nạ, đúng bốn dải, và số đo khớp `CHROME_COVER`); lượt chạy với mã CŨ cho
 `349/351`.
+
+## Vòng 28 — bỏ bốn dải phủ, đi theo bố cục "video trailer popup" (22/09/2026)
+
+Vòng 27 vừa xong thì chủ dự án trả lời hai câu:
+
+> "thấy gớm luôn tr"
+
+> "t muốn bạn làm tựa tựa v nè: `100jsprojects.com/project/video-trailer-popup`"
+
+Chê đúng. Bốn dải là **kính mờ**, nhưng mép trong của chúng cắt **phựt** từ tối về 0, nên mắt đọc
+ra bốn tấm băng dán quanh khung — càng rõ vì mép cắt lại nằm ngay trên hình đang chạy. Mẫu được
+gửi thì ngược lại hoàn toàn: **không có gì quanh khung cả**. Nền đen tuyền, video ở giữa, một nút ✕.
+
+### Bố cục mới (theo mẫu)
+
+```
+.video-preview-scrim      nền đen rgba(3,4,7,.95) + blur(6px), phủ toàn màn hình, bấm ra ngoài là đóng
+└── .video-preview-stage  cột giữa, rộng min(960px, 100%)
+    ├── section.video-preview-player   role="dialog", aria-labelledby="video-preview-title"
+    │   ├── .video-preview-frame       khung 16:9, bo 12px, đổ bóng — chỗ chứa video
+    │   │   ├── span.video-preview-fade   hai vệt mờ mép trên/dưới (số đo: FRAME_FADE)
+    │   │   ├── ảnh bìa + iframe (+ nút play/pause tự vẽ, phủ kín khung)
+    │   │   └── .video-preview-timeline    vạch 0→30 giây, kéo được
+    │   └── button.video-preview-close    ✕ NỔI ở góc phải trên khung (top: -42px) — không có thanh tiêu đề
+    └── .video-preview-meta            h2 tên bài + "xem trước 30 giây" + đồng hồ + link mở video gốc
+```
+
+Nút ✕ nằm **ngoài** khung, đúng kiểu trailer popup; trên điện thoại nó tụt vào trong (8px) vì màn
+hẹp không còn chỗ trống phía trên.
+
+### `FRAME_FADE` — hai vệt mờ, KHÔNG phải băng che
+
+| Chỗ | Số đo | Alpha | Việc của nó |
+|---|---|---|---|
+| mép trên | `FRAME_FADE.top = 9%` | `.55` | để mép hình hoà vào sân khấu đen |
+| mép dưới | `FRAME_FADE.bottom = 11%` | `.6` | như trên |
+
+Hai vệt này **không nhằm che giao diện YouTube** — việc đó đã bị bỏ hẳn. Chúng chỉ là gradient
+`linear-gradient(180deg, rgba(0,0,0,.55), transparent)` (dưới dùng `0deg`), tức **tan hết về
+`transparent`** trước khi tới giữa khung: không còn mép cứng nào để mắt bắt được. Tổng hai mép là
+20% chiều cao — mức của một viền, không phải tấm che; `previewCap.test.js` canh đúng hai điều đó
+(`top ≤ 14`, `bottom ≤ 16`, tổng `≤ 25`) nên lần sau muốn dày lên là phải sửa bài kiểm một cách
+có ý thức.
+
+### Đánh đổi — nói thẳng (đây là cái giá của việc "sạch")
+
+**Giao diện YouTube hiện lại.** Tiêu đề + avatar kênh ở mép trên, logo ở mép dưới. Không có tham
+số nào tắt được chúng (`modestbranding` đã bị YouTube bỏ từ 2023; tiêu đề và logo **không nằm trong
+thanh điều khiển**, nên `controls=0` không đụng tới; chúng nằm trong iframe khác tên miền nên CSS
+của trang cũng không xuyên vào được). Muốn che thì phải phủ — đúng thứ vừa bị chê là "gớm". Nên
+chọn: **sạch như mẫu**, và chấp nhận thấy tiêu đề/logo của YouTube.
+
+Phần còn lại của vòng 26 **vẫn nguyên**: `controls=0` (không thanh điều khiển, không nút *Watch on
+YouTube*), `disablekb=1`, nút play/pause tự vẽ, và lớp điều khiển của trang **phủ kín khung** nên
+con trỏ không bao giờ vào được trong iframe — tức phần giao diện hiện-khi-rê-chuột của YouTube
+(CC, chất lượng, share, nút ⋮) không có cớ xuất hiện. Luật **30 giây** cũng nguyên: `end=30` của
+player + vòng canh của trang + `cut()` gỡ iframe, và **tua qua 30 giây vẫn bị cắt**.
+
+### Kiểm tra bằng tay sau khi deploy
+
+Mở **Hall of Fame** → bấm một thẻ → kiểm bốn điều: (1) nền tối, video và tên bài ở giữa, nút ✕ nổi
+ngoài khung bên phải; (2) hai mép khung mờ dần, **không** thấy vệt cắt ngang nào; (3) bấm giữa
+video = play/pause, kéo vạch = tua trong 30 giây, kéo quá 30 giây = khung tự cắt; (4) chấp nhận
+thấy tiêu đề/logo của YouTube (xem mục *Đánh đổi* ở trên).
+
+Phép kiểm tự động: `tools/smoke.mjs` mục *5b* — kiểm đúng bố cục mới (`.video-preview-stage` /
+`.video-preview-player` là hộp thoại, `.video-preview-close`, `.video-preview-open`), số đo vệt mờ
+khớp `FRAME_FADE`, và **không còn** `.video-preview-masks`. Lượt chạy với mã CŨ (vòng 27) cho
+`344/352`, đỏ đúng tám phép kiểm của vòng này.

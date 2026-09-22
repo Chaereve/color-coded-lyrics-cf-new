@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { PREVIEW_SECONDS, CHROME_COVER } from './previewCap.js'
+import { PREVIEW_SECONDS, FRAME_FADE } from './previewCap.js'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -52,43 +52,41 @@ test('khung xem trước tắt giao diện YouTube và tự vẽ nút play/pause
   assert.match(modal, /command\('seekTo'/, 'thanh thời gian của trang phải gửi seekTo')
 })
 
-/* MẶT NẠ BỐN MÉP (vòng 27) — chủ dự án gửi ảnh chụp: "vẫn chưa ẩn hoàn toàn
-   giao diện yt". `controls=0` chỉ bỏ thanh điều khiển; tiêu đề + avatar kênh ở
-   mép trên, logo / CC / ô chất lượng / nút share ở mép dưới, và tấm "Video
-   khác" vẫn nguyên — chúng nằm BÊN TRONG iframe khác tên miền, CSS của trang
-   không chạm tới được, nên cách duy nhất là phủ lên.
+/* BỐ CỤC POPUP (vòng 28) — chủ dự án gửi một mẫu để làm theo:
+   "t muốn bạn làm tựa tựa v nè" (100jsprojects · video-trailer-popup). Mẫu đó
+   có: sân khấu đen toàn màn hình, video to ở giữa, nút ✕ nổi ở góc, không có
+   thanh tiêu đề và không có dải nào quanh khung.
 
-   Số đo dưới đây là SÀN, đo từ chính ảnh chụp đó (khung video 914×537):
-     · tiêu đề + avatar: 4%..13% chiều cao      → dải trên phải ≥ 13%
-     · tấm "Video khác": 80%..94% chiều cao     → dải dưới phải ≥ 20%
-     · logo/CC/chất lượng/share: 88%..99%       → nằm trong dải dưới
-   Sửa số nhỏ hơn sàn là giao diện YouTube lộ lại ở đúng mép đó. */
-test('mặt nạ phủ mép khung đủ rộng để che giao diện YouTube', () => {
-  assert.ok(CHROME_COVER.top >= 13, `dải trên ${CHROME_COVER.top}% — hụt so với tiêu đề/kênh (13%)`)
-  assert.ok(CHROME_COVER.bottom >= 20, `dải dưới ${CHROME_COVER.bottom}% — hụt so với tấm "Video khác" (20%)`)
-  for (const side of ['left', 'right']) {
-    assert.ok(CHROME_COVER[side] >= 3, `dải ${side} ${CHROME_COVER[side]}% — quá mỏng`)
-  }
-  /* Bốn dải phải còn là MẶT NẠ chứ không phải thanh đen đặc kín cả khung: quá
-     nửa chiều cao bị phủ là video không còn chỗ để xem. */
-  assert.ok(CHROME_COVER.top + CHROME_COVER.bottom < 50,
-    `phủ ${CHROME_COVER.top + CHROME_COVER.bottom}% chiều cao — quá nửa khung, video hết chỗ xem`)
-
+   Bài này chốt cả HÌNH DÁNG lẫn vế "đừng quay lại": bốn dải phủ của vòng 27
+   từng bị chê là "thấy gớm luôn", nên nếu ai đó dựng lại chúng thì phải là một
+   quyết định có ý thức, không phải một lần sửa lén. */
+test('popup theo bố cục trailer popup: sân khấu đen, một nút ✕, vệt mờ mềm', () => {
   const modal = readFileSync(`${root}src/components/VideoPreviewModal.jsx`, 'utf8')
-  for (const cls of ['video-preview-masks', 'vp-m-top', 'vp-m-bottom', 'vp-m-left', 'vp-m-right']) {
-    assert.ok(modal.includes(cls), `thiếu ${cls} trong khung xem trước`)
+  for (const cls of ['video-preview-scrim', 'video-preview-stage', 'video-preview-player',
+    'video-preview-frame', 'video-preview-close', 'video-preview-meta']) {
+    assert.ok(modal.includes(cls), `thiếu ${cls} trong popup`)
   }
-  assert.match(modal, /'--vp-top': `\$\{CHROME_COVER\.top\}%`/,
-    'số đo mặt nạ phải lấy từ CHROME_COVER, không chép lại vào JSX')
+  assert.ok(!modal.includes('video-preview-masks'),
+    'lớp phủ bốn mép (vòng 27) đã bị chê — bỏ rồi thì đừng dựng lại mà không ghi lý do')
+  assert.match(modal, /<h2 id="video-preview-title">/, 'tên bài phải còn (nhãn của hộp thoại)')
 
   const css = readFileSync(`${root}src/index.css`, 'utf8')
-  const block = css.slice(css.indexOf('.video-preview-masks'))
-  assert.match(block, /pointer-events:\s*none/,
-    'mặt nạ chỉ để nhìn — cú bấm phải đi qua nó tới nút play/pause')
-  assert.match(block, /backdrop-filter:\s*blur\(/,
-    'mặt nạ phải MỜ chứ không phải thanh đen đặc')
-  assert.match(block, /height:\s*calc\(var\(--vp-top\)/,
-    'chiều cao dải trên phải theo biến --vp-top (một nguồn số)')
+  const fade = css.slice(css.indexOf('.video-preview-fade'), css.indexOf('.video-preview-close'))
+  assert.match(fade, /linear-gradient\(180deg, rgba\(0, 0, 0, \.\d+\), transparent\)/,
+    'vệt mờ trên phải tan dần về `transparent` — không mép cứng')
+  assert.match(fade, /linear-gradient\(0deg, rgba\(0, 0, 0, \.\d+\), transparent\)/,
+    'vệt mờ dưới phải tan dần về `transparent` — không mép cứng')
+  assert.ok(!/brightness|backdrop-filter/.test(fade),
+    'vệt mờ chỉ được là một lớp gradient — không kéo theo bộ lọc của thời kỳ dải phủ')
+  /* Vệt mờ phải nhẹ: hai mép cộng lại không quá 25% chiều cao (xem FRAME_FADE). */
+  assert.ok(FRAME_FADE.top + FRAME_FADE.bottom <= 25,
+    `hai vệt ${FRAME_FADE.top + FRAME_FADE.bottom}% — dày quá, quay về kiểu băng dán`)
+  /* Nút ✕ nằm NGOÀI khung (nổi trên khung), không phải một thanh tiêu đề. */
+  const close = css.slice(css.indexOf('.video-preview-close'))
+  assert.match(close.slice(0, 260), /position:\s*absolute/,
+    '✕ phải nổi theo khung, không nằm trong luồng văn bản')
+  assert.ok(!/video-preview-head/.test(css),
+    'thanh tiêu đề của bản cũ đã bỏ — mẫu không có nó')
 })
 
 test('comments expose a reply action and persist the parent id', () => {

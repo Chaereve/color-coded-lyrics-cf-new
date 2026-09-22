@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import {
-  PREVIEW_SECONDS, PLAYER_ORIGIN, CHROME_COVER, handshake, command,
+  PREVIEW_SECONDS, PLAYER_ORIGIN, FRAME_FADE, handshake, command,
   readWidgetEvent, mergeInfo, overCap, playhead, keptTime, playButtonView, previewPct,
 } from '../lib/previewCap.js'
 import { useI18n } from '../lib/i18n.jsx'
@@ -75,9 +75,27 @@ import { useI18n } from '../lib/i18n.jsx'
    diện yt". `controls=0` chỉ bỏ thanh điều khiển; tiêu đề + avatar kênh ở mép
    trên, logo YouTube / CC / ô chất lượng / nút share ở mép dưới, và tấm
    "Video khác" thì vẫn nguyên — chúng KHÔNG nằm trong thanh điều khiển, và
-   iframe khác tên miền nên CSS của trang không chạm tới được. Đó là lý do bốn
-   dải mặt nạ phủ mép khung (xem `CHROME_COVER` trong previewCap.js để biết số
-   đo và vì sao chọn phủ thay vì tắt).
+   iframe khác tên miền nên CSS của trang không chạm tới được. Vòng 27 phủ bốn
+   dải lên bốn mép khung cho những thứ đó.
+
+   LẦN 4 — chủ dự án nhìn bản đó và nói thẳng: "thấy gớm luôn", rồi gửi một mẫu
+   để làm theo (100jsprojects · *video trailer popup*). Đúng: bốn dải tối ở mép
+   rồi cắt phựt về 0 ở mép trong đọc ra thành bốn tấm băng dán, kèm một vạch
+   ngang nhìn thấy được. Nay bố cục đi theo mẫu:
+
+     · SÂN KHẤU ĐEN toàn màn hình, video to ở giữa, bo góc nhẹ, đổ bóng;
+     · nút ✕ tròn nổi ở góc phải TRÊN khung — không còn thanh tiêu đề;
+     · dòng mô tả nhỏ, mờ, ngay dưới khung: tên bài · 30 giây · số giây · nút mở
+       video đầy đủ;
+     · chỉ còn hai VỆT MỜ tan dần ở mép trên/dưới khung (`FRAME_FADE`) cho mép
+       hình hoà vào nền đen — không còn dải nào cắt ngang.
+
+   ĐÁNH ĐỔI, nói thẳng vì nó là lựa chọn chứ không phải sơ suất: bỏ dải phủ thì
+   giao diện YouTube hiện lại — tiêu đề + avatar kênh ở mép trên (lúc mới mở và
+   khi rê chuột), logo ở mép dưới. Không có cách nào vừa phủ kín chúng vừa đẹp:
+   chúng nằm trong iframe khác tên miền, và mọi cách che đều phải là một tấm phủ
+   — chính thứ vừa bị chê. Muốn quay lại che thì sửa `FRAME_FADE` thành số lớn
+   hơn và bật lại lớp phủ; ghi ở HUONG-DAN.md, mục Vòng 28.
 
    Pre-roll thì không tắt được (đó là tiền của kênh), nhưng nút play/pause TỰ
    TẮT trong lúc quảng cáo đang chạy: bấm pause vào quảng cáo chỉ tổ đứng hình
@@ -417,22 +435,8 @@ export default function VideoPreviewModal({ video, onClose }) {
           onLoad={() => send(handshake())}
           allowFullScreen
         />
-        {/* MẶT NẠ BỐN MÉP: che tiêu đề/kênh, logo, CC, chất lượng, nút share và
-            tấm "Video khác" — những thứ YouTube vẽ bên trong iframe mà trang
-            không tắt được (xem CHROME_COVER trong previewCap.js). Số đo là biến
-            CSS để số nằm ở MỘT chỗ, và smoke kiểm được đúng con số đó. */}
-        <div className="video-preview-masks" aria-hidden="true"
-          style={{
-            '--vp-top': `${CHROME_COVER.top}%`, '--vp-bottom': `${CHROME_COVER.bottom}%`,
-            '--vp-left': `${CHROME_COVER.left}%`, '--vp-right': `${CHROME_COVER.right}%`,
-          }}>
-          <i className="vp-m-top" />
-          <i className="vp-m-bottom" />
-          <i className="vp-m-left" />
-          <i className="vp-m-right" />
-        </div>
         {/* Nút DUY NHẤT của khung: play/pause (xem PreviewControls). Nó đứng
-            TRÊN mặt nạ và che luôn nút play lớn mà player tự vẽ ở giữa. */}
+            trên nút play lớn mà player tự vẽ ở giữa khi video đang dừng. */}
         <PreviewControls playing={playState.playing} blocked={playState.blocked} onToggle={toggle} />
       </>
     )
@@ -465,57 +469,72 @@ export default function VideoPreviewModal({ video, onClose }) {
   }
 
   return (
-    <div className="video-preview-scrim" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
-      <section className="video-preview" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
-        <header className="video-preview-head">
-          <div>
+    <div className="video-preview-scrim" role="presentation"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
+      <div className="video-preview-stage">
+        <section className="video-preview-player" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
+          <div className="video-preview-frame">
+            {/* Hai vệt mờ tan dần ở mép khung (số đo ở FRAME_FADE): đủ để mép hình
+                hoà vào nền đen, KHÔNG phải băng che — alpha thấp, tan hết trước
+                khi tới giữa khung. */}
+            <span className="video-preview-fade" aria-hidden="true"
+              style={{ '--vp-fade-top': `${FRAME_FADE.top}%`, '--vp-fade-bottom': `${FRAME_FADE.bottom}%` }}>
+              <i className="vp-f-top" />
+              <i className="vp-f-bottom" />
+            </span>
+
+            {body}
+
+            {/* Vạch thời gian 0→30 giây: kéo được (control của trang, không phải
+                của YouTube). Hết phần xem trước thì thẻ bên trên đã phủ kín khung
+                nên vạch này ẩn đi. */}
+            {id && !over && (
+              <div className="video-preview-timeline">
+                <span
+                  ref={barRef}
+                  className="video-preview-bar"
+                  role="slider" tabIndex={0}
+                  aria-label={t('preview.scrub')}
+                  aria-valuemin={0} aria-valuemax={PREVIEW_SECONDS} aria-valuenow={secs}
+                  onPointerDown={(e) => {
+                    e.preventDefault()
+                    dragRef.current = true
+                    seekFromEvent(e)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(shownAt - 1) }
+                    if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(shownAt + 1) }
+                  }}>
+                  <span className="video-preview-track" aria-hidden="true">
+                    <i style={{ '--pv': `${pct}%` }} />
+                    <u style={{ '--pv': `${pct}%` }} />
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Nút ✕ nổi ở góc phải trên khung — đúng kiểu trailer popup, không nằm
+              trong một thanh tiêu đề. */}
+          <button type="button" className="video-preview-close" onClick={onClose}
+            aria-label={t('preview.close')} title={t('preview.close')}>
+            <Icon name="close" size={16} />
+          </button>
+        </section>
+
+        <div className="video-preview-meta">
+          <div className="video-preview-meta-t">
             <h2 id="video-preview-title">{video.title}</h2>
             <span>{t('preview.thirty')}</span>
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('preview.close')} title={t('preview.close')}>
-            <Icon name="close" size={16} />
-          </button>
-        </header>
-
-        <div className="video-preview-frame">{body}</div>
-
-        <footer className="video-preview-foot">
-          {/* Thanh 0→30 giây: vừa là chỗ đọc con số, vừa là chỗ TUA. Hết phần
-              xem trước thì nó đứng ở đầy, khớp với thẻ bên trên. */}
-          {id && (
-            <div className="video-preview-tick">
-              {/* Thanh thời gian là CONTROL của trang (không phải của YouTube):
-                  kéo trong 30 giây để tua, còn mũi lên/xuống để nhích 1 giây. */}
-              <span
-                ref={barRef}
-                className="video-preview-bar"
-                role="slider" tabIndex={0}
-                aria-label={t('preview.scrub')}
-                aria-valuemin={0} aria-valuemax={PREVIEW_SECONDS} aria-valuenow={secs}
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  dragRef.current = true
-                  seekFromEvent(e)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(shownAt - 1) }
-                  if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(shownAt + 1) }
-                }}>
-                <span className="video-preview-track" aria-hidden="true">
-                  <i style={{ '--pv': `${pct}%` }} />
-                  <u style={{ '--pv': `${pct}%` }} />
-                </span>
-              </span>
-              <b>{t('preview.counter', { s: secs, total: PREVIEW_SECONDS })}</b>
-            </div>
-          )}
+          {id && <b className="video-preview-count">{t('preview.counter', { s: secs, total: PREVIEW_SECONDS })}</b>}
           {url && (
-            <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer">
-              <Icon name="ext" size={13} />{t(id ? 'preview.open' : 'preview.openLink')}
+            <a className="video-preview-open" href={url} target="_blank" rel="noreferrer">
+              <Icon name="ext" size={12} />{t(id ? 'preview.open' : 'preview.openLink')}
             </a>
           )}
-        </footer>
-      </section>
+        </div>
+      </div>
     </div>
   )
 }
