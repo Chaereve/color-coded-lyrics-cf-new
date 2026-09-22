@@ -3,7 +3,7 @@ import Icon from './Icon'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import {
   PREVIEW_SECONDS, PLAYER_ORIGIN, FRAME_FADE, handshake, command,
-  readWidgetEvent, mergeInfo, overCap, playhead, keptTime, playButtonView, previewPct,
+  readWidgetEvent, mergeInfo, overCap, playhead, keptTime, previewPct,
 } from '../lib/previewCap.js'
 import { useI18n } from '../lib/i18n.jsx'
 
@@ -48,64 +48,61 @@ import { useI18n } from '../lib/i18n.jsx'
    postMessage bất đồng bộ, còn gỡ phần tử thì trình duyệt dừng tiếng ngay và
    không có nhánh nào (quảng cáo tự phát lại, player lờ lệnh) sống sót.
 
-   GIAO DIỆN CỦA YOUTUBE BỊ TẮT, TRANG TỰ VẼ NÚT PLAY/PAUSE
+   ĐIỀU KHIỂN: YOUTUBE TỰ VẼ, TRANG KHÔNG CHÈN NÚT NÀO
    ---------------------------------------------------------
-   Chủ dự án yêu cầu: "ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ
-   bấm play/pause được thôi". Nên URL nhúng có thêm `controls=0`
-   (không thanh điều khiển, không nút *Watch on YouTube* — nút đó nằm trong
-   thanh điều khiển) và `disablekb=1` (không phím tắt của player: `[l]`/`[→]`
-   nhảy 10 giây, `[0-9]` nhảy theo phần trăm — đúng những đường vòng qua mốc 30
-   giây). `modestbranding` nay đã bị YouTube bỏ, không còn tác dụng, giữ lại chỉ
-   cho bản cũ khỏi đổi hành vi.
+   Bốn vòng liên tiếp quanh cùng một khung, nên ghi lại cho rõ — mỗi vòng là một
+   lựa chọn khác nhau của CÙNG một câu hỏi: để ai vẽ điều khiển?
 
-   Đổi lại phải tự vẽ phần điều khiển — và chỉ MỘT nút, đúng như yêu cầu:
+     · vòng 26 — chủ dự án: "ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ
+       bấm play/pause được thôi". Nên URL nhúng có `controls=0` (bỏ thanh điều
+       khiển, kèm nút *Watch on YouTube*) + `disablekb=1` (bỏ phím tắt nhảy 10
+       giây), và trang tự vẽ một nút play/pause phủ giữa khung.
+     · vòng 27 — ảnh chụp cho thấy giao diện YouTube vẫn còn; phủ bốn dải lên bốn
+       mép.
+     · vòng 28 — "thấy gớm luôn": gỡ bốn dải, đi theo bố cục trailer popup.
+     · vòng 29 (bản này) — chủ dự án: "ko cần chèn cái nút pause/play trong video
+       đâu". Bản nháp của vòng này hiểu thành "vậy thì bật lại điều khiển của
+       YouTube", bỏ `controls=0`/`disablekb=1` — và chủ dự án gửi ảnh chụp ngay:
+       thanh điều khiển đầy đủ (0:01 / 3:34, vạch tiến trình, ô chất lượng, CC,
+       tấm "Video khác", logo YouTube, nút toàn màn hình), kèm câu "bỏ cái phần
+       trong hình t gửi và để video giống bản trước đó".
 
-     · **Nút play/pause** phủ giữa khung, gửi `playVideo` / `pauseVideo` qua
-       chính kênh postMessage ở trên. Trạng thái nút đọc từ `onStateChange` của
-       player (nguồn đúng nhất) rồi tới `playerState` trong gói thông tin, và
-       đoán theo ý định ban đầu khi player chưa kịp nói gì — luật nằm ở
-       `playButtonView()` trong previewCap.js.
-     · **Thanh thời gian ở chân hộp bấm được**: kéo tới đâu là gửi `seekTo`
-       tới đó — trong phạm vi 30 giây. Tua vẫn có, nhưng không còn đường nào
-       tua RA NGOÀI phần xem trước.
-     · Không vẽ thanh âm lượng / toàn màn hình / cài đặt / logo kênh / tiêu đề
-       của YouTube — đó chính là "mấy cái giao diện" cần ẩn.
+   CHỐT LẠI — và đây là điều cả ba vòng 26, 28, 29 cùng nói: khung xem trước
+   KHÔNG vẽ nút nào, và YouTube cũng KHÔNG hiện thanh điều khiển của nó.
 
-   LỖI ĐÃ GẶP THẬT, LẦN 3 (chủ dự án gửi ảnh chụp): "vẫn chưa ẩn hoàn toàn giao
-   diện yt". `controls=0` chỉ bỏ thanh điều khiển; tiêu đề + avatar kênh ở mép
-   trên, logo YouTube / CC / ô chất lượng / nút share ở mép dưới, và tấm
-   "Video khác" thì vẫn nguyên — chúng KHÔNG nằm trong thanh điều khiển, và
-   iframe khác tên miền nên CSS của trang không chạm tới được. Vòng 27 phủ bốn
-   dải lên bốn mép khung cho những thứ đó.
+     · không nút tự vẽ: không còn lớp điều khiển, không còn nút, và luật trạng
+       thái nút trong previewCap.js cũng đã xoá — không còn gì của trang phủ lên
+       mặt video;
+     · `controls=0` + `disablekb=1` giữ nguyên như vòng 26, nên thanh điều khiển
+       trong ảnh chụp không quay lại (nó cũng là thứ mang theo *Watch on
+       YouTube*, phím tắt nhảy 10 giây và tấm "Video khác");
+     · LỚP PHỦ CHẶN CÚ BẤM cũng đi theo nút: nó chỉ tồn tại để nút của trang là
+       chỗ bấm duy nhất. Bỏ nó thì cú bấm rơi vào chính player — mà player của
+       YouTube, kể cả khi `controls=0`, vẫn tự hiểu cú bấm vào mặt video là
+       play/pause. Đó là "dùng nút của YouTube" đúng nghĩa: nút của nó, không
+       phải thanh điều khiển của nó.
 
-   LẦN 4 — chủ dự án nhìn bản đó và nói thẳng: "thấy gớm luôn", rồi gửi một mẫu
-   để làm theo (100jsprojects · *video trailer popup*). Đúng: bốn dải tối ở mép
-   rồi cắt phựt về 0 ở mép trong đọc ra thành bốn tấm băng dán, kèm một vạch
-   ngang nhìn thấy được. Nay bố cục đi theo mẫu:
+   Nói thẳng phần còn lại, vì nó là giới hạn thật (đã đo ở vòng 27, xem
+   HUONG-DAN.md): tiêu đề + avatar kênh ở mép trên (khi mới mở hoặc rê chuột)
+   và logo ở mép dưới vẫn do YouTube vẽ trong iframe; không tham số nào tắt
+   riêng chúng, mà che thì phải phủ — đúng thứ bị chê là "gớm" ở vòng 27. Khung
+   vẫn giữ nguyên bố cục trailer popup của vòng 28.
 
-     · SÂN KHẤU ĐEN toàn màn hình, video to ở giữa, bo góc nhẹ, đổ bóng;
-     · nút ✕ tròn nổi ở góc phải TRÊN khung — không còn thanh tiêu đề;
-     · dòng mô tả nhỏ, mờ, ngay dưới khung: tên bài · 30 giây · số giây · nút mở
-       video đầy đủ;
-     · chỉ còn hai VỆT MỜ tan dần ở mép trên/dưới khung (`FRAME_FADE`) cho mép
-       hình hoà vào nền đen — không còn dải nào cắt ngang.
+   Thanh 0→30 giây của trang vẫn nằm trong khung như vòng 28 (nó là control
+   duy nhất của trang, và thanh điều khiển của YouTube thì đã tắt nên không
+   chồng lên ai): nói ra phần xem trước dài bao nhiêu và cho tua nhanh trong
+   phạm vi đó. Tua RA NGOÀI 30 giây vẫn bị chặn bởi vòng canh ở lớp 2.
 
-   ĐÁNH ĐỔI, nói thẳng vì nó là lựa chọn chứ không phải sơ suất: bỏ dải phủ thì
-   giao diện YouTube hiện lại — tiêu đề + avatar kênh ở mép trên (lúc mới mở và
-   khi rê chuột), logo ở mép dưới. Không có cách nào vừa phủ kín chúng vừa đẹp:
-   chúng nằm trong iframe khác tên miền, và mọi cách che đều phải là một tấm phủ
-   — chính thứ vừa bị chê. Muốn quay lại che thì sửa `FRAME_FADE` thành số lớn
-   hơn và bật lại lớp phủ; ghi ở HUONG-DAN.md, mục Vòng 28.
-
-   Pre-roll thì không tắt được (đó là tiền của kênh), nhưng nút play/pause TỰ
-   TẮT trong lúc quảng cáo đang chạy: bấm pause vào quảng cáo chỉ tổ đứng hình
-   ở một tấm hình quảng cáo, còn người xem không bấm được gì thì quảng cáo qua
-   nhanh hơn.
+   Quảng cáo pre-roll không tắt được (đó là tiền của kênh) và cũng không có nút
+   nào để tắt hộ: vòng canh đã biết bỏ qua đồng hồ của quảng cáo (`playhead`)
+   nên phần xem trước không bị cắt oan (`playerState === -1` lúc quảng cáo chạy).
 
    Phần còn lại vẫn như cũ và vẫn phải giữ: ảnh bìa nằm DƯỚI iframe (mạng
    chậm/adblock vẫn thấy hình), nhánh `<video>` cho mp4/webm/ogv/mov/m4v (cũng
-   bị cắt ở giây 30, bằng chính thẻ video đó — và cũng có nút play/pause tự
-   vẽ), câu `preview.noEmbed` cho link lạ, Esc + bấm nền để đóng, khoá cuộn nền.
+   bị cắt ở giây 30, bằng chính thẻ video đó — nhánh này KHÔNG có YouTube nên
+   điều khiển là của trình duyệt: `controls` trên chính thẻ `<video>`, để khung
+   vẫn bấm phát được), câu `preview.noEmbed` cho link lạ, Esc + bấm nền để đóng,
+   khoá cuộn nền.
    ========================================================= */
 
 /* Chuỗi dưới đây là HỢP ĐỒNG với YouTube, viết nguyên văn:
@@ -116,11 +113,13 @@ import { useI18n } from '../lib/i18n.jsx'
    · `origin=…` được ghép thêm lúc chạy (xem bên dưới) vì trang này chạy ở
      nhiều tên miền; thiếu nó thì player gửi sự kiện về sai đích và trình duyệt
      chặn im lặng;
-   · `controls=0` — tắt thanh điều khiển của YouTube (trong đó có nút *Watch on
-     YouTube*): trang tự vẽ MỘT nút play/pause;
-   · `disablekb=1` — tắt phím tắt của player, vì `[l]`/`[→]` nhảy 10 giây và
-     `[0-9]` nhảy theo phần trăm: hai đường vòng qua mốc 30 giây;
-   · `autoplay=1` — cũng là thứ giữ cho nút *Watch on YouTube* không hiện. */
+   · `autoplay=1&playsinline=1` — chạy ngay khi mở khung, và không tự phóng to
+     trên điện thoại;
+   · `rel=0` — hết phần xem trước thì tấm gợi ý chỉ dẫn tới kênh đó, không phải
+     một rừng video lạ.
+   `controls=0` + `disablekb=1` Ở LẠI (vòng 26 → 29): vòng 29 gỡ nút tự vẽ của
+   trang, nhưng thanh điều khiển của YouTube cũng không được quay lại — chủ dự
+   án gửi ảnh chụp đúng cái thanh đó và nói "bỏ cái phần trong hình t gửi". */
 const EMBED_BASE = 'https://www.youtube-nocookie.com/embed/'
 const EMBED_QUERY = '?autoplay=1&start=0&end=30&rel=0&playsinline=1&enablejsapi=1&controls=0&disablekb=1'
 
@@ -132,30 +131,6 @@ const isVideoFile = (url) => /\.(mp4|webm|ogv|mov|m4v)([?#]|$)/i.test(url || '')
    đưa nút mở video. (2 = tham số sai, 5 = lỗi player tạm thời — bỏ qua, hai
    thứ đó tự khỏi.) */
 const EMBED_DENIED = new Set([100, 101, 150])
-
-/* Lớp điều khiển tự vẽ — dùng chung cho cả hai nhánh (YouTube và file video).
-   ---------------------------------------------------------
-   Là một COMPONENT riêng, không phải hàm dựng JSX gọi trong lúc render: hàm
-   như vậy bị luật `refs` của React Compiler coi là chỗ có thể đọc ref lúc
-   render (oxlint bắt được ở vòng này), còn component thì props là props.
-
-   Lớp này phủ kín khung, nên cú bấm KHÔNG bao giờ lọt vào iframe — nhờ vậy
-   không có giao diện nào của YouTube lộ ra, kể cả khi người xem bấm vào giữa
-   video. Bấm vào vùng video (ngoài nút) cũng là play/pause, đúng thói quen của
-   mọi player; nút chỉ là chỗ để nhìn thấy việc đó. */
-function PreviewControls({ playing, blocked, onToggle }) {
-  const { t } = useI18n()
-  const label = blocked ? t('preview.ad') : t(playing ? 'preview.pause' : 'preview.play')
-  return (
-    <div className={`video-preview-controls${playing ? ' is-playing' : ''}`}
-      onClick={(e) => { if (e.target === e.currentTarget) onToggle() }}>
-      <button type="button" className="video-preview-toggle"
-        onClick={onToggle} disabled={blocked} aria-label={label} title={label}>
-        <Icon name={playing ? 'pause' : 'play'} size={18} />
-      </button>
-    </div>
-  )
-}
 
 export default function VideoPreviewModal({ video, onClose }) {
   const { t } = useI18n()
@@ -171,17 +146,7 @@ export default function VideoPreviewModal({ video, onClose }) {
   const [at, setAt] = useState(0)            /* vị trí đang phát, để vẽ */
   const [over, setOver] = useState(false)    /* đã chạm mốc 30 giây */
   const [blocked, setBlocked] = useState(false)  /* player báo không nhúng được */
-  /* Nút play/pause đang hiện gì. Đây là STATE chứ không đọc thẳng từ ref lúc
-     render: đọc ref trong lúc render là chuyện React cấm (oxlint bắt được ở
-     vòng này), và cũng là cách để nút cũ đi so với player. Vòng canh và bộ
-     nghe sự kiện cùng đẩy giá trị vào đây.
-     `wantRef` = ý định của người xem: họ vừa bấm thì tin họ, cho tới khi player
-     tự nói khác. Để trong ref vì vòng canh KHÔNG được dựng lại mỗi cú bấm —
-     dựng lại là đồng hồ treo tường (lớp 3) đếm lại từ 0. */
-  const wantRef = useRef(null)
-  const [playState, setPlayState] = useState({ blocked: false, playing: true })
   const videoRef = useRef(null)              /* thẻ <video> của nhánh file */
-  const [filePlaying, setFilePlaying] = useState(false)
 
   /* Esc để đóng + khoá cuộn nền: cùng luật với các hộp thoại khác của app. */
   useEffect(() => {
@@ -209,28 +174,6 @@ export default function VideoPreviewModal({ video, onClose }) {
     setOver(true)
   }, [send])
 
-  /* Nhánh file video (mp4/webm/…) có nút play/pause riêng, nhưng cùng một hình
-     dáng và cùng một cách đọc trạng thái: `filePlaying` là state, đặt từ
-     onPlay/onPause của chính thẻ video. */
-  const toggleFile = useCallback(() => {
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) v.play(); else v.pause()
-  }, [])
-
-  /* Nút play/pause tự vẽ — thanh điều khiển của YouTube đã bị tắt
-     (`controls=0`). Trạng thái để VẼ đọc từ `playButtonView()`; lệnh thì gửi
-     đúng chức năng của player (`playVideo` / `pauseVideo`). */
-  const toggle = useCallback(() => {
-    setPlayState((prev) => {
-      if (prev.blocked) return prev
-      const next = !prev.playing
-      wantRef.current = next
-      send(command(next ? 'playVideo' : 'pauseVideo'))
-      return { blocked: false, playing: next }
-    })
-  }, [send])
-
   const replay = useCallback(() => {
     /* Quên hết những gì player cũ kể — vị trí 47 giây nằm trong đó. Không xoá
        thì vòng canh của phiên mới đọc lại đúng con số vừa làm nó cắt và cắt
@@ -240,8 +183,6 @@ export default function VideoPreviewModal({ video, onClose }) {
     seenRef.current = 0
     atRef.current = 0
     setAt(0)
-    wantRef.current = null
-    setPlayState({ blocked: false, playing: true })
     setBlocked(false)
     setOver(false)
     setRunId((n) => n + 1)
@@ -257,14 +198,6 @@ export default function VideoPreviewModal({ video, onClose }) {
     setAt(s)
     send(command('seekTo', [s, true]))
   }, [send])
-
-  /* Đẩy trạng thái nút vào state — nhưng chỉ khi nó ĐỔI: gói tin của player về
-     vài lần mỗi giây, và một `setState` với giá trị cũ chỉ tổ bắt React vẽ lại
-     thanh thời gian vô ích. */
-  const publish = useCallback(() => {
-    const next = playButtonView({ state: stateRef.current, info: infoRef.current, wantPlay: wantRef.current })
-    setPlayState((prev) => (prev.playing === next.playing && prev.blocked === next.blocked ? prev : next))
-  }, [])
 
   /* ---------- nghe player ---------- */
   useEffect(() => {
@@ -282,18 +215,14 @@ export default function VideoPreviewModal({ video, onClose }) {
         infoRef.current = mergeInfo(infoRef.current, msg.info)
         const ps = Number(infoRef.current.playerState)
         if (Number.isFinite(ps)) stateRef.current = ps
-        /* Player tự báo trạng thái đúng, nên ý định của người xem hết nhiệm vụ
-           (họ bấm pause → player báo 2 → nút hiện "play"). */
-        wantRef.current = null
-        publish()
         return
       }
-      if (msg.kind === 'state') { stateRef.current = msg.state; wantRef.current = null; publish(); return }
+      if (msg.kind === 'state') { stateRef.current = msg.state; return }
       if (msg.kind === 'error' && EMBED_DENIED.has(msg.code)) setBlocked(true)
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [id, over, blocked, publish])
+  }, [id, over, blocked])
 
   /* ---------- vòng canh: bắt tay, đọc vị trí, cắt khi quá mốc ----------
      Mốc 30 giây đếm theo VỊ TRÍ CỦA VIDEO. Quảng cáo trước video (pre-roll) tự
@@ -322,10 +251,6 @@ export default function VideoPreviewModal({ video, onClose }) {
         atRef.current = keptTime(atRef.current, head.seconds)
         setAt(atRef.current)
       }
-      /* Trạng thái nút cũng đọc theo cùng nhịp này: player có thể im lặng rất
-         lâu (video đang dừng), mà nút thì không được phép đoán sai. */
-      publish()
-
       const late = Date.now() - startedAt
       /* (a) chưa từng đọc được vị trí: hết 30 giây là hết phần xem trước. */
       if (!measured && late >= (PREVIEW_SECONDS + 1) * 1000) { cut(); return }
@@ -334,7 +259,7 @@ export default function VideoPreviewModal({ video, onClose }) {
         && late >= (PREVIEW_SECONDS + 2) * 1000) cut()
     }, 250)
     return () => clearInterval(iv)
-  }, [id, over, blocked, runId, send, cut, publish])
+  }, [id, over, blocked, runId, send, cut])
 
   /* ---------- tua trên thanh thời gian (control của trang) ---------- */
   const barRef = useRef(null)
@@ -435,23 +360,18 @@ export default function VideoPreviewModal({ video, onClose }) {
           onLoad={() => send(handshake())}
           allowFullScreen
         />
-        {/* Nút DUY NHẤT của khung: play/pause (xem PreviewControls). Nó đứng
-            trên nút play lớn mà player tự vẽ ở giữa khi video đang dừng. */}
-        <PreviewControls playing={playState.playing} blocked={playState.blocked} onToggle={toggle} />
       </>
     )
   } else if (isVideoFile(url)) {
     /* File video không phải YouTube: cùng một luật 30 giây, nhưng thẻ <video>
-       tự báo vị trí nên không cần postMessage — và cũng tự vẽ nút play/pause
-       giống hệt khung YouTube (chỉ MỘT nút, không thanh điều khiển của hệ
-       điều hành). */
+       tự báo vị trí nên không cần postMessage. Nhánh này cũng để chính player
+       vẽ điều khiển — ở đây là `controls` của trình duyệt, đúng tinh thần vòng
+       29 ("xài nút của youtube" = để player tự vẽ, không chèn nút của trang). */
     body = (
       <>
         <video
           ref={videoRef}
-          className="video-preview-file" src={url} playsInline
-          onPlay={() => setFilePlaying(true)}
-          onPause={() => setFilePlaying(false)}
+          className="video-preview-file" src={url} playsInline controls
           onTimeUpdate={(e) => {
             const s = e.currentTarget.currentTime
             atRef.current = keptTime(atRef.current, s)
@@ -459,7 +379,6 @@ export default function VideoPreviewModal({ video, onClose }) {
             if (overCap(s)) { e.currentTarget.pause(); cut() }
           }}
         />
-        <PreviewControls playing={filePlaying} blocked={false} onToggle={toggleFile} />
       </>
     )
   } else {
@@ -485,9 +404,12 @@ export default function VideoPreviewModal({ video, onClose }) {
 
             {body}
 
-            {/* Vạch thời gian 0→30 giây: kéo được (control của trang, không phải
-                của YouTube). Hết phần xem trước thì thẻ bên trên đã phủ kín khung
-                nên vạch này ẩn đi. */}
+            {/* Vạch thời gian 0→30 giây — control DUY NHẤT của trang, ở mép dưới
+                khung như vòng 28. Nó không chồng lên thanh điều khiển nào của
+                YouTube: thanh đó đã tắt (`controls=0`). Việc của nó là nói ra
+                phần xem trước dài bao nhiêu và cho tua nhanh trong phạm vi đó;
+                tua RA NGOÀI 30 giây thì vòng canh cắt. Hết phần xem trước thì
+                thẻ "hết" đã phủ kín khung nên vạch ẩn đi. */}
             {id && !over && (
               <div className="video-preview-timeline">
                 <span

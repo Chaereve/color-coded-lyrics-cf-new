@@ -476,15 +476,22 @@ where = 'xem trước video (Hall of Fame)'
       !!q('.video-preview-close') && !!q('.video-preview-meta h2'))
     check('URL nhúng có enablejsapi=1 (kênh để trang tự canh mốc 30 giây)',
       /enablejsapi=1/.test(iframe?.getAttribute('src') || ''))
-    /* GIAO DIỆN YOUTUBE BỊ TẮT (vòng 26): chủ dự án yêu cầu chỉ còn bấm
-       play/pause. `controls=0` bỏ thanh điều khiển (kèm nút *Watch on
-       YouTube*), `disablekb=1` bỏ phím tắt nhảy 10 giây — mà nút play/pause
-       thì phải do TRANG tự vẽ, không thì khung chỉ còn tấm hình. */
+    /* GIAO DIỆN YOUTUBE BỊ TẮT (vòng 26 → 29): `controls=0` bỏ thanh điều khiển
+       (kèm nút *Watch on YouTube*, tấm "Video khác" và phím tắt nhảy 10 giây),
+       `disablekb=1` bỏ phím tắt. Vòng 26 còn tự vẽ một nút play/pause cho khung
+       khỏi "chỉ là tấm hình"; vòng 29 chủ dự án bảo gỡ nút đó, và bản nháp bật
+       lại thanh điều khiển của YouTube thì chủ dự án gửi ảnh chụp cái thanh ấy
+       với câu "bỏ cái phần trong hình t gửi". Chốt: KHÔNG thanh của YouTube,
+       KHÔNG nút của trang — cú bấm rơi thẳng vào player (nó tự hiểu là
+       play/pause), nên cũng không được có lớp phủ nào chặn cú bấm. */
     const embedSrc = iframe?.getAttribute('src') || ''
     check('URL nhúng tắt giao diện YouTube (controls=0, không phím tắt)',
       /controls=0/.test(embedSrc) && /disablekb=1/.test(embedSrc), embedSrc)
-    check('có nút play/pause tự vẽ (thay thanh điều khiển của YouTube)',
-      !!q('.video-preview-controls .video-preview-toggle'))
+    check('trang KHÔNG vẽ nút play/pause nào (chủ dự án bảo gỡ ở vòng 29)',
+      !q('.video-preview-controls') && !q('.video-preview-toggle'),
+      q('.video-preview-toggle')?.className || 'không có')
+    check('không còn lớp phủ chặn cú bấm trên iframe (cú bấm tới được player)',
+      !q('.video-preview-frame > .video-preview-controls'))
     check('thanh thời gian của trang kéo được (chỉ trong 30 giây)',
       q('.video-preview-bar')?.getAttribute('role') === 'slider')
     /* VỆT MỜ HAI MÉP KHUNG (vòng 28) — và cái KHÔNG còn.
@@ -530,54 +537,35 @@ where = 'xem trước video (Hall of Fame)'
         !!q('.video-preview-iframe') && !q('.video-preview-end'),
         text().slice(0, 100))
 
-      /* Nút play/pause gửi lệnh THẬT vào khung. jsdom bắt `postMessage` gửi ra
-         bằng cách thay hàm của contentWindow — đây là cách duy nhất nhìn được
-         "nút có nói chuyện với player hay không" mà không có mạng. */
+      /* Trang KHÔNG còn nút nào để bấm (vòng 29 gỡ nút play/pause tự vẽ), nhưng
+         vạch 0→30 giây thì vẫn là control của trang — nó phải gửi lệnh THẬT vào
+         khung. jsdom bắt `postMessage` gửi ra bằng cách thay hàm của
+         contentWindow: cách duy nhất nhìn được "trang có nói chuyện với player
+         hay không" mà không có mạng. Dùng BÀN PHÍM (ArrowRight) chứ không kéo
+         chuột: cùng một đường `seekTo` mà không phụ thuộc PointerEvent của jsdom. */
       const sent = []
       const realPost = frameWin.postMessage
       frameWin.postMessage = (payload) => { sent.push(String(payload)) }
       try {
-        const btn = q('.video-preview-controls .video-preview-toggle')
-        /* Player vừa báo đang phát (onStateChange 1) → nút phải là tạm dừng. */
-        check('nút tự vẽ đang ở trạng thái tạm dừng (player báo 1)',
-          btn?.getAttribute('aria-label') === 'Pause' || /Pause/.test(btn?.getAttribute('title') || ''),
-          `${btn?.getAttribute('aria-label')} · ${btn?.getAttribute('title')}`)
-        /* Không có nút (bản cũ) thì ĐỪNG ném lỗi giữa lượt chạy — báo đỏ rồi
-           đi tiếp, vì lượt chạy này còn dùng để thử với mã cũ. */
-        if (btn) await click(btn)
-        check('bấm nút gửi lệnh pauseVideo vào player',
-          sent.some(m => /pauseVideo/.test(m)), sent.join(' | ').slice(0, 120))
-        check('nút đổi ngay sang trạng thái phát (không chờ player trả lời)',
-          /Play/.test(q('.video-preview-controls .video-preview-toggle')?.getAttribute('aria-label') || ''),
-          q('.video-preview-controls .video-preview-toggle')?.getAttribute('aria-label'))
-        const btn2 = q('.video-preview-controls .video-preview-toggle')
-        if (btn2) await click(btn2)
-        check('bấm lần nữa gửi lệnh playVideo',
-          sent.some(m => /playVideo/.test(m)), sent.join(' | ').slice(0, 120))
+        const bar = q('.video-preview-bar')
+        if (bar) {
+          await act(async () => {
+            bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+          })
+          await tick(200)
+        }
+        check('vạch 30 giây của trang gửi lệnh seekTo vào player (bấm →)',
+          sent.some(m => /seekTo/.test(m)), sent.join(' | ').slice(0, 120))
+        check('không còn nút nào của trang để bấm (chủ dự án bảo gỡ ở vòng 29)',
+          !q('.video-preview-toggle') && !q('.video-preview-controls'))
 
-        /* Vừa bấm phát xong → nút phải mờ đi để không che hình (rê chuột vào
-           khung là nó hiện lại, xem CSS .is-playing). */
-        check('khung đang phát thì nút mờ đi (không che hình)',
-          !!q('.video-preview-controls.is-playing'),
-          q('.video-preview-controls')?.className)
-
-        /* Bấm vào VÙNG VIDEO (không phải nút) cũng là play/pause — và cú bấm
-           dừng lại ở lớp của trang, không lọt vào iframe: đó là lý do không có
-           giao diện YouTube nào lộ ra. */
-        const beforeHit = sent.length
-        const hitLayer = q('.video-preview-controls')
-        if (hitLayer) await click(hitLayer)
-        check('bấm vào giữa video cũng gửi lệnh, và không lọt vào YouTube',
-          sent.length > beforeHit && /command/.test(sent[sent.length - 1] || ''),
-          sent.slice(beforeHit).join(' | ').slice(0, 120))
-
-        /* Quảng cáo pre-roll: nút phải TẮT, và thời gian CỦA QUẢNG CÁO không
-           được tính vào mốc 30 giây (pre-roll 33 giây ≠ đã xem 33 giây). */
+        /* Quảng cáo pre-roll: thời gian CỦA QUẢNG CÁO không được tính vào mốc
+           30 giây (pre-roll 33 giây ≠ đã xem 33 giây), và cũng không còn nút nào
+           của trang để "tắt hộ" quảng cáo nữa. */
         await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 33, playerState: -1 } }) })
         await tick(400)
-        check('đang chạy quảng cáo: nút play/pause tự tắt, và không cắt nhầm',
-          !!q('.video-preview-iframe') && !q('.video-preview-end')
-          && q('.video-preview-controls .video-preview-toggle')?.disabled === true,
+        check('đang chạy quảng cáo: phần xem trước không bị cắt oan',
+          !!q('.video-preview-iframe') && !q('.video-preview-end'),
           text().slice(0, 100))
 
         /* Quảng cáo hết → video bắt đầu lại từ 0: chỗ đang xem không được tụt

@@ -31,25 +31,64 @@ test('mốc 30 giây là MỘT con số: URL nhúng và vòng canh không đư�
   assert.match(modal, /readWidgetEvent\(/)
 })
 
-/* Chủ dự án yêu cầu: "ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ
-   bấm play/pause được thôi". Ba tham số dưới đây là cả cách làm:
-     · `controls=0` — bỏ thanh điều khiển (trong đó có nút *Watch on YouTube*);
-     · `disablekb=1` — bỏ phím tắt của player ([l]/[→] nhảy 10 giây, [0-9] nhảy
-       theo phần trăm: hai đường vòng qua mốc 30 giây);
-     · `autoplay=1` — cũng là thứ giữ cho nút *Watch on YouTube* không hiện.
-   Và đổi lại phải có nút play/pause TỰ VẼ: không có nó thì khung chỉ còn một
-   tấm hình không bấm được gì. */
-test('khung xem trước tắt giao diện YouTube và tự vẽ nút play/pause', () => {
+/* ĐIỀU KHIỂN CỦA KHUNG XEM TRƯỚC — lịch sử bốn vòng, và bản đang chạy.
+   -------------------------------------------------------------------------
+     · vòng 26: "ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ bấm
+       play/pause được thôi" → thêm `controls=0` + `disablekb=1`, trang tự vẽ
+       một nút play/pause phủ giữa khung;
+     · vòng 27–28: phủ bốn dải rồi gỡ bốn dải (xem bài bố cục ở dưới);
+     · vòng 29: "ko cần chèn cái nút pause/play trong video đâu" → NÚT TỰ VẼ BỊ
+       GỠ. Bản nháp hiểu thành "bật lại điều khiển của YouTube"; chủ dự án gửi
+       ảnh chụp đúng cái thanh điều khiển đó (0:01 / 3:34, vạch tiến trình, ô
+       chất lượng, CC, tấm "Video khác", logo YouTube, toàn màn hình) và nói
+       "bỏ cái phần trong hình t gửi và để video giống bản trước đó". Nên
+       `controls=0` + `disablekb=1` Ở LẠI, và LỚP PHỦ CHẶN CÚ BẤM cũng đi:
+       lớp đó chỉ để nút của trang là chỗ bấm duy nhất — bỏ nó thì cú bấm rơi
+       vào chính player, mà player vẫn tự hiểu bấm-vào-hình là play/pause.
+
+   Bốn điều bài này giữ, vì cả bốn đều là chỗ dễ trôi:
+     1. thanh điều khiển của YouTube phải TẮT (ảnh chụp của chủ dự án là đúng
+        cái thanh đó — quay lại là hỏng);
+     2. trang không được chèn lại nút play/pause của mình;
+     3. cú bấm phải tới được player (không còn lớp phủ `inset: 0` nào chặn);
+     4. vạch 0→30 giây của trang thì VẪN CÒN — chỗ nói ra phần xem trước dài
+        bao nhiêu, và là đường tua duy nhất bị kẹp trong 30 giây. */
+test('khung xem trước: không nút tự vẽ, không thanh điều khiển của YouTube', () => {
   const modal = readFileSync(`${root}src/components/VideoPreviewModal.jsx`, 'utf8')
-  for (const param of ['controls=0', 'disablekb=1', 'autoplay=1']) {
-    assert.ok(modal.includes(param), `URL nhúng thiếu ${param}`)
+  /* Chỉ soi CHUỖI URL nhúng: chú thích trong tệp có nhắc lại `controls=0` để kể
+     lịch sử bốn vòng, và nhắc lại là chuyện nên làm chứ không phải lỗi. */
+  const query = (modal.match(/const EMBED_QUERY = '([^']+)'/) || [])[1] || ''
+  for (const param of ['controls=0', 'disablekb=1']) {
+    assert.ok(query.includes(param),
+      `URL nhúng thiếu ${param} — thanh điều khiển (và tấm "Video khác", phím tắt nhảy 10 giây) sẽ quay lại (${query})`)
   }
-  assert.match(modal, /video-preview-controls/, 'phải có lớp điều khiển tự vẽ')
-  assert.match(modal, /video-preview-toggle/, 'phải có nút play/pause tự vẽ')
-  assert.match(modal, /command\(next \? 'playVideo' : 'pauseVideo'\)/,
-    'nút phải gửi đúng chức năng playVideo/pauseVideo của player')
-  assert.match(modal, /playButtonView\(/, 'trạng thái nút đọc qua luật ở previewCap.js')
-  assert.match(modal, /command\('seekTo'/, 'thanh thời gian của trang phải gửi seekTo')
+  assert.match(query, /autoplay=1/, 'vẫn phải tự chạy khi mở khung')
+  assert.match(query, /enablejsapi=1/, 'vòng canh 30 giây vẫn cần kênh postMessage')
+  /* Soi CHỖ DÙNG, không soi chuỗi trần: chú thích trong tệp có nhắc tên mấy lớp
+     đã gỡ để kể lại vòng 26–29, và nhắc lại là chuyện nên làm. Còn `playButtonView`
+     thì phải vắng ở ĐÚNG chỗ nó từng được nhập vào. */
+  const imports = modal.slice(modal.indexOf('import {'), modal.indexOf("} from '../lib/previewCap.js'"))
+  for (const dead of ['className="video-preview-controls', 'className="video-preview-toggle',
+    '<PreviewControls', "command(next ? 'playVideo' : 'pauseVideo')"]) {
+    assert.ok(!modal.includes(dead),
+      `nút play/pause tự vẽ đã gỡ (vòng 29), nhưng ${dead} vẫn còn trong JSX`)
+  }
+  /* Nhánh file video không có YouTube để mượn nút, nên ở đó điều khiển là của
+     trình duyệt (`controls` trên chính thẻ <video>). */
+  assert.match(modal, /className="video-preview-file" src=\{url\} playsInline controls/,
+    'nhánh file video phải có điều khiển của trình duyệt, không thì khung không bấm phát được')
+  assert.ok(!imports.includes('playButtonView'),
+    'luật trạng thái nút đã xoá khỏi previewCap.js — component cũng không được nhập nó nữa')
+  assert.match(modal, /command\('seekTo'/, 'vạch thời gian của trang phải gửi seekTo')
+
+  const css = readFileSync(`${root}src/index.css`, 'utf8')
+  assert.ok(!css.includes('video-preview-toggle') && !css.includes('video-preview-controls'),
+    'CSS của nút tự vẽ phải được gỡ cùng nút — để lại là rác, và là chỗ dựng lại lúc nào không biết')
+  /* Lớp phủ chặn cú bấm từng được khai bằng `inset: 0` ngay trên iframe; nó
+     không được quay lại, vì nó khoá luôn đường bấm vào player. */
+  const layer = css.slice(css.indexOf('.video-preview-fade'))
+  assert.match(layer.slice(0, 200), /pointer-events:\s*none/,
+    'vệt mờ phải để cú bấm đi qua (`pointer-events: none`) — nếu không nó thành lớp chắn mới')
 })
 
 /* BỐ CỤC POPUP (vòng 28) — chủ dự án gửi một mẫu để làm theo:

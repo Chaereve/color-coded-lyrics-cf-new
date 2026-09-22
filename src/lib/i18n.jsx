@@ -537,12 +537,10 @@ const S = {
      `{total}` do component truyền (`PREVIEW_SECONDS`), không viết cứng ở đây:
      đổi mốc là đổi một chỗ. */
   'preview.counter': '{s}s / {total}s',
-  /* Nút DUY NHẤT của khung xem trước — thanh điều khiển của YouTube đã bị tắt
-     (`controls=0`), nên nhãn hai trạng thái phải có đủ. */
-  'preview.play': 'Play',
-  'preview.pause': 'Pause',
+  /* Nhãn cho vạch thời gian 0→30 giây của TRANG — control duy nhất còn lại của
+     khung xem trước. Nút play/pause thì của chính YouTube vẽ (vòng 29), nên
+     không còn khoá `preview.play` / `preview.pause` / `preview.ad`. */
   'preview.scrub': 'Preview position',
-  'preview.ad': 'An ad is playing — the preview controls come back when it ends',
   'preview.ended': 'That’s the end of the preview',
   'preview.endedNote': 'You’ve watched the first {total} seconds. The whole video is on YouTube.',
   'preview.replay': 'Watch the preview again',

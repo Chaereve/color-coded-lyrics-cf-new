@@ -3995,8 +3995,10 @@ html[data-section="spin"] .bgfx { display: none; }
 .video-preview-open { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2);
   font-size: 12px; text-decoration: none; white-space: nowrap; }
 .video-preview-open:hover { color: var(--txt); text-decoration: underline; }
-/* Thanh thời gian: một vạch mảnh ở mép dưới khung, kéo được — cũng là chỗ nói ra
-   rằng phần xem trước chỉ có 30 giây. */
+/* Thanh thời gian: một vạch mảnh ở mép dưới khung, kéo được — control duy nhất
+   của trang (nút play/pause tự vẽ đã gỡ ở vòng 29, thanh điều khiển của YouTube
+   thì tắt từ vòng 26), và cũng là chỗ nói ra rằng phần xem trước chỉ có 30 giây.
+   Nằm trong khung là được: không còn thanh nào của YouTube để chồng lên. */
 .video-preview-timeline { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 0 12px; }
 .video-preview-bar { display: block; padding: 12px 0 9px; cursor: pointer; touch-action: none; }
 .video-preview-bar:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; border-radius: var(--r-sm); }
@@ -4018,32 +4020,12 @@ html[data-section="spin"] .bgfx { display: none; }
 .video-preview-endbox p { margin: 0; color: var(--txt-2); font-size: 12.5px; line-height: 1.55; }
 .video-preview-endacts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 7px; }
 .video-preview-endacts .btn { display: inline-flex; align-items: center; gap: 6px; }
-/* Nút play/pause TỰ VẼ — thanh điều khiển của YouTube đã tắt (`controls=0`), nên
-   đây là control duy nhất của khung, và nó nằm ở lớp riêng TRÊN iframe: cú bấm
-   không bao giờ tới được player. Nền mờ + tối để nó che luôn nút play lớn mà
-   player tự vẽ ở giữa khi video đang dừng. */
-.video-preview-controls { position: absolute; z-index: 3; inset: 0; display: grid; place-items: center; }
-.video-preview-toggle { display: grid; place-items: center; width: 58px; height: 58px; padding: 0;
-  border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; cursor: pointer;
-  background: rgba(8, 10, 15, .82); color: #fff;
-  backdrop-filter: blur(10px) brightness(.7);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
-  transition: opacity var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
-.video-preview-toggle:hover:not(:disabled) { background: rgba(8, 10, 15, .92); transform: scale(1.06); }
-.video-preview-toggle:disabled { cursor: not-allowed; opacity: .5; }
-/* Đang phát thì nút mờ hẳn đi để không che hình — rê chuột vào khung, hoặc bấm Tab
-   tới nó, là nó hiện lại. Đang dừng thì luôn hiện: lúc ấy nó là việc duy nhất
-   làm được. */
-.video-preview-controls.is-playing .video-preview-toggle { opacity: 0; }
-.video-preview-controls.is-playing:hover .video-preview-toggle,
-.video-preview-controls.is-playing .video-preview-toggle:focus-visible { opacity: 1; }
 @media (max-width: 620px) {
   .video-preview-scrim { padding: 16px 12px; }
   /* Màn hẹp: ✕ chuyển vào TRONG khung (phía trên khung không còn chỗ), có nền
      tối để vẫn thấy trên hình sáng. */
   .video-preview-close { top: 8px; right: 8px; background: rgba(0, 0, 0, .55); }
   .video-preview-close:hover { transform: none; }
-  .video-preview-toggle { width: 48px; height: 48px; }
   .video-preview-meta { flex-wrap: wrap; gap: 6px 10px; }
   .video-preview-meta-t { flex-basis: 100%; }
 }

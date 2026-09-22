@@ -1742,6 +1742,9 @@ làm nó cắt. Nay hàm xem lại **xoá hết những gì player cũ kể** tr
 
 ## Phần XVI — vòng 26: ẩn giao diện YouTube, chỉ còn play/pause (22/09/2026)
 
+> ⚠️ **Vòng 29 đã gỡ nút play/pause tự vẽ** (và cả lớp phủ chặn cú bấm đi cùng nó);
+> `controls=0` + `disablekb=1` thì vẫn giữ. Xem **Phần XIX**.
+
 Yêu cầu của chủ dự án, nguyên văn: *"bạn có thể ẩn mấy cái giao diện của YouTube lúc chiếu video
 đc ko, chỉ bấm play/pause đc thoii"*. Đây là việc **thay giao diện điều khiển**, không phải chỉ
 thêm một tham số — và nó chạm trực tiếp vào mốc 30 giây vừa làm xong ở vòng 25, nên phải làm cùng
@@ -1969,3 +1972,56 @@ của các vòng trước: `controls=0` (không thanh điều khiển, không n�
   rồi cắt bớt (mất nét, không nên).
 - **Không có cách nào tắt** tiêu đề/logo bằng tham số: `modestbranding` đã bị YouTube bỏ từ 2023,
   và hai thứ đó nằm ngoài thanh điều khiển. Đừng thử lại.
+
+## Phần XIX — vòng 29: gỡ nút play/pause tự vẽ, KHÔNG bật lại thanh điều khiển của YouTube (22/09/2026)
+
+### XIX1. Chủ dự án nói gì
+
+> "ko cần chèn cái nút pause/play trong video đâu, t muốn xài nút của youtube"
+
+Bản nháp của vòng này hiểu thành *"vậy thì trả điều khiển về cho YouTube"* — bỏ `controls=0` và
+`disablekb=1`, gỡ nút tự vẽ — và chủ dự án gửi ảnh chụp ngay: đúng cái thanh điều khiển của YouTube
+nhúng (`0:01 / 3:34`, vạch tiến trình, ô chất lượng, CC, tấm "Video khác", logo YouTube, nút toàn
+màn hình), kèm hai câu:
+
+> "ko phải, cái preview giống hồi nãy ok r, chỉ cần xóa cái pause/play thêm vào web thôi"
+
+> "bỏ cái phần trong hình t gửi và để video giống bản trước đó"
+
+### XIX2. Chốt lại — không nút của trang, cũng không thanh của YouTube
+
+| Thành phần | Kết luận |
+|---|---|
+| nút play/pause của trang (`PreviewControls`) | **gỡ** — cùng với nó là **lớp phủ chặn cú bấm**, vì lớp đó chỉ tồn tại để nút của trang là chỗ bấm duy nhất |
+| thanh điều khiển của YouTube | **vẫn tắt** (`controls=0` + `disablekb=1`, giữ từ vòng 26) — ảnh chụp của chủ dự án chính là cái thanh đó |
+| cú bấm vào mặt video | **tới được player**: player tự hiểu cú bấm vào hình là play/pause, kể cả khi `controls=0`. Đây là "dùng nút của YouTube" đúng nghĩa — nút của nó, không phải thanh điều khiển của nó |
+| vạch 0→30 giây | **còn**, trở lại nằm trong khung như vòng 28 (không còn thanh nào của YouTube để chồng lên) |
+| nhánh file mp4/webm/… | không có YouTube để mượn nút → điều khiển là `controls` của trình duyệt trên chính thẻ `<video>` |
+| luật 30 giây | **nguyên vẹn**: `end=30` + vòng canh (bỏ qua đồng hồ quảng cáo) + `cut()` gỡ iframe khi tua quá mốc |
+
+Đã xoá: `PreviewControls` + state `playState`/`wantRef`/`publish()`; `playButtonView()` trong
+`previewCap.js` (kèm ca kiểm của nó); CSS `.video-preview-controls`, `.video-preview-toggle`,
+`.is-playing` (và bản trong media query điện thoại); khoá i18n `preview.play` / `preview.pause` /
+`preview.ad`; icon `pause` trong `Icon.jsx`. Ba chỗ cuối là **bắt buộc** phải xoá chứ không phải
+dọn cho đẹp: `i18nKeys.test.js` có ca *"không khoá nào nằm chết trong từ điển"* và `Icon.test.js` có
+ca *"SET không có tên chết"* — để lại là hai bài kiểm đỏ ngay.
+
+### XIX3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **492 đạt / 0 lỗi / 2 skip** (vòng 28: 493 đạt — **−1 ca**: ca `playButtonView` bị xoá cùng hàm; ca điều khiển trong `communityPolish.test.js` được viết lại theo chiều ngược: URL nhúng phải **có** `controls=0` + `disablekb=1`, JSX không được có nút/lớp phủ, nhánh file phải có `controls`, vệt mờ phải `pointer-events: none`) |
+| `npm run smoke` | ✅ **349/349**: có nút tự vẽ → **không** có nút tự vẽ; **không** còn lớp phủ `inset: 0` trên iframe; vạch thời gian vẫn gửi `seekTo` (bấm `→` và bắt `contentWindow.postMessage`); quảng cáo không bị cắt oan; đồng hồ không tụt về 0 sau quảng cáo; tua qua 47 giây → iframe bị gỡ. **Mã CŨ (vòng 28): `346/349`, đỏ đúng ba phép kiểm của vòng này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-*.js` 341–343 kB |
+
+### XIX4. Còn nợ, và một điều nói thẳng
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài): cần mở Hall of Fame → bấm một
+  thẻ và kiểm bốn điều ghi ở `HUONG-DAN.md` mục *Vòng 29*.
+- **Tiêu đề + avatar kênh ở mép trên, logo ở mép dưới** vẫn do YouTube vẽ trong iframe: không tham
+  số nào tắt riêng chúng (đã đo ở vòng 27), mà che thì phải phủ — đúng thứ bị chê là *"gớm"*. Vòng
+  29 không cố che nữa; nếu chủ dự án muốn che lại thì phải mở lại đúng cuộc trao đổi đó.
+- **Cú bấm vào mặt video giờ là đường play/pause duy nhất** (ngoài phím tắt của player đã tắt bằng
+  `disablekb=1`). Nếu trình duyệt/iframe chặn cú bấm (hiếm), khung sẽ chỉ còn tự chạy — đó là giá
+  của việc "không nút nào của trang"; muốn chắc ăn thì phải hỏi chủ dự án trước khi dựng lại nút.

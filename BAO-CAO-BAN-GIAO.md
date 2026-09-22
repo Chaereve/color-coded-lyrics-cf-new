@@ -333,12 +333,13 @@ notify pgrst, 'reload schema';
   và hiện thẻ *"That’s the end of the preview"* kèm hai nút — *Watch the preview again* và *Open
   full video on YouTube*. Nút *Watch the preview again* phải chạy lại từ đầu. Nếu khung vẫn phát
   tiếp sau vạch 30 giây thì bản deploy chưa có bản sửa vòng 25 (xem `HUONG-DAN.md`, mục cuối).
-- **Preview trong Hall of Fame (giao diện YouTube):** Trong khung xem trước, **thanh điều khiển
-  của YouTube phải biến mất** — chỉ còn **một nút play/pause ở giữa** do trang tự vẽ (đang phát
-  thì nút mờ đi, rê chuột vào khung là hiện lại), và thanh **0→30 giây** ở chân hộp kéo được để
-  tua trong phạm vi 30 giây. Hai thứ của YouTube **không tắt được** và sẽ còn thấy khi tạm dừng:
-  tiêu đề video ở mép trên và nút *Watch on YouTube* (YouTube bỏ tham số `modestbranding` từ 2023).
-  Chi tiết: `HUONG-DAN.md` mục *Vòng 26*.
+- **Preview trong Hall of Fame (điều khiển):** Trong khung xem trước, **thanh điều khiển của
+  YouTube phải biến mất** (`controls=0` + `disablekb=1`), và trang cũng **không vẽ nút play/pause
+  nào** (vòng 29 gỡ nút tự vẽ). Muốn tạm dừng / phát tiếp thì **bấm vào giữa video** — player tự
+  hiểu cú bấm đó; nút play lớn của YouTube có thể hiện khi đang dừng, đó là nút của chính nó. Vạch
+  **0→30 giây** ở mép dưới khung vẫn kéo được để tua trong phạm vi 30 giây. Hai thứ của YouTube
+  **không tắt được** và có thể còn thấy: tiêu đề video ở mép trên và logo ở mép dưới (YouTube bỏ
+  tham số `modestbranding` từ 2023). Chi tiết: `HUONG-DAN.md` mục *Vòng 29*.
 - **Preview trong Hall of Fame (bố cục "video trailer popup"):** khung xem trước giờ theo đúng mẫu
   chủ dự án gửi (`100jsprojects` · *video-trailer-popup*): **nền tối**, video **ở giữa khung bo góc
   có đổ bóng**, **một nút ✕ nổi ở góc phải trên khung** (không có thanh tiêu đề), và một dòng mô tả
@@ -346,8 +347,8 @@ notify pgrst, 'reload schema';
   **vệt mờ tan dần** để mép hình hoà vào nền — **không còn dải phủ nào** (bốn dải của vòng 27 đã bị
   gỡ). **Đánh đổi, xin nói thẳng:** vì không còn phủ nên **tiêu đề/logo của YouTube hiện lại** trong
   khung — không tham số nào tắt được chúng, mà che thì phải phủ (đúng thứ vừa bị chê). Phần còn lại
-  của vòng 26 vẫn nguyên: không thanh điều khiển, chỉ một nút play/pause tự vẽ, vạch 0→30 giây kéo
-  được, và **tua qua 30 giây là khung tự cắt**. Chi tiết: `HUONG-DAN.md` mục *Vòng 28*.
+  giữ nguyên: không thanh điều khiển của YouTube, **không nút tự vẽ** (vòng 29), vạch 0→30 giây kéo
+  được, và **tua qua 30 giây là khung tự cắt**. Chi tiết: `HUONG-DAN.md` mục *Vòng 28* và *Vòng 29*.
 - **About me (`/profile`):** Tải avatar GIF/WebP; kiểm tra khoảng cách giữa Achievement index và Stats; bấm `View all achievements (10)`.
 
 ---

@@ -17,7 +17,7 @@
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
 import {
   ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
-  CircleAlert, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Pause, Play,
+  CircleAlert, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Play,
   Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
   Trophy, User, Volume2, VolumeX, X,
 } from 'lucide-react'
@@ -39,8 +39,6 @@ const SET = {
   warn: CircleAlert,
   star: Star,
   play: Play,
-  pause: Pause,                   /* nút play/pause tự vẽ của khung xem trước —
-                                     thanh điều khiển của YouTube đã bị tắt */
   board: ListMusic,               /* bảng yêu cầu */
   spin: Disc3,                    /* vòng quay */
   cup: Trophy,                    /* xếp hạng */

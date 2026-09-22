@@ -3450,6 +3450,9 @@ lượt chạy với mã CŨ cho `333/336`, đỏ đúng ba phép kiểm của c
 
 ## Vòng 26 — ẩn giao diện YouTube, chỉ còn play/pause (22/09/2026)
 
+> ⚠️ **Vòng 29 đã gỡ nút play/pause tự vẽ** (`controls=0` + `disablekb=1` thì giữ nguyên, xem
+> *Vòng 29* ở cuối tài liệu). Mục này giữ lại vì phần *vì sao `controls=0`* vẫn còn đúng.
+
 Yêu cầu của chủ dự án: *"ẩn mấy cái giao diện của YouTube lúc chiếu video, chỉ bấm play/pause
 được thôi"*. Đây là việc **thay cả giao diện điều khiển**, không phải thêm một tham số — nên nó
 được làm cùng lúc với mốc 30 giây (Vòng 25) để không mở lại đường vòng.
@@ -3571,7 +3574,7 @@ gửi thì ngược lại hoàn toàn: **không có gì quanh khung cả**. Nề
     ├── section.video-preview-player   role="dialog", aria-labelledby="video-preview-title"
     │   ├── .video-preview-frame       khung 16:9, bo 12px, đổ bóng — chỗ chứa video
     │   │   ├── span.video-preview-fade   hai vệt mờ mép trên/dưới (số đo: FRAME_FADE)
-    │   │   ├── ảnh bìa + iframe (+ nút play/pause tự vẽ, phủ kín khung)
+    │   │   ├── ảnh bìa + iframe (vòng 29: KHÔNG còn nút tự vẽ, không còn lớp phủ)
     │   │   └── .video-preview-timeline    vạch 0→30 giây, kéo được
     │   └── button.video-preview-close    ✕ NỔI ở góc phải trên khung (top: -42px) — không có thanh tiêu đề
     └── .video-preview-meta            h2 tên bài + "xem trước 30 giây" + đồng hồ + link mở video gốc
@@ -3603,10 +3606,11 @@ của trang cũng không xuyên vào được). Muốn che thì phải phủ —
 chọn: **sạch như mẫu**, và chấp nhận thấy tiêu đề/logo của YouTube.
 
 Phần còn lại của vòng 26 **vẫn nguyên**: `controls=0` (không thanh điều khiển, không nút *Watch on
-YouTube*), `disablekb=1`, nút play/pause tự vẽ, và lớp điều khiển của trang **phủ kín khung** nên
-con trỏ không bao giờ vào được trong iframe — tức phần giao diện hiện-khi-rê-chuột của YouTube
-(CC, chất lượng, share, nút ⋮) không có cớ xuất hiện. Luật **30 giây** cũng nguyên: `end=30` của
-player + vòng canh của trang + `cut()` gỡ iframe, và **tua qua 30 giây vẫn bị cắt**.
+YouTube*), `disablekb=1`. Nút play/pause tự vẽ và lớp điều khiển phủ kín khung thì **đã bị gỡ ở
+vòng 29**; đổi lại, cú bấm rơi vào chính player (cú bấm vào mặt video được player hiểu là
+play/pause) — nên những thứ hiện-khi-rê-chuột của YouTube có thể xuất hiện trở lại. Luật **30 giây**
+cũng nguyên: `end=30` của player + vòng canh của trang + `cut()` gỡ iframe, và **tua qua 30 giây
+vẫn bị cắt**.
 
 ### Kiểm tra bằng tay sau khi deploy
 
@@ -3619,3 +3623,57 @@ Phép kiểm tự động: `tools/smoke.mjs` mục *5b* — kiểm đúng bố c
 `.video-preview-player` là hộp thoại, `.video-preview-close`, `.video-preview-open`), số đo vệt mờ
 khớp `FRAME_FADE`, và **không còn** `.video-preview-masks`. Lượt chạy với mã CŨ (vòng 27) cho
 `344/352`, đỏ đúng tám phép kiểm của vòng này.
+
+## Vòng 29 — gỡ nút play/pause tự vẽ, và KHÔNG bật lại thanh điều khiển của YouTube (22/09/2026)
+
+Chủ dự án: *"ko cần chèn cái nút pause/play trong video đâu, t muốn xài nút của youtube"*.
+
+Bản nháp của vòng này hiểu câu đó thành **"vậy thì trả điều khiển về cho YouTube"**: bỏ `controls=0`
+và `disablekb=1` khỏi URL nhúng, gỡ nút tự vẽ. Chủ dự án gửi ảnh chụp ngay lập tức — đúng cái thanh
+điều khiển của YouTube nhúng: `0:01 / 3:34`, vạch tiến trình, ô chất lượng, CC, tấm **"Video khác"**,
+**logo YouTube**, nút toàn màn hình — kèm hai câu:
+
+> "ko phải, cái preview giống hồi nãy ok r, chỉ cần xóa cái pause/play thêm vào web thôi"
+
+> "bỏ cái phần trong hình t gửi và để video giống bản trước đó"
+
+### Chốt lại — và nó là kết quả của cả ba vòng 26, 28, 29
+
+| | Kết luận |
+|---|---|
+| nút của trang (`PreviewControls`) | **gỡ** — cùng với nó là cả **lớp phủ chặn cú bấm**, vì lớp đó chỉ tồn tại để nút của trang là chỗ bấm duy nhất |
+| thanh điều khiển của YouTube | **vẫn tắt**: `controls=0` + `disablekb=1` giữ nguyên từ vòng 26 — ảnh chụp của chủ dự án là đúng cái thanh đó |
+| cú bấm vào mặt video | **tới được player**. Player của YouTube, kể cả khi `controls=0`, tự hiểu cú bấm vào mặt video là play/pause. Đó là "dùng nút của YouTube" đúng nghĩa: nút của nó, không phải thanh điều khiển của nó |
+| vạch 0→30 giây của trang | **còn**, và trở lại nằm trong khung (như vòng 28) — không còn thanh nào của YouTube để chồng lên |
+| nhánh file mp4/webm/… | không có YouTube để mượn nút, nên ở đó điều khiển là `controls` của trình duyệt — không thì khung không bấm phát được |
+| luật 30 giây | **nguyên vẹn**: `end=30` + vòng canh (bỏ qua đồng hồ quảng cáo) + `cut()` gỡ iframe khi tua quá mốc |
+
+### Đã xoá những gì
+
+- `PreviewControls` trong `VideoPreviewModal.jsx`, cùng state `playState` / `wantRef` / `publish()`;
+- `playButtonView()` trong `src/lib/previewCap.js` (và ca kiểm của nó — luật trạng thái nút không
+  còn ai dùng);
+- CSS `.video-preview-controls`, `.video-preview-toggle`, `.is-playing`, cùng biến thể trong
+  media query điện thoại;
+- khoá i18n `preview.play`, `preview.pause`, `preview.ad` (ca *"không khoá nào nằm chết trong từ
+  điển"* trong `i18nKeys.test.js` bắt được ngay nếu để lại), và icon `pause` trong `Icon.jsx`
+  (ca *"SET không có tên chết"* của `Icon.test.js` bắt được).
+
+### Điều KHÔNG đổi, và nói thẳng
+
+Tiêu đề + avatar kênh ở mép trên và logo ở mép dưới vẫn do YouTube vẽ trong iframe: không tham số
+nào tắt riêng chúng (đo ở vòng 27), mà che thì phải phủ — đúng thứ bị chê là *"gớm"*. Bố cục
+trailer popup của vòng 28 giữ nguyên, kể cả hai vệt mờ `FRAME_FADE` ở mép khung.
+
+### Kiểm tra bằng tay sau khi deploy
+
+Mở **Hall of Fame** → bấm một thẻ → kiểm bốn điều: (1) **không có nút play/pause nào** do trang vẽ,
+và **không có thanh điều khiển của YouTube**; (2) bấm vào giữa video thì player tự tạm dừng / phát
+tiếp (nút play lớn của YouTube có thể hiện khi đang dừng — đó là nút của nó); (3) kéo vạch 0→30 giây
+hoặc bấm `[←]` / `[→]` thì video nhảy đúng chỗ; (4) kéo quá 30 giây thì khung tự cắt và hiện thẻ
+*"That's the end of the preview"*.
+
+Phép kiểm tự động: `tools/smoke.mjs` mục *5b* — kiểm URL nhúng vẫn `controls=0` + `disablekb=1`,
+trang **không** vẽ nút nào (`!q('.video-preview-controls')`), vạch thời gian vẫn gửi `seekTo` (bấm
+`→` và bắt `postMessage` gửi ra), và luật cắt vẫn đúng. Lượt chạy với mã CŨ (vòng 28) cho `346/349`,
+đỏ đúng ba phép kiểm của vòng này (ở đó còn nút tự vẽ nên còn cả lớp phủ chặn cú bấm).

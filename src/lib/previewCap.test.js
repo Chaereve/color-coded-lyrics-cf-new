@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import {
   PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, FRAME_FADE,
   handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
-  playhead, keptTime, playButtonView,
+  playhead, keptTime,
 } from './previewCap.js'
 
 test('mốc xem trước là 30 giây, một số nguyên dương', () => {
@@ -145,31 +145,12 @@ test('thời gian không lùi: quảng cáo hết thì chỗ đang xem không t�
   assert.equal(keptTime(undefined, undefined), 0)
 })
 
-test('nút play/pause tự vẽ: đọc từ trạng thái player, và tắt trong lúc quảng cáo', () => {
-  assert.deepEqual(playButtonView({ state: 1, info: {}, wantPlay: null }), { blocked: false, playing: true })
-  assert.deepEqual(playButtonView({ state: 2, info: {}, wantPlay: null }), { blocked: false, playing: false })
-
-  /* Trạng thái là thứ người dùng vừa nói ra → tin nó hơn lời player. */
-  assert.equal(playButtonView({ state: 1, info: { playerState: 2 }, wantPlay: false }).playing, true)
-  /* Chưa bấm gì → theo lời player. */
-  assert.equal(playButtonView({ state: null, info: { playerState: 1 }, wantPlay: null }).playing, true)
-  assert.equal(playButtonView({ state: null, info: { playerState: 2 }, wantPlay: null }).playing, false)
-  /* Iframe vừa dựng, chưa ai nói gì → theo ý định ban đầu (tự phát). */
-  assert.equal(playButtonView({ state: null, info: {}, wantPlay: null }).playing, false)
-  assert.equal(playButtonView({ state: null, info: {}, wantPlay: true }).playing, true)
-
-  /* Quảng cáo đang chạy: nút không có việc gì để làm. */
-  assert.deepEqual(playButtonView({ state: 1, info: { currentTime: 8, playerState: -1 }, wantPlay: null }),
-    { blocked: true, playing: false })
-  assert.deepEqual(playButtonView({ state: 1, info: { videoData: { isAd: 1 } }, wantPlay: true }),
-    { blocked: true, playing: false })
-})
-
 /* VỆT MỜ HAI MÉP KHUNG — và cái KHÔNG còn ở đó.
    -------------------------------------------------------------------------
    Bốn vòng liên tiếp quanh cùng một khung xem trước:
      · vòng 26 ẩn thanh điều khiển của YouTube (`controls=0`) và tự vẽ nút
-       play/pause;
+       play/pause — nút đó đã bị gỡ ở vòng 29, khi chủ dự án nói *"ko cần chèn
+       cái nút pause/play trong video đâu, t muốn xài nút của youtube"*;
      · vòng 27 phủ BỐN DẢI lên bốn mép để che giao diện YouTube còn sót — và bị
        chủ dự án chê thẳng: *"thấy gớm luôn"*, kèm một mẫu để làm theo
        (100jsprojects · video-trailer-popup). Chê đúng: các dải tối ở mép rồi

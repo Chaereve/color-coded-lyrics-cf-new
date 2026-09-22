@@ -134,9 +134,15 @@ export function mergeInfo(prev, patch) {
      · vòng 27 — chủ dự án gửi ảnh chụp "vẫn chưa ẩn hoàn toàn giao diện yt",
        nên thêm BỐN DẢI PHỦ ở bốn mép để che tiêu đề/kênh/logo/tấm "Video khác";
      · vòng 28 — chủ dự án nhìn bốn dải đó: "thấy gớm luôn", và gửi một mẫu để
-       làm theo (100jsprojects · *video trailer popup*).
-       Đúng là gớm: mỗi dải tối ở mép rồi cắt PHỰT về 0 ở mép trong, nên nó đọc
-       ra thành bốn tấm băng dán, kèm một vạch ngang nhìn thấy được.
+       làm theo (100jsprojects · *video trailer popup*). Đúng là gớm: mỗi dải tối
+       ở mép rồi cắt PHỰT về 0 ở mép trong, nên nó đọc ra thành bốn tấm băng dán,
+       kèm một vạch ngang nhìn thấy được;
+     · vòng 29 — "ko cần chèn cái nút pause/play trong video đâu": nút tự vẽ bị
+       gỡ, và lớp phủ chặn cú bấm đi theo nó (nên cú bấm tới được player, mà
+       player tự hiểu bấm-vào-hình là play/pause). Thanh điều khiển của YouTube
+       thì KHÔNG quay lại: bản nháp bật nó lên và chủ dự án gửi ảnh chụp đúng
+       cái thanh đó — `controls=0`/`disablekb=1` ở lại. Hai vệt mờ dưới đây cũng
+       ở lại — chúng không che gì cả, chỉ để mép khung hoà vào nền đen.
 
    Nên bản này bỏ hẳn dải phủ. Cái còn lại là hai VỆT MỜ tan dần ở mép trên/dưới
    — hai vệt này KHÔNG nhằm che giao diện YouTube nữa; việc của chúng là để mép
@@ -198,26 +204,6 @@ export function keptTime(prevSeconds, nextSeconds) {
   if (!Number.isFinite(next)) return Number.isFinite(prev) ? prev : 0
   if (Number.isFinite(prev) && next < prev - 0.5) return prev
   return next
-}
-
-/* Nút play/pause tự vẽ của khung xem trước đang nên hiện gì.
-   ---------------------------------------------------------
-   Đây là câu hỏi KHÔNG có câu trả lời đúng ở đâu khác: player không hứa một
-   giao thức `postMessage` nào, nên nút phải đọc ra từ hai thứ nó có. Trạng
-   thái là thứ duy nhất người dùng nói ra (họ vừa bấm), `info` là thứ player tự
-   kể. Hai nguồn đều vắng thì đoán theo ý định ban đầu (`wantPlay`).
-     · đang chạy quảng cáo → nút không có việc gì để làm, nói ra (`blocked`);
-     · người dùng vừa bấm → tin họ ngay, không chờ player xác nhận;
-     · chưa bấm gì → tin thứ player kể (1 = đang phát, 2 = đang dừng);
-     · chưa kịp biết gì (iframe vừa dựng) → theo `wantPlay`. */
-export function playButtonView({ state, info, wantPlay }) {
-  if (isAd(info)) return { blocked: true, playing: false }
-  if (state === 1) return { blocked: false, playing: true }
-  if (state === 2) return { blocked: false, playing: false }
-  const ps = Number(info?.playerState)
-  if (ps === 1) return { blocked: false, playing: true }
-  if (ps === 2) return { blocked: false, playing: false }
-  return { blocked: false, playing: !!wantPlay }
 }
 
 /* Phần trăm cho thanh tiến trình, kẹp sẵn về 0..100 ở đây (component không
