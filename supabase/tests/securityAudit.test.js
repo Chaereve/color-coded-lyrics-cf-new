@@ -33,7 +33,7 @@ test('achievement rewards are server-calculated, unique and race-safe', () => {
 
 test('activity raw dates are owner-scoped while public profiles receive aggregates', () => {
   assert.match(privacy, /create policy "read own activity days"[\s\S]*user_id = auth\.uid\(\)/)
-  assert.match(privacy, /revoke select on public\.activity_days from anon, authenticated/)
+  assert.match(privacy, /revoke select\s+on public\.activity_days\s+from anon, authenticated/)
   assert.match(privacy, /create or replace function public\.public_streak\(p_user_id uuid\)/)
   assert.match(privacy, /jsonb_build_object\('current', v_current, 'longest', v_longest/)
 })

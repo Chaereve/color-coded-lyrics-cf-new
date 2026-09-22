@@ -257,21 +257,49 @@ export function readPalette() {
   }
 }
 
-/* Avatar qua blob để canvas không nhiễm bẩn CORS; trượt đường nào cũng lùi
-   về chữ cái đầu chứ không ném lỗi giữa chừng việc bấm "Save card". */
+/* Avatar: cố gắng giữ CORS để canvas không nhiễm bẩn.
+   - data: URI -> load qua Image trực tiếp (same-origin, an toàn)
+   - remote (Google, Cloudinary) -> thử Image crossOrigin='anonymous' trước (nhanh, giữ CORS)
+   - nếu Image CORS thất bại -> fallback fetch blob + createImageBitmap
+   - thất bại hết thì trả null để vẽ chữ cái đầu, không ném lỗi */
 async function loadAvatar(url) {
+  if (!url) return null
+  const isData = url.startsWith('data:')
+  // 1. Thử Image với CORS (hoạt động tốt với data: và Cloudinary/Google nếu server gửi ACAO)
   try {
-    const res = await fetch(url, { mode: 'cors' })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    if (typeof createImageBitmap === 'function') return await createImageBitmap(blob)
     const img = new Image()
-    const obj = URL.createObjectURL(blob)
+    if (!isData) img.crossOrigin = 'anonymous'
+    await new Promise((ok, bad) => {
+      const t = setTimeout(() => bad(new Error('timeout')), 8000)
+      img.onload = () => { clearTimeout(t); ok() }
+      img.onerror = () => { clearTimeout(t); bad(new Error('img err')) }
+      img.src = url
+    })
+    if (typeof createImageBitmap === 'function') {
+      try {
+        return await createImageBitmap(img)
+      } catch {
+        return img
+      }
+    }
+    return img
+  } catch {
+    // 2. Fallback: fetch blob (cần server cho phép CORS)
     try {
-      await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = obj })
-      return img
-    } finally { setTimeout(() => URL.revokeObjectURL(obj), 4000) }
-  } catch { return null }
+      const res = await fetch(url, { mode: 'cors', cache: 'force-cache' })
+      if (!res.ok) return null
+      const blob = await res.blob()
+      if (typeof createImageBitmap === 'function') {
+        try { return await createImageBitmap(blob) } catch {}
+      }
+      const img = new Image()
+      const obj = URL.createObjectURL(blob)
+      try {
+        await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = obj })
+        return img
+      } finally { setTimeout(() => URL.revokeObjectURL(obj), 4000) }
+    } catch { return null }
+  }
 }
 
 /* Dựng blob PNG. NÉM lỗi có mã rõ khi môi trường không vẽ được (jsdom,
