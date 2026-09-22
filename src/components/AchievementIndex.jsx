@@ -47,7 +47,7 @@ export default function AchievementIndex({ metrics = {} }) {
       </div>
 
       {showModal && (
-        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowModal(false)}>
+        <div className="overlay achievement-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal ach-modal" role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
             <div className="modal-head">
               <h2 id="ach-modal-title" className="prof-h2">

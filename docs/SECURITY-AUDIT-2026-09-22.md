@@ -91,7 +91,7 @@ A connected staging database should additionally run the SQL cases in section 6.
 
 ## 5. Test/build result
 
-- `npm test` — **447 tests, 446 passed, 1 skipped, 0 failed** after the final changes.
+- `npm test` — **448 tests, 447 passed, 1 skipped, 0 failed** after the final changes.
 - `npm run build` — **passed**.
 - `npm run lint` — **0 errors, existing warnings only** (the repository already reports React/lint warnings unrelated to this audit).
 
