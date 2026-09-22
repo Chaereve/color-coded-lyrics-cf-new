@@ -93,6 +93,8 @@ grant execute on function public.admin_expire_request(uuid) to authenticated;
 -- Vietnam time (17:15 UTC). Projects without it can call the function from a
 -- scheduled Worker or run it manually; the admin panel still shows `expired_at`.
 do $$
+declare
+  j record;
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
     for j in select jobid from cron.job where jobname = 'queue-expired-requests' loop
