@@ -1,0 +1,193 @@
+/* =========================================================
+   KIỂM THỬ LUẬT CỦA KHUNG XEM TRƯỚC 30 GIÂY
+   ---------------------------------------------------------
+   Lỗi chủ dự án báo lần hai: "tua nhanh qua 30s thì mốc 30 giây không còn
+   tác dụng". Luật cắt nằm ở src/lib/previewCap.js và bây giờ có bài kiểm
+   riêng, vì đó là chỗ dễ sai nhất mà mắt người không thấy: một chuỗi
+   postMessage sai một chữ thì player IM LẶNG bỏ qua, không lỗi, không cảnh
+   báo — đúng kiểu hỏng đã xảy ra hai lần ở tính năng này.
+   Chạy: npm test
+   ========================================================= */
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import {
+  PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, FRAME_FADE,
+  handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
+  playhead, keptTime,
+} from './previewCap.js'
+
+test('mốc xem trước là 30 giây, một số nguyên dương', () => {
+  assert.equal(PREVIEW_SECONDS, 30)
+  /* `end=30` trong URL nhúng của VideoPreviewModal phải khớp con số này —
+     communityPolish.test.js đọc thẳng cả hai chỗ và so. */
+  assert.equal(PLAYER_ORIGIN, 'https://www.youtube-nocookie.com')
+})
+
+test('câu chào và lệnh điều khiển đúng phong bì của player nhúng', () => {
+  const hello = JSON.parse(handshake())
+  assert.deepEqual(hello, { event: 'listening', id: PLAYER_ID, channel: 'widget' })
+
+  const pause = JSON.parse(command('pauseVideo'))
+  assert.deepEqual(pause, { event: 'command', func: 'pauseVideo', args: [], id: PLAYER_ID, channel: 'widget' })
+
+  const seek = JSON.parse(command('seekTo', [30, true]))
+  assert.deepEqual(seek.args, [30, true], 'seekTo phải mang mốc giây trong args')
+  assert.equal(seek.event, 'command')
+  assert.equal(seek.channel, 'widget', 'thiếu channel thì player coi là tin lạ và bỏ qua')
+})
+
+test('chỉ nghe sự kiện đến từ tên miền YouTube qua https', () => {
+  for (const ok of ['https://www.youtube-nocookie.com', 'https://www.youtube.com',
+    'https://youtube.com', 'https://m.youtube.com', 'https://youtube-nocookie.com']) {
+    assert.equal(isPlayerOrigin(ok), true, ok)
+  }
+  for (const no of ['http://www.youtube.com', 'https://youtube.com.evil.tld',
+    'https://evil-youtube.com', '', null, undefined, 'not a url',
+    /* trang mình là nơi NHẬN, không phải nơi gửi sự kiện của player */ 'https://chaereve.pages.dev']) {
+    assert.equal(isPlayerOrigin(no), false, String(no))
+  }
+})
+
+test('sự kiện từ player: đọc được, và bỏ qua mọi thứ khác', () => {
+  const info = readWidgetEvent('https://www.youtube-nocookie.com',
+    JSON.stringify({ event: 'infoDelivery', info: { currentTime: 12.5 }, channel: 'widget', id: 1 }))
+  assert.deepEqual(info, { kind: 'info', info: { currentTime: 12.5 } })
+
+  /* `initialDelivery` là gói đầu tiên, có cả `duration` — nhận như info. */
+  const first = readWidgetEvent('https://www.youtube.com',
+    JSON.stringify({ event: 'initialDelivery', info: { currentTime: 0, duration: 214 }, channel: 'widget' }))
+  assert.equal(first.kind, 'info')
+  assert.equal(first.info.duration, 214)
+
+  const state = readWidgetEvent('https://www.youtube.com',
+    JSON.stringify({ event: 'onStateChange', info: 1, channel: 'widget' }))
+  assert.deepEqual(state, { kind: 'state', state: 1 })
+
+  /* 101/150 = chủ video không cho nhúng. Phải nhận ra để nói ra lý do, thay vì
+     để một khung trắng không giải thích. */
+  const err = readWidgetEvent('https://www.youtube.com',
+    JSON.stringify({ event: 'onError', info: 150, channel: 'widget' }))
+  assert.deepEqual(err, { kind: 'error', code: 150 })
+
+  const junk = [
+    ['https://www.youtube-nocookie.com', '{không phải json'],
+    ['https://www.youtube-nocookie.com', JSON.stringify({ event: 'infoDelivery', info: {}, channel: 'khac' })],
+    ['https://www.youtube-nocookie.com', JSON.stringify({ event: 'khong-biet', channel: 'widget' })],
+    ['https://www.youtube-nocookie.com', JSON.stringify({ event: 'infoDelivery', channel: 'widget' })],
+    ['https://www.youtube-nocookie.com', JSON.stringify({ event: 'onStateChange', info: 'x', channel: 'widget' })],
+    ['https://evil.tld', JSON.stringify({ event: 'infoDelivery', info: { currentTime: 99 }, channel: 'widget' })],
+    ['https://www.youtube-nocookie.com', null],
+  ]
+  for (const [origin, raw] of junk) {
+    assert.equal(readWidgetEvent(origin, raw), null, `${origin} · ${raw}`)
+  }
+})
+
+test('thông tin player gửi về là ảnh chụp từng phần, phải trộn chứ không gán đè', () => {
+  const a = mergeInfo({}, { duration: 214, currentTime: 0, videoData: { video_id: 'abc', title: 'A' } })
+  const b = mergeInfo(a, { currentTime: 12 })
+  assert.equal(b.currentTime, 12)
+  assert.equal(b.duration, 214, 'khoá không được gửi lại vẫn phải còn')
+  assert.deepEqual(b.videoData, { video_id: 'abc', title: 'A' })
+
+  const c = mergeInfo(b, { videoData: { title: 'B' } })
+  assert.deepEqual(c.videoData, { video_id: 'abc', title: 'B' }, 'trộn sâu một tầng cho nhánh con')
+
+  const d = mergeInfo(c, { currentTime: undefined, playerState: 1 })
+  assert.equal(d.currentTime, 12, 'undefined không được xoá giá trị đang có')
+  assert.equal(d.playerState, 1)
+
+  assert.deepEqual(mergeInfo(null, { currentTime: 3 }), { currentTime: 3 })
+  assert.equal(a.currentTime, 0, 'không sửa object cũ — React dựa vào tham chiếu mới')
+})
+
+test('luật cắt: đúng mốc 30 giây, và giá trị lạ thì KHÔNG cắt', () => {
+  assert.equal(overCap(0), false)
+  assert.equal(overCap(29.9), false)
+  assert.equal(overCap(30), true, 'chạm đúng vạch 30 giây là hết phần xem trước')
+  assert.equal(overCap(30.25), true)
+  assert.equal(overCap(120), true, 'tua thẳng qua 30 giây cũng là quá mốc')
+  assert.equal(overCap(undefined), false, 'chưa biết vị trí thì không được cắt')
+  assert.equal(overCap(null), false)
+  assert.equal(overCap(NaN), false)
+  assert.equal(overCap('abc'), false)
+  assert.equal(overCap(5, 5), true, 'mốc truyền vào phải được tôn trọng')
+})
+
+/* Quảng cáo pre-roll cũng gửi `currentTime`, nhưng đó là thời gian CỦA QUẢNG
+   CÁO. Đem nó so với mốc 30 giây thì một pre-roll 35 giây kết thúc phần xem
+   trước trong khi video còn chưa bắt đầu — đúng loại lỗi im lặng. */
+test('vị trí đang xem: quảng cáo không được tính là vị trí của video', () => {
+  assert.deepEqual(playhead({ currentTime: 12 }), { seconds: 12, ad: false })
+  assert.deepEqual(playhead({ currentTime: 12, playerState: 1 }), { seconds: 12, ad: false })
+
+  /* Hai dấu hiệu player tự gửi: playerState -1 trong lúc có thời gian chạy,
+     và videoData.isAd. */
+  assert.deepEqual(playhead({ currentTime: 33, playerState: -1 }), { seconds: 33, ad: true })
+  assert.deepEqual(playhead({ currentTime: 33, videoData: { isAd: 1 } }), { seconds: 33, ad: true })
+  assert.deepEqual(playhead({ currentTime: 33, playerState: -1, videoData: { isAd: 1 } }),
+    { seconds: 33, ad: true })
+
+  assert.equal(playhead({}), null)
+  assert.equal(playhead({ currentTime: 'x' }), null)
+  assert.equal(playhead(null), null)
+})
+
+test('thời gian không lùi: quảng cáo hết thì chỗ đang xem không tụt về 0', () => {
+  assert.equal(keptTime(0, 5), 5)
+  assert.equal(keptTime(12, 12.4), 12.4, 'nhích lên bình thường thì theo player')
+  assert.equal(keptTime(12.5, 0), 12.5, 'quảng cáo vừa hết, video bắt đầu lại từ 0')
+  assert.equal(keptTime(12.5, 1), 12.5)
+  assert.equal(keptTime(12, 11.8), 11.8, 'lùi nửa giây là chuyện bình thường, không phải quảng cáo')
+  assert.equal(keptTime(undefined, 7), 7)
+  assert.equal(keptTime(9, undefined), 9)
+  assert.equal(keptTime(undefined, undefined), 0)
+})
+
+/* VỆT MỜ HAI MÉP KHUNG — và cái KHÔNG còn ở đó.
+   -------------------------------------------------------------------------
+   Bốn vòng liên tiếp quanh cùng một khung xem trước:
+     · vòng 26 ẩn thanh điều khiển của YouTube (`controls=0`) và tự vẽ nút
+       play/pause — nút đó đã bị gỡ ở vòng 29, khi chủ dự án nói *"ko cần chèn
+       cái nút pause/play trong video đâu, t muốn xài nút của youtube"*;
+     · vòng 27 phủ BỐN DẢI lên bốn mép để che giao diện YouTube còn sót — và bị
+       chủ dự án chê thẳng: *"thấy gớm luôn"*, kèm một mẫu để làm theo
+       (100jsprojects · video-trailer-popup). Chê đúng: các dải tối ở mép rồi
+       cắt phựt về 0 ở mép trong, nên nó đọc ra thành bốn tấm băng dán;
+     · vòng 28 bỏ dải phủ, đi theo bố cục của mẫu (sân khấu đen, video ở giữa,
+       một nút ✕, một dòng mô tả mờ bên dưới).
+
+   Bài kiểm này giữ ĐÚNG hai vế của vòng 28, và giữ cả vế "đừng quay lại":
+     · `FRAME_FADE` phải là VỆT MỜ: alpha thấp, hai mép cộng lại không quá 25%
+       chiều cao — mức của một viền, không phải tấm che;
+     · khung phải có hai vệt đó, và số đo trong JSX phải lấy từ FRAME_FADE;
+     · KHÔNG được có lại lớp phủ bốn mép (`.video-preview-masks`): nó là thứ
+       vừa bị chê, và nó cũng không còn việc gì — lớp điều khiển phủ kín khung
+       nên con trỏ không bao giờ vào được trong iframe, tức phần giao diện
+       hiện-khi-rê-chuột của YouTube không có cớ xuất hiện. */
+test('hai mép khung là vệt mờ tan dần, không phải dải phủ', () => {
+  for (const [k, max] of [['top', 14], ['bottom', 16]]) {
+    assert.ok(FRAME_FADE[k] > 0 && FRAME_FADE[k] <= max,
+      `FRAME_FADE.${k} = ${FRAME_FADE[k]}% — quá dày cho một vệt mờ (tối đa ${max}%)`)
+  }
+  assert.ok(FRAME_FADE.top + FRAME_FADE.bottom <= 25,
+    `hai mép cộng lại ${FRAME_FADE.top + FRAME_FADE.bottom}% — quá nửa thì không, nhưng quá 25% là thành tấm che`)
+
+  const modal = readFileSync(new URL('../components/VideoPreviewModal.jsx', import.meta.url), 'utf8')
+  assert.match(modal, /video-preview-fade/, 'khung phải có lớp vệt mờ')
+  assert.match(modal, /'--vp-fade-top': `\$\{FRAME_FADE\.top\}%`/,
+    'số đo vệt mờ phải lấy từ FRAME_FADE, không chép lại vào JSX')
+  assert.ok(!modal.includes('video-preview-masks'),
+    'lớp phủ bốn mép của vòng 27 đã bị chê là "gớm" — không được quay lại')
+})
+
+test('thanh tiến trình kẹp về 0..100 và không nhận giá trị rác', () => {
+  assert.equal(previewPct(0), 0)
+  assert.equal(previewPct(15), 50)
+  assert.equal(previewPct(30), 100)
+  assert.equal(previewPct(45), 100, 'vượt mốc thì thanh đứng ở đầy, không tràn')
+  assert.equal(previewPct(-2), 0)
+  assert.equal(previewPct(undefined), 0)
+  assert.equal(previewPct('abc'), 0)
+})

@@ -533,7 +533,18 @@ const S = {
   'preview.close': 'Close preview',
   'preview.thirty': '30-second preview',
   'preview.open': 'Open full video on YouTube',
-  /* Link của bài đã xong không phải YouTube và cũng không phải file video:
+  /* MỐC 30 GIÂY — nói ra con số thay vì để người xem tự đoán vì sao khung dừng.
+     `{total}` do component truyền (`PREVIEW_SECONDS`), không viết cứng ở đây:
+     đổi mốc là đổi một chỗ. */
+  'preview.counter': '{s}s / {total}s',
+  /* Nhãn cho vạch thời gian 0→30 giây của TRANG — control duy nhất còn lại của
+     khung xem trước. Nút play/pause thì của chính YouTube vẽ (vòng 29), nên
+     không còn khoá `preview.play` / `preview.pause` / `preview.ad`. */
+  'preview.scrub': 'Preview position',
+  'preview.ended': 'That’s the end of the preview',
+  'preview.endedNote': 'You’ve watched the first {total} seconds. The whole video is on YouTube.',
+  'preview.replay': 'Watch the preview again',
+  /* Link của bài đã xong không phải YouTube cũng không phải file video:
      hộp vẫn mở, nói ra lý do, và để nút bên dưới mở ở tab mới. */
   'preview.openLink': 'Open the original link',
   'preview.noEmbed': 'This link cannot play inside the page. Use the button below to open it.',

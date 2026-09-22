@@ -3933,22 +3933,102 @@ html[data-section="spin"] .bgfx { display: none; }
 .hall-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; color: var(--txt); text-decoration: none; background: color-mix(in srgb, var(--bg-2) 82%, transparent); border: 1px solid var(--line); border-radius: 10px; transition: border-color .18s, transform .18s; }
 .hall-card:hover, .hall-card:focus-visible { border-color: var(--a-2); transform: translateY(-1px); }
 .hall-card { width: 100%; border: 1px solid var(--line); text-align: left; font: inherit; cursor: pointer; }
-.video-preview-scrim { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(4,5,9,.78); backdrop-filter: blur(5px); }
-.video-preview { width: min(760px, 100%); overflow: hidden; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel); box-shadow: 0 24px 80px rgba(0,0,0,.5); }
-.video-preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 16px; }
-.video-preview-head h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 16px var(--display); }
-.video-preview-head span { display: block; margin-top: 3px; color: var(--txt-3); font-size: 11px; }
-/* Khung 16:9: ảnh bìa nằm DƯỚI, iframe phủ LÊN khi nó vẽ xong. Trước đây khung
-   chỉ có `background:#000` và nội dung do một script của YouTube dựng — script
-   bị CSP chặn thì cả khung là một tấm đen (xem đầu VideoPreviewModal.jsx). */
-.video-preview-frame { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+/* ---------- XEM TRƯỚC VIDEO — kiểu "trailer popup" ----------
+   Bố cục lấy từ mẫu chủ dự án gửi (100jsprojects · video-trailer-popup):
+     · SÂN KHẤU ĐEN toàn màn hình — không phải một hộp thoại có viền và thanh
+       tiêu đề;
+     · video to ở giữa, bo góc nhẹ, đổ bóng: đây là thứ duy nhất sáng trên nền;
+     · một nút ✕ tròn ở góc phải TRÊN khung (mẫu cũng để ✕ nổi ở góc, không nằm
+       trong thanh tiêu đề);
+     · dòng mô tả nhỏ và mờ ngay dưới khung: tên bài · 30 giây · nút mở YouTube.
+
+   Điều KHÔNG còn ở đây, và là CHỦ Ý: bốn dải phủ bốn mép của vòng 27. Chủ dự án
+   nhìn bản đó và nói "thấy gớm luôn" — đúng, vì mỗi dải tối ở mép rồi cắt phựt
+   về 0 ở mép trong, nên nó đọc ra thành bốn tấm băng dán quanh khung. Nay chỉ
+   còn hai vệt tan mềm (`FRAME_FADE` trong src/lib/previewCap.js) đủ để mép khung
+   hoà vào nền đen. Đổi lại, giao diện YouTube không còn bị phủ — xem mục Vòng 28
+   trong HUONG-DAN.md để biết đánh đổi. */
+.video-preview-scrim { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center;
+  padding: 34px 22px; background: rgba(3, 4, 7, .95); backdrop-filter: blur(6px);
+  animation: vpFade .22s var(--e-soft) both; }
+@keyframes vpFade { from { opacity: 0 } to { opacity: 1 } }
+.video-preview-stage { display: flex; flex-direction: column; gap: 12px; width: min(960px, 100%);
+  animation: vpIn .26s var(--e-out) both; }
+/* MÀN THẤP: khung 16:9 rộng 960px cao 540px, cộng nút ✕ (42px trên khung) và dòng
+   mô tả là vượt màn hình thấp — mà cắt bớt chiều cao thì khung mất tỉ lệ 16:9 (video
+   bị kéo giãn). Nên thay vào đó hạ BỀ RỘNG: khung nhỏ lại theo đúng tỉ lệ và luôn
+   vừa màn. 148px = đệm sân khấu + nút ✕ + dòng mô tả + khoảng cách. */
+@supports (height: 100dvh) {
+  .video-preview-stage { width: min(960px, 100%, calc((100dvh - 148px) * 16 / 9)); }
+}
+@keyframes vpIn { from { opacity: 0; transform: scale(.965) } to { opacity: 1; transform: none } }
+.video-preview-player { position: relative; }
+.video-preview-frame { position: relative; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: 12px; background: #000; box-shadow: 0 30px 90px -24px rgba(0, 0, 0, .9); }
 .video-preview-frame iframe { position: relative; z-index: 1; width: 100%; height: 100%; border: 0; display: block; }
 .video-preview-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .video-preview-file { width: 100%; height: 100%; display: block; background: #000; }
 .video-preview-fallback { position: absolute; inset: 0; display: grid; place-items: center; margin: 0;
   padding: 18px 22px; text-align: center; color: var(--txt-2); font-size: 12.5px; line-height: 1.6; }
-.video-preview-foot { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); }
-@media (max-width: 620px) { .video-preview-scrim { padding: 10px; } .video-preview-head h2 { font-size: 14px; } }
+/* Hai vệt tan mềm ở mép trên/dưới khung — VỆT MỜ của khung phim, không phải băng
+   che: alpha thấp và tan hết trước khi tới giữa khung (xem FRAME_FADE). */
+.video-preview-fade { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.video-preview-fade i { position: absolute; left: 0; right: 0; display: block; }
+.vp-f-top { top: 0; height: var(--vp-fade-top);
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), transparent); }
+.vp-f-bottom { bottom: 0; height: var(--vp-fade-bottom);
+  background: linear-gradient(0deg, rgba(0, 0, 0, .6), transparent); }
+/* Nút ✕ của popup: tròn, nổi ở góc phải TRÊN khung (đúng kiểu trailer popup). */
+.video-preview-close { position: absolute; top: -42px; right: 0; display: grid; place-items: center;
+  width: 34px; height: 34px; padding: 0; cursor: pointer; color: #fff;
+  border: 1px solid rgba(255, 255, 255, .18); border-radius: 50%; background: rgba(255, 255, 255, .06);
+  transition: background var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
+.video-preview-close:hover { background: rgba(255, 255, 255, .16); transform: rotate(90deg); }
+/* Dòng mô tả dưới khung: tên bài · 30 giây · số giây · nút mở YouTube. Nhỏ và mờ
+   để mắt ở lại trên video. */
+.video-preview-meta { display: flex; align-items: center; gap: 12px; padding: 0 2px; }
+.video-preview-meta-t { flex: 1 1 auto; min-width: 0; }
+.video-preview-meta-t h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 13.5px var(--display); color: var(--txt-2); }
+.video-preview-meta-t span { color: var(--txt-3); font-size: 11px; }
+.video-preview-count { color: var(--txt-3); font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+.video-preview-open { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2);
+  font-size: 12px; text-decoration: none; white-space: nowrap; }
+.video-preview-open:hover { color: var(--txt); text-decoration: underline; }
+/* Thanh thời gian: một vạch mảnh ở mép dưới khung, kéo được — control duy nhất
+   của trang (nút play/pause tự vẽ đã gỡ ở vòng 29, thanh điều khiển của YouTube
+   thì tắt từ vòng 26), và cũng là chỗ nói ra rằng phần xem trước chỉ có 30 giây.
+   Nằm trong khung là được: không còn thanh nào của YouTube để chồng lên. */
+.video-preview-timeline { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; padding: 0 12px; }
+.video-preview-bar { display: block; padding: 12px 0 9px; cursor: pointer; touch-action: none; }
+.video-preview-bar:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; border-radius: var(--r-sm); }
+.video-preview-track { position: relative; display: block; height: 3px; border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .26); }
+.video-preview-track i { display: block; height: 100%; width: var(--pv); border-radius: inherit;
+  background: var(--a-2); transition: width 240ms var(--e-soft); }
+.video-preview-track u { position: absolute; top: 50%; left: var(--pv); width: 10px; height: 10px;
+  margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+@media (prefers-reduced-motion: reduce) {
+  .video-preview-scrim, .video-preview-stage { animation: none }
+  .video-preview-track i { transition: none }
+}
+/* Thẻ "hết phần xem trước": phủ kín khung nên không còn chỗ bấm phát tiếp. */
+.video-preview-end { position: absolute; z-index: 4; inset: 0; display: grid; place-items: center;
+  padding: 16px 20px; text-align: center; background: rgba(4, 6, 10, .86); backdrop-filter: blur(6px); }
+.video-preview-endbox { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 460px; }
+.video-preview-endbox b { font: 600 15px var(--display); }
+.video-preview-endbox p { margin: 0; color: var(--txt-2); font-size: 12.5px; line-height: 1.55; }
+.video-preview-endacts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 7px; }
+.video-preview-endacts .btn { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 620px) {
+  .video-preview-scrim { padding: 16px 12px; }
+  /* Màn hẹp: ✕ chuyển vào TRONG khung (phía trên khung không còn chỗ), có nền
+     tối để vẫn thấy trên hình sáng. */
+  .video-preview-close { top: 8px; right: 8px; background: rgba(0, 0, 0, .55); }
+  .video-preview-close:hover { transform: none; }
+  .video-preview-meta { flex-wrap: wrap; gap: 6px 10px; }
+  .video-preview-meta-t { flex-basis: 100%; }
+}
 .hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .hall-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .hall-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--txt-3); font-size: 11px; }
@@ -4455,11 +4535,7 @@ body { overflow-x: hidden; }
   .public-profile { padding: 14px 12px; }
   .public-stats { gap: 6px; }
   .public-stats b { font-size: 18px; }
-  .video-preview-scrim { padding: 0; align-items: end; }
-  .video-preview { width: 100%; border-radius: var(--r-lg) var(--r-lg) 0 0; max-height: min(92dvh, 640px); display: flex; flex-direction: column; }
-  .video-preview-frame { flex: 1 1 auto; min-height: 0; }
-  .video-preview-head { padding: 12px; }
-  .video-preview-foot { padding: 10px 12px; }
+  .video-preview-scrim { padding: 16px 12px; }
   .toasts { left: 10px; right: 10px; bottom: 10px; }
   .toast { padding: 10px; }
   .adm-kpis { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }

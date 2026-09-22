@@ -1663,3 +1663,365 @@ do câu "lỗi này bị ở mọi trang": mục nào cũng ra thêm một trang
 - Chưa xem được bằng mắt trên trình duyệt thật (môi trường này không có mạng ra ngoài), nên
   phần "chuyển cảnh có còn nhấp nháy không" vẫn chỉ chốt được ở mức logic + DOM. Việc cần làm
   khi có mạng: bấm liên tiếp vài mục trong menu và xem có thấy hai trang lồng nhau không.
+
+## Phần XV — vòng 25: mốc 30 giây của khung xem trước bị tua qua (22/09/2026)
+
+Chủ dự án báo lần thứ hai về **đúng một tính năng**: *"cái preview 30s ở hall of fame vẫn không
+hoạt động được, nó vẫn không hoạt động khi tua nhanh qua 30s"*. Vòng 23 đã sửa được **khung đen**
+— khung nay chạy thật — nhưng đó mới là một nửa của việc: cái **mốc 30 giây** thì chưa ai giữ.
+
+### XV1. Gốc rễ — `end=30` không phải một cái khoá
+
+`end` là tham số của **chính player**: nó vẽ một vạch kết thúc và dừng ở đó khi xem bình thường.
+Người xem kéo thanh thời gian qua vạch ấy — hoặc bấm `[l]` / `[→]` để nhảy 10 giây — thì player
+phát tiếp bình thường, và **cả video xem trọn trong khung của web**. Không có lỗi nào hiện ra lần
+này nữa, vì không có gì hỏng cả: chỉ là không ai giữ mốc.
+
+Muốn giữ mốc thì phải **đọc được vị trí đang phát** và **tự cắt**. Bản trước không đọc được vì
+việc đó phải đi qua YouTube IFrame Player API — mà API đó lại nạp
+`<script src="https://www.youtube.com/iframe_api">`, đúng thứ CSP `script-src 'self'` của site
+chặn (nguyên nhân khung đen của vòng 23). Vì thế vòng này đi đường khác.
+
+### XV2. Ba lớp của mốc 30 giây
+
+| Lớp | Việc nó làm | Dựa vào gì |
+|---|---|---|
+| `start=0&end=30` trong URL nhúng | player tự dừng ở giây 30 khi xem bình thường | thiện chí của YouTube (giữ nguyên như vòng 23) |
+| **Vòng canh trong trang** | đọc `currentTime` player gửi về; chạm mốc là **gỡ luôn iframe** | kênh `postMessage` có sẵn của player nhúng — cần `enablejsapi=1` + `origin=<origin thật của trang>`, **không** nạp script của YouTube |
+| **Đồng hồ treo tường** | chưa từng đọc được vị trí thì đúng 30 giây sau khi mở khung là hết | `Date.now()`, không phụ thuộc YouTube |
+
+Lớp thứ hai chặn đúng thứ chủ dự án báo: **tua qua 30 giây là quá mốc y như xem hết**, không có
+đường vòng. Cắt bằng cách **gỡ iframe** chứ không chỉ gửi lệnh `pauseVideo`: lệnh là một
+postMessage bất đồng bộ, còn gỡ phần tử thì trình duyệt dừng tiếng ngay.
+
+Những chỗ đã biết là **cố ý**:
+
+- Không có kênh postMessage nghĩa là có thể bị cắt sớm nếu người xem đang tạm dừng (lớp 3 đếm
+  bằng đồng hồ). Đổi lại: không còn cửa nào để xem trọn video trong khung của web.
+- Chưa dạy cho trang biết "`currentTime` này là của quảng cáo": pre-roll **dài hơn 30 giây** cũng
+  bị tính là quá mốc. Phần lớn pre-roll ngắn hơn, và nút *Watch the preview again* nằm ngay trên
+  thẻ. Đã ghi lại trong chú thích ở `VideoPreviewModal.jsx`.
+
+### XV3. Người xem thấy gì
+
+- Khung có **thanh 0 → 30 giây** kèm con số (`12s / 30s`) ở chân hộp, và thanh đứng ở đầy khi hết.
+- Chạm mốc (kể cả do tua) → iframe bị gỡ, hiện thẻ **"That’s the end of the preview"** trên nền
+  ảnh bìa: nút *Watch the preview again* và nút mở video đầy đủ trên YouTube. Thẻ này cũng là
+  chỗ đóng đinh: sau khi nó hiện thì không còn chỗ nào để bấm phát tiếp.
+- Video không cho nhúng (lỗi 100/101/150 của player) → nói ra bằng `preview.noEmbed` + nút mở
+  video, thay vì để một khung trắng không giải thích.
+- File video không phải YouTube (mp4/webm/ogv/mov/m4v) dùng **cùng luật 30 giây**, nhưng đọc vị
+  trí từ chính thẻ `<video>` (không cần postMessage).
+
+### XV4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **487 đạt / 0 lỗi / 2 skip** (vòng 24: 479 đạt — **+8 ca**). Mới: `src/lib/previewCap.test.js` **7 ca** cho phần luật — phong bì `postMessage` (câu chào `listening`, lệnh `command`, `channel:"widget"`), danh sách tên miền nhận sự kiện, đọc/loại sự kiện (kể cả JSON hỏng, `channel` lạ, tin từ tên miền lạ), trộn `infoDelivery` từng phần, luật cắt ở đúng 30 giây + giá trị rác thì KHÔNG cắt, thanh tiến trình kẹp 0..100. Thêm 1 ca ở `communityPolish.test.js`: **`end=30` trong URL phải bằng `PREVIEW_SECONDS`** (hai chỗ nói cùng một mốc, lệch nhau là không có triệu chứng nào trên màn hình) |
+| `npm run smoke` | ✅ **337/337** (vòng 24: 332) — mục *5b* nay **giả làm chính player**: gửi về đúng loại sự kiện nó gửi (`channel:"widget"`, `infoDelivery` mang `currentTime`) từ đúng `contentWindow` của iframe. Báo 12 giây → khung vẫn chạy; báo 47 giây (đã tua qua mốc) → iframe bị gỡ và thẻ hết phần xem trước hiện ra; bấm *Watch the preview again* → có phiên xem mới. **Đã chạy lại với mã CŨ**: `333/336`, đỏ đúng 3 phép kiểm (`enablejsapi=1`, *tua qua 30 giây là bị cắt*, *thẻ hết phần xem trước có đường sang YouTube*) — đúng lỗi chủ dự án báo |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-DGEFovFb.js` 339,59 kB (gzip 104,33 kB) |
+
+**Một lỗi tự gây ra, máy bắt được ngay:** bấm *Watch the preview again* thì phiên mới bị cắt sau
+0,25 giây, vì bộ nhớ của phiên cũ vẫn còn vị trí **47 giây** — vòng canh đọc lại đúng con số vừa
+làm nó cắt. Nay hàm xem lại **xoá hết những gì player cũ kể** trước khi dựng iframe mới. Ca kiểm
+"bấm *Watch the preview again* là có phiên xem mới" trong smoke là thứ bắt được lỗi này.
+
+### XV5. Còn nợ
+
+- **Chưa xem được bằng mắt trên trình duyệt thật** (môi trường này không có mạng ra ngoài). Việc
+  cần làm khi có mạng: mở Hall of Fame, bấm một thẻ, **kéo thanh thời gian qua vạch 30 giây** —
+  khung phải dừng ngay và hiện thẻ hết phần xem trước; bấm *Watch the preview again* phải chạy
+  lại từ đầu. Máy trong sandbox kiểm được phần luật, còn "player thật có trả lời kênh postMessage
+  hay không" thì phải để trình duyệt thật trả lời.
+- **Nếu YouTube đổi giao thức của kênh `postMessage`** (nó là API ngầm, không có văn bản cam kết),
+  vòng canh sẽ im lặng mất tác dụng và mốc 30 giây tụt về đúng hai lớp kia: `end=30` (chặn được
+  người xem thường, không chặn người tua) và đồng hồ treo tường (vẫn cắt, nhưng cắt theo giờ mở
+  khung chứ không theo vị trí đang phát). Dấu hiệu nhận ra: thẻ hết phần xem trước hiện ra đúng
+  ~31 giây sau khi mở khung, kể cả khi vừa bấm tạm dừng.
+
+## Phần XVI — vòng 26: ẩn giao diện YouTube, chỉ còn play/pause (22/09/2026)
+
+> ⚠️ **Vòng 29 đã gỡ nút play/pause tự vẽ** (và cả lớp phủ chặn cú bấm đi cùng nó);
+> `controls=0` + `disablekb=1` thì vẫn giữ. Xem **Phần XIX**.
+
+Yêu cầu của chủ dự án, nguyên văn: *"bạn có thể ẩn mấy cái giao diện của YouTube lúc chiếu video
+đc ko, chỉ bấm play/pause đc thoii"*. Đây là việc **thay giao diện điều khiển**, không phải chỉ
+thêm một tham số — và nó chạm trực tiếp vào mốc 30 giây vừa làm xong ở vòng 25, nên phải làm cùng
+lúc để không mở lại đường vòng.
+
+### XVI1. Tắt giao diện YouTube
+
+| Tham số | Việc nó làm |
+|---|---|
+| `controls=0` | bỏ **thanh điều khiển** — trong đó có nút *Watch on YouTube*, thanh thời gian, âm lượng, cài đặt, logo kênh |
+| `disablekb=1` | bỏ **phím tắt của player**: `[l]`/`[→]` nhảy 10 giây, `[0-9]` nhảy theo phần trăm — đúng hai đường vòng qua mốc 30 giây |
+| `autoplay=1` | (đã có từ vòng 25) cũng là thứ giữ cho nút *Watch on YouTube* không hiện |
+
+Đổi lại phải **tự vẽ** phần điều khiển, và chỉ một nút — đúng yêu cầu:
+
+- **Nút play/pause** ở giữa khung (`PreviewControls`), gửi `playVideo` / `pauseVideo` qua chính
+  kênh postMessage của vòng 25. Trạng thái đọc qua `playButtonView()`: `onStateChange` của player
+  là nguồn đúng nhất, rồi `playerState` trong gói tin, cuối cùng là ý định của người xem khi họ
+  vừa bấm (nút đổi ngay, không chờ player xác nhận).
+- **Lớp điều khiển phủ kín khung**, nên cú bấm **không bao giờ lọt vào iframe** — không có giao
+  diện nào của YouTube lộ ra, kể cả khi người xem bấm vào giữa video. Bấm vào vùng video (ngoài
+  nút) cũng là play/pause, đúng thói quen của mọi player.
+- **Đang phát thì nút mờ đi** để không che hình; rê chuột vào khung hoặc Tab tới nó là hiện lại.
+  Đang dừng thì luôn hiện — lúc ấy nó là việc duy nhất làm được.
+- **Thanh 0→30 giây ở chân hộp nay kéo được**: kéo/ bấm là gửi `seekTo`, mũi lên/xuống nhích 1
+  giây. Tua vẫn có, nhưng không còn đường tua RA NGOÀI phần xem trước (mốc kẹp ở `seekTo`, và vòng
+  canh vẫn cắt nếu player báo về một vị trí quá mốc).
+
+### XVI2. Quảng cáo pre-roll: sửa luôn lỗi của vòng 25
+
+Vòng 25 ghi lại một "chỗ đã biết là cố ý": pre-roll dài hơn 30 giây cũng bị tính là quá mốc, vì
+`currentTime` mà player báo trong lúc chạy quảng cáo là thời gian **của quảng cáo**. Vòng này sửa
+hẳn, và cách sửa cũng cần cho yêu cầu mới:
+
+- `playhead(info)` trả về vị trí **của video**, kèm cờ `ad` (hai dấu hiệu player tự gửi:
+  `playerState === -1` và `videoData.isAd`). Quảng cáo không được tính vào mốc 30 giây.
+- `keptTime(prev, next)` giữ mốc thời gian **không lùi**: quảng cáo hết, player báo về 0 thì chỗ
+  đang xem không tụt về 0.
+- Nút play/pause **tự tắt** trong lúc quảng cáo (bấm pause vào quảng cáo chỉ tổ đứng hình ở một
+  tấm hình quảng cáo), kèm `title` nói ra lý do.
+
+### XVI3. Một lỗi tự gây ra, oxlint bắt được ngay
+
+Bản đầu đọc thẳng `stateRef.current` / `infoRef.current` **trong lúc render** để quyết định nút
+đang hiện gì — React cấm (giá trị có thể cũ so với lần vẽ trước) và luật `refs` của React Compiler
+báo đỏ. Nay trạng thái nút là **state** (`playState`), được đẩy vào từ hai chỗ (bộ nghe sự kiện và
+vòng canh 250ms), và chỉ `setState` khi giá trị **đổi** — gói tin của player về vài lần mỗi giây,
+`setState` với giá trị cũ chỉ tổ bắt React vẽ lại vô ích. Ý định của người xem (`wantRef`) nằm
+trong ref vì vòng canh không được dựng lại mỗi cú bấm (dựng lại là đồng hồ treo tường đếm lại từ 0).
+
+### XVI4. Còn lại gì của YouTube (nói thẳng)
+
+- **Tiêu đề video + tên kênh ở mép trên** và **nút *Watch on YouTube* khi tạm dừng**: YouTube bỏ
+  tham số `modestbranding` từ 2023 và tới nay **không có tham số nào tắt hai thứ đó**. Chúng nằm
+  trong iframe khác tên miền nên trang không chạm tới được (CSS cũng không xuyên được vào iframe).
+  Thực tế: chúng tự mờ đi khi đang phát, và khung này **tự phát** ngay khi mở nên người xem bình
+  thường không thấy; chỉ hiện khi người xem tạm dừng hoặc rê chuột lên mép trên. Nút mở video đầy
+  đủ của mình (chân hộp + thẻ hết phần xem trước) là đường đi chính thức.
+- **Quảng cáo** không tắt được (đó là tiền của kênh).
+- Nếu trình duyệt **chặn tự phát** (người dùng bật "chặn tự phát"), YouTube có thể hiện nút play
+  lớn của chính nó bên trong iframe; cú bấm vẫn không tới được nó (lớp của trang ở trên), nhưng
+  nút của mình ở đó và bấm là chạy — vì `allow="… autoplay …"` đã bật từ trước.
+
+### XVI5. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **491 đạt / 0 lỗi / 2 skip** (vòng 25: 487 đạt — **+4 ca**): `previewCap.test.js` thêm 3 ca (`playhead` — quảng cáo không tính là vị trí video; `keptTime` — thời gian không lùi; `playButtonView` — thứ tự tin cậy và tắt trong lúc quảng cáo), `communityPolish.test.js` thêm 1 ca chốt `controls=0` + `disablekb=1` + `autoplay=1` và sự tồn tại của nút play/pause tự vẽ |
+| `npm run smoke` | ✅ **348/348** (vòng 25: 337, **+11 check**) — mục *5b* nay kiểm cả: URL nhúng tắt giao diện YouTube; có nút play/pause tự vẽ và thanh tua `role="slider"`; **bấm nút thật** và bắt lệnh gửi ra bằng cách chặn `contentWindow.postMessage` (jsdom không có mạng) — thấy đúng `pauseVideo` / `playVideo`; nút đổi trạng thái ngay; bấm vào giữa video cũng gửi lệnh và không lọt vào YouTube; khung đang phát thì nút mờ đi; **đang chạy quảng cáo thì nút tự tắt và không cắt nhầm**; quảng cáo hết thì đồng hồ không tụt về 0. **Đã chạy lại với mã CŨ (vòng 25): `337/346`, đỏ đúng 9 phép kiểm của ca này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền (hai cảnh báo `refs` do bản nháp gây ra đã được xử lý bằng cách đưa trạng thái nút vào state, và `PreviewControls` thành component riêng) |
+| `npm run build` | ✅ sạch — `index-BhIBp-T1.js` 343,03 kB (gzip 105,29 kB) |
+
+### XVI6. Còn nợ
+
+- **Chưa xem được bằng mắt trên trình duyệt thật** (không có mạng ra ngoài). Việc cần làm khi có
+  mạng: mở Hall of Fame → bấm một thẻ → kiểm bốn điều: (1) không thấy thanh điều khiển của
+  YouTube; (2) nút giữa khung bấm được, đổi hình theo trạng thái; (3) kéo thanh 0→30 giây thì
+  video nhảy đúng chỗ và **không vượt qua 30 giây**; (4) rê chuột lên mép trên khung xem còn thấy
+  gì của YouTube (kỳ vọng: tiêu đề + *Watch on YouTube* chỉ hiện khi tạm dừng — thứ không tắt được).
+
+## Phần XVII — vòng 27: phủ nốt giao diện YouTube còn sót (22/09/2026)
+
+> ⚠️ **Vòng 28 đã gỡ bốn dải phủ này** (chủ dự án: *"thấy gớm luôn"*). Mục dưới đây giữ lại như
+> hồ sơ của một lần đã thử — số đo, lý do, và cả ba thứ cố ý không làm — để nếu ai muốn quay lại
+> thì biết bắt đầu từ đâu. Bản đang chạy: xem **Phần XVIII**.
+
+Chủ dự án báo lần thứ ba, lần này kèm **ảnh chụp**: *"vẫn chưa ẩn hoàn toàn giao diện yt"*. Trong
+ảnh còn nguyên: **tiêu đề + avatar kênh** ở mép trên, **logo YouTube, biểu tượng CC, ô chất lượng
+4K, nút share** ở mép dưới, và **tấm "Video khác"** (nội dung gợi ý) phủ giữa khung. Vòng 26 mới
+làm được một nửa việc, và lý do là **giới hạn thật**, không phải thiếu tham số.
+
+### XVII1. Vì sao `controls=0` không đủ — và không có tham số nào đủ
+
+| Thứ còn sót | Vì sao không tắt được |
+|---|---|
+| tiêu đề + avatar kênh, tấm "Video khác", logo, CC, chất lượng, share, nút ⋮ | **không nằm trong thanh điều khiển**, nên `controls=0` không đụng tới |
+| logo / nút *Watch on YouTube* ở mép dưới | `modestbranding` — tham số duy nhất từng bỏ được logo — **đã bị YouTube bỏ từ 2023** |
+| tất cả những thứ trên | nằm **bên trong iframe khác tên miền**: CSS của trang không xuyên vào được, JS cũng không đọc được DOM bên trong (nên không thể "nhìn thấy rồi ẩn theo") |
+
+Nói ngắn: **không có công tắc**. Cách duy nhất còn lại là **phủ lên** — và đó là việc của vòng này.
+
+### XVII2. Bốn dải mặt nạ, số đo lấy từ chính ảnh chụp
+
+`CHROME_COVER` trong `src/lib/previewCap.js` là nguồn số duy nhất; khung video trong ảnh là
+914×537 px, quy ra % chiều cao/chiều rộng khung:
+
+| Dải | Che gì | Vì sao con số đó |
+|---|---|---|
+| trên **15%** | tiêu đề + avatar kênh (4%..13%), nút ⋮ (2%..7%) | dư 2% so với chỗ cao nhất phải che |
+| dưới **24%** | tấm "Video khác" (80%..94%), logo (91%..95%), CC (93%..99%), chất lượng (92%..98%), share (88%..92%) | dư 4% dưới chỗ bắt đầu của tấm gợi ý |
+| trái / phải **4%** | vệt mép của player, bo góc, vệt sáng của ô chất lượng khi mở | mỏng nhất mà vẫn phủ hết mép |
+
+Bốn dải **nhô ra ngoài khung 14px** để đè cả phần bo góc và mép iframe — chỗ trước đây lộ vệt.
+
+Dải là **kính mờ**, không phải băng dính đen: `backdrop-filter: blur(18px) brightness(.62)` làm
+mờ và tối **chính những điểm ảnh của video phía sau**, nên mép khung trông như một viền mờ ăn
+theo màu video (kiểu ambient mode), rồi một lớp gradient tối dần về phía mép. Nút play/pause tự
+vẽ cũng được làm đục hơn (`rgba(8,10,15,.82)` + `blur(10px) brightness(.7)`) để **che luôn nút
+play lớn mà player tự vẽ ở giữa** khi video đang dừng.
+
+Ba điều đã cân nhắc và **cố ý không làm**:
+
+- **Không kéo iframe to lên rồi cắt bớt.** Phóng to để phần nhìn thấy vẫn đủ 16:9 thì ảnh bị
+  zoom (mất nét), mà giao diện YouTube cũng phóng theo và vẫn nằm trong vùng nhìn thấy.
+- **Không đặt lại vị trí tấm gợi ý.** Tấm đó nằm bên trong iframe; không có cách nào chạm tới.
+- **Không tô đen đặc bốn dải.** Thanh đen đặc thì che được, nhưng khung thành cái hộp bị dán
+  băng dính; kính mờ che y như vậy mà vẫn ăn theo màu video.
+
+### XVII3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **493 đạt / 0 lỗi / 2 skip** (vòng 26: 491 đạt — **+2 ca**). Mới: **bài kiểm HÌNH HỌC** trong `previewCap.test.js` — bảy hình chữ nhật giao diện YouTube đọc từ ảnh chụp (tiêu đề/kênh, nút ⋮, tấm "Video khác", logo, CC, chất lượng, share) phải nằm **trọn** trong một trong bốn dải; sửa `CHROME_COVER` nhỏ đi là đỏ ngay, và đỏ ở đúng mép sẽ lộ giao diện. Thêm 1 ca ở `communityPolish.test.js`: dải trên ≥ 13%, dải dưới ≥ 20%, và tổng hai dải < 50% (không được phủ quá nửa khung, không thì hết chỗ xem video) |
+| `npm run smoke` | ✅ **351/351** (vòng 26: 348, **+3 check**): có mặt nạ và **đúng bốn dải**; số đo trong DOM khớp `CHROME_COVER` (smoke **import chính mô-đun** rồi so, không chép lại con số); mặt nạ không chặn cú bấm. **Đã chạy lại với mã CŨ (vòng 26): `349/351`, đỏ đúng hai phép kiểm của ca này** (`không có` mặt nạ) |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-*.js` 343 kB |
+
+### XVII4. Còn nợ
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài). Việc cần làm khi có mạng:
+  mở Hall of Fame → bấm một thẻ → soi bốn mép: mép trên không còn tiêu đề/avatar kênh, mép dưới
+  không còn logo/CC/chất lượng/share, giữa khung không còn tấm "Video khác". Thứ duy nhất còn lại
+  là **những gì player vẽ ở CHÍNH GIỮA khung** (nút play lớn khi đang dừng, nhịp nháy pause) —
+  nút play/pause của trang nằm đè lên đó, nhưng nếu ảnh chụp cho thấy còn viền của nút YouTube
+  thì bước tiếp theo là phóng to nút của trang cho phủ kín hơn.
+- **`backdrop-filter` trên iframe khác tên miền** là chỗ phụ thuộc trình duyệt. Nếu trình duyệt
+  không lấy được mặt phẳng của iframe, bốn dải vẫn là bốn tấm tối dần (đã có nhánh
+  `@supports not`), tức vẫn che — chỉ mất vẻ "kính mờ ăn theo màu video".
+- **Mép bị phủ là mép bị mất hình**: 15% trên + 24% dưới. Đây là giá phải trả để không còn giao
+  diện YouTube, và là lựa chọn có ý thức cho một khung xem trước 30 giây (nội dung chính của
+  video nằm giữa khung). Muốn giữ trọn hình thì phải quay lại chấp nhận giao diện YouTube.
+
+## Phần XVIII — vòng 28: bỏ dải phủ, theo bố cục "video trailer popup" (22/09/2026)
+
+### XVIII1. Chủ dự án nói gì
+
+Vòng 27 vừa giao xong thì có hai câu:
+
+> "thấy gớm luôn tr"
+
+> "t muốn bạn làm tựa tựa v nè: `100jsprojects.com/project/video-trailer-popup`"
+
+Đọc lại vòng 27 thì thấy **chê đúng**: bốn dải là kính mờ, nhưng mép trong của chúng cắt **phựt**
+từ tối về 0 — mắt đọc ra bốn tấm băng dán quanh khung, và càng rõ vì mép cắt nằm ngay trên hình
+đang chạy. Mẫu được gửi thì ngược hẳn: **không có gì quanh khung cả** — nền đen, video ở giữa, một
+nút ✕. Vậy là **gỡ hẳn** cách phủ, đi theo mẫu.
+
+### XVIII2. Bố cục mới (và số đo `FRAME_FADE`)
+
+```
+.video-preview-scrim      nền rgba(3,4,7,.95) + blur(6px), phủ toàn màn hình, bấm ra ngoài là đóng
+└── .video-preview-stage  cột giữa, rộng min(960px, 100%)
+    ├── section.video-preview-player   role="dialog", aria-labelledby="video-preview-title"
+    │   ├── .video-preview-frame       khung 16:9, bo 12px, đổ bóng
+    │   │   ├── span.video-preview-fade   hai vệt mờ mép trên/dưới (FRAME_FADE)
+    │   │   ├── ảnh bìa + iframe + nút play/pause tự vẽ (lớp điều khiển phủ kín khung)
+    │   │   └── .video-preview-timeline    vạch 0→30 giây, kéo được
+    │   └── button.video-preview-close    ✕ nổi ở góc phải trên khung (top: -42px; điện thoại: 8px)
+    └── .video-preview-meta            h2 tên bài + "xem trước 30 giây" + đồng hồ + link mở video gốc
+```
+
+| | Số đo | Alpha | Ghi chú |
+|---|---|---|---|
+| `FRAME_FADE.top` | 9% | `.55` | `linear-gradient(180deg, rgba(0,0,0,.55), transparent)` |
+| `FRAME_FADE.bottom` | 11% | `.6` | `linear-gradient(0deg, rgba(0,0,0,.6), transparent)` |
+
+Hai vệt này **không nhằm che giao diện YouTube** — chúng chỉ để mép hình hoà vào sân khấu đen, nên
+**tan hết về `transparent`** (không còn mép cứng để mắt bắt), alpha thấp, tổng hai mép 20% chiều
+cao. `previewCap.test.js` canh: `top ≤ 14`, `bottom ≤ 16`, tổng `≤ 25`, và **không được có lại**
+`.video-preview-masks`; `communityPolish.test.js` canh tiếp: hai gradient phải có chữ `transparent`
+và vùng vệt mờ **không được** dính `backdrop-filter`/`brightness` (bộ lọc của thời kỳ dải phủ).
+
+### XVIII3. Đánh đổi — nói thẳng
+
+**Giao diện YouTube hiện lại**: tiêu đề + avatar kênh ở mép trên, logo ở mép dưới. Đây là cái giá
+trực tiếp của việc đi theo mẫu:
+
+| Cách | Được | Mất |
+|---|---|---|
+| phủ (vòng 27) | không thấy gì của YouTube | bốn tấm băng quanh khung — chủ dự án chê "gớm" |
+| mẫu (vòng 28) | sạch, đúng mẫu, không tấm nào | thấy tiêu đề/logo YouTube |
+
+Cả hai cùng lúc là **không thể**: mọi cách che đều phải là một tấm phủ. Những thứ **vẫn còn nguyên**
+của các vòng trước: `controls=0` (không thanh điều khiển, không nút *Watch on YouTube*),
+`disablekb=1`, nút play/pause tự vẽ, lớp điều khiển của trang phủ kín khung nên con trỏ không vào
+được iframe (tức phần hiện-khi-rê-chuột như CC/chất lượng/share/⋮ không có cớ xuất hiện), và **luật
+30 giây**: `end=30` + vòng canh + `cut()`, tua qua 30 giây là khung tự cắt.
+
+### XVIII4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **493 đạt / 0 lỗi / 2 skip** (vòng 27: 493 đạt — bằng, nhưng **nội dung ca đổi**: ca hình học bảy hình chữ nhật + ca "bốn dải" của vòng 27 đã bị thay bằng ca "vệt mờ tan dần, và không được dựng lại dải" + ca bố cục trailer popup) |
+| `npm run smoke` | ✅ **352/352** (vòng 27: 351, **+1 check**): `.video-preview-stage` + `.video-preview-player` là hộp thoại; có nút ✕ nổi ngoài khung; link mở video gốc giờ ở `.video-preview-open`; vệt mờ đúng số đo `FRAME_FADE`; **không còn** `.video-preview-masks`. **Đã chạy lại với mã CŨ (vòng 27): `344/352`, đỏ đúng tám phép kiểm của vòng này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-Dnvgj2bw.js` 343.31 kB (gzip 104.28 kB) |
+
+### XVIII5. Còn nợ
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài): cần mở Hall of Fame → bấm một
+  thẻ và kiểm bốn điều ghi ở `HUONG-DAN.md` mục *Vòng 28*.
+- Nếu ảnh chụp cho thấy tiêu đề/logo YouTube **che mất phần đáng xem**, các bước tiếp theo (theo thứ
+  tự nhẹ tay → mạnh tay): (1) đẩy `FRAME_FADE` lên — nhưng đó lại là băng che, phải hỏi trước;
+  (2) dựng lại lớp phủ mờ **có bo và tan** ở hai mép thay vì cắt phựt; (3) quay lại iframe to hơn
+  rồi cắt bớt (mất nét, không nên).
+- **Không có cách nào tắt** tiêu đề/logo bằng tham số: `modestbranding` đã bị YouTube bỏ từ 2023,
+  và hai thứ đó nằm ngoài thanh điều khiển. Đừng thử lại.
+
+## Phần XIX — vòng 29: gỡ nút play/pause tự vẽ, KHÔNG bật lại thanh điều khiển của YouTube (22/09/2026)
+
+### XIX1. Chủ dự án nói gì
+
+> "ko cần chèn cái nút pause/play trong video đâu, t muốn xài nút của youtube"
+
+Bản nháp của vòng này hiểu thành *"vậy thì trả điều khiển về cho YouTube"* — bỏ `controls=0` và
+`disablekb=1`, gỡ nút tự vẽ — và chủ dự án gửi ảnh chụp ngay: đúng cái thanh điều khiển của YouTube
+nhúng (`0:01 / 3:34`, vạch tiến trình, ô chất lượng, CC, tấm "Video khác", logo YouTube, nút toàn
+màn hình), kèm hai câu:
+
+> "ko phải, cái preview giống hồi nãy ok r, chỉ cần xóa cái pause/play thêm vào web thôi"
+
+> "bỏ cái phần trong hình t gửi và để video giống bản trước đó"
+
+### XIX2. Chốt lại — không nút của trang, cũng không thanh của YouTube
+
+| Thành phần | Kết luận |
+|---|---|
+| nút play/pause của trang (`PreviewControls`) | **gỡ** — cùng với nó là **lớp phủ chặn cú bấm**, vì lớp đó chỉ tồn tại để nút của trang là chỗ bấm duy nhất |
+| thanh điều khiển của YouTube | **vẫn tắt** (`controls=0` + `disablekb=1`, giữ từ vòng 26) — ảnh chụp của chủ dự án chính là cái thanh đó |
+| cú bấm vào mặt video | **tới được player**: player tự hiểu cú bấm vào hình là play/pause, kể cả khi `controls=0`. Đây là "dùng nút của YouTube" đúng nghĩa — nút của nó, không phải thanh điều khiển của nó |
+| vạch 0→30 giây | **còn**, trở lại nằm trong khung như vòng 28 (không còn thanh nào của YouTube để chồng lên) |
+| nhánh file mp4/webm/… | không có YouTube để mượn nút → điều khiển là `controls` của trình duyệt trên chính thẻ `<video>` |
+| luật 30 giây | **nguyên vẹn**: `end=30` + vòng canh (bỏ qua đồng hồ quảng cáo) + `cut()` gỡ iframe khi tua quá mốc |
+
+Đã xoá: `PreviewControls` + state `playState`/`wantRef`/`publish()`; `playButtonView()` trong
+`previewCap.js` (kèm ca kiểm của nó); CSS `.video-preview-controls`, `.video-preview-toggle`,
+`.is-playing` (và bản trong media query điện thoại); khoá i18n `preview.play` / `preview.pause` /
+`preview.ad`; icon `pause` trong `Icon.jsx`. Ba chỗ cuối là **bắt buộc** phải xoá chứ không phải
+dọn cho đẹp: `i18nKeys.test.js` có ca *"không khoá nào nằm chết trong từ điển"* và `Icon.test.js` có
+ca *"SET không có tên chết"* — để lại là hai bài kiểm đỏ ngay.
+
+### XIX3. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **492 đạt / 0 lỗi / 2 skip** (vòng 28: 493 đạt — **−1 ca**: ca `playButtonView` bị xoá cùng hàm; ca điều khiển trong `communityPolish.test.js` được viết lại theo chiều ngược: URL nhúng phải **có** `controls=0` + `disablekb=1`, JSX không được có nút/lớp phủ, nhánh file phải có `controls`, vệt mờ phải `pointer-events: none`) |
+| `npm run smoke` | ✅ **349/349**: có nút tự vẽ → **không** có nút tự vẽ; **không** còn lớp phủ `inset: 0` trên iframe; vạch thời gian vẫn gửi `seekTo` (bấm `→` và bắt `contentWindow.postMessage`); quảng cáo không bị cắt oan; đồng hồ không tụt về 0 sau quảng cáo; tua qua 47 giây → iframe bị gỡ. **Mã CŨ (vòng 28): `346/349`, đỏ đúng ba phép kiểm của vòng này** |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-*.js` 341–343 kB |
+
+### XIX4. Còn nợ, và một điều nói thẳng
+
+- **Chưa xem được bằng mắt trong sandbox** (không có mạng ra ngoài): cần mở Hall of Fame → bấm một
+  thẻ và kiểm bốn điều ghi ở `HUONG-DAN.md` mục *Vòng 29*.
+- **Tiêu đề + avatar kênh ở mép trên, logo ở mép dưới** vẫn do YouTube vẽ trong iframe: không tham
+  số nào tắt riêng chúng (đã đo ở vòng 27), mà che thì phải phủ — đúng thứ bị chê là *"gớm"*. Vòng
+  29 không cố che nữa; nếu chủ dự án muốn che lại thì phải mở lại đúng cuộc trao đổi đó.
+- **Cú bấm vào mặt video giờ là đường play/pause duy nhất** (ngoài phím tắt của player đã tắt bằng
+  `disablekb=1`). Nếu trình duyệt/iframe chặn cú bấm (hiếm), khung sẽ chỉ còn tự chạy — đó là giá
+  của việc "không nút nào của trang"; muốn chắc ăn thì phải hỏi chủ dự án trước khi dựng lại nút.

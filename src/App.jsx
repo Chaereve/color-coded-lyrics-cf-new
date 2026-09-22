@@ -2289,7 +2289,12 @@ function AppInner() {
       </main>
       </div>{/* /.shell */}
 
-      <VideoPreviewModal video={hallVideo} onClose={() => setHallVideo(null)} />
+      {/* `key` theo bài đang mở = MỖI BÀI MỘT PHIÊN XEM. Không có nó thì hộp
+          thoại là CÙNG một component: xem hết 30 giây ở bài A, đóng, mở bài B
+          là thẻ "hết phần xem trước" của bài A hiện ra ngay trên bài B (state
+          `over` còn nguyên). Đóng hộp cũng đổi key (về 'none') nên mở lại
+          đúng bài vừa xem vẫn là phiên mới. */}
+      <VideoPreviewModal key={hallVideo?.id ?? 'none'} video={hallVideo} onClose={() => setHallVideo(null)} />
 
       <VoteModal
         open={!!voteFor} request={voteFor}

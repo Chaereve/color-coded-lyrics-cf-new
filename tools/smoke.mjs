@@ -95,6 +95,11 @@ const { createElement, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const App = (await server.ssrLoadModule('/src/App.jsx')).default
 const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+/* Số đo vệt mờ lấy từ CHÍNH mô-đun, không chép lại: smoke kiểm "khung có vẽ
+   đúng con số mà mã đang dùng" chứ không phải "khung có vẽ con số nào đó".
+   Mặc định 0 để lượt chạy với mã CŨ (chưa có FRAME_FADE) đỏ gọn ở phép kiểm
+   của nó, chứ không ném lỗi giữa lượt. */
+const { FRAME_FADE = { top: 0, bottom: 0 } } = await server.ssrLoadModule('/src/lib/previewCap.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
 
 const container = window.document.getElementById('root')
@@ -415,8 +420,16 @@ if (upNextChip) {
 const queueChip = qa('.fchip').find(c => /Queue/i.test(c.textContent || ''))
 if (queueChip) await click(queueChip)
 
-/* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23) ----------
-   LỖI CHỦ DỰ ÁN BÁO: "bấm preview ở Hall of Fame không hiện gì, đen xì".
+/* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23 + vòng 25) ----------
+   LỖI CHỦ DỰ ÁN BÁO, LẦN 2 (vòng 25): "cái preview 30s ở hall of fame vẫn không
+   hoạt động được, nó vẫn không hoạt động khi tua nhanh qua 30s". `end=30`
+   trong URL không phải cái khoá: kéo thanh thời gian qua vạch là player phát
+   tiếp. Nên lượt kiểm này còn GIẢ LÀM PLAYER, gửi về đúng loại postMessage mà
+   player nhúng gửi (`channel:"widget"`, `infoDelivery` mang `currentTime`) để
+   xem luật cắt có thật sự cắt khi bị tua qua hay không. Không có mạng trong
+   jsdom nên đây là cách duy nhất chạm được vào luật đó.
+
+   LỖI CHỦ DỰ ÁN BÁO, LẦN 1: "bấm preview ở Hall of Fame không hiện gì, đen xì".
    Nguyên nhân nằm ở chỗ khó thấy bằng mắt thường: người chơi cũ dựng bằng
    YouTube IFrame Player API, mà API đó nạp `<script src="youtube.com/iframe_api">`.
    CSP của site chỉ cho `script-src 'self'`, nên script bị chặn im lặng,
@@ -435,10 +448,10 @@ where = 'xem trước video (Hall of Fame)'
     await click(cards[0])
     await tick(160)
     check('bấm thẻ Hall of Fame là khung xem trước mở ra',
-      !!q('.video-preview-scrim') && !!q('.video-preview'))
+      !!q('.video-preview-scrim') && !!q('.video-preview-stage') && !!q('.video-preview-player'))
     check('khung xem trước là hộp thoại có tên đọc được',
-      q('.video-preview')?.getAttribute('role') === 'dialog' &&
-      q('.video-preview')?.getAttribute('aria-labelledby') === 'video-preview-title' &&
+      q('.video-preview-player')?.getAttribute('role') === 'dialog' &&
+      q('.video-preview-player')?.getAttribute('aria-labelledby') === 'video-preview-title' &&
       !!q('#video-preview-title'))
     const frame = q('.video-preview-frame')
     check('khung xem trước không rỗng (luôn có thứ để vẽ)',
@@ -458,7 +471,129 @@ where = 'xem trước video (Hall of Fame)'
     check('có ảnh bìa nằm sau iframe (mạng chậm vẫn thấy hình, không thấy đen)',
       !!poster && /i\.ytimg\.com\/vi\//.test(poster.getAttribute('src') || ''),
       poster?.getAttribute('src'))
-    check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-foot a'))
+    check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-open'))
+    check('nút ✕ nổi ngoài khung (kiểu trailer popup, không có thanh tiêu đề)',
+      !!q('.video-preview-close') && !!q('.video-preview-meta h2'))
+    check('URL nhúng có enablejsapi=1 (kênh để trang tự canh mốc 30 giây)',
+      /enablejsapi=1/.test(iframe?.getAttribute('src') || ''))
+    /* GIAO DIỆN YOUTUBE BỊ TẮT (vòng 26 → 29): `controls=0` bỏ thanh điều khiển
+       (kèm nút *Watch on YouTube*, tấm "Video khác" và phím tắt nhảy 10 giây),
+       `disablekb=1` bỏ phím tắt. Vòng 26 còn tự vẽ một nút play/pause cho khung
+       khỏi "chỉ là tấm hình"; vòng 29 chủ dự án bảo gỡ nút đó, và bản nháp bật
+       lại thanh điều khiển của YouTube thì chủ dự án gửi ảnh chụp cái thanh ấy
+       với câu "bỏ cái phần trong hình t gửi". Chốt: KHÔNG thanh của YouTube,
+       KHÔNG nút của trang — cú bấm rơi thẳng vào player (nó tự hiểu là
+       play/pause), nên cũng không được có lớp phủ nào chặn cú bấm. */
+    const embedSrc = iframe?.getAttribute('src') || ''
+    check('URL nhúng tắt giao diện YouTube (controls=0, không phím tắt)',
+      /controls=0/.test(embedSrc) && /disablekb=1/.test(embedSrc), embedSrc)
+    check('trang KHÔNG vẽ nút play/pause nào (chủ dự án bảo gỡ ở vòng 29)',
+      !q('.video-preview-controls') && !q('.video-preview-toggle'),
+      q('.video-preview-toggle')?.className || 'không có')
+    check('không còn lớp phủ chặn cú bấm trên iframe (cú bấm tới được player)',
+      !q('.video-preview-frame > .video-preview-controls'))
+    check('thanh thời gian của trang kéo được (chỉ trong 30 giây)',
+      q('.video-preview-bar')?.getAttribute('role') === 'slider')
+    /* VỆT MỜ HAI MÉP KHUNG (vòng 28) — và cái KHÔNG còn.
+       -----------------------------------------------------------------
+       Vòng 27 phủ bốn dải lên bốn mép khung để che giao diện YouTube; chủ dự
+       án nhìn rồi nói "thấy gớm luôn" và gửi một mẫu để làm theo (100jsprojects
+       · video-trailer-popup). Vòng 28 đi theo mẫu: sân khấu đen, khung ở giữa,
+       một nút ✕. Cái còn lại chỉ là hai VỆT MỜ tan dần để mép hình hoà vào nền
+       — alpha thấp, tổng hai mép một phần tư chiều cao là hết mức. */
+    const fade = q('.video-preview-fade')
+    check('hai mép khung là vệt mờ tan dần (không phải băng che)',
+      !!fade && !!fade.querySelector('.vp-f-top') && !!fade.querySelector('.vp-f-bottom'),
+      fade ? `${fade.children.length} vệt` : 'không có')
+    check('vệt mờ dùng đúng số đo FRAME_FADE (một nguồn số, không chép lại)',
+      fade?.style.getPropertyValue('--vp-fade-top') === `${FRAME_FADE.top}%`
+      && fade?.style.getPropertyValue('--vp-fade-bottom') === `${FRAME_FADE.bottom}%`
+      && FRAME_FADE.top + FRAME_FADE.bottom <= 25,
+      `top ${FRAME_FADE.top}% · bottom ${FRAME_FADE.bottom}% · style=${fade?.getAttribute('style') || ''}`)
+    check('dải phủ bốn mép của vòng 27 đã bỏ hẳn (chủ dự án chê "gớm")',
+      !q('.video-preview-masks'))
+
+    /* ---- TUA QUA 30 GIÂY (chủ dự án báo lần hai, vòng 25) ----
+       `end=30` chỉ là chỗ đánh dấu của player: kéo thanh thời gian qua vạch đó
+       là video phát tiếp, và cả video xem trọn trong khung của web.
+
+       Ở đây giả làm CHÍNH player: gửi về đúng loại sự kiện nó gửi (kênh
+       `channel:"widget"`, `infoDelivery` mang `currentTime`), từ đúng
+       `contentWindow` của iframe. Một lượt báo 12 giây (còn trong phần xem
+       trước) rồi một lượt báo 47 giây (đã tua qua mốc). Không có mạng trong
+       jsdom nên đây là cách duy nhất chạm được vào luật cắt — và cũng là cách
+       chạm ĐÚNG chỗ: luật cắt chỉ đọc mấy con số này. */
+    const frameWin = iframe?.contentWindow
+    if (frameWin) {
+      const playerSays = (payload) => window.dispatchEvent(new window.MessageEvent('message', {
+        data: JSON.stringify({ ...payload, id: 'ccl-preview', channel: 'widget' }),
+        origin: 'https://www.youtube-nocookie.com',
+        source: frameWin,
+      }))
+      await act(async () => { playerSays({ event: 'onStateChange', info: 1 }) })
+      await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 12, playerState: 1 } }) })
+      await tick(400)
+      check('mới 12 giây thì khung vẫn đang chạy (chưa cắt sớm)',
+        !!q('.video-preview-iframe') && !q('.video-preview-end'),
+        text().slice(0, 100))
+
+      /* Trang KHÔNG còn nút nào để bấm (vòng 29 gỡ nút play/pause tự vẽ), nhưng
+         vạch 0→30 giây thì vẫn là control của trang — nó phải gửi lệnh THẬT vào
+         khung. jsdom bắt `postMessage` gửi ra bằng cách thay hàm của
+         contentWindow: cách duy nhất nhìn được "trang có nói chuyện với player
+         hay không" mà không có mạng. Dùng BÀN PHÍM (ArrowRight) chứ không kéo
+         chuột: cùng một đường `seekTo` mà không phụ thuộc PointerEvent của jsdom. */
+      const sent = []
+      const realPost = frameWin.postMessage
+      frameWin.postMessage = (payload) => { sent.push(String(payload)) }
+      try {
+        const bar = q('.video-preview-bar')
+        if (bar) {
+          await act(async () => {
+            bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+          })
+          await tick(200)
+        }
+        check('vạch 30 giây của trang gửi lệnh seekTo vào player (bấm →)',
+          sent.some(m => /seekTo/.test(m)), sent.join(' | ').slice(0, 120))
+        check('không còn nút nào của trang để bấm (chủ dự án bảo gỡ ở vòng 29)',
+          !q('.video-preview-toggle') && !q('.video-preview-controls'))
+
+        /* Quảng cáo pre-roll: thời gian CỦA QUẢNG CÁO không được tính vào mốc
+           30 giây (pre-roll 33 giây ≠ đã xem 33 giây), và cũng không còn nút nào
+           của trang để "tắt hộ" quảng cáo nữa. */
+        await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 33, playerState: -1 } }) })
+        await tick(400)
+        check('đang chạy quảng cáo: phần xem trước không bị cắt oan',
+          !!q('.video-preview-iframe') && !q('.video-preview-end'),
+          text().slice(0, 100))
+
+        /* Quảng cáo hết → video bắt đầu lại từ 0: chỗ đang xem không được tụt
+           về 0 (giờ vẫn còn nguyên phần xem trước). */
+        await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 0, playerState: 1, videoData: { isAd: 0 } } }) })
+        await tick(400)
+        const counter = (q('.video-preview-count')?.textContent || '').trim()
+        check('quảng cáo hết: đồng hồ không tụt về 0',
+          /^1[0-9]s/.test(counter) || /^2[0-9]s/.test(counter), `"${counter}"`)
+      } finally {
+        frameWin.postMessage = realPost
+      }
+      await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 47, playerState: 1 } }) })
+      await tick(400)
+      check('TUA QUA 30 GIÂY là phần xem trước bị cắt (không còn iframe để xem tiếp)',
+        !q('.video-preview-iframe') && !!q('.video-preview-end'), text().slice(0, 140))
+      check('thẻ hết phần xem trước vẫn có đường sang YouTube',
+        !!q('.video-preview-endacts a'))
+      const again = qa('.video-preview-endacts button')[0]
+      if (again) {
+        await click(again)
+        await tick(240)
+        check('bấm "xem lại" là có phiên xem mới (iframe dựng lại)', !!q('.video-preview-iframe'))
+      }
+    } else {
+      realLog('  · jsdom không trả contentWindow cho iframe — bỏ lượt mô phỏng player')
+    }
+
     await act(async () => {
       window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
