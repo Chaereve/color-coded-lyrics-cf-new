@@ -44,13 +44,10 @@ const S = {
   'prof.name': 'Display name',
   'prof.choose': 'Choose image',
   'prof.reset': 'Use Google picture',
-  'prof.gifReady': 'Animated GIF ready ({kb} KB). Save your profile to keep it moving.',
   /* Trần dung lượng THẬT của ảnh động: bản lưu trong database bị chặn ở
      200.000 ký tự (update_my_profile), nên ảnh động phải nằm dưới ~146 KB.
      Chữ này nói thẳng con số và việc cần làm, thay vì để người dùng bấm Save
      rồi nhận một câu "ảnh quá lớn" không nói gì. */
-  'prof.gifTooBig': 'This GIF is {kb} KB — animated avatars can be at most {max} KB. Use the first frame, or a smaller GIF.',
-  'prof.gifStill': 'Use the first frame (static)',
   'prof.resized': 'Cropped to {kb}KB. Press Save to apply.',
   'prof.save': 'Save',
   'prof.saving': 'Saving…',
@@ -961,8 +958,7 @@ const S = {
   'err.nameShort': 'Name needs at least 2 characters.',
   'err.avatarType': 'That file is not an image.',
   'err.avatarBig': 'That image is too large.',
-  'err.avatarAnimBig': 'Animated GIF is {kb} KB — the limit is {max} KB. Try a smaller one.',
-  'err.avatarRead': 'Could not read that image. Use a JPG, PNG or GIF.',
+  'err.avatarRead': 'Could not read that image. Use a JPG, PNG or WebP.',
   'err.avatarUpload': 'Upload failed. Try again.',
   'err.notVoted': 'You have not cast that many votes here.',
   'err.voteQty': 'Enter a number between 1 and 100.',
