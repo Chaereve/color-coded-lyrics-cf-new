@@ -3947,7 +3947,28 @@ html[data-section="spin"] .bgfx { display: none; }
 .video-preview-file { width: 100%; height: 100%; display: block; background: #000; }
 .video-preview-fallback { position: absolute; inset: 0; display: grid; place-items: center; margin: 0;
   padding: 18px 22px; text-align: center; color: var(--txt-2); font-size: 12.5px; line-height: 1.6; }
-.video-preview-foot { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); }
+/* Thẻ "hết phần xem trước" — nằm TRÊN iframe (z-index 2) và phủ kín khung, nên
+   sau khi chạm mốc 30 giây thì không còn chỗ nào để bấm phát tiếp. Nền tối mờ
+   chứ không đặc: ảnh bìa phía dưới vẫn cho biết đây là video nào. */
+.video-preview-end { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center;
+  padding: 14px 18px; text-align: center; background: rgba(6, 8, 12, .82); backdrop-filter: blur(4px); }
+.video-preview-endbox { display: flex; flex-direction: column; align-items: center; gap: 5px; max-width: 440px; }
+.video-preview-endbox b { font: 600 15px var(--display); }
+.video-preview-endbox p { margin: 0; color: var(--txt-2); font-size: 12.5px; line-height: 1.55; }
+.video-preview-endacts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 7px; }
+.video-preview-endacts .btn { display: inline-flex; align-items: center; gap: 6px; }
+.video-preview-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 16px; border-top: 1px solid var(--line); }
+/* Thanh 0→30 giây: vạch và con số là MỘT khối (cùng luật với .prog của thanh
+   tiến độ request) — con số nằm cạnh vạch, `tabular-nums` để số không nhảy. */
+.video-preview-tick { display: flex; align-items: center; gap: 8px; min-width: 0;
+  color: var(--txt-3); font: 500 11px var(--mono); font-variant-numeric: tabular-nums; }
+.video-preview-track { position: relative; display: block; width: 92px; height: 4px;
+  border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.video-preview-track i { display: block; height: 100%; width: var(--pv); border-radius: inherit;
+  background: var(--a-2); transition: width 240ms var(--e-soft); }
+/* Cùng luật với .prog-track: người xin giảm chuyển động thì vạch nhảy thẳng. */
+@media (prefers-reduced-motion: reduce) { .video-preview-track i { transition: none } }
 @media (max-width: 620px) { .video-preview-scrim { padding: 10px; } .video-preview-head h2 { font-size: 14px; } }
 .hall-card > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .hall-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

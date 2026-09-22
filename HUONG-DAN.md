@@ -3296,7 +3296,8 @@ một loại bài): bài đó **vẫn** phải hiện.
 - **Comments** có reply một cấp. Reply lưu `request_comments.parent_id`, nên tải lại
   trang vẫn giữ quan hệ; xóa comment gốc cũng dọn reply con theo cascade.
 - **Hall of Fame** mở popup YouTube với `start=0&end=30`, thay vì đá người xem sang
-  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup.
+  tab mới ngay lập tức. Nút mở video đầy đủ vẫn nằm trong popup. *(Mốc 30 giây
+  thành luật thật — chặn cả khi tua — ở **Vòng 25**, cuối tài liệu.)*
 - **Achievement index** ở About me luôn liệt kê cả mốc đã đạt và chưa đạt: streak
   7/30/100, request đầu tiên, completion đầu tiên, top 10 và podium. Phần thưởng là
   badge/title hiển thị; không có vote weight ẩn.
@@ -3324,9 +3325,10 @@ Bốn việc dưới đây đều là lỗi **nhìn thấy được**, nên mỗ
   Player API, tức là nạp `<script src="https://www.youtube.com/iframe_api">` — mà CSP của site
   (`public/_headers`) chỉ cho `script-src 'self'`, nên script bị chặn im lặng và khung 16:9 chỉ
   còn nền đen. Nay khung xem là một `<iframe>` nhúng thẳng `youtube-nocookie.com` (CSP đã cho
-  `frame-src` từ trước): **không script bên thứ ba**, video tự dừng ở giây 30, phía sau còn một
-  **ảnh bìa** nên mạng chậm cũng thấy hình. Video không phải YouTube (mp4, link lạ) vẫn mở được
-  hộp này và có câu giải thích + nút mở tab mới.
+  `frame-src` từ trước): **không script bên thứ ba**, phía sau còn một **ảnh bìa** nên mạng chậm
+  cũng thấy hình. Video không phải YouTube (mp4, link lạ) vẫn mở được hộp này và có câu giải
+  thích + nút mở tab mới. *(Mốc 30 giây lúc này mới chỉ là `end=30` — chưa chặn được người tua;
+  xem **Vòng 25** ở cuối tài liệu.)*
 - **GIF avatar lưu được.** Database chặn ảnh ở 200.000 ký tự, còn phía trình duyệt lại hứa
   "tối đa 2,5 MB": chọn GIF 1–2 MB thì app báo *"GIF sẵn sàng"*, bấm Save mới lỗi. Nay trần của
   client **đúng bằng** trần của database (~146 KB cho GIF), kiểm ngay khi chọn file, và khi quá
@@ -3386,3 +3388,61 @@ CŨ để chắc nó bắt được lỗi: kết quả `330/332`, đỏ đúng h
 `trang cá nhân=1 · vòng quay=1` — đúng như ảnh chụp.
 
 `npx oxlint` 0 lỗi / 26 cảnh báo (không tăng). `npm run build` sạch (`index-BZ8OCtKy.js` 337 kB).
+
+## Vòng 25 — mốc 30 giây của khung xem trước (22/09/2026)
+
+Chủ dự án báo lần hai: *"cái preview 30s ở hall of fame vẫn không hoạt động được, nó vẫn không
+hoạt động khi tua nhanh qua 30s"*. Vòng 23 đã làm khung chạy được (bỏ script YouTube bị CSP
+chặn), nhưng **mốc 30 giây chưa ai giữ**: `end=30` chỉ là vạch đánh dấu của chính player — kéo
+thanh thời gian qua vạch đó, hoặc bấm `[l]` / `[→]` để nhảy 10 giây, là video phát tiếp và cả
+video xem trọn trong khung của web.
+
+### Người xem thấy gì
+
+- Chân hộp có **thanh 0 → 30 giây** kèm con số (`12s / 30s`); hết phần xem trước thì thanh đứng ở
+  đầy.
+- Chạm mốc 30 giây — xem hết hay **tua qua** đều như nhau — thì iframe bị gỡ và hiện thẻ
+  **"That’s the end of the preview"** trên nền ảnh bìa, với hai nút: *Watch the preview again* và
+  *Open full video on YouTube*. Thẻ đó phủ kín khung, nên không còn chỗ nào để bấm phát tiếp.
+- Video **không cho nhúng** (mã lỗi 100/101/150 của player) thì hiện câu giải thích + nút mở video,
+  không phải khung trắng.
+- File mp4/webm/ogv/mov/m4v dùng **cùng luật 30 giây**, đọc vị trí từ chính thẻ `<video>`.
+
+### Ba lớp của mốc 30 giây (và vì sao phải ba)
+
+1. **`start=0&end=30` trong URL nhúng** — player tự dừng ở giây 30 khi xem bình thường. Không cần
+   một dòng JS nào, nhưng **không chặn được người tua**.
+2. **Vòng canh trong trang** (`src/lib/previewCap.js` + `src/components/VideoPreviewModal.jsx`) —
+   đọc `currentTime` mà chính player gửi về, chạm mốc là gỡ iframe. Đây là lớp chặn việc tua.
+3. **Đồng hồ treo tường** — chưa từng đọc được vị trí thì đúng 30 giây sau khi mở khung là hết.
+
+Lớp 2 **không nạp script nào của YouTube** (đó là điều kiện sống còn: `script-src 'self'` vẫn
+nguyên vẹn, `public/_headers` không phải sửa một chữ nào). Nó nói chuyện với khung bằng kênh
+`postMessage` có sẵn của player nhúng:
+
+- URL nhúng phải có `enablejsapi=1` và `origin=<origin thật của trang>` — thiếu cái thứ nhất thì
+  player không nghe cũng không gửi gì; thiếu cái thứ hai thì nó gửi sự kiện về **sai đích** và
+  trình duyệt chặn im lặng. Vì trang chạy ở nhiều tên miền (pages.dev, miền riêng, bản xem trước
+  trong sandbox), `origin` được ghép **lúc chạy** từ `window.location.origin`, không viết cứng.
+- Trang gửi câu chào `{"event":"listening","id":…,"channel":"widget"}` lặp lại cho tới khi player
+  trả lời (lúc iframe vừa dựng thì nó chưa gắn listener).
+- Player trả về `infoDelivery` vài lần mỗi giây, trong đó có `currentTime`; phần đọc/trộn/luật nằm
+  ở `src/lib/previewCap.js` và có bài kiểm riêng (`previewCap.test.js`) vì một chuỗi postMessage
+  sai một chữ thì player **im lặng bỏ qua**, không lỗi, không cảnh báo.
+
+Muốn đổi mốc: sửa `PREVIEW_SECONDS` **và** `end=30` trong URL nhúng — `communityPolish.test.js`
+đọc cả hai chỗ và so, nên không thể sửa một nơi rồi quên nơi kia.
+
+### Chỗ đã biết là cố ý
+
+- Không có kênh postMessage (đổi giao thức, mạng chặn) thì lớp 3 có thể cắt sớm nếu người xem
+  đang tạm dừng. Đổi lại: không còn cửa nào xem trọn video trong khung của web.
+- Pre-roll **dài hơn 30 giây** bị tính là quá mốc (player báo thời gian của quảng cáo). Hiếm, và
+  nút *Watch the preview again* nằm ngay đó.
+
+### Kiểm tra bằng tay sau khi deploy
+
+Mở **Hall of Fame**, bấm một thẻ, rồi **kéo thanh thời gian qua vạch 30 giây**: khung phải dừng
+ngay và hiện thẻ hết phần xem trước; bấm *Watch the preview again* phải chạy lại từ đầu. Phép kiểm
+tự động nằm ở `tools/smoke.mjs` mục *5b* (giả làm player gửi `currentTime` 12 giây rồi 47 giây);
+lượt chạy với mã CŨ cho `333/336`, đỏ đúng ba phép kiểm của ca này.

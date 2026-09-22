@@ -1663,3 +1663,79 @@ do câu "lỗi này bị ở mọi trang": mục nào cũng ra thêm một trang
 - Chưa xem được bằng mắt trên trình duyệt thật (môi trường này không có mạng ra ngoài), nên
   phần "chuyển cảnh có còn nhấp nháy không" vẫn chỉ chốt được ở mức logic + DOM. Việc cần làm
   khi có mạng: bấm liên tiếp vài mục trong menu và xem có thấy hai trang lồng nhau không.
+
+## Phần XV — vòng 25: mốc 30 giây của khung xem trước bị tua qua (22/09/2026)
+
+Chủ dự án báo lần thứ hai về **đúng một tính năng**: *"cái preview 30s ở hall of fame vẫn không
+hoạt động được, nó vẫn không hoạt động khi tua nhanh qua 30s"*. Vòng 23 đã sửa được **khung đen**
+— khung nay chạy thật — nhưng đó mới là một nửa của việc: cái **mốc 30 giây** thì chưa ai giữ.
+
+### XV1. Gốc rễ — `end=30` không phải một cái khoá
+
+`end` là tham số của **chính player**: nó vẽ một vạch kết thúc và dừng ở đó khi xem bình thường.
+Người xem kéo thanh thời gian qua vạch ấy — hoặc bấm `[l]` / `[→]` để nhảy 10 giây — thì player
+phát tiếp bình thường, và **cả video xem trọn trong khung của web**. Không có lỗi nào hiện ra lần
+này nữa, vì không có gì hỏng cả: chỉ là không ai giữ mốc.
+
+Muốn giữ mốc thì phải **đọc được vị trí đang phát** và **tự cắt**. Bản trước không đọc được vì
+việc đó phải đi qua YouTube IFrame Player API — mà API đó lại nạp
+`<script src="https://www.youtube.com/iframe_api">`, đúng thứ CSP `script-src 'self'` của site
+chặn (nguyên nhân khung đen của vòng 23). Vì thế vòng này đi đường khác.
+
+### XV2. Ba lớp của mốc 30 giây
+
+| Lớp | Việc nó làm | Dựa vào gì |
+|---|---|---|
+| `start=0&end=30` trong URL nhúng | player tự dừng ở giây 30 khi xem bình thường | thiện chí của YouTube (giữ nguyên như vòng 23) |
+| **Vòng canh trong trang** | đọc `currentTime` player gửi về; chạm mốc là **gỡ luôn iframe** | kênh `postMessage` có sẵn của player nhúng — cần `enablejsapi=1` + `origin=<origin thật của trang>`, **không** nạp script của YouTube |
+| **Đồng hồ treo tường** | chưa từng đọc được vị trí thì đúng 30 giây sau khi mở khung là hết | `Date.now()`, không phụ thuộc YouTube |
+
+Lớp thứ hai chặn đúng thứ chủ dự án báo: **tua qua 30 giây là quá mốc y như xem hết**, không có
+đường vòng. Cắt bằng cách **gỡ iframe** chứ không chỉ gửi lệnh `pauseVideo`: lệnh là một
+postMessage bất đồng bộ, còn gỡ phần tử thì trình duyệt dừng tiếng ngay.
+
+Những chỗ đã biết là **cố ý**:
+
+- Không có kênh postMessage nghĩa là có thể bị cắt sớm nếu người xem đang tạm dừng (lớp 3 đếm
+  bằng đồng hồ). Đổi lại: không còn cửa nào để xem trọn video trong khung của web.
+- Chưa dạy cho trang biết "`currentTime` này là của quảng cáo": pre-roll **dài hơn 30 giây** cũng
+  bị tính là quá mốc. Phần lớn pre-roll ngắn hơn, và nút *Watch the preview again* nằm ngay trên
+  thẻ. Đã ghi lại trong chú thích ở `VideoPreviewModal.jsx`.
+
+### XV3. Người xem thấy gì
+
+- Khung có **thanh 0 → 30 giây** kèm con số (`12s / 30s`) ở chân hộp, và thanh đứng ở đầy khi hết.
+- Chạm mốc (kể cả do tua) → iframe bị gỡ, hiện thẻ **"That’s the end of the preview"** trên nền
+  ảnh bìa: nút *Watch the preview again* và nút mở video đầy đủ trên YouTube. Thẻ này cũng là
+  chỗ đóng đinh: sau khi nó hiện thì không còn chỗ nào để bấm phát tiếp.
+- Video không cho nhúng (lỗi 100/101/150 của player) → nói ra bằng `preview.noEmbed` + nút mở
+  video, thay vì để một khung trắng không giải thích.
+- File video không phải YouTube (mp4/webm/ogv/mov/m4v) dùng **cùng luật 30 giây**, nhưng đọc vị
+  trí từ chính thẻ `<video>` (không cần postMessage).
+
+### XV4. Kiểm thử của vòng này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **487 đạt / 0 lỗi / 2 skip** (vòng 24: 479 đạt — **+8 ca**). Mới: `src/lib/previewCap.test.js` **7 ca** cho phần luật — phong bì `postMessage` (câu chào `listening`, lệnh `command`, `channel:"widget"`), danh sách tên miền nhận sự kiện, đọc/loại sự kiện (kể cả JSON hỏng, `channel` lạ, tin từ tên miền lạ), trộn `infoDelivery` từng phần, luật cắt ở đúng 30 giây + giá trị rác thì KHÔNG cắt, thanh tiến trình kẹp 0..100. Thêm 1 ca ở `communityPolish.test.js`: **`end=30` trong URL phải bằng `PREVIEW_SECONDS`** (hai chỗ nói cùng một mốc, lệch nhau là không có triệu chứng nào trên màn hình) |
+| `npm run smoke` | ✅ **337/337** (vòng 24: 332) — mục *5b* nay **giả làm chính player**: gửi về đúng loại sự kiện nó gửi (`channel:"widget"`, `infoDelivery` mang `currentTime`) từ đúng `contentWindow` của iframe. Báo 12 giây → khung vẫn chạy; báo 47 giây (đã tua qua mốc) → iframe bị gỡ và thẻ hết phần xem trước hiện ra; bấm *Watch the preview again* → có phiên xem mới. **Đã chạy lại với mã CŨ**: `333/336`, đỏ đúng 3 phép kiểm (`enablejsapi=1`, *tua qua 30 giây là bị cắt*, *thẻ hết phần xem trước có đường sang YouTube*) — đúng lỗi chủ dự án báo |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền, không thêm món nào |
+| `npm run build` | ✅ sạch — `index-DGEFovFb.js` 339,59 kB (gzip 104,33 kB) |
+
+**Một lỗi tự gây ra, máy bắt được ngay:** bấm *Watch the preview again* thì phiên mới bị cắt sau
+0,25 giây, vì bộ nhớ của phiên cũ vẫn còn vị trí **47 giây** — vòng canh đọc lại đúng con số vừa
+làm nó cắt. Nay hàm xem lại **xoá hết những gì player cũ kể** trước khi dựng iframe mới. Ca kiểm
+"bấm *Watch the preview again* là có phiên xem mới" trong smoke là thứ bắt được lỗi này.
+
+### XV5. Còn nợ
+
+- **Chưa xem được bằng mắt trên trình duyệt thật** (môi trường này không có mạng ra ngoài). Việc
+  cần làm khi có mạng: mở Hall of Fame, bấm một thẻ, **kéo thanh thời gian qua vạch 30 giây** —
+  khung phải dừng ngay và hiện thẻ hết phần xem trước; bấm *Watch the preview again* phải chạy
+  lại từ đầu. Máy trong sandbox kiểm được phần luật, còn "player thật có trả lời kênh postMessage
+  hay không" thì phải để trình duyệt thật trả lời.
+- **Nếu YouTube đổi giao thức của kênh `postMessage`** (nó là API ngầm, không có văn bản cam kết),
+  vòng canh sẽ im lặng mất tác dụng và mốc 30 giây tụt về đúng hai lớp kia: `end=30` (chặn được
+  người xem thường, không chặn người tua) và đồng hồ treo tường (vẫn cắt, nhưng cắt theo giờ mở
+  khung chứ không theo vị trí đang phát). Dấu hiệu nhận ra: thẻ hết phần xem trước hiện ra đúng
+  ~31 giây sau khi mở khung, kể cả khi vừa bấm tạm dừng.

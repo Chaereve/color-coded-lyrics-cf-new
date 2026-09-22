@@ -415,8 +415,16 @@ if (upNextChip) {
 const queueChip = qa('.fchip').find(c => /Queue/i.test(c.textContent || ''))
 if (queueChip) await click(queueChip)
 
-/* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23) ----------
-   LỖI CHỦ DỰ ÁN BÁO: "bấm preview ở Hall of Fame không hiện gì, đen xì".
+/* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23 + vòng 25) ----------
+   LỖI CHỦ DỰ ÁN BÁO, LẦN 2 (vòng 25): "cái preview 30s ở hall of fame vẫn không
+   hoạt động được, nó vẫn không hoạt động khi tua nhanh qua 30s". `end=30`
+   trong URL không phải cái khoá: kéo thanh thời gian qua vạch là player phát
+   tiếp. Nên lượt kiểm này còn GIẢ LÀM PLAYER, gửi về đúng loại postMessage mà
+   player nhúng gửi (`channel:"widget"`, `infoDelivery` mang `currentTime`) để
+   xem luật cắt có thật sự cắt khi bị tua qua hay không. Không có mạng trong
+   jsdom nên đây là cách duy nhất chạm được vào luật đó.
+
+   LỖI CHỦ DỰ ÁN BÁO, LẦN 1: "bấm preview ở Hall of Fame không hiện gì, đen xì".
    Nguyên nhân nằm ở chỗ khó thấy bằng mắt thường: người chơi cũ dựng bằng
    YouTube IFrame Player API, mà API đó nạp `<script src="youtube.com/iframe_api">`.
    CSP của site chỉ cho `script-src 'self'`, nên script bị chặn im lặng,
@@ -459,6 +467,48 @@ where = 'xem trước video (Hall of Fame)'
       !!poster && /i\.ytimg\.com\/vi\//.test(poster.getAttribute('src') || ''),
       poster?.getAttribute('src'))
     check('nút mở video gốc vẫn còn trong khung', !!q('.video-preview-foot a'))
+    check('URL nhúng có enablejsapi=1 (kênh để trang tự canh mốc 30 giây)',
+      /enablejsapi=1/.test(iframe?.getAttribute('src') || ''))
+
+    /* ---- TUA QUA 30 GIÂY (chủ dự án báo lần hai, vòng 25) ----
+       `end=30` chỉ là chỗ đánh dấu của player: kéo thanh thời gian qua vạch đó
+       là video phát tiếp, và cả video xem trọn trong khung của web.
+
+       Ở đây giả làm CHÍNH player: gửi về đúng loại sự kiện nó gửi (kênh
+       `channel:"widget"`, `infoDelivery` mang `currentTime`), từ đúng
+       `contentWindow` của iframe. Một lượt báo 12 giây (còn trong phần xem
+       trước) rồi một lượt báo 47 giây (đã tua qua mốc). Không có mạng trong
+       jsdom nên đây là cách duy nhất chạm được vào luật cắt — và cũng là cách
+       chạm ĐÚNG chỗ: luật cắt chỉ đọc mấy con số này. */
+    const frameWin = iframe?.contentWindow
+    if (frameWin) {
+      const playerSays = (payload) => window.dispatchEvent(new window.MessageEvent('message', {
+        data: JSON.stringify({ ...payload, id: 'ccl-preview', channel: 'widget' }),
+        origin: 'https://www.youtube-nocookie.com',
+        source: frameWin,
+      }))
+      await act(async () => { playerSays({ event: 'onStateChange', info: 1 }) })
+      await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 12, playerState: 1 } }) })
+      await tick(400)
+      check('mới 12 giây thì khung vẫn đang chạy (chưa cắt sớm)',
+        !!q('.video-preview-iframe') && !q('.video-preview-end'),
+        text().slice(0, 100))
+      await act(async () => { playerSays({ event: 'infoDelivery', info: { currentTime: 47, playerState: 1 } }) })
+      await tick(400)
+      check('TUA QUA 30 GIÂY là phần xem trước bị cắt (không còn iframe để xem tiếp)',
+        !q('.video-preview-iframe') && !!q('.video-preview-end'), text().slice(0, 140))
+      check('thẻ hết phần xem trước vẫn có đường sang YouTube',
+        !!q('.video-preview-endacts a'))
+      const again = qa('.video-preview-endacts button')[0]
+      if (again) {
+        await click(again)
+        await tick(240)
+        check('bấm "xem lại" là có phiên xem mới (iframe dựng lại)', !!q('.video-preview-iframe'))
+      }
+    } else {
+      realLog('  · jsdom không trả contentWindow cho iframe — bỏ lượt mô phỏng player')
+    }
+
     await act(async () => {
       window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })

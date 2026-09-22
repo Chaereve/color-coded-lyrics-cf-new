@@ -328,6 +328,11 @@ notify pgrst, 'reload schema';
 - **Bình luận:** Thử gửi bình luận, reply bình luận khác, tag `@username`. Kiểm tra chuông thông báo xuất hiện.
 - **Tạo request trùng:** Thử gõ tên một bài đã có trên bảng, bấm `Continue request` để kiểm tra màn hình chọn Free / Paid Request.
 - **Hall of Fame:** Kiểm tra bài `work` / `Work` đã được gộp thành 1 mục.
+- **Preview trong Hall of Fame (mốc 30 giây):** Bấm một thẻ để mở khung xem trước, rồi **kéo
+  thanh thời gian qua vạch 30 giây** (hoặc bấm `[l]` / `[→]` vài lần). Khung phải dừng **ngay**
+  và hiện thẻ *"That’s the end of the preview"* kèm hai nút — *Watch the preview again* và *Open
+  full video on YouTube*. Nút *Watch the preview again* phải chạy lại từ đầu. Nếu khung vẫn phát
+  tiếp sau vạch 30 giây thì bản deploy chưa có bản sửa vòng 25 (xem `HUONG-DAN.md`, mục cuối).
 - **About me (`/profile`):** Tải avatar GIF/WebP; kiểm tra khoảng cách giữa Achievement index và Stats; bấm `View all achievements (10)`.
 
 ---
