@@ -66,7 +66,7 @@ test('admin order approval is one-shot and vote purchase validates fixed prices'
 })
 
 test('avatar input rejects SVG and checks content signatures before decoding', () => {
-  assert.match(avatar, /const RASTER_TYPES = new Set\(\['image\/jpeg', 'image\/png', 'image\/gif', 'image\/webp'\]\)/)
+  assert.match(avatar, /const RASTER_TYPES = new Set\(\['image\/jpeg', 'image\/png', 'image\/webp'\]\)/)
   assert.match(avatar, /export async function validateImageFile/)
   assert.match(avatar, /hasRasterSignature/)
   assert.doesNotMatch(avatar, /file\.type\.startsWith\('image\/'\)/)

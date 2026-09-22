@@ -110,7 +110,7 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.equal((rules.match(/<li>/g) || []).length, 2)
     const words = rules.replace(/<[^>]*>/g, ' ').trim().split(/\s+/)
     assert.ok(words.length <= 25, 'rules should stay short')
-    assert.match(rules, /2 spins per account and device/)
+    assert.match(rules, /2 spins daily, for one account per browser/)
     /* Mốc reset KHÔNG được nhắc lại ở đây: nó đã là một chip ở đầu khối. */
     assert.doesNotMatch(rules, /GMT/, 'reset chỉ được nói một lần, ở chip đếm ngược')
     assert.doesNotMatch(rules, /hardware|fingerprint|cookie|browser ID/i)

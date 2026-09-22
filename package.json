@@ -12,7 +12,8 @@
     "test:spin:db": "node --test supabase/tests/dailySpin.test.js",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:verify": "bash scripts/verify-backup.sh",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "test:comments:db": "node --test supabase/tests/commentsReplies.test.js"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",

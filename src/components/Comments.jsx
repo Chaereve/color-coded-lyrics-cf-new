@@ -6,6 +6,7 @@ import { profileUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { timeAgo } from '../lib/meta'
+import { mentionHandle, mentionParts, commentThreads, commentSubtreeIds, removeCommentSubtree } from '../lib/comments.js'
 
 function initials(name = '') {
   const parts = String(name || '').trim().split(/\s+/)
@@ -22,7 +23,7 @@ function CommentAvatar({ src, name }) {
 
 function formatCommentText(text) {
   if (!text) return null
-  const parts = text.split(/(@[A-Za-z0-9_.-]+)/g)
+  const parts = mentionParts(text)
   return parts.map((part, i) => {
     if (part.startsWith('@')) {
       return <mark key={i} className="comment-mention">{part}</mark>
@@ -31,9 +32,8 @@ function formatCommentText(text) {
   })
 }
 
-/* Comments are a two-level conversation: a root comment and direct replies.
-   Keeping parent_id on the row means replies survive reloads and can later be
-   moderated with the same owner/admin policy as a root comment. */
+/* Arbitrary-depth parents, displayed flat within each root thread to keep
+   mobile layouts readable. The selected row, not its root, is the reply target. */
 export default function Comments({ requestId, user, onLogin, initialCount = 0, onCountChange }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -62,24 +62,19 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
 
   useEffect(() => {
     if (!open) return
+    let cancelled = false
+    setItems([]); setReplyTo(null); setBody('')
     fetchComments(requestId).then(res => {
-      setItems(res)
+      if (!cancelled) setItems(res)
     }).catch(() => {
+      if (cancelled) return
       setError(t('comment.failed'))
       push({ tone: 'err', title: t('comment.failed'), body: t('comment.failed') })
     })
+    return () => { cancelled = true }
   }, [open, requestId, push, t])
 
-  const children = useMemo(() => {
-    const map = new Map()
-    for (const c of items) {
-      if (!c.parent_id) continue
-      const list = map.get(c.parent_id) || []
-      list.push(c); map.set(c.parent_id, list)
-    }
-    return map
-  }, [items])
-  const roots = useMemo(() => items.filter(c => !c.parent_id), [items])
+  const threads = useMemo(() => commentThreads(items), [items])
 
   const submit = async e => {
     e.preventDefault()
@@ -89,7 +84,7 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
     setBusy(true); setError('')
     try {
       const next = await addComment(requestId, user.id, clean, replyTo?.id || null)
-      setItems(x => [next, ...x])
+      setItems(x => [{ ...next, author: user.name || next.author, avatar: user.avatar || next.avatar }, ...x])
       setBody(''); setReplyTo(null)
       push({ tone: 'ok', title: t('comment.posted'), body: t('comment.posted') })
     } catch (err) {
@@ -107,7 +102,9 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
       await deleteComment(c.id)
       /* Xoá cả reply con đi kèm (cascade ở database, dọn ở đây cho khớp) —
          con số mới tự đi ra ngoài qua effect ở đầu tệp. */
-      setItems(prev => prev.filter(y => y.id !== c.id && y.parent_id !== c.id))
+      const removed = commentSubtreeIds(items, c.id)
+      setItems(prev => removeCommentSubtree(prev, c.id))
+      if (replyTo && removed.has(replyTo.id)) { setReplyTo(null); setBody('') }
       push({ tone: 'ok', title: t('comment.removed'), body: t('comment.removed') })
     } catch (err) {
       const msg = err?.code ? errMsg(t, err) : t('comment.failed')
@@ -116,7 +113,7 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
   }
 
   const row = (c, nested = false) => (
-    <div className={`comment comment-card${nested ? ' comment-reply' : ''}`} key={c.id}>
+    <div className={`comment comment-card${nested ? ' comment-reply' : ''}`} key={c.id} data-comment-id={c.id}>
       <div className="comment-head">
         <CommentAvatar src={c.avatar} name={c.author} />
         <div className="comment-meta">
@@ -124,11 +121,9 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
           {c.created_at && <time className="comment-time">{timeAgo(c.created_at, t)}</time>}
         </div>
         <div className="comment-actions">
-          {user && !nested && (
-            <button type="button" className="comment-reply-btn" onClick={() => { setReplyTo(c); setBody(`@${c.author || 'Member'} `) }}>
-              {t('comment.reply')}
-            </button>
-          )}
+          <button type="button" className="comment-reply-btn" onClick={() => { if (!user) { onLogin?.(); return } setReplyTo(c); setBody(`@${mentionHandle(c.author)} `) }}>
+            {t('comment.reply')}
+          </button>
           {(user?.isAdmin || user?.id === c.user_id) && (
             <button type="button" className="comment-delete" title={t('comment.remove')} aria-label={t('comment.remove')} onClick={() => remove(c)}>
               <Icon name="close" size={13} />
@@ -139,16 +134,11 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
       <div className="comment-text">
         {formatCommentText(c.body)}
       </div>
-      {!nested && (children.get(c.id) || []).length > 0 && (
-        <div className="comment-replies-list">
-          {(children.get(c.id) || []).map(reply => row(reply, true))}
-        </div>
-      )}
     </div>
   )
 
   const toggle = () => { if (!open) setError(''); setOpen(v => !v) }
-  const displayCount = items.length > 0 ? items.length : initialCount
+  const displayCount = open ? items.length : initialCount
 
   return (
     <div className={`comments${open ? ' open' : ''}`}>
@@ -157,8 +147,13 @@ export default function Comments({ requestId, user, onLogin, initialCount = 0, o
       </button>
       {open && (
         <div className="comments-panel">
-          {roots.length ? <div className="comments-list">{roots.map(c => row(c))}</div> : <p className="comments-empty">{t('comment.empty')}</p>}
-          <form className="comment-form" onSubmit={submit}>
+          {threads.length ? <div className="comments-list">{threads.map(({ root, replies }) => (
+            <div className="comment-thread" key={root.id}>
+              {row(root)}
+              {!!replies.length && <div className="comment-replies-list">{replies.map(c => row(c, true))}</div>}
+            </div>
+          ))}</div> : <p className="comments-empty">{t('comment.empty')}</p>}
+          <form className="comment-form" onSubmit={submit} data-parent-id={replyTo?.id || undefined}>
             {replyTo && (
               <div className="replying">
                 <span className="replying-tag">

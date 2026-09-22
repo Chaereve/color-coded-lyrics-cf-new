@@ -8,7 +8,7 @@ import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useConfirm } from '../lib/confirm.jsx'
-import { useI18n } from '../lib/i18n.jsx'
+import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { here, putUrl } from '../lib/history'
 import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import MediaAdmin from './MediaAdmin'
@@ -266,6 +266,7 @@ export default function AdminPanel({
     const b = ADMIN_TABS.join()
     if (a !== b) console.warn(`[admin] ADMIN_TAB_META lệch ADMIN_TABS: ${a} ≠ ${b}`)
   }
+  const [commentError, setCommentError] = useState('')
   const [busy, setBusy] = useState(false)
   /* Đơn hàng đang gửi đi: nút phải khoá NGAY, không đợi realtime tải lại danh
      sách (~400ms). Trước đây bấm "Đã nhận" hai lần trong khoảng đó là gọi
@@ -441,14 +442,14 @@ export default function AdminPanel({
 
   const loadAdminComments = useCallback(() => {
     setLoadingComments(true)
-    fetchAllCommentsForAdmin().then(res => {
+    return fetchAllCommentsForAdmin().then(res => {
       setAdminComments(res || [])
-    }).catch(() => {
-      setAdminComments([])
+    }).catch(error => {
+      setCommentError(errMsg(t, error))
     }).finally(() => {
       setLoadingComments(false)
     })
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (tab === 'comments') {
@@ -464,10 +465,13 @@ export default function AdminPanel({
     })
     if (!ok) return
     try {
+      setCommentError('')
       await adminDeleteComment(commentId)
-      setAdminComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId))
+      await loadAdminComments()
       sfx.delete()
-    } catch {}
+    } catch (error) {
+      setCommentError(errMsg(t, error))
+    }
   }
 
   const order = (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
@@ -596,6 +600,7 @@ export default function AdminPanel({
 
   return (
     <section className="adm-page" aria-label={t('adm.pageAria')}>
+      {tab === 'comments' && commentError && <p role="alert" className="comment-error">{commentError}</p>}
       {/* DẢI SỐ LIỆU — VỪA LÀ TỔNG QUAN, VỪA LÀ BỘ CHUYỂN MỤC.
           Ô đang mở được tô bằng đúng màu trạng thái của nó, nên "đang đứng ở
           đâu" và "mục này có bao nhiêu việc" đọc trong cùng một cái liếc. */}

@@ -249,13 +249,15 @@ export function demoSpinStatus({ entries, deviceToken, userId, credits, purchase
   const today = entries.filter(s => s.day === day)
   const deviceUsed = today.filter(s => s.device_token === deviceToken).length
   const mine = today.filter(s => s.user_id === userId)
+  const deviceAccountBlocked = today.some(s => s.device_token === deviceToken && s.user_id !== userId)
   const total = Number.isInteger(credits)
     ? credits
     : (purchased || 0) + (bonus || 0)
   return {
     user_id: userId, day, server_now: new Date(now).toISOString(), reset_at: nextSpinReset(now),
     limit: DAILY_SPIN_LIMIT, device_used: deviceUsed, account_used: mine.length,
-    remaining: Math.max(0, DAILY_SPIN_LIMIT - Math.max(deviceUsed, mine.length)),
+    device_account_blocked: deviceAccountBlocked,
+    remaining: deviceAccountBlocked ? 0 : Math.max(0, DAILY_SPIN_LIMIT - Math.max(deviceUsed, mine.length)),
     credits: total, purchased: purchased || 0, bonus: bonus || 0,
     rewards: [...SPIN_REWARDS],
     history: mine.map(({ request_id, reward, segment, created_at, day }) =>
@@ -272,6 +274,7 @@ export function drawDemoSpin({ entries, deviceToken, userId, requestId, now = Da
     return { entry: previous, replayed: true }
   }
   const status = demoSpinStatus({ entries, deviceToken, userId, credits: 0, now })
+  if (status.device_account_blocked) throw new Error('err.spinDeviceAccount')
   if (status.device_used >= DAILY_SPIN_LIMIT) throw new Error('err.spinDeviceLimit')
   if (status.account_used >= DAILY_SPIN_LIMIT) throw new Error('err.spinAccountLimit')
   /* Hai lượt gần nhất của CHÍNH thiết bị này quyết định lượt này có bị chặn

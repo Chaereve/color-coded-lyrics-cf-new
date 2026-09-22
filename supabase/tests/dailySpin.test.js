@@ -38,6 +38,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
     await pool.query(`
       do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
       do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
+      do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
       create schema auth;
       create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
       create function auth.uid() returns uuid language sql stable as $$
@@ -62,6 +63,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
     await pool.query(bonusReset)
     await pool.query(voteStatusSplit)
     await pool.query(fpQuotaV4)
+    await pool.query(schema)
 
     const newUser = async (credits = 0) => {
       const id = randomUUID()
@@ -195,7 +197,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       assert.deepEqual([stored.fp_hash, stored.ip_hash], [null, null])
     })
 
-    await t.test('one fingerprint gets two spins a day across accounts, tokens and devices', async () => {
+    await t.test('one fingerprint binds to one account for its two daily spins', async () => {
       const fpHash = 'c'.repeat(64)
       // Ba tài khoản khác nhau, ba device token khác nhau, CÙNG một vân tay.
       const players = []
@@ -206,28 +208,28 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       const spinFp = (p, id = randomUUID()) => as(p.uid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
         [p.token, id, p.uid, fpHash, null])
       await spinFp(players[0])
-      await spinFp(players[1])
+      await assert.rejects(spinFp(players[1]), /err.spinDeviceAccount/)
+      await spinFp(players[0])
       // Vân tay đã hết 2 lượt: tài khoản + token hoàn toàn mới vẫn bị chặn NGAY
       // TRONG DB — không cần Worker, không cần KV.
-      await assert.rejects(spinFp(players[2]), /err.spinEdgeFp/)
-      assert.equal(await balance(players[2]), 0)
+      await assert.rejects(spinFp(players[2]), /err.spinDeviceAccount/)
+      assert.equal(await balance(players[2].uid), 0)
       const slots = await pool.query('select fp_slot from public.daily_spins where fp_hash = $1 order by fp_slot', [fpHash])
       assert.deepEqual(slots.rows.map(r => r.fp_slot), [1, 2])
       // Ràng buộc cứng: không thể ghi đè slot đã dùng dù insert thẳng vào bảng —
       // đây là chốt chống đua tài khoản ngay cả khi khoá advisory bị lách.
-      // (device_slot/account_slot = 2 để không vướng các ràng buộc kia, chỉ đụng
-      // đúng unique index của fingerprint.)
+      // (Account/token thứ ba chưa quay nên chỉ đụng unique index fingerprint.)
       await assert.rejects(
         pool.query(`insert into public.daily_spins
           (request_id, user_id, device_hash, spin_day, device_slot, account_slot, segment, reward, fp_hash, fp_slot)
-          values ($1, $2, $3, current_date, 2, 2, 0, 1, $4, 1)`,
-          [randomUUID(), players[0].uid, await hashOf(players[0].token), fpHash]),
+          values ($1, $2, $3, (now() at time zone 'Asia/Ho_Chi_Minh')::date, 1, 1, 0, 1, $4, 1)`,
+          [randomUUID(), players[2].uid, await hashOf(players[2].token), fpHash]),
         /daily_spins_fp_quota_idx/)
 
       // Đua tài khoản song song: 8 tài khoản + device token KHÁC nhau nhưng CÙNG
       // một vân tay, quay một lúc. Khoá advisory xếp hàng để "đếm → chọn slot"
-      // không đua nhau; đúng 2 lượt thành công, 6 lượt còn lại bị chặn gọn bằng
-      // err.spinEdgeFp (không rò rỉ lỗi unique thô ra client).
+      // không đua nhau; chỉ account đầu tiên thành công, 7 account khác bị chặn
+      // bằng err.spinDeviceAccount (không rò rỉ lỗi unique thô ra client).
       const racingFp = 'e'.repeat(64)
       const racers = await Promise.all(Array.from({ length: 8 }, async () => {
         const uid = await newUser()
@@ -237,12 +239,12 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
         as(p.uid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
           [p.token, randomUUID(), p.uid, racingFp, null])))
       const wins = race.filter(r => r.status === 'fulfilled')
-      assert.equal(wins.length, 2)
+      assert.equal(wins.length, 1)
       for (const r of race.filter(r => r.status === 'rejected')) {
-        assert.match(r.reason.message, /err\.spinEdgeFp/)
+        assert.match(r.reason.message, /err\.spinDeviceAccount/)
       }
       const racedSlots = await pool.query('select fp_slot from public.daily_spins where fp_hash = $1 order by fp_slot', [racingFp])
-      assert.deepEqual(racedSlots.rows.map(r => r.fp_slot), [1, 2])
+      assert.deepEqual(racedSlots.rows.map(r => r.fp_slot), [1])
     })
 
     await t.test('an IP that already saw 5 distinct fingerprints refuses a 6th', async () => {
@@ -269,21 +271,18 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       assert.equal(again[0].v.replayed, false)
     })
 
-    await t.test('switching accounts shares the quota, not the reward history or credits', async () => {
-      const a = await newUser(), b = await newUser(), c = await newUser()
+    await t.test('switching accounts cannot spend the original account’s second spin or read its history', async () => {
+      const a = await newUser(), b = await newUser()
       const token = await register(a)
       const first = await spin(a, token)
-      assert.equal((await status(b, token)).remaining, 1)
-      const second = await spin(b, token)
-      assert.equal(second.status.device_used, 2)
-      assert.equal(second.status.account_used, 1)
-      assert.equal(second.status.remaining, 0)
-      assert.equal(second.status.history.length, 1)
-      assert.equal(second.status.history[0].request_id, second.spin.request_id)
+      assert.equal((await status(b, token)).remaining, 0)
+      await assert.rejects(spin(b, token), /err.spinDeviceAccount/)
       assert.equal(await balance(a), first.spin.reward)
-      assert.equal(await balance(b), second.spin.reward)
-      assert.equal((await status(c, token)).history.length, 0)
-      await assert.rejects(spin(c, token), /err.spinDeviceLimit/)
+      assert.equal(await balance(b), 0)
+      assert.equal((await status(b, token)).history.length, 0)
+      const second = await spin(a, token)
+      assert.equal(second.status.history.length, 2)
+      assert.equal(second.status.remaining, 0)
     })
 
     await t.test('account quota survives switching devices or losing the browser token', async () => {
@@ -297,13 +296,13 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       await assert.rejects(spin(uid, devices[2]), /err.spinAccountLimit/)
     })
 
-    await t.test('parallel spins by different accounts on ONE device award exactly twice', async () => {
+    await t.test('parallel spins by different accounts on ONE device allow only the winning account', async () => {
       const users = await Promise.all(Array.from({ length: 8 }, () => newUser()))
       const token = await register(users[0])
       const results = await Promise.allSettled(users.map(uid => spin(uid, token)))
       const wins = results.filter(r => r.status === 'fulfilled')
-      assert.equal(wins.length, 2)
-      for (const r of results.filter(r => r.status === 'rejected')) assert.match(r.reason.message, /err.spinDeviceLimit/)
+      assert.equal(wins.length, 1)
+      for (const r of results.filter(r => r.status === 'rejected')) assert.match(r.reason.message, /err.spinDeviceAccount/)
       const credits = await Promise.all(users.map(balance))
       assert.equal(credits.reduce((a, b) => a + b), wins.reduce((sum, r) => sum + r.value.spin.reward, 0))
     })
@@ -388,7 +387,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       const s = await status(next, token)
       assert.equal(s.device_used, 2)
       assert.equal(s.account_used, 0)
-      await assert.rejects(spin(next, token), /err.spinDeviceLimit/)
+      await assert.rejects(spin(next, token), /err.spinDeviceAccount/)
     })
 
     await t.test('bonus works with existing free-vote priority, spending and refunds', async () => {
