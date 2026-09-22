@@ -49,7 +49,7 @@ import { parseYoutube } from './lib/youtube'
 import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
-  fetchRequests, fetchMyVotes, fetchVoteStatus, fetchRanking, fetchOrders, fetchMedia,
+  fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
   fetchActivityDays, fetchNotifications, adminExpireRequest, fetchCommentCounts,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
@@ -365,6 +365,7 @@ function AppInner() {
   const [myVotes, setMyVotes] = useState(new Map())
   const [voteStatus, setVoteStatus] = useState({
     free_used: 0, free_limit: FREE_VOTES_PER_DAY, credits: 0, purchased: 0, bonus: 0,
+    bonus_requests: 0,
   })
   const balanceVersion = useRef(0)
   const applySpinBalance = useCallback(status => {
@@ -784,11 +785,11 @@ function AppInner() {
     if (!u) return
     const version = ++balanceVersion.current
     const results = await Promise.allSettled([
-      fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
+      fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
       fetchActivityDays(u.id), fetchCommentCounts(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk, od, , , act, cc] = results
+    const [r, v, vs, ach, rk, od, , , act, cc] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
@@ -796,6 +797,9 @@ function AppInner() {
     // vi no keo theo purchased/bonus/credits cua thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
       setVoteStatus(() => vs.value)
+    }
+    if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
+      setVoteStatus(previous => ({ ...previous, ...ach.value }))
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (od.status === 'fulfilled') setOrders(od.value)
@@ -810,19 +814,22 @@ function AppInner() {
     if (!u) return
     const version = ++balanceVersion.current
     const results = await Promise.allSettled([
-      fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), fetchRanking(),
+      fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(),
       /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
          trong chính lần tải bảng này để ngọn lửa không trễ một nhịp */
       fetchActivityDays(u.id), fetchCommentCounts(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, rk, act, cc] = results
+    const [r, v, vs, ach, rk, act, cc] = results
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
     // do, khong de so du thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
       setVoteStatus(() => vs.value)
+    }
+    if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
+      setVoteStatus(previous => ({ ...previous, ...ach.value }))
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (act.status === 'fulfilled') setMyActivity(act.value)
@@ -1312,21 +1319,23 @@ function AppInner() {
       throw e
     }
   }
-  const doSubmit = async (form, paid) => {
+  const doSubmit = async (form, paid, useBonus = false) => {
     if (!user) { setModal(false); setAuthPrompt(true); return }
-    const row = await addRequest(form, user, paid)
+    const row = await addRequest(form, user, paid, useBonus)
     /* vua gui xong là theo dõi liọn, khỏi phải chờ lần nạp bảng kế tiếp */
     if (row) applyOwnFollows([{ ...row, user_id: row.user_id || user.id }])
     sfx.submit()
     const song = `${form.artist.trim()} — ${form.title.trim()}`
     push({
       tone: paid ? 'gold' : 'ok',
-      title: t(paid ? 'notif.paidTitle' : 'notif.reqTitle'),
-      body: paid
-        ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
-        : t('notif.reqBody', { song }),
+      title: t(useBonus ? 'notif.freePaidTitle' : (paid ? 'notif.paidTitle' : 'notif.reqTitle')),
+      body: useBonus
+        ? t('notif.freePaidBody', { song })
+        : paid
+          ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
+          : t('notif.reqBody', { song }),
       ms: 6500,
-      ...(paid ? { action: { label: t('notif.payNow'), onClick: () => openModal('buy') } } : {}),
+      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => openModal('buy') } }),
     })
     await load(user)
     return row
@@ -1559,14 +1568,19 @@ function AppInner() {
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   const myStats = fullRanking.find(p => p.user_id === user?.id)
   const myTotalVotesCast = useMemo(() => Array.from(myVotes.values()).reduce((a, b) => a + b, 0), [myVotes])
-  const myAchievementMetrics = useMemo(() => ({
-    longestStreak: myActivity ? streakStats(myActivity).longest : 0,
-    requests: mineRows.length,
-    paidRequests: mineRows.filter(r => r.is_paid).length,
-    completed: myStats?.completed ?? 0,
-    rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
-    votesCast: myTotalVotesCast,
-  }), [myActivity, mineRows, myStats, fullRanking, user?.id, myTotalVotesCast])
+  const myAchievementMetrics = useMemo(() => {
+    /* Keep the preview aligned with claim_achievements(): denied requests do
+       not count server-side, and rewards are not inferred from a client amount. */
+    const eligible = mineRows.filter(r => r.status !== 'denied')
+    return {
+      longestStreak: myActivity ? streakStats(myActivity).longest : 0,
+      requests: eligible.length,
+      paidRequests: eligible.filter(r => r.is_paid).length,
+      completed: eligible.filter(r => r.status === 'completed').length,
+      rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
+      votesCast: myTotalVotesCast,
+    }
+  }, [myActivity, mineRows, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
@@ -2204,6 +2218,7 @@ function AppInner() {
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
           onCancelOrder={doCancelOrder} userName={viewer.name} live={hasSupabase}
+          bonusRequests={voteStatus.bonus_requests ?? 0}
         />
       </Suspense>
     </NavProvider>

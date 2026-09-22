@@ -148,7 +148,7 @@ export default function ProfilePanel({ user, onSaved }) {
                 </button>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*,.gif" hidden onChange={pick}
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" hidden onChange={pick}
               aria-label={t('prof.choose')} />
           </div>
 

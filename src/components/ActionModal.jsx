@@ -44,11 +44,11 @@ const REQ_STEPS = ['req.step1', 'req.step2', 'req.step3']
    `step` và `paid` cũng nằm trong nháp: quay lại thì đứng ĐÚNG bước đang làm dở,
    nên lựa chọn trả phí hiện ra ngay chỗ nó thuộc về, không phải một ô tick nằm
    sẵn ở bước 3 mà người dùng chưa từng nhìn thấy. */
-function writeDraft(form, paid, step) {
+function writeDraft(form, paid, step, useBonus = false) {
   try {
     const empty = !(form.artist.trim() || form.title.trim() || form.link.trim() || form.note.trim())
     if (empty) localStorage.removeItem(DRAFT_KEY)
-    else localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: DRAFT_V, at: Date.now(), ...form, paid, step }))
+    else localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: DRAFT_V, at: Date.now(), ...form, paid, useBonus, step }))
   } catch { /* chặn storage thì form vẫn chạy, chỉ là không nhớ được */ }
 }
 
@@ -96,7 +96,7 @@ function RulesGate({ onAgree }) {
    prefill từ link mời, nút gửi bám đáy. */
 const URL_RE = /^https?:\/\/\S+$/i
 
-function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting, prefill, userName = '' }) {
+function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting, prefill, userName = '', bonusRequests = 0 }) {
   const { t } = useI18n()
   /* Link mời (`?add=1&artist=…&title=…`) đổ sẵn vào form: người bấm link từ mô
      tả video chỉ còn phải bấm Gửi. Giá trị đã được cắt theo maxLength của ô
@@ -116,6 +116,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      tick san, nhung khong mot ai truyen no — xoa di con hon de nguoi doc tuong
      la co loi tat. */
   const [paid, setPaid] = useState(() => !!draft?.paid)
+  const [useBonus, setUseBonus] = useState(() => !!draft?.useBonus && bonusRequests > 0)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   /* Ô nào đã được RỜI khỏi: chỉ hiện lỗi sau khi người dùng đi qua ô đó, không
@@ -198,15 +199,15 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
      trống thì xoá nháp luôn, kẻo lần sau mở lên lại thấy một cái form "khôi phục"
      mà chẳng có gì trong đó. */
   useEffect(() => {
-    const id = setTimeout(() => writeDraft(form, paid, step), 400)
+    const id = setTimeout(() => writeDraft(form, paid, step, useBonus), 400)
     return () => clearTimeout(id)
-  }, [form, paid, step])
+  }, [form, paid, useBonus, step])
   /* ...và ghi NGAY khi rời màn. Giữ giá trị mới nhất trong ref rồi đọc lúc tháo
      component: hàm dọn chỉ chạy một lần nên không thể nhìn thấy `form` của lần
      render mới nhất nếu đọc thẳng từ closure. */
-  const latest = useRef({ form, paid, step })
-  useEffect(() => { latest.current = { form, paid, step } }, [form, paid, step])
-  useEffect(() => () => writeDraft(latest.current.form, latest.current.paid, latest.current.step), [])
+  const latest = useRef({ form, paid, useBonus, step })
+  useEffect(() => { latest.current = { form, paid, useBonus, step } }, [form, paid, useBonus, step])
+  useEffect(() => () => writeDraft(latest.current.form, latest.current.paid, latest.current.step, latest.current.useBonus), [])
 
   /* Hai việc khác nhau, đừng gộp: QUÊN nháp là chỉ xoá bản lưu (dùng sau khi
      gửi xong — chữ trong form đã được dọn ở đường gửi), còn BỎ nháp là quên +
@@ -224,7 +225,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const clearForm = () => {
     forgetDraft()
     setForm(f => ({ ...f, artist: '', title: '', link: '', note: '' }))
-    setPaid(false)
+    setPaid(false); setUseBonus(false)
     setTouched({}); setMsg(null); setStep(1); setNoteOpen(false)
   }
   const discardDraft = () => { clearForm(); artistRef.current?.focus() }
@@ -310,7 +311,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     if (busy) return
     setBusy(true); setMsg(null)
     try {
-      await onSubmit(form, paid)
+      await onSubmit(form, paid, useBonus)
       setForm({ ...form, artist: '', title: '', link: '', note: '' })
       setTouched({})
       setStep(1)      /* gửi xong thì form về bước đầu, sẵn sàng cho bài kế tiếp */
@@ -321,7 +322,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
          (câu trả lời cho một câu hỏi về TIỀN đã có sẵn từ lần trước), và cái
          nút gửi màu vàng vẫn nằm đó chờ bấm. Đây đúng là loại lỗi im lặng:
          không có gì đỏ, chỉ có một đơn hàng nữa được tạo. */
-      setPaid(false)
+      setPaid(false); setUseBonus(false)
       /* Dòng báo dùng `paid` của CHÍNH lần gửi này (giá trị trong closure), nên
          nó vẫn nói đúng vừa gửi request thường hay request trả phí — đọc lại
          từ state sau khi `setPaid(false)` là nói sai việc vừa xảy ra. */
@@ -636,11 +637,25 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           )}
           <div className="paidbox">
             <label className="switch" style={{ margin: 0 }}>
-              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
+              <Check checked={paid} onChange={e => {
+                const checked = e.target.checked
+                setPaid(checked)
+                if (!checked) setUseBonus(false)
+              }} />
               <span className="t" style={{ margin: 0 }}>{t('req.paidLabel', { p: paidPrice })}</span>
             </label>
+            {bonusRequests > 0 && (
+              <label className="switch bonus-request-choice" style={{ margin: '10px 0 0' }}>
+                <Check checked={useBonus} onChange={e => {
+                  const checked = e.target.checked
+                  setUseBonus(checked)
+                  if (checked) setPaid(true)
+                }} />
+                <span className="t" style={{ margin: 0 }}>{t('req.useBonusPaid', { n: bonusRequests })}</span>
+              </label>
+            )}
             <p style={{ marginTop: 8 }}>
-              {t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}
+              {useBonus ? t('req.bonusPaidDesc') : <>{t('req.paidDesc1')}<b>{t('req.paidDescB')}</b>{t('req.paidDesc2')}</>}
             </p>
           </div>
 
@@ -684,7 +699,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
             style={{ flex: 1 }} disabled={busy}
             title={ready ? undefined : t('req.notReady')}>
             {busy ? t('req.sending')
-              : paid ? t('req.submitPaid', { p: usd(PAID_REQUEST.usd) })
+              : paid ? (useBonus ? t('req.submitBonusPaid') : t('req.submitPaid', { p: usd(PAID_REQUEST.usd) }))
                 : ready ? t('req.submit') : t('req.submitFix')}
           </button>
         )}
@@ -885,7 +900,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 export default function ActionModal({
   open, tab, setTab, onClose,
   rows, myVotes, myOrders, voteStatus, allRows, prefill,
-  onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting,
+  onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting, bonusRequests = 0,
   /* live = co noi DB that hay chay demo: RequestTab dung no de chon dong chu bao
      tin. Bo no khoi danh sach prop la `live={live}` ben duoi thanh ReferenceError,
      React go ca cay -> mo "New request" chi con man den. */
@@ -927,7 +942,8 @@ export default function ActionModal({
         <div className="modal-body">
           {tab === 'request' && (
             <RequestTab onSubmit={onSubmit} live={live} rows={rows} allRows={allRows}
-              prefill={prefill} userName={userName} onVoteExisting={onVoteExisting} />
+              prefill={prefill} userName={userName} onVoteExisting={onVoteExisting}
+              bonusRequests={bonusRequests} />
           )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}

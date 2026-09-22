@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon'
-import { fetchPublicProfile, fetchActivityDays, PUBLIC_RECENT } from '../lib/db'
+import { fetchPublicProfile, fetchPublicStreak, PUBLIC_RECENT } from '../lib/db'
 import StreakStrip from './StreakStrip'
 import ShareCardButton from './ShareCardButton'
-import { streakStats, STREAK_MILESTONES } from '../lib/streak.js'
+import { STREAK_MILESTONES } from '../lib/streak.js'
 import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
@@ -42,17 +42,17 @@ export default function PublicProfile({ userId, onBack }) {
      và suy ra cũ/mới bằng so sánh id — KHÔNG setState đồng bộ trong effect
      để xoá state cũ (lint react(set-state-in-effect) bắt đúng lượt render
      thừa đó). Xem người khác thì dải streak ẩn ngay cho tới khi dấu mới về. */
-  const [act, setAct] = useState({ id: null, days: null })
-  const actDays = act.id === userId ? act.days : null
+  const [act, setAct] = useState({ id: null, stats: null })
+  const actStats = act.id === userId ? act.stats : null
 
   useEffect(() => {
     let live = true
     fetchPublicProfile(userId)
       .then(profile => { if (live) setLoaded({ id: userId, profile }) })
       .catch(() => { if (live) setLoaded({ id: userId, profile: null }) })
-    fetchActivityDays(userId)
-      .then(days => { if (live) setAct({ id: userId, days }) })
-      .catch(() => { if (live) setAct({ id: userId, days: null }) })
+    fetchPublicStreak(userId)
+      .then(stats => { if (live) setAct({ id: userId, stats }) })
+      .catch(() => { if (live) setAct({ id: userId, stats: null }) })
     return () => { live = false }
   }, [userId])
 
@@ -72,7 +72,7 @@ export default function PublicProfile({ userId, onBack }) {
      cách NHÌN khác của cùng dữ liệu, không phải bản sao tự tính lại. */
   const card = useMemo(() => {
     if (!profile) return null
-    const st = actDays ? streakStats(actDays) : null
+    const st = actStats
     return {
       name: profile.name || 'Community member',
       avatarUrl: profile.avatar_url || null,
@@ -90,7 +90,7 @@ export default function PublicProfile({ userId, onBack }) {
       milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
       footer: t('card.footer'),
     }
-  }, [profile, actDays, t])
+  }, [profile, actStats, t])
 
   /* Địa chỉ để CHIA SẺ dựng từ `userId`, không lấy `window.location.href`: khi
      `pushState` bị chặn (iframe sandbox) thì địa chỉ trên thanh vẫn là bảng yêu
@@ -122,7 +122,7 @@ export default function PublicProfile({ userId, onBack }) {
     </div>
     {/* Cột mốc chuỗi ngày của người này — cộng đồng thấy nhau đã đều đặn mấy
         ngày, cùng tinh thần với bảng xếp hạng và khối Achievements bên dưới. */}
-    <StreakStrip days={actDays} />
+    <StreakStrip stats={actStats} />
     <div className="public-badges">
       <h3>Achievements</h3>
       <div className="achievement-list">
@@ -131,8 +131,8 @@ export default function PublicProfile({ userId, onBack }) {
         {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>First completion</b></span>}
         {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>Hit Maker</b></span>}
         {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>10 votes earned</b></span>}
-        {actDays?.length >= 7 && <span><Icon name="flame" size={14} /><b>7-day streak</b></span>}
-        {actDays?.length >= 30 && <span><Icon name="flame" size={14} /><b>30-day streak</b></span>}
+        {actStats?.longest >= 7 && <span><Icon name="flame" size={14} /><b>7-day streak</b></span>}
+        {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>30-day streak</b></span>}
       </div>
     </div>
     {recent.length > 0 && (
