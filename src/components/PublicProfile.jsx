@@ -127,23 +127,29 @@ export default function PublicProfile({ userId, onBack }) {
       <h3>Achievements</h3>
       <div className="achievement-list">
         {profile.requests >= 1 && <span><Icon name="compose" size={14} /><b>First request</b></span>}
+        {profile.requests >= 5 && <span><Icon name="star" size={14} /><b>Song Curator</b></span>}
         {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>First completion</b></span>}
+        {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>Hit Maker</b></span>}
         {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>10 votes earned</b></span>}
+        {actDays?.length >= 7 && <span><Icon name="flame" size={14} /><b>7-day streak</b></span>}
+        {actDays?.length >= 30 && <span><Icon name="flame" size={14} /><b>30-day streak</b></span>}
       </div>
     </div>
     {recent.length > 0 && (
       <div className="public-requests">
         <h3>Recent requests</h3>
-        {recent.map((r, i) => (
-          <div className="public-request" key={r.id || `${r.title}-${r.artist}-${i}`}>
-            <span>
-              <a className="public-request-link" href={boardSearchUrl(r.title, r.artist)} onClick={spaLink(nav.openSong, r)}>
-                <b>{r.title}</b><small>{r.artist}</small>
-              </a>
-            </span>
-            <em className="public-state">{statusLabel(r, t)}</em>
-          </div>
-        ))}
+        <div className="public-requests-grid">
+          {recent.map((r, i) => (
+            <div className="public-request" key={r.id || `${r.title}-${r.artist}-${i}`}>
+              <span>
+                <a className="public-request-link" href={boardSearchUrl(r.title, r.artist)} onClick={spaLink(nav.openSong, r)}>
+                  <b>{r.title}</b><small>{r.artist}</small>
+                </a>
+              </span>
+              <em className="public-state">{statusLabel(r, t)}</em>
+            </div>
+          ))}
+        </div>
       </div>
     )}
   </section>

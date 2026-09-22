@@ -48,7 +48,7 @@ function Face({ p, size = 'md' }) {
    — không lặp lại đúng một con số hai lần trong cùng một thẻ */
 const NUM_LABEL = { total: 'requests', completed: 'completed', total_votes: 'votes' }
 
-function PodiumFace({ p, place, max, sort }) {
+function PodiumFace({ p, place, max, sort, period = 'all' }) {
   const { t } = useI18n()
   const n = useCountUp(p[sort.field], 620)
   const pct = max ? Math.round((p[sort.field] / max) * 100) : 0
@@ -56,6 +56,12 @@ function PodiumFace({ p, place, max, sort }) {
      đủ chỗ cho hai con số, và hai con số đáng đọc nhất là hai đầu vào của câu
      hỏi đang xem. */
   const minis = sort.minis
+  const reward = period === 'week'
+    ? (place === 1 ? t('rank.reward.w1') : place === 2 ? t('rank.reward.w2') : place === 3 ? t('rank.reward.w3') : null)
+    : period === 'month'
+      ? (place === 1 ? t('rank.reward.m1') : place === 2 ? t('rank.reward.m2') : place === 3 ? t('rank.reward.m3') : null)
+      : null
+
   return (
     <div className={`lb-pod p${place}`} style={{ '--i': place - 1 }}>
       <span className="lb-medal" aria-hidden="true">
@@ -72,6 +78,11 @@ function PodiumFace({ p, place, max, sort }) {
       <div className="lb-pod-mini">
         {minis.map(f => <span key={f}>{p[f] ?? 0} {t(`rank.${NUM_LABEL[f]}`)}</span>)}
       </div>
+      {reward && (
+        <div className="lb-pod-reward" title={reward}>
+          <Icon name="cup" size={11} /> {reward}
+        </div>
+      )}
     </div>
   )
 }
@@ -200,12 +211,20 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
          Key của bục và của vỏ bảng phải KHÁC nhau (`top-`/`tbl-`): hai khối
          là anh em ruột trong cùng một children array, trùng key là React
          cảnh báo "two children with the same key" ngay trên console. */
-      <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>
-        {/* thứ tự trên màn hình: 2 · 1 · 3 — người xem đọc ra ngay ai nhất */}
-        {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
-          <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} max={max} sort={sort} />
-        ))}
-      </div>
+      <>
+        {period !== 'all' && (
+          <div className="lb-season-banner">
+            <Icon name="cup" size={13} />
+            <span>{period === 'week' ? t('rank.rewards.week') : t('rank.rewards.month')}</span>
+          </div>
+        )}
+        <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>
+          {/* thứ tự trên màn hình: 2 · 1 · 3 — người xem đọc ra ngay ai nhất */}
+          {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
+            <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} max={max} sort={sort} period={period} />
+          ))}
+        </div>
+      </>
       )}
 
       {rest.length > 0 && (

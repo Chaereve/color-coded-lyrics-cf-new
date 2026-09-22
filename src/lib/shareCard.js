@@ -97,21 +97,49 @@ export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
   const W = CARD_W, H = CARD_H
   const measure = (s) => ctx.measureText(s).width
 
+  /* Nền chính sang trọng */
   ctx.fillStyle = pal.bg
   ctx.fillRect(0, 0, W, H)
-  rr(ctx, 36, 36, W - 72, H - 72, 28)
-  ctx.fillStyle = pal.panel
+
+  /* Hộp card chính viền bo góc hiện đại */
+  rr(ctx, 40, 40, W - 80, H - 80, 24)
+  if (typeof ctx.createLinearGradient === 'function') {
+    const bgGrad = ctx.createLinearGradient(40, 40, W - 40, H - 40)
+    bgGrad.addColorStop(0, '#151922')
+    bgGrad.addColorStop(1, '#0e1218')
+    ctx.fillStyle = bgGrad
+  } else {
+    ctx.fillStyle = pal.panel
+  }
   ctx.fill()
   ctx.strokeStyle = pal.line
   ctx.lineWidth = 1.5
   ctx.stroke()
-  /* vạt accent mép trái: chữ ký thương hiệu, mỏng đủ để không thành sọc */
-  rr(ctx, 36, 36, 8, H - 72, 4)
-  ctx.fillStyle = pal.a2
+
+  /* Huy hiệu thương hiệu góc trên bên phải */
+  const bw = 160, bh = 32, bx = W - 80 - bw - 16, by = 60
+  rr(ctx, bx, by, bw, bh, 16)
+  ctx.fillStyle = 'rgba(169, 164, 255, 0.08)'
   ctx.fill()
+  ctx.strokeStyle = 'rgba(169, 164, 255, 0.25)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.fillStyle = pal.a2
+  ctx.font = `700 12px ${pal.mono}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('CHAEREVE LYRICS', bx + bw / 2, by + bh / 2)
 
   /* ---- đầu card: avatar + tên + phụ đề ---- */
-  const ax = 128, ay = 148, ar = 46
+  const ax = 136, ay = 142, ar = 50
+
+  /* Vòng sáng quanh avatar */
+  ctx.beginPath()
+  ctx.arc(ax, ay, ar + 4, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(169, 164, 255, 0.35)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
   ctx.save()
   ctx.beginPath()
   ctx.arc(ax, ay, ar, 0, Math.PI * 2)
@@ -120,88 +148,95 @@ export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
   if (data.avatar) {
     ctx.drawImage(data.avatar, ax - ar, ay - ar, ar * 2, ar * 2)
   } else {
-    ctx.fillStyle = 'rgba(169,164,255,.16)'
+    ctx.fillStyle = 'rgba(169, 164, 255, 0.16)'
     ctx.fillRect(ax - ar, ay - ar, ar * 2, ar * 2)
     ctx.fillStyle = pal.a2
-    ctx.font = `700 40px ${pal.display}`
+    ctx.font = `700 42px ${pal.display}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(String(data.name || '?').trim()[0]?.toUpperCase() || '?', ax, ay + 2)
   }
   ctx.restore()
-  ctx.beginPath()
-  ctx.arc(ax, ay, ar, 0, Math.PI * 2)
-  ctx.strokeStyle = pal.line
-  ctx.stroke()
 
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = pal.txt
   ctx.font = `700 42px ${pal.display}`
-  const nameLines = wrapLines(data.name, W - 480, measure).slice(0, 2)
-  nameLines.forEach((ln, i) => ctx.fillText(ln, 200, 140 + i * 46))
+  const nameLines = wrapLines(data.name, W - 520, measure).slice(0, 2)
+  nameLines.forEach((ln, i) => ctx.fillText(ln, 214, 134 + i * 46))
   ctx.fillStyle = pal.txt3
-  ctx.font = `400 19px ${pal.font}`
-  ctx.fillText(String(data.subtitle || ''), 200, 140 + nameLines.length * 46 + 4)
+  ctx.font = `400 18px ${pal.font}`
+  ctx.fillText(String(data.subtitle || ''), 214, 134 + nameLines.length * 46 + 4)
 
-  /* ---- ba con số thật ---- */
-  const sy = 318
-  const cols = [96, 470, 844]
+  /* ---- 3 thẻ số liệu KPI ---- */
+  const sy = 280, sh = 114, sw = 328, gap = 26
   ;(data.stats || []).slice(0, 3).forEach((s, i) => {
+    const sx = 80 + i * (sw + gap)
+    rr(ctx, sx, sy, sw, sh, 16)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.025)'
+    ctx.fill()
+    ctx.strokeStyle = pal.line
+    ctx.lineWidth = 1
+    ctx.stroke()
+
     ctx.fillStyle = pal.txt
-    ctx.font = `700 60px ${pal.mono}`
-    ctx.fillText(String(n(s.value)), cols[i], sy)
+    ctx.font = `700 52px ${pal.mono}`
+    ctx.fillText(String(n(s.value)), sx + 22, sy + 58)
     ctx.fillStyle = pal.txt3
-    ctx.font = `500 18px ${pal.font}`
-    ctx.fillText(String(s.label || ''), cols[i], sy + 34)
+    ctx.font = `500 16px ${pal.font}`
+    ctx.fillText(String(s.label || ''), sx + 24, sy + 92)
   })
 
   /* ---- vạch phân cách ---- */
   ctx.strokeStyle = pal.line
   ctx.lineWidth = 1
   ctx.beginPath()
-  ctx.moveTo(96, 408)
-  ctx.lineTo(W - 96, 408)
+  ctx.moveTo(80, 424)
+  ctx.lineTo(W - 80, 424)
   ctx.stroke()
 
   /* ---- hàng streak: ba mốc 7/30/100 rồi câu streak ---- */
   if (data.milestones) {
-    const my = 470
+    const my = 478
     data.milestones.slice(0, 3).forEach((m, i) => {
-      const x = 96 + i * 92
-      rr(ctx, x, my - 24, 76, 48, 24)
+      const x = 80 + i * 92
+      rr(ctx, x, my - 24, 78, 48, 24)
       if (m.got) {
-        ctx.fillStyle = 'rgba(255,138,76,.14)'
+        ctx.fillStyle = 'rgba(255, 138, 76, 0.16)'
         ctx.fill()
         ctx.strokeStyle = pal.flame
+        ctx.lineWidth = 1.5
         ctx.stroke()
         ctx.fillStyle = pal.flame
       } else {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)'
+        ctx.fill()
         ctx.strokeStyle = pal.line
+        ctx.lineWidth = 1
         ctx.stroke()
         ctx.fillStyle = pal.txt3
       }
       ctx.font = `700 20px ${pal.mono}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(String(n(m.n)), x + 38, my + 1)
+      ctx.fillText(String(n(m.n)), x + 39, my + 1)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     })
     if (data.streakLine) {
       ctx.fillStyle = pal.txt3
       ctx.font = `500 19px ${pal.font}`
-      ctx.fillText(String(data.streakLine), 96 + 3 * 92 + 12, my + 7)
+      ctx.fillText(String(data.streakLine), 80 + 3 * 92 + 14, my + 7)
     }
   }
 
   /* ---- chân card: chữ ký + tem ngày ---- */
   ctx.fillStyle = pal.txt3
   ctx.font = `400 16px ${pal.font}`
-  ctx.fillText(String(data.footer || ''), 96, H - 66)
+  ctx.fillText(String(data.footer || ''), 80, H - 64)
   ctx.font = `500 16px ${pal.mono}`
   ctx.textAlign = 'right'
-  ctx.fillText(String(data.stamp || ''), W - 96, H - 66)
+  ctx.fillText(String(data.stamp || ''), W - 80, H - 64)
   ctx.textAlign = 'left'
 }
 

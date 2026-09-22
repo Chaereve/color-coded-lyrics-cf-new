@@ -343,6 +343,96 @@ export async function deleteComment(commentId) {
   return true
 }
 
+export async function fetchCommentCounts(requestIds = null) {
+  if (!hasSupabase) {
+    const counts = {}
+    try {
+      if (Array.isArray(requestIds) && requestIds.length > 0) {
+        for (const id of requestIds) {
+          const list = JSON.parse(localStorage.getItem(`ccl.comments.${id}`) || '[]')
+          if (list.length) counts[id] = list.length
+        }
+      } else {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (k && k.startsWith('ccl.comments.')) {
+            const id = k.replace('ccl.comments.', '')
+            const list = JSON.parse(localStorage.getItem(k) || '[]')
+            if (list.length) counts[id] = list.length
+          }
+        }
+      }
+    } catch {}
+    return counts
+  }
+  try {
+    let query = supabase.from('request_comments').select('request_id').is('deleted_at', null)
+    if (Array.isArray(requestIds) && requestIds.length > 0) {
+      query = query.in('request_id', requestIds)
+    }
+    const { data, error } = await query
+    if (error || !data) return {}
+    const counts = {}
+    for (const c of data) {
+      if (c.request_id) counts[c.request_id] = (counts[c.request_id] || 0) + 1
+    }
+    return counts
+  } catch {
+    return {}
+  }
+}
+
+export async function fetchAllCommentsForAdmin(limit = 100) {
+  if (!hasSupabase) {
+    const all = []
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('ccl.comments.')) {
+          const items = JSON.parse(localStorage.getItem(key) || '[]')
+          all.push(...items)
+        }
+      }
+    } catch {}
+    return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
+  }
+  const { data, error } = await supabase.from('request_comments')
+    .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data || []).map(c => ({
+    ...c,
+    author: c.profiles?.name || 'Member',
+    avatar: c.profiles?.avatar_url || null,
+    songTitle: c.requests?.title || '',
+    songArtist: c.requests?.artist || '',
+  }))
+}
+
+export async function adminDeleteComment(commentId) {
+  if (!commentId) return true
+  if (!hasSupabase) {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('ccl.comments.')) {
+          let items = JSON.parse(localStorage.getItem(key) || '[]')
+          if (items.some(x => x.id === commentId || x.parent_id === commentId)) {
+            items = items.filter(x => x.id !== commentId && x.parent_id !== commentId)
+            localStorage.setItem(key, JSON.stringify(items))
+          }
+        }
+      }
+    } catch {}
+    return true
+  }
+  const { error } = await supabase.from('request_comments').delete().eq('id', commentId)
+  if (error) throw error
+  return true
+}
+
 export async function addComment(requestId, userId, body, parentId = null) {
   const clean = String(body || '').trim()
   if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')

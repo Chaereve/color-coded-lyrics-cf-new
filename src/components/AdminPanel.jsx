@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf } from '../lib/db'
+import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment } from '../lib/db'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
@@ -318,8 +318,8 @@ export default function AdminPanel({
     const id = setTimeout(() => {
       const qs = adminQuery({
         tab,
-        q: tab === 'media' ? '' : q, sort: tab === 'media' ? 'default' : sortKey,
-        kind: tab === 'media' ? 'all' : kindF,
+        q: ['media', 'comments'].includes(tab) ? '' : q, sort: ['media', 'comments'].includes(tab) ? 'default' : sortKey,
+        kind: ['media', 'comments'].includes(tab) ? 'all' : kindF,
       })
       const next = window.location.pathname + qs
       /* Ghi địa chỉ đi qua `putUrl` (src/lib/history.js): trong iframe bị
@@ -436,6 +436,40 @@ export default function AdminPanel({
       : tab === 'expired' ? expiredRows
         : tab === 'orders' ? orders
         : tab === 'done' ? others : []
+  const [adminComments, setAdminComments] = useState([])
+  const [loadingComments, setLoadingComments] = useState(false)
+
+  const loadAdminComments = useCallback(() => {
+    setLoadingComments(true)
+    fetchAllCommentsForAdmin().then(res => {
+      setAdminComments(res || [])
+    }).catch(() => {
+      setAdminComments([])
+    }).finally(() => {
+      setLoadingComments(false)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'comments') {
+      loadAdminComments()
+    }
+  }, [tab, loadAdminComments])
+
+  const confirmDeleteComment = async (commentId) => {
+    const ok = await ask({
+      title: t('adm.commentDelete'),
+      body: t('comment.remove'),
+      confirmLabel: t('adm.commentDelete'),
+    })
+    if (!ok) return
+    try {
+      await adminDeleteComment(commentId)
+      setAdminComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId))
+      sfx.delete()
+    } catch {}
+  }
+
   const order = (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
   const sortList = (list) => {
     if (sortKey === 'default') return list
@@ -446,6 +480,7 @@ export default function AdminPanel({
   }
   const shown = tab === 'orders' ? base.filter(matchOrder)
     : tab === 'media' ? base
+    : tab === 'comments' ? adminComments
       : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
   const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
@@ -492,8 +527,8 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.length,
-  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length])
+    done: others.length, media: media.length, comments: adminComments.length,
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, adminComments.length])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -591,12 +626,18 @@ export default function AdminPanel({
         <h2 className="adm-h2">
           <span>{t(kpis.find(k => k.k === tab)?.label || 'adm.pageAria')}</span>
           <span className="adm-h2-n">{t('adm.showing', {
-            n: tab === 'media' ? media.length : pg.items.length,
-            total: tab === 'media' ? media.length : shown.length,
+            n: tab === 'media' ? media.length : tab === 'comments' ? adminComments.length : pg.items.length,
+            total: tab === 'media' ? media.length : tab === 'comments' ? adminComments.length : shown.length,
           })}</span>
         </h2>
 
-        {tab === 'media' ? (
+        {tab === 'comments' ? (
+          <div className="adm-bar adm-bar-end">
+            <button type="button" className="btn btn-sm" onClick={loadAdminComments} disabled={loadingComments}>
+              {loadingComments ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
+        ) : tab === 'media' ? (
           /* Mục Videos không có gì để tìm hay xếp thứ tự, nhưng vẫn cần ĐÚNG MỘT
              thanh công cụ như mọi mục khác: nút mở trang chủ đứng bên phải, cùng
              chỗ với nhóm nút của các mục còn lại — trước đây nó nằm trong một dải
@@ -681,11 +722,56 @@ export default function AdminPanel({
         )}
         {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không
             được báo. Chỉ trình đọc màn hình đọc dòng này. */}
-        {tab !== 'media' && (
+        {!['media', 'comments'].includes(tab) && (
           <p className="sr-only" role="status">{t('adm.resultCount', { n: shown.length })}</p>
         )}
 
-        {tab === 'media' ? (
+        {tab === 'comments' ? (
+          <div className="adm-comments-list">
+            {adminComments.length === 0 ? (
+              <div className="empty">
+                <b>{t('adm.noComments')}</b>
+                <p>{t('adm.emptyCommentsBody')}</p>
+              </div>
+            ) : (
+              adminComments.map(c => (
+                <div className="adm-comment-card" key={c.id}>
+                  <div className="adm-comment-head">
+                    <div className="adm-comment-user">
+                      {c.avatar ? (
+                        <img className="adm-comment-av" src={c.avatar} alt="" />
+                      ) : (
+                        <span className="adm-comment-av ph">{((c.author || '?')[0] || '?').toUpperCase()}</span>
+                      )}
+                      <div>
+                        <b>{c.author || 'Member'}</b>
+                        <small>{timeAgo(c.created_at, t)}</small>
+                      </div>
+                    </div>
+                    <div className="adm-comment-target">
+                      <span className="adm-comment-song">
+                        {c.songTitle ? `${c.songTitle} — ${c.songArtist}` : '(Request)'}
+                      </span>
+                      {c.parent_id && <span className="adm-comment-reply-lbl">Reply</span>}
+                    </div>
+                  </div>
+                  <div className="adm-comment-body">
+                    {c.body}
+                  </div>
+                  <div className="adm-comment-foot">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-no"
+                      onClick={() => confirmDeleteComment(c.id)}
+                    >
+                      <Icon name="close" size={13} /> {t('adm.commentDelete')}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : tab === 'media' ? (
           <MediaAdmin
             media={media} busy={busy}
             onSave={(item) => runMedia(() => onMediaSave(item))}
@@ -783,8 +869,8 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* tab media tự quản lý thứ tự (kéo thả) nên không cắt trang */}
-        {tab !== 'media' && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
+        {/* tab media và comments tự quản lý hoặc cuộn dọc nên không cắt trang bằng Pager này */}
+        {!['media', 'comments'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
     </section>
   )

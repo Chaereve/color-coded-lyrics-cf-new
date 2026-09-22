@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { updateProfile } from '../lib/db'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { loadImage, centerCrop, processAvatar, processAnimatedAvatar, checkFile } from '../lib/avatar'
+import { loadImage, centerCrop, processAvatar, processAnimatedAvatar, checkFile, isAnimatedWebp } from '../lib/avatar'
 import AvatarCropper from './AvatarCropper'
 
 /* SỬA HỒ SƠ — NAY LÀ MỘT KHỐI CỦA TRANG "ABOUT ME", KHÔNG CÒN HỘP THOẠI.
@@ -55,9 +55,10 @@ export default function ProfilePanel({ user, onSaved }) {
     setMsg(null)
     try {
       checkFile(file)
-      /* GIF đi thẳng vào bộ lưu trữ/data URL: canvas chỉ lấy frame đầu nên
-         không được dùng cho ảnh động. JPG/PNG vẫn qua cropper như trước. */
-      if (file.type === 'image/gif') {
+      /* GIF và animated WebP đi thẳng vào bộ lưu trữ/data URL: canvas chỉ lấy frame đầu nên
+         không được dùng cho ảnh động. JPG/PNG/WebP tĩnh vẫn qua cropper nén lại. */
+      const isAnim = file.type === 'image/gif' || (file.type === 'image/webp' && await isAnimatedWebp(file))
+      if (file.type === 'image/gif' || isAnim) {
         const { url, bytes } = await processAnimatedAvatar(file)
         reset()
         setAvatar(url)
