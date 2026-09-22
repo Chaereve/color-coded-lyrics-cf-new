@@ -65,8 +65,8 @@
   <p>When you sign in with Google we receive and store only:</p>
   <ul>
     <li><strong>Display name</strong> from your Google account</li>
-    <li><strong>Public avatar</strong></li>
-    <li><strong>Email address</strong>, used to identify the account</li>
+    <li><strong>Profile avatar</strong> — an optional static JPG, PNG or WebP image; animated GIF avatars are not supported</li>
+    <li><strong>Email address</strong>, used to identify the account and contact you about account or order issues</li>
   </ul>
   <p>We also store what you create: requests, votes, comments and replies, vote orders with
      their payment status, achievement claims, and Daily Spin records (account, time, request ID,
@@ -93,12 +93,17 @@
   <p>We do <strong>not</strong> use your data for advertising, behavioural analysis or marketing
      email.</p>
 
-  <h2>3. Third parties</h2>
-  <p>We do <strong>not sell, rent or trade</strong> your data. It sits on the two services that
-     run the site:</p>
+  <h2>3. Third parties and service providers</h2>
+  <p>We do <strong>not sell, rent or trade</strong> your data. We use the following providers only
+     to operate features you request:</p>
   <ul>
-    <li><strong>Supabase</strong> — database and sign-in</li>
-    <li><strong>Cloudflare Pages</strong> — where the site is hosted</li>
+    <li><strong>Google</strong> — sign-in and the name, email and profile picture you authorise</li>
+    <li><strong>Supabase</strong> — database and authentication</li>
+    <li><strong>Cloudflare Pages and Workers</strong> — hosting, routing and the optional abuse-prevention edge gate</li>
+    <li><strong>Cloudinary</strong> — optional image hosting when the deployment is configured to use it</li>
+    <li><strong>FingerprintJS and Cloudflare Turnstile</strong> — only for Daily Spin abuse prevention when that gate is enabled</li>
+    <li><strong>YouTube</strong> — embedded or linked lyric-video content when you open it</li>
+    <li><strong>PayPal or your bank</strong> — payment destinations you choose; we do not receive card or banking credentials</li>
   </ul>
 
   <h2>4. What is public</h2>
@@ -107,9 +112,10 @@
      replies, can be read by visitors so the board can work. Public profiles show approved
      request summaries, received-vote totals, aggregate streaks and streak milestones.
      <strong>Your email address, votes cast for other people, raw activity dates, raw spin rewards and
-     browser/fingerprint/IP hashes are never shown publicly.</strong> You can change your display
+     browser/fingerprint/IP hashes are never shown publicly.</strong> Profile avatars are displayed
+     as static images; animated GIF avatars are not accepted. You can change your display
      name and avatar at any time in your profile. Do not put private information in a request,
-     note or comment.
+     note or comment.</p>
 
   <h2>5. Payments</h2>
   <p>The page <strong>does not process cards and stores no financial details</strong>. You pay by
@@ -164,13 +170,19 @@
        or used outside Daily Spin.</p>
   </div>
 
-  <h2>9. Children</h2>
+  <h2>9. International processing</h2>
+  <p>Our service providers may process information in countries other than Vietnam. By using the
+     site, you understand that the providers listed above may handle data under their own privacy
+     policies and security controls. We choose only the information needed for each feature and do
+     not give providers permission to use it for our advertising.</p>
+
+  <h2>10. Children</h2>
   <p>The page is not directed at children under 13 and we do not knowingly collect their data.</p>
 
-  <h2>10. Changes</h2>
+  <h2>11. Changes</h2>
   <p>If this policy changes, the date at the top is updated.</p>
 
-  <h2>11. Contact</h2>
+  <h2>12. Contact</h2>
   <p>Questions about privacy or a deletion request: Telegram
      <a href="https://t.me/ssochuz" target="_blank" rel="noreferrer">t.me/ssochuz</a></p>
 
