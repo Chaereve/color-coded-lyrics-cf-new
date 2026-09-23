@@ -39,7 +39,7 @@ import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
+import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
   DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
@@ -1458,14 +1458,7 @@ function AppInner() {
     }
     return Array.from(seen.values()).slice(0, 8)
   }, [rows])
-  const weeklyHighlights = useMemo(() => {
-    const since = Date.now() - 7 * 86400000
-    const recent = rows.filter(r => new Date(r.created_at).getTime() >= since && r.status !== 'denied')
-    return {
-      top: recent.slice().sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0))[0] || null,
-      newcomer: recent.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null,
-    }
-  }, [rows])
+  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(pub, Date.now()), [pub])
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -2002,10 +1995,10 @@ function AppInner() {
                       week" không kèm `f` nên rơi về bộ lọc đã lưu trong
                       localStorage, cũng rỗng nếu lần trước đang xem Queue. */}
                   {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
-                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes || 0} votes</span>
+                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
                   </a>}
                   {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
-                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist} · {weeklyHighlights.newcomer.requester}</span>
+                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
                   </a>}
                 </div>
               </section>
