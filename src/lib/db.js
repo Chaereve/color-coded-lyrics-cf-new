@@ -325,18 +325,47 @@ export async function fetchPublicProfile(userId) {
 }
 
 /* ======================== READ ======================== */
+const noticeShape = (n) => ({
+  id: `db-${n.id}`, sig: n.sig || null, key: n.song_key, type: n.kind, request_id: n.request_id,
+  title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
+  reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
+  read: !!n.read_at, own: true,
+})
+
 export async function fetchNotifications(uid) {
   if (!uid || !hasSupabase) return []
-  const { data, error } = await supabase.from('notifications')
-    .select('id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at')
-    .eq('user_id', uid).order('created_at', { ascending: false }).limit(60)
+  /* Cột `dismissed_at` có sau migration 20261108. Chưa chạy thì câu lọc đó
+     lỗi — hỏi lại không lọc, phần nhớ trên máy vẫn chặn tin đã xóa. */
+  const full = 'id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at, sig'
+  const legacy = 'id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at'
+  let q = supabase.from('notifications').select(full).eq('user_id', uid)
+    .is('dismissed_at', null).order('created_at', { ascending: false }).limit(60)
+  let { data, error } = await q
+  if (error) {
+    const again = await supabase.from('notifications').select(legacy).eq('user_id', uid)
+      .order('created_at', { ascending: false }).limit(60)
+    data = again.data
+    error = again.error
+  }
   if (error) return []
-  return (data || []).map(n => ({
-    id: `db-${n.id}`, key: n.song_key, type: n.kind, request_id: n.request_id,
-    title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
-    reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
-    read: !!n.read_at, own: true,
-  }))
+  return (data || []).map(noticeShape)
+}
+
+/* Xóa tin trên chuông. Không mở quyền DELETE: một RPC chỉ được đặt
+   `dismissed_at` trên dòng của chính người đang đăng nhập. Thiếu hàm
+   (chưa chạy migration) thì im — bản nhớ local vẫn giữ tin đã xóa trên
+   máy này. */
+export async function dismissNotification({ id, sig } = {}) {
+  if (!hasSupabase) return
+  const db = /^db-(\d+)$/.exec(String(id || ''))
+  const payload = {}
+  if (db) payload.p_id = Number(db[1])
+  const clean = typeof sig === 'string' ? sig.trim() : ''
+  if (clean && clean.length <= 500) payload.p_sig = clean
+  else if (!db && typeof id === 'string' && id && id.length <= 500) payload.p_sig = id
+  if (payload.p_id == null && !payload.p_sig) return
+  const { error } = await supabase.rpc('dismiss_notification', payload)
+  if (error && !isMissingSchemaObject(error)) console.warn('[notif] dismiss:', error.message)
 }
 
 export async function adminExpireRequest(id) {

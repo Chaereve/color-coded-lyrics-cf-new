@@ -3,6 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
+import { safeHttpUrl } from '../lib/safeUrl'
 import { timeAgo } from '../lib/meta'
 
 /* =========================================================
@@ -159,6 +160,7 @@ function TextEditor({ initial, busy, onCancel, onCommit }) {
 function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
   const { t } = useI18n()
   const p = parseYoutube(m.url)
+  const mediaHref = safeHttpUrl(m.url)
   const img = m.thumb || thumbUrl(p?.id, 'hq')
 
   /* ẩn/hiện là một lần sửa, đi chung đường với nút Lưu */
@@ -180,9 +182,9 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
           {m.is_hidden && <span className="pill">{t('adm.mediaHidden')}</span>}
         </b>
         <small>
-          <a href={m.url} target="_blank" rel="noreferrer" style={{ color: 'var(--a-2)' }}>
-            {p?.id || m.url}
-          </a>
+          {mediaHref
+            ? <a href={mediaHref} target="_blank" rel="noreferrer" style={{ color: 'var(--a-2)' }}>{p?.id || m.url}</a>
+            : <span>{p?.id || m.url}</span>}
           {' · '}{timeAgo(m.created_at, t)}
         </small>
       </div>

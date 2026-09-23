@@ -2482,9 +2482,11 @@ create table if not exists public.notifications (
   sent_at    timestamptz
 );
 alter table public.notifications add column if not exists reason text;
+alter table public.notifications add column if not exists dismissed_at timestamptz;
 alter table public.notifications enable row level security;
 drop policy if exists notif_read on public.notifications;
-create policy notif_read on public.notifications for select using (auth.uid() = user_id);
+create policy notif_read on public.notifications for select
+  using (auth.uid() = user_id and dismissed_at is null);
 -- chỉ được tự đánh dấu đã đọc, không được sửa gì khác: grant update chỉ cột read_at
 drop policy if exists notif_read_own on public.notifications;
 create policy notif_read_own on public.notifications for update
@@ -2504,6 +2506,39 @@ create unique index if not exists notif_sig_uidx on public.notifications (user_i
 create unique index if not exists notif_one_near_per_cycle on public.notifications
   (user_id, song_key, kind, cycle) where kind in ('near','lead');
 revoke insert, delete on public.notifications from public, anon, authenticated;
+revoke update (dismissed_at) on public.notifications from public, anon, authenticated;
+
+create or replace function public.dismiss_notification(p_id bigint default null, p_sig text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_sig text := nullif(btrim(coalesce(p_sig, '')), '');
+begin
+  if v_uid is null then
+    raise exception 'err.signin';
+  end if;
+  if v_sig is not null and length(v_sig) > 500 then
+    v_sig := null;
+  end if;
+  if p_id is null and v_sig is null then
+    return;
+  end if;
+  update public.notifications
+     set dismissed_at = coalesce(dismissed_at, now())
+   where user_id = v_uid
+     and dismissed_at is null
+     and (
+       (p_id is not null and id = p_id)
+       or (v_sig is not null and sig = v_sig)
+     );
+end $$;
+
+revoke all on function public.dismiss_notification(bigint, text) from public, anon;
+grant execute on function public.dismiss_notification(bigint, text) to authenticated;
 
 -- 3.3 toggle_watch: trần 60 bài/tài khoản (WATCH_LIMIT trong src/lib/watch.js),
 --     chống dựng danh sách để spam. Chạm trần là BÁO VÀ TỪ CHỐI, không im lặng

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
+import { safeHttpUrl } from '../lib/safeUrl'
 import {
   PREVIEW_SECONDS, PLAYER_ORIGIN, FRAME_FADE, handshake, command,
   readWidgetEvent, mergeInfo, overCap, playhead, keptTime, previewPct,
@@ -134,7 +135,7 @@ const EMBED_DENIED = new Set([100, 101, 150])
 
 export default function VideoPreviewModal({ video, onClose }) {
   const { t } = useI18n()
-  const url = video?.video_url || video?.url || ''
+  const url = safeHttpUrl(video?.video_url || video?.url) || ''
   const id = useMemo(() => parseYoutube(url)?.id || null, [url])
 
   const frameRef = useRef(null)

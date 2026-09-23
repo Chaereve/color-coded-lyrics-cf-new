@@ -41,18 +41,19 @@ import { usePager } from './lib/usePager'
 import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
-  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
-  loadOff, markAllRead, markRead, pickLadder, pushNotices, saveInbox, saveOff, savePrefs, saveWatched,
-  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys,
+  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
+  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, saveOff, savePrefs, saveWatched,
+  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
 import { parseYoutube } from './lib/youtube'
+import { safeHttpUrl } from './lib/safeUrl'
 import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, fetchNotifications, adminExpireRequest, fetchCommentCounts,
+  fetchActivityDays, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -293,6 +294,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
      picked_at vừa không hiện ở tab nào, vừa vẫn nhận vote. */
   const locked = inChain(r)
   const votable = canVote && !locked
+  const watchUrl = safeHttpUrl(r.video_url)
 
   const [pulse, setPulse] = useState(0)
   const seen = useRef(r.votes)
@@ -343,7 +345,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             mang chấm trạng thái rồi một vạch rời nằm dưới. Khối Up next in
             đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
-        {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
+        {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
         <Comments requestId={r.id} user={user} onLogin={onLogin} initialCount={commentCount} onCountChange={onCommentCountChange ? (n) => onCommentCountChange(r.id, n) : undefined} />
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
@@ -498,6 +500,12 @@ function AppInner() {
      một bài bị nhiều người gửi lẻ vẫn chỉ có một mục theo dõi. */
   const [watched, setWatched] = useState([])
   const [notices, setNotices] = useState([])
+  /* uid đã nạp xong hộp thư. Không có cờ này thì effect lưu chạy trên mảng
+     rỗng của khung hình đầu (user vừa có, notices chưa đọc từ localStorage)
+     và XÓA hộp thư — kể cả những tin người dùng đã xóa, lẫn những tin còn
+     giữ. Lần vào sau chỉ còn tin database kéo lại. */
+  const [inboxUid, setInboxUid] = useState(null)
+  const dismissedRef = useRef(new Set())
   const [prefs, setPrefs] = useState(DEFAULT_PREFS)
   const [hlSong, setHlSong] = useState(null)
   /* Hộp thông báo mở tại chỗ dưới chuông. Một dòng tin BẤM LÀ NHẢY tới hàng
@@ -1159,20 +1167,29 @@ function AppInner() {
   }, [rows])
   useEffect(() => {
     snapRef.current = null
-    if (!uid) { setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS); return }
+    if (!uid) {
+      setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS)
+      setInboxUid(null)
+      dismissedRef.current = new Set()
+      return
+    }
     const w = loadWatched(uid)
     const off = loadOff(uid)
     setWatched(w); watchedRef.current = w
-    const localInbox = loadInbox(uid)
-    setNotices(localInbox)
-    /* Live expiry notifications come from the DB; keep the prototype inbox as
-       a fallback and dedupe by id so a refresh cannot double-show a notice. */
+    const dismissed = loadDismissed(uid)
+    dismissedRef.current = dismissed
+    /* Đọc hộp thư TRƯỚC khi effect lưu chạy. Cờ inboxUid chỉ bật ở render
+       sau, nên effect lưu của khung hình này (notices vẫn là []) không được
+       ghi đè. */
+    setNotices(withoutDismissed(loadInbox(uid), dismissed))
+    setInboxUid(uid)
+    let live = true
+    /* Tin database gộp vào, trừ tin đã xóa. Không gộp trần theo id: id
+       `db-12` chưa từng nằm trong hộp thư local, nên bản cũ coi tin vừa xóa
+       là tin mới và kéo nó về. */
     fetchNotifications(uid).then(dbInbox => {
-      if (!dbInbox.length) return
-      setNotices(current => {
-        const seen = new Set(current.map(n => n.id))
-        return [...dbInbox.filter(n => !seen.has(n.id)), ...current].slice(0, 60)
-      })
+      if (!live || !dbInbox.length) return
+      setNotices(current => mergeInbox(current, dbInbox, loadDismissed(uid)))
     }).catch(() => {})
     const pf = loadPrefs(uid)
     setPrefs(pf); prefsRef.current = pf
@@ -1180,6 +1197,7 @@ function AppInner() {
     /* ?f=watch còn sót trong URL của lần trước: không có gì để xem thì
        trở về hàng đợi, để tab "Following" không bị chọn mà trang trống */
     if (!w.length) setFilter(f => (f === 'watch' ? 'queued' : f))
+    return () => { live = false }
   }, [uid])
 
   /* Hạng của từng bài so với đợt chót kế tiếp — một lần tính cho cả
@@ -1240,7 +1258,7 @@ function AppInner() {
     snapRef.current = next
     if (!prev || !watchedSet.size) return
     const found = diffNotices({ prev, next, watched: watchedSet, voted: votedSet, prefs, cycle: pick?.last_pick_at || '' })
-      .filter(n => !selfAct?.has(n.key))
+      .filter(n => !selfAct?.has(n.key) && !isDismissed(dismissedRef.current, n))
     if (!found.length) return
     setNotices(box => pushNotices(box, found))
     /* Một toast cho cả đợt: 4 bài cùng nhúc nhích mà 4 toast thì không đọc
@@ -1267,7 +1285,7 @@ function AppInner() {
 
   /* Lưu hộp thư + tuỳ chọn ở một chỗ: viết ngay trong updater của
      setNotices thì không được — updater phải thuần. */
-  useEffect(() => { if (uid) saveInbox(uid, notices) }, [uid, notices])
+  useEffect(() => { if (uid && inboxUid === uid) saveInbox(uid, notices) }, [uid, inboxUid, notices])
   useEffect(() => { prefsRef.current = prefs; if (uid) savePrefs(uid, prefs) }, [uid, prefs])
   useEffect(() => { watchedRef.current = watched }, [watched])
 
@@ -1284,7 +1302,17 @@ function AppInner() {
 
   const doSetPrefs = (patch) => setPrefs(p => ({ ...p, ...patch }))
 
-  const doDropNotice = (id) => setNotices(box => dropNotice(box, id))
+  const doDropNotice = (id) => {
+    const dropped = notices.find(n => n.id === id)
+    /* Tin local lấy chính id làm chữ ký. Tin database có `sig` riêng — nhớ
+       cả hai để lần gộp sau không dựng lại dòng kia dưới một id khác. */
+    const sig = dropped?.sig || (!String(id).startsWith('db-') ? id : null)
+    setNotices(box => dropNotice(box, id))
+    if (uid) {
+      dismissedRef.current = rememberDismissed(uid, [id, sig])
+      dismissNotification({ id, sig }).catch(() => {})
+    }
+  }
 
   /* ---------------- derived ---------------- */
   const pub = useMemo(() => rows.filter(r => r.status !== 'pending' && r.status !== 'denied'), [rows])

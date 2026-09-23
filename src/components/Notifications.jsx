@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { safeHttpUrl } from '../lib/safeUrl'
 import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
@@ -239,7 +240,7 @@ export default function Notifications({
 function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
   const c = TONE[n.type] || 'var(--txt-3)'
   const tag = t(`nt.tag.${n.type}`)
-  const url = row?.video_url || n.url || null
+  const url = safeHttpUrl(row?.video_url || n.url)
   const votable = !!row && !isPicked(row) && (row.status === 'queued' || row.status === 'in_progress')
   const vars = {
     song: `${n.title} — ${n.artist}`, pct: n.pct ?? 0, votes: n.votes ?? row?.votes ?? 0, n: n.gap ?? 0,

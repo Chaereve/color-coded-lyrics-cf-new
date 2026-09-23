@@ -6,6 +6,7 @@ import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
+import { safeHttpUrl } from '../lib/safeUrl'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { sfx } from '../lib/sfx'
 import { useModalExit } from '../lib/useModalExit'
@@ -586,8 +587,8 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
                   onClick={next}>
                   {t('req.dupContinue')}
                 </button>
-                {!dup.best && dup.video && (
-                  <a className="btn btn-sm" href={dup.video} target="_blank" rel="noreferrer">
+                {!dup.best && safeHttpUrl(dup.video) && (
+                  <a className="btn btn-sm" href={safeHttpUrl(dup.video)} target="_blank" rel="noreferrer">
                     {t('req.dupWatch')}
                   </a>
                 )}

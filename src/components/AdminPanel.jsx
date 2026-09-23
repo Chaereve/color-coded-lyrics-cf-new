@@ -6,6 +6,7 @@ import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, u
 import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment } from '../lib/db'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
+import { safeHttpUrl } from '../lib/safeUrl'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useConfirm } from '../lib/confirm.jsx'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
@@ -117,7 +118,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             </span>
           </small>
         )}
-        {r.link && <small><a href={r.link} target="_blank" rel="noreferrer" style={{ color: 'var(--a-2)' }}>{t('adm.sourceLink')}</a></small>}
+        {safeHttpUrl(r.link) && <small><a href={safeHttpUrl(r.link)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--a-2)' }}>{t('adm.sourceLink')}</a></small>}
         {r.note && <small style={{ color: 'var(--txt-2)' }}>“{r.note}”</small>}
         {/* Tiến độ đọc được TỪ HÀNG, không phải mở khung sửa: bài đang làm mà
             không biết đã tới đâu thì admin phải mở từng dòng ra xem — đúng thứ

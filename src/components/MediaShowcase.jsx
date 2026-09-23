@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { thumbUrl } from '../lib/youtube'
+import { safeHttpUrl } from '../lib/safeUrl'
 
 /* =========================================================
    TRANG CHỦ — "Featured" + dải "Latest update"
@@ -128,7 +129,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
           }}>
           {/* key theo video đang mở: đổi video là sân khấu dựng lại,
               ảnh fade-in một nhịp thay vì nhảy cắt củ khoai */}
-          <a className="pick-stage" key={cur.key ?? cur.id} href={ytLink(cur)} target="_blank" rel="noreferrer"
+          <a className="pick-stage" key={cur.key ?? cur.id} href={safeHttpUrl(ytLink(cur)) || undefined} target="_blank" rel="noreferrer"
             aria-label={`${t('media.openYT')}: ${cur.title}`}>
             <Thumb item={{ ...cur, size: 'lg' }} eager />
             <Play />
