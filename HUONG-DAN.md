@@ -2,6 +2,14 @@
 
 Copyright © @chaereve · Tự host, miễn phí 100%.
 
+> **Lưu ý SQL hiện hành (23/09/2026):** `supabase/schema.sql` là bản gộp ~193 KB;
+> không dán/lưu cả file trong Supabase SQL Editor. **Project mới:** làm theo
+> [`supabase/setup/README.md`](supabase/setup/README.md), chạy từng phần 01–08.
+> **Project đang có dữ liệu:** backup rồi chỉ chạy migration còn thiếu, không chạy
+> lại schema/setup. Một số ghi chép lịch sử bên dưới có thể còn nói chạy lại
+> toàn bộ schema — **không áp dụng chỉ dẫn đó**. Trong SQL Editor, **Run** mới
+> thực thi SQL; **Save** chỉ lưu bản nháp query.
+
 | Thành phần | Dịch vụ | Chi phí |
 |---|---|---|
 | Frontend React + Vite | Vercel Hobby | 0đ |
@@ -383,8 +391,7 @@ chỉ là người biết dùng anon key vẫn né được Turnstile.
    16 ô). Cả hai chạy được nhiều lần, không xoá request, vote, profile hay lịch sử quay hiện
    có. **Thứ tự quan trọng:** file 20260908 luôn chạy SAU file 20260907 — nếu chạy lại file cũ
    một mình, xác suất sẽ trôi về bản 8 ô (hàm `daily_spin_prizes()` bị ghi đè).
-2. **Project mới:** `supabase/schema.sql` đã bao gồm cùng phần Daily Spin ở cuối file;
-   chạy schema như hướng dẫn bình thường. Extension `pgcrypto` dùng schema `extensions`
+2. **Project mới:** chạy các phần trong `supabase/setup/README.md` (schema gộp đã bao gồm Daily Spin); không dán cả file `schema.sql`. Extension `pgcrypto` dùng schema `extensions`
    (mặc định của Supabase). Không cần Edge Function, cron mới hoặc biến môi trường mới.
 3. Deploy frontend / tải lại trang, đăng nhập Google thật, mở `/daily-spin`.
 
@@ -925,7 +932,7 @@ npm test        # node:test có sẵn trong Node 18+, không phải cài gì th�
 ### 2. Tạo Supabase
 
 1. https://supabase.com → **New project** → region **Singapore**
-2. **SQL Editor → New query** → dán toàn bộ `supabase/schema.sql` → **Run**
+2. Xem [`supabase/setup/README.md`](supabase/setup/README.md): trong **SQL Editor → New query**, chạy lần lượt 8 file SQL nhỏ (`01`–`08`), mỗi lần chỉ dán **một file** rồi bấm **Run**. Không dán/lưu cả `supabase/schema.sql`.
 3. **Project Settings → API Keys** → copy `Project URL` + **khoá công khai**
 
 Tạo file tên `.env` **ngay trong thư mục mã nguồn**, cùng cấp với `package.json`:
@@ -948,7 +955,7 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_...
 > **Đừng bao giờ dùng khoá `sb_secret_...` hay `service_role`** — chúng bỏ qua toàn bộ
 > quy tắc bảo mật và sẽ lộ ra trình duyệt.
 
-> Nếu bạn đã chạy schema cũ: **không xoá hoặc truncate các bảng**. Chạy toàn bộ `schema.sql` — file này chỉ bổ sung/cập nhật cấu trúc và giữ nguyên các dòng dữ liệu hiện có. Nếu app báo `PGRST205` vì thiếu bảng `media`, chạy riêng `supabase/migrations/20260903_safe_recovery.sql`; đây là migration cộng thêm, không đụng vào dữ liệu người dùng.
+> Nếu bạn đã chạy schema cũ: **không xoá hoặc truncate bảng, cũng không chạy lại bản gộp `schema.sql`**. Backup rồi chạy đúng migration còn thiếu trong `supabase/migrations/`. Nếu app báo `PGRST205` vì thiếu bảng `media`, kiểm tra phiên bản đã cài trước khi chạy `supabase/migrations/20260903_safe_recovery.sql`; đây là migration cộng thêm, không đụng vào dữ liệu người dùng.
 >
 > Nếu dữ liệu đã bị xoá thật khỏi Supabase trước khi có bản sửa này, source code không thể tự tạo lại các request/vote/profile cũ. Hãy dùng **Database Backups / Point-in-Time Recovery** của Supabase; không chạy seed trong project thật. App hiện lưu bản đọc gần nhất trong trình duyệt để chống mất hiển thị khi API tạm lỗi.
 
@@ -1035,16 +1042,16 @@ Xong nhớ quay lại Supabase cập nhật `Site URL` thành link Vercel.
 
 ### 7. Chạy lại SQL khi repo có bản mới
 
-Các file trong `supabase/` viết theo kiểu `create or replace` / `add column if not exists`
-→ chạy lại bao nhiêu lần cũng không mất dữ liệu. Cách chạy: **Dashboard → SQL Editor →
-New query → dán cả file → Run**. Mỗi file một tab riêng, đợi *Success* rồi mới sang file sau —
-và **không bao giờ dán lại cả `schema.sql`** khi chỉ cần một file migration (xem
-[`BUOC-THU-CONG.md`](BUOC-THU-CONG.md), mục 0: vì sao dán cả file 2808 dòng làm SQL Editor lag,
-và câu SQL một dòng để biết mình đang thiếu file nào).
+**Database đang dùng:** backup và xác định những migration còn thiếu trong
+`supabase/migrations/`; chỉ dán **từng file cần thiết** vào **Dashboard → SQL Editor →
+New query → Run**. Đợi *Success* rồi mới sang file phụ thuộc tiếp theo. Không dán
+bản gộp `schema.sql` hoặc các phần setup (chỉ dành cho DB mới); đừng suy ra mọi
+migration đều an toàn để chạy lại khi chưa biết trạng thái DB. Xem
+[`supabase/setup/README.md`](supabase/setup/README.md) và [`BUOC-THU-CONG.md`](BUOC-THU-CONG.md).
 
 | File | Khi nào chạy |
 |---|---|
-| `schema.sql` | nền tảng: bảng, RLS, mọi hàm `cast_vote`/`create_request`/admin… — chạy khi repo đổi hàm hoặc khi app báo `P0001` |
+| `schema.sql` | bản gộp để cài **DB mới** (trong SQL Editor dùng tám phần ở `supabase/setup/`); không chạy lại trên DB có dữ liệu, kể cả khi app báo `P0001` |
 | `migrations/20260903_safe_recovery.sql` | một lần, cho project tạo trước khi có khối video nổi bật |
 | `migrations/20260905_pick_lock.sql` | một lần, cho project tạo trước 05/09/2026: thêm `picked_at` + bảng `settings` + khoá vote Up next |
 | `migrations/20260905_admin_edit_song.sql` | một lần, CHẠY SAU file pick_lock: `admin_update()` thêm `p_artist`/`p_title` để admin sửa tên bài + nghệ sĩ |
@@ -1063,11 +1070,11 @@ và câu SQL một dòng để biết mình đang thiếu file nào).
 | `migrations/20261104_spin_streak.sql` | một lần, CHẠY SAU file vote_hardening: vòng quay **không lặp quá 2 lượt liên tiếp** — hai lượt gần nhất của cùng một thiết bị đã ra cùng số thưởng thì lượt này loại số đó (ô vẫn rút đều trên 16 ô, chỉ hẹp tập hợp lệ trong đúng tình huống này); đã có trong schema mới |
 | `migrations/20261105_desktop_review_media.sql` | một lần: `admin_review` nhận thêm `p_video_url` — Từ chối request vẫn kèm được link video có sẵn để người gửi đối chiếu; bắt đầu bằng `drop function if exists` rồi tạo lại nên chạy lại vẫn an toàn |
 
-**Thấy đúng chữ `P0001` trên màn hình là schema chạy thiếu.** Từ bản này các hàm SQL
+**`P0001` là mã chung của PostgreSQL cho `RAISE EXCEPTION`, không tự nó chứng minh schema thiếu.** Xem toàn bộ thông báo lỗi trước khi chọn migration. Các hàm SQL
 `raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/i18n.jsx`
 (nhóm `err.*`). Schema cũ raise câu tiếng Việt không dấu nên người dùng đọc được cả dòng
 `Vui long...`; mà chạy schema mới với app cũ (hay ngược lại) thì màn hình chỉ có `P0001`.
-Chạy lại `schema.sql` là khớp. Muốn đổi câu lỗi thì sửa trong từ điển, đừng sửa trong SQL —
+Hãy xác định đúng migration/RPC chưa cập nhật thay vì chạy lại `schema.sql`. Muốn đổi câu lỗi thì sửa trong từ điển, đừng sửa trong SQL —
 trừ hai câu có số đi kèm (hết vote, vượt giới hạn mỗi giờ) viết thẳng trong SQL vì Postgres
 không truyền biến về từ điển được.
 
@@ -1205,13 +1212,9 @@ Dữ liệu nằm ở bảng `public.media` (`kind` = `featured` hoặc `video`)
 **trong database**; mục đang ẩn bị lọc ngay ở policy RLS. Khối video là dữ liệu công khai nên
 **khách chưa đăng nhập vẫn xem được**, và Realtime cập nhật ngay khi admin thêm/sửa.
 
-> Đã chạy `schema.sql` từ trước? Chạy lại **toàn bộ file** một lần nữa để có bảng `media` — file
-> không xoá dữ liệu. Nếu chỉ gặp `PGRST205` ở mục này, chạy
-> `supabase/migrations/20260903_safe_recovery.sql` để bổ sung riêng phần media và nạp lại schema
-> cache.
-
-
-> Đã chạy `schema.sql` từ trước? Chạy lại **toàn bộ file** một lần nữa để có bảng `media` — file không xoá dữ liệu. Nếu chỉ gặp `PGRST205` ở mục này, chạy `supabase/migrations/20260903_safe_recovery.sql` để bổ sung riêng phần media và nạp lại schema cache.
+> Project cũ thiếu bảng `media` (lỗi `PGRST205`)? Backup, kiểm tra trạng thái rồi chạy
+> `supabase/migrations/20260903_safe_recovery.sql` để bổ sung riêng media và nạp lại schema
+> cache. **Không dán lại bản gộp `schema.sql` trên DB đang dùng.**
 
 ## Menu 3 gạch
 
@@ -2393,9 +2396,9 @@ Quy tắc an toàn đã cài sẵn:
 Việc kiểm tra nằm trong hàm `cancel_my_order` của `supabase/schema.sql`, không phải
 chỉ ẩn nút ở giao diện — nên người dùng không lách được bằng công cụ dev.
 
-Nếu bạn đã chạy `schema.sql` từ trước, chạy lại **toàn bộ file** một lần nữa trong
-SQL Editor để cập nhật. File viết theo kiểu `create or replace`, chạy lại nhiều lần
-không mất dữ liệu.
+Nếu project đã cài từ trước, backup rồi xác định migration/RPC còn thiếu; **không**
+chạy lại toàn bộ `schema.sql` trong SQL Editor. Xem `supabase/setup/README.md` để phân biệt
+DB mới và DB có dữ liệu.
 
 ## Chữ trên giao diện — một thứ tiếng
 
@@ -2518,7 +2521,7 @@ src/
     Icon.jsx                  bộ icon Lucide: một chỗ khai tên gọi, nét 1.7, cỡ 16px
     Check.jsx                 ô đánh dấu vẽ bằng SVG (cài đặt thông báo, mốc tiến độ admin, ẩn/hiện media, yêu cầu trả phí)
     GoogleIcon.jsx
-supabase/schema.sql           chạy 1 lần trong SQL Editor
+supabase/schema.sql           bản gộp; SQL Editor cài DB mới dùng supabase/setup/01–08
 ```
 
 ---
@@ -2727,16 +2730,13 @@ nguồn thật, rồi mới dựng CSP.
 
 ### Việc BẮT BUỘC làm khi deploy
 
-1. **Chạy lại toàn bộ `supabase/schema.sql`** trong SQL Editor. **Sau bản cập nhật vòng 14
-   (19/09/2026) thì đây không còn là việc "nên làm":** bản vá cuối cùng trong đó là
-   `migrations/20261104_spin_streak.sql` (vòng quay không lặp quá 2 lượt liên tiếp). Bản hiện tại có nhiều thứ
-   mới so với lần chạy đầu: bỏ giới hạn 1 vote/người, `cast_vote` nhận số lượng bất kỳ,
-   loại video `Short`, 3 cột mốc tiến độ, `update_my_profile`, `cancel_my_order`,
-   Paid Request không bị chặn bởi giới hạn 3 request/giờ, và **bảng `public.media` +
-   3 hàm `admin_media_*`** cho mục Kênh. File dùng `create/alter/create or replace`,
-   **không có DROP/TRUNCATE bảng**, nên chạy lại nhiều lần không mất dữ liệu. Nếu chỉ
-   thiếu `media`, có thể chạy `supabase/migrations/20260903_safe_recovery.sql`.
-   Không dùng lại hướng dẫn cũ yêu cầu bỏ comment để xoá bảng.
+1. **Cập nhật SQL theo trạng thái DB, không chạy lại bản gộp `supabase/schema.sql`**:
+   project mới chạy các file `supabase/setup/01`–`08` theo `supabase/setup/README.md`;
+   project đã có dữ liệu thì backup, xác định và chạy từng migration còn thiếu trong
+   `supabase/migrations/` (bản gộp có cả các định nghĩa trung gian, rất dài và có
+   thể thay đổi trạng thái khi chạy lại). Nếu chỉ thiếu `media` trên một project cũ,
+   xem `supabase/migrations/20260903_safe_recovery.sql`. Không xoá/truncate bảng
+   để thử cài lại.
 2. **Giữ nguyên file `public/_redirects`** — Cloudflare Pages tự
    nhận file này, không cần bật gì thêm. Với Vercel, file `vercel.json` đã khai báo
    rewrite SPA tương đương. Ảnh bìa lấy thẳng từ `i.ytimg.com` nên không cần proxy.

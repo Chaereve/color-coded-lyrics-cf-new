@@ -13,7 +13,9 @@
     "backup:db": "bash scripts/backup-db.sh",
     "backup:verify": "bash scripts/verify-backup.sh",
     "smoke": "node tools/smoke.mjs",
-    "test:comments:db": "node --test supabase/tests/commentsReplies.test.js"
+    "test:comments:db": "node --test supabase/tests/commentsReplies.test.js",
+    "schema:split": "node scripts/split-schema.mjs --write",
+    "schema:split:check": "node scripts/split-schema.mjs --check"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",

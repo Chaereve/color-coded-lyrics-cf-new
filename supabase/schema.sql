@@ -1,13 +1,16 @@
 -- ============================================================
 --  COLOR CODED LYRICS — REQUEST BOARD  ·  (c) @chaereve
 --  Schema v3: admin, duyet request, vote credits, paid request
---  Chay toan bo file nay: Supabase > SQL Editor > New query > Run
+--  File GỘP để đối chiếu / chạy bằng psql; KHÔNG dán cả file vào SQL Editor.
+--  DB MỚI: xem supabase/setup/README.md, chạy 01 → 08 từng file nhỏ.
+--  DB ĐÃ CÓ DỮ LIỆU: backup rồi chỉ chạy migration còn thiếu theo thứ tự;
+--  KHÔNG chạy lại schema.sql hay các file setup trên database đang dùng.
 -- ============================================================
 
--- Schema này được thiết kế để chạy lại an toàn trên project đang có dữ liệu:
--- phần bảng chỉ CREATE/ALTER/CREATE OR REPLACE, tuyệt đối không DROP/TRUNCATE bảng.
--- Nếu project cũ thiếu một bảng hoặc một hàm, hãy chạy toàn bộ file này;
--- các dòng còn thiếu sẽ được bổ sung mà dữ liệu hiện có vẫn giữ nguyên.
+-- Bản gộp này giữ nguyên các bước trung gian và migration để cài mới ra
+-- trạng thái cuối; các file setup được cắt nguyên văn từ đây (không sửa SQL).
+-- Chạy lại toàn bộ trên production vừa nặng vừa có thể thay đổi dữ liệu/cấu
+-- hình trung gian. Xem supabase/setup/README.md trước khi chạy bất cứ SQL nào.
 
 -- =========================================================
 -- 1. PROFILES (tu tao khi dang nhap Google)
