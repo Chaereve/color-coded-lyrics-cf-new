@@ -9,6 +9,20 @@ import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
 import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
+import { withRetry } from './retry.js'
+
+/* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
+   đều ra đúng triệu chứng "vào web không thấy dữ liệu, F5 thì được":
+   · cắt giờ — request treo (TCP đứng, tab bị đóng băng) không bao giờ trả
+     lỗi, nên trang đứng ở "đang tải" cho đến khi người dùng mất kiên nhẫn;
+   · tắt retry nội bộ của thư viện (1s + 2s + 4s, chỉ cho 503) để chính
+     withRetry làm việc đó, một chính sách, và thấy được cả lỗi mạng bị
+     nuốt thành `{ error }`. */
+const READ_TIMEOUT_MS = 7000
+function readQuery(build) {
+  return withRetry((_n, signal) => build().abortSignal(signal).retry(false), { timeout: READ_TIMEOUT_MS })
+    .catch((error) => ({ data: null, error }))
+}
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -185,14 +199,29 @@ export async function getUser() {
   }
   const { data } = await supabase.auth.getUser()
   if (!data.user) return null
-  return readAuthProfile(data.user)
+  try {
+    return await readAuthProfile(data.user)
+  } catch {
+    /* Đọc hồ sơ/quyền admin hỏng (mạng, RLS…) thì TRẢ VỀ MỘT NGƯỜI DÙNG TỐI
+       THIỂU thay vì ném: bản cũ để lỗi bay ra ngoài, `setUser` không bao giờ
+       chạy, và người dùng vẫn đang đăng nhập mà bị xem như khách — mất danh
+       sách theo dõi, mất số phiếu, mất mục "About me". Mất quyền admin tạm
+       thời (sửa được bằng một lần tải lại) vẫn nhẹ hơn mất cả phiên. */
+    return shape(data.user, {}, false)
+  }
 }
 
 export function onAuthChange(cb) {
   if (!hasSupabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange(async (_e, s) => {
+  /* KHÔNG dùng callback `async` ở đây: `cb(await readAuthProfile(...))` ném
+     lỗi là `cb` không bao giờ được gọi VÀ lỗi đó thành unhandled rejection —
+     hai lần hỏng cho một nguyên nhân, và không dấu vết nào trên màn hình.
+     Luôn gọi `cb`, kể cả khi chỉ dựng được người dùng ở mức tối thiểu. */
+  const { data } = supabase.auth.onAuthStateChange((_e, s) => {
     if (!s?.user) return cb(null)
-    cb(await readAuthProfile(s.user))
+    readAuthProfile(s.user)
+      .then(cb)
+      .catch(() => cb(shape(s.user, {}, false)))
   })
   return () => data.subscription.unsubscribe()
 }
@@ -296,18 +325,47 @@ export async function fetchPublicProfile(userId) {
 }
 
 /* ======================== READ ======================== */
+const noticeShape = (n) => ({
+  id: `db-${n.id}`, sig: n.sig || null, key: n.song_key, type: n.kind, request_id: n.request_id,
+  title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
+  reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
+  read: !!n.read_at, own: true,
+})
+
 export async function fetchNotifications(uid) {
   if (!uid || !hasSupabase) return []
-  const { data, error } = await supabase.from('notifications')
-    .select('id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at')
-    .eq('user_id', uid).order('created_at', { ascending: false }).limit(60)
+  /* Cột `dismissed_at` có sau migration 20261108. Chưa chạy thì câu lọc đó
+     lỗi — hỏi lại không lọc, phần nhớ trên máy vẫn chặn tin đã xóa. */
+  const full = 'id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at, sig'
+  const legacy = 'id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at'
+  let q = supabase.from('notifications').select(full).eq('user_id', uid)
+    .is('dismissed_at', null).order('created_at', { ascending: false }).limit(60)
+  let { data, error } = await q
+  if (error) {
+    const again = await supabase.from('notifications').select(legacy).eq('user_id', uid)
+      .order('created_at', { ascending: false }).limit(60)
+    data = again.data
+    error = again.error
+  }
   if (error) return []
-  return (data || []).map(n => ({
-    id: `db-${n.id}`, key: n.song_key, type: n.kind, request_id: n.request_id,
-    title: n.title, artist: n.artist, url: n.url, pct: n.pct, votes: n.votes,
-    reason: n.reason, at: new Date(n.created_at).getTime() || Date.now(),
-    read: !!n.read_at, own: true,
-  }))
+  return (data || []).map(noticeShape)
+}
+
+/* Xóa tin trên chuông. Không mở quyền DELETE: một RPC chỉ được đặt
+   `dismissed_at` trên dòng của chính người đang đăng nhập. Thiếu hàm
+   (chưa chạy migration) thì im — bản nhớ local vẫn giữ tin đã xóa trên
+   máy này. */
+export async function dismissNotification({ id, sig } = {}) {
+  if (!hasSupabase) return
+  const db = /^db-(\d+)$/.exec(String(id || ''))
+  const payload = {}
+  if (db) payload.p_id = Number(db[1])
+  const clean = typeof sig === 'string' ? sig.trim() : ''
+  if (clean && clean.length <= 500) payload.p_sig = clean
+  else if (!db && typeof id === 'string' && id && id.length <= 500) payload.p_sig = id
+  if (payload.p_id == null && !payload.p_sig) return
+  const { error } = await supabase.rpc('dismiss_notification', payload)
+  if (error && !isMissingSchemaObject(error)) console.warn('[notif] dismiss:', error.message)
 }
 
 export async function adminExpireRequest(id) {
@@ -482,8 +540,11 @@ export async function addComment(requestId, userId, body, parentId = null) {
 
 export async function fetchRequests() {
   if (!hasSupabase) return demoRows()
-  const { data, error } = await supabase.from('requests').select('*')
-    .order('created_at', { ascending: false }).limit(800)
+  /* Lần nạp đầu của trang là thứ quyết định người dùng có thấy bảng hay
+     không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js). */
+  const { data, error } = await readQuery(() =>
+    supabase.from('requests').select('*')
+      .order('created_at', { ascending: false }).limit(800))
   if (!error) {
     cacheWrite(CACHE.rows, data)
     return data
@@ -505,7 +566,8 @@ export async function fetchMyVotes(uid) {
   }
   if (!uid) return new Map()
   if (!hasSupabase) return tally(readData(LS.votes, []).map(v => v.id))
-  const { data, error } = await supabase.from('votes').select('request_id').eq('user_id', uid)
+  const { data, error } = await readQuery(() =>
+    supabase.from('votes').select('request_id').eq('user_id', uid))
   if (!error) return tally(data.map(v => v.request_id))
   throw error
 }
@@ -533,7 +595,8 @@ export async function fetchVoteStatus() {
       ...splitCredits({ credits: (prof.vote_credits || 0) + (prof.bonus_credits || 0),
         purchased: prof.vote_credits || 0, bonus: prof.bonus_credits || 0 }) }
   }
-  const { data, error } = await supabase.rpc('my_vote_status')
+  /* Đọc thuần (`stable security definer`), không ghi gì — thử lại được. */
+  const { data, error } = await readQuery(() => supabase.rpc('my_vote_status'))
   if (error) throw error
   const r = Array.isArray(data) ? data[0] : data
   return { free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r) }
@@ -705,18 +768,43 @@ export async function performDailySpin(requestId, userId) {
   return validateSpinResult(data, userId, requestId)
 }
 
-/* Dấu ngày hoạt động cho streak (bảng activity_days — migration
-   20260921_activity_days.sql). Trả về MẢNG chuỗi 'YYYY-MM-DD', hoặc NULL khi
-   không đọc được: null và [] khác nhau có chủ ý — [] là "người này chưa có
-   ngày nào" (khối streak hiện trạng thái chưa bắt đầu), còn null là "chưa
-   chạy migration / lỗi mạng" (khối streak ẨN đi, không được nói dối rằng
-   người ta chưa hoạt động ngày nào). */
+/* Dấu ngày hoạt động cho streak (bảng activity_days). Trả về MẢNG chuỗi
+   'YYYY-MM-DD', hoặc NULL khi không đọc được: null và [] khác nhau có chủ ý —
+   [] là "người này chưa có ngày nào" (khối streak hiện trạng thái chưa bắt
+   đầu), còn null là "chưa chạy migration / lỗi mạng" (khối streak ẨN đi, không
+   được nói dối rằng người ta chưa hoạt động ngày nào). Đọc theo trang: một
+   tài khoản ghé mỗi ngày sẽ vượt trần 400 hàng cũ, và chuỗi dài nhất không
+   được mất phần đầu chỉ vì trang cắt bớt. */
 export async function fetchActivityDays(userId) {
   if (!hasSupabase) return demoActivityDays(userId)
-  const { data, error } = await supabase.from('activity_days').select('day')
-    .eq('user_id', userId).order('day', { ascending: false }).limit(400)
-  if (error) return null
-  return (data || []).map((r) => r.day).filter(Boolean)
+  const pageSize = 400
+  const days = []
+  for (let from = 0; from < pageSize * 10; from += pageSize) {
+    const { data, error } = await supabase.from('activity_days').select('day')
+      .eq('user_id', userId).order('day', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) return null
+    const rows = data || []
+    for (const row of rows) if (row?.day) days.push(row.day)
+    if (rows.length < pageSize) break
+  }
+  return days
+}
+
+/* Đóng dấu HÔM NAY (giờ Việt Nam) cho chính người đang đăng nhập. Hàm SQL
+   không nhận user id hay ngày: client không được tự khai một ngày cũ để kéo
+   chuỗi. Thiếu migration thì trả null — trang vẫn mở, chỉ chưa cộng được
+   ngày ghé cho đến khi SQL được chạy. */
+const ACTIVITY_DAY = /^\d{4}-\d{2}-\d{2}$/
+export async function touchMyActivity() {
+  if (!hasSupabase) return vnDayKey(Date.now())
+  const { data, error } = await supabase.rpc('touch_my_activity')
+  if (error) {
+    if (!isMissingSchemaObject(error)) console.warn('[streak] touch:', error.message)
+    return null
+  }
+  const day = typeof data === 'string' ? data.slice(0, 10) : ''
+  return ACTIVITY_DAY.test(day) ? day : null
 }
 
 /* Public profiles receive only aggregate streak data. Raw activity dates stay
@@ -764,7 +852,8 @@ export async function fetchRanking() {
      một `user_id` là một dòng. Bản cũ khoá theo `user_id::requester` nên người
      đổi tên hiển thị bị tách thành hai dòng — hai dòng cùng được tô "bạn". */
   if (!hasSupabase) return rankDemo(demoRows())
-  const { data, error } = await supabase.from('requester_ranking').select('*')
+  const { data, error } = await readQuery(() =>
+    supabase.from('requester_ranking').select('*'))
   if (!error) {
     cacheWrite(CACHE.ranking, data)
     return data
@@ -784,9 +873,10 @@ export async function fetchMedia() {
     return demoMedia().slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0)
       || new Date(b.created_at) - new Date(a.created_at))
   }
-  const { data, error } = await supabase.from('media').select('*')
-    .order('position', { ascending: true })
-    .order('created_at', { ascending: false })
+  const { data, error } = await readQuery(() =>
+    supabase.from('media').select('*')
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: false }))
   if (!error) {
     cacheWrite(CACHE.media, data)
     return data

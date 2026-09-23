@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
-  STREAK_MILESTONES, dayKeys, currentStreak, longestStreak, streakStats,
+  STREAK_MILESTONES, dayKeys, currentStreak, longestStreak, streakStats, unionActivityDays,
 } from './streak.js'
 
 const at = (p) => fileURLToPath(new URL(p, import.meta.url))
@@ -84,6 +84,14 @@ const MIG = 'supabase/migrations/20260921_activity_days.sql'
 const mig = readFileSync(at(`../../${MIG}`), 'utf8')
 const schema = readFileSync(at('../../supabase/schema.sql'), 'utf8')
 
+test('ngày server vừa đóng dấu được ghép vào, nhưng nguồn chưa đọc thì không bịa danh sách', () => {
+  assert.equal(unionActivityDays(null, '2025-09-22'), null)
+  assert.deepEqual(unionActivityDays(['2025-09-21'], '2025-09-22'), ['2025-09-22', '2025-09-21'])
+  assert.deepEqual(unionActivityDays(['2025-09-22'], '2025-09-22'), ['2025-09-22'], 'không nhân đôi cùng một ngày')
+  assert.deepEqual(unionActivityDays(['2025-09-21'], '2025-09-22T00:00:00Z'), ['2025-09-21'], 'ngày client tự chế không được nhận')
+  assert.equal(currentStreak(unionActivityDays(seq('2025-09-15', 7), '2025-09-22'), NOW), 8)
+})
+
 test('migration tồn tại và schema.sql hợp nhất NGUYÊN VĂN (bài học hụt file 20261104)', () => {
   for (const frag of [
     'create table if not exists public.activity_days',
@@ -104,4 +112,30 @@ test('db.js: lỗi đọc activity_days trả NULL (ẩn dải), không phải m
   const fn = src.slice(src.indexOf('export async function fetchActivityDays'))
   assert.match(fn.slice(0, fn.indexOf('\n}')), /if \(error\) return null/)
   assert.match(fn, /demoActivityDays/, 'chế độ demo phải có bản gương của trigger')
+  assert.match(fn, /\.range\(from, from \+ pageSize - 1\)/, 'không cắt mất chuỗi dài ở trần 400 hàng')
+})
+
+test('ngày ghé do server đóng, client không được gửi ngày hay user id', () => {
+  const visit = readFileSync(at('../../supabase/migrations/20261109_activity_visit.sql'), 'utf8')
+  const schema = readFileSync(at('../../supabase/schema.sql'), 'utf8')
+  assert.ok(schema.includes(visit), 'schema.sql phải chứa nguyên văn migration ngày ghé')
+  assert.match(visit, /create or replace function public\.touch_my_activity\(\)/)
+  assert.match(visit, /v_uid uuid := auth\.uid\(\)/)
+  assert.match(visit, /at time zone 'Asia\/Ho_Chi_Minh'/)
+  assert.match(visit, /revoke all on function public\.touch_my_activity\(\) from public, anon/)
+  assert.match(visit, /grant execute on function public\.touch_my_activity\(\) to authenticated/)
+  assert.doesNotMatch(visit, /touch_my_activity\([^)]+\)/)
+  assert.match(visit, /from public\.requests/)
+  assert.match(visit, /from public\.votes/)
+  assert.match(visit, /from public\.request_comments/)
+  assert.match(visit, /from public\.daily_spins/)
+  assert.match(visit, /exists \(select 1 from auth\.users/)
+  const db = readFileSync(at('./db.js'), 'utf8')
+  const fn = db.slice(db.indexOf('export async function touchMyActivity'))
+  const body = fn.slice(0, fn.indexOf('\nexport '))
+  assert.match(body, /rpc\('touch_my_activity'\)/)
+  assert.doesNotMatch(body, /rpc\('touch_my_activity',\s*\{/)
+  const app = readFileSync(at('../App.jsx'), 'utf8')
+  assert.match(app, /touchMyActivity\(/)
+  assert.doesNotMatch(app, /ccl\.streak\./)
 })

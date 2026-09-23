@@ -9,8 +9,8 @@ import { STREAK_MILESTONES, streakStats } from '../lib/streak.js'
    Dùng ở HAI nơi (chủ dự án chốt): khối "About me" của chính người xem và
    trang cá nhân công khai — cột mốc là thứ để cộng đồng NHÌN THẤY nhau,
    giống bảng xếp hạng. Luật đếm nằm ở `src/lib/streak.js`, nguồn dấu ngày
-   nằm ở bảng `activity_days` (trigger in tự động khi gửi request · vote ·
-   bình luận · quay spin, theo lịch Việt Nam).
+   nằm ở bảng `activity_days`: một ngày lịch Việt Nam khi mở trang lúc đã
+   đăng nhập, hoặc khi gửi request · vote · bình luận · quay spin.
 
    `days === null` nghĩa là "không đọc được nguồn" (project chưa chạy
    migration, lỗi mạng) — khối TỰ ẨN. Khác với mảng rỗng: mảng rỗng là sự

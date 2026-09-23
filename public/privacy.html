@@ -71,10 +71,12 @@
   <p>We also store what you create: requests, votes, comments and replies, vote orders with
      their payment status, achievement claims, and Daily Spin records (account, time, request ID,
      reward and hashed browser, fingerprint and IP identifiers).</p>
-  <p>The site also records one activity date per account for each request, vote, comment or spin.
-     Raw activity dates are account-scoped; public profiles expose only aggregate current/longest
-     streaks and unlocked streak milestones. Activity dates are used for streaks and achievements,
-     not for advertising or cross-site tracking.</p>
+  <p>The site also records one activity date per account for each signed-in visit, request, vote,
+     comment or spin. A visit is the Vietnam calendar day you open the site while signed in; the
+     time of day is not stored, and a past day cannot be submitted by the browser. Raw activity
+     dates are account-scoped; public profiles expose only aggregate current/longest streaks and
+     unlocked streak milestones. Activity dates are used for streaks and achievements, not for
+     advertising or cross-site tracking.</p>
 
   <div class="box">
     <p><strong>We do not collect:</strong> passwords, contacts, mailbox contents, Drive files,

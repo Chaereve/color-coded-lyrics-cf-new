@@ -420,6 +420,37 @@ export function stageCounts(rows) {
    ra ngay mà không gọi được tên. */
 export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
 
+/* Hai thẻ "This week". Cửa sổ là 7 ngày lăn, không phải tuần lịch.
+   Chỉ bài công khai (không pending, không denied) — hàng chờ duyệt không
+   được hiện thành "nổi bật" khi bảng còn giấu nó.
+   "Most voted" phải có ÍT NHẤT một phiếu. Bài mới chưa ai vote không được
+   đội nhãn đó chỉ vì nó là hàng duy nhất trong cửa sổ. Hai thẻ không được
+   cùng một bài: nếu bài nhiều phiếu nhất cũng là bài mới nhất, thẻ kia lấy
+   bài mới kế tiếp, hoặc ẩn nếu không còn bài nào khác. */
+const WEEK_MS = 7 * 86400000
+export function weeklyHighlights(rows, now = Date.now()) {
+  const since = now - WEEK_MS
+  const recent = real(rows).filter((r) => {
+    if (r.status === 'pending' || r.status === 'denied') return false
+    return ts(r.created_at) >= since
+  })
+  const byVotes = [...groupRows(recent)].sort((a, b) => b.votes - a.votes || b.newest - a.newest)
+  const byNew = [...groupRows(recent)].sort((a, b) => b.newest - a.newest || b.votes - a.votes)
+  const topGroup = byVotes.find((g) => g.votes > 0) || null
+  const newGroup = byNew.find((g) => !topGroup || g.key !== topGroup.key) || null
+  const card = (g) => {
+    if (!g) return null
+    const newest = [...g.rows].sort((a, b) => ts(b.created_at) - ts(a.created_at))[0]
+    return {
+      title: g.title,
+      artist: g.artist,
+      votes: g.votes,
+      requester: newest?.requester || '',
+    }
+  }
+  return { top: card(topGroup), newcomer: card(newGroup) }
+}
+
 /* DÂY CHUYỀN đã chốt, bài đang chạy lên trước rồi tới ngày chốt — nguồn của
    khối Up next VÀ của hai tab "Up next"/"In progress". Cùng một tập thì badge,
    nắp khối và danh sách không thể lệch nhau (xem boardSync.test.js). */

@@ -10,7 +10,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  clearInbox, diffNotices, dropNotice, etaKey, markAllRead, markRead,
+  clearInbox, diffNotices, dropNotice, etaKey, isDismissed, markAllRead, markRead, mergeInbox, noticeDbId,
   ownNotices, otherNotices, pickEta, pickLadder, pushNotices, rowEvents, snapOf,
   groupNotices, syncOwnRequests, toastOf, toggleWatched, unreadCount, watchedKeys,
   DEFAULT_PREFS, ETA_DEFAULT_INTERVAL, ETA_MAX_RANK, INBOX_LIMIT, NEAR_GAP, WATCH_LIMIT,
@@ -267,6 +267,24 @@ test('hộp thư: mới nhất trước, unread đếm đúng, đọc/xoá/rỗn
   assert.deepEqual(clearInbox(), [])
   assert.deepEqual(ownNotices(box).map(n => n.id), ['x3|approved'])
   assert.deepEqual(otherNotices(box).map(n => n.id), ['x2|picked'])
+})
+
+test('xóa tin rồi gộp lại từ database không làm nó sống lại', () => {
+  const sig = 'aespa\nwhiplash|done:https://youtu.be/x'
+  const dismissed = new Set(['db-9', sig])
+  const local = [{ id: 'keep|picked:queued:1', type: 'picked' }]
+  const remote = [
+    { id: 'db-9', sig, type: 'done' },
+    { id: 'db-10', sig: 'keep|picked:queued:1', type: 'picked' },
+    { id: 'db-11', sig: 'new|started:in_progress', type: 'started' },
+  ]
+  const merged = mergeInbox(local, remote, dismissed)
+  assert.deepEqual(merged.map(n => n.id), ['db-11', 'keep|picked:queued:1'])
+  assert.equal(isDismissed(dismissed, { id: 'db-9', sig }), true)
+  assert.equal(isDismissed(dismissed, { id: sig }), true, 'tin local dùng id làm chữ ký')
+  assert.equal(noticeDbId('db-12'), 12)
+  assert.equal(noticeDbId('db-'), null)
+  assert.equal(noticeDbId(sig), null)
 })
 
 test('hộp thư cắt theo INBOX_LIMIT, không phình vô hạn', () => {

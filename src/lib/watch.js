@@ -345,6 +345,82 @@ export function markAllRead(inbox) { return (inbox || []).map(n => (n.read ? n :
 export function dropNotice(inbox, id) { return (inbox || []).filter(n => n.id !== id) }
 export const clearInbox = () => []
 
+/* ---------- tin đã xóa ----------
+   Xóa trên chuông mà chỉ lọc mảng trong bộ nhớ thì lần vào sau tin sống lại:
+   `fetchNotifications` kéo lại mọi dòng trong bảng `notifications` rồi gộp
+   vào hộp thư những id chưa có. Id của tin database (`db-12`) không nằm trong
+   hộp thư vừa xóa, nên nó bị coi là tin mới.
+
+   Danh sách này là bản nhớ trên máy, kiểm trước khi gộp. Bản bền (đổi máy,
+   xóa localStorage) là cột `dismissed_at`, ghi bằng RPC — xem db.js. */
+export const DISMISS_LIMIT = 400
+const K_DROP = (uid) => `ccl3_ndrop:${uid || 'anon'}`
+
+export function loadDismissed(uid) {
+  const v = rd(K_DROP(uid), [])
+  return new Set(Array.isArray(v) ? v.filter(x => typeof x === 'string' && x) : [])
+}
+
+export function rememberDismissed(uid, ids) {
+  const prev = rd(K_DROP(uid), [])
+  const list = Array.isArray(prev) ? prev.filter(x => typeof x === 'string' && x) : []
+  for (const id of [].concat(ids)) {
+    if (typeof id !== 'string' || !id) continue
+    const at = list.indexOf(id)
+    if (at >= 0) list.splice(at, 1)
+    list.push(id)
+  }
+  const kept = list.slice(-DISMISS_LIMIT)
+  wr(K_DROP(uid), kept)
+  return new Set(kept)
+}
+
+/* `db-12` là id hộp thư của một dòng database. Id local (`bài|loại:…`) không
+   phải số, đừng gửi nó vào tham số p_id. */
+export function noticeDbId(id) {
+  const m = /^db-(\d+)$/.exec(String(id || ''))
+  if (!m) return null
+  const n = Number(m[1])
+  return Number.isSafeInteger(n) ? n : null
+}
+
+export function isDismissed(dismissed, notice) {
+  if (!notice) return false
+  const set = dismissed instanceof Set ? dismissed : new Set(dismissed || [])
+  if (notice.id && set.has(notice.id)) return true
+  if (notice.sig && set.has(notice.sig)) return true
+  /* Tin local dùng chính id làm chữ ký (`bài|done:url`). Tin database mang
+     chữ ký đó ở `sig` — xóa một bên phải chặn được bên kia. */
+  if (notice.id && set.has(notice.sig)) return true
+  return false
+}
+
+export function withoutDismissed(list, dismissed) {
+  return (list || []).filter(n => n && !isDismissed(dismissed, n))
+}
+
+/* Gộp hộp thư local với hộp thư database. Tin đã xóa không được quay lại,
+   tin trùng chữ ký không được hiện hai lần. */
+export function mergeInbox(local, remote, dismissed) {
+  const base = withoutDismissed(local, dismissed)
+  const seen = new Set()
+  for (const n of base) {
+    if (n.id) seen.add(n.id)
+    if (n.sig) seen.add(n.sig)
+  }
+  const fresh = []
+  for (const n of remote || []) {
+    if (!n || isDismissed(dismissed, n)) continue
+    /* Chữ ký database trùng id của tin local đã có — đừng hiện hai dòng cho
+       cùng một sự kiện. `seen` đã chứa id local, nên so sig với seen là đủ. */
+    if ((n.id && seen.has(n.id)) || (n.sig && seen.has(n.sig))) continue
+    if (n.id) seen.add(n.id)
+    if (n.sig) seen.add(n.sig)
+    fresh.push(n)
+  }
+  return [...fresh, ...base].slice(0, INBOX_LIMIT)
+}
+
 /* Hộp thông báo (pop-up, không có trang riêng) dựng hai khối từ cùng một hộp thư */
 export const ownNotices = (inbox) => (inbox || []).filter(n => n.own)
 export function loadOff(uid) { const v = rd(K_OFF(uid), []); return Array.isArray(v) ? v : [] }

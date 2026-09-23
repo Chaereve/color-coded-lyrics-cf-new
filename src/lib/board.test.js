@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { allTermsIn, boardItems, chainRows, creditText, filterBoard, findDuplicate, fold, groupIds,
   groupKey, groupRows, parseRequestPrefill, pickBoardParam, searchHit, searchTerms, sortGroups,
-  sortRows, splitSong, STAGES, voteTotals } from './board.js'
+  sortRows, splitSong, STAGES, voteTotals, weeklyHighlights } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -515,6 +515,34 @@ test('tách tiêu đề video: tên bài trong nháy, dấu gạch nối, và nh
     'dấu gạch nối ĐẦU TIÊN mới là chỗ tách — phần còn lại là tên bài')
   /* Nhãn nằm GIỮA câu là một phần thật của tên bài, không phải nhãn quảng cáo. */
   assert.deepEqual(splitSong('IU - Love wins all (feat. someone)'), { artist: 'IU', title: 'Love wins all (feat. someone)' })
+})
+
+test('This week: 0 phiếu không phải Most voted, và không lặp cùng một bài', () => {
+  const at = (ago) => new Date(Date.now() - ago).toISOString()
+  const only = weeklyHighlights([
+    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
+  ])
+  assert.equal(only.top, null, 'chưa ai vote thì không được gắn nhãn most voted')
+  assert.equal(only.newcomer?.title, 'Sour Grapes')
+  assert.equal(only.newcomer?.requester, 'Isabelle')
+
+  const same = weeklyHighlights([
+    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 4, created_at: at(3600_000) },
+    { artist: 'Niziu', title: 'sour grapes', requester: 'Mina', status: 'queued', votes: 1, created_at: at(7200_000) },
+  ])
+  assert.equal(same.top?.votes, 5, 'hai request cùng bài trong tuần phải cộng phiếu')
+  assert.equal(same.newcomer, null, 'không hiện bài đó lần nữa ở thẻ New')
+
+  const split = weeklyHighlights([
+    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
+    { artist: 'IVE', title: 'Accendio', requester: 'fan', status: 'queued', votes: 2, created_at: at(2 * 86400000) },
+    { artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 9, created_at: at(1000) },
+    { artist: 'TWICE', title: 'Old', requester: 'fan', status: 'queued', votes: 40, created_at: at(8 * 86400000) },
+  ])
+  assert.equal(split.top?.title, 'Accendio')
+  assert.equal(split.top?.votes, 2)
+  assert.equal(split.newcomer?.title, 'Sour Grapes')
+  assert.equal(split.newcomer?.requester, 'Isabelle')
 })
 
 test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {

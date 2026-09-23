@@ -303,6 +303,13 @@ const S = {
   'board.search': 'Title or artist',
   'board.empty': 'Nothing here yet.',
   'board.emptyHint': 'Try another filter, or send the first request.',
+  /* Ba trạng thái của lần nạp đầu — trước đây cả ba hiện đúng một câu trên,
+     nên "chưa tải được" bị đọc thành "chưa ai gửi bài" và người dùng phải tự
+     bấm F5. Câu lỗi phải nói rõ còn nước để sửa, và có nút ngay bên dưới. */
+  'board.loading': 'Loading requests…',
+  'board.loadErr': 'Could not load the board',
+  'board.loadErrHint': 'The connection dropped on the way. Press the button to try again — it retries on its own too, so there is no need to reload the page.',
+  'board.retry': 'Try again',
   'board.filterAria': 'Filter requests',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
@@ -367,10 +374,10 @@ const S = {
      Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
      ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
   'streak.label': 'Activity streak',
-  'streak.how': 'A day counts when you send a request, vote, comment or use the daily spin (Vietnam time)',
+  'streak.how': 'A day counts when you open the site while signed in, or when you send a request, vote, comment or use the daily spin (Vietnam time)',
   'streak.current': '{n}-day streak',
   'streak.longest': 'longest {n}',
-  'streak.none': 'No active day yet — vote, comment, spin or send a request to start a streak',
+  'streak.none': 'No active day yet — open the site while signed in to start a streak',
   'streak.unlocked': 'Unlocked: {n}-day streak',
   'streak.locked': 'Reach a {n}-day streak to unlock',
   'streak.headerTitle': '{n}-day activity streak',

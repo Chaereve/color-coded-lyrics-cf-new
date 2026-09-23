@@ -9,7 +9,8 @@ import StreakStrip from './components/StreakStrip'
 import ShareCardButton from './components/ShareCardButton'
 import AchievementIndex from './components/AchievementIndex'
 import VideoPreviewModal from './components/VideoPreviewModal'
-import { streakStats, STREAK_MILESTONES } from './lib/streak.js'
+import { streakStats, STREAK_MILESTONES, unionActivityDays } from './lib/streak.js'
+import { vnDayKey } from './lib/season.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
@@ -38,21 +39,22 @@ import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts } from './lib/board'
+import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import { copyText } from './lib/clipboard'
 import {
-  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, loadInbox, loadPrefs, loadWatched,
-  loadOff, markAllRead, markRead, pickLadder, pushNotices, saveInbox, saveOff, savePrefs, saveWatched,
-  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys,
+  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
+  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, saveOff, savePrefs, saveWatched,
+  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
 import { parseYoutube } from './lib/youtube'
+import { safeHttpUrl } from './lib/safeUrl'
 import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, fetchNotifications, adminExpireRequest, fetchCommentCounts,
+  fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -71,6 +73,12 @@ const SPLASH_MAX_MS = 2600
 
 const PER_PAGE = 20
 const PER_PAGE_ORDERS = 10
+
+/* Nhịp tự nạp lại khi lần nạp đầu hỏng: đợi 8 giây cho ván mạng kịp ổn, và
+   chỉ ba lượt — đủ để qua một cơn chập chờn, không đủ thành tiếng gõ cửa liên
+   tục vào một máy chủ đang hỏng thật. */
+const AUTO_RETRY_MS = 8000
+const AUTO_RETRY_MAX = 3
 
 /* khối Up next hiện tối đa bao nhiêu request, còn lại nằm sau nút "View all" */
 const NOW_SHOW = 2
@@ -105,27 +113,6 @@ const readProfileId = () => {
 
 const SIDE_KEY = 'ccl.side'
 const readSide = () => { try { return localStorage.getItem(SIDE_KEY) === 'min' } catch { return false } }
-
-const dayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
-const readStreak = (uid) => {
-  if (!uid) return { days: 0, today: false }
-  try {
-    const raw = JSON.parse(localStorage.getItem(`ccl.streak.${uid}`) || '{}')
-    const today = dayKey()
-    if (raw.last === today) return { days: Number(raw.days) || 1, today: true }
-    const yesterday = new Date(`${today}T12:00:00+07:00`)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const prev = yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
-    return { days: raw.last === prev ? Number(raw.days) || 0 : 0, today: false }
-  } catch { return { days: 0, today: false } }
-}
-const touchStreak = (uid) => {
-  if (!uid) return { days: 0, today: false }
-  const current = readStreak(uid)
-  const next = current.today ? current.days : { days: current.days + 1, today: true }.days
-  try { localStorage.setItem(`ccl.streak.${uid}`, JSON.stringify({ days: next, last: dayKey() })) } catch { /* storage blocked */ }
-  return { days: next, today: true }
-}
 
 const BOARD_KEY = 'ccl.board'
 const readSavedBoard = () => {
@@ -185,6 +172,56 @@ function Num({ v }) {
   return <b key={v} className="tick">{n}</b>
 }
 
+/* =========================================================
+   "KHÔNG LOAD DỮ LIỆU" LÀ BA CHUYỆN KHÁC NHAU — VÀ TỪNG BỊ
+   HIỆN BẰNG ĐÚNG MỘT CÂU
+   ---------------------------------------------------------
+   Ba trạng thái của lần nạp đầu từng rơi vào cùng một khối
+   chữ "Nothing here yet. Try another filter…". Người dùng
+   không có cách nào biết mình đang gặp cái nào:
+
+     · đang tải   — đợi thêm một nhịp là có (trước đây: tưởng
+                    xong rồi, và kết luận là web trống);
+     · lỗi        — CÓ CÁCH SỬA, và sửa được ngay tại chỗ bằng
+                    nút bấm (trước đây: không nút, không chữ,
+                    đường duy nhất là đoán ra việc bấm F5);
+     · trống thật — không có gì để sửa, và câu cũ nói đúng.
+
+   Hiện đúng trạng thái là xong được hai phần ba cái lỗi mà
+   người dùng phải tự giải quyết bằng F5.
+   ========================================================= */
+
+/* Đang tải: hàng xương giữ đúng chỗ của danh sách — người dùng thấy "dữ liệu
+   đang tới" thay vì một bảng trống, và khối không nhảy lên khi dữ liệu về. */
+function ListSkeleton({ n = 4, label }) {
+  return (
+    <div className="sklist" role="status" aria-label={label}>
+      {Array.from({ length: n }, (_, i) => (
+        <div className="skrow" key={i} style={{ '--i': i }} aria-hidden="true">
+          <span className="sk sk-l1" />
+          <span className="sk sk-l2" />
+          <span className="sk sk-vote" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* Lỗi: nói thẳng là không tải được (không phải "chưa có bài"), và cho nút. */
+function LoadErr({ onRetry }) {
+  const { t } = useI18n()
+  return (
+    <div className="empty load-err" role="alert">
+      <span className="empty-ico" aria-hidden="true"><Icon name="warn" size={18} /></span>
+      <b>{t('board.loadErr')}</b>
+      <small>{t('board.loadErrHint')}</small>
+      <div className="empty-acts">
+        <button type="button" className="btn btn-sm btn-primary" onClick={onRetry}>{t('board.retry')}</button>
+      </div>
+    </div>
+  )
+}
+
 /* Ô thống kê: `why` là định nghĩa của con số, dán vào `title` — người đọc tự
    đối chiếu được "In progress" ở đây nghĩa là gì (dây chuyền đã chốt) thay vì
    đoán theo nhãn. Con số không có định nghĩa là con số người ta không tin. */
@@ -237,6 +274,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
      picked_at vừa không hiện ở tab nào, vừa vẫn nhận vote. */
   const locked = inChain(r)
   const votable = canVote && !locked
+  const watchUrl = safeHttpUrl(r.video_url)
 
   const [pulse, setPulse] = useState(0)
   const seen = useRef(r.votes)
@@ -287,7 +325,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             mang chấm trạng thái rồi một vạch rời nằm dưới. Khối Up next in
             đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
-        {r.video_url && <a className="watch" href={r.video_url} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
+        {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
         <Comments requestId={r.id} user={user} onLogin={onLogin} initialCount={commentCount} onCountChange={onCommentCountChange ? (n) => onCommentCountChange(r.id, n) : undefined} />
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
@@ -386,7 +424,6 @@ function AppInner() {
      giá trị không ai đọc. */
   const readyRef = useRef(false)
   const [user, setUser] = useState(null)
-  const [streak, setStreak] = useState({ days: 0, today: false })
   const [authPrompt, setAuthPrompt] = useState(false)
   const currentUserId = useRef(null)
   // Public browsing uses a stable, non-account identity only for presentational props.
@@ -394,6 +431,24 @@ function AppInner() {
   useLayoutEffect(() => { currentUserId.current = user?.id }, [user?.id])
 
   const [rows, setRows] = useState([])
+  /* TRẠNG THÁI CỦA LẦN NẠP ĐẦU — thứ từng bị thiếu, và chính cái thiếu đó là
+     lỗi "vào web không thấy dữ liệu":
+       · 'loading' — chưa có câu trả lời nào. Bảng phải nói "đang tải", không
+         được nói "Nothing here yet." (câu đó là nói DỐI: chưa ai hỏi xong);
+       · 'ready'   — đã có ít nhất một lần nạp thành công;
+       · 'error'   — đã thử (có thử lại) mà vẫn hỏng → hiện khối lỗi CÓ NÚT.
+     Không có trạng thái này thì một lần nạp hỏng và một bảng thật sự trống
+     hiện ĐÚNG MỘT THỨ trên màn hình, và người dùng được giao việc đoán xem
+     mình đang gặp cái nào. */
+  const [boardState, setBoardState] = useState('loading')
+  /* Ghi nhận kết quả của MỘT lần nạp. Luật khoan dung ở đây là thứ giữ bảng
+     không bị xoá: lỗi CHỈ được ghi khi chưa có lần nạp nào thành công.
+     Lúc mở trang có hai đường chạy song nhau (nạp công khai, rồi nạp theo tài
+     khoản khi biết mình là ai); một đường hỏng mà đường kia đã xong thì bảng
+     vẫn đứng — chứ không bị tắt đi rồi chờ người dùng bấm F5. */
+  const noteBoard = useCallback((ok) => {
+    setBoardState(s => (ok || s !== 'ready' ? (ok ? 'ready' : 'error') : s))
+  }, [])
   const [myVotes, setMyVotes] = useState(new Map())
   const [voteStatus, setVoteStatus] = useState({
     free_used: 0, free_limit: FREE_VOTES_PER_DAY, credits: 0, purchased: 0, bonus: 0,
@@ -412,8 +467,19 @@ function AppInner() {
   }, [])
   const [ranking, setRanking] = useState([])
   /* Dấu ngày hoạt động của chính người xem (streak). null = chưa đọc được
-     nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip. */
+     nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip.
+     `visitStamp` là ngày server vừa đóng cho lần ghé này. Ghép vào danh sách
+     đã đọc để một lần nạp bắt đầu trước khi dấu được ghi không nuốt mất hôm nay. */
   const [myActivity, setMyActivity] = useState(null)
+  const [visitStamp, setVisitStamp] = useState(null)
+  /* Đổi tài khoản thì xoá dấu của người vừa rồi ngay trong lần render này,
+     trước khi vẽ — ngọn lửa không được kịp hiện chuỗi của tài khoản cũ. */
+  const [activityUserId, setActivityUserId] = useState(user?.id)
+  if (user?.id !== activityUserId) {
+    setActivityUserId(user?.id)
+    setMyActivity(null)
+    setVisitStamp(null)
+  }
   const [orders, setOrders] = useState([])
   const [media, setMedia] = useState([])
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
@@ -424,6 +490,12 @@ function AppInner() {
      một bài bị nhiều người gửi lẻ vẫn chỉ có một mục theo dõi. */
   const [watched, setWatched] = useState([])
   const [notices, setNotices] = useState([])
+  /* uid đã nạp xong hộp thư. Không có cờ này thì effect lưu chạy trên mảng
+     rỗng của khung hình đầu (user vừa có, notices chưa đọc từ localStorage)
+     và XÓA hộp thư — kể cả những tin người dùng đã xóa, lẫn những tin còn
+     giữ. Lần vào sau chỉ còn tin database kéo lại. */
+  const [inboxUid, setInboxUid] = useState(null)
+  const dismissedRef = useRef(new Set())
   const [prefs, setPrefs] = useState(DEFAULT_PREFS)
   const [hlSong, setHlSong] = useState(null)
   /* Hộp thông báo mở tại chỗ dưới chuông. Một dòng tin BẤM LÀ NHẢY tới hàng
@@ -797,8 +869,55 @@ function AppInner() {
     const floor = setTimeout(() => { if (readyRef.current) setBooting(false) }, SPLASH_MS)
     return () => { clearTimeout(cap); clearTimeout(floor) }
   }, [booting])
-  useEffect(() => { getUser().then(u => { setUser(u); readyRef.current = true }); return onAuthChange(setUser) }, [])
-  useEffect(() => { setStreak(user ? touchStreak(user.id) : { days: 0, today: false }) }, [user?.id])
+
+  /* BẮT ĐẦU BẰNG VIỆC BIẾT MÌNH LÀ AI — và không để một lỗi ở đây cầm chân
+     cả trang. Bản cũ viết `getUser().then(u => { setUser(u); readyRef.current
+     = true })`: `getUser` mà hỏng (mạng, token hết hạn không refresh được) thì
+     `.then` KHÔNG BAO GIỜ chạy — `readyRef` kẹt ở false, màn chờ phải đợi hết
+     trần 2,6s mới chịu mở, và `setUser` không chạy nên người dùng đang đăng
+     nhập bị xem như khách. Nay lỗi được ghi lại và `readyRef` vẫn được bật
+     trong `finally`, nên màn chờ mở đúng lúc dữ liệu xong thay vì đúng lúc
+     đồng hồ hết giờ. */
+  useEffect(() => {
+    let live = true
+    getUser()
+      .then(u => { if (live) setUser(u) })
+      .catch(e => console.warn('[auth] getUser:', e?.message || e))
+      .finally(() => { readyRef.current = true })
+    const off = onAuthChange(u => { if (live) setUser(u) })
+    return () => { live = false; off() }
+  }, [])
+  /* Chuỗi ngày theo TÀI KHOẢN, không theo trình duyệt. Bộ đếm cũ trong
+     localStorage lệch máy, lệch múi giờ, và không phải số mà trang cá nhân
+     hay thành tích đang dùng. Server tự lấy ngày Việt Nam; client không gửi
+     ngày. Tab để qua nửa đêm thì lần hiện lại mới đóng dấu. */
+  useEffect(() => {
+    if (!user?.id) return
+    const uid = user.id
+    let live = true
+    let pending = false
+    let stampedDay = null
+    const stampVisit = async () => {
+      if (pending || (stampedDay && stampedDay === vnDayKey(Date.now()))) return
+      pending = true
+      try {
+        const day = await touchMyActivity()
+        if (!live || !day) return
+        const fresh = day !== stampedDay
+        stampedDay = day
+        setVisitStamp({ uid, day })
+        if (!fresh) return
+        try {
+          const ach = await claimAchievements()
+          if (live && ach) setVoteStatus(prev => ({ ...prev, ...ach }))
+        } catch (e) { console.warn('[streak] claim:', e?.message || e) }
+      } finally { pending = false }
+    }
+    stampVisit()
+    const onVisible = () => { if (document.visibilityState === 'visible') stampVisit() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { live = false; document.removeEventListener('visibilitychange', onVisible) }
+  }, [user?.id])
 
   const loadMedia = useCallback(async () => {
     try { setMedia(await fetchMedia()) } catch { /* ignore */ }
@@ -856,6 +975,9 @@ function AppInner() {
     ])
     if (u.id !== currentUserId.current) return results
     const [r, v, vs, ach, rk, od, , , act, cc] = results
+    /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
+       để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
+    noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
@@ -872,7 +994,7 @@ function AppInner() {
     if (act.status === 'fulfilled') setMyActivity(act.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
-  }, [user, loadMedia, loadPick])
+  }, [user, loadMedia, loadPick, noteBoard])
 
   /* Realtime chỉ tải lại đúng phần đổi: một lượt vote chạm bảng requests
      thì không cần lôi cả media + đơn hàng về theo. */
@@ -887,6 +1009,7 @@ function AppInner() {
     ])
     if (u.id !== currentUserId.current) return results
     const [r, v, vs, ach, rk, act, cc] = results
+    noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
@@ -901,7 +1024,7 @@ function AppInner() {
     if (act.status === 'fulfilled') setMyActivity(act.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
-  }, [user])
+  }, [user, noteBoard])
 
   const loadOrdersOnly = useCallback(async (u = user) => {
     if (!u) return
@@ -912,14 +1035,74 @@ function AppInner() {
 
   // The board, ranking and showcase are intentionally readable before sign-in.
   // Account-scoped data is still loaded only after authentication.
+  /* Tách thành hàm có tên (thay vì thân effect) để nó gọi lại được: nút
+     "Thử lại" và hai sự kiện bên dưới cùng dùng một đường nạp này. */
+  const loadPublic = useCallback(async () => {
+    const [r, rk, cc] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts()])
+    noteBoard(r.status === 'fulfilled')
+    if (r.status === 'fulfilled') setRows(r.value)
+    if (rk.status === 'fulfilled') setRanking(rk.value)
+    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
+    return { r, rk, cc }
+  }, [noteBoard])
+
+  useEffect(() => { if (!user) loadPublic() }, [user, loadPublic])
+
+  /* NÚT "THỬ LẠI" VÀ MỌI LỐI TỰ PHỤC HỒI ĐỀU ĐI QUA ĐÂY: đúng đường nạp của
+     người đang xem (có tài khoản thì cả bảng lẫn dữ liệu riêng, khách thì ba
+     mục công khai), nên một lần bấm trả lại đúng những gì đang thiếu. */
+  const reloadBoard = useCallback(() => (user ? load(user) : loadPublic()), [user, load, loadPublic])
+
+  /* TỰ NẠP LẠI ĐỂ KHỎI PHẢI BẤM F5 — đúng cái việc người dùng đang phải làm
+     tay, và là hai cửa sổ hay gặp nhất:
+       · thiết bị vừa có lại mạng (sự kiện `online`);
+       · quay lại tab đang mở từ lúc mất mạng (`visibilitychange`) — đúng trường
+         hợp "đi ra ngoài một lúc, về bấm vào tab thì thấy trang trống".
+     Lúc ĐANG TẢI mà rời tab cũng phải nạp lại: điện thoại đóng băng request
+     đang bay, quay lại thì nó không bao giờ trả lời, và không có lỗi nào để
+     khối "thử lại" bám vào. Hai sự kiện này do người dùng tạo ra nên không
+     bị giới hạn số lần. */
   useEffect(() => {
-    if (user) return
-    Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts()]).then(([r, rk, cc]) => {
-      if (r.status === 'fulfilled') setRows(r.value)
-      if (rk.status === 'fulfilled') setRanking(rk.value)
-      if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
-    })
-  }, [user])
+    if (boardState === 'ready') return
+    const retry = () => { if (!document.hidden) reloadBoard() }
+    window.addEventListener('online', retry)
+    document.addEventListener('visibilitychange', retry)
+    /* bfcache (nút Back, hoặc iOS khôi phục tab): trang được dựng lại từ bộ
+       nhớ với request cũ đã chết. `persisted` là dấu hiệu đó — nạp lại, đừng
+       để người dùng phải tự bấm F5. */
+    const onShow = (e) => { if (e.persisted) reloadBoard() }
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      window.removeEventListener('online', retry)
+      document.removeEventListener('visibilitychange', retry)
+      window.removeEventListener('pageshow', onShow)
+    }
+  }, [boardState, reloadBoard])
+
+  /* Còn một cửa sổ nữa: mạng không đổi trạng thái gì cả. Thử lại sau 8 giây,
+     NHƯNG TỐI ĐA BA LẦN — lặp vô hạn thì máy chủ hỏng thật sẽ bị gõ liên tục
+     vô ích. Mỗi lần thử đổi `autoTries` nên effect này tự hẹn nhịp kế tiếp;
+     nạp được rồi thì bộ đếm về 0 để lần sau lại có đủ ba lượt. */
+  /* Trần cho trạng thái "đang tải": request bị cắt giờ ở 7s × 3 lần, nên quá
+     24s mà vẫn chưa có câu trả lời là nó đã treo theo một đường khác. Đổi sang
+     lỗi để nút "Thử lại" hiện ra — đứng im ở hàng xương thì người dùng lại
+     phải đoán ra việc bấm F5. */
+  useEffect(() => {
+    if (boardState !== 'loading') return
+    const t = setTimeout(() => setBoardState(s => (s === 'loading' ? 'error' : s)), 24000)
+    return () => clearTimeout(t)
+  }, [boardState])
+
+  const [autoTries, setAutoTries] = useState(0)
+  useEffect(() => { if (boardState === 'ready') setAutoTries(0) }, [boardState])
+  useEffect(() => {
+    if (boardState !== 'error' || autoTries >= AUTO_RETRY_MAX) return
+    const t = setTimeout(() => {
+      setAutoTries(n => n + 1)
+      if (!document.hidden) reloadBoard()
+    }, AUTO_RETRY_MS)
+    return () => clearTimeout(t)
+  }, [boardState, autoTries, reloadBoard])
 
   useEffect(() => {
     if (!hasSupabase || !user) return
@@ -1004,20 +1187,29 @@ function AppInner() {
   }, [rows])
   useEffect(() => {
     snapRef.current = null
-    if (!uid) { setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS); return }
+    if (!uid) {
+      setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS)
+      setInboxUid(null)
+      dismissedRef.current = new Set()
+      return
+    }
     const w = loadWatched(uid)
     const off = loadOff(uid)
     setWatched(w); watchedRef.current = w
-    const localInbox = loadInbox(uid)
-    setNotices(localInbox)
-    /* Live expiry notifications come from the DB; keep the prototype inbox as
-       a fallback and dedupe by id so a refresh cannot double-show a notice. */
+    const dismissed = loadDismissed(uid)
+    dismissedRef.current = dismissed
+    /* Đọc hộp thư TRƯỚC khi effect lưu chạy. Cờ inboxUid chỉ bật ở render
+       sau, nên effect lưu của khung hình này (notices vẫn là []) không được
+       ghi đè. */
+    setNotices(withoutDismissed(loadInbox(uid), dismissed))
+    setInboxUid(uid)
+    let live = true
+    /* Tin database gộp vào, trừ tin đã xóa. Không gộp trần theo id: id
+       `db-12` chưa từng nằm trong hộp thư local, nên bản cũ coi tin vừa xóa
+       là tin mới và kéo nó về. */
     fetchNotifications(uid).then(dbInbox => {
-      if (!dbInbox.length) return
-      setNotices(current => {
-        const seen = new Set(current.map(n => n.id))
-        return [...dbInbox.filter(n => !seen.has(n.id)), ...current].slice(0, 60)
-      })
+      if (!live || !dbInbox.length) return
+      setNotices(current => mergeInbox(current, dbInbox, loadDismissed(uid)))
     }).catch(() => {})
     const pf = loadPrefs(uid)
     setPrefs(pf); prefsRef.current = pf
@@ -1025,6 +1217,7 @@ function AppInner() {
     /* ?f=watch còn sót trong URL của lần trước: không có gì để xem thì
        trở về hàng đợi, để tab "Following" không bị chọn mà trang trống */
     if (!w.length) setFilter(f => (f === 'watch' ? 'queued' : f))
+    return () => { live = false }
   }, [uid])
 
   /* Hạng của từng bài so với đợt chót kế tiếp — một lần tính cho cả
@@ -1085,7 +1278,7 @@ function AppInner() {
     snapRef.current = next
     if (!prev || !watchedSet.size) return
     const found = diffNotices({ prev, next, watched: watchedSet, voted: votedSet, prefs, cycle: pick?.last_pick_at || '' })
-      .filter(n => !selfAct?.has(n.key))
+      .filter(n => !selfAct?.has(n.key) && !isDismissed(dismissedRef.current, n))
     if (!found.length) return
     setNotices(box => pushNotices(box, found))
     /* Một toast cho cả đợt: 4 bài cùng nhúc nhích mà 4 toast thì không đọc
@@ -1112,7 +1305,7 @@ function AppInner() {
 
   /* Lưu hộp thư + tuỳ chọn ở một chỗ: viết ngay trong updater của
      setNotices thì không được — updater phải thuần. */
-  useEffect(() => { if (uid) saveInbox(uid, notices) }, [uid, notices])
+  useEffect(() => { if (uid && inboxUid === uid) saveInbox(uid, notices) }, [uid, inboxUid, notices])
   useEffect(() => { prefsRef.current = prefs; if (uid) savePrefs(uid, prefs) }, [uid, prefs])
   useEffect(() => { watchedRef.current = watched }, [watched])
 
@@ -1129,7 +1322,17 @@ function AppInner() {
 
   const doSetPrefs = (patch) => setPrefs(p => ({ ...p, ...patch }))
 
-  const doDropNotice = (id) => setNotices(box => dropNotice(box, id))
+  const doDropNotice = (id) => {
+    const dropped = notices.find(n => n.id === id)
+    /* Tin local lấy chính id làm chữ ký. Tin database có `sig` riêng — nhớ
+       cả hai để lần gộp sau không dựng lại dòng kia dưới một id khác. */
+    const sig = dropped?.sig || (!String(id).startsWith('db-') ? id : null)
+    setNotices(box => dropNotice(box, id))
+    if (uid) {
+      dismissedRef.current = rememberDismissed(uid, [id, sig])
+      dismissNotification({ id, sig }).catch(() => {})
+    }
+  }
 
   /* ---------------- derived ---------------- */
   const pub = useMemo(() => rows.filter(r => r.status !== 'pending' && r.status !== 'denied'), [rows])
@@ -1255,14 +1458,7 @@ function AppInner() {
     }
     return Array.from(seen.values()).slice(0, 8)
   }, [rows])
-  const weeklyHighlights = useMemo(() => {
-    const since = Date.now() - 7 * 86400000
-    const recent = rows.filter(r => new Date(r.created_at).getTime() >= since && r.status !== 'denied')
-    return {
-      top: recent.slice().sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0))[0] || null,
-      newcomer: recent.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null,
-    }
-  }, [rows])
+  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(pub, Date.now()), [pub])
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -1637,26 +1833,32 @@ function AppInner() {
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   const myStats = fullRanking.find(p => p.user_id === user?.id)
   const myTotalVotesCast = useMemo(() => Array.from(myVotes.values()).reduce((a, b) => a + b, 0), [myVotes])
+  const activityView = useMemo(() => {
+    const extra = visitStamp?.uid === user?.id ? visitStamp.day : null
+    const days = unionActivityDays(myActivity, extra)
+    if (!Array.isArray(days)) return null
+    return { days, stats: streakStats(days) }
+  }, [myActivity, visitStamp, user?.id])
   const myAchievementMetrics = useMemo(() => {
     /* Keep the preview aligned with claim_achievements(): denied requests do
        not count server-side, and rewards are not inferred from a client amount. */
     const eligible = mineRows.filter(r => r.status !== 'denied')
     return {
-      longestStreak: myActivity ? streakStats(myActivity).longest : 0,
+      longestStreak: activityView?.stats.longest ?? 0,
       requests: eligible.length,
       paidRequests: eligible.filter(r => r.is_paid).length,
       completed: eligible.filter(r => r.status === 'completed').length,
       rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
       votesCast: myTotalVotesCast,
     }
-  }, [myActivity, mineRows, fullRanking, user?.id, myTotalVotesCast])
+  }, [activityView, mineRows, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
      kiện là phạm rules-of-hooks. */
   const myCard = useMemo(() => {
     if (!user) return null
-    const st = myActivity ? streakStats(myActivity) : null
+    const st = activityView?.stats ?? null
     return {
       name: user.name || 'Community member',
       avatarUrl: user.avatar || null,
@@ -1674,7 +1876,7 @@ function AppInner() {
       milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
       footer: t('card.footer'),
     }
-  }, [user, myActivity, myStats, mineRows.length, t])
+  }, [user, activityView, myStats, mineRows.length, t])
 
   if (booting) return <Splash />
   /* Public mode keeps the real board mounted. LoginGate is an action modal,
@@ -1718,9 +1920,9 @@ function AppInner() {
               chữ trong đó thành tên prop rồi báo "dây đứt" oan.
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
-          {user && streak.days > 0 && (
-            <span className="streak-pill" title={t('streak.headerTitle', { n: streak.days })} aria-label={t('streak.headerTitle', { n: streak.days })}>
-              <Icon name="flame" size={13} /><b>{streak.days}</b>
+          {user && activityView?.stats.current > 0 && (
+            <span className="streak-pill" title={t('streak.headerTitle', { n: activityView.stats.current })} aria-label={t('streak.headerTitle', { n: activityView.stats.current })}>
+              <Icon name="flame" size={13} /><b>{activityView.stats.current}</b>
             </span>
           )}
           <Notifications
@@ -1793,10 +1995,10 @@ function AppInner() {
                       week" không kèm `f` nên rơi về bộ lọc đã lưu trong
                       localStorage, cũng rỗng nếu lần trước đang xem Queue. */}
                   {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
-                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes || 0} votes</span>
+                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
                   </a>}
                   {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
-                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist} · {weeklyHighlights.newcomer.requester}</span>
+                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
                   </a>}
                 </div>
               </section>
@@ -2078,13 +2280,19 @@ function AppInner() {
 
               <div className="list" data-glow key={filter} ref={listRef}>
                 {boardItems.length === 0
-                  ? (
-                    <div className="empty">
-                      <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
-                      <b>{filter === 'watch' ? t('nt.none') : t('board.empty')}</b>
-                      <small>{t('board.emptyHint')}</small>
-                    </div>
-                  )
+                  /* Ba trạng thái, ba câu trả lời (xem khối ListSkeleton):
+                     đang tải / lỗi có nút thử lại / trống thật sự. */
+                  ? (boardState === 'loading'
+                    ? <ListSkeleton n={4} label={t('board.loading')} />
+                    : boardState === 'error'
+                      ? <LoadErr onRetry={reloadBoard} />
+                      : (
+                        <div className="empty">
+                          <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+                          <b>{filter === 'watch' ? t('nt.none') : t('board.empty')}</b>
+                          <small>{t('board.emptyHint')}</small>
+                        </div>
+                      ))
                   : pgBoard.items.map((e, i) => (e.type === 'group'
                     ? (
                       <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
@@ -2133,7 +2341,13 @@ function AppInner() {
             của view thật, không cắt theo thời gian được — mùa phải gom lại từ
             chính các hàng request (luật ở src/lib/season.js, không migration). */}
         {section === 'ranking' && !onProfile && (
-          <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
+          <>
+            {/* Bảng xếp hạng cũng chỉ là một cách NHÌN cùng dữ liệu bảng, nên
+                lỗi nạp phải hiện ở đây luôn: không có nó thì người dùng mở
+                /ranking thấy một danh sách trống và không một lời giải. */}
+            {boardState === 'error' && <LoadErr onRetry={reloadBoard} />}
+            <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
+          </>
         )}
 
         {/* ======= MỤC 3: CỦA TÔI ======= */}
@@ -2158,7 +2372,7 @@ function AppInner() {
             {/* Chuỗi ngày + badge 7/30/100 của chính mình, ngay dưới khối hồ sơ:
                 nhìn thấy mình là ai thì thấy luôn mình đã đều đặn mấy ngày. */}
             <div className="streak-row">
-              <StreakStrip days={myActivity} />
+              <StreakStrip days={activityView ? activityView.days : null} />
               {myCard && <ShareCardButton card={myCard} />}
             </div>
             <AchievementIndex metrics={myAchievementMetrics} />
