@@ -30,8 +30,8 @@ Tài liệu này tổng hợp toàn bộ các bước thiết lập thủ công 
 ## 1. Migration PostgreSQL (Supabase SQL Editor)
 
 > **Lưu ý cốt lõi:**
-> - **TUYỆT ĐỐI KHÔNG DÁN LẠI FILE `schema.sql`** (tránh tình trạng trình duyệt bị đơ/lag và nghẽn tài nguyên do query quá dài).
-> - Mỗi file SQL chạy trong một tab query riêng (**Supabase Dashboard → SQL Editor → New query → Run**).
+> - **DB đã có dữ liệu:** **TUYỆT ĐỐI KHÔNG DÁN LẠI FILE `schema.sql`** (query gộp ~193 KB; hãy backup và chỉ chạy migration còn thiếu). **DB mới hoàn toàn:** xem `supabase/setup/README.md` để chạy tám phần SQL nhỏ theo thứ tự, không dán file gộp.
+> - Mỗi file SQL chạy trong một tab query riêng (**Supabase Dashboard → SQL Editor → New query → Run**). **Save** chỉ lưu query trong Dashboard, **Run** mới áp dụng xuống database.
 > - Tất cả các script đều được bọc trong khối transaction an toàn `begin; ... commit;` và có mệnh đề `if not exists` / `create or replace`.
 
 ### 1.0. Câu lệnh kiểm tra tình trạng Database (chạy ~1 giây)
