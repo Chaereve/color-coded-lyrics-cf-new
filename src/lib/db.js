@@ -9,6 +9,20 @@ import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
 import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
+import { withRetry } from './retry.js'
+
+/* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
+   đều ra đúng triệu chứng "vào web không thấy dữ liệu, F5 thì được":
+   · cắt giờ — request treo (TCP đứng, tab bị đóng băng) không bao giờ trả
+     lỗi, nên trang đứng ở "đang tải" cho đến khi người dùng mất kiên nhẫn;
+   · tắt retry nội bộ của thư viện (1s + 2s + 4s, chỉ cho 503) để chính
+     withRetry làm việc đó, một chính sách, và thấy được cả lỗi mạng bị
+     nuốt thành `{ error }`. */
+const READ_TIMEOUT_MS = 7000
+function readQuery(build) {
+  return withRetry((_n, signal) => build().abortSignal(signal).retry(false), { timeout: READ_TIMEOUT_MS })
+    .catch((error) => ({ data: null, error }))
+}
 
 const URL = import.meta.env.VITE_SUPABASE_URL
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -185,14 +199,29 @@ export async function getUser() {
   }
   const { data } = await supabase.auth.getUser()
   if (!data.user) return null
-  return readAuthProfile(data.user)
+  try {
+    return await readAuthProfile(data.user)
+  } catch {
+    /* Đọc hồ sơ/quyền admin hỏng (mạng, RLS…) thì TRẢ VỀ MỘT NGƯỜI DÙNG TỐI
+       THIỂU thay vì ném: bản cũ để lỗi bay ra ngoài, `setUser` không bao giờ
+       chạy, và người dùng vẫn đang đăng nhập mà bị xem như khách — mất danh
+       sách theo dõi, mất số phiếu, mất mục "About me". Mất quyền admin tạm
+       thời (sửa được bằng một lần tải lại) vẫn nhẹ hơn mất cả phiên. */
+    return shape(data.user, {}, false)
+  }
 }
 
 export function onAuthChange(cb) {
   if (!hasSupabase) return () => {}
-  const { data } = supabase.auth.onAuthStateChange(async (_e, s) => {
+  /* KHÔNG dùng callback `async` ở đây: `cb(await readAuthProfile(...))` ném
+     lỗi là `cb` không bao giờ được gọi VÀ lỗi đó thành unhandled rejection —
+     hai lần hỏng cho một nguyên nhân, và không dấu vết nào trên màn hình.
+     Luôn gọi `cb`, kể cả khi chỉ dựng được người dùng ở mức tối thiểu. */
+  const { data } = supabase.auth.onAuthStateChange((_e, s) => {
     if (!s?.user) return cb(null)
-    cb(await readAuthProfile(s.user))
+    readAuthProfile(s.user)
+      .then(cb)
+      .catch(() => cb(shape(s.user, {}, false)))
   })
   return () => data.subscription.unsubscribe()
 }
@@ -482,8 +511,11 @@ export async function addComment(requestId, userId, body, parentId = null) {
 
 export async function fetchRequests() {
   if (!hasSupabase) return demoRows()
-  const { data, error } = await supabase.from('requests').select('*')
-    .order('created_at', { ascending: false }).limit(800)
+  /* Lần nạp đầu của trang là thứ quyết định người dùng có thấy bảng hay
+     không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js). */
+  const { data, error } = await readQuery(() =>
+    supabase.from('requests').select('*')
+      .order('created_at', { ascending: false }).limit(800))
   if (!error) {
     cacheWrite(CACHE.rows, data)
     return data
@@ -505,7 +537,8 @@ export async function fetchMyVotes(uid) {
   }
   if (!uid) return new Map()
   if (!hasSupabase) return tally(readData(LS.votes, []).map(v => v.id))
-  const { data, error } = await supabase.from('votes').select('request_id').eq('user_id', uid)
+  const { data, error } = await readQuery(() =>
+    supabase.from('votes').select('request_id').eq('user_id', uid))
   if (!error) return tally(data.map(v => v.request_id))
   throw error
 }
@@ -533,7 +566,8 @@ export async function fetchVoteStatus() {
       ...splitCredits({ credits: (prof.vote_credits || 0) + (prof.bonus_credits || 0),
         purchased: prof.vote_credits || 0, bonus: prof.bonus_credits || 0 }) }
   }
-  const { data, error } = await supabase.rpc('my_vote_status')
+  /* Đọc thuần (`stable security definer`), không ghi gì — thử lại được. */
+  const { data, error } = await readQuery(() => supabase.rpc('my_vote_status'))
   if (error) throw error
   const r = Array.isArray(data) ? data[0] : data
   return { free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r) }
@@ -764,7 +798,8 @@ export async function fetchRanking() {
      một `user_id` là một dòng. Bản cũ khoá theo `user_id::requester` nên người
      đổi tên hiển thị bị tách thành hai dòng — hai dòng cùng được tô "bạn". */
   if (!hasSupabase) return rankDemo(demoRows())
-  const { data, error } = await supabase.from('requester_ranking').select('*')
+  const { data, error } = await readQuery(() =>
+    supabase.from('requester_ranking').select('*'))
   if (!error) {
     cacheWrite(CACHE.ranking, data)
     return data
@@ -784,9 +819,10 @@ export async function fetchMedia() {
     return demoMedia().slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0)
       || new Date(b.created_at) - new Date(a.created_at))
   }
-  const { data, error } = await supabase.from('media').select('*')
-    .order('position', { ascending: true })
-    .order('created_at', { ascending: false })
+  const { data, error } = await readQuery(() =>
+    supabase.from('media').select('*')
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: false }))
   if (!error) {
     cacheWrite(CACHE.media, data)
     return data

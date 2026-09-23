@@ -3273,6 +3273,34 @@ html[data-section="spin"] .bgfx { display: none; }
 .empty b { font-family: var(--display); font-size: 13.5px; font-weight: 700; color: var(--txt); }
 .empty small { color: var(--txt-3); font-size: 12px; max-width: 36ch; line-height: 1.6; }
 
+/* =========================================================
+   ĐANG TẢI / LỖI KHI NẠP BẢNG
+   ---------------------------------------------------------
+   Hai khối này trả lời câu hỏi mà người dùng thật sự đang
+   hỏi khi mở web lên và thấy danh sách trống: "đang tải hay
+   là không có gì?". Hàng xương giữ ĐÚNG chỗ của danh sách
+   (cùng padding, cùng chiều cao) nên khi dữ liệu về thì
+   không có cú nhảy, và khối lỗi mượn chính khung `.empty`
+   để không sinh ra một kiểu thẻ bài mới.
+   ========================================================= */
+.sklist { display: flex; flex-direction: column; gap: 8px; }
+.skrow { display: grid; grid-template-columns: 1fr 52px; grid-template-rows: auto auto;
+  column-gap: 10px; row-gap: 9px; align-items: center;
+  padding: 13px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
+/* cùng một vệt shimmer với khung ảnh (`.mthumb:not(.ready)::after`): một app
+   chỉ nên có MỘT kiểu "đang tải", và nó đã có từ trước */
+.sk { display: block; border-radius: 6px;
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--surface-3) 50%, var(--surface-2) 70%);
+  background-size: 220% 100%; animation: skeletonShimmer 1.4s var(--e-soft) infinite;
+  animation-delay: calc(min(var(--i, 0), 6) * 90ms); }
+.sk-l1 { grid-area: 1 / 1; height: 12px; width: 62%; }
+.sk-l2 { grid-area: 2 / 1; height: 10px; width: 38%; }
+.sk-vote { grid-area: 1 / 2 / span 2 / 3; height: 38px; width: 52px; border-radius: var(--r-sm); }
+/* lỗi nạp: viền đỏ nhẹ để nó là MỘT việc cần xử lý, không phải một danh sách
+   trống vô thưởng vô phạt */
+.load-err { border: 1px solid color-mix(in srgb, var(--denied) 42%, var(--line)); }
+
 /* 3) Login — ấn tượng đầu tiên: quầng nhấn rất loãng tỏa từ mép trên xuống,
    nằm trong khối kính (z-index âm để dưới nội dung, trên nền khối). */
 .gate-card::after {

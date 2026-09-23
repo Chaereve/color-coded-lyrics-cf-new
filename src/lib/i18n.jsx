@@ -303,6 +303,13 @@ const S = {
   'board.search': 'Title or artist',
   'board.empty': 'Nothing here yet.',
   'board.emptyHint': 'Try another filter, or send the first request.',
+  /* Ba trạng thái của lần nạp đầu — trước đây cả ba hiện đúng một câu trên,
+     nên "chưa tải được" bị đọc thành "chưa ai gửi bài" và người dùng phải tự
+     bấm F5. Câu lỗi phải nói rõ còn nước để sửa, và có nút ngay bên dưới. */
+  'board.loading': 'Loading requests…',
+  'board.loadErr': 'Could not load the board',
+  'board.loadErrHint': 'The connection dropped on the way. Press the button to try again — it retries on its own too, so there is no need to reload the page.',
+  'board.retry': 'Try again',
   'board.filterAria': 'Filter requests',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
