@@ -1834,7 +1834,12 @@ function AppInner() {
   const myStats = fullRanking.find(p => p.user_id === user?.id)
   const myTotalVotesCast = useMemo(() => Array.from(myVotes.values()).reduce((a, b) => a + b, 0), [myVotes])
   const activityView = useMemo(() => {
-    const extra = visitStamp?.uid === user?.id ? visitStamp.day : null
+    /* Phải kiểm `visitStamp` TRƯỚC khi so uid, không được để `visitStamp?.uid`
+       đứng một mình: khách chưa đăng nhập có user = null VÀ visitStamp = null,
+       hai vế optional-chain CÙNG trả `undefined` nên phép so BẰNG NHAU (true)
+       và nhánh đúng đọc `visitStamp.day` trên null → TypeError giữa lúc render
+       → React gỡ cả cây → trang trắng trơn (xảy ra thật 23/09, từ bc41a33). */
+    const extra = visitStamp && visitStamp.uid === user?.id ? visitStamp.day : null
     const days = unionActivityDays(myActivity, extra)
     if (!Array.isArray(days)) return null
     return { days, stats: streakStats(days) }
