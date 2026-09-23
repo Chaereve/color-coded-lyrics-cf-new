@@ -768,18 +768,43 @@ export async function performDailySpin(requestId, userId) {
   return validateSpinResult(data, userId, requestId)
 }
 
-/* Dấu ngày hoạt động cho streak (bảng activity_days — migration
-   20260921_activity_days.sql). Trả về MẢNG chuỗi 'YYYY-MM-DD', hoặc NULL khi
-   không đọc được: null và [] khác nhau có chủ ý — [] là "người này chưa có
-   ngày nào" (khối streak hiện trạng thái chưa bắt đầu), còn null là "chưa
-   chạy migration / lỗi mạng" (khối streak ẨN đi, không được nói dối rằng
-   người ta chưa hoạt động ngày nào). */
+/* Dấu ngày hoạt động cho streak (bảng activity_days). Trả về MẢNG chuỗi
+   'YYYY-MM-DD', hoặc NULL khi không đọc được: null và [] khác nhau có chủ ý —
+   [] là "người này chưa có ngày nào" (khối streak hiện trạng thái chưa bắt
+   đầu), còn null là "chưa chạy migration / lỗi mạng" (khối streak ẨN đi, không
+   được nói dối rằng người ta chưa hoạt động ngày nào). Đọc theo trang: một
+   tài khoản ghé mỗi ngày sẽ vượt trần 400 hàng cũ, và chuỗi dài nhất không
+   được mất phần đầu chỉ vì trang cắt bớt. */
 export async function fetchActivityDays(userId) {
   if (!hasSupabase) return demoActivityDays(userId)
-  const { data, error } = await supabase.from('activity_days').select('day')
-    .eq('user_id', userId).order('day', { ascending: false }).limit(400)
-  if (error) return null
-  return (data || []).map((r) => r.day).filter(Boolean)
+  const pageSize = 400
+  const days = []
+  for (let from = 0; from < pageSize * 10; from += pageSize) {
+    const { data, error } = await supabase.from('activity_days').select('day')
+      .eq('user_id', userId).order('day', { ascending: false })
+      .range(from, from + pageSize - 1)
+    if (error) return null
+    const rows = data || []
+    for (const row of rows) if (row?.day) days.push(row.day)
+    if (rows.length < pageSize) break
+  }
+  return days
+}
+
+/* Đóng dấu HÔM NAY (giờ Việt Nam) cho chính người đang đăng nhập. Hàm SQL
+   không nhận user id hay ngày: client không được tự khai một ngày cũ để kéo
+   chuỗi. Thiếu migration thì trả null — trang vẫn mở, chỉ chưa cộng được
+   ngày ghé cho đến khi SQL được chạy. */
+const ACTIVITY_DAY = /^\d{4}-\d{2}-\d{2}$/
+export async function touchMyActivity() {
+  if (!hasSupabase) return vnDayKey(Date.now())
+  const { data, error } = await supabase.rpc('touch_my_activity')
+  if (error) {
+    if (!isMissingSchemaObject(error)) console.warn('[streak] touch:', error.message)
+    return null
+  }
+  const day = typeof data === 'string' ? data.slice(0, 10) : ''
+  return ACTIVITY_DAY.test(day) ? day : null
 }
 
 /* Public profiles receive only aggregate streak data. Raw activity dates stay

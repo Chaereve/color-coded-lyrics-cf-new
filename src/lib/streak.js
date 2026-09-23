@@ -1,11 +1,11 @@
 /* =========================================================
    CHUỖI NGÀY HOẠT ĐỘNG (streak) — đếm trên dấu ngày server
    ---------------------------------------------------------
-   Nguồn dữ liệu: bảng `activity_days` (migration 20260921_activity_days.sql)
-   — mỗi hàng là MỘT NGÀY mà người đó có ít nhất một hành động cộng đồng:
-   gửi request · vote · bình luận · quay spin. Trigger in dấu ngày theo LỊCH
-   VIỆT NAM, cùng múi giờ với daily spin và mùa giải của leaderboard — một
-   "ngày" của cộng đồng này bắt đầu/kết thúc lúc nửa đêm giờ VN.
+   Nguồn dữ liệu: bảng `activity_days`. Mỗi hàng là MỘT ngày lịch Việt Nam
+   của một tài khoản. Ngày được in khi người đó mở trang lúc đã đăng nhập
+   (`touch_my_activity`, server tự lấy hôm nay — client không được gửi ngày)
+   hoặc khi có request · vote · bình luận · quay spin. Cùng múi giờ với daily
+   spin và mùa giải: một "ngày" bắt đầu/kết thúc lúc nửa đêm giờ VN.
 
    Module này chỉ ĐẾM, không suy diễn: đầu vào là mảng chuỗi 'YYYY-MM-DD',
    đầu ra là ba con số trả lời ba câu hỏi người xem tự hỏi được:
@@ -50,6 +50,15 @@ export function dayKeys(days) {
     if (typeof d === 'string' && DAY_KEY.test(d) && Number.isFinite(keyMs(d))) set.add(d)
   }
   return set
+}
+
+/* Ghép ngày vừa được server đóng dấu vào danh sách đã đọc. `days === null`
+   là "chưa đọc được nguồn" — không được bịa thành một mảng một phần tử, vì
+   dải streak sẽ nói dối rằng người đó mới có đúng một ngày. Ngày lạ bị bỏ. */
+export function unionActivityDays(days, extra) {
+  if (!Array.isArray(days)) return null
+  if (typeof extra !== 'string' || !DAY_KEY.test(extra) || !Number.isFinite(keyMs(extra))) return days
+  return days.includes(extra) ? days : [extra, ...days]
 }
 
 /* Chuỗi hiện tại, kể cả khi hôm nay chưa có dấu (xem luật ở đầu file). */

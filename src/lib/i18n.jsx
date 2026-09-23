@@ -374,10 +374,10 @@ const S = {
      Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
      ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
   'streak.label': 'Activity streak',
-  'streak.how': 'A day counts when you send a request, vote, comment or use the daily spin (Vietnam time)',
+  'streak.how': 'A day counts when you open the site while signed in, or when you send a request, vote, comment or use the daily spin (Vietnam time)',
   'streak.current': '{n}-day streak',
   'streak.longest': 'longest {n}',
-  'streak.none': 'No active day yet — vote, comment, spin or send a request to start a streak',
+  'streak.none': 'No active day yet — open the site while signed in to start a streak',
   'streak.unlocked': 'Unlocked: {n}-day streak',
   'streak.locked': 'Reach a {n}-day streak to unlock',
   'streak.headerTitle': '{n}-day activity streak',

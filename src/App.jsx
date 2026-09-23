@@ -9,7 +9,8 @@ import StreakStrip from './components/StreakStrip'
 import ShareCardButton from './components/ShareCardButton'
 import AchievementIndex from './components/AchievementIndex'
 import VideoPreviewModal from './components/VideoPreviewModal'
-import { streakStats, STREAK_MILESTONES } from './lib/streak.js'
+import { streakStats, STREAK_MILESTONES, unionActivityDays } from './lib/streak.js'
+import { vnDayKey } from './lib/season.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
@@ -53,7 +54,7 @@ import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
+  fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -112,27 +113,6 @@ const readProfileId = () => {
 
 const SIDE_KEY = 'ccl.side'
 const readSide = () => { try { return localStorage.getItem(SIDE_KEY) === 'min' } catch { return false } }
-
-const dayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
-const readStreak = (uid) => {
-  if (!uid) return { days: 0, today: false }
-  try {
-    const raw = JSON.parse(localStorage.getItem(`ccl.streak.${uid}`) || '{}')
-    const today = dayKey()
-    if (raw.last === today) return { days: Number(raw.days) || 1, today: true }
-    const yesterday = new Date(`${today}T12:00:00+07:00`)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const prev = yesterday.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
-    return { days: raw.last === prev ? Number(raw.days) || 0 : 0, today: false }
-  } catch { return { days: 0, today: false } }
-}
-const touchStreak = (uid) => {
-  if (!uid) return { days: 0, today: false }
-  const current = readStreak(uid)
-  const next = current.today ? current.days : { days: current.days + 1, today: true }.days
-  try { localStorage.setItem(`ccl.streak.${uid}`, JSON.stringify({ days: next, last: dayKey() })) } catch { /* storage blocked */ }
-  return { days: next, today: true }
-}
 
 const BOARD_KEY = 'ccl.board'
 const readSavedBoard = () => {
@@ -444,7 +424,6 @@ function AppInner() {
      giá trị không ai đọc. */
   const readyRef = useRef(false)
   const [user, setUser] = useState(null)
-  const [streak, setStreak] = useState({ days: 0, today: false })
   const [authPrompt, setAuthPrompt] = useState(false)
   const currentUserId = useRef(null)
   // Public browsing uses a stable, non-account identity only for presentational props.
@@ -488,8 +467,19 @@ function AppInner() {
   }, [])
   const [ranking, setRanking] = useState([])
   /* Dấu ngày hoạt động của chính người xem (streak). null = chưa đọc được
-     nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip. */
+     nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip.
+     `visitStamp` là ngày server vừa đóng cho lần ghé này. Ghép vào danh sách
+     đã đọc để một lần nạp bắt đầu trước khi dấu được ghi không nuốt mất hôm nay. */
   const [myActivity, setMyActivity] = useState(null)
+  const [visitStamp, setVisitStamp] = useState(null)
+  /* Đổi tài khoản thì xoá dấu của người vừa rồi ngay trong lần render này,
+     trước khi vẽ — ngọn lửa không được kịp hiện chuỗi của tài khoản cũ. */
+  const [activityUserId, setActivityUserId] = useState(user?.id)
+  if (user?.id !== activityUserId) {
+    setActivityUserId(user?.id)
+    setMyActivity(null)
+    setVisitStamp(null)
+  }
   const [orders, setOrders] = useState([])
   const [media, setMedia] = useState([])
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
@@ -897,7 +887,37 @@ function AppInner() {
     const off = onAuthChange(u => { if (live) setUser(u) })
     return () => { live = false; off() }
   }, [])
-  useEffect(() => { setStreak(user ? touchStreak(user.id) : { days: 0, today: false }) }, [user?.id])
+  /* Chuỗi ngày theo TÀI KHOẢN, không theo trình duyệt. Bộ đếm cũ trong
+     localStorage lệch máy, lệch múi giờ, và không phải số mà trang cá nhân
+     hay thành tích đang dùng. Server tự lấy ngày Việt Nam; client không gửi
+     ngày. Tab để qua nửa đêm thì lần hiện lại mới đóng dấu. */
+  useEffect(() => {
+    if (!user?.id) return
+    const uid = user.id
+    let live = true
+    let pending = false
+    let stampedDay = null
+    const stampVisit = async () => {
+      if (pending || (stampedDay && stampedDay === vnDayKey(Date.now()))) return
+      pending = true
+      try {
+        const day = await touchMyActivity()
+        if (!live || !day) return
+        const fresh = day !== stampedDay
+        stampedDay = day
+        setVisitStamp({ uid, day })
+        if (!fresh) return
+        try {
+          const ach = await claimAchievements()
+          if (live && ach) setVoteStatus(prev => ({ ...prev, ...ach }))
+        } catch (e) { console.warn('[streak] claim:', e?.message || e) }
+      } finally { pending = false }
+    }
+    stampVisit()
+    const onVisible = () => { if (document.visibilityState === 'visible') stampVisit() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { live = false; document.removeEventListener('visibilitychange', onVisible) }
+  }, [user?.id])
 
   const loadMedia = useCallback(async () => {
     try { setMedia(await fetchMedia()) } catch { /* ignore */ }
@@ -1820,26 +1840,32 @@ function AppInner() {
      vẫn dựng <Splash hide /> để nó tan ra (tháo hẳn thì mất nhịp mờ dần). */
   const myStats = fullRanking.find(p => p.user_id === user?.id)
   const myTotalVotesCast = useMemo(() => Array.from(myVotes.values()).reduce((a, b) => a + b, 0), [myVotes])
+  const activityView = useMemo(() => {
+    const extra = visitStamp?.uid === user?.id ? visitStamp.day : null
+    const days = unionActivityDays(myActivity, extra)
+    if (!Array.isArray(days)) return null
+    return { days, stats: streakStats(days) }
+  }, [myActivity, visitStamp, user?.id])
   const myAchievementMetrics = useMemo(() => {
     /* Keep the preview aligned with claim_achievements(): denied requests do
        not count server-side, and rewards are not inferred from a client amount. */
     const eligible = mineRows.filter(r => r.status !== 'denied')
     return {
-      longestStreak: myActivity ? streakStats(myActivity).longest : 0,
+      longestStreak: activityView?.stats.longest ?? 0,
       requests: eligible.length,
       paidRequests: eligible.filter(r => r.is_paid).length,
       completed: eligible.filter(r => r.status === 'completed').length,
       rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
       votesCast: myTotalVotesCast,
     }
-  }, [myActivity, mineRows, fullRanking, user?.id, myTotalVotesCast])
+  }, [activityView, mineRows, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
      kiện là phạm rules-of-hooks. */
   const myCard = useMemo(() => {
     if (!user) return null
-    const st = myActivity ? streakStats(myActivity) : null
+    const st = activityView?.stats ?? null
     return {
       name: user.name || 'Community member',
       avatarUrl: user.avatar || null,
@@ -1857,7 +1883,7 @@ function AppInner() {
       milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
       footer: t('card.footer'),
     }
-  }, [user, myActivity, myStats, mineRows.length, t])
+  }, [user, activityView, myStats, mineRows.length, t])
 
   if (booting) return <Splash />
   /* Public mode keeps the real board mounted. LoginGate is an action modal,
@@ -1901,9 +1927,9 @@ function AppInner() {
               chữ trong đó thành tên prop rồi báo "dây đứt" oan.
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
-          {user && streak.days > 0 && (
-            <span className="streak-pill" title={t('streak.headerTitle', { n: streak.days })} aria-label={t('streak.headerTitle', { n: streak.days })}>
-              <Icon name="flame" size={13} /><b>{streak.days}</b>
+          {user && activityView?.stats.current > 0 && (
+            <span className="streak-pill" title={t('streak.headerTitle', { n: activityView.stats.current })} aria-label={t('streak.headerTitle', { n: activityView.stats.current })}>
+              <Icon name="flame" size={13} /><b>{activityView.stats.current}</b>
             </span>
           )}
           <Notifications
@@ -2353,7 +2379,7 @@ function AppInner() {
             {/* Chuỗi ngày + badge 7/30/100 của chính mình, ngay dưới khối hồ sơ:
                 nhìn thấy mình là ai thì thấy luôn mình đã đều đặn mấy ngày. */}
             <div className="streak-row">
-              <StreakStrip days={myActivity} />
+              <StreakStrip days={activityView ? activityView.days : null} />
               {myCard && <ShareCardButton card={myCard} />}
             </div>
             <AchievementIndex metrics={myAchievementMetrics} />
