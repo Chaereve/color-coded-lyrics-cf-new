@@ -20,6 +20,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { statusColor, inChain, kindCls, statusLabel, timeAgo, isPicked, compact, vnd, usd } from './meta.js'
 import { boardItems, stageCounts, groupKey, songCount, voteTotals, fold, creditText } from './board.js'
+import { unionActivityDays } from './streak.js'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const read = (rel) => readFileSync(root + rel, 'utf8')
@@ -122,6 +123,27 @@ test('chỗ render dùng hàm tra bảng, không tra trần', () => {
   assert.match(app, /import \{[^}]*statusColor[^}]*\} from '\.\/lib\/meta'/, 'App.jsx phải nhập statusColor')
   assert.match(read('src/components/ActionModal.jsx'), /KIND_META\[form\.kind\] \|\|/,
     'ActionModal phải có nhánh dự phòng khi loại bài không có trong bảng')
+})
+
+test('dấu ngày của lượt ghé phải được kiểm trước khi lấy .day (khách chưa đăng nhập)', () => {
+  /* 23/09/2026: trang TRẮNG TRƠN với mọi người chưa đăng nhập, ngay sau lượt
+     deploy chứa commit bc41a33. Dòng cũ là
+     `visitStamp?.uid === user?.id ? visitStamp.day : null` — khách chưa đăng
+     nhập có user = null VÀ visitStamp = null, hai vế optional-chain CÙNG là
+     `undefined` nên phép so trả true, rồi nhánh đúng đọc `visitStamp.day` trên
+     null → TypeError giữa useMemo → React gỡ cả cây → #root rỗng. Không có màn
+     lỗi che (đã bỏ theo quyết định 19/09), nên triệu chứng đúng là trang trống.
+     So uid phải nằm SAU một phép kiểm visitStamp thật, không được để
+     `visitStamp?.uid` đứng một mình. */
+  const app = read('src/App.jsx')
+  assert.ok(!/visitStamp\?\.uid\s*===/.test(app),
+    'App.jsx so `visitStamp?.uid` trần — thêm `visitStamp && …` trước phép so')
+  assert.match(app, /visitStamp && visitStamp\.uid === user\?\.id \? visitStamp\.day : null/,
+    'activityView phải đọc visitStamp.day sau khi đã kiểm visitStamp tồn tại')
+  /* unionActivityDays tự trả null khi nguồn chưa đọc được — dải streak ẩn chứ
+     không bịa danh sách ngày cho khách. */
+  assert.equal(unionActivityDays(null, null), null)
+  assert.equal(unionActivityDays(null, undefined), null)
 })
 
 test('thiếu dữ liệu từ máy chủ thì vẫn quay, không chặn người thật', () => {
