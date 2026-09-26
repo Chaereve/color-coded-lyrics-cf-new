@@ -2503,8 +2503,14 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-pod .lb-av { width: 54px; height: 54px; margin: 0 auto 9px; font-size: 20px;
   box-shadow: 0 0 0 2px var(--panel-2), 0 0 0 4px var(--ring2, var(--line-2)) }
 .lb-pod.p1 .lb-av { width: 62px; height: 62px; font-size: 23px }
-.lb-pod-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  margin-bottom: 8px }
+/* Tên phải nằm GIỮA, ngay dưới avatar — không phải một hộp hẹp dính mép trái.
+   `width: fit-content` + `max-width: 100%` + `margin-inline: auto`: tên ngắn
+   co lại và tự căn giữa; tên dài (Facebook, email) đầy bề ngang thẻ rồi cắt
+   bằng ellipsis ở CUỐI, không bị xén mất chữ đầu. Một `max-width` cố định
+   (từng là 92px ở bản hẹp) biến div thành hộp block dính trái trong khi
+   avatar `margin: 0 auto` vẫn ở giữa — đúng lỗi "tên lệch về một bên". */
+.lb-pod-name { width: fit-content; max-width: 100%; margin: 0 auto 8px; text-align: center;
+  font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-pod-num b { display: block; font-family: var(--mono); font-size: 24px; font-weight: 600; line-height: 1.05;
   color: var(--ring2, var(--txt)) }
 .lb-pod-num span { font-size: 11px; color: var(--txt-3) }
@@ -2578,8 +2584,18 @@ html[data-section="spin"] .bgfx { display: none; }
   background: linear-gradient(180deg, rgba(77,64,240,.13), rgba(77,64,240,.02));
   animation: rise .5s var(--e-out) .3s both }
 .lb-me:not(.has) { justify-content: center; background: var(--panel-2); color: var(--txt-3); font-size: 12.5px }
-.lb-me-rk { min-width: 26px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--a-2) }
-.lb-me-nm { font-size: 13px; font-weight: 600 }
+/* Cùng trục với bảng: cột hạng 52px (số căn giữa, như .c-rk), rồi avatar
+   bắt đầu đúng chỗ ô tên (52px + padding 14px của td). Bản cũ padding 14px
+   + rank min-width 26px đẩy tên sang trái khoảng 15px so với cột Requester. */
+.lb-me.has { padding-left: 0; gap: 9px; }
+.lb-me-rk { width: 52px; min-width: 52px; flex: none; box-sizing: border-box;
+  padding-inline: 6px; text-align: center;
+  font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--a-2) }
+/* 9px gap + 5px margin = 14px, đúng padding ô tên trên desktop. Bản hẹp
+   (padding ô còn 8px) bỏ margin này — xem media query 620px. */
+.lb-me.has .lb-av { margin-left: 5px; }
+.lb-me-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px; font-weight: 600 }
 .lb-me-stats { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap;
   font-family: var(--mono); font-size: 11px; color: var(--txt-3) }
 
@@ -2675,6 +2691,9 @@ html[data-section="spin"] .bgfx { display: none; }
   .lb-table .hide-sm { display: none }
   .lb-me { flex-wrap: wrap; gap: 8px }
   .lb-me-stats { margin-left: 0; width: 100% }
+  /* ô tên bản hẹp padding 8px, không còn 14px — bỏ 5px bù của desktop
+     để avatar hàng "bạn" khớp cột bảng (52 + gap 9 ≈ 61, bảng là 52+8). */
+  .lb-me.has .lb-av { margin-left: 0 }
   .lb-bar { align-items: flex-start }
   /* chỉ dời vào mép, KHÔNG thu nhỏ: 34px từng nằm ở đây và vì khối 620px
      đứng SAU khối cỡ chạm nên nó thắng — đúng trên màn điện thoại thật,
@@ -2764,8 +2783,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(77,64,240,.18) }
 
 
-/* chữ không bao giờ xuống dòng lổn nhổn */
-.row .title, .nowbar h3, .pick-cap b, .pv-tx b, .lb-pod-name { text-wrap: balance }
+/* chữ không bao giờ xuống dòng lổn nhổn.
+   KHÔNG gồm .lb-pod-name: `text-wrap` là longhand của `white-space`, nên
+   `balance` ở đây từng ghi đè `nowrap` của tên trên bục — ellipsis chết,
+   tên dài bung hai dòng và trông lệch khỏi avatar. */
+.row .title, .nowbar h3, .pick-cap b, .pv-tx b { text-wrap: balance }
 
 /* thanh cuộn mảnh hơn, khớp nền tối */
 ::-webkit-scrollbar { width: 10px; height: 10px }
@@ -4229,13 +4251,18 @@ body {
   .lb-top { gap: 6px; padding-inline: 8px; }
   .lb-pod { padding-inline: 4px; }
   .lb-pod .lb-av.lg { width: 42px; height: 42px; }
-  .lb-pod-name { max-width: 92px; font-size: 11px; }
+  /* Không thu tên về 92px: bục đã xếp chồng (hoặc còn hẹp), hộp 92px
+     block sẽ dính mép trái trong khi avatar vẫn giữa. Giữ cỡ chữ, để
+     luật căn giữa ở .lb-pod-name lo phần còn lại. */
+  .lb-pod-name { max-width: 100%; margin-inline: auto; font-size: 11px; text-align: center; }
   .lb-pod-num b { font-size: 18px; }
   .lb-pod-mini { font-size: 9px; }
   .lb-table th, .lb-table td { padding-inline: 8px; }
   .lb-table .hide-sm { display: none; }
   .lb-me { gap: 8px; flex-wrap: wrap; }
-  .lb-me-stats { flex-basis: 100%; margin-left: 30px; }
+  /* Số liệu xuống dòng thì thẳng cột với tên (52 rank + 9 gap + 26 avatar + 9 gap),
+     không thụt 30px kiểu "ước lượng" — thụt lệch là tên/số trông như bị đẩy sang một bên. */
+  .lb-me.has .lb-me-stats { flex-basis: auto; width: auto; margin-left: 96px; }
 }
 /* =========================================================
    COMMENTS & REPLIES
