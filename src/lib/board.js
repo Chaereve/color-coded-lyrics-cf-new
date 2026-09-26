@@ -17,10 +17,10 @@
    bằng dữ liệu giả mà không phải dựng cả giao diện.
    ========================================================= */
 
-/* `inChain`/`isPicked` là luật của MỘT dòng (đã chốt? đang làm?) và nằm ở
+/* `inChain` là luật của MỘT dòng (đã chốt? đang làm?) và nằm ở
    meta.js — board.js mượn chứ không định nghĩa lại: một luật mà hai chỗ viết
    thì sau một lần sửa, bảng và khối Up next kể hai câu chuyện khác nhau. */
-import { inChain, isPicked } from './meta.js'
+import { inChain } from './meta.js'
 
 const ts = (v) => +new Date(v) || 0
 
@@ -472,7 +472,11 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
    Tách ra đây để mỗi vế của luật đó có một ca kiểm thử.
 
    Thứ tự áp dụng:
-     1. `statusFilters` (chọn NHIỀU giai đoạn) thắng `filter` khi có mặt;
+     1. `statusFilters` (chọn NHIỀU giai đoạn) thắng `filter` khi có mặt.
+        Chip "Up next"/"In progress" lọc bằng `inChain` (đã chốt HOẶC đang
+        làm) — cùng tập với khối Up next, với tab và với badge
+        (pickedGroups.length), nên request bấm "Start production" vẫn hiện
+        trong filter Up next; "Queue" là chờ vote chưa chốt, "Done" là xong;
      2. rỗng thì `filter` quyết định tập nền: queued / picked / in_progress /
         completed / newest (cả bảng);
      3. `top` CHỈ liệt kê bài đang xin phiếu — bài đã xong hoặc đã vào dây
@@ -494,9 +498,16 @@ export function filterBoard(opts = {}) {
   if (filter === 'newest' && t && rows?.length) {
     base = real(rows).filter(r => r.status !== 'denied')
   } else if (statusFilters.length) {
-    base = base.filter(r => statusFilters.some(s => s === 'picked'
-      ? isPicked(r) && r.status !== 'in_progress'
-      : s === 'in_progress' ? r.status === 'in_progress'
+    /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối
+       Up next, của hai tab và của số badge (pickedGroups.length): bài đã chốt
+       (picked_at) HAY đang làm. Vì vậy request vẫn ở lại filter Up next sau
+       khi admin bấm "Start production" (queued → in_progress). Bản cũ dùng
+       `isPicked && status !== 'in_progress'` nên đúng lúc đó request biến mất
+       khỏi filter — mà số badge vẫn đếm nó, thành ra lệch số. Chip In
+       progress trước đây chỉ lọc `status === 'in_progress'` (bỏ qua bài đã
+       chốt đang chờ tới lượt) cũng lệch với tab/badge của chính nó. */
+    base = base.filter(r => statusFilters.some(s => s === 'picked' || s === 'in_progress'
+      ? inChain(r)
       : s === 'queued' ? r.status === 'queued' && !r.picked_at
       : s === 'completed' && r.status === 'completed'))
   } else if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)

@@ -481,6 +481,31 @@ test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy c
   assert.deepEqual(filterBoard({ pub, rows, filter: 'watch', watchedSet: new Set() }), [])
 })
 
+test('lọc bảng: "Start production" không đẩy request khỏi filter "Up next"', () => {
+  const { pub, rows, working, next } = boardRows()
+  const ids = (out) => out.map(r => r.id).sort()
+  /* working = bài ĐÃ CHỐT (picked_at) rồi admin bấm "Start production"
+     (status → in_progress). Lỗi đã báo: đúng khoảnh khắc đó request biến
+     khỏi filter "Up next", trong khi khối Up next vẫn hiện nó, tab vẫn hiện
+     nó và badge vẫn ĐẾM nó — số lệch với danh sách. */
+  const upNext = filterBoard({ pub, rows, filter: 'picked', statusFilters: ['picked'] })
+  assert.ok(upNext.some(r => r.id === working.id),
+    'request vừa start production phải vẫn nằm trong filter Up next')
+  assert.deepEqual(ids(upNext), ids([working, next]),
+    'chip Up next = cả dây chuyền (đang làm + chờ tới lượt), không chỉ bài chưa khởi động')
+  /* Chip, khối Up next và tab phải là MỘT tập — so thẳng với chainRows. */
+  assert.deepEqual(ids(upNext), ids(chainRows(pub)))
+  /* Chip In progress dùng CÙNG tập (tab của nó cũng cùng tập, chỉ khác
+     thứ tự) — badge của nó là pickedGroups.length nên danh sách phải khớp. */
+  assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'in_progress', statusFilters: ['in_progress'] })), ids(chainRows(pub)))
+  /* Bài chưa từng được chốt nhưng admin tick mốc tiến độ (in_progress,
+     không có picked_at) cũng thuộc dây chuyền — không được rơi khỏi chip
+     Up next như đã từng rơi khỏi mọi tab. */
+  const ticked = req('ILLIT', 'Lalaluka', 2, { status: 'in_progress', progress: 40 })
+  const pub2 = [...pub, ticked]
+  assert.ok(filterBoard({ pub: pub2, rows: pub2, filter: 'picked', statusFilters: ['picked'] }).some(r => r.id === ticked.id))
+})
+
 test('lọc bảng: dữ liệu rác không ném lỗi, gọi thiếu tham số vẫn chạy', () => {
   assert.deepEqual(filterBoard(), [])
   assert.deepEqual(filterBoard({ pub: null, rows: null }), [])
