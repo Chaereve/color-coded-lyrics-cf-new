@@ -102,8 +102,8 @@ test('bảng rỗng ra đúng một câu, không phải khung trống', async ()
 /* ---------- MÙA GIẢI (tuần/tháng) ----------
    Luật cắt mùa nằm ở src/lib/season.js và đã được khoá bằng số trong
    season.test.js. Ba ca dưới đây chỉ chốt những gì THẤY ĐƯỢC KHI RENDER:
-   nút mùa có mặt, câu luật đổi theo mùa, khoảng ngày in ra, và lời thú nhận
-   về cột phiếu (cộng dồn) không bị quên. */
+   nút mùa có mặt, câu luật đổi theo mùa, khoảng ngày in ra, và lời nói thật
+   về cột phiếu (phiếu NHẬN TRONG MÙA, kể cả bài gửi từ lâu) không bị quên. */
 
 /* Chủ nhật 2025-09-21 17:30 UTC = thứ Hai 2025-09-22 00:30 giờ Việt Nam —
    cùng mốc `NOW` với season.test.js để hai tầng test nói về một tuần. */
@@ -122,11 +122,32 @@ const seasonAll = [
   /* caro: denied, không được vào bảng mùa nào */
   { id: 'c1', user_id: 'caro', requester: 'caro', status: 'denied', votes: 7,
     created_at: vn('2025-09-24'), updated_at: vn('2025-09-24') },
+  /* dora: ĐÚNG ca chủ dự án báo — bài gửi đầu tháng (40 phiếu cộng dồn),
+     được vote 2 lần trong tuần 22–28/09 -> phải hiện trong bảng tuần */
+  { id: 'd1', user_id: 'dora', requester: 'dora', status: 'queued', votes: 40,
+    created_at: vn('2025-09-01'), updated_at: vn('2025-09-27') },
+]
+/* Phiếu NHẬN TRONG MÙA (hình dạng database). a1: 5 phiếu trong tháng, 3 phiếu
+   trong tuần (23, 24, 25/09). a2: 4 phiếu trong tháng (tuần trước), 0 trong
+   tuần. b1: 1 phiếu trong tuần. d1: 2 phiếu trong tuần. */
+const seasonVotes = [
+  { request_id: 'a1', created_at: vn('2025-09-23') },
+  { request_id: 'a1', created_at: vn('2025-09-24') },
+  { request_id: 'a1', created_at: vn('2025-09-25') },
+  { request_id: 'a1', created_at: vn('2025-09-18') },
+  { request_id: 'a1', created_at: vn('2025-09-19') },
+  { request_id: 'a2', created_at: vn('2025-09-16') },
+  { request_id: 'a2', created_at: vn('2025-09-17') },
+  { request_id: 'a2', created_at: vn('2025-09-18') },
+  { request_id: 'a2', created_at: vn('2025-09-19') },
+  { request_id: 'b1', created_at: vn('2025-09-27') },
+  { request_id: 'd1', created_at: vn('2025-09-27') },
+  { request_id: 'd1', created_at: vn('2025-09-28') },
 ]
 
 test('mùa giải: bảng tuần cắt số theo cửa sổ, câu luật và khoảng ngày nói rõ đang xem gì', async () => {
   const html = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
-    initialPeriod: 'week', now: NOW })
+    initialPeriod: 'week', now: NOW, votesLog: seasonVotes })
   const segTitle = html.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
   assert.ok(segTitle.includes('22/09') && segTitle.includes('28/09'),
     `tooltip nhóm mùa phải chở khoảng ngày — được: "${segTitle}"`)
@@ -135,28 +156,31 @@ test('mùa giải: bảng tuần cắt số theo cửa sổ, câu luật và kho
   assert.ok(alicePod, 'alice phải có mặt trên bảng tuần')
   const podNum = alicePod.match(/lb-pod-num"><b[^>]*>(\d+)<\/b>/)
   assert.equal(podNum?.[1], '1', 'tuần này alice xong 1 bài — không phải 2 của cả thời gian')
-  assert.ok(!alicePod.includes('9 votes'), 'bài xong tuần trước (9 phiếu) không được lọt vào bảng tuần')
+  assert.ok(alicePod.includes('3 votes'),
+    'cột phiếu tuần = phiếu NHẬN TRONG TUẦN (a1: 23, 24, 25/09) — không phải cộng dồn 5')
+  assert.ok(!alicePod.includes('9 votes'), 'bài xong tuần trước (9 phiếu, 0 phiếu nhận trong tuần) không được lọt vào bảng tuần')
   assert.ok(html.includes('bob'), 'người gửi trong tuần nhưng chưa xong vẫn có mặt')
   assert.ok(!html.includes('>caro<'), 'bài bị từ chối không được tính vào mùa')
-  assert.ok(segTitle.includes('lifetime totals'),
-    'tooltip nhóm mùa phải thú nhận phiếu là cộng dồn, không phải phiếu trong tuần')
+  assert.ok(html.includes('dora'), 'bài CŨ được vote trong tuần phải hiện trong bảng tuần (ca chủ dự án báo)')
+  assert.ok(segTitle.includes('received this period'),
+    'tooltip nhóm mùa phải nói thật phiếu là phiếu NHẬN TRONG MÙA')
 })
 
 test('mùa giải: tháng gối đúng cửa sổ, và All time giữ nguyên câu luật cũ', async () => {
   const month = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'alice',
-    initialPeriod: 'month', now: NOW })
+    initialPeriod: 'month', now: NOW, votesLog: seasonVotes })
   const segTitle = month.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
   assert.match(segTitle, /\d{2}\/\d{2}.*\d{2}\/\d{2}/, 'tháng cũng phải có khoảng ngày')
   const alicePod = month.split('<div class="lb-pod p').find((b) => b.includes('title="alice"'))
   assert.ok(alicePod, 'alice phải có trong tháng')
   assert.equal(alicePod.match(/lb-pod-num"><b[^>]*>(\d+)<\/b>/)?.[1], '2',
     'bảng tháng phải đếm cả bài gửi 15/09 (trong tháng, ngoài tuần)')
-  assert.ok(alicePod.includes('14 votes'), 'phiếu của bài gửi trong mùa: 5 + 9 = 14')
+  assert.ok(alicePod.includes('9 votes'), 'phiếu NHẬN TRONG THÁNG: a1 5 + a2 4 = 9 (không phải cộng dồn 14)')
   assert.ok(month.includes('alice') && month.includes('bob'), 'tháng 9 có cả alice lẫn bob')
 
   const all = await render({ rows, allRows: seasonAll, ranking: rows, meId: 'me' })
   assert.ok(all.includes('>Sorted by requests completed</p>'), 'All time (mặc định) giữ đúng câu luật cũ')
-  assert.doesNotMatch(all, /lifetime totals/, 'bảng toàn thời gian không cần chú thích phiếu')
+  assert.doesNotMatch(all, /lifetime totals|received this period/, 'bảng toàn thời gian không cần chú thích phiếu mùa')
   const allTitle = all.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
   assert.ok(!/\d{2}\/\d{2}/.test(allTitle), 'All time thì tooltip không chở khoảng ngày nào')
   const segs = all.match(/lb-periodseg[\s\S]*?<\/div>/)[0]
@@ -214,7 +238,7 @@ test('một thanh điều khiển duy nhất: viên nhạt cho mùa + viên thu�
     'câu luật chỉ còn đúng một vế, không tem ngày, không chú thích kèm')
   const segTitle = html.match(/lb-periodseg"[^>]*title="([^"]*)"/)?.[1] || ''
   assert.match(segTitle, /\d{2}\/\d{2}/, 'khoảng ngày sống trong tooltip nhóm mùa')
-  assert.ok(segTitle.includes('lifetime totals'), 'chú thích phiếu sống trong tooltip nhóm mùa')
+  assert.ok(segTitle.includes('received this period'), 'chú thích phiếu sống trong tooltip nhóm mùa')
 })
 
 test('bảng trống: GIỮ cả tab mùa và viên thuốc sắp xếp để còn đường về All time và thấy hạng mục', async () => {

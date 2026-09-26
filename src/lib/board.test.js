@@ -542,32 +542,64 @@ test('tách tiêu đề video: tên bài trong nháy, dấu gạch nối, và nh
   assert.deepEqual(splitSong('IU - Love wins all (feat. someone)'), { artist: 'IU', title: 'Love wins all (feat. someone)' })
 })
 
-test('This week: 0 phiếu không phải Most voted, không mất thẻ New khi chỉ có một bài, và tính cả bài pending', () => {
-  const at = (ago) => new Date(Date.now() - ago).toISOString()
+test('This week: "Most voted" tính vote NHẬN TRONG 7 NGÀY QUA, bài cũ được vote tuần này vẫn vào, thẻ New giữ bài mới GỬI nhất', () => {
+  const now = Date.now()
+  const day = 86400000
+  const at = (ago) => new Date(now - ago).toISOString()
+  const vote = (id, ago) => ({ id, at: now - ago })
+
+  /* Chưa có phiếu nào NHẬN trong cửa sổ (kể cả bài mới) thì không ai được
+     đội nhãn Most voted; bài mới nhất trong cửa sổ vẫn có thẻ New. */
   const only = weeklyHighlights([
-    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
-  ])
-  assert.equal(only.top, null, 'chưa ai vote thì không được gắn nhãn most voted')
+    { id: 'a1', artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
+  ], now)
+  assert.equal(only.top, null, 'chưa ai vote trong cửa sổ thì không đội nhãn most voted')
   assert.equal(only.newcomer?.title, 'Sour Grapes')
   assert.equal(only.newcomer?.requester, 'Isabelle')
 
+  /* Hai request trùng bài: phiếu nhận trong cửa sổ của CẢ CỤM được cộng. */
   const same = weeklyHighlights([
-    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 4, created_at: at(3600_000) },
-    { artist: 'Niziu', title: 'sour grapes', requester: 'Mina', status: 'queued', votes: 1, created_at: at(7200_000) },
-  ])
-  assert.equal(same.top?.votes, 5, 'hai request cùng bài trong tuần phải cộng phiếu')
-  assert.equal(same.newcomer?.title, 'Sour Grapes', 'không được làm mất thẻ New khi chỉ có một bài')
+    { id: 'a1', artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 4, created_at: at(3600_000) },
+    { id: 'a2', artist: 'Niziu', title: 'sour grapes', requester: 'Mina', status: 'queued', votes: 1, created_at: at(7200_000) },
+  ], now, [vote('a1', 2 * 3600_000), vote('a1', 3600_000), vote('a2', 3600_000)])
+  assert.equal(same.top?.title, 'Sour Grapes')
+  assert.equal(same.top?.votes, 3, 'hai request cùng bài phải cộng phiếu NHẬN trong cửa sổ')
+  assert.equal(same.newcomer?.title, 'Sour Grapes', 'không được làm mất thẻ New khi chỉ có một bài mới')
 
+  /* ĐÚNG ca chủ dự án báo: bài 8 ngày tuổi (40 phiếu cộng dồn) được vote 3 lần
+     trong 7 ngày qua phải thắng bài mới chỉ 2 phiếu trong cửa sổ — và con số
+     in trên thẻ là 3 (phiếu nhận trong cửa sổ), không phải 40 (cộng dồn). */
   const split = weeklyHighlights([
-    { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
-    { artist: 'IVE', title: 'Accendio', requester: 'fan', status: 'queued', votes: 2, created_at: at(2 * 86400000) },
-    { artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 0, created_at: at(1000) },
-    { artist: 'TWICE', title: 'Old', requester: 'fan', status: 'queued', votes: 40, created_at: at(8 * 86400000) },
-  ])
-  assert.equal(split.top?.title, 'Accendio')
-  assert.equal(split.top?.votes, 2)
-  assert.equal(split.newcomer?.title, 'Whiplash', 'bài pending mới nhất phải hiện ở thẻ New')
+    { id: 'b1', artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
+    { id: 'b2', artist: 'IVE', title: 'Accendio', requester: 'fan', status: 'queued', votes: 2, created_at: at(2 * day) },
+    { id: 'b3', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 0, created_at: at(1000) },
+    { id: 'b4', artist: 'TWICE', title: 'Old', requester: 'fan', status: 'queued', votes: 40, created_at: at(8 * day) },
+  ], now, [vote('b2', day), vote('b2', 2 * day), vote('b4', 2 * day), vote('b4', 3 * day), vote('b4', 4 * day)])
+  assert.equal(split.top?.title, 'Old', 'bài cũ nhiều vote NHẬN trong cửa sổ nhất phải lên thẻ Most voted')
+  assert.equal(split.top?.votes, 3, 'in phiếu nhận trong cửa sổ, không phải cộng dồn 40')
+  assert.equal(split.newcomer?.title, 'Whiplash', 'bài pending mới GỬI nhất phải hiện ở thẻ New')
   assert.equal(split.newcomer?.requester, 'minji')
+
+  /* Bài gửi từ lâu mà XONG trong cửa sổ vẫn thuộc "This week" (cùng luật
+     Leaderboard); nhưng không có phiếu nào nhận trong cửa sổ thì không đội
+     Most voted, và không phải "New this week" vì không gửi trong cửa sổ. */
+  const done = weeklyHighlights([
+    { id: 'c1', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'completed', votes: 12, created_at: at(30 * day), updated_at: at(day) },
+  ], now, [vote('c1', 2 * 3600_000)])
+  assert.equal(done.top?.title, 'Whiplash', 'bài cũ xong trong cửa sổ + có vote trong cửa sổ vẫn thuộc This week')
+  assert.equal(done.top?.votes, 1)
+  const doneSilent = weeklyHighlights([
+    { id: 'c2', artist: 'aespa', title: 'Old Done', requester: 'minji', status: 'completed', votes: 12, created_at: at(30 * day), updated_at: at(day) },
+  ], now)
+  assert.equal(doneSilent.top, null, 'chỉ có phiếu cộng dồn (không phiếu nhận trong cửa sổ) thì không phải Most voted')
+  assert.equal(doneSilent.newcomer, null, 'bài không GỬI trong cửa sổ không phải "New this week"')
+
+  /* Bài bị từ chối: vote trong cửa sổ cũng không kéo nó về. */
+  const denied = weeklyHighlights([
+    { id: 'd1', artist: 'X', title: 'Y', requester: 'z', status: 'denied', votes: 5, created_at: at(3 * day) },
+  ], now, [vote('d1', day)])
+  assert.equal(denied.top, null)
+  assert.equal(denied.newcomer, null)
 })
 
 test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {

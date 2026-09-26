@@ -33,10 +33,14 @@
    nhiều nhất". Cách xếp vẫn đổi được (ba con số như bảng tổng), nhưng mọi
    con số đều bị cắt theo cửa sổ và câu luật trên màn hình nói rõ điều đó.
 
-   PHIẾU: bảng `votes` không có mốc thời gian theo bài trong dữ liệu đang
-   tải về, nên KHÔNG thể đếm "phiếu nhận trong mùa". Con số phiếu trên bảng
-   mùa là phiếu của các bài GỬI trong mùa (cộng dồn tới nay) — UI phải nói
-   đúng câu đó, không được để người xem tự hiểu là "phiếu trong tuần".
+   PHIẾU — đếm THEO LÚC NHẬN (chủ dự án chốt 26/09): request nào nhận
+   ít nhất một vote trong mùa THÌ THUỘC MÙA đó, kể cả bài gửi từ lâu. Cột
+   "Votes earned" là số vote NHẬN TRONG MÙA, không phải cộng dồn. Nguồn:
+   RPC `votes_received` (migrations/20260926) trả từng phiếu kèm created_at —
+   RLS chỉ cho đọc phiếu của mình, nên phải qua security definer. Mỗi phiếu
+   có một trong hai hình dạng: `{request_id, created_at}` (database) hoặc
+   `{id, at}` (demo) — mọi chỗ đếm đều đi qua `votesByRequest` bên dưới,
+   không chỗ nào tự đọc trường.
 
    Múi giờ: Asia/Ho_Chi_Minh. "Tuần này" của một bảng request tiếng Việt
    phải đổi ngày lúc nửa đêm giờ Việt Nam, không phải nửa đêm UTC — lệch
@@ -50,11 +54,6 @@ export const TZ = 'Asia/Ho_Chi_Minh'
    Nhãn nút nằm trong từ điển (rank.period.*) và được gọi nguyên văn từng key
    trong Leaderboard — không ghép động, vì họ key này không có tiền tố động. */
 export const PERIODS = [{ k: 'all' }, { k: 'week' }, { k: 'month' }]
-
-const n = (v) => {
-  const x = Number(v)
-  return Number.isFinite(x) ? x : 0
-}
 
 /* "Hôm nay" theo lịch Việt Nam, dạng 'YYYY-MM-DD'. `en-CA` vì nó là locale
    duy nhất in ra đúng thứ tự năm-tháng-ngày, không phải ngày/tháng kiểu Mỹ.
@@ -122,23 +121,51 @@ const sentAt = (r) => {
 }
 
 /* =========================================================
+   ĐẾM PHIẾU THEO CỬA SỔ — MỘT luật cho mọi chỗ in "vote nhận trong mùa"
+   ---------------------------------------------------------
+   Nhận danh sách phiếu thô (database: {request_id, created_at}; demo:
+   {id, at}) và trả Map: request_id → số phiếu NHẬN trong [start, end).
+   Phiếu rác (thiếu id, mốc không phải thời điểm) bị bỏ chứ không NaN.
+   Khối "This week" trang chủ và Leaderboard tuần/tháng đều gọi đúng hàm
+   này — hai chỗ tự đọc trường phiếu là hai chỗ lệch nhau.
+   ========================================================= */
+export function votesByRequest(votesLog, start, end) {
+  const m = new Map()
+  for (const v of votesLog || []) {
+    const id = v?.request_id ?? v?.id
+    if (id === undefined || id === null || id === '') continue
+    const at = v?.at !== undefined ? Number(v.at) : Date.parse(v?.created_at)
+    if (!Number.isFinite(at) || at < start || at >= end) continue
+    m.set(id, (m.get(id) || 0) + 1)
+  }
+  return m
+}
+
+/* =========================================================
    GOM SỐ THEO MÙA — ra CÙNG HÌNH DẠNG với `requester_ranking`
    ---------------------------------------------------------
-   Một `user_id` là một dòng: { total, completed, total_votes } — nhưng cả ba
-   con số đều bị cắt theo cửa sổ:
-   · `total`     — bài GỬI trong mùa (bị từ chối không tính, cùng luật view);
+   Một request "thuộc mùa" khi nó GỬI trong mùa, HOẶC XONG trong mùa, HOẶC
+   NHẬN ÍT NHẤT MỘT VOTE trong mùa (chủ dự án chốt 26/09: vote là hoạt động
+   của cộng đồng trong mùa, bài cũ được vote nhiều tuần này phải hiện trong
+   "This week"). Một `user_id` là một dòng: { total, completed, total_votes }
+   với cả ba con số cắt theo cửa sổ:
+   · `total`     — số request THUỘC MÙA (bị từ chối không tính, cùng luật
+     view); request chỉ thuộc mùa vì được vote vẫn đếm — nó là bài của họ
+     trong mùa, không in 0 cạnh cột vote dương;
    · `completed` — bài XONG trong mùa (theo mốc `doneAt` ở trên);
-   · `total_votes` — phiếu (cộng dồn) của các bài GỬI trong mùa.
+   · `total_votes` — số vote NHẬN TRONG MÙA của các request đó (không phải
+     cộng dồn — "lifetime totals" là luật cũ, đã thay).
    Tên + avatar lấy từ bảng xếp hạng tổng (`ranking`) khi có — đó là tên hiển
    thị và ảnh đã được chốt ở view thật; hàng demo không có trong đó thì lùi
    về `requester` trên chính hàng request, giống `rankDemo`.
    Người có bài trong mùa nhưng chưa xong bài nào VẪN có mặt (total > 0,
-   completed = 0): bảng nói thật là họ có gửi, thay vì biến mất.
+   completed = 0): bảng nói thật là họ có bài trong mùa, thay vì biến mất.
    ========================================================= */
-export function seasonRows(rows, ranking, period, now = Date.now()) {
+export function seasonRows(rows, ranking, period, now = Date.now(), votesLog = []) {
   if (period !== 'week' && period !== 'month') return rows || []
   const win = seasonWindow(period, now)
   if (!win) return rows || []
+  const votes = votesByRequest(votesLog, win.start, win.end)
   const byUser = new Map()
   for (const r of rows || []) {
     if (!r || r.status === 'denied') continue
@@ -146,14 +173,16 @@ export function seasonRows(rows, ranking, period, now = Date.now()) {
     const done = r.status === 'completed' ? doneAt(r) : NaN
     const sentIn = Number.isFinite(sent) && sent >= win.start && sent < win.end
     const doneIn = r.status === 'completed' && Number.isFinite(done) && done >= win.start && done < win.end
-    if (!sentIn && !doneIn) continue
+    const got = votes.get(r.id) || 0
+    if (!sentIn && !doneIn && !got) continue
     const id = r.user_id ?? 'anon'
     let g = byUser.get(id)
     if (!g) byUser.set(id, g = { user_id: id, names: new Map(), total: 0, completed: 0, total_votes: 0 })
     const nm = String(r.requester ?? '').trim()
     if (nm) g.names.set(nm, (g.names.get(nm) || 0) + 1)
-    if (sentIn) { g.total++; g.total_votes += n(r.votes) }
+    g.total++
     if (doneIn) g.completed++
+    g.total_votes += got
   }
   const known = new Map((ranking || []).map((p) => [p?.user_id, p]))
   return [...byUser.values()].map((g) => {

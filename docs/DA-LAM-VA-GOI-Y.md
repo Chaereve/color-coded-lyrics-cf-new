@@ -2025,3 +2025,66 @@ ca *"SET không có tên chết"* — để lại là hai bài kiểm đỏ ngay
 - **Cú bấm vào mặt video giờ là đường play/pause duy nhất** (ngoài phím tắt của player đã tắt bằng
   `disablekb=1`). Nếu trình duyệt/iframe chặn cú bấm (hiếm), khung sẽ chỉ còn tự chạy — đó là giá
   của việc "không nút nào của trang"; muốn chắc ăn thì phải hỏi chủ dự án trước khi dựng lại nút.
+
+## Phần XX — vòng 30: "This week" đếm vote THEO LÚC NHẬN — bài cũ được vote tuần này không còn vô hình (26/09/2026)
+
+### XX1. Lỗi chủ dự án báo
+
+> *"sao t vote r mà nó ko hiện vô leaderboard this week v???"*
+
+Luật cũ của mùa giải (vòng 19): một request chỉ thuộc "This week" nếu nó **gửi** trong
+tuần (hoặc **xong** trong tuần). Vote không làm bài nào "trở về" trong tuần — vote 100 lần
+vào bài gửi tháng trước, bài đó vẫn không bao giờ hiện trong bảng tuần, và số phiếu trên
+bảng mùa là **cộng dồn** của bài gửi trong mùa. Kết quả: hoạt động thật của cộng đồng trong
+tuần (ai đang được vote nhiều) bị giấu, và người vote không thấy mình được tính.
+
+**Quyết định (chủ dự án chốt 26/09, áp dụng cho CẢ HAI bề mặt):**
+- Một request **thuộc mùa khi nó gửi, HOẶC xong, HOẶC nhận ít nhất một vote trong mùa** —
+  kể cả bài gửi từ lâu.
+- Cột "Votes earned" / con số trên thẻ "Most voted" = số vote **NHẬN TRONG MÙA**, không
+  phải cộng dồn.
+- Trang chủ: thẻ "Most voted" = bài nhiều vote nhận nhất trong 7 ngày qua (bài cũ được vote
+  nhiều tuần này cũng lên thẻ); thẻ "New this week" vẫn giữ bài mới **gửi** nhất trong cửa sổ.
+
+### XX2. Rào cản: RLS trên votes chỉ cho đọc phiếu của MÌNH
+
+Muốn đếm "bài X nhận được bao nhiêu phiếu trong tuần" cho CẢ cộng đồng thì phải đọc bảng
+`votes` — mà policy cuối cùng của schema (`read own votes`, khối 07) chỉ cho `user_id =
+auth.uid()`. SELECT thẳng từ client chỉ lấy về phiếu của chính người đang xem. Nên:
+
+- **RPC `public.votes_received(p_since timestamptz)`** — `security definer`, trả
+  `(request_id, created_at)` — **không bao giờ có `user_id`** (không lộ người nào đã vote bài
+  nào), `limit 10000` để project lớn không trả payload khổng lồ cho mỗi lần tải bảng.
+  Grant `anon, authenticated` (trang chủ + bảng xếp hạng đọc được cả khi chưa đăng nhập).
+- **Index `votes_created_idx`** — cửa sổ 31 ngày không được quét cả bảng khi số phiếu lớn.
+- Chạy **1 lần** trên database thật: `supabase/migrations/20260926_votes_received.sql`
+  (idempotent: chỉ `create index if not exists` + `create or replace function`).
+  **Chưa chạy migration thì app không hỏng** — RPC lỗi, `votesLog` giữ nguyên, hai bề mặt
+  chạy đúng luật cũ (bài thuộc mùa theo gửi/xong); chỉ thiếu vế "vote trong mùa" cho tới khi
+  migration chạy.
+
+### XX3. Đường dữ liệu — một lần fetch, ba cửa sổ
+
+| Chỗ | Việc |
+|---|---|
+| `fetchRecentVotes()` (db.js) | fetch MỘT lần phiếu ~31 ngày qua (đủ phủ cả ba cửa sổ: 7 ngày lăn, tuần lịch, tháng lịch — cửa sổ nào cũng bắt đầu không xa hơn 31 ngày). Live qua RPC; demo dựng lại từng phiếu từ `localStorage` (phiếu gốc của bài đặt mốc ở `created_at` của bài, phiếu của mình giữ mốc `day` thật — vote vào bài cũ hôm nay trong demo vẫn tính là nhận hôm nay) |
+| `votesByRequest(log, start, end)` (season.js) | luật đếm DUY NHẤT: Map `request_id → số phiếu nhận trong [start, end)`, chịu cả hai hình dạng phiếu (`{request_id, created_at}` database / `{id, at}` demo), phiếu rác không NaN |
+| `seasonRows(rows, ranking, period, now, votesLog)` (season.js) | `total` = request **thuộc mùa** (gửi/xong/vote trong cửa sổ); `completed` = xong trong cửa sổ; `total_votes` = vote **nhận trong cửa sổ** |
+| `weeklyHighlights(rows, now, votesLog)` (board.js) | "Most voted" = bài nhiều vote nhận nhất trong 7 ngày lăn; "New this week" = bài mới **gửi** nhất trong cửa sổ; bài denied không thuộc cửa sổ dù có vote |
+| `App.jsx` | `votesLog` là state; `loadBoard` **và** `loadPublic` fetch cùng nhịp bảng (lỗi fetch thì giữ dữ liệu cũ, không xoá về 0); realtime không cần thêm — vote làm thay đổi hàng `requests` → kênh `live` đã kéo `loadBoard` lại, phiếu theo về cùng nhịp |
+
+### XX4. Kiểm thử
+
+| Hạng mục | Kết quả |
+|---|---|
+| `npm test` | ✅ **516 đạt / 0 lỗi / 3 skip**. Mới: `season.test.js` ca *bài CŨ được vote TRONG TUẦN phải hiện trong bảng tuần* + ca `votesByRequest` (ranh giới [start, end), hai hình dạng phiếu, dữ liệu rác); `board.test.js` ca *bài 8 ngày tuổi được vote 3 lần tuần này thắng bài mới 2 phiếu, in 3 chứ không phải 40*; `Leaderboard.test.js` render thật: bục in "3 votes" (nhận trong tuần) thay vì cộng dồn, dora (bài cũ + vote trong tuần) có mặt |
+| `npm run smoke` | ✅ **349/349** (1 ca đổi theo luật mới: tooltip nhóm mùa phải nói "received this period") |
+| `npx oxlint` | ✅ 0 lỗi, **27 cảnh báo** — bằng nền |
+| `npm run build` | ✅ sạch — `index-*.js` 345 kB |
+
+### XX5. Điều cần làm trên database thật
+
+Chạy `supabase/migrations/20260926_votes_received.sql` MỘT LẦN trong Supabase SQL Editor
+(trước khi đó hai bề mặt chạy đúng luật cũ, không hỏng). Sau khi chạy, vote vào bài cũ sẽ
+hiện trong Leaderboard *This week/This month* và thẻ *Most voted* ngay trong lần tải bảng kế
+tiếp (hoặc ngay lập tức nhờ realtime kéo bảng sau mỗi vote).
