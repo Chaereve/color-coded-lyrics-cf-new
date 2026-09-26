@@ -146,3 +146,18 @@ test('tên trong bảng vẫn cắt bằng ellipsis, không đẩy cột hạng'
   assert.match(css, /\.lb-nm\s*\{[^}]*text-overflow:\s*ellipsis/)
   assert.match(css, /\.lb-table\s*\{[^}]*table-layout:\s*fixed/)
 })
+
+/* Tên trên bục phải căn giữa avatar. Một max-width cố định (từng là 92px
+   ở ≤620px) biến div thành hộp block dính mép trái trong khi avatar vẫn
+   margin: 0 auto — tên ngắn cũng lệch sang một bên. text-wrap: balance
+   không được đụng tên này: nó là longhand của white-space và giết nowrap. */
+test('tên trên bục căn giữa, không bị ghim sang trái', () => {
+  assert.match(css, /\.lb-pod-name\s*\{[^}]*margin:\s*0 auto/)
+  assert.match(css, /\.lb-pod-name\s*\{[^}]*text-align:\s*center/)
+  assert.match(css, /\.lb-pod-name\s*\{[^}]*max-width:\s*100%/)
+  assert.match(css, /\.lb-pod-name\s*\{[^}]*white-space:\s*nowrap/)
+  assert.doesNotMatch(css, /\.lb-pod-name[^{]*\{[^}]*max-width:\s*\d+px/)
+  const balance = css.match(/([^{};]+)\{[^}]*text-wrap:\s*balance/)
+  assert.ok(balance, 'thiếu luật text-wrap: balance')
+  assert.doesNotMatch(balance[1], /\.lb-pod-name\b/, 'balance không được ghi đè nowrap của tên trên bục')
+})
