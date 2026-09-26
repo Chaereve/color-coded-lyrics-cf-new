@@ -421,23 +421,26 @@ export function stageCounts(rows) {
 export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
 
 /* Hai thẻ "This week". Cửa sổ là 7 ngày lăn, không phải tuần lịch.
-   Chỉ bài công khai (không pending, không denied) — hàng chờ duyệt không
-   được hiện thành "nổi bật" khi bảng còn giấu nó.
+   Không tính bài bị từ chối (denied). Bài chờ duyệt (pending) vẫn được hiện
+   ở thẻ bài mới nhất để người gửi thấy yêu cầu của mình ngay.
    "Most voted" phải có ÍT NHẤT một phiếu. Bài mới chưa ai vote không được
-   đội nhãn đó chỉ vì nó là hàng duy nhất trong cửa sổ. Hai thẻ không được
-   cùng một bài: nếu bài nhiều phiếu nhất cũng là bài mới nhất, thẻ kia lấy
-   bài mới kế tiếp, hoặc ẩn nếu không còn bài nào khác. */
+   đội nhãn đó chỉ vì nó là hàng duy nhất trong cửa sổ.
+   Thẻ "New this week" luôn giữ bài mới nhất trong tuần. Nếu bài nhiều phiếu
+   nhất cũng là bài mới nhất và còn bài khác thì thẻ New lấy bài mới kế tiếp;
+   nếu chỉ có một bài thì vẫn giữ thẻ New để không làm mất phần yêu cầu mới nhất. */
 const WEEK_MS = 7 * 86400000
 export function weeklyHighlights(rows, now = Date.now()) {
   const since = now - WEEK_MS
   const recent = real(rows).filter((r) => {
-    if (r.status === 'pending' || r.status === 'denied') return false
+    if (r.status === 'denied') return false
     return ts(r.created_at) >= since
   })
   const byVotes = [...groupRows(recent)].sort((a, b) => b.votes - a.votes || b.newest - a.newest)
   const byNew = [...groupRows(recent)].sort((a, b) => b.newest - a.newest || b.votes - a.votes)
   const topGroup = byVotes.find((g) => g.votes > 0) || null
-  const newGroup = byNew.find((g) => !topGroup || g.key !== topGroup.key) || null
+  const newGroup = (topGroup && byNew.length > 1 && byNew[0].key === topGroup.key)
+    ? byNew[1]
+    : (byNew[0] || null)
   const card = (g) => {
     if (!g) return null
     const newest = [...g.rows].sort((a, b) => ts(b.created_at) - ts(a.created_at))[0]
@@ -486,8 +489,11 @@ export function filterBoard(opts = {}) {
     statusFilters = [], kindFilters = [], q = '', watchedSet = new Set(),
   } = opts
   const picked = opts.picked || chainRows(pub)
+  const t = (q ?? '').trim()
   let base = real(pub)
-  if (statusFilters.length) {
+  if (filter === 'newest' && t && rows?.length) {
+    base = real(rows).filter(r => r.status !== 'denied')
+  } else if (statusFilters.length) {
     base = base.filter(r => statusFilters.some(s => s === 'picked'
       ? isPicked(r) && r.status !== 'in_progress'
       : s === 'in_progress' ? r.status === 'in_progress'
@@ -500,7 +506,6 @@ export function filterBoard(opts = {}) {
   if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
   if (filter === 'watch') base = real(rows).filter(r => watchedSet.has(groupKey(r)))
   if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
-  const t = (q ?? '').trim()
   if (t) base = base.filter(r => searchHit(r, t))
   return base
 }

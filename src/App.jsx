@@ -1458,7 +1458,7 @@ function AppInner() {
     }
     return Array.from(seen.values()).slice(0, 8)
   }, [rows])
-  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(pub, Date.now()), [pub])
+  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(rows, Date.now()), [rows])
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),

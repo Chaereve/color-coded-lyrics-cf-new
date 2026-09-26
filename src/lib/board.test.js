@@ -517,7 +517,7 @@ test('tách tiêu đề video: tên bài trong nháy, dấu gạch nối, và nh
   assert.deepEqual(splitSong('IU - Love wins all (feat. someone)'), { artist: 'IU', title: 'Love wins all (feat. someone)' })
 })
 
-test('This week: 0 phiếu không phải Most voted, và không lặp cùng một bài', () => {
+test('This week: 0 phiếu không phải Most voted, không mất thẻ New khi chỉ có một bài, và tính cả bài pending', () => {
   const at = (ago) => new Date(Date.now() - ago).toISOString()
   const only = weeklyHighlights([
     { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
@@ -531,18 +531,18 @@ test('This week: 0 phiếu không phải Most voted, và không lặp cùng mộ
     { artist: 'Niziu', title: 'sour grapes', requester: 'Mina', status: 'queued', votes: 1, created_at: at(7200_000) },
   ])
   assert.equal(same.top?.votes, 5, 'hai request cùng bài trong tuần phải cộng phiếu')
-  assert.equal(same.newcomer, null, 'không hiện bài đó lần nữa ở thẻ New')
+  assert.equal(same.newcomer?.title, 'Sour Grapes', 'không được làm mất thẻ New khi chỉ có một bài')
 
   const split = weeklyHighlights([
     { artist: 'Niziu', title: 'Sour Grapes', requester: 'Isabelle', status: 'queued', votes: 0, created_at: at(3600_000) },
     { artist: 'IVE', title: 'Accendio', requester: 'fan', status: 'queued', votes: 2, created_at: at(2 * 86400000) },
-    { artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 9, created_at: at(1000) },
+    { artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 0, created_at: at(1000) },
     { artist: 'TWICE', title: 'Old', requester: 'fan', status: 'queued', votes: 40, created_at: at(8 * 86400000) },
   ])
   assert.equal(split.top?.title, 'Accendio')
   assert.equal(split.top?.votes, 2)
-  assert.equal(split.newcomer?.title, 'Sour Grapes')
-  assert.equal(split.newcomer?.requester, 'Isabelle')
+  assert.equal(split.newcomer?.title, 'Whiplash', 'bài pending mới nhất phải hiện ở thẻ New')
+  assert.equal(split.newcomer?.requester, 'minji')
 })
 
 test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {

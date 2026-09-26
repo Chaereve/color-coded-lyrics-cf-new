@@ -28,23 +28,28 @@ test('múi giờ là giờ Việt Nam, và "hôm nay" đổi ngày lúc nửa đ
   assert.equal(vnDayKey(Date.parse('2025-09-21T16:59:00Z')), '2025-09-21')
 })
 
-test('cửa sổ TUẦN: 7 ngày rolling gần nhất (để luôn có dữ liệu)', () => {
+test('cửa sổ TUẦN: thứ Hai 00:00 VN tới thứ Hai kế tiếp 00:00 VN (loại trừ)', () => {
   const win = seasonWindow('week', NOW)
-  assert.equal(win.end, NOW, 'end là now')
+  /* "hôm nay" theo VN là thứ Hai 22/09 -> tuần bắt đầu ngay hôm nay */
+  assert.equal(vnDayKey(win.start), '2025-09-22')
+  assert.equal(new Date(win.start).getUTCHours(), 17, '00:00 VN = 17:00 UTC ngày trước')
   assert.equal(win.end - win.start, 7 * 86400000, 'đúng 7 ngày')
-  assert.ok(win.start < win.end)
-  // rolling: thứ Tư thì cửa sổ lùi 7 ngày từ thứ Tư, không neo Thứ Hai
+  /* nhìn từ thứ Tư giữa tuần thì cửa sổ vẫn neo về thứ Hai */
   const wed = seasonWindow('week', Date.parse('2025-09-24T05:00:00Z'))
-  assert.equal(wed.end - wed.start, 7 * 86400000)
-  assert.equal(wed.end, Date.parse('2025-09-24T05:00:00Z'))
+  assert.equal(vnDayKey(wed.start), '2025-09-22')
+  /* nhìn từ Chủ nhật VN (ngày CUỐI tuần) cũng không bị tràn sang tuần sau */
+  const sun = seasonWindow('week', Date.parse('2025-09-28T16:00:00Z'))
+  assert.equal(vnDayKey(sun.start), '2025-09-22', 'Chủ nhật 28/09 vẫn thuộc tuần 22–28')
 })
 
-test('cửa sổ THÁNG: 30 ngày rolling gần nhất', () => {
+test('cửa sổ THÁNG: mùng 1 tới mùng 1 tháng sau, và tháng 12 gối năm', () => {
   const win = seasonWindow('month', NOW)
-  assert.equal(win.end, NOW)
-  assert.equal(win.end - win.start, 30 * 86400000, 'đúng 30 ngày')
+  assert.equal(vnDayKey(win.start), '2025-09-01')
+  assert.equal(vnDayKey(win.end), '2025-10-01')
+  assert.equal(win.end - win.start, 30 * 86400000, 'tháng 9 có 30 ngày')
   const dec = seasonWindow('month', Date.parse('2025-12-15T05:00:00Z'))
-  assert.equal(dec.end - dec.start, 30 * 86400000)
+  assert.equal(vnDayKey(dec.start), '2025-12-01')
+  assert.equal(vnDayKey(dec.end), '2026-01-01', 'tháng 12 phải gối sang năm sau')
   assert.equal(seasonWindow('all', NOW), null, "'all' không có cửa sổ")
 })
 
@@ -58,14 +63,16 @@ const R = (id, over) => ({
 
 test('gom theo mùa: một user một dòng, đếm đúng bài gửi / bài xong TRONG cửa sổ', () => {
   const rows = [
-    /* rolling week 14-21/09: alice-1 trong tuần, alice-2 ngoài tuần (cũ hơn 7 ngày) */
-    R('alice-1', { created_at: vn('2025-09-20'), updated_at: vn('2025-09-20'), votes: 5 }),
-    R('alice-2', { created_at: vn('2025-09-10'), updated_at: vn('2025-09-10'), votes: 9 }),
-    /* bob: gửi 19/09 trong tuần */
-    R('bob-1', { created_at: vn('2025-09-19'), updated_at: vn('2025-09-19'), status: 'in_progress', votes: 3 }),
-    /* denied: không được tính */
+    /* alice: 2 bài gửi trong tuần, 1 xong trong tuần, 1 xong NGOÀI tuần
+       (gửi tuần trước, updated_at tuần trước) -> không được đếm xong */
+    R('alice-1', { created_at: vn('2025-09-22'), updated_at: vn('2025-09-23'), votes: 5 }),
+    R('alice-2', { created_at: vn('2025-09-15'), updated_at: vn('2025-09-16'), votes: 9 }),
+    /* bob: 1 bài gửi thứ Sáu, sang tuần sau mới xong -> tính là XONG tuần sau,
+       tuần 22–28 chỉ có "gửi", chưa có "xong" */
+    R('bob-1', { created_at: vn('2025-09-26'), updated_at: vn('2025-10-01'), status: 'in_progress', votes: 3 }),
+    /* denied: không được tính ở bất kỳ bảng nào (cùng luật view) */
     R('caro-1', { status: 'denied', votes: 7 }),
-    /* dave: ngoài cửa sổ 30 ngày */
+    /* dave: gửi ngoài cửa sổ, không có gì trong tuần -> không xuất hiện */
     R('dave-1', { created_at: vn('2025-08-02'), updated_at: vn('2025-08-03') }),
   ]
   const ranking = [
@@ -78,17 +85,17 @@ test('gom theo mùa: một user một dòng, đếm đúng bài gửi / bài xon
   assert.deepEqual(Object.keys(byId).sort(), ['u-alice', 'u-bob'],
     'caro (denied) và dave (ngoài cửa sổ) không được vào bảng mùa')
   assert.equal(byId['u-alice'].total, 1, 'chỉ bài GỬI trong tuần mới đếm vào total')
-  assert.equal(byId['u-alice'].completed, 1, 'bài trong tuần phải đếm completed')
+  assert.equal(byId['u-alice'].completed, 1, 'bài xong tuần trước không tính vào tuần này')
   assert.equal(byId['u-alice'].total_votes, 5, 'phiếu của bài gửi trong mùa')
   assert.equal(byId['u-alice'].name, 'Alice Official', 'tên lấy từ bảng tổng khi có')
   assert.equal(byId['u-alice'].avatar_url, 'a.png')
   assert.equal(byId['u-bob'].total, 1)
-  assert.equal(byId['u-bob'].completed, 0, 'in_progress không đếm completed')
+  assert.equal(byId['u-bob'].completed, 0, 'gửi tuần này, xong tuần sau -> chưa "xong" tuần này')
   assert.equal(byId['u-bob'].key, 'u-bob', 'khoá dòng là user_id, không phải tên')
 })
 
 test('bài GỬI ngoài mùa nhưng XONG trong mùa vẫn được đếm là xong trong mùa', () => {
-  const rows = [R('erin-1', { created_at: vn('2025-08-10'), updated_at: vn('2025-09-20'), votes: 2 })]
+  const rows = [R('erin-1', { created_at: vn('2025-08-10'), updated_at: vn('2025-09-23'), votes: 2 })]
   const week = seasonRows(rows, [], 'week', NOW)
   assert.equal(week.length, 1)
   assert.equal(week[0].completed, 1)
@@ -98,9 +105,9 @@ test('bài GỬI ngoài mùa nhưng XONG trong mùa vẫn được đếm là xo
 
 test('đầu ra khớp HÌNH DẠNG requester_ranking và luật phá hoà của ranking.js', async () => {
   const rows = [
-    R('fay-1', { created_at: vn('2025-09-20'), updated_at: vn('2025-09-20'), votes: 1 }),
-    R('fay-2', { created_at: vn('2025-09-20'), updated_at: vn('2025-09-20'), votes: 1 }),
-    R('gus-1', { created_at: vn('2025-09-20'), updated_at: vn('2025-09-20'), votes: 8 }),
+    R('fay-1', { created_at: vn('2025-09-22'), updated_at: vn('2025-09-22'), votes: 1 }),
+    R('fay-2', { created_at: vn('2025-09-23'), updated_at: vn('2025-09-23'), votes: 1 }),
+    R('gus-1', { created_at: vn('2025-09-22'), updated_at: vn('2025-09-22'), votes: 8 }),
   ]
   const season = seasonRows(rows, [], 'week', NOW)
   for (const p of season) {
@@ -120,7 +127,7 @@ test('dữ liệu méo không làm bảng mùa ném lỗi (null, thiếu ngày, 
     null,
     { id: 'x', status: 'completed' },
     { id: 'y', user_id: 'u-y', status: 'completed', created_at: 'not-a-date', votes: '12' },
-    R('zoe-1', { created_at: vn('2025-09-20'), votes: '4' }),
+    R('zoe-1', { created_at: vn('2025-09-22'), votes: '4' }),
   ]
   const week = seasonRows(rows, null, 'week', NOW)
   assert.equal(week.length, 1, 'chỉ zoe có ngày hợp lệ trong cửa sổ')
@@ -128,14 +135,11 @@ test('dữ liệu méo không làm bảng mùa ném lỗi (null, thiếu ngày, 
   assert.deepEqual(seasonRows(rows, null, 'all', NOW), rows, "'all' trả nguyên đầu vào")
 })
 
-test('nhãn khoảng ngày in đúng ngày đầu/cuối theo rolling window', () => {
+test('nhãn khoảng ngày in đúng ngày đầu/cuối theo lịch VN', () => {
   const lbl = seasonLabel('week', NOW)
-  // rolling 7 ngày: từ 15/09 tới 21/09 (VN)
-  assert.ok(lbl.from && lbl.to, 'phải có from/to')
-  assert.match(lbl.from, /\d{2}\/\d{2}/)
-  assert.match(lbl.to, /\d{2}\/\d{2}/)
+  assert.deepEqual(lbl, { from: '22/09', to: '28/09' })
   const m = seasonLabel('month', NOW)
-  assert.ok(m.from && m.to)
+  assert.deepEqual(m, { from: '01/09', to: '30/09' })
   assert.equal(seasonLabel('all', NOW), '', "'all' không có khoảng ngày để in")
 })
 
