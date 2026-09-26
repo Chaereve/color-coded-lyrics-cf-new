@@ -572,6 +572,51 @@ export async function fetchMyVotes(uid) {
   throw error
 }
 
+/* =========================================================
+   PHIẾU NHẬN GẦN ĐÂY — dữ liệu cho "vote nhận trong mùa"
+   ---------------------------------------------------------
+   Khối "This week" trên trang chủ và Leaderboard tuần/tháng đếm vote THEO LÚC
+   NHẬN (chủ dự án chốt 26/09): bài cũ mà được vote nhiều tuần này vẫn thuộc
+   "This week". Mỗi phiếu cần mốc thời gian, mà RLS trên votes chỉ cho đọc hàng
+   của mình — nên live phải qua RPC `votes_received` (security definer, chỉ tra
+   về request_id + created_at, không có user_id — xem migrations/20260926).
+
+   Một lần fetch phủ đủ BA cửa sổ mà app dùng, vì cả ba đều nằm trong ~31 ngày
+   qua: 7 ngày lăn (thẻ This week trang chủ), tuần lịch, tháng lịch. Ranh giới
+   cửa sổ vẫn do src/lib/season.js tính — hàm này chỉ mang dữ liệu thô về.
+
+   Demo: phiếu chỉ tồn tại cho người dùng demo (localStorage), nên dựng lại
+   từng phiếu: phiếu gốc của bài (chưa phải của mình) đặt mốc ở created_at của
+   bài, phiếu của mình giữ mốc `day` thật — vote thêm vào bài cũ ngay hôm nay
+   vẫn được tính là "nhận hôm nay" cả trong demo.
+   ========================================================= */
+export const VOTES_LOOKBACK_DAYS = 31
+export async function fetchRecentVotes() {
+  const since = Date.now() - VOTES_LOOKBACK_DAYS * 86400000
+  if (!hasSupabase) {
+    const out = []
+    const ownVotes = readData(LS.votes, []) || []
+    for (const r of demoRows()) {
+      if (!r?.id) continue
+      const own = ownVotes.filter(v => v?.id === r.id)
+      const base = Math.max(0, (Number(r.votes) || 0) - own.length)
+      const born = Date.parse(r.created_at)
+      for (let i = 0; i < base; i++) {
+        if (Number.isFinite(born) && born >= since) out.push({ id: r.id, at: born })
+      }
+      for (const v of own) {
+        const at = Date.parse(`${v.day}T12:00:00Z`)
+        if (Number.isFinite(at) && at >= since) out.push({ id: r.id, at })
+      }
+    }
+    return out
+  }
+  const { data, error } = await readQuery(() =>
+    supabase.rpc('votes_received', { p_since: new Date(since).toISOString() }))
+  if (error) throw error
+  return data || []
+}
+
 /* Chia so du thanh hai loai: vote da mua (khong het han) va bonus tu vong
    quay (reset cuoi thang 10). credits = tong cua hai loai, giu de phan con
    lai tinh toan nhu cu. Backend chua chay migration tach cot (chi tra tong

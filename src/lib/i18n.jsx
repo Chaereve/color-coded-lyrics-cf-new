@@ -571,14 +571,15 @@ const S = {
   'rank.rangeTip': 'Week runs Mon–Sun, month is the calendar month · Vietnam time (UTC+7)',
   /* Câu luật của bảng mùa: MỘT vế ngắn, nói rõ con số bị cắt theo cửa sổ, cùng
      khoá chính với ba cách xếp — không một con số tự đặt nào. */
-  'rank.periodRule.total': 'Sorted by requests sent this period',
+  'rank.periodRule.total': 'Sorted by requests active this period (sent, completed, or voted)',
   'rank.periodRule.completed': 'Sorted by requests completed this period',
   'rank.periodRule.total_votes': 'Sorted by votes earned this period',
-  /* Bảng votes không có mốc thời gian theo bài, nên cột phiếu của bảng mùa là
-     phiếu CỘNG DỒN của bài gửi trong mùa — nói thật còn hơn để người xem tự
-     hiểu nhầm là "phiếu nhận trong tuần". Rút còn một vế inline (ngăn bằng
-     chấm mờ trong câu luật): ý phải giữ trọn, chữ không được chiếm cả hàng. */
-  'rank.votesNote': 'Votes are lifetime totals for requests sent this period',
+  /* Cột phiếu của bảng mùa là phiếu NHẬN TRONG MÙA (chủ dự án chốt 26/09,
+     nguồn rpc votes_received — xem src/lib/season.js). Câu ghi rõ bài được
+     tính dù gửi từ lâu: không để người xem tự hiểu ngược. Rút còn một vế
+     inline (ngăn bằng chấm mờ trong câu luật): ý phải giữ trọn, chữ không
+     được chiếm cả hàng. */
+  'rank.votesNote': 'Votes are those received this period, on requests sent any time',
   'rank.emptyPeriod.all': 'No data yet.',
   'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
   'rank.emptyPeriod.month': 'No requests yet this month.',

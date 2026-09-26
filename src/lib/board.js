@@ -17,10 +17,11 @@
    bằng dữ liệu giả mà không phải dựng cả giao diện.
    ========================================================= */
 
-/* `inChain`/`isPicked` là luật của MỘT dòng (đã chốt? đang làm?) và nằm ở
+/* `inChain` là luật của MỘT dòng (đã chốt? đang làm?) và nằm ở
    meta.js — board.js mượn chứ không định nghĩa lại: một luật mà hai chỗ viết
    thì sau một lần sửa, bảng và khối Up next kể hai câu chuyện khác nhau. */
-import { inChain, isPicked } from './meta.js'
+import { inChain } from './meta.js'
+import { votesByRequest } from './season.js'
 
 const ts = (v) => +new Date(v) || 0
 
@@ -421,37 +422,51 @@ export function stageCounts(rows) {
 export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
 
 /* Hai thẻ "This week". Cửa sổ là 7 ngày lăn, không phải tuần lịch.
+   "Hoạt động trong cửa sổ" = MỘT request của bài được GỬI trong cửa sổ,
+   HOẶC XONG trong cửa sổ, HOẶC NHẬN ÍT NHẤT MỘT VOTE trong cửa sổ — cùng luật
+   "vote nhận trong mùa" của Leaderboard (src/lib/season.js, chủ dự án chốt
+   26/09): bài cũ mà được vote nhiều 7 ngày qua vẫn thuộc "This week".
    Không tính bài bị từ chối (denied). Bài chờ duyệt (pending) vẫn được hiện
    ở thẻ bài mới nhất để người gửi thấy yêu cầu của mình ngay.
-   "Most voted" phải có ÍT NHẤT một phiếu. Bài mới chưa ai vote không được
-   đội nhãn đó chỉ vì nó là hàng duy nhất trong cửa sổ.
-   Thẻ "New this week" luôn giữ bài mới nhất trong tuần. Nếu bài nhiều phiếu
-   nhất cũng là bài mới nhất và còn bài khác thì thẻ New lấy bài mới kế tiếp;
-   nếu chỉ có một bài thì vẫn giữ thẻ New để không làm mất phần yêu cầu mới nhất. */
+   "Most voted" = bài NHIỀU VOTE NHẬN TRONG CỬA SỔ NHẤT, phải có ÍT NHẤT một
+   phiếu nhận trong cửa sổ. Bài mới chưa ai vote không được đội nhãn đó chỉ
+   vì nó là hàng duy nhất trong cửa sổ. Con số in trên thẻ là phiếu NHẬN
+   TRONG CỬA SỔ, không phải cộng dồn.
+   Thẻ "New this week" luôn giữ bài mới GỬI nhất trong cửa sổ (bài chỉ "mới"
+   vì được vote không phải bài mới). Nếu bài nhiều phiếu nhất cũng là bài mới
+   nhất và còn bài mới khác thì thẻ New lấy bài mới kế tiếp; nếu chỉ có một
+   bài mới thì vẫn giữ thẻ New để không làm mất phần yêu cầu mới nhất. */
 const WEEK_MS = 7 * 86400000
-export function weeklyHighlights(rows, now = Date.now()) {
+export function weeklyHighlights(rows, now = Date.now(), votesLog = []) {
   const since = now - WEEK_MS
+  const votes = votesByRequest(votesLog, since, now)
+  const doneAt = (r) => ts(r.completed_at) || ts(r.updated_at) || ts(r.created_at)
   const recent = real(rows).filter((r) => {
     if (r.status === 'denied') return false
-    return ts(r.created_at) >= since
+    if (ts(r.created_at) >= since) return true
+    if (r.status === 'completed' && doneAt(r) >= since) return true
+    return (votes.get(r.id) || 0) > 0
   })
-  const byVotes = [...groupRows(recent)].sort((a, b) => b.votes - a.votes || b.newest - a.newest)
-  const byNew = [...groupRows(recent)].sort((a, b) => b.newest - a.newest || b.votes - a.votes)
-  const topGroup = byVotes.find((g) => g.votes > 0) || null
+  const groups = groupRows(recent)
+  for (const g of groups) g.windowVotes = g.rows.reduce((n, r) => n + (votes.get(r.id) || 0), 0)
+  const byVotes = [...groups].sort((a, b) => b.windowVotes - a.windowVotes || b.newest - a.newest)
+  const topGroup = byVotes.find((g) => g.windowVotes > 0) || null
+  const newGroups = groups.filter((g) => g.rows.some((r) => ts(r.created_at) >= since))
+  const byNew = newGroups.sort((a, b) => b.newest - a.newest || b.windowVotes - a.windowVotes)
   const newGroup = (topGroup && byNew.length > 1 && byNew[0].key === topGroup.key)
     ? byNew[1]
     : (byNew[0] || null)
-  const card = (g) => {
+  const card = (g, windowVotes) => {
     if (!g) return null
     const newest = [...g.rows].sort((a, b) => ts(b.created_at) - ts(a.created_at))[0]
     return {
       title: g.title,
       artist: g.artist,
-      votes: g.votes,
+      votes: windowVotes ?? g.votes,
       requester: newest?.requester || '',
     }
   }
-  return { top: card(topGroup), newcomer: card(newGroup) }
+  return { top: card(topGroup, topGroup?.windowVotes), newcomer: card(newGroup) }
 }
 
 /* DÂY CHUYỀN đã chốt, bài đang chạy lên trước rồi tới ngày chốt — nguồn của
@@ -472,7 +487,11 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
    Tách ra đây để mỗi vế của luật đó có một ca kiểm thử.
 
    Thứ tự áp dụng:
-     1. `statusFilters` (chọn NHIỀU giai đoạn) thắng `filter` khi có mặt;
+     1. `statusFilters` (chọn NHIỀU giai đoạn) thắng `filter` khi có mặt.
+        Chip "Up next"/"In progress" lọc bằng `inChain` (đã chốt HOẶC đang
+        làm) — cùng tập với khối Up next, với tab và với badge
+        (pickedGroups.length), nên request bấm "Start production" vẫn hiện
+        trong filter Up next; "Queue" là chờ vote chưa chốt, "Done" là xong;
      2. rỗng thì `filter` quyết định tập nền: queued / picked / in_progress /
         completed / newest (cả bảng);
      3. `top` CHỈ liệt kê bài đang xin phiếu — bài đã xong hoặc đã vào dây
@@ -494,9 +513,16 @@ export function filterBoard(opts = {}) {
   if (filter === 'newest' && t && rows?.length) {
     base = real(rows).filter(r => r.status !== 'denied')
   } else if (statusFilters.length) {
-    base = base.filter(r => statusFilters.some(s => s === 'picked'
-      ? isPicked(r) && r.status !== 'in_progress'
-      : s === 'in_progress' ? r.status === 'in_progress'
+    /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối
+       Up next, của hai tab và của số badge (pickedGroups.length): bài đã chốt
+       (picked_at) HAY đang làm. Vì vậy request vẫn ở lại filter Up next sau
+       khi admin bấm "Start production" (queued → in_progress). Bản cũ dùng
+       `isPicked && status !== 'in_progress'` nên đúng lúc đó request biến mất
+       khỏi filter — mà số badge vẫn đếm nó, thành ra lệch số. Chip In
+       progress trước đây chỉ lọc `status === 'in_progress'` (bỏ qua bài đã
+       chốt đang chờ tới lượt) cũng lệch với tab/badge của chính nó. */
+    base = base.filter(r => statusFilters.some(s => s === 'picked' || s === 'in_progress'
+      ? inChain(r)
       : s === 'queued' ? r.status === 'queued' && !r.picked_at
       : s === 'completed' && r.status === 'completed'))
   } else if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)

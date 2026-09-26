@@ -55,6 +55,7 @@ import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
   fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
+  fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
@@ -466,6 +467,11 @@ function AppInner() {
     }))
   }, [])
   const [ranking, setRanking] = useState([])
+  /* Phiếu nhận gần đây (mốc từng phiếu) — cho "vote nhận trong mùa":
+     khối This week trang chủ + Leaderboard tuần/tháng. Lỗi fetch thì giữ
+     dữ liệu cũ (bộ đếm vote trong mùa lùi về bằng 0, còn số tổng trên hàng
+     request vẫn đúng) chứ không xoá — xem loadBoard/loadPublic. */
+  const [votesLog, setVotesLog] = useState([])
   /* Dấu ngày hoạt động của chính người xem (streak). null = chưa đọc được
      nguồn (chưa chạy migration / lỗi mạng) — dải streak tự ẩn, xem StreakStrip.
      `visitStamp` là ngày server vừa đóng cho lần ghé này. Ghép vào danh sách
@@ -1006,9 +1012,12 @@ function AppInner() {
       /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
          trong chính lần tải bảng này để ngọn lửa không trễ một nhịp */
       fetchActivityDays(u.id), fetchCommentCounts(),
+      /* "vote nhận trong mùa" — tải cùng nhịp bảng để số phiếu trên Leaderboard
+         tuần/tháng và thẻ This week không trễ sau một lần vote. */
+      fetchRecentVotes(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, act, cc] = results
+    const [r, v, vs, ach, rk, act, cc, vv] = results
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
@@ -1023,6 +1032,9 @@ function AppInner() {
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (act.status === 'fulfilled') setMyActivity(act.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
+    /* lỗi fetch phiếu thì giữ danh sách cũ — xoá đi thành ra số vote trong
+       mùa về 0 tạm thời, nhìn như bảng tự sửa sai. */
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
     return results
   }, [user, noteBoard])
 
@@ -1038,11 +1050,12 @@ function AppInner() {
   /* Tách thành hàm có tên (thay vì thân effect) để nó gọi lại được: nút
      "Thử lại" và hai sự kiện bên dưới cùng dùng một đường nạp này. */
   const loadPublic = useCallback(async () => {
-    const [r, rk, cc] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts()])
+    const [r, rk, cc, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts(), fetchRecentVotes()])
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') setRows(r.value)
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
     return { r, rk, cc }
   }, [noteBoard])
 
@@ -1458,7 +1471,10 @@ function AppInner() {
     }
     return Array.from(seen.values()).slice(0, 8)
   }, [rows])
-  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(rows, Date.now()), [rows])
+  /* `votesLog` (phiếu nhận gần đây) cho "Most voted" tính vote NHẬN TRONG
+     7 NGÀY QUA thay vì cộng dồn — bài cũ được vote nhiều tuần này vẫn thuộc
+     "This week" (luật trong buildWeeklyHighlights / season.js). */
+  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(rows, Date.now(), votesLog), [rows, votesLog])
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -2351,7 +2367,7 @@ function AppInner() {
                 lỗi nạp phải hiện ở đây luôn: không có nó thì người dùng mở
                 /ranking thấy một danh sách trống và không một lời giải. */}
             {boardState === 'error' && <LoadErr onRetry={reloadBoard} />}
-            <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} />
+            <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} votesLog={votesLog} />
           </>
         )}
 

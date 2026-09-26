@@ -125,16 +125,19 @@ function RewardsModal({ open, onClose }) {
   )
 }
 
-export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null }) {
+export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null, votesLog = [] }) {
   const { t } = useI18n()
   const [sort, setSort] = useState(SORTS[0])
   const [rewardsOpen, setRewardsOpen] = useState(false)
   const [period, setPeriod] = useState(PERIODS.some(p => p.k === initialPeriod) ? initialPeriod : 'all')
   const nowMs = useMemo(() => now ?? Date.now(), [now])
 
+  /* `votesLog` = phiếu nhận gần đây (db.js fetchRecentVotes): bảng mùa đếm
+     "vote nhận trong mùa" (luật trong seasonRows) nên cần mốc từng phiếu,
+     không chỉ tổng vote trên hàng request. */
   const view = useMemo(
-    () => (period === 'all' ? (rows || []) : seasonRows(allRows, ranking, period, nowMs)),
-    [rows, allRows, ranking, period, nowMs])
+    () => (period === 'all' ? (rows || []) : seasonRows(allRows, ranking, period, nowMs, votesLog)),
+    [rows, allRows, ranking, period, nowMs, votesLog])
 
   const ranked = useMemo(() => rankRows(view, sort.k), [view, sort.k])
 

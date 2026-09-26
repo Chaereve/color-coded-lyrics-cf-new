@@ -815,8 +815,8 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
         /this period/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
       check('bấm This month: khoảng ngày vào tooltip nhóm mùa (dd/mm – dd/mm)',
         /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(tip), tip)
-      check('đang xem mùa thì phiếu phải tự thú nhận là cộng dồn (trong tooltip)',
-        /lifetime totals/.test(tip), tip)
+      check('đang xem mùa thì phiếu phải tự thú nhận là phiếu NHẬN TRONG MÙA (trong tooltip)',
+        /received this period/.test(tip), tip)
       check('đổi mùa không điều hướng — vẫn ở /ranking',
         window.location.pathname === '/ranking', window.location.pathname)
       await click(pbtns[0])
