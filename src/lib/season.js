@@ -82,27 +82,18 @@ export function vnDayStartUtc(dayKey) {
 
 /* Cửa sổ [start, end) của một mùa, theo giờ Việt Nam. Trả về `null` cho
    'all' — không cửa sổ nghĩa là không lọc.
-   - week: 7 ngày gần nhất (rolling) để luôn có dữ liệu khi có hoạt động gần đây,
-     thay vì tuần lịch rỗng vào đầu tuần. Vẫn tính theo mốc VN (00:00 VN).
-   - month: 30 ngày gần nhất (rolling) – tương tự, tránh tháng mới rỗng.
-   Nếu muốn tuần lịch (Thứ Hai-Chủ Nhật) thì đổi lại, nhưng UX rolling tốt hơn
-   cho cộng đồng nhỏ. */
+   - week: Tuần lịch Thứ Hai - Chủ Nhật, reset vào 00:00 Thứ Hai (giờ VN).
+   - month: Tháng lịch (từ ngày 1 đến ngày 1 tháng kế tiếp, giờ VN). */
 export function seasonWindow(period, now = Date.now()) {
-  if (period !== 'week' && period !== 'month') return null
-  if (period === 'week') {
-    // 7 ngày rolling: [now-7d, now)
-    return { start: now - 7 * 86400000, end: now }
-  }
-  // month: 30 ngày rolling
-  return { start: now - 30 * 86400000, end: now }
-}
-
-/* Giữ lại hàm tính mốc ngày VN cho các nơi khác (streak, etc.) */
-export function seasonWindowCalendar(period, now = Date.now()) {
   if (period !== 'week' && period !== 'month') return null
   const day = vnDayKey(now)
   const start = vnDayStartUtc(day)
   if (period === 'week') {
+    /* Thứ trong tuần phải hỏi LỊCH VN (chuỗi `day`), không phải mốc UTC vừa
+       dựng: 00:00 thứ Hai giờ VN vẫn là 17:00 Chủ nhật UTC, đọc getUTCDay
+       trên mốc đó là lùi sai hẳn một tuần. `Date.parse('YYYY-MM-DD…Z')` cho
+       đúng thứ của ngày theo lịch; 0 = Chủ nhật, và lịch Việt Nam coi thứ Hai
+       là ngày đầu tuần nên Chủ nhật phải lùi 6 ngày chứ không phải 0. */
     const dow = new Date(`${day}T00:00:00Z`).getUTCDay()
     const weekStart = start - ((dow + 6) % 7) * 86400000
     return { start: weekStart, end: weekStart + 7 * 86400000 }
@@ -111,6 +102,8 @@ export function seasonWindowCalendar(period, now = Date.now()) {
   const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
   return { start: vnDayStartUtc(`${y}-${String(m).padStart(2, '0')}-01`), end: vnDayStartUtc(next) }
 }
+
+export const seasonWindowCalendar = seasonWindow
 
 /* Mốc "bài này xong lúc nào" — xem giải thích luật fallback ở đầu file.
    Hàng CHƯA xong thì mốc là mốc GỬI: để đếm "bài gửi trong mùa". */

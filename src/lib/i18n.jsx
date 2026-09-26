@@ -568,7 +568,7 @@ const S = {
      nó là chú thích một-lần-đọc, in mãi thành nhiễu và đẩy cụm nút lệch hàng
      (người dùng đã chê "chú thích dài làm bố cục nút bị lệch xuống"). Nó sống
      trong tooltip của con tem khoảng ngày — cần thì hover/hold để đọc. */
-  'rank.rangeTip': 'Rolling window: last 7 days / last 30 days · Vietnam time (UTC+7)',
+  'rank.rangeTip': 'Week runs Mon–Sun, month is the calendar month · Vietnam time (UTC+7)',
   /* Câu luật của bảng mùa: MỘT vế ngắn, nói rõ con số bị cắt theo cửa sổ, cùng
      khoá chính với ba cách xếp — không một con số tự đặt nào. */
   'rank.periodRule.total': 'Sorted by requests sent this period',
@@ -580,16 +580,16 @@ const S = {
      chấm mờ trong câu luật): ý phải giữ trọn, chữ không được chiếm cả hàng. */
   'rank.votesNote': 'Votes are lifetime totals for requests sent this period',
   'rank.emptyPeriod.all': 'No data yet.',
-  'rank.emptyPeriod.week': 'No requests in the last 7 days.',
-  'rank.emptyPeriod.month': 'No requests in the last 30 days.',
+  'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
+  'rank.emptyPeriod.month': 'No requests yet this month.',
   'rank.rewards.week': 'Weekly prizes: 1st (+15 votes) · 2nd (+10 votes) · 3rd (+5 votes)',
   'rank.rewards.month': 'Monthly prizes: 1st (+50 votes & +1 request) · 2nd (+30 votes) · 3rd (+20 votes)',
   'rank.rewards.title': 'Season prizes',
   'rank.rewards.subtitle': 'Top 3 each week and month earn bonus votes',
   'rank.rewards.weekTitle': 'Weekly prizes',
-  'rank.rewards.weekDesc': 'Last 7 days rolling (Vietnam time)',
+  'rank.rewards.weekDesc': 'Resets every Monday 00:00 (Vietnam time). Top 3 receive bonus votes:',
   'rank.rewards.monthTitle': 'Monthly prizes',
-  'rank.rewards.monthDesc': 'Last 30 days rolling',
+  'rank.rewards.monthDesc': 'Resets on the 1st of every month (Vietnam time). Top 3 receive bonus votes:',
   'rank.rewards.note': 'Prizes are credited automatically when the season ends',
   'rank.reward.w1': '+15 vote bonus',
   'rank.reward.w2': '+10 vote bonus',
