@@ -3,6 +3,13 @@
 Dùng khi muốn: làm lại trang bán vote, màn Daily Spin, khối "đang thực hiện", trang hồ sơ… đẹp hơn
 mà **không phá hệ thống thị giác** đang có.
 
+> **Use khi:** thiết kế một màn/khối mới, hoặc làm lại màn cũ (trang bán vote, Daily Spin,
+> khối đang thực hiện, trang hồ sơ…) cho đẹp hơn mà KHÔNG phá hệ thống thị giác đang có.
+> **Không dùng khi:** sửa lỗi logic, hiệu năng, database; hoặc việc bắt buộc đổi hệ token —
+> gói này không có quyền phá `docs/DESIGN.md`.
+> **Dấu hiệu đã làm đúng:** qua được bộ test CSS/JSX; khớp 3 dial (VARIANCE 5 · MOTION 3 ·
+> DENSITY 7); vẫn một màu nhấn duy nhất; có mục "câu hỏi cho tôi" nếu thiếu thông tin.
+
 **Gửi gì:** dán file này + đính kèm: 2 ảnh chụp màn hình hiện tại (trong `kem-theo/`),
 bản trích CSS, `src/lib/meta.js`, và **1 skill** phù hợp nhất (mặc định gửi skill 16 nếu là trang bán).
 

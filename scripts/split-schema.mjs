@@ -18,6 +18,7 @@ export const PARTS = [
   { name: '06-watch-comments-streak.sql', start: '-- =========================================================\n-- THEO DÕI BÀI + THÔNG BÁO' },
   { name: '07-security-audit.sql', start: '-- Color Coded Lyrics — security audit hardening' },
   { name: '08-comments-activity.sql', start: '-- BEGIN COMMENTS / SPIN FIXES:' },
+  { name: '09-funnel-events.sql', start: '-- BEGIN FUNNEL EVENTS: mirror 20261110_funnel_events.sql' },
 ]
 
 const SOURCE = new URL('../supabase/schema.sql', import.meta.url)

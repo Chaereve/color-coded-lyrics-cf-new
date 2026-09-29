@@ -14,7 +14,7 @@
    sau phải sửa cả bó, không sửa lẻ tẻ rồi trôi lệch như trước. Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
@@ -28,6 +28,14 @@ const sitemap = read('../../public/sitemap.xml')
 /* Đường dẫn thật của app — nguồn sự thật duy nhất là ROUTES trong App.jsx. */
 const ROUTES = [...read('../App.jsx').match(/const ROUTES = \{([^}]*)\}/)[1]
   .matchAll(/'([^']+)'/g)].map((m) => m[1])
+
+/* TRANG TĨNH trong public/ thuộc bề mặt công khai và phải có trong sitemap —
+   nhưng không phải route SPA nên không nằm trong ROUTES của App.jsx. Nói rõ
+   ở đây để phép song song không bị nới lỏng: thêm file HTML mới vào public/
+   mà muốn Google index thì khai BOTH ở đây lẫn sitemap.xml, thiếu một bên
+   là test đỏ. */
+const STATIC_ROUTES = ['/faq.html']
+const FUNCTION_ROUTES = ['/archive']
 
 /* ROUTE RIÊNG TƯ: tồn tại trong app nhưng KHÔNG được lọt vào sitemap (Google
    index một trang quản trị là vừa vô nghĩa vừa hớ hênh), và phải bị robots.txt
@@ -52,10 +60,29 @@ test('mọi route của app đều có mặt trong sitemap, và ngược lại',
     assert.match(robots, new RegExp(`Disallow:\\s*${r}\\b`),
       `robots.txt phải chặn ${r} — đây là khu vực quản trị, chỉ có một người dùng`)
   }
-  for (const s of inSitemap) {
-    assert.ok(ROUTES.includes(s),
-      `sitemap.xml khai ${s} nhưng App.jsx không có route đó — sửa ROUTES hay xoá khỏi sitemap?`)
+  for (const s of STATIC_ROUTES) {
+    assert.ok(inSitemap.includes(s),
+      `trang tĩnh ${s} thuộc bề mặt công khai nhưng thiếu trong sitemap.xml`)
+    assert.ok(existsSync(at(`../../public${s}`)),
+      `STATIC_ROUTES khai ${s} nhưng public${s} không tồn tại — khai mò`)
+    assert.ok(!ROUTES.includes(s), `${s} vừa là route SPA vừa là trang tĩnh — chọn một`)
   }
+  for (const r of FUNCTION_ROUTES) {
+    assert.ok(inSitemap.includes(r), `route Pages Function ${r} thiếu trong sitemap.xml`)
+    assert.ok(existsSync(at(`../../functions${r}.js`)),
+      `FUNCTION_ROUTES khai ${r} nhưng functions${r}.js không tồn tại`)
+    assert.ok(!ROUTES.includes(r) && !STATIC_ROUTES.includes(r),
+      `${r} bị khai ở nhiều loại route — chỉ nên có một nguồn render`)
+  }
+  for (const s of inSitemap) {
+    assert.ok(ROUTES.includes(s) || STATIC_ROUTES.includes(s) || FUNCTION_ROUTES.includes(s),
+      `sitemap.xml khai ${s} nhưng App.jsx không có route đó và cũng không phải trang tĩnh — sửa ROUTES hay xoá khỏi sitemap?`)
+  }
+})
+
+test('archive có link nội bộ để người dùng và crawler tìm thấy', () => {
+  assert.match(app, /href="\/archive"/, 'footer app cần link tới archive server-render')
+  assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/archive<\/loc>/)
 })
 
 test('ba file SEO dùng đúng MỘT origin, và khớp origin production của repo', () => {

@@ -1,5 +1,5 @@
 /* =========================================================
-   CỔNG EDGE cho Daily Spin VÀ Vote (Turnstile + KV + uỷ quyền RPC)
+   CỔNG EDGE cho Daily Spin VÀ Vote (Turnstile + D1/KV + uỷ quyền RPC)
    ---------------------------------------------------------
    Logic dưới đây chạy ở HAI nơi nhưng chỉ viết MỘT lần:
      · ĐƯỜNG CHÍNH THỨC (production chaereve.pages.dev): Cloudflare Pages
@@ -12,8 +12,8 @@
        giờ trôi lệch nhau. Sửa hành vi route thì sửa ở đây, cả hai tự theo.
    ---------------------------------------------------------
    Luồng dữ liệu (hybrid):
-     Client (fp hash + Turnstile token + JWT phiên Supabase)
-        → Worker: xác minh Turnstile → kiểm tra KV (xác thực kép
+     Client (fp hash nếu lấy được + Turnstile token + JWT phiên Supabase)
+        → Worker: xác minh Turnstile → kiểm tra D1/KV (xác thực kép
           fingerprint + rate-limit theo IP/vân tay)
         → Worker gọi Supabase RPC BẰNG JWT của chính người dùng
           (auth.uid() trong SQL vẫn đúng người nhận), kèm
@@ -22,11 +22,12 @@
         → Worker đếm lượt vào KV (chỉ khi database đã ghi thành công)
         → trả nguyên phản hồi về client (client tự validate như cũ)
 
-   KV chỉ chắn spam; hạn mức và tiền thưởng do Postgres quyết định.
+   D1/KV chỉ chắn spam; hạn mức và tiền thưởng do Postgres quyết định.
 
    Biến môi trường (Pages Dashboard → Settings, đặt cho cả Production lẫn
-   Preview; Workers thì dùng wrangler secret — xem wrangler.jsonc):
-     SPIN_SHIELD           — binding KV namespace
+   Preview; Workers thì dùng wrangler config — xem wrangler.jsonc):
+     RATE_SHIELD           — binding D1 (ưu tiên, không giới hạn ghi kiểu KV)
+     SPIN_SHIELD           — binding KV namespace (fallback tương thích)
      SUPABASE_URL          — https://<ref>.supabase.co
      SUPABASE_ANON_KEY     — khoá anon công khai (auth thật nằm ở JWT người dùng)
      TURNSTILE_SECRET_KEY  — secret, KHÔNG bao giờ đặt vào biến VITE_*
@@ -36,6 +37,11 @@
                              cho Turnstile/KV ở đây thật sự có giá trị.
    ========================================================= */
 import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './shield.js'
+
+/* D1 is preferred; retain KV only as a rollout fallback while Pages bindings
+   are being configured. Once RATE_SHIELD is present all shield writes go to D1. */
+const shieldBinding = env => env.RATE_SHIELD || env.SPIN_SHIELD
+const usesD1Shield = env => Boolean(env.RATE_SHIELD)
 
 /* `no-store` đặt Ở ĐÂY chứ không chỉ trong public/_headers: file _headers áp
    cho tài nguyên tĩnh, còn response do Function sinh ra thì không chắc được nó
@@ -68,15 +74,26 @@ async function sha256hex(text) {
   return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/* Gọi siteverify của Cloudflare; thiếu secret (môi trường dev) thì bỏ qua. */
+/* Gọi siteverify của Cloudflare; timeout rõ ràng để Worker không treo theo
+   upstream. Fail closed: khi Cloudflare không xác minh được thì không tự bỏ
+   qua Turnstile, nhưng trả lời nhanh thay vì để action chờ hết execution. */
+const TURNSTILE_VERIFY_TIMEOUT_MS = 4000
 async function verifyTurnstile(secret, token, ip) {
-  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ secret, response: token, remoteip: ip }),
-  })
-  const data = await res.json().catch(() => null)
-  return Boolean(data?.success)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), TURNSTILE_VERIFY_TIMEOUT_MS)
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ secret, response: token, remoteip: ip }),
+    })
+    if (!res.ok) return false
+    const data = await res.json().catch(() => null)
+    return Boolean(data?.success)
+  } catch {
+    return false
+  } finally { clearTimeout(timeout) }
 }
 
 /* Uỷ quyền RPC cho Supabase bằng JWT của người dùng: Worker không cầm service
@@ -101,10 +118,16 @@ export async function handleSpin(request, env) {
 
   const { device_token: deviceToken, request_id: requestId, expected_user_id: userId, fp_hash: fpHash, turnstile_token: captcha, user_token: userToken } = body || {}
   if (!HASH64.test(deviceToken || '') || !UUID.test(requestId || '') || !UUID.test(userId || '')
-    || !HASH64.test(fpHash || '') || typeof userToken !== 'string' || !userToken) {
+    || typeof userToken !== 'string' || !userToken) {
     return deny('err.spinRequest', 400)
   }
-  if (!env.SPIN_SHIELD || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return deny('err.spinSetup', 503)
+  /* FingerprintJS bị chặn bởi privacy/adblock không đồng nghĩa là bot. SQL vẫn
+     giới hạn theo tài khoản + spin-device, còn Edge thay hash thiết bị bằng
+     hash tài khoản để giữ rate limit IP/fp mà không bỏ qua lá chắn. */
+  const clientFpHash = HASH64.test(fpHash || '') ? fpHash : null
+  const shieldFpHash = clientFpHash || await sha256hex(`ccl:spin-account:v1:${userId}`)
+  const shield = shieldBinding(env)
+  if (!shield || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return deny('err.spinSetup', 503)
 
   try {
     // 1) Bot chặn đứng ở đây: không token Turnstile hợp lệ thì không qua cửa.
@@ -112,8 +135,17 @@ export async function handleSpin(request, env) {
       if (!captcha || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, captcha, ip))) return deny('err.spinCaptcha')
     }
 
-    // 2) Xác thực kép + rate-limit theo IP bằng KV (xem worker/shield.js).
-    const check = await shieldCheck(env.SPIN_SHIELD, { ip, fpHash })
+    // 2) Xác thực kép + rate-limit theo IP/vân tay qua D1 (hoặc KV khi rollout).
+    const ipHash = await sha256hex(ip)
+    let check
+    try {
+      check = await shieldCheck(shield, {
+        ip, ipHash: usesD1Shield(env) ? ipHash : undefined, fpHash: shieldFpHash,
+      })
+    } catch (error) {
+      if (usesD1Shield(env)) return deny('err.shieldUnavailable', 503)
+      throw error
+    }
     if (!check.ok) return deny(check.reason)
 
     // 3) Postgres ghi ledger + cộng thưởng trong một transaction.
@@ -121,19 +153,24 @@ export async function handleSpin(request, env) {
       p_device_token: deviceToken,
       p_request_id: requestId,
       p_expected_user_id: userId,
-      p_fp_hash: fpHash,
-      p_ip_hash: await sha256hex(ip),
+      p_fp_hash: clientFpHash,
+      p_ip_hash: ipHash,
     })
     const text = await spin.text()
     if (!spin.ok) {
       return new Response(text, { status: spin.status, headers: JSON_HEADERS })
     }
 
-    // 4) Ledger đã ghi mới đếm vào KV; retry (replayed) không tính lần hai.
+    // 4) Ledger đã ghi mới đếm vào shield; replay không tính lần hai.
     let result = null
     try { result = JSON.parse(text) } catch { /* phản hồi lạ: bỏ qua đếm */ }
     if (result && !result.replayed) {
-      try { await shieldCommit(env.SPIN_SHIELD, { ip, fpHash, _state: check._state }) } catch { /* KV lỗi không làm mất thưởng */ }
+      try {
+        await shieldCommit(shield, {
+          ip, ipHash: usesD1Shield(env) ? ipHash : undefined,
+          fpHash: shieldFpHash, _state: check._state,
+        })
+      } catch { /* lỗi ghi shield không thể đảo ledger đã commit */ }
     }
     return new Response(text, { status: 200, headers: JSON_HEADERS })
   } catch {
@@ -173,8 +210,13 @@ export async function handleVote(request, env) {
     }
 
     let voteCheckState = null
-    if (env.SPIN_SHIELD) {
-      const check = await voteShieldCheck(env.SPIN_SHIELD, { fpHash: fp })
+    const shield = shieldBinding(env)
+    if (shield) {
+      let check
+      try { check = await voteShieldCheck(shield, { fpHash: fp }) } catch (error) {
+        if (usesD1Shield(env)) return deny('err.shieldUnavailable', 503)
+        throw error
+      }
       if (!check.ok) return deny(check.reason, 429)
       voteCheckState = check._state
     }
@@ -188,8 +230,8 @@ export async function handleVote(request, env) {
     const text = await res.text()
     if (!res.ok) return new Response(text, { status: res.status, headers: JSON_HEADERS })
 
-    if (env.SPIN_SHIELD) {
-      try { await voteShieldCommit(env.SPIN_SHIELD, { fpHash: fp, _state: voteCheckState }) } catch { /* KV lỗi không làm mất phiếu */ }
+    if (shield) {
+      try { await voteShieldCommit(shield, { fpHash: fp, _state: voteCheckState }) } catch { /* lỗi ghi shield không thể đảo phiếu đã commit */ }
     }
     return new Response(text, { status: 200, headers: JSON_HEADERS })
   } catch {
@@ -203,7 +245,8 @@ export async function handleVote(request, env) {
 export function healthResponse(env) {
   return json({
     ok: true,
-    shield: Boolean(env.SPIN_SHIELD && env.SUPABASE_URL),
+    shield: Boolean(shieldBinding(env) && env.SUPABASE_URL),
+    shield_backend: env.RATE_SHIELD ? 'd1' : env.SPIN_SHIELD ? 'kv' : 'none',
     // Cổng đã có token chưa (không lộ token). false = gọi thẳng RPC vẫn được.
     gate: Boolean(env.EDGE_GATE_TOKEN),
   })

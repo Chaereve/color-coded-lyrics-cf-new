@@ -18,7 +18,7 @@
 import {
   ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
   CircleAlert, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Play,
-  Eye, Plus, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
+  Eye, Plus, Receipt, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
   Trophy, User, Volume2, VolumeX, X,
 } from 'lucide-react'
 
@@ -44,6 +44,7 @@ const SET = {
   cup: Trophy,                    /* xếp hạng */
   flame: Flame,                   /* chuỗi ngày hoạt động (streak) */
   save: Download,                 /* tải card PNG chia sẻ */
+  receipt: Receipt,               /* đơn hàng — mục "Your orders" */
   user: User,
   shield: ShieldCheck,            /* bảng Admin */
   out: LogOut,

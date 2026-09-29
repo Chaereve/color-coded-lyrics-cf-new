@@ -10,11 +10,11 @@
    2) Chuông của cụm không được neo `position:absolute` + `top`: đó là số đo, còn
       đầu cụm cao theo nội dung nên nó nhảy so với nút mũi tên.
    3) Chuông là AFFORDANCE MỜ cuối dòng meta, KHÔNG phải ô nút có hộp — người
-      dùng đánh giá hộp 26px viền 1px (bật lên thành chip màu) ở cuối mọi dòng là
-      "thô, mất thẩm mỹ". CSS phải chứng minh: không viền, không nền, ẩn khi hàng
-      tĩnh, hiện khi rê/focus, trạng thái bật = chấm 4px chồng đúng chỗ glyph, và
-      màn cảm ứng vẫn thấy. Kèm theo: không còn "ô ghost" giữ chỗ cho hàng trong
-      cụm, vì hàng trong cụm chẳng có chuông nào để canh cột.
+   dùng đánh giá hộp 26px viền 1px (bật lên thành chip màu) ở cuối mọi dòng là
+   "thô, mất thẩm mỹ". CSS phải chứng minh: không viền, không nền, ẩn khi hàng
+   tĩnh, hiện khi rê/focus, icon bật/tắt cross-fade cùng ô, và màn cảm ứng vẫn
+   thấy. Kèm theo: không còn "ô ghost" giữ chỗ cho hàng trong cụm, vì hàng
+   trong cụm chẳng có chuông nào để canh cột.
    Xem thêm cssNotifyPitch.test.js, cssSelectArrow.test.js. Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -126,20 +126,17 @@ test('nút mảnh cuối dòng meta là affordance mờ, không phải ô nút c
     'không viết riêng vòng focus cho .followbtn nữa — quy tắc thẻ đã lo; thêm tên vào là bắt đầu lại cái danh sách đã bỏ')
 
 
-test('trạng thái bật = chấm 4px chồng đúng chỗ glyph (không nhảy 1px)', () => {
-  const after = ruleOf('.followbtn::after')
-  assert.match(after, /width:\s*4px/, 'chấm phải 4px')
-  assert.match(after, /height:\s*4px/, 'chấm phải 4px')
-  assert.match(after, /border-radius:\s*50%/, 'chấm tròn')
-  /* "glyph va cham trung mot o" phai tim bang quy tac co CA HAI selector trong
-     danh sach — ruleOf() tach theo dau phay nen goi tron
-     `.rowact > svg, .followbtn::after` se khong bao gio khop. */
-  assert.ok(RULES.some((r) => r.sels.includes('.rowact > svg') && r.sels.includes('.followbtn::after')
-    && /grid-area:\s*1\s*\/\s*1/.test(r.body)),
-    'glyph và chấm phải xếp chồng trong cùng một ô, nếu không dòng meta giật 1px khi rê')
-  assert.match(ruleOf('.followbtn.on'), /color:\s*var\(--a-2\)/, 'đang bật thì đổi MÀU, không đổi hình hài')
+test('chuông theo dõi chuyển icon thật, không dùng chấm giả hay chip nền', () => {
+  assert.match(btn, /className="icon-crossfade"[\s\S]*name="bell"[\s\S]*crossfade-off[\s\S]*name="bellOn"[\s\S]*crossfade-on/,
+    'hai trạng thái chuông phải cùng tồn tại để cross-fade')
+  assert.match(ruleOf('.icon-crossfade > svg'), /transition:\s*opacity\s+150ms/,
+    'icon chuyển bằng opacity 150ms, không animate layout')
+  assert.match(ruleOf('.followbtn.on'), /color:\s*var\(--a-2\)/, 'đang bật thì đổi màu accent')
+  assert.ok(!bare.includes('.followbtn::after'), 'không quay lại chấm giả 4px thay cho icon chuông')
   assert.ok(!ruleOf('.followbtn.on').includes('var(--a-soft)'),
-    'không được biến chuông đang bật thành chip nền màu — chính là cái bị chê nặng')
+    'không biến chuông đang bật thành chip nền màu — chính là cái bị chê nặng')
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?transition-duration:\s*\.001ms\s*!important/,
+    'cross-fade phải tôn trọng prefers-reduced-motion')
 })
 
 /* hai ham JSX duoc cat theo ten de do vi tri trong markup — so sanh ca file

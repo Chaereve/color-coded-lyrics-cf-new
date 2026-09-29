@@ -388,6 +388,21 @@ button { font-family: inherit; }
 .sfxbtn[aria-pressed="true"] { color: var(--txt-2); }
 
 
+/* Turnstile chỉ lộ panel khi managed challenge thật sự cần người dùng chạm.
+   Trước đó host invisible + non-interactive, không che nút; khi hiện, challenge
+   nằm trong viewport, có nhãn đọc được và được phép nhận pointer. */
+.ccl-turnstile-host { position: fixed; z-index: 2147483000; left: 50%; bottom: max(12px, env(safe-area-inset-bottom));
+  box-sizing: border-box; display: grid; justify-items: center; gap: 4px;
+  width: min(340px, calc(100vw - 20px)); padding: 8px;
+  border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface-2);
+  box-shadow: 0 16px 44px rgb(0 0 0 / 42%); transform: translate(-50%, 8px);
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transition: opacity 150ms var(--e-soft), transform 150ms var(--e-out), visibility 150ms; }
+.ccl-turnstile-host[data-interactive="true"] { visibility: visible; opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.ccl-turnstile-label { margin: 0; color: var(--txt-2); font-size: 11px; line-height: 1.4; text-align: center; }
+.ccl-turnstile-widget { display: flex; justify-content: center; width: 100%; min-width: 0; }
+.ccl-turnstile-widget iframe { max-width: 100%; }
+
 /* ---- dải thống kê ---- */
 /* Bốn ô giai đoạn (In queue · Picked · In progress · Completed) cộng lại đúng
    bằng tổng số bài trên bảng — xem stageCounts trong lib/board.js. Dùng GRID
@@ -1284,7 +1299,11 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .crop-z:hover:not(:disabled) { color: var(--txt); border-color: #3c4550; }
 .crop-z:disabled { opacity: .35; cursor: not-allowed; }
 .crop-range { flex: 1; width: auto; padding: 0; border: 0; background: none; accent-color: var(--a-2); cursor: pointer; }
+/* Chuột kéo thanh trượt thì bỏ vòng focus cho đỡ rối, nhưng BÀN PHÍM phải
+   thấy mình đang đứng ở đâu (WCAG 2.2 SC 2.4.11 Focus Appearance) —
+   outline:none vô điều kiện là xóa dấu của người dùng bàn phím. */
 .crop-range:focus { outline: none; }
+.crop-range:focus-visible { outline: 2px solid var(--a-2); outline-offset: 4px; border-radius: var(--r-pill); }
 .crop-hint { margin-top: 10px; font-size: 11.5px; color: var(--txt-3); text-align: center; }
 
 /* ---- hàng quản trị ---- */
@@ -1524,6 +1543,12 @@ img { max-width: 100%; }
 }
 .btn-primary:hover:not(:disabled) { transform: translateY(-1.5px); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.97); }
+/* Ở hai điểm xác nhận chính, press state dịu hơn nhịp nút thường: phản hồi
+   rõ nhưng không làm nút gửi/vote có cảm giác bị "bật nảy" khỏi hộp. */
+.vote-overlay .prof-acts .btn-primary:active:not(:disabled),
+.vote-overlay .prof-acts .btn-gold:active:not(:disabled),
+.modal form .btn-primary:active:not(:disabled),
+.modal form .btn-gold:active:not(:disabled) { transform: scale(.98); }
 /* nút nhấn mang màu logo: đỡ bằng một quầng tỏa rất nhẹ, rê chuột thì nở ra */
 .btn-primary { box-shadow: 0 2px 12px -6px var(--a-glow); }
 .btn-primary:hover:not(:disabled) { box-shadow: 0 7px 20px -7px var(--a-glow); }
@@ -1604,7 +1629,7 @@ img { max-width: 100%; }
    tự có vòng. Riêng thẻ nhập KHÔNG ở đây vì chúng đổi màu đường viền làm dấu
    focus (xem `input:where(…):focus` ở trên); phần tử `tabindex="-1"` bị loại vì
    chúng do JS focus, không phải do ngón tay người dùng. */
-button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible {
+button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible {
   outline: 2px solid var(--a-2); outline-offset: 2px;
 }
 
@@ -1616,6 +1641,9 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .mthumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
   background: var(--surface-3); border-radius: var(--r-md); overflow: hidden; }
 .mthumb > img { display: block; width: 100%; height: 100%; object-fit: cover;
+  /* viền inset trung tính để mép ảnh không tan vào nền khung (không tô màu
+     brand — viền ảnh là cấu trúc, không phải trang trí) */
+  outline: 1px solid rgba(255, 255, 255, .08); outline-offset: -1px;
   /* ảnh về tới đâu mới hiện tới đó (class .ready do component gắn): hết cảnh
      khung xám bật thành ảnh giữa lúc đang xem. Kèm scale nhẹ cho mượt. */
   opacity: 0; transform: scale(1.02);
@@ -1933,7 +1961,7 @@ button:focus-visible, a:focus-visible, [tabindex]:not([tabindex="-1"]):focus-vis
 .mainhead { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
 .mainhead-tx { flex: 1; min-width: 0; }
 .mainhead-t { margin: 0; font-family: var(--display); font-weight: 700; font-size: 21px;
-  letter-spacing: .1px; line-height: 1.2; }
+  letter-spacing: .1px; line-height: 1.2; text-wrap: balance; }
 /* Dòng phụ: tiêu đề một mình ở góc trên bên trái để lại một khoảng trống
    không rõ chức năng, còn người mới vào thì không biết trang này để làm gì.
    Một dòng, chữ nhỏ, màu nhạt nhất trong thang — đủ định hướng, không tranh
@@ -2934,7 +2962,30 @@ html[data-section="spin"] .bgfx { display: none; }
 
 .now-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.now-rule { font-size: 11.5px; color: var(--txt-3); line-height: 1.5; }
+.now-rule { display: flex; flex: 1 1 70%; min-width: 0; flex-wrap: wrap; align-items: center; column-gap: 4px;
+  font-size: 11.5px; color: var(--txt-3); line-height: 1.5; }
+/* ===== CALC NOTE — popover “cách tính” (components/CalcNote.jsx) =====
+   Chấm info vẫn gọn trong dòng Up next; mở ra là panel gọn có nhãn/câu, không
+   còn đoạn văn trải ngang. details/summary thuần, không state/animation. */
+.calc { display: block; flex: 0 0 100%; min-width: 0; margin: 0; }
+.calc summary { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  border: 1px solid transparent; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
+  list-style: none; transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft); }
+.calc summary::-webkit-details-marker { display: none; }
+.calc summary:hover, .calc[open] summary { color: var(--a-2); background: color-mix(in srgb, var(--a-2) 9%, transparent); border-color: color-mix(in srgb, var(--a-2) 22%, transparent); }
+.calc summary:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.calc-rows { width: min(360px, 100%);
+  margin: 7px 0 2px; padding: 7px 14px; border: 1px solid color-mix(in srgb, var(--a-2) 20%, var(--line));
+  border-radius: 12px; background: color-mix(in srgb, var(--bg-2) 96%, #111 4%); color: var(--txt-2);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 34%), 0 2px 8px rgb(0 0 0 / 18%); }
+.calc-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px 0; }
+.calc-row + .calc-row { border-top: 1px solid var(--line); }
+.calc-row dt { margin: 1px 0 0; color: var(--a-2); font-size: 9px; font-weight: 800; letter-spacing: .09em; line-height: 1.5; text-transform: uppercase; }
+.calc-row dd { margin: 0; color: var(--txt-2); font-size: 11.5px; line-height: 1.5; text-wrap: pretty; }
+@media (max-width: 480px) {
+  .calc-row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px; padding: 9px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .calc summary { transition: none; } }
 /* Định nghĩa của khối này, đặt ngay dưới tiêu đề: mục Up next và tab In progress
    nói cùng một dây chuyền, người đọc không phải tự suy ra. */
 .now-more { margin-left: auto; }
@@ -3203,8 +3254,16 @@ html[data-section="spin"] .bgfx { display: none; }
      nên item tự thẳng giữa — không có số đo tay nào cần bù. */
   transition: color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft);
 }
-/* glyph va cham xep chong len nhau trong cung mot o: doi chi la doi noi dung */
-.rowact > svg, .followbtn::after { grid-area: 1 / 1 }
+/* Glyph swap giữ cả hai SVG trong cùng một ô: đổi trạng thái chỉ cross-fade
+   opacity (compositor), không nhảy hình. Một luật dùng cho chuông + âm thanh. */
+.rowact > svg { grid-area: 1 / 1 }
+.icon-crossfade { display: inline-grid; grid-area: 1 / 1; place-items: center; width: 16px; height: 16px; }
+.icon-crossfade > svg { grid-area: 1 / 1; transition: opacity 150ms var(--e-soft); }
+.icon-crossfade .crossfade-on { opacity: 0; }
+.followbtn.on .icon-crossfade .crossfade-off,
+.sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-off { opacity: 0; }
+.followbtn.on .icon-crossfade .crossfade-on,
+.sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-on { opacity: 1; }
 /* Vùng CHẠM rộng 26px quanh glyph 15px: nới bằng pseudo-element tuyệt đối nên
    hình không đổi một pixel, hàng không cao thêm — đúng cách pro-max chỉ cho
    icon nhỏ ("expand the hit area when the visual icon is smaller"). Bản hẹp
@@ -3212,22 +3271,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .rowact::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
 /* Phản hồi lúc bấm: thu nhẹ tại chỗ, không đổi kích thước hộp, không đẩy hàng. */
 .rowact:active { transform: scale(.9); }
-.followbtn::after {
-  content: ''; width: 4px; height: 4px; border-radius: 50%;
-  background: currentColor; opacity: 0;
-}
 .row:hover .rowact, .grow:hover > .rowact, .rowact:focus-visible { opacity: .85; pointer-events: auto }
-/* hàng đang bật thì giữ nguyên độ đậm 1: chấm 4px mà bị giảm xuống .85 lúc rê
-   vào là nó nhạt đi đúng lúc người dùng nhìn nó nhất */
+/* Hàng đang bật thì giữ độ đậm 1, không nhạt đi khi rê vào. */
 .row:hover .followbtn.on, .grow:hover > .followbtn.on { opacity: 1 }
 .rowact:hover { color: var(--txt) }
 .followbtn.on { color: var(--a-2); opacity: 1 }
-.followbtn.on > svg { opacity: 0 }
-.followbtn.on::after { opacity: 1 }
-.row:hover .followbtn.on > svg, .grow:hover > .followbtn.on > svg,
-.followbtn.on:hover > svg, .followbtn.on:focus-visible > svg { opacity: 1 }
-.row:hover .followbtn.on::after, .grow:hover > .followbtn.on::after,
-.followbtn.on:hover::after, .followbtn.on:focus-visible::after { opacity: 0 }
 @media (hover: none) { .rowact { opacity: .55; pointer-events: auto } }
 /* CHUONG CUA CA CU NAM O COT LUOI THU HAI, khong neo absolute: .grow-head cao
    theo noi dung (nhan + ten + meta) nen moi so do "top: 15px" deu lech voi mui
@@ -3292,8 +3340,8 @@ html[data-section="spin"] .bgfx { display: none; }
 .empty-ico { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 6px;
   border: 1px solid var(--line-2); border-radius: 50%; color: var(--txt-3);
   background: radial-gradient(circle at 50% 35%, var(--a-soft), transparent 72%); }
-.empty b { font-family: var(--display); font-size: 13.5px; font-weight: 700; color: var(--txt); }
-.empty small { color: var(--txt-3); font-size: 12px; max-width: 36ch; line-height: 1.6; }
+.empty b { font-family: var(--display); font-size: 13.5px; font-weight: 700; color: var(--txt); text-wrap: balance; }
+.empty small { color: var(--txt-3); font-size: 12px; max-width: 36ch; line-height: 1.6; text-wrap: pretty; }
 
 /* =========================================================
    ĐANG TẢI / LỖI KHI NẠP BẢNG
@@ -3665,6 +3713,24 @@ html[data-section="spin"] .bgfx { display: none; }
 /* ---- BẢNG ADMIN — TRANG RIÊNG ------------------------------------------ */
 .adm-page { display: grid; gap: 14px; }
 .adm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 8px; }
+/* Funnel: compact read-only admin surface; one explicit RPC load, no live
+   polling. Five events only, so the numbers can be scanned without a chart. */
+.adm-funnel { min-width: 0; padding: 13px 14px 14px; border: 1px solid var(--line);
+  border-radius: var(--r-md); background: var(--surface-2); }
+.adm-funnel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.adm-funnel-head h2 { margin: 0; color: var(--txt); font-size: 13px; font-weight: 700; }
+.adm-funnel-head p { margin: 3px 0 0; color: var(--txt-3); font-size: 10.5px; line-height: 1.4; }
+.adm-funnel-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.adm-funnel-stat { display: grid; gap: 5px; min-width: 0; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel); }
+.adm-funnel-stat span { overflow: hidden; color: var(--txt-3); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.adm-funnel-stat b { color: var(--txt); font-family: var(--mono); font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.adm-funnel-state { margin: 0; color: var(--txt-2); font-size: 11.5px; line-height: 1.5; }
+@media (max-width: 620px) {
+  .adm-funnel { padding: 11px; }
+  .adm-funnel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-funnel-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 .adm-kpi {
   display: grid; gap: 3px; padding: 11px 13px; text-align: left; cursor: pointer;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
@@ -4088,6 +4154,9 @@ html[data-section="spin"] .bgfx { display: none; }
 .weekly-card { display: flex; flex-direction: column; gap: 4px; padding: 13px; color: var(--txt); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--a) 8%, var(--bg-2)); }
 .weekly-card:hover, .weekly-card:focus-visible { border-color: var(--a-2); }
 .weekly-card small { color: var(--a-2); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; font-weight: 700; }
+/* Tuần qua nhìn lại (T7): một dòng tóm tắt + nút Save card, tách với hai
+   thẻ highlight bằng một vạch mảnh — không phải thẻ thứ ba cùng hàng. */
+.weekly-recap { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .weekly-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .weekly-card span { color: var(--txt-3); font-size: 12px; }
 @media (max-width: 560px) { .weekly-grid { grid-template-columns: 1fr; } }
@@ -4284,9 +4353,9 @@ body {
 .comment-plain { color: var(--txt); font-size: 11.5px; font-weight: 600; }
 .comment-time { color: var(--txt-3); font-size: 10px; font-family: var(--font); }
 .comment-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.comment-reply-btn { padding: 2px 7px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-3); font: 600 10px var(--font); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.comment-reply-btn { padding: 2px 7px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-3); font: 600 10px var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .comment-reply-btn:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
-.comment-delete { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-3); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.comment-delete { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-3); cursor: pointer; transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .comment-delete:hover { color: var(--denied); background: rgba(226, 110, 105, .15); }
 .comment-text { color: var(--txt); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; padding-left: 30px; }
 .comment-reply .comment-text { padding-left: 30px; }
@@ -4297,12 +4366,12 @@ body {
 .comment-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .replying { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 10px; border-radius: var(--r-sm); background: var(--a-soft); border: 1px solid var(--a-dim); animation: commentRowIn .15s var(--e-out) both; }
 .replying-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--a-2); font-size: 11px; font-weight: 600; }
-.replying-cancel { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface); color: var(--txt-3); font: 500 10.5px var(--font); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.replying-cancel { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface); color: var(--txt-3); font: 500 10.5px var(--font); cursor: pointer; transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .replying-cancel:hover { color: var(--denied); border-color: var(--denied); background: rgba(226, 110, 105, .12); }
 .comment-input-wrap { display: flex; gap: 6px; width: 100%; }
 .comment-input-wrap input { min-width: 0; flex: 1; height: 34px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--txt); font: 12px var(--font); transition: border-color var(--t-1) var(--e-soft); }
 .comment-input-wrap input:focus { outline: none; border-color: var(--a-2); }
-.comment-input-wrap button { display: grid; place-items: center; width: 36px; height: 34px; border: 1px solid var(--a-dim); border-radius: var(--r-sm); background: var(--a-soft); color: var(--a-2); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.comment-input-wrap button { display: grid; place-items: center; width: 36px; height: 34px; border: 1px solid var(--a-dim); border-radius: var(--r-sm); background: var(--a-soft); color: var(--a-2); cursor: pointer; transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
 .comment-input-wrap button:hover:not(:disabled) { background: var(--a-2); color: #fff; }
 .comment-input-wrap button:disabled { opacity: .45; cursor: not-allowed; }
 .comment-error { display: block; width: 100%; margin-top: 4px; color: var(--denied); font-size: 11px; }
@@ -4326,9 +4395,9 @@ body {
 
 .profile-share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
 .profile-share-row .profile-share { margin-top: 0; }
-.profile-share { min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.profile-share { min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
 .profile-share:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
-.card-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.card-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
 .card-btn:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
 .card-btn[disabled] { opacity: .6; cursor: default; }
 
@@ -4391,7 +4460,7 @@ body {
 .achievement-head h2 svg { color: var(--a-2); }
 .achievement-head-side { display: flex; align-items: center; gap: 10px; }
 .achievement-count { color: var(--txt-3); font: 600 11px var(--mono); }
-.achievement-all-btn { padding: 4px 10px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--a-2); font: 600 11.5px var(--font); cursor: pointer; transition: all var(--t-1) var(--e-soft); }
+.achievement-all-btn { padding: 4px 10px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--a-2); font: 600 11.5px var(--font); cursor: pointer; transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft); }
 .achievement-all-btn:hover { background: var(--a-soft); border-color: var(--a-2); }
 
 .achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

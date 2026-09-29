@@ -1,5 +1,12 @@
 # Gói 1 — Kích thước chạm trên điện thoại
 
+> **Use khi:** nút hay vùng chạm nhỏ hơn ~40px trên điện thoại, người dùng bấm nhầm/hụt,
+> cần sửa cỡ chạm của control.
+> **Không dùng khi:** việc đổi màu, đổi bố cục, thêm tính năng — gói này CHỈ đụng kích thước
+> chạm, không đụng gì khác.
+> **Dấu hiệu đã làm đúng:** trên `pointer: coarse` mọi control thật ≥ 40px; cặp "nhỏ trên
+> desktop / đủ to trên cảm ứng" còn nguyên cả hai vế; `npm test` xanh.
+
 **Gửi gì:** dán toàn bộ file này làm tin nhắn, rồi đính kèm 4 file trong `kem-theo/`.
 
 ---
@@ -12,7 +19,8 @@ Web `chaereve.pages.dev` — bảng yêu cầu video colour-coded lyrics. Stack:
 Toàn bộ CSS nằm trong **một file duy nhất** `src/index.css` (139 KB, 2452 dòng).
 Mọi màu/góc bo/thời gian chuyển động đều đi qua **token trong `:root`**.
 
-Repo có **6 test tự động quét CSS/JSX** bằng regex — sửa CSS mà phá test là bị chặn:
+Repo có **một bộ test tự động quét CSS/JSX** bằng regex (mọi file `src/lib/css*.test.js`
++ `jsxHtml.test.js`) — sửa CSS mà phá test là bị chặn. Bảy test hay dính nhất:
 
 | test | chốt cái gì |
 |---|---|
@@ -21,6 +29,7 @@ Repo có **6 test tự động quét CSS/JSX** bằng regex — sửa CSS mà ph
 | `cssScroll.test.js` | vùng cuộn trong flex cột phải có `min-height: 0` |
 | `cssInputBox.test.js` | rule `input` phải bọc `:where(:not(...))` để widget không bị biến thành hộp nhập |
 | `cssGridRows.test.js` | khai cột lưới thì phải khai hàng |
+| `cssTransitionScope.test.js` | cấm `transition: all` / `will-change: all` — liệt kê đúng thuộc tính đang đổi |
 | `jsxHtml.test.js` | không lồng `<div>` vào `<button>`, control trong control |
 
 ---

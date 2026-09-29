@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
+import { warmCaptcha } from '../lib/spinShield.js'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
@@ -251,6 +252,9 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
 
   useEffect(() => {
     mounted.current = true
+    /* Người dùng đã chủ động mở trang Spin: làm ấm Turnstile song song với
+       status fetch để lúc bấm quay không phải chờ tải script lần đầu. */
+    void warmCaptcha()
     // Defer the initial fetch until the effect setup/StrictMode cleanup settles.
     queueMicrotask(() => { if (mounted.current) load() })
     const refresh = () => { if (!document.hidden) load() }

@@ -1,5 +1,11 @@
 # Gói 3 — `robots.txt` + `sitemap.xml`
 
+> **Use khi:** đổi tên miền, thêm trang mới cần Google index, hoặc sửa `robots.txt` /
+> `sitemap.xml` / `og:url`.
+> **Không dùng khi:** việc không liên quan tới index tìm kiếm (sửa UI, logic, database).
+> **Dấu hiệu đã làm đúng:** `robots.txt`, `sitemap.xml` và `og:url`/canonical cùng trỏ một
+> origin; đúng 4 chỗ phải sửa cùng nhau khi đổi tên miền (ghi trong comment của robots.txt).
+
 **Gửi gì:** dán toàn bộ file này làm tin nhắn, đính kèm các file trong `kem-theo/`.
 
 ---

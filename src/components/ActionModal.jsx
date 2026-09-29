@@ -713,7 +713,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
 }
 
 /* ---------------------------- TAB: VOTE ---------------------------- */
-function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy }) {
+function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null }) {
   const { t } = useI18n()
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('top')
@@ -770,7 +770,24 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy }) {
 
       <div ref={listRef} />
       {list.length === 0
-        ? <div className="empty">{t('vote.empty')}</div>
+        ? (
+          /* Khối rỗng theo khuôn của AdminPanel EmptyState: icon + giải thích +
+             đúng MỘT hành động dẫn đi. Ba trường hợp nói thẳng lý do — tìm
+             không ra / mọi thứ đã có người lo / bảng còn trống — mỗi trường hợp
+             một lối ra, không phải một câu "Nothing to vote on." mồ côi. */
+          <div className="empty">
+            <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+            <b>{q.trim() ? t('adm.noResults', { q: q.trim() }) : t('vote.empty')}</b>
+            {!q.trim() && <small>{rows.length ? t('vote.emptyAllBusy') : t('vote.emptyNoBoard')}</small>}
+            {(q.trim() || (!rows.length && goRequest)) && (
+              <span className="empty-acts">
+                {q.trim()
+                  ? <button type="button" className="btn btn-sm" onClick={() => setQ('')}>{t('adm.clearSearch')}</button>
+                  : <button type="button" className="btn btn-sm" onClick={goRequest}>{t('tab.request')}</button>}
+              </span>
+            )}
+          </div>
+        )
         : pg.items.map(r => {
           const mine = myVotes.get(r.id) || 0
           return (
@@ -877,7 +894,13 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
         <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
       </div>
       {myOrders.length === 0
-        ? <div className="empty">{t('buy.noOrders')}</div>
+        ? (
+          <div className="empty">
+            <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={18} /></span>
+            <b>{t('buy.noOrders')}</b>
+            <small>{t('buy.noOrdersBody')}</small>
+          </div>
+        )
         : myOrders.slice(0, 12).map(o => (
           <div className="adm" key={o.id}>
             <div className="nm">
@@ -948,7 +971,8 @@ export default function ActionModal({
           )}
           {tab === 'vote' && (
             <VoteTab rows={rows} myVotes={myVotes} onVote={onVote}
-              voteStatus={voteStatus} goBuy={() => setTab('buy')} />
+              voteStatus={voteStatus} goBuy={() => setTab('buy')}
+              goRequest={() => setTab('request')} />
           )}
           {tab === 'buy' && <BuyTab onBuy={onBuy} myOrders={myOrders} userName={userName} onCancelOrder={onCancelOrder} />}
         </div>

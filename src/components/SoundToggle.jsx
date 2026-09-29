@@ -21,7 +21,10 @@ export default function SoundToggle() {
   return (
     <span className="sfxwrap">
       <button type="button" className="sfxbtn" onClick={toggle} title={label} aria-label={label} aria-pressed={on}>
-        <Icon name={on ? 'sound' : 'mute'} size={15} />
+        <span className="icon-crossfade" aria-hidden="true">
+          <Icon name="mute" size={15} className="crossfade-off" />
+          <Icon name="sound" size={15} className="crossfade-on" />
+        </span>
       </button>
       <input type="range" className="sfxvol" min={0} max={1} step={0.05} value={vol} disabled={!on}
         aria-label={t('sfx.volume')} title={t('sfx.volume')}

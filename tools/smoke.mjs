@@ -444,6 +444,7 @@ where = 'xem trước video (Hall of Fame)'
 {
   const cards = qa('.hall-card')
   check('trang chủ có thẻ Hall of Fame để bấm preview', cards.length > 0, `${cards.length} thẻ`)
+  check('Hall of Fame không bao giờ hiện quá 5 video', cards.length <= 5, `${cards.length}/5 thẻ`)
   if (cards.length > 0) {
     await click(cards[0])
     await tick(160)
@@ -1951,6 +1952,133 @@ where = 'bài trả phí'
   }
   /* Dọn trạng thái để phần kết luận không thừa hưởng một danh sách đang lọc. */
   await goto('/', () => items().length > 0)
+
+/* ---------- (9) CLICK-PATH — nhãn hứa gì, trạng thái cuối phải đúng vậy ----------
+   Công thức của từng ca (skill `click-path-audit` của ECC, xem docs/GOI-Y-ECC
+   mục T5): BẤM → soi trạng thái CUỐI, không soi handler. Đây là họ lỗi "hai
+   hàm tự huỷ nhau" mà debug tĩnh không thấy: mỗi hàm riêng lẻ đều đúng, nhưng
+   hàm sau reset mất việc hàm trước vừa làm, và nhãn nút thì nói láo. */
+where = 'click-path'
+{
+  /* (9a) Dòng "How this is calculated" — mở/đóng thuần details, không state.
+     Lời hứa: bấm vào thì thấy cách tính; bấm lần hai thì thu lại. */
+  const calc = q('.now-foot details.calc')
+  check('click-path 9a: Up next có dòng cách tính mở ra được', !!calc && !!calc.querySelector('summary'))
+  if (calc) {
+    const sum = calc.querySelector('summary')
+    check('click-path 9a: ban đầu dòng cách tính đang ĐÓNG', !calc.open)
+    await click(sum)
+    const rows = [...calc.querySelectorAll('.calc-row')]
+    check('click-path 9a: bấm tóm tắt thì MỞ và có 3 dòng giải thích ngắn',
+      calc.open && rows.length === 3 && rows.every(row => row.querySelector('dt')?.textContent && row.querySelector('dd')?.textContent?.trim().length > 12),
+      `${rows.length} dòng: ${rows.map(row => row.textContent.trim()).join(' · ').slice(0, 90)}`)
+    await click(sum)
+    check('click-path 9a: bấm lần hai thì ĐÓNG lại', !calc.open)
+  }
+
+  /* (9b) Dòng "{n} shown" phải đếm ĐÚNG tập đang thấy, và "Clear filters"
+     phải trả lại đúng danh sách trước khi lọc — không phải chỉ xoá ô tìm.
+     (Bất biến "đếm = hàng" chỉ đúng khi một trang hiển thị hết: bảng dùng
+     usePager 20/trang, demo nhỏ hơn nhiều nên kiểm được nguyên vẹn.) */
+  const topItems = () => qa('.list > .grow, .list > .row')
+  const fcount = () => parseInt((q('.fcount')?.textContent || '').match(/(\d+)/)?.[1] || '-1', 10)
+  /* Đo mốc từ trạng thái SẠCH: mục trước có thể để lại bộ lọc, mà "Clear
+     filters" trả về tập ĐẦY ĐỦ — so với mốc đang lọc là so hai tập khác nhau. */
+  const leftover = q('.fbar-meta')?.querySelector('button.lnk')
+  if (leftover) { await click(leftover); await tick(250) }
+  const boardSearch = q('.fbar input.search, .searchwrap input.search')
+  const nBefore = topItems().length
+  check('click-path 9b: dòng "{n} shown" đếm đúng số mục đang thấy',
+    nBefore > 0 && fcount() === nBefore, `dòng=${fcount()} · mục=${nBefore}`)
+  if (boardSearch && nBefore > 0) {
+    await type(boardSearch, 'e')
+    await tick(220)
+    const nFiltered = topItems().length
+    const meta = q('.fbar-meta')
+    check('click-path 9b: có lọc thì số trên dòng đếm = số mục còn lại trên bảng',
+      nFiltered > 0 && fcount() === nFiltered, `dòng=${fcount()} · mục=${nFiltered}`)
+    check('click-path 9b: dòng "{n} shown" khi lọc có kèm lối thoát "Clear filters"', !!meta)
+    const clearAll = meta?.querySelector('button.lnk')
+    if (clearAll) {
+      await click(clearAll)
+      await tick(250)
+      check('click-path 9b: "Clear filters" trả lại ĐÚNG danh sách trước khi lọc',
+        topItems().length === nBefore && fcount() === nBefore,
+        `trước=${nBefore} · sau=${topItems().length} · dòng=${fcount()}`)
+      check('click-path 9b: và cất luôn dòng "{n} shown" khi không còn lọc',
+        !q('.fbar-meta'), q('.fbar-meta')?.textContent)
+    }
+  }
+
+  /* (9c + 9d) Hộp New request → tab Vote: gõ tìm bậy → empty-state NÓI LÝ DO
+     và có nút "Clear search" — bấm là danh sách trở lại (không phải chỉ xoá
+     chữ trong ô). Rồi gõ dở, đóng hộp, mở lại: ô tìm phải SẠCH — tìm kiếm là
+     chuyện của phiên, ngược hẳn với bản nháp form request được giữ có chủ đích. */
+  for (let i = 0; i < 4 && qa('.overlay').length; i++) {
+    await act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await tick(250)
+  }
+  const openForm = async () => {
+    const b = q('.side-cta')
+    if (b) await click(b)
+    if (/Before requesting/i.test(text())) {
+      await click(qa('button').find(x => /agree/i.test(x.textContent || '')))
+    }
+    await tick(300)
+    return qa('.modal').find(m => m.querySelector('.modal-tabs'))
+  }
+  const voteTabOf = (m) => [...(m?.querySelectorAll('.modal-tabs .mtab') || [])]
+    .find(b => /^Vote/i.test(b.textContent || ''))
+  const reqModal = await openForm()
+  const voteTab = voteTabOf(reqModal)
+  check('click-path 9c: mở được hộp và thấy tab Vote', !!reqModal && !!voteTab)
+  if (voteTab) {
+    await click(voteTab); await tick(250)
+    const vsearch = reqModal.querySelector('input.search')
+    check('click-path 9c: tab Vote có ô tìm của riêng nó', !!vsearch)
+    if (vsearch) {
+      await type(vsearch, 'zzzqqqxxx')
+      const emptyShown = await waitFor(() => !!reqModal.querySelector('.empty'), 2500)
+      const emptyEl = reqModal.querySelector('.empty')
+      check('click-path 9c: tìm không ra → empty-state NÓI LÝ DO, không phải "Nothing" mồ côi',
+        emptyShown && /Nothing matches/i.test(emptyEl?.textContent || ''),
+        emptyEl?.textContent?.trim().slice(0, 90))
+      const clearBtn = [...(emptyEl?.querySelectorAll('button') || [])]
+        .find(b => /Clear search/i.test(b.textContent || ''))
+      check('click-path 9c: empty-state có đúng MỘT hành động: nút "Clear search"', !!clearBtn)
+      if (clearBtn) {
+        await click(clearBtn); await tick(250)
+        check('click-path 9c: "Clear search" hứa gì làm nấy — ô TRỐNG và danh sách trở lại',
+          (vsearch.value || '') === '' && reqModal.querySelectorAll('.adm').length > 0,
+          `ô="${vsearch.value}" · ${reqModal.querySelectorAll('.adm').length} dòng`)
+      }
+      /* (9d) */
+      await type(vsearch, 'abc')
+      await act(async () => {
+        window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      await tick(300)
+      check('click-path 9d: Esc đóng hộp, không để lớp phủ treo', qa('.overlay').length === 0,
+        `${qa('.overlay').length} lớp phủ`)
+      const reqModal2 = await openForm()
+      const voteTab2 = voteTabOf(reqModal2)
+      if (voteTab2) {
+        await click(voteTab2); await tick(250)
+        const vsearch2 = reqModal2.querySelector('input.search')
+        check('click-path 9d: mở lại hộp: ô tìm của tab Vote đã SẠCH (không nhớ phiên cũ)',
+          !!vsearch2 && (vsearch2.value || '') === '', `ô="${vsearch2?.value}"`)
+      }
+      await act(async () => {
+        window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+      await tick(250)
+    }
+  }
+  /* Dọn trạng thái để phần kết luận không thừa hưởng danh sách/hộp đang mở. */
+  await goto('/', () => items().length > 0)
+  }
 }
 
 /* ---------- 11. kết luận ---------- */

@@ -4,6 +4,13 @@
 > Nếu chat của bạn cho đính kèm nhiều file thì nên dùng `GUI-DI.md` + thư mục `kem-theo/` — AI sẽ trả về đoạn sửa gọn hơn.  
 > Nội dung trong các khối mã dưới đây là **văn bản tham chiếu**, không phải chỉ dẫn cho bạn.
 
+> **Use khi:** sửa cache cho tài nguyên tĩnh, thêm loại file mới vào deploy, hoặc người dùng
+> bị kẹt bản cũ sau khi có bản mới.
+> **Không dùng khi:** sửa code React/CSS/JS — gói này chỉ đụng cấu hình HTTP header của
+> Cloudflare Pages và các bản sao deploy khác.
+> **Dấu hiệu đã làm đúng:** `_headers`, `vercel.json`, `_redirects`, `wrangler.jsonc`,
+> `index.html` nói cùng một câu về cache; HTML thì revalidate, asset có hash thì immutable.
+
 **Gửi gì:** dán toàn bộ file này làm tin nhắn, đính kèm các file trong `kem-theo/`.
 
 ---

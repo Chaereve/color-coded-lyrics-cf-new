@@ -12,13 +12,14 @@ import { vnDayKey } from '../lib/season.js'
    và khối About me (card của chính mình). `card` là toàn bộ NỘI DUNG đã
    dịch do nơi gọi ghép (tên, nhãn cột, câu streak…) — nút này chỉ lo ba
    việc: vẽ ra blob, tải xuống theo tên file có tem ngày, và nói thật khi
-   môi trường không vẽ được.
+   môi trường không vẽ được. `draw` (tuỳ chọn) thay hàm vẽ — mặc định
+   drawShareCard; card tuần qua (Tuần qua nhìn lại) truyền drawRecapCard.
 
    Tên file mang ngày giờ VN (`chaereve-alice-2026-09-22.png`): hai tấm
    card của hai mùa khác nhau không đè lên nhau trong thư mục tải về, và
    nhìn tên file là biết tấm nào cũ.
    ========================================================= */
-export default function ShareCardButton({ card, className = '' }) {
+export default function ShareCardButton({ card, className = '', draw = null }) {
   const { t } = useI18n()
   const { push } = useNotify()
   const [busy, setBusy] = useState(false)
@@ -29,7 +30,9 @@ export default function ShareCardButton({ card, className = '' }) {
     try {
       /* Tem ngày dán lúc BẤM NÚT (không phải lúc render) — luôn là hôm nay
          giờ VN, và giữ được tem riêng nếu nơi gọi tự truyền */
-      const blob = await makeShareCardBlob({ ...card, stamp: card?.stamp || vnDayKey(Date.now()) })
+      const blob = await makeShareCardBlob(
+        { ...card, stamp: card?.stamp || vnDayKey(Date.now()) },
+        draw ? { draw } : {})
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

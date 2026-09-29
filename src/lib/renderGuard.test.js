@@ -151,7 +151,9 @@ test('thiếu dữ liệu từ máy chủ thì vẫn quay, không chặn ngườ
   assert.match(spin, /rewards = data\.status\?\.rewards\?\.length \? data\.status\.rewards : SPIN_REWARDS/,
     'bảng ô phải có nhánh dự phòng về 16 ô mặc định khi máy chủ trả thiếu khoá')
   const db = read('src/lib/db.js')
-  const guarded = db.match(/fingerprintHash\(\)\.catch\(\(\) => null\)/g) || []
-  assert.ok(guarded.length >= 2,
-    `vân tay hỏng phải được tha ở CẢ đường quay lẫn đường vote (đang có ${guarded.length} chỗ)`)
+  const guarded = db.match(/fingerprintHashFast\(\)/g) || []
+  assert.ok(guarded.length >= 4,
+    `fingerprint phải có soft-timeout trên cả status/spin/vote thay vì chặn action (đang có ${guarded.length} chỗ)`)
+  assert.match(read('src/lib/spinShield.js'), /FINGERPRINT_WAIT_MS = 1200/,
+    'anti-farm fingerprint không được giữ người dùng chờ vô hạn')
 })

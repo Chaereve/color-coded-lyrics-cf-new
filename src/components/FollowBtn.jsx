@@ -27,7 +27,10 @@ export default function FollowBtn({ on = false, onToggle }) {
       aria-pressed={on} title={on ? t('row.unfollow') : t('row.follow')}
       aria-label={on ? t('row.unfollow') : t('row.follow')}
       onClick={(e) => { e.stopPropagation(); onToggle?.() }}>
-      <Icon name={on ? 'bellOn' : 'bell'} size={15} />
+      <span className="icon-crossfade" aria-hidden="true">
+        <Icon name="bell" size={15} className="crossfade-off" />
+        <Icon name="bellOn" size={15} className="crossfade-on" />
+      </span>
       <span className="sr-only">{on ? t('row.unfollow') : t('row.follow')}</span>
     </button>
   )

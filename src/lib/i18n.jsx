@@ -121,8 +121,9 @@ const S = {
   'err.spinTimeout': 'Connection timed out. Try again to check your spin.',
   'err.spinResponse': 'Could not confirm the result. Check your last spin.',
   'err.spinFingerprint': 'Could not read this browser’s signature. Enable scripts and try again.',
-  'err.spinCaptcha': 'Couldn’t run the security check quietly. Please try again.',
+  'err.spinCaptcha': 'Security check did not finish. Please try again and complete any visible challenge.',
   'err.spinGate': 'Could not reach the spin service. Try again.',
+  'err.shieldUnavailable': 'The security counter is temporarily unavailable. Please try again shortly.',
   'err.spinEdgeFp': 'This browser has used its daily spins.',
   'err.spinEdgeIp': 'Too many browsers spun from this network today. Try again tomorrow.',
   'err.voteGate': 'Could not reach the vote service. Try again.',
@@ -291,7 +292,18 @@ const S = {
   'now.pickSoon': 'any moment…',
   'now.everyDays': 'every {n} days',
   'now.noPick': 'No request picked yet',
-  'now.pickRule': 'The most voted request is picked automatically every {n} days.',
+  'now.pickRule': 'One request is picked automatically every {n} days.',
+  /* dòng "cách tính" mở ra được dưới dòng pickRule — xem components/CalcNote.jsx.
+     Ba dòng NHÃN + MỘT CÂU mỗi dòng: người hỏi đọc hết trong 5 giây, không
+     phải một đoạn văn 90 chữ. Ba dòng = ba sự thật, không sự thật nào lặp lại
+     ở dòng khác (nhịp chốt nằm ở dòng pickRule, không nhắc lại trong panel). */
+  'calc.how': 'How this is calculated',
+  'now.calcOrderLbl': 'Pick order',
+  'now.calcOrder': 'Paid first, then most votes; ties go to the oldest.',
+  'now.calcWaitLbl': 'Your wait',
+  'now.calcWait': 'Earliest possible: next pick + {n} days for each song ahead.',
+  'now.calcNoteLbl': 'Good to know',
+  'now.calcNote': 'Other songs gaining votes can push you later — never earlier.',
   'now.pickedAgo': 'picked {t}',
   'now.more': 'View all {n} →',
 
@@ -524,6 +536,13 @@ const S = {
   'card.unsupported': 'This browser cannot render the card image',
   'card.subtitle': 'Chaereve community member',
   'card.footer': 'chaereve · color coded lyrics request board',
+  /* WEEK IN REVIEW (weekRecap.js + drawRecapCard): chữ trên card recap cũng
+     qua từ điển như card hồ sơ. */
+  'recap.summary': '{votes} votes received · {done} songs completed this week',
+  'recap.cardTitle': 'Week in review',
+  'recap.statVotes': 'votes this week',
+  'recap.statDone': 'songs completed',
+  'recap.statTop': 'top song votes',
   'comment.reply': 'Reply',
   'comment.cancel': 'Cancel',
   'comment.replying': 'Replying to {name}',
@@ -583,6 +602,7 @@ const S = {
   'rank.emptyPeriod.all': 'No data yet.',
   'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
   'rank.emptyPeriod.month': 'No requests yet this month.',
+  'rank.emptyCta': 'Switch to All time',
   'rank.rewards.week': 'Weekly prizes: 1st (+15 votes) · 2nd (+10 votes) · 3rd (+5 votes)',
   'rank.rewards.month': 'Monthly prizes: 1st (+50 votes & +1 request) · 2nd (+30 votes) · 3rd (+20 votes)',
   'rank.rewards.title': 'Season prizes',
@@ -621,6 +641,8 @@ const S = {
   'foot.tag': 'Request Page',
   'foot.copy': '© {y} CHAEREVE. All rights reserved.',
   'foot.privacy': 'Privacy',
+  'foot.faq': 'FAQ',
+  'foot.archive': 'Completed videos',
 
   /* tab trong modal */
   'tab.request': 'New request',
@@ -724,6 +746,8 @@ const S = {
   'vote.sortNew': 'Newest',
   'vote.search': 'Search the list…',
   'vote.empty': 'Nothing to vote on.',
+  'vote.emptyAllBusy': 'Every request is already picked or in progress — nothing needs your votes right now.',
+  'vote.emptyNoBoard': 'The board is empty. Send the first request and others can vote for it.',
   'vote.dialogTitle': 'Vote for this request',
   'vote.total': '{n} votes',
   'vote.freeToday': 'Free votes today',
@@ -759,6 +783,7 @@ const S = {
   'buy.payNote2': ' as the note.',
   'buy.yourOrders': 'Your orders',
   'buy.noOrders': 'No orders yet.',
+  'buy.noOrdersBody': 'Pick a package above — your orders appear here the moment you create one.',
 
   /* kenh ho tro */
   'support.line': 'Contact for help or refund?',
@@ -800,6 +825,16 @@ const S = {
 
   /* bang dieu hanh */
   'adm.pageAria': 'Admin workspace',
+  'adm.funnelTitle': 'Community funnel · last 7 days',
+  'adm.funnelSubtitle': 'Daily totals · aggregated, no names or device identifiers',
+  'adm.funnelRefresh': 'Refresh',
+  'adm.funnelLoading': 'Loading funnel…',
+  'adm.funnelError': 'Metrics unavailable. Apply migration 20261110_funnel_events.sql, then refresh.',
+  'adm.funnel.visit': 'Visits',
+  'adm.funnel.request': 'Requests',
+  'adm.funnel.vote': 'Votes',
+  'adm.funnel.buy': 'Purchases',
+  'adm.funnel.spin': 'Daily spins',
   'adm.export': 'Export CSV',
   'adm.exported': 'Saved',
   'adm.showing': 'Showing {n} of {total}',
@@ -971,6 +1006,7 @@ const S = {
   'err.paidPending': 'You already have {n} paid requests waiting for payment. Pay or cancel one first.',
   'err.orderQueueLimit': 'You have too many vote orders waiting for payment. Pay or cancel one first.',
   'err.generic': 'Something went wrong. Try again.',
+  'err.funnelEvent': 'Unknown tracking event.',
   'err.databaseSetup': 'The database is out of date. Run the migration in supabase/migrations, then reload. Existing data is kept.',
   'err.rateLimit': 'Up to {n} requests per hour.',
   'err.orderMissing': 'Order not found.',
