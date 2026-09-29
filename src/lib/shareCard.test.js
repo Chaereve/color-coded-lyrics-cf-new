@@ -11,7 +11,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  CARD_W, CARD_H, wrapLines, slugName, cardFilename, drawShareCard, makeShareCardBlob,
+  CARD_W, CARD_H, wrapLines, slugName, cardFilename, drawShareCard, drawRecapCard, makeShareCardBlob,
 } from './shareCard.js'
 
 /* ---- ctx giả: mọi lệnh vẽ đều được ghi lại, mọi con số đều bị soi ---- */
@@ -61,6 +61,8 @@ test('wrapLines ngắt tham lam theo hàm đo, không bịa chữ', () => {
   const measure = (s) => s.length * 10
   assert.deepEqual(wrapLines('hello world foo', 120, measure), ['hello world', 'foo'])
   assert.deepEqual(wrapLines('hello', 120, measure), ['hello'])
+  assert.deepEqual(wrapLines('hello world foo', 100, measure, 1), ['hello…'],
+    'giới hạn một dòng phải thêm dấu … và không tràn bề rộng')
   /* rỗng/toàn khoảng trắng -> không dòng nào (nơi vẽ tự lo chuỗi '') */
   assert.deepEqual(wrapLines('', 120, measure), [])
   assert.deepEqual(wrapLines('   ', 120, measure), [])
@@ -113,6 +115,33 @@ test('drawShareCard chịu được dữ liệu cụt: không streak, không m�
   })
   for (const v of ctx.nums) {
     assert.ok(Number.isFinite(v), `tham số vẽ không hữu hạn với dữ liệu cụt: ${v}`)
+  }
+})
+
+test('drawRecapCard giới hạn TOP và mỗi bài hoàn thành trong một dòng không tràn', () => {
+  const ctx = stubCtx()
+  drawRecapCard(ctx, {
+    title: 'WEEK IN REVIEW',
+    subtitle: 'Last seven days',
+    stats: [],
+    topLine: 'Một ca khúc rất dài '.repeat(20),
+    completed: [0, 1, 2].map((i) => ({
+      title: `Bài ${i} có tên rất dài `.repeat(12),
+      artist: 'Nghệ sĩ có tên dài '.repeat(8),
+    })),
+    footer: 'chaereve',
+    stamp: '2026-09-29',
+  })
+
+  const top = ctx.texts.find(([, x, y]) => x === 132 && y === 428)?.[0]
+  assert.ok(top?.endsWith('…'), 'TOP bị cắt gọn có dấu … thay vì đè lên danh sách')
+  assert.ok(top.length * 8 <= 1200 - 220)
+
+  const completed = ctx.texts.filter(([, x, y]) => x === 132 && [474, 502, 530].includes(y))
+  assert.equal(completed.length, 3, 'mỗi bài đúng một dòng')
+  for (const [text] of completed) {
+    assert.ok(text.length * 8 <= 1200 - 210, 'dòng bài hoàn thành không vượt khung')
+    assert.ok(text.endsWith('…'), 'nội dung bị cắt gọn có dấu …')
   }
 })
 

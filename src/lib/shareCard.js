@@ -40,15 +40,35 @@ export const DEFAULT_PALETTE = {
 
 /* Ngắt dòng tham lam theo hàm đo bề rộng — tách ra để test được bằng một
    hàm đo giả, không cần canvas thật. */
-export function wrapLines(text, maxWidth, measure) {
+export function wrapLines(text, maxWidth, measure, maxLines = Infinity) {
   const words = String(text ?? '').split(/\s+/).filter(Boolean)
   const lines = []
+  const limit = Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : Infinity
   let line = ''
+  let truncated = false
   for (const w of words) {
     const next = line ? `${line} ${w}` : w
-    if (line && measure(next) > maxWidth) { lines.push(line); line = w } else line = next
+    if (line && measure(next) > maxWidth) {
+      lines.push(line)
+      line = w
+      if (lines.length >= limit) { truncated = true; break }
+    } else line = next
   }
-  if (line) lines.push(line)
+  if (line && !truncated) {
+    if (lines.length < limit) lines.push(line)
+    else truncated = true
+  }
+
+  /* Khi caller đặt giới hạn dòng, giữ nội dung trong khung bằng dấu …;
+     đặc biệt card recap cần mỗi bài hoàn thành đúng một dòng. */
+  if (Number.isFinite(limit) && lines.length) {
+    let last = lines.length - 1
+    if (truncated || measure(lines[last]) > maxWidth) {
+      const chars = [...lines[last]]
+      while (chars.length && measure(`${chars.join('')}…`) > maxWidth) chars.pop()
+      lines[last] = `${chars.join('').trimEnd()}…`
+    }
+  }
   return lines
 }
 
