@@ -505,3 +505,5 @@ on conflict (user_id, day) do nothing;
 
 notify pgrst, 'reload schema';
 commit;
+
+-- =========================================================

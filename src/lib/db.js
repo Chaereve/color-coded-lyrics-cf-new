@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { parseYoutube } from './youtube'
 import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
-import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHash, acquireCaptchaToken } from './spinShield'
+import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken } from './spinShield'
+import { TURNSTILE_SITE_KEY } from './turnstile'
 import { gateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
@@ -10,6 +11,7 @@ import { vnDayKey } from './season.js'
 import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
+import { trackFunnel, _useFunnelClient } from './funnel.js'
 
 /* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
    đều ra đúng triệu chứng "vào web không thấy dữ liệu, F5 thì được":
@@ -29,6 +31,9 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const hasSupabase = Boolean(URL && KEY && URL.startsWith('http'))
 export const supabase = hasSupabase ? createClient(URL, KEY) : null
+/* Đăng ký client cho funnel (lib/funnel.js không import db.js — xem chú thích
+   ở đó). Demo mode: supabase = null thì funnel tự thành no-op. */
+_useFunnelClient(supabase)
 
 export const FREE_VOTES_PER_DAY = 3
 export const MAX_REQUESTS_PER_HOUR = 3
@@ -705,27 +710,27 @@ export async function fetchDailySpinStatus() {
       purchased: prof.vote_credits || 0, bonus: prof.bonus_credits || 0,
     })
   }
-  const fpHash = await fingerprintHash().catch(() => null)
+  const fpHash = await fingerprintHashFast()
   const { data, error } = await spinRpc('my_daily_spin_status', { p_device_token: token, p_fp_hash: fpHash })
   if (error) throw spinSetupError(error)
   return data
 }
 
 /* Khi đã bật cổng Edge (VITE_SPIN_GATE_URL — Pages Functions trên production),
-   lượt quay đi qua lá chắn Edge: Turnstile + KV check fingerprint/IP trước, rồi
+   lượt quay đi qua lá chắn Edge: Turnstile + D1/KV check fingerprint/IP trước, rồi
    cổng uỷ quyền RPC bằng JWT của chính người dùng. Cổng không chạy (HTML bảo trì,
    thiếu secret, mất mạng trước khi có phản hồi) thì gọi thẳng RPC — app không
    chết vì cổng. Timeout thì không gọi lại: request có thể đã ghi thưởng. */
 async function performSpinViaGate(requestId, userId) {
   const token = await spinDevice()
-  /* Vân tay KHÔNG bắt buộc: FingerprintJS có thể bị chặn (adblock, mạng, chính
-     sách trình duyệt) và khi đó băm không chạy được. Không có vân tay thì mất
-     một lớp hạn mức phía máy chủ (Postgres coi NULL là "không khai báo"), còn
-     hơn là chặn người thật bằng một lỗi đỏ. Đường vote đã tha từ trước — hai
-     đường phải xử sự như nhau. */
+  /* Fingerprint là tín hiệu phụ, có deadline chờ 1.2s. Nếu privacy/adblock
+     chặn thư viện thì Worker dùng hash tài khoản cho Edge rate-limit; Postgres
+     vẫn giữ hạn mức account + spin-device. Người dùng thật không phải chờ vô
+     hạn một tín hiệu chống farm không thiết yếu. */
   const [fpHash, captchaToken] = await Promise.all([
-    fingerprintHash().catch(() => null), acquireCaptchaToken(),
+    fingerprintHashFast(), acquireCaptchaToken(),
   ])
+  if (TURNSTILE_SITE_KEY && !captchaToken) throw appError('err.spinCaptcha')
   const { data: session } = await supabase.auth.getSession()
   const userToken = session?.session?.access_token
   if (!userToken) throw new Error('err.signin')
@@ -764,7 +769,9 @@ async function performSpinViaGate(requestId, userId) {
 export async function performDailySpin(requestId, userId) {
   if (hasSupabase && SPIN_GATE_URL) {
     try {
-      return await performSpinViaGate(requestId, userId)
+      const r = await performSpinViaGate(requestId, userId)
+      trackFunnel('spin')
+      return r
     } catch (e) {
       if (!e?.gateDown) throw e
     }
@@ -803,14 +810,15 @@ export async function performDailySpin(requestId, userId) {
   // is blocked exactly like one routed through the gate. If fingerprinting is
   // unavailable (privacy browser, blocked storage) the spin stays allowed but is
   // not tracked — same behaviour as before the quota existed.
-  let fpHash = null
-  try { fpHash = await fingerprintHash() } catch { /* spin proceeds, untracked */ }
+  const fpHash = await fingerprintHashFast()
   const { data, error } = await spinRpc('spin_daily', {
     p_device_token: token, p_request_id: requestId, p_expected_user_id: userId,
     p_fp_hash: fpHash,
   })
   if (error) throw spinSetupError(error)
-  return validateSpinResult(data, userId, requestId)
+  const r = validateSpinResult(data, userId, requestId)
+  trackFunnel('spin')
+  return r
 }
 
 /* Dấu ngày hoạt động cho streak (bảng activity_days). Trả về MẢNG chuỗi
@@ -947,6 +955,26 @@ export async function fetchOrders(user) {
 /* Lỗi có mã để lớp giao diện tự dịch sang ngôn ngữ đang chọn */
 export const appError = (code, vars) => Object.assign(new Error(code), { code, vars })
 
+/* Tổng hợp funnel cho trang quản trị. Một lần đọc RPC khi admin mở trang;
+   không polling, không KV, không truy cập bảng sự kiện trực tiếp. SQL vẫn là
+   chốt quyền (is_admin) — client không tự quyết định quyền đọc.
+   In-flight dedupe còn chặn lần gọi kép của React StrictMode trong dev và hai
+   cú bấm Refresh sát nhau; không cache kết quả nên Refresh luôn dữ liệu mới. */
+let funnelSummaryFlight = null
+export function fetchFunnelSummary(days = 7) {
+  if (!supabase) return Promise.reject(appError('err.databaseSetup'))
+  const pDays = Math.max(1, Math.min(30, Math.trunc(Number(days) || 7)))
+  if (funnelSummaryFlight?.days === pDays) return funnelSummaryFlight.promise
+  const promise = supabase.rpc('funnel_summary', { p_days: pDays }).then(({ data, error }) => {
+    if (error) throw setupError(error)
+    return Array.isArray(data) ? data : []
+  }).finally(() => {
+    if (funnelSummaryFlight?.promise === promise) funnelSummaryFlight = null
+  })
+  funnelSummaryFlight = { days: pDays, promise }
+  return promise
+}
+
 /* PostgREST reports a missing RPC/table as a technical code.  Keep that
    detail out of the form and point the owner to the non-destructive schema
    migration instead. */
@@ -1019,6 +1047,8 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
     p_link: form.link, p_note: form.note, p_paid: paid, p_use_bonus: useBonus,
   })
   if (error) throw rpcError(error)
+  /* đo đường đi — không bao giờ làm hỏng việc chính (funnel tự nuốt lỗi) */
+  trackFunnel('request', { kind: form.kind, paid: paid ? 1 : 0 })
   return data
 }
 
@@ -1026,14 +1056,15 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
    Khong gioi han so lan vote cho cung mot request.
 
    Ba lớp chống gian lận, xếp từ ngoài vào (xem migrations/20261103):
-     · Cổng Edge (VITE_VOTE_GATE_URL): Turnstile + KV + cổng tự lấy IP từ kết nối.
+     · Cổng Edge (VITE_VOTE_GATE_URL): Turnstile + D1/KV + cổng tự lấy IP từ kết nối.
      · fp_hash: một VÂN TAY chỉ có 3 vote miễn phí/ngày dù đổi bao nhiêu acc.
      · Postgres: khoá hàng profiles + unique index giữ hạn mức, không phải logic. */
 async function castVoteViaGate(id, delta) {
   const [fpHash, captchaToken] = await Promise.all([
-    fingerprintHash().catch(() => null),
+    fingerprintHashFast(),
     acquireCaptchaToken(),
   ])
+  if (TURNSTILE_SITE_KEY && !captchaToken) throw appError('err.spinCaptcha')
   const { data: session } = await supabase.auth.getSession()
   const userToken = session?.session?.access_token
   if (!userToken) throw appError('err.signin')
@@ -1071,8 +1102,7 @@ async function castVoteViaGate(id, delta) {
 }
 
 async function castVoteDirect(id, delta) {
-  let fpHash = null
-  try { fpHash = await fingerprintHash() } catch { /* vote vẫn tiếp tục */ }
+  const fpHash = await fingerprintHashFast()
   const { data, error } = await supabase.rpc('cast_vote', {
     p_request_id: id, p_delta: delta, p_fp_hash: fpHash,
   })
@@ -1139,7 +1169,9 @@ export async function castVote(id, delta = 1) {
 
   if (VOTE_GATE_URL) {
     try {
-      return await castVoteViaGate(id, Math.trunc(delta))
+      const r = await castVoteViaGate(id, Math.trunc(delta))
+      trackFunnel('vote', { n: Math.abs(Math.trunc(delta)) })
+      return r
     } catch (e) {
       // Cổng chết (trang bảo trì HTML, thiếu secret, mạng đứt trước phản hồi)
       // thì phiếu vẫn phải vào. Từ chối thật (hết vote, captcha, đã chốt) thì không.
@@ -1147,7 +1179,9 @@ export async function castVote(id, delta = 1) {
     }
   }
 
-  return castVoteDirect(id, delta)
+  const r = await castVoteDirect(id, delta)
+  trackFunnel('vote', { n: Math.abs(Math.trunc(delta)) })
+  return r
 }
 
 export async function deleteRequest(id) {
@@ -1174,6 +1208,7 @@ export async function buyVotes(pack) {
     p_pack: pack.id, p_qty: pack.qty, p_usd: pack.usd, p_vnd: pack.vnd,
   })
   if (error) throw error
+  trackFunnel('buy', { pack: pack.id })
   return data
 }
 

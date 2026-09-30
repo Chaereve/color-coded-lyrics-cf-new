@@ -3,7 +3,8 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment } from '../lib/db'
+import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment, fetchFunnelSummary } from '../lib/db'
+import { aggregateFunnel, FUNNEL_EVENT_KEYS } from '../lib/funnelSummary.js'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { safeHttpUrl } from '../lib/safeUrl'
@@ -440,6 +441,37 @@ export default function AdminPanel({
         : tab === 'done' ? others : []
   const [adminComments, setAdminComments] = useState([])
   const [loadingComments, setLoadingComments] = useState(false)
+  /* Metric funnel chỉ tải khi trang admin đã được mở, một RPC duy nhất; nút
+     Làm mới là cách cập nhật tường minh — tuyệt đối không polling / cron. */
+  const [funnelRows, setFunnelRows] = useState([])
+  const [funnelLoading, setFunnelLoading] = useState(true)
+  const [funnelLoaded, setFunnelLoaded] = useState(false)
+  const [funnelError, setFunnelError] = useState(false)
+  const applyFunnelRows = useCallback((data) => {
+    setFunnelRows(data)
+    setFunnelLoaded(true)
+  }, [])
+  const failFunnel = useCallback(() => {
+    /* Không hiện chi tiết Postgres/RPC; bản dựng schema thiếu cũng dùng một
+       câu hướng dẫn migration, người dùng không cần đọc mã kỹ thuật. */
+    setFunnelError(true)
+  }, [])
+  const loadFunnel = useCallback(() => {
+    setFunnelLoading(true)
+    setFunnelError(false)
+    fetchFunnelSummary(7).then(applyFunnelRows).catch(failFunnel).finally(() => setFunnelLoading(false))
+  }, [applyFunnelRows, failFunnel])
+  const funnelTotals = useMemo(() => aggregateFunnel(funnelRows), [funnelRows])
+  /* Loading ban đầu đã true: effect chỉ nhận kết quả bất đồng bộ, không setState
+     đồng bộ khi mở admin, và cũng không khởi động poll. */
+  useEffect(() => {
+    let alive = true
+    fetchFunnelSummary(7)
+      .then(data => { if (alive) applyFunnelRows(data) })
+      .catch(() => { if (alive) failFunnel() })
+      .finally(() => { if (alive) setFunnelLoading(false) })
+    return () => { alive = false }
+  }, [applyFunnelRows, failFunnel])
 
   const loadAdminComments = useCallback(() => {
     setLoadingComments(true)
@@ -614,6 +646,34 @@ export default function AdminPanel({
           </button>
         ))}
       </div>
+
+      {/* Funnel 7 ngày: summary RPC đã gộp theo ngày + event; UI chỉ cộng
+          năm event được phép, không nhận tên người, device id hay raw log. */}
+      <section className="adm-funnel" aria-labelledby="adm-funnel-title" aria-busy={funnelLoading || undefined}>
+        <div className="adm-funnel-head">
+          <div>
+            <h2 id="adm-funnel-title">{t('adm.funnelTitle')}</h2>
+            <p>{t('adm.funnelSubtitle')}</p>
+          </div>
+          <button type="button" className="btn btn-sm" onClick={loadFunnel} disabled={funnelLoading}>
+            {funnelLoading ? t('adm.funnelLoading') : t('adm.funnelRefresh')}
+          </button>
+        </div>
+        {funnelError ? (
+          <p className="adm-funnel-state" role="status">{t('adm.funnelError')}</p>
+        ) : funnelLoading && !funnelLoaded ? (
+          <p className="adm-funnel-state" role="status">{t('adm.funnelLoading')}</p>
+        ) : (
+          <div className="adm-funnel-grid">
+            {FUNNEL_EVENT_KEYS.map(event => (
+              <div className="adm-funnel-stat" key={event}>
+                <span>{t(`adm.funnel.${event}`)}</span>
+                <b>{funnelTotals[event].toLocaleString()}</b>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* `aria-busy` trong lúc chạy thao tác hàng loạt: trình đọc màn hình phải
           biết danh sách đang được ghi, không phải "bảng trống". */}

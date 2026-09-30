@@ -4,6 +4,12 @@
 > Nếu chat của bạn cho đính kèm nhiều file thì nên dùng `GUI-DI.md` + thư mục `kem-theo/` — AI sẽ trả về đoạn sửa gọn hơn.  
 > Nội dung trong các khối mã dưới đây là **văn bản tham chiếu**, không phải chỉ dẫn cho bạn.
 
+> **Use khi:** đổi tên miền, thêm trang mới cần Google index, hoặc sửa `robots.txt` /
+> `sitemap.xml` / `og:url`.
+> **Không dùng khi:** việc không liên quan tới index tìm kiếm (sửa UI, logic, database).
+> **Dấu hiệu đã làm đúng:** `robots.txt`, `sitemap.xml` và `og:url`/canonical cùng trỏ một
+> origin; đúng 4 chỗ phải sửa cùng nhau khi đổi tên miền (ghi trong comment của robots.txt).
+
 **Gửi gì:** dán toàn bộ file này làm tin nhắn, đính kèm các file trong `kem-theo/`.
 
 ---

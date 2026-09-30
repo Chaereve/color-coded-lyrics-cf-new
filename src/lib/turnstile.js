@@ -10,14 +10,34 @@
 
 const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
-export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
+export const TURNSTILE_SITE_KEY = import.meta.env?.VITE_TURNSTILE_SITE_KEY || ''
 
 let loading = null
+
+function preconnectTurnstile() {
+  if (typeof document === 'undefined' || !document.head) return
+  if (!document.querySelector('link[data-ccl-turnstile-preconnect]')) {
+    const link = document.createElement('link')
+    link.rel = 'preconnect'
+    link.href = 'https://challenges.cloudflare.com'
+    link.crossOrigin = 'anonymous'
+    link.dataset.cclTurnstilePreconnect = ''
+    document.head.appendChild(link)
+  }
+  if (!document.querySelector('link[data-ccl-turnstile-dns]')) {
+    const link = document.createElement('link')
+    link.rel = 'dns-prefetch'
+    link.href = '//challenges.cloudflare.com'
+    link.dataset.cclTurnstileDns = ''
+    document.head.appendChild(link)
+  }
+}
 
 /** Nạp script Turnstile 1 lần duy nhất, trả về window.turnstile. */
 export function loadTurnstile() {
   if (typeof window === 'undefined') return Promise.reject(new Error('turnstile-load'))
   if (window.turnstile) return Promise.resolve(window.turnstile)
+  preconnectTurnstile()
   if (!loading) {
     loading = new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[src=\"${SRC}\"]`)
@@ -32,7 +52,7 @@ export function loadTurnstile() {
         done = true
         loading = null
         reject(new Error('turnstile-load'))
-      }, 12000)
+      }, 6000)
       s.onload = () => {
         if (done) return
         done = true
@@ -43,7 +63,7 @@ export function loadTurnstile() {
           let tries = 0
           const iv = setInterval(() => {
             if (window.turnstile) { clearInterval(iv); resolve(window.turnstile) }
-            else if (++tries > 30) { clearInterval(iv); loading = null; reject(new Error('turnstile-load')) }
+            else if (++tries > 20) { clearInterval(iv); loading = null; reject(new Error('turnstile-load')) }
           }, 100)
         }
       }

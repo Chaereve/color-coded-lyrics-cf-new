@@ -40,15 +40,35 @@ export const DEFAULT_PALETTE = {
 
 /* Ngắt dòng tham lam theo hàm đo bề rộng — tách ra để test được bằng một
    hàm đo giả, không cần canvas thật. */
-export function wrapLines(text, maxWidth, measure) {
+export function wrapLines(text, maxWidth, measure, maxLines = Infinity) {
   const words = String(text ?? '').split(/\s+/).filter(Boolean)
   const lines = []
+  const limit = Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : Infinity
   let line = ''
+  let truncated = false
   for (const w of words) {
     const next = line ? `${line} ${w}` : w
-    if (line && measure(next) > maxWidth) { lines.push(line); line = w } else line = next
+    if (line && measure(next) > maxWidth) {
+      lines.push(line)
+      line = w
+      if (lines.length >= limit) { truncated = true; break }
+    } else line = next
   }
-  if (line) lines.push(line)
+  if (line && !truncated) {
+    if (lines.length < limit) lines.push(line)
+    else truncated = true
+  }
+
+  /* Khi caller đặt giới hạn dòng, giữ nội dung trong khung bằng dấu …;
+     đặc biệt card recap cần mỗi bài hoàn thành đúng một dòng. */
+  if (Number.isFinite(limit) && lines.length) {
+    let last = lines.length - 1
+    if (truncated || measure(lines[last]) > maxWidth) {
+      const chars = [...lines[last]]
+      while (chars.length && measure(`${chars.join('')}…`) > maxWidth) chars.pop()
+      lines[last] = `${chars.join('').trimEnd()}…`
+    }
+  }
   return lines
 }
 
@@ -93,10 +113,14 @@ function rr(ctx, x, y, w, h, r) {
    nổi, và test stub sẽ khẳng định KHÔNG một tham số nào là NaN/Infinity
    (một phép đo chữ hụt là đủ để cả tấm ảnh vẽ lệch im lặng).
    ========================================================= */
-export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
-  const W = CARD_W, H = CARD_H
-  const measure = (s) => ctx.measureText(s).width
-
+/* =========================================================
+   KHUNG CARD DÙNG CHUNG — nền, hộp bo góc, badge thương hiệu
+   ---------------------------------------------------------
+   Hai loại card (hồ sơ / tuần qua) cùng đi qua ĐÚNG khối này: đổi nhận
+   diện thương hiệu là đổi một chỗ, không có "card anh em" lén mang một
+   khung khác vì copy-paste trôi đi đâu mất.
+   ========================================================= */
+function cardFrame(ctx, W, H, pal) {
   /* Nền chính sang trọng */
   ctx.fillStyle = pal.bg
   ctx.fillRect(0, 0, W, H)
@@ -129,6 +153,13 @@ export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText('CHAEREVE LYRICS', bx + bw / 2, by + bh / 2)
+}
+
+export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
+  const W = CARD_W, H = CARD_H
+  const measure = (s) => ctx.measureText(s).width
+
+  cardFrame(ctx, W, H, pal)
 
   /* ---- đầu card: avatar + tên + phụ đề ---- */
   const ax = 136, ay = 142, ar = 50
@@ -240,6 +271,94 @@ export function drawShareCard(ctx, data, pal = DEFAULT_PALETTE) {
   ctx.textAlign = 'left'
 }
 
+/* =========================================================
+   VẼ CARD "WEEK IN REVIEW" (T7) — tuần qua nhìn lại
+   ---------------------------------------------------------
+   Anh em song sinh của drawShareCard: cùng cardFrame, khác phần thân.
+   Card hồ sơ nói về MỘT NGƯỜI/BÀI; card tuần nói về MỘT CỬA SỐ 7 NGÀY:
+   3 KPI, dòng dẫn đầu, danh sách bài hoàn thành (tối đa 3). Cố ý KHÔNG
+   có tên người vote/requester trên card — bảng RLS chỉ cho xem phiếu của
+   chính mình, số liệu chung được phép, danh tính thì không (privacy.html).
+   data: { title, subtitle, stats:[{value,label}] ≤3, topLine,
+           completed:[{title, artist}] ≤3, footer, stamp }
+   ========================================================= */
+export function drawRecapCard(ctx, data, pal = DEFAULT_PALETTE) {
+  const W = CARD_W, H = CARD_H
+  const measure = (s) => ctx.measureText(s).width
+
+  cardFrame(ctx, W, H, pal)
+
+  /* ---- tiêu đề + cửa sổ thời gian ---- */
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = pal.txt
+  ctx.font = `700 42px ${pal.display}`
+  ctx.fillText(String(data.title || 'WEEK IN REVIEW'), 80, 128)
+  ctx.fillStyle = pal.txt3
+  ctx.font = `400 18px ${pal.font}`
+  ctx.fillText(String(data.subtitle || ''), 80, 162)
+
+  /* ---- 3 thẻ KPI — cùng geometry với card hồ sơ ---- */
+  const sy = 232, sh = 114, sw = 328, gap = 26
+  ;(data.stats || []).slice(0, 3).forEach((s, i) => {
+    const sx = 80 + i * (sw + gap)
+    rr(ctx, sx, sy, sw, sh, 16)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.025)'
+    ctx.fill()
+    ctx.strokeStyle = pal.line
+    ctx.lineWidth = 1
+    ctx.stroke()
+
+    ctx.fillStyle = pal.txt
+    ctx.font = `700 52px ${pal.mono}`
+    ctx.fillText(String(n(s.value)), sx + 22, sy + 58)
+    ctx.fillStyle = pal.txt3
+    ctx.font = `500 16px ${pal.font}`
+    ctx.fillText(String(s.label || ''), sx + 24, sy + 92)
+  })
+
+  /* ---- vạch phân cách ---- */
+  ctx.strokeStyle = pal.line
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(80, 388)
+  ctx.lineTo(W - 80, 388)
+  ctx.stroke()
+
+  /* ---- dòng dẫn đầu ---- */
+  if (data.topLine) {
+    ctx.fillStyle = pal.a2
+    ctx.font = `700 18px ${pal.mono}`
+    ctx.fillText('TOP', 80, 428)
+    ctx.fillStyle = pal.txt
+    ctx.font = `500 21px ${pal.font}`
+    wrapLines(String(data.topLine), W - 220, measure, 1).forEach((ln, i) =>
+      ctx.fillText(ln, 132, 428 + i * 26))
+  }
+
+  /* ---- bài hoàn thành trong tuần: tối đa 3 dòng ---- */
+  const items = (data.completed || []).slice(0, 3)
+  items.forEach((it, i) => {
+    const y = 474 + i * 28
+    ctx.fillStyle = pal.txt3
+    ctx.font = `500 17px ${pal.font}`
+    const text = `${String(it.title || '')} — ${String(it.artist || '')}`
+    wrapLines(text, W - 210, measure, 1).forEach((ln) => ctx.fillText(ln, 132, y))
+    ctx.fillStyle = 'rgba(122, 214, 168, 0.85)'
+    ctx.font = `700 17px ${pal.mono}`
+    ctx.fillText('✓', 80, y)
+  })
+
+  /* ---- chân card: chữ ký + tem ngày ---- */
+  ctx.fillStyle = pal.txt3
+  ctx.font = `400 16px ${pal.font}`
+  ctx.fillText(String(data.footer || ''), 80, H - 64)
+  ctx.font = `500 16px ${pal.mono}`
+  ctx.textAlign = 'right'
+  ctx.fillText(String(data.stamp || ''), W - 80, H - 64)
+  ctx.textAlign = 'left'
+}
+
 /* Đọc bảng màu thẳng từ token CSS — card cùng thương hiệu với giao diện,
    và đổi token một chỗ là card đổi theo. */
 export function readPalette() {
@@ -316,7 +435,11 @@ export async function makeShareCardBlob(data, opts = {}) {
   ctx.scale(scale, scale)
   try { await document.fonts?.ready } catch { /* font chưa sẵn: vẽ bằng font dự phòng */ }
   const avatar = data.avatarUrl ? await loadAvatar(data.avatarUrl) : null
-  drawShareCard(ctx, { ...data, avatar }, opts.palette || readPalette())
+  /* opts.draw thay hàm vẽ (mặc định drawShareCard) — card tuần qua
+     (drawRecapCard) đi cùng đường xuất blob này thay vì copy một bản sao
+     makeRecapCardBlob chỉ khác câu draw. */
+  const draw = typeof opts.draw === 'function' ? opts.draw : drawShareCard
+  draw(ctx, { ...data, avatar }, opts.palette || readPalette())
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('card-unsupported')
   return blob

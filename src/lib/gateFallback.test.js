@@ -34,6 +34,14 @@ test('cổng thiếu secret (503 err.voteGate) thì rơi về RPC', () => {
   }), true)
 })
 
+test('D1 shield lỗi là lỗi bảo mật/hạ tầng cần báo rõ, không được rơi về RPC trực tiếp', () => {
+  assert.equal(gateShouldFallback({
+    status: 503,
+    contentType: 'application/json',
+    payload: { error: 'err.shieldUnavailable' },
+  }), false)
+})
+
 test('mất mạng trước khi có phản hồi thì rơi về RPC', () => {
   assert.equal(gateShouldFallback({ network: true, status: 0 }), true)
 })

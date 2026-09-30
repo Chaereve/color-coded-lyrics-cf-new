@@ -11,6 +11,10 @@ Nên phải gửi tay, và nguyên tắc là: **gửi 2 thứ — (1) lời dặ
 | **3** | `robots.txt` + `sitemap.xml` | `goi-3-robots-sitemap/GUI-DI.md` | 2 file trong `kem-theo/` |
 | **4** | Thiết kế màn mới theo ngôn ngữ hiện có | `goi-4-thiet-ke-trang-moi/GUI-DI.md` | 8 file trong `kem-theo/` (gồm 2 ảnh + 4 skill) |
 
+**Đọc dòng "Use khi / Không dùng khi" ngay đầu mỗi `GUI-DI.md` trước khi gửi** — nó nói
+rõ tình huống nào thì dùng gói đó, tình huống nào thì phải gói khác. Gửi nhầm gói là AI
+làm đúng hướng sai việc.
+
 **Lười đính kèm nhiều file?** Mỗi gói có sẵn `MOT-FILE-DUY-NHAT.md` — đã gộp lời dặn **và** toàn bộ
 nội dung file thành 1 tệp, chỉ cần đính kèm đúng 1 file đó là xong.
 

@@ -1,14 +1,12 @@
-/* Khoá định tuyến Pages Functions cho lá chắn Edge.
+/* Khoá định tuyến Pages Functions công khai.
    File này CỐ Ý nằm ở worker/ chứ không nằm dưới functions/: Pages biến MỌI
    file .js trong functions/ thành một route công khai, nên nhét test vào đó là
-   tự tạo endpoint lạ trên production. Test "đúng 3 route" khoá đúng điều đó.
+   tự tạo endpoint lạ trên production. Chốt 3 API route + archive SSR, không thừa.
    Test "_worker.js" khoá việc Pages bỏ Functions khi output có file đó.
    Ba điều được khoá ở đây:
-     1. functions/ chỉ chứa đúng 3 route /api/* (không sót file lạ thành route).
-     2. Ba route trả JSON đúng mã/khoá lỗi như bản Workers — kể cả khi thiếu
-        KV/secret (app phải tự rơi về gọi thẳng RPC, không được chết).
-     3. _routes.json + _redirects cấu hình đúng để Functions chạy trước SPA
-        fallback trên production. */
+     1. functions/ chỉ có đúng 3 route API + 1 archive SSR.
+     2. Ba API route trả JSON đúng mã/khoá lỗi như bản Workers.
+     3. _routes.json + _redirects cấu hình đúng cho Functions và SPA. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
@@ -17,9 +15,11 @@ import worker, { healthResponse, spinRoute, voteRoute } from './index.js'
 import { onRequest as health } from '../functions/api/daily-spin/health.js'
 import { onRequest as spin } from '../functions/api/daily-spin/spin.js'
 import { onRequest as vote } from '../functions/api/vote/cast.js'
+import { onRequest as archive } from '../functions/archive.js'
 
 const SITE = 'https://chaereve.pages.dev'
 const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast']
+const FUNCTION_ROUTES = [...API_ROUTES, '/archive']
 const hex64 = c => c.repeat(64)
 const post = (path, body) => new Request(SITE + path, {
   method: 'POST',
@@ -35,7 +35,7 @@ const goodSpinBody = () => ({
 const goodVoteBody = () => ({ request_id: crypto.randomUUID(), delta: 1, user_token: 'jwt-gia' })
 
 /* public/_worker.js được Vite copy thành dist/_worker.js. Pages coi đó là
-   Advanced mode và BỎ QUA functions/. _routes.json lại chỉ đưa /api/* vào
+   Advanced mode và BỎ QUA functions/. _routes.json đưa /api/* và /archive vào
    worker đó, nên trang chủ vẫn hiện còn POST /api/vote/cast trả HTML 503
    "Under Maintenance" — client không parse được JSON và báo err.voteGate. */
 test('không ship _worker.js bảo trì — nó nuốt /api/vote/cast', () => {
@@ -45,31 +45,38 @@ test('không ship _worker.js bảo trì — nó nuốt /api/vote/cast', () => {
   }
 })
 
-test('functions/ chỉ chứa đúng 3 route — file lạ sẽ thành endpoint công khai', () => {
+test('functions/ chỉ chứa đúng 3 API route và archive SSR — file lạ sẽ thành endpoint công khai', () => {
   const dir = new URL('../functions/', import.meta.url)
   const js = readdirSync(dir, { recursive: true })
     .filter(f => String(f).endsWith('.js'))
     .map(f => String(f).replace(/\\/g, '/'))
     .sort()
-  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/vote/cast.js'])
+  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/vote/cast.js', 'archive.js'])
 })
 
-test('mỗi route export đúng onRequest (sai tên là Pages bỏ qua file)', () => {
-  for (const fn of [health, spin, vote]) assert.equal(typeof fn, 'function')
+test('mọi route Pages đều export đúng onRequest (sai tên là Pages bỏ qua file)', () => {
+  for (const fn of [health, spin, vote, archive]) assert.equal(typeof fn, 'function')
 })
 
 test('health thiếu binding vẫn 200 JSON { ok, shield:false, gate:false } — không phải HTML', async () => {
   const res = await health({ env: {} })
   assert.equal(res.status, 200)
   assert.match(res.headers.get('content-type') || '', /application\/json/)
-  assert.deepEqual(await res.json(), { ok: true, shield: false, gate: false })
+  assert.deepEqual(await res.json(), { ok: true, shield: false, shield_backend: 'none', gate: false })
 })
 
 test('health phản ánh đúng binding đã cấu hình, không lộ token', async () => {
   const res = await health({ env: { SPIN_SHIELD: {}, SUPABASE_URL: 'https://x.supabase.co', EDGE_GATE_TOKEN: 'bi-mat' } })
   const text = await res.text() // đọc một lần: body Response không đọc được lần hai
-  assert.deepEqual(JSON.parse(text), { ok: true, shield: true, gate: true })
+  assert.deepEqual(JSON.parse(text), { ok: true, shield: true, shield_backend: 'kv', gate: true })
   assert.ok(!text.includes('bi-mat'), 'health chỉ báo có/không token, không in token ra')
+})
+
+test('health ưu tiên D1 và công khai backend không bí mật để xác nhận rollout', async () => {
+  const res = await health({ env: {
+    RATE_SHIELD: {}, SPIN_SHIELD: {}, SUPABASE_URL: 'https://x.supabase.co',
+  } })
+  assert.deepEqual(await res.json(), { ok: true, shield: true, shield_backend: 'd1', gate: false })
 })
 
 test('spin/vote nhầm method vẫn trả JSON 405 để frontend dịch được', async () => {
@@ -130,18 +137,17 @@ test('Workers và Pages trả đồng nhất status + body cho cùng một reque
   }
 })
 
-/* So khớp wildcard theo đúng ngữ nghĩa Cloudflare: '/api/*' khớp mọi đường
-   dẫn con của /api/ (không cần khớp chính xác từng ký tự như regex). */
+/* So khớp pattern exact hoặc wildcard cuối theo ngữ nghĩa Pages Routes. */
 const covers = (pattern, path) => pattern === path
   || (pattern.endsWith('/*') && (path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1))))
 
-test('_routes.json: chỉ /api/* gọi Functions, quy tắc trong giới hạn Cloudflare', () => {
+test('_routes.json: chỉ API và /archive gọi Functions, quy tắc trong giới hạn Cloudflare', () => {
   const raw = readFileSync(new URL('../public/_routes.json', import.meta.url), 'utf8')
   const routes = JSON.parse(raw) // vỡ JSON là deploy lỗi — test này bắt trước
   assert.equal(routes.version, 1)
   assert.ok((routes.include?.length || 0) >= 1, 'Cloudflare bắt buộc ít nhất một include')
   assert.ok((routes.include.length + (routes.exclude?.length || 0)) <= 100, 'tối đa 100 quy tắc')
-  for (const r of API_ROUTES) {
+  for (const r of FUNCTION_ROUTES) {
     assert.ok(routes.include.some(p => covers(p, r)), `${r} phải có Functions xử lý`)
     assert.ok(!(routes.exclude || []).some(p => covers(p, r)), `${r} không được nằm trong exclude`)
   }

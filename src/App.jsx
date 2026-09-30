@@ -11,12 +11,15 @@ import AchievementIndex from './components/AchievementIndex'
 import VideoPreviewModal from './components/VideoPreviewModal'
 import { streakStats, STREAK_MILESTONES, unionActivityDays } from './lib/streak.js'
 import { vnDayKey } from './lib/season.js'
+import { drawRecapCard } from './lib/shareCard.js'
+import { weekRecap as buildWeekRecap, recapStats } from './lib/weekRecap.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
 import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
+import CalcNote from './components/CalcNote'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
 import Comments from './components/Comments'
@@ -49,6 +52,8 @@ import {
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
 import { parseYoutube } from './lib/youtube'
+import { buildHallOfFame } from './lib/hallOfFame.js'
+import { trackVisitOnce } from './lib/funnel.js'
 import { safeHttpUrl } from './lib/safeUrl'
 import { SUPPORT } from './lib/payment'
 import {
@@ -584,6 +589,8 @@ function AppInner() {
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(readSide)
   useEffect(() => { try { localStorage.setItem(SIDE_KEY, collapsed ? 'min' : 'full') } catch { /* ignore */ } }, [collapsed])
+  /* visit: tối đa một lần mỗi phiên, bắn rơi trong im lặng (demo mode tự no-op) */
+  useEffect(() => { trackVisitOnce() }, [])
   const toggleSide = useCallback(() => setCollapsed(c => !c), [])
   const scrollTop = useCallback(() => window.scrollTo({ top: 0, behavior: REDUCED() ? 'auto' : 'smooth' }), [])
 
@@ -1448,33 +1455,23 @@ function AppInner() {
     [media])
 
   const featuredRows = media
-  /* Completed requests become a public archive instead of disappearing into
-     the main queue. Match media titles to completed rows when possible so the
-     archive carries the original request context without a new table. */
-  const hallOfFame = useMemo(() => {
-    const done = rows.filter(r => r.status === 'completed' && r.video_url)
-    const sorted = done.slice().sort((a, b) => new Date(b.completed_at || b.updated_at || b.created_at) - new Date(a.completed_at || a.updated_at || a.created_at))
-    const seen = new Map()
-    for (const r of sorted) {
-      const ytId = parseYoutube(r.video_url)?.id
-      const k = ytId ? `yt:${ytId}` : groupKey(r)
-      if (!seen.has(k)) {
-        seen.set(k, { ...r, requesters: [r.requester].filter(Boolean), totalVotes: Number(r.votes || 0), count: 1 })
-      } else {
-        const item = seen.get(k)
-        item.count += 1
-        item.totalVotes += Number(r.votes || 0)
-        if (r.requester && !item.requesters.includes(r.requester)) {
-          item.requesters.push(r.requester)
-        }
-      }
-    }
-    return Array.from(seen.values()).slice(0, 8)
-  }, [rows])
+  /* Hall of Fame giữ đúng năm video completed mới nhất; phép gom trùng và
+     giới hạn nằm trong hàm thuần để có test riêng (lib/hallOfFame.js). */
+  const hallOfFame = useMemo(() => buildHallOfFame(rows, 5), [rows])
   /* `votesLog` (phiếu nhận gần đây) cho "Most voted" tính vote NHẬN TRONG
      7 NGÀY QUA thay vì cộng dồn — bài cũ được vote nhiều tuần này vẫn thuộc
-     "This week" (luật trong buildWeeklyHighlights / season.js). */
-  const weeklyHighlights = useMemo(() => buildWeeklyHighlights(rows, Date.now(), votesLog), [rows, votesLog])
+     "This week" (luật trong buildWeeklyHighlights / season.js).
+     Hai khối "This week" + "Tuần qua nhìn lại" (T7) dùng chung MỘT `now`
+     tính trong memo — không hai khái niệm "tuần" trôi nổi (lib/weekRecap.js). */
+  const weekly = useMemo(() => {
+    const now = Date.now()
+    return {
+      highlights: buildWeeklyHighlights(rows, now, votesLog),
+      recap: buildWeekRecap(rows, now, votesLog),
+    }
+  }, [rows, votesLog])
+  const weeklyHighlights = weekly.highlights
+  const weekRecap = weekly.recap
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -2000,7 +1997,7 @@ function AppInner() {
             <MediaShowcase featured={featured} videos={latest}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} />
 
-            {(weeklyHighlights.top || weeklyHighlights.newcomer) && (
+            {(weeklyHighlights.top || weeklyHighlights.newcomer || weekRecap.completed.length > 0) && (
               <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
                 <div className="now-head">
                   <h2 className="lbl" id="weekly-title">This week</h2>
@@ -2022,6 +2019,31 @@ function AppInner() {
                     <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
                   </a>}
                 </div>
+                {/* Tuần qua nhìn lại (T7): dòng tóm tắt + nút Save card.
+                    Card recap đi cùng đường xuất blob với card hồ sơ
+                    (ShareCardButton + drawRecapCard) — không có bản sao
+                    "cách lưu card" thứ hai trong app. Không có gì đáng kể
+                    trong tuần thì dòng này ẩn — không hiển thị 0/0 vô nghĩa. */}
+                {(weekRecap.windowVotes > 0 || weekRecap.completed.length > 0) && (
+                  <div className="weekly-recap">
+                    <span className="now-split">
+                      {t('recap.summary', { votes: weekRecap.windowVotes, done: weekRecap.completed.length })}
+                    </span>
+                    <ShareCardButton
+                      draw={drawRecapCard}
+                      card={{
+                        name: 'week-in-review',
+                        title: t('recap.cardTitle'),
+                        subtitle: `${vnDayKey(weekRecap.since)} → ${vnDayKey(weekRecap.until)}`,
+                        stats: recapStats(weekRecap).map(s => ({ value: s.value, label: t(`recap.${s.key}`) })),
+                        topLine: weekRecap.top
+                          ? `${weekRecap.top.title} — ${weekRecap.top.artist} · ${weekRecap.top.votes}`
+                          : null,
+                        completed: weekRecap.completed.map(c => ({ title: c.title, artist: c.artist })),
+                        footer: t('card.footer'),
+                      }} />
+                  </div>
+                )}
               </section>
             )}
 
@@ -2122,7 +2144,18 @@ function AppInner() {
                 )}
 
                 <div className="now-foot">
-                  <span className="now-rule">{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
+                  <div className="now-rule">
+                    <span>{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
+                    {/* Cách tính cho TOÀN BỘ dây chuyền: nhịp chốt, thứ tự chốt,
+                        và vì sao con số chờ là SÀN (at least) chứ không phải hẹn.
+                        Một note dùng chung cho đếm ngược + standing + ETA — ba con
+                        số cùng một phép tính, không giải thích ba lần. */}
+                    <CalcNote items={[
+                      { label: t('now.calcOrderLbl'), text: t('now.calcOrder') },
+                      { label: t('now.calcWaitLbl'), text: t('now.calcWait', { n: pick?.interval_days || 4 }) },
+                      { label: t('now.calcNoteLbl'), text: t('now.calcNote') },
+                    ]} />
+                  </div>
                   {pickedGroups.length > NOW_SHOW && (
                     <button type="button" className="btn btn-sm now-more" onClick={showAllPicked}>
                       {t('now.more', { n: pickedGroups.length })}
@@ -2293,7 +2326,13 @@ function AppInner() {
                     <div className="fbar-meta">
                       <span>{t('board.showing', { n: boardItems.length })}</span>
                       <button type="button" className="lnk"
-                        onClick={() => { setStatusFilters([]); setFilter('queued'); setKindFilters([]); setKindFilter('all'); setQ('') }}>{t('board.clearAll')}</button>
+                        onClick={() => {
+                          /* Clear filters means restore the full board, not the
+                             narrower default queue. `newest` is the all-requests
+                             view; this also preserves the clean baseline when
+                             the user filtered an already-open All requests list. */
+                          setStatusFilters([]); setFilter('newest'); setKindFilters([]); setKindFilter('all'); setQ('')
+                        }}>{t('board.clearAll')}</button>
                     </div>
                   )}
                 </div>
@@ -2516,6 +2555,10 @@ function AppInner() {
               <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
               {' · '}
               {/* trang tĩnh trong public/ — trước đây không có link nào trỏ tới */}
+              <a href="/archive">{t('foot.archive')}</a>
+              {' · '}
+              <a href="/faq.html">{t('foot.faq')}</a>
+              {' · '}
               <a href="/privacy.html">{t('foot.privacy')}</a>
             </div>
           </div>

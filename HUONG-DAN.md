@@ -211,15 +211,16 @@ Nếu ưu tiên chống người dùng thật tạo nhiều acc hơn sự tiện
 chọn trước là OTP điện thoại. Hạn mức theo số được xác minh phải đếm **chung các tài khoản**,
 không chỉ thêm một ô nhập số hoặc một cờ `verified` do client gửi lên.
 
-### Lá chắn Edge: Pages Functions + KV (chống farm)
+### Lá chắn Edge: Pages Functions + D1 (KV chỉ làm fallback rollout)
 
 Đường chính thức trên production (`chaereve.pages.dev`, nối GitHub, tự build khi push)
 là **Cloudflare Pages Functions**: ba file `functions/api/daily-spin/health.js`,
 `functions/api/daily-spin/spin.js`, `functions/api/vote/cast.js`. Chúng là lớp vỏ mỏng —
-toàn bộ logic (Turnstile, KV, uỷ quyền RPC) nằm trong `worker/shield.js` và `worker/index.js`,
-hai đường Pages/Workers gọi chung nên không trôi lệch nhau (test
-`worker/pagesRoutes.test.js` khoá điều này). File `wrangler.jsonc` chỉ còn là phương án thay
-thế cho ai deploy bằng `wrangler deploy`.
+toàn bộ logic (Turnstile, D1/KV, uỷ quyền RPC) nằm trong `worker/shield.js`,
+`worker/d1-shield.js` và `worker/index.js`; Pages/Workers dùng chung logic
+(`worker/pagesRoutes.test.js` khoá điều này). **D1 binding `RATE_SHIELD` được ưu tiên**;
+KV binding `SPIN_SHIELD` chỉ để rollout tương thích tới khi D1 được cấu hình. File
+`wrangler.jsonc` là phương án thay thế cho ai deploy bằng `wrangler deploy`.
 
 Khi đã bật, mỗi lượt quay đi thêm một cửa trước khi chạm Supabase:
 
@@ -229,10 +230,10 @@ Client: FingerprintJS (mã nguồn mở) → sha256 = fp_hash
         JWT phiên Supabase hiện tại
    ↓ POST /api/daily-spin/spin
 Cổng:   1) siteverify Turnstile bằng secret (bot dừng ở đây)
-        2) KV check xác thực kép + rate-limit (worker/shield.js)
+        2) D1 check xác thực kép + rate-limit (KV fallback khi rollout)
         3) gọi RPC spin_daily BẰNG JWT của người dùng (auth.uid() vẫn đúng người)
    ↓ Supabase ghi ledger + cộng vote trong một transaction
-Cổng:   4) ledger ghi thành công (và không phải replay) mới đếm lượt vào KV
+Cổng:   4) ledger ghi thành công (và không phải replay) mới đếm lượt vào D1
    ↓ trả nguyên jsonb về client (client validate như cũ)
 ```
 
@@ -252,24 +253,24 @@ gì và cũng chẳng phải làm gì. Nếu Cloudflare đòi một thách thứ
 - Một IP thấy **> 5 fingerprint khác nhau trong ngày** → dấu hiệu anti-detect browser:
   khoá IP đó tới hết ngày (`err.spinEdgeIp`), fingerprint cũ quay từ mạng khác không bị vạ.
 
-**Cấu trúc KV** (binding `SPIN_SHIELD`, giá trị JSON nhỏ, tự hết hạn lúc **00:00 giờ VN**
-bằng `expirationTtl` để trùng ngày với ledger thay vì TTL 24 giờ trôi nổi):
-- `fp:<sha256 fingerprint>` → `{ d: ngày, used: số lượt }`
-- `ip:<CF-Connecting-IP>` → `{ d: ngày, fps: [fp đã thấy], blocked: 0|1 }`
+**Cấu trúc D1** (`RATE_SHIELD`): counter theo ngày VN, tách scope `spin_fp`, `spin_ip`,
+`vote_fp`; bảng IP↔fingerprint và trạng thái khóa IP. Chỉ lưu SHA-256 của fingerprint/IP,
+không lưu IP thô. Dữ liệu ngày cũ được dọn lười tối đa một lần/ngày bằng chính Worker,
+không thêm cron. Migration nằm ở `worker/migrations/0001_rate_shield.sql`.
 
-KV **chỉ chắn spam**: hạn mức và tiền thưởng vẫn do unique slot của Postgres quyết định,
-nên đếm thiếu/đủ ở Edge không bao giờ tự cấp thưởng. Lượt quay lỗi mạng không bị đếm
-vì chỉ commit KV sau khi RPC thành công. Cổng không cầm service role — nó uỷ quyền RPC
-bằng JWT của chính người quay, nên không thể thưởng cho ai khác.
+Trong rollout, nếu chưa có binding `RATE_SHIELD`, `SPIN_SHIELD` KV cũ vẫn được dùng.
+Khi D1 đã gắn, mọi check/commit chuyển sang D1; không cộng thêm KV writes. Edge chỉ chắn
+spam: quota cuối cùng và phần thưởng vẫn do Postgres quyết định. Lượt quay bị lỗi trước
+khi RPC thành công không bị đếm; replay không bị đếm lần hai. Cổng không cầm service role —
+nó uỷ quyền RPC bằng JWT của chính người quay.
 
-**Vì sao `/api/*` không bị SPA fallback nuốt.** `public/_redirects` vẫn là
+**Vì sao `/api/*` và `/archive` không bị SPA fallback nuốt.** `public/_redirects` vẫn là
 `/* /index.html 200` cho client-side routing, nhưng Pages cho **Functions chạy trước** —
-chỉ đường nào không khớp Function mới rơi xuống file tĩnh/redirect. Nên `/api/*` khớp
-Function thì trả JSON, các đường còn lại vẫn về `index.html`. File `public/_routes.json`
-(`include: ["/api/*"]`) khoá thêm một lớp: chỉ request `/api/*` mới gọi Functions runtime
-(vừa chắc chắn, vừa không tốn quota Functions cho file tĩnh — gói free giới hạn 100.000
-request Functions/ngày). Đừng xoá file đó, và đừng thêm Function ngoài `/api/*` mà quên
-nới `include`.
+chỉ đường nào không khớp Function mới rơi xuống file tĩnh/redirect. Ba route `/api/*`
+trả JSON, còn `/archive` render HTML thật từ các request completed để crawler đọc được.
+File `public/_routes.json` (`include: ["/api/*", "/archive"]`) khoá phạm vi gọi Functions;
+request file tĩnh vẫn không tốn quota. Gói free giới hạn 100.000 request Functions/ngày.
+Đừng xoá file đó, và mọi route Function mới phải được thêm vào `include`.
 
 **Bật trên project thật (làm hết bằng Dashboard, không cần CLI). Thứ tự quan trọng** —
 làm sai thứ tự là hỏng nút Spin/Vote của người thật:
@@ -280,13 +281,13 @@ làm sai thứ tự là hỏng nút Spin/Vote của người thật:
    Chưa chạy file này thì `cast_vote`/`spin_daily` bản mới chưa tồn tại, cổng gọi vào sẽ lỗi.
 2. **Merge + deploy code.** Merge nhánh này là Pages tự build lại (đã có sẵn `functions/`).
    Chưa cần đặt biến gì vội — app chưa trỏ vào cổng nên vẫn chạy như cũ.
-3. **Tạo KV.** **Cloudflare Dashboard → Workers & Pages → KV** (menu trái) →
-   **Create a namespace** → tên `SPIN_SHIELD` → **Add**. Rồi vào project Pages
-   (**Workers & Pages → tên project → Settings → Bindings**, mục **KV namespaces** →
-   **Add binding**): *Variable name* `SPIN_SHIELD`, *Namespace* chọn `SPIN_SHIELD` vừa tạo,
-   tick cả **Production** lẫn **Preview** → **Save**. Thiếu binding ở môi trường nào là
-   cổng ở môi trường đó trả 503 (`err.spinSetup`) — app tự rơi về gọi thẳng RPC chứ không
-   chết, nhưng lá chắn coi như chưa bật.
+3. **Tạo D1 và schema lá chắn.** Trong **Workers & Pages → D1 SQL Database → Create**,
+   tạo database `ccl-rate-shield`. Mở database → **Console** và chạy toàn bộ
+   `worker/migrations/0001_rate_shield.sql`. Sau đó vào project Pages →
+   **Settings → Bindings → D1 database → Add binding**: *Variable name* `RATE_SHIELD`,
+   chọn database vừa tạo, áp dụng cho **Production** lẫn **Preview**, rồi Save.
+   KV `SPIN_SHIELD` có thể giữ tạm làm fallback cho Preview/rollout; khi `RATE_SHIELD`
+   đã hiện trong health, mọi lần ghi shield dùng D1, không ghi KV.
 4. **Đặt secret + biến.** Cùng trang **Settings → Environment variables** (bản dashboard
    mới ghi là **Variables and Secrets**) → **Add variables**, mỗi biến tick cả
    **Production** lẫn **Preview**:
@@ -299,11 +300,16 @@ làm sai thứ tự là hỏng nút Spin/Vote của người thật:
    Xong vào **Deployments → ⋯ ở bản mới nhất → Retry deployment** để bản mới nhận
    binding/biến (đổi biến xong không deploy lại là cổng vẫn chạy cấu hình cũ).
 5. **Tự kiểm tra health.** Mở `https://<domain-thật>/api/daily-spin/health` trên trình
-   duyệt (hoặc `curl`): phải thấy JSON `{"ok":true,"shield":true,"gate":false}`.
+   duyệt (hoặc `curl`): phải thấy `"shield":true` và `"shield_backend":"d1"` cùng
+   `"gate":false` trước bước bật edge gate.
    - Thấy **HTML của trang web** = Functions chưa chạy (deploy thiếu `functions/` hoặc
      mất `_routes.json`) — xem mục gỡ rối bên dưới, TUYỆT ĐỐI chưa sang bước 6.
-   - `"shield":false` = thiếu KV binding hoặc `SUPABASE_URL` ở môi trường đó — quay lại
+   - `"shield":false` = thiếu D1/KV binding hoặc `SUPABASE_URL` ở môi trường đó — quay lại
      bước 3–4, nhớ tick cả Production lẫn Preview rồi deploy lại.
+   - `"shield_backend":"kv"` nghĩa là D1 binding chưa vào runtime: kiểm tra tên `RATE_SHIELD`
+     và database đã gắn cho đúng Production/Preview. Chỉ coi là hoàn tất khi hiện `d1`.
+   - Nếu API trả `err.shieldUnavailable`, dừng kiểm tra cấu hình D1; **không** đổi sang RPC
+     trực tiếp và không tắt xác minh. Lỗi này được thiết kế để không fallback qua shield.
    - `"gate":false` ở bước này là **đúng** (cổng `edge_gate` bật sau cùng, xem mục Vote).
 6. **CHỈ BÂY GIỜ mới trỏ app vào cổng.** Thêm hai biến build (Plaintext, cả Production
    lẫn Preview): `VITE_SPIN_GATE_URL=/api/daily-spin` và `VITE_VOTE_GATE_URL=/api/vote`,
@@ -320,7 +326,7 @@ nhất, tìm dòng `Found Functions directory` — không thấy là deploy từ
 chạy ổn mà đùng một cái health trả HTML: kiểm tra quota Functions (mặc định "Fail open"
 là hết quota thì `/api/*` rơi về file tĩnh) ở **Settings → Runtime**.
 
-Thiếu bất kỳ bước nào thì app tự chạy chế độ cũ (gọi thẳng RPC), không hỏng nút Spin.
+Thiếu binding/config trước khi bật `VITE_*_GATE_URL` thì chưa coi lá chắn đã hoạt động; không bật cổng ứng dụng cho tới khi health xác nhận `shield_backend:"d1"`. Khi đã bật, từ chối Turnstile (`err.spinCaptcha`) là từ chối bảo mật và không được fallback sang RPC; lỗi D1 có key riêng `err.shieldUnavailable` cũng không fallback.
 Deploy Vercel không có cổng Edge thì bỏ hai biến `VITE_*_GATE_URL`.
 
 ### Lá chắn cho VOTE và cổng khoá cửa sau (2026-11-03)
@@ -331,7 +337,7 @@ không để lại dấu vết nào để điều tra. Nay vote đi cùng đư�
 
 ```
 POST /api/vote/cast   { request_id, delta, fp_hash, turnstile_token, user_token }
-Cổng (Pages Function): siteverify Turnstile → KV đếm theo vân tay (khoá vc:, trần 120 lượt/ngày)
+Cổng (Pages Function): siteverify Turnstile → D1 đếm theo vân tay (KV fallback rollout; khoá vc:, trần 120 lượt/ngày)
         → RPC cast_vote bằng JWT người dùng, kèm fp_hash + sha256(IP) + gate token
 Postgres: khoá hàng profiles → tính hạn mức → ghi phiếu + trừ ví trong một transaction
 ```
@@ -351,7 +357,7 @@ nhiêu tuỳ họ. `ip_hash` chỉ được **ghi lại** làm dấu vết (quer
 nhiều người thật vào một IP.
 
 **Cổng `edge_gate` — thứ làm cho lá chắn có giá trị thật, và là BƯỚC CUỐI CÙNG.**
-Turnstile và KV chỉ có ý nghĩa nếu không ai đi vòng qua chúng được; mà anon key thì nằm
+Turnstile và D1/KV chỉ có ý nghĩa nếu không ai đi vòng qua chúng được; mà anon key thì nằm
 công khai trong bundle. Chỉ bật sau khi Spin/Vote qua cổng đã chạy ổn định cho người thật
 (health `{"ok":true,"shield":true}`, đã thử quay + vote thật). Đặt token chung cho cổng và
 database để `cast_vote`/`spin_daily` từ chối mọi lời gọi không đi qua cổng:
@@ -378,7 +384,8 @@ Tắt ở database là đủ — không cần động vào Pages. App (kể cả
 lại gọi được như cũ, chỉ mất lớp chặn đi vòng.
 
 **Tóm lại thứ tự đầy đủ:** chạy migration `20261103` → merge code có `functions/` →
-bind KV + đặt secret/biến → health trả JSON `"shield":true` → thêm
+tạo D1, áp schema và bind `RATE_SHIELD` (KV chỉ fallback) + đặt secret/biến → health trả
+`"shield":true,"shield_backend":"d1"` → thêm
 `VITE_SPIN_GATE_URL`/`VITE_VOTE_GATE_URL` + deploy lại → thử quay/vote thật → đặt
 `EDGE_GATE_TOKEN`. Bỏ qua bước token cuối thì vote vẫn được siết bằng hạn mức vân tay,
 chỉ là người biết dùng anon key vẫn né được Turnstile.
@@ -2122,10 +2129,15 @@ Vài khác biệt khác cũng nghiêng về Cloudflare:
 | Tên miền riêng | 100/project | Không giới hạn |
 | Điểm phát toàn cầu | 330+ | 100+ |
 
-App này là **web gần như tĩnh thuần** (Vite build ra HTML/CSS/JS, dữ liệu gọi Supabase từ
-trình duyệt) cộng đúng 3 API của lá chắn Edge chạy bằng **Pages Functions** (`/api/*`).
-Chỉ request `/api/*` mới tính vào hạn mức Functions (100.000 request/ngày ở gói free —
-volume Spin/Vote còn lâu mới chạm); toàn bộ file tĩnh vẫn miễn phí không giới hạn.
+App này chủ yếu là **web tĩnh** (Vite build HTML/CSS/JS, dữ liệu gọi Supabase từ trình
+duyệt), cộng 3 API lá chắn Edge (`/api/*`) và trang archive server-render (`/archive`) chạy
+bằng **Pages Functions**. Chỉ các route đó tính vào hạn mức Functions 100.000 request/ngày
+gói free; file tĩnh vẫn không giới hạn. Archive gọi Supabase bằng anon key: request chỉ lấy
+`completed`, gallery lấy riêng `featured`/`video` đang hiện trong `media` (không chọn danh tính
+người dùng). Thẻ bìa dùng `thumb` HTTPS do admin nhập hoặc thumbnail YouTube; ảnh lazy-load,
+cache 5 phút. Bộ lọc tháng dùng `media.created_at` giờ Việt Nam và ghi rõ đó là tháng thêm
+vào danh sách site, không phải ngày hoàn thành hay ngày YouTube đăng. Mỗi lượt gallery tối đa
+50 mục; lỗi truy vấn `media` không làm mất danh sách completed. Không thêm cron/KV.
 
 > **Đường chính thức là Pages (Cách A)** — project đã nối GitHub và tự build khi push.
 > Cloudflare có khuyến nghị dự án mới dùng Workers with Static Assets, và repo vẫn giữ

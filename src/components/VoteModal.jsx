@@ -3,6 +3,7 @@ import Icon from './Icon'
 import { useModalExit } from '../lib/useModalExit'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { isPicked, kindCls } from '../lib/meta'
+import { warmCaptcha, warmFingerprint } from '../lib/spinShield.js'
 
 const MAX = 100
 
@@ -30,6 +31,10 @@ export default function VoteModal({
 
   useEffect(() => {
     if (!open) return
+    /* Hộp vote mở là lúc người dùng đang chọn lượng: tải script bảo mật song
+       song, để nút xác nhận không phải chờ cold-start của Turnstile. */
+    void warmCaptcha()
+    void warmFingerprint()
     setQty(1); setErr(null); setBusy(false)
   }, [open, request])
 

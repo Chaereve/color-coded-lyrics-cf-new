@@ -2,10 +2,9 @@
 <!-- =========================================================
   sitemap.xml — chaereve.pages.dev
   ---------------------------------------------------------
-  Đúng 4 route của app, lấy từ `ROUTES` trong src/App.jsx:
-    { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile' }
-  Thêm route mới thì phải sửa CẢ HAI nơi, nếu không Google không biết
-  đường mới tồn tại (SPA nên không có link nào trỏ tới nó từ HTML gốc).
+  Gồm các route SPA trong src/App.jsx, trang tĩnh public/, và route archive
+  được server-render bởi functions/archive.js. Thêm route công khai thì phải
+  cập nhật sitemap cùng hợp đồng SEO test để Google biết đường mới tồn tại.
 
   <lastmod> là ngày sửa thật của sitemap, không phải ngày deploy — ghi bừa
   ngày mới mỗi lần build là dạy Google bỏ qua cột này.
@@ -47,6 +46,25 @@
     <lastmod>2026-09-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.3</priority>
+  </url>
+
+  <!-- FAQ: trang TĨNH trong public/ (không phải route SPA) — nội dung HTML
+       thật, là thứ crawler chưa đăng nhập đọc được nhiều nhất sau bảng chính.
+       seoContract.test.js biết trang này qua STATIC_ROUTES. -->
+  <url>
+    <loc>https://chaereve.pages.dev/faq.html</loc>
+    <lastmod>2026-09-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Archive: HTML được render phía Pages Function, có VideoObject JSON-LD
+       lấy từ các request completed thật; không cần cron hay bản sao dữ liệu. -->
+  <url>
+    <loc>https://chaereve.pages.dev/archive</loc>
+    <lastmod>2026-09-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
   </url>
 
 </urlset>

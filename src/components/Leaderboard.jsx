@@ -189,7 +189,20 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         </div>
       </div>
 
-      {isEmpty && <div className="empty">{t(`rank.emptyPeriod.${period}`)}</div>}
+      {isEmpty && (
+        /* Khối rỗng theo khuôn chung (icon + giải thích + hành động): kỳ không
+           có dữ liệu thì lối ra tự nhiên nhất là quay về All time — đừng bắt
+           người đọc tự tìm nút đổi kỳ ở trên. */
+        <div className="empty">
+          <span className="empty-ico" aria-hidden="true"><Icon name="cup" size={18} /></span>
+          <b>{t(`rank.emptyPeriod.${period}`)}</b>
+          {period !== 'all' && (
+            <span className="empty-acts">
+              <button type="button" className="btn btn-sm" onClick={() => setPeriod('all')}>{t('rank.emptyCta')}</button>
+            </span>
+          )}
+        </div>
+      )}
 
       {!isEmpty && (
         <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>

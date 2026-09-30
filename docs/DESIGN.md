@@ -695,3 +695,16 @@ Ghi lại để lần sau không ai "sửa" ngược:
 - [ ] Đụng vào thứ tự bảng xếp hạng thì luật phải sửa ở `src/lib/ranking.js` và
       `src/lib/ranking.test.js` phải xanh — không sắp bằng `||` trong component
       (xem §2.7).
+
+---
+
+## 9. Archive và thư viện bìa (2026-09-29)
+
+Trang `/archive` có hai nguồn dữ liệu, phải đọc ra khác nhau:
+
+1. **Request đã hoàn thành** — từ bảng `requests`, bắt buộc `status=completed` và YouTube ID hợp lệ. Đây là danh sách công việc đã xong; chỉ nó mới được gọi là archive hoàn thành.
+2. **Video được quản trị viên chọn cho trang kênh** — từ bảng `media`, chỉ mục công khai `featured`/`video` qua anon RLS. Đây là gallery bổ sung, không được dùng để suy ra trạng thái request hay ngày hoàn thành.
+
+Thẻ ảnh dùng `media.thumb` HTTPS nếu có, nếu không dùng thumbnail theo YouTube ID; ảnh lazy-load, link mở video trong tab mới, không nhúng player tự chạy. Gallery tối đa 50 mục mỗi lượt hiển thị. Bộ lọc tháng lấy duy nhất `media.created_at` theo giờ Việt Nam và phải ghi rõ **“tháng thêm vào danh sách video”** — không gọi đó là mùa hoàn thành, ngày phát hành, hay ngày video được đăng. Không có dữ liệu mùa; không tự dựng mùa từ timestamp.
+
+Tìm kiếm và bộ lọc nằm trên URL; trang lọc không được index. Dữ liệu gallery chỉ gồm trường cần thiết (`kind,title,url,thumb,created_at,position`), không có danh tính người dùng. Lỗi riêng của bảng `media` không được làm hỏng danh sách completed. Giữ nguyên khung tối, một màu nhấn, ít chuyển động và giảm-chuyển-động theo §0/§3; gallery là dải ảnh gọn, không biến archive thành landing page lòe loẹt.

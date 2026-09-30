@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FAQ &amp; How It Works — Chaereve Request Page</title>
+<meta name="description" content="How the Chaereve request board works: requests, vote prices, how the next song is picked, wait estimates, Daily Spin rules, and how cheating is prevented." />
+<link rel="icon" type="image/png" href="/favicon-64.png" />
+<link rel="canonical" href="https://chaereve.pages.dev/faq.html" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Chaereve" />
+<meta property="og:url" content="https://chaereve.pages.dev/faq.html" />
+<meta property="og:title" content="FAQ &amp; How It Works — Chaereve Request Page" />
+<meta property="og:description" content="Requests, vote prices, how songs get picked, wait estimates, Daily Spin and fair play — answered." />
+<meta property="og:image" content="https://chaereve.pages.dev/logo-192.png" />
+<meta property="og:image:width" content="192" />
+<meta property="og:image:height" content="192" />
+<meta property="og:image:alt" content="Chaereve logo" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="FAQ &amp; How It Works — Chaereve Request Page" />
+<meta name="twitter:description" content="Requests, vote prices, how songs get picked, wait estimates, Daily Spin and fair play — answered." />
+<meta name="twitter:image" content="https://chaereve.pages.dev/logo-192.png" />
+<style>
+  @font-face{font-family:'Be Vietnam Pro';src:url('/fonts/bvp-400.woff2') format('woff2');
+    font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Be Vietnam Pro';src:url('/fonts/bvp-500.woff2') format('woff2');
+    font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Be Vietnam Pro';src:url('/fonts/bvp-600.woff2') format('woff2');
+    font-weight:600;font-style:normal;font-display:swap}
+  @font-face{font-family:'Archivo Display';src:url('/fonts/archivo-display.woff2') format('woff2');
+    font-weight:700;font-style:normal;font-display:swap}
+  /* Token lấy ĐÚNG giá trị trong :root của src/index.css — cùng quy ước với
+     privacy.html: sửa màu thương hiệu thì sửa ở src/index.css rồi chép sang
+     đây, đừng nghĩ lại từ đầu. */
+  :root{--bg:#0a0c10;--surface:#12161c;--line:#212934;--line-2:#2f3a47;--txt:#e9edf3;
+        --txt-2:#9aa4b2;--txt-3:#808b9a;--a:#4d40f0;--a-2:#a9a4ff;--a-soft:rgba(77,64,240,.16);
+        --radius:6px;--r-md:8px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);line-height:1.62;font-size:14px;
+       font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:44px 22px 70px}
+  a{color:var(--a-2)}
+  header{display:flex;align-items:center;gap:11px;padding-bottom:22px;
+         border-bottom:1px solid var(--line);margin-bottom:30px}
+  header img{width:30px;height:30px;border-radius:var(--radius);display:block}
+  .brand{font-family:'Archivo Display',sans-serif;font-weight:700;font-size:14px}
+  h1{font-family:'Archivo Display',sans-serif;font-weight:700;font-size:24px;margin:0 0 6px;
+     text-wrap:balance}
+  .upd{color:var(--txt-3);font-size:13px;margin:0 0 34px}
+  h2{font-size:16.5px;font-weight:600;margin:34px 0 9px;text-wrap:balance}
+  p,li{color:var(--txt-2);text-wrap:pretty}
+  li{margin-bottom:5px}
+  strong{color:var(--txt);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--txt-3);font-weight:600;font-size:12px}
+  td{color:var(--txt-2)}
+  td:first-child{color:var(--txt)}
+  .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+       padding:15px 18px;margin:18px 0}
+  .box p:last-child{margin-bottom:0}
+  .box p:first-child{margin-top:0}
+  footer{margin-top:50px;padding-top:22px;border-top:1px solid var(--line);
+         color:var(--txt-3);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img src="/favicon-64.png" alt="" />
+    <span class="brand">Chaereve</span>
+  </header>
+
+  <h1>FAQ &amp; How It Works</h1>
+  <p class="upd">Last updated: 29/09/2026 · <a href="/">Back to the request board</a></p>
+
+  <p>This page explains how the request board works, in the order people usually ask.
+     Every number here is the same one the app uses — nothing is rounded for marketing.</p>
+
+  <h2>What is this page?</h2>
+  <p>This is the community request board for <strong>@chaereve</strong>'s colour-coded lyric
+     videos. You can request songs (colour-coded lyrics, full albums, 1-hour loops and Shorts),
+     vote for what other people requested, follow a song's progress from queue to finished
+     video, and see where you stand on the leaderboard.</p>
+
+  <h2>How do requests work?</h2>
+  <p>Sign in with Google, press <strong>New request</strong>, and pick a type:</p>
+  <ul>
+    <li><strong>Free request</strong> — up to <strong>3 per hour</strong>. It goes to
+        <em>pending</em> until an admin approves it, then it joins the public queue and
+        everyone can vote for it.</li>
+    <li><strong>Paid request</strong> — <strong>$0.75 / 20.000đ</strong>. Approved as soon as
+        payment is confirmed: it skips voting entirely and goes to the front of the queue.
+        Paid requests don't count against the 3-per-hour limit — send as many as you like.</li>
+  </ul>
+  <p>Before you send, the form checks whether the song is already on the board and offers to
+     open its vote box instead — the same request split across three people is how votes get
+     wasted. Your draft is saved in the browser while you type, so closing the form by accident
+     loses nothing.</p>
+
+  <h2>How many free votes do I get, and what do extra votes cost?</h2>
+  <p>Everyone gets <strong>3 free votes per day</strong>, resetting at midnight (Vietnam time).
+     You can put many votes on the same song — the vote button opens a box where you choose the
+     amount, and withdrawing votes gives them back to your balance.</p>
+  <table>
+    <tr><th>Package</th><th>USD</th><th>VND</th><th>Per vote</th></tr>
+    <tr><td>3 votes</td><td>$0.49</td><td>13.000đ</td><td>4.333đ</td></tr>
+    <tr><td>10 votes</td><td>$1.29</td><td>34.000đ</td><td>3.400đ</td></tr>
+    <tr><td>30 votes</td><td>$2.99</td><td>78.000đ</td><td>2.600đ</td></tr>
+    <tr><td>Single votes</td><td>$0.19</td><td>5.000đ</td><td>pick 1–100</td></tr>
+  </table>
+  <p>When you vote, free votes are spent first, then spin bonuses, then purchased votes.
+     Purchased votes never expire.</p>
+
+  <h2>How is the next song picked — and when will mine be made?</h2>
+  <p>Automatically, <strong>one song per cycle</strong> (the countdown on the board shows the
+     next pick). The order is fixed: a <strong>paid request goes first</strong>, otherwise the
+     queued song with the <strong>most votes</strong>, with ties going to the
+     <strong>oldest request</strong>.</p>
+  <p>The wait shown on your request — “at least N days/weeks” — is the <strong>earliest</strong>
+     it could happen: time to the next pick, plus one cycle for each song ahead of yours. More
+     votes for another song can push yours <em>later, never earlier</em>. Every request on the
+     board shows this estimate and how far it is from being picked.</p>
+
+  <h2>What happens after a song is picked?</h2>
+  <p>Picked songs move through <em>picked → in progress → completed</em>. You can follow any
+     request to get a browser notification at each stage, and completed songs get the video
+     link on the board.</p>
+  <p>Once a song enters the pick chain (“Up next”), its vote box <strong>locks</strong> — no
+     more votes, no withdrawing, and the sender can no longer delete it. This protects the
+     votes everyone (including people who bought them) already put in.</p>
+
+  <h2>How does the Daily Spin work?</h2>
+  <p><strong>2 free spins a day</strong> per account and per device, resetting at
+     <strong>00:00 (GMT+7)</strong>. The wheel has <strong>16 equal segments</strong>, and the
+     segment size you see is the real probability:</p>
+  <table>
+    <tr><th>Reward</th><th>Segments</th><th>Chance</th></tr>
+    <tr><td>+1 vote</td><td>9</td><td>56,25%</td></tr>
+    <tr><td>+2 votes</td><td>4</td><td>25%</td></tr>
+    <tr><td>+3 votes</td><td>2</td><td>12,5%</td></tr>
+    <tr><td>+5 votes</td><td>1</td><td>6,25%</td></tr>
+  </table>
+  <p>Spin rewards go to a separate <strong>Bonus</strong> balance (spent before purchased
+     votes). Spins are free — nothing is charged or deducted to play.</p>
+
+  <h2>How do you keep voting and spins fair?</h2>
+  <p>All limits live in the database and in an edge shield, not in the interface: per-account
+     and per-device limits on spins, a fingerprint/IP cap that blocks farms, one vote ledger per
+     account, and vote totals that only change through one audited function. The board also
+     groups duplicate requests so one song's votes aren't split across copies.</p>
+  <p>What we store and why is in the <a href="/privacy.html">Privacy</a> page.</p>
+
+  <h2>Do I have to pay for anything?</h2>
+  <p>No. Requests, votes, spins, comments, streaks and the leaderboard are all usable for free
+     every day. Paying only buys convenience: more votes, or skipping the queue with a paid
+     request.</p>
+
+  <footer>
+    Still stuck? Comment on the board or on the channel's videos — the admin reads both.<br />
+    <a href="/">Request board</a> · <a href="/daily-spin">Daily Spin</a> ·
+    <a href="/ranking">Leaderboard</a> · <a href="/privacy.html">Privacy</a>
+  </footer>
+</div>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is this page?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This is the community request board for @chaereve's colour-coded lyric videos. You can request songs (colour-coded lyrics, full albums, 1-hour loops and Shorts), vote for what other people requested, follow a song's progress from queue to finished video, and see where you stand on the leaderboard."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do requests work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Sign in with Google and press New request. Free requests (up to 3 per hour) wait for admin approval, then join the public queue and everyone can vote for them. Paid requests ($0.75 / 20.000đ) are approved once payment is confirmed, skip voting entirely, go to the front of the queue, and don't count against the 3-per-hour limit."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How many free votes do I get, and what do extra votes cost?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Everyone gets 3 free votes per day, resetting at midnight (Vietnam time). Extra votes: 3 votes for $0.49 / 13.000đ, 10 votes for $1.29 / 34.000đ, 30 votes for $2.99 / 78.000đ, or single votes at $0.19 / 5.000đ each (1–100). Free votes are spent first, then spin bonuses, then purchased votes, which never expire."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is the next song picked — and when will mine be made?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "One song is picked automatically per cycle: a paid request first, otherwise the queued song with the most votes, ties going to the oldest request. The wait shown on a request is the earliest it could happen — time to the next pick plus one cycle for each song ahead. More votes for another song can push yours later, never earlier."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What happens after a song is picked?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Picked songs move through picked, in progress, to completed with the video link on the board. You can follow any request for browser notifications at each stage. Once a song enters the pick chain, its vote box locks: no more votes, no withdrawing, and the sender can no longer delete it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does the Daily Spin work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "2 free spins a day per account and per device, resetting at 00:00 (GMT+7). The wheel has 16 equal segments: +1 vote ×9 (56,25%), +2 votes ×4 (25%), +3 votes ×2 (12,5%), +5 votes ×1 (6,25%). Rewards go to a separate Bonus balance spent before purchased votes. Spins are free."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do you keep voting and spins fair?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "All limits live in the database and in an edge shield, not in the interface: per-account and per-device spin limits, a fingerprint/IP cap that blocks farms, one vote ledger per account, and vote totals that only change through one audited function. Duplicate requests are grouped so votes aren't split across copies."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I have to pay for anything?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Requests, votes, spins, comments, streaks and the leaderboard are all usable for free every day. Paying only buys convenience: more votes, or skipping the queue with a paid request."
+      }
+    }
+  ]
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Request board", "item": "https://chaereve.pages.dev/" },
+    { "@type": "ListItem", "position": 2, "name": "FAQ", "item": "https://chaereve.pages.dev/faq.html" }
+  ]
+}
+</script>
+</body>
+</html>

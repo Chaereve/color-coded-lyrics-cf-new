@@ -77,6 +77,21 @@ test('cả năm mục của trang quản trị đều dựng được (không s�
   }
 })
 
+test('admin có thẻ funnel 7 ngày, tải tường minh qua đúng một RPC (không polling / KV)', async () => {
+  const html = await render({ ...base, tab: 'pending' })
+  assert.match(html, /class="adm-funnel"/, 'thiếu thẻ funnel trong trang admin')
+  assert.match(html, /Community funnel · last 7 days/, 'thiếu nhãn khoảng thời gian')
+  assert.match(html, /Loading funnel/, 'SSR phải có trạng thái chờ thay vì giả vờ số 0')
+  const panel = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  const db = readFileSync(`${root}src/lib/db.js`, 'utf8')
+  assert.match(panel, /fetchFunnelSummary\(7\)/, 'dải admin đọc đúng cửa sổ 7 ngày')
+  assert.match(panel, /useEffect\(\(\) => \{[\s\S]*?fetchFunnelSummary\(7\)/, 'đọc khi admin mở trang')
+  assert.match(db, /supabase\.rpc\('funnel_summary',\s*\{\s*p_days:\s*pDays\s*\}\)/,
+    'đọc qua RPC được bảo vệ is_admin, không select bảng trực tiếp')
+  assert.doesNotMatch(db, /\.from\(['"]funnel_events['"]\)/, 'không mở đường đọc bảng trực tiếp')
+  assert.doesNotMatch(panel, /setInterval|window\.setInterval/, 'không polling')
+})
+
 test('trang không còn dấu vết của hộp thoại cũ', async () => {
   const html = await render({ ...base, tab: 'pending' })
   assert.ok(!html.includes('modal'), 'trang quản trị không được còn lớp modal nào')
