@@ -16,7 +16,7 @@ export const SPIN_GATE_URL = (import.meta.env?.VITE_SPIN_GATE_URL || '').replace
 export const VOTE_GATE_URL = (import.meta.env?.VITE_VOTE_GATE_URL || '').replace(/\/$/, '')
 const FP_CACHE_KEY = 'ccl.spin.fp.v1'
 const HASH64 = /^[a-f0-9]{64}$/
-export const CAPTCHA_ATTEMPT_TIMEOUT_MS = 6000
+export const CAPTCHA_ATTEMPT_TIMEOUT_MS = 20000
 export const CAPTCHA_INTERACTIVE_TIMEOUT_MS = 120000
 const CAPTCHA_RETRY_DELAY_MS = 150
 const FINGERPRINT_WAIT_MS = 1200
@@ -107,6 +107,7 @@ function ensureCaptchaWidget(ts) {
       ? 'Security check required. Complete the challenge to continue.'
       : 'Security verification')
   }
+  state.setInteractive = setInteractive
   const flush = (value, { isError = false, retryable = true } = {}) => {
     const waiting = state.waiters
     state.waiters = []
@@ -120,7 +121,7 @@ function ensureCaptchaWidget(ts) {
   try {
     state.id = ts.render(box, {
       sitekey: TURNSTILE_SITE_KEY,
-      appearance: 'interaction-only',
+      appearance: 'always',
       execution: 'execute',
       theme: 'dark',
       callback: token => { state.token = token; state.lastError = null; flush(token) },
@@ -166,22 +167,24 @@ function singleAttempt(ts) {
     }
     const entry = { resolve, retryable: true }
     state.waiters.push(entry)
+    // Keep the widget visible while Cloudflare loads, including on mobile
+    // browsers that never fire before-interactive-callback.
+    state.setInteractive(true)
     state.timer = setTimeout(() => {
       state.waiters = state.waiters.filter(waiter => waiter !== entry)
       state.timer = null
       state.token = null
-      state.interactive = false
-      state.host.dataset.interactive = 'false'
+      state.setInteractive(false)
       try { if (state.id != null) state.ts.reset(state.id) } catch {}
-      /* Không callback gì sau 6s: reset mà không lặp thêm một lượt chờ 6s nữa.
-         Lỗi có callback rõ ràng vẫn được retry một lần ở acquireCaptchaTokenNow. */
-      resolve({ token: null, retryable: false })
+      /* If Cloudflare never calls back, retry once with a fresh challenge. */
+      resolve({ token: null, retryable: true })
     }, CAPTCHA_ATTEMPT_TIMEOUT_MS)
     try { ts.execute(state.id) }
     catch {
       state.waiters = state.waiters.filter(waiter => waiter !== entry)
       clearTimeout(state.timer)
       state.timer = null
+      state.setInteractive(false)
       resolve({ token: null, retryable: true })
     }
   })

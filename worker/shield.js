@@ -9,7 +9,7 @@
    ========================================================= */
 
 export const SHIELD_LIMIT = 2          // khớp DAILY_SPIN_LIMIT bên frontend/SQL
-export const SHIELD_MAX_FP_PER_IP = 5  // tối đa 5 fingerprint khác nhau / IP / ngày
+export const SHIELD_MAX_FP_PER_IP = 5  // legacy threshold; shared IPs are not blocked
 /* Trần số LƯỢT GỌI vote của một vân tay trong ngày. Không phải hạn mức vote
    (Postgres giữ hạn mức đó: 3 free/ngày/tài khoản và /vân tay, phần còn lại
    phải trả tiền). Đây chỉ là cái phanh để một farm tool không nện hàng nghìn
@@ -53,12 +53,7 @@ export async function shieldCheck(kv, { ip, ipHash, fpHash, nowMs = Date.now(), 
   const fp = fpState(fpRaw, day)
   const net = ipState(ipRaw, day)
   const ttl = ttlUntilVnMidnight(nowMs)
-  if (net.blocked) return { ok: false, reason: 'err.spinEdgeIp' }
   if (fp.used >= limit) return { ok: false, reason: 'err.spinEdgeFp' }
-  if (!net.fps.includes(fpHash) && net.fps.length >= maxFpPerIp) {
-    await kv.put(ipKey(ip), JSON.stringify({ ...net, blocked: 1 }), { expirationTtl: ttl })
-    return { ok: false, reason: 'err.spinEdgeIp' }
-  }
   return { ok: true, _state: { fp, net, day, ttl } }
 }
 

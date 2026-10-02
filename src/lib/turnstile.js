@@ -51,8 +51,9 @@ export function loadTurnstile() {
         if (done) return
         done = true
         loading = null
+        s.remove()
         reject(new Error('turnstile-load'))
-      }, 6000)
+      }, 15000)
       s.onload = () => {
         if (done) return
         done = true
@@ -63,7 +64,7 @@ export function loadTurnstile() {
           let tries = 0
           const iv = setInterval(() => {
             if (window.turnstile) { clearInterval(iv); resolve(window.turnstile) }
-            else if (++tries > 20) { clearInterval(iv); loading = null; reject(new Error('turnstile-load')) }
+            else if (++tries > 20) { clearInterval(iv); loading = null; s.remove(); reject(new Error('turnstile-load')) }
           }, 100)
         }
       }
@@ -72,6 +73,7 @@ export function loadTurnstile() {
         done = true
         clearTimeout(to)
         loading = null
+        s.remove()
         reject(new Error('turnstile-load'))
       }
       document.head.appendChild(s)

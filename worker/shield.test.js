@@ -52,25 +52,11 @@ test('same IP with different fingerprints is allowed (shared Wi-Fi)...', async (
   assert.equal(JSON.parse(kv.store.get(ipKey(IP)).value).fps.length, SHIELD_MAX_FP_PER_IP)
 })
 
-test('...but a 6th fingerprint on one IP locks the IP for the whole day', async () => {
+test('shared public IP never locks unrelated users, even if legacy KV state is blocked', async () => {
   const kv = new FakeKV()
-  for (let i = 1; i <= SHIELD_MAX_FP_PER_IP; i++) {
-    await shieldCheck(kv, { ip: IP, fpHash: fp(i), nowMs: NOW })
-    await shieldCommit(kv, { ip: IP, fpHash: fp(i), nowMs: NOW })
-  }
-  const sixth = await shieldCheck(kv, { ip: IP, fpHash: fp(600), nowMs: NOW })
-  assert.equal(sixth.ok, false)
-  assert.equal(sixth.reason, 'err.spinEdgeIp')
-  assert.equal(JSON.parse(kv.store.get(ipKey(IP)).value).blocked, 1)
-  // Khoá IP chặn cả fingerprint cũ lẫn mới từ cùng đường mạng, tới hết ngày.
-  const b1 = await shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })
-  assert.equal(b1.ok, false); assert.equal(b1.reason, 'err.spinEdgeIp')
-  const b2 = await shieldCheck(kv, { ip: IP, fpHash: fp(700), nowMs: NOW })
-  assert.equal(b2.ok, false); assert.equal(b2.reason, 'err.spinEdgeIp')
-  // Fingerprint cũ quay từ mạng khác vẫn bình thường: khoá theo IP, không vạ lây.
-  assert.equal((await shieldCheck(kv, { ip: '198.51.100.9', fpHash: fp(1), nowMs: NOW })).ok, true)
-  // Ngày mới (TTL rơi) mở khoá lại.
-  assert.equal((await shieldCheck(kv, { ip: IP, fpHash: fp(600), nowMs: NOW + 86_400_000 })).ok, true)
+  await kv.put(ipKey(IP), JSON.stringify({ d: vnDay(NOW), fps: Array.from({ length: 5 }, (_, i) => fp(i + 1)), blocked: 1 }))
+  assert.equal((await run(kv, { fpHash: fp(600) })).ok, true)
+  assert.equal((await run(kv, { fpHash: fp(1) })).ok, true)
 })
 
 test('stale values from another day are ignored even if TTL has not dropped', async () => {
