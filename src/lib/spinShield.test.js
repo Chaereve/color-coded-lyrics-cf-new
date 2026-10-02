@@ -9,18 +9,19 @@ const at = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8
 test('fingerprint là tín hiệu phụ: giới hạn thời gian chờ, không treo action', async () => {
   assert.equal(await fingerprintHashFast(0), null)
   assert.equal(await warmFingerprint(), false, 'không prewarm FingerprintJS khi runtime không có Canvas 2D')
-  assert.equal(CAPTCHA_ATTEMPT_TIMEOUT_MS, 6000)
+  assert.equal(CAPTCHA_ATTEMPT_TIMEOUT_MS, 20000)
   assert.equal(CAPTCHA_INTERACTIVE_TIMEOUT_MS, 120000)
 })
 
 test('Turnstile challenge tương tác phải hiện trong viewport và đợi user, không tự fail/retry', () => {
   const src = at('./spinShield.js')
-  assert.match(src, /appearance:\s*'interaction-only'/)
+  assert.match(src, /appearance:\s*'always'/)
   assert.match(src, /className\s*=\s*'ccl-turnstile-host'/)
   assert.doesNotMatch(src, /left:-10000px|aria-hidden/,
     'không được giấu challenge ngoài màn hình hoặc khỏi accessibility tree')
   const before = src.match(/'before-interactive-callback':\s*\(\) => \{([\s\S]*?)\n      \},/)?.[1] || ''
   assert.match(before, /setInteractive\(true\)/)
+  assert.match(src, /state\.setInteractive\(true\)\s*state.timer = setTimeout/, 'widget is visible even without interactive callback')
   assert.match(before, /CAPTCHA_INTERACTIVE_TIMEOUT_MS/)
   const immediate = before.split('state.timer = setTimeout')[0]
   assert.doesNotMatch(immediate, /flush\(null/,
@@ -38,7 +39,7 @@ test('captcha requests được serialize để không dùng trùng token one-ti
   assert.match(src, /const result = captchaQueue\.then\(run, run\)/)
   assert.match(src, /CAPTCHA_RETRY_DELAY_MS = 150/)
   const loader = at('./turnstile.js')
-  assert.match(loader, /}, 6000\)/, 'script cold-start timeout không kéo action quá 6 giây')
+  assert.match(loader, /}, 15000\)/, 'mobile cold-start gets time to load while remaining bounded')
   assert.match(src, /export function warmCaptcha\(/, 'có prewarm Turnstile khi mở trang spin/vote')
   assert.match(src, /export function warmFingerprint\(/, 'có thể làm ấm fingerprint khi người dùng đang chọn vote')
   assert.match(loader, /rel = 'preconnect'[\s\S]*challenges\.cloudflare\.com/,

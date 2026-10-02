@@ -113,16 +113,16 @@ test('D1 spin counter enforces per-fingerprint cap and keeps IP/fingerprint scop
   assert.ok(![...db.counters.keys()].some(key => key.includes('raw-ip')), 'raw IP is never written to D1')
 })
 
-test('D1 blocks a 6th fingerprint on one IP for the VN day, then unlocks next day', async () => {
+test('D1 allows a 6th fingerprint on shared IP, including legacy blocked IP rows', async () => {
   const db = new FakeD1()
   for (let i = 1; i <= SHIELD_MAX_FP_PER_IP; i++) {
     assert.equal((await checkSpin(db, i)).ok, true)
     await shieldCommit(db, { ipHash, fpHash: fp(i), nowMs: NOW })
   }
-  assert.deepEqual(await checkSpin(db, 99), { ok: false, reason: 'err.spinEdgeIp' })
-  assert.deepEqual(await checkSpin(db, 1), { ok: false, reason: 'err.spinEdgeIp' })
+  assert.equal((await checkSpin(db, 99)).ok, true)
+  assert.equal((await checkSpin(db, 1)).ok, true)
   assert.equal((await checkSpin(db, 99, { nowMs: NOW + 86_400_000 })).ok, true)
-  assert.equal(db.countRows(), 0, 'once the VN day rolls over, expired shield rows are pruned')
+  assert.equal(db.countRows(), 0)
 })
 
 test('D1 vote counter is independent, enforces its cap and does not store missing fingerprints', async () => {

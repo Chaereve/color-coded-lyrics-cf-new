@@ -29,23 +29,10 @@ const counter = (db, day, scope, subjectHash) => db.prepare(
 export async function d1SpinCheck(db, { ipHash, fpHash, nowMs = Date.now(), limit, maxFpPerIp }) {
   const day = vnDay(nowMs)
   await pruneExpiredDays(db, day)
-  const [fp, ip, net] = await Promise.all([
-    counter(db, day, 'spin_fp', fpHash),
-    counter(db, day, 'spin_ip', ipHash),
-    db.prepare(`SELECT COUNT(*) AS n,
-        COALESCE(SUM(CASE WHEN fp_hash = ? THEN 1 ELSE 0 END), 0) AS seen
-      FROM edge_spin_ip_fingerprints WHERE day = ? AND ip_hash = ?`)
-      .bind(fpHash, day, ipHash).first(),
-  ])
-  if (ip?.blocked) return { ok: false, reason: 'err.spinEdgeIp' }
+  // IPs can represent entire schools, offices or carrier-grade NATs. Never
+  // deny a legitimate account because other people used the same public IP.
+  const fp = await counter(db, day, 'spin_fp', fpHash)
   if ((fp?.used ?? 0) >= limit) return { ok: false, reason: 'err.spinEdgeFp' }
-  if (!net.seen && net.n >= maxFpPerIp) {
-    await db.prepare(`INSERT INTO edge_rate_counters (day, scope, subject_hash, used, blocked)
-      VALUES (?, 'spin_ip', ?, 0, 1)
-      ON CONFLICT(day, scope, subject_hash) DO UPDATE SET blocked = 1`)
-      .bind(day, ipHash).run()
-    return { ok: false, reason: 'err.spinEdgeIp' }
-  }
   return { ok: true, _state: { day } }
 }
 
