@@ -10,6 +10,7 @@ import pg from 'pg'
 const migration = readFileSync(new URL('../migrations/20261112_daily_rewards.sql', import.meta.url), 'utf8')
 const calendarMigration = readFileSync(new URL('../migrations/20261113_calendar_kpop_quiz.sql', import.meta.url), 'utf8')
 const upgradeMigration = readFileSync(new URL('../migrations/20261114_daily_rewards_upgrade.sql', import.meta.url), 'utf8')
+const noVoteMigration = readFileSync(new URL('../migrations/20261118_daily_login_no_votes.sql', import.meta.url), 'utf8')
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8')
 const url = process.env.DAILY_REWARDS_TEST_DATABASE_URL
 
@@ -17,9 +18,37 @@ test('daily rewards migration is mirrored verbatim in the canonical schema', () 
   assert.ok(schema.includes(migration))
   assert.match(migration, /primary key \(user_id, reward_day\)/)
   assert.match(migration, /unique \(user_id, quiz_day\)/)
+  // 20261112 shipped a +2 check-in reward; 20261118 removes it (append-only,
+  // the historical file is never rewritten). Both halves are asserted here
+  // and in the corrective test below.
   assert.match(migration, /bonus_credits = bonus_credits \+ v_claim\.reward/)
   assert.match(migration, /bonus_credits = bonus_credits \+ v_score/)
   assert.doesNotMatch(migration, /set vote_credits|cron\.schedule/)
+})
+
+test('the corrective migration makes a check-in award no vote, without rewriting history', () => {
+  assert.ok(schema.includes(noVoteMigration))
+  // Append-only: the historical files keep their original text, the correction
+  // is a separate migration that only runs after 20261117.
+  assert.match(noVoteMigration, /Run AFTER 20261117_daily_quiz_flow\.sql/)
+  assert.doesNotMatch(noVoteMigration, /drop table|truncate /)
+  // The ledger survives, only the amount is locked at zero.
+  assert.match(noVoteMigration, /update public\.daily_login_rewards set reward = 0 where reward <> 0/)
+  assert.match(noVoteMigration, /alter column reward set default 0/)
+  assert.match(noVoteMigration, /add constraint daily_login_rewards_reward_check check \(reward = 0\)/)
+  const claim = noVoteMigration.slice(noVoteMigration.indexOf('create or replace function public.claim_daily_login'))
+    .split('end $$;')[0]
+  assert.doesNotMatch(claim, /bonus_credits|vote_credits|free_vote/, 'a check-in must not touch any vote balance')
+  assert.match(claim, /insert into public\.daily_login_rewards/)
+  assert.match(claim, /'reward', 0/)
+  // The payload can no longer imply a reward, and "today" counts the quiz only.
+  const payload = noVoteMigration.slice(noVoteMigration.indexOf('create or replace function public.daily_rewards_payload'))
+  assert.match(payload, /'vote_reward', 0/)
+  assert.doesNotMatch(payload, /'reward', 2/)
+  assert.match(payload, /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/)
+  assert.doesNotMatch(payload, /coalesce\(l\.reward, 0\)/)
+  // No automatic vote path is restored anywhere in the daily-reward flow.
+  assert.doesNotMatch(noVoteMigration, /free_vote_grant_enabled[^']*'true'/)
 })
 
 test('daily rewards keep all answer keys private and restrict RPC execution', () => {
@@ -462,6 +491,47 @@ test('Daily rewards — real transactions, permissions, replay and concurrency',
         assert.equal((await pool.query(`select count(*)::int as n from public.${table} where user_id=$1`, [b])).rows[0].n, 0)
       }
     })
+    await t.test('after the corrective migration a check-in awards no vote and keeps every counter', async () => {
+      // Append-only chain: the correction runs last, nothing historical is edited.
+      for (const file of ['20261115_daily_quiz_schema.sql', '20261116_daily_quiz_pool.sql',
+        '20261117_daily_quiz_flow.sql', '20261118_daily_login_no_votes.sql']) {
+        await pool.query(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
+      }
+      const x = await user()
+      const before = await wallet(x)
+      const claimed = await claim(x, today)
+      assert.equal(claimed.reward, 0)
+      assert.equal(claimed.votes_awarded, 0)
+      assert.equal(claimed.replayed, false)
+      assert.deepEqual(await wallet(x), before, 'a check-in never changes a vote balance')
+      const rows = await pool.query('select * from public.daily_login_rewards where user_id=$1', [x])
+      assert.equal(rows.rows.length, 1, 'the day is still recorded — history is preserved')
+      assert.equal(rows.rows[0].reward, 0)
+      // No vote ledger entry of any kind: no quiz answer row, no free grant.
+      assert.equal((await pool.query('select count(*)::int as n from public.daily_quiz_answers where user_id=$1', [x])).rows[0].n, 0)
+      // The amount is locked at zero for every writer, not just this function.
+      await assert.rejects(pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1', [x]),
+        /reward_check/)
+      const view = await status(x)
+      assert.equal(view.login.claimed, true)
+      assert.equal(view.login.vote_reward, 0)
+      assert.equal(view.login.reward, undefined, 'the legacy reward key is gone from the payload')
+      assert.equal(view.earned_today, 0, 'earned_today counts quiz votes only')
+      assert.equal(view.login.streak, 1, 'the streak counter still works')
+      assert.equal(view.login.best_streak, 1)
+      assert.equal(view.login.total_days, 1)
+      assert.deepEqual(view.login.claimed_days, [today])
+      // A replay cannot credit anything either, and the calendar still answers.
+      assert.equal((await claim(x, today)).replayed, true)
+      assert.deepEqual(await wallet(x), before)
+      const month = (await as(x, 'select public.my_daily_checkin_month($1::date) as v', [today]))[0].v
+      assert.deepEqual(month.days, [today])
+      // Rerunning the corrective migration changes nothing.
+      await pool.query(noVoteMigration)
+      assert.deepEqual(await wallet(x), before)
+      assert.deepEqual((await status(x)).login.claimed_days, [today])
+    })
+
   } finally {
     if (pool) await pool.end()
     await Promise.all(closed)

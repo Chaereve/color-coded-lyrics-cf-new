@@ -163,6 +163,9 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         '20261114_daily_rewards_upgrade.sql']
       for (const m of baseMigrations) await pool.query(read(m))
       for (const part of [migration, poolMigration, flowMigration]) await pool.query(part)
+      // The corrective policy migration is append-only and runs last: a
+      // check-in awards no vote, the quiz is the only vote path.
+      await pool.query(read('20261118_daily_login_no_votes.sql'))
 
       const as = async (uid, sql, values = [], role = 'authenticated') => {
         const db = await pool.connect()
@@ -645,6 +648,67 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         assert.equal((await status(u)).quiz.state, 'retired')
         await reset()
       })
+      await t.test('a check-in awards no vote: it cannot add to, stack with or bypass the quiz cap', async () => {
+        await seedPool()
+        const u = await user()
+        const walletOf = async () => (await pool.query('select vote_credits, bonus_credits from public.profiles where id=$1', [u])).rows[0]
+        const before = await walletOf()
+        const claimed = JSON.parse(await run(u, `public.claim_daily_login($1,$2)::text`, [u, await today()]))
+        assert.equal(claimed.reward, 0)
+        assert.equal(claimed.votes_awarded, 0)
+        assert.equal(claimed.replayed, false)
+        assert.deepEqual(await walletOf(), before, 'a check-in never changes a vote balance')
+        const ledger = await pool.query('select * from public.daily_login_rewards where user_id=$1', [u])
+        assert.equal(ledger.rows.length, 1, 'the day is still recorded: history is preserved')
+        assert.equal(ledger.rows[0].reward, 0, 'the row records presence, never a reward')
+        const quizRows = await pool.query('select count(*)::int as n from public.daily_quiz_answers where user_id=$1', [u])
+        assert.equal(quizRows.rows[0].n, 0, 'a check-in creates no vote-ledger entry')
+        // The amount column can no longer hold a vote at all, for anyone.
+        await assert.rejects(pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1', [u]),
+          /reward_check/)
+        await assert.rejects(pool.query(
+          'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [u, day]),
+          /reward_check/)
+        // Check-in + five correct answers = five votes, never seven.
+        const round = await start(u)
+        let votes = 0
+        for (const q of round.status.quiz.questions) {
+          const r = await answer(u, round.attempt_id, q.id, 'opt-a')
+          assert.equal(r.correct, true)
+          votes += r.awarded
+          assert.equal(r.votes_awarded, votes)
+        }
+        assert.equal(votes, 5)
+        assert.equal(await bonus(u), 5, 'check-in (0) + five correct answers = five votes')
+        // A sixth vote cannot be awarded, however it is attempted: the stored
+        // result of that question comes back and no credit moves.
+        const sixth = await answer(u, round.attempt_id, round.status.quiz.questions[0].id, 'opt-a')
+        assert.equal(sixth.replayed, true)
+        assert.equal(sixth.awarded, 1, 'the award stored for THIS question, not a new one')
+        assert.equal(sixth.votes_awarded, 5)
+        assert.equal(await bonus(u), 5)
+        const awardedRows = await pool.query(
+          'select count(*)::int as n from public.daily_quiz_answers where user_id=$1 and awarded=1', [u])
+        assert.equal(awardedRows.rows[0].n, 5, 'five awarded rows for the day, never six')
+        const view = await status(u)
+        assert.equal(view.login.claimed, true)
+        assert.equal(view.login.vote_reward, 0)
+        assert.equal(view.login.reward, undefined, 'the legacy reward key is gone from the payload')
+        assert.equal(view.earned_today, 5, 'earned_today counts quiz votes only')
+        assert.equal(view.quiz.votes_awarded, 5)
+        assert.equal(view.login.streak, 1)
+        assert.equal(view.login.total_days, 1)
+        assert.deepEqual(view.login.claimed_days, [day])
+        // Disabled free votes are still not granted.
+        const grant = (await as(null, 'select public.daily_free_vote_grant($1,$2) as v', [u, day], 'postgres'))[0].v
+        assert.equal(grant, 0)
+        // Calendar browsing and month history survive the policy change.
+        const month = JSON.parse(await run(u, `public.my_daily_checkin_month($1::date)::text`, [day]))
+        assert.equal(month.month, day.slice(0, 7))
+        assert.deepEqual(month.days, [day])
+        await reset()
+      })
+
     } finally {
       await pool?.end()
       await Promise.allSettled(ended)
