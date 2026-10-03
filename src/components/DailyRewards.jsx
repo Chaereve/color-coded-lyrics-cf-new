@@ -5,7 +5,7 @@ import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { hasSupabase, fetchDailyRewardsStatus, claimDailyLogin, startDailyQuiz,
   submitDailyQuizAnswer, fetchCheckInMonth } from '../lib/db'
 import {
-  DAILY_LOGIN_REWARD, DAILY_QUIZ_QUESTIONS, QUIZ_CORRECT_REWARD, MAX_DAILY_QUIZ_VOTES,
+  DAILY_QUIZ_QUESTIONS, QUIZ_CORRECT_REWARD, MAX_DAILY_QUIZ_VOTES,
   DAILY_REWARDS_SYNC_KEY, readQuizDraft, saveQuizDraft, announceDailyRewardsChange,
   orderedOptions,
 } from '../lib/dailyRewards.js'
@@ -117,7 +117,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
       // the parent also verifies user_id, so account changes cannot leak it.
       if (!mounted.current) { onBalance(data.status); return }
       applyStatus(data.status)
-      if (actionKind === 'claim') setNotice(t(data.replayed ? 'daily.alreadyClaimed' : 'daily.claimSuccess', { n: data.reward }))
+      if (actionKind === 'claim') setNotice(t(data.replayed ? 'daily.alreadyClaimed' : 'daily.claimSuccess'))
       if (actionKind === 'answer') {
         // The server decides: the toast reports what was actually awarded.
         setNotice(t(data.replayed ? 'daily.answerLocked'
@@ -200,7 +200,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
       <header className="daily-rewards-head">
         <div>
           <h2 id={titleId}>{t(isQuiz ? 'daily.quizHeading' : 'daily.loginHeading')}</h2>
-          <p>{t(isQuiz ? 'daily.quizSubtitle' : 'daily.loginSubtitle', { n: isQuiz ? MAX_DAILY_QUIZ_VOTES : DAILY_LOGIN_REWARD })}</p>
+          <p>{isQuiz ? t('daily.quizSubtitle', { n: MAX_DAILY_QUIZ_VOTES }) : t('daily.loginSubtitle')}</p>
         </div>
         <div className="daily-rewards-reset" title={t('daily.resetRule')}>
           <span>{t('daily.nextReset')}</span>
@@ -217,9 +217,8 @@ export default function DailyRewards({ kind, userId, onBalance }) {
           <div className="daily-mission-heading">
             <span className="daily-mission-icon"><Icon name="calendar" size={21} /></span>
             <h3>{t('daily.loginTitle')}</h3>
-            <b className="daily-reward-tag">+{DAILY_LOGIN_REWARD}</b>
           </div>
-          <p>{t(status?.login.claimed ? 'daily.loginDone' : 'daily.loginDesc', { n: DAILY_LOGIN_REWARD })}</p>
+          <p>{t(status?.login.claimed ? 'daily.loginDone' : 'daily.loginDesc')}</p>
           {status && <DailyLoginCalendar status={status} disabled={disabled} onClaim={() => run('claim')} loadMonth={loadMonth} />}
           <button type="button" className={`btn${status?.login.claimed ? ' btn-ok' : ' btn-primary'} daily-claim`}
             disabled={disabled || status?.login.claimed} onClick={() => run('claim')}>
@@ -334,8 +333,10 @@ export default function DailyRewards({ kind, userId, onBalance }) {
         <p className="daily-quiz-next">{t('daily.nextQuizIn', { time: deadline === null ? '--:--:--' : spinCountdown(deadline - clock) })}</p>
       </div>}
       <footer className="daily-rewards-foot">
-        <span>{status ? t(isQuiz ? 'daily.quizEarned' : 'daily.loginEarned', { n: isQuiz ? votesToday : status.login.claimed ? DAILY_LOGIN_REWARD : 0 }) : t('daily.resetRule')}</span>
-        <span>{t('daily.bonusRule')}</span>
+        <span>{!status ? t('daily.resetRule')
+          : isQuiz ? t('daily.quizEarned', { n: votesToday })
+            : t(status.login.claimed ? 'daily.checkedInToday' : 'daily.notCheckedIn')}</span>
+        <span>{t(isQuiz ? 'daily.bonusRule' : 'daily.loginNoVotes')}</span>
       </footer>
     </section>
   )

@@ -31,15 +31,36 @@ test('daily status uses Vietnam midnight and keeps purchased and bonus balances 
   assert.equal(validateDailyRewardsStatus(data.status, 'user-a'), data.status)
 })
 
-test('daily login adds exactly two bonus votes and retries never re-credit', () => {
+test('daily login awards no votes at all and retries never re-credit', () => {
   const claim = demoDailyRewards({ ...initial(), action: 'claim', expectedDay: '2026-10-03' })
-  assert.equal(claim.profile.vote_credits, 7)
-  assert.equal(claim.profile.bonus_credits, 6)
-  assert.equal(claim.data.status.earned_today, 2)
+  assert.equal(claim.profile.vote_credits, 7, 'purchased votes are never touched')
+  assert.equal(claim.profile.bonus_credits, 4, 'a check-in leaves the vote wallet untouched')
+  assert.equal(claim.data.reward, 0)
+  assert.equal(claim.data.status.login.vote_reward, 0)
+  assert.equal(claim.data.status.earned_today, 0)
+  assert.equal(claim.data.status.login.claimed, true)
+  assert.equal(claim.data.status.login.claimed_days.length, 1)
+  assert.equal(claim.data.status.login.total_days, 1)
+  assert.equal(claim.data.status.login.streak, 1, 'the streak still advances')
+  assert.equal(claim.data.status.login.best_streak, 1)
+  assert.equal(validateDailyRewardsStatus(claim.data.status, 'user-a'), claim.data.status)
   const repeat = advance(claim, { action: 'claim', expectedDay: '2026-10-03' })
   assert.equal(repeat.data.replayed, true)
-  assert.equal(repeat.profile.bonus_credits, 6)
+  assert.equal(repeat.profile.bonus_credits, 4)
   assert.equal(repeat.entries.logins.length, 1)
+})
+
+test('a check-in plus five correct quiz answers is exactly five votes, never seven', () => {
+  const claimed = demoDailyRewards({ ...initial(), action: 'claim', expectedDay: '2026-10-03' })
+  const started = advance(claimed, { action: 'start', expectedDay: '2026-10-03', newId: () => 'quiz-1' })
+  const done = answerAll(started, { correct: 5 })
+  assert.equal(done.profile.bonus_credits, 9, '4 + 5 quiz votes and nothing from the check-in')
+  assert.equal(done.data.status.quiz.votes_awarded, 5)
+  assert.equal(done.data.status.earned_today, 5)
+  assert.equal(done.data.status.login.vote_reward, 0)
+  assert.equal(done.data.status.login.claimed, true)
+  assert.equal(done.data.status.login.streak, 1)
+  assert.equal(validateDailyRewardsStatus(done.data.status, 'user-a'), done.data.status)
 })
 
 test('claim date is a stale-click guard, never a way to claim past or future rewards', () => {
@@ -49,10 +70,12 @@ test('claim date is a stale-click guard, never a way to claim past or future rew
   const claim = demoDailyRewards({ ...initial(), action: 'claim', expectedDay: '2026-10-03' })
   const midnight = now + 60_000
   const replay = advance(claim, { action: 'claim', expectedDay: '2026-10-03', now: midnight })
-  assert.equal(replay.profile.bonus_credits, 6)
-  assert.equal(replay.data.status.login.claimed, false, 'a midnight retry does not collect tomorrow’s reward')
+  assert.equal(replay.profile.bonus_credits, 4)
+  assert.equal(replay.data.status.login.claimed, false, 'a midnight retry does not check in for tomorrow')
   const tomorrow = advance(replay, { action: 'claim', expectedDay: '2026-10-04', now: midnight })
-  assert.equal(tomorrow.profile.bonus_credits, 8)
+  assert.equal(tomorrow.profile.bonus_credits, 4, 'a second day of check-ins still awards no votes')
+  assert.equal(tomorrow.data.status.login.streak, 2)
+  assert.equal(tomorrow.data.status.login.total_days, 2)
 })
 
 test('starting and refreshing a quiz returns one persistent set of five, without answers', () => {
@@ -158,6 +181,13 @@ test('malformed answers and tampered statuses never reach the UI as rewards', ()
   assert.throws(() => validateDailyRewardsStatus({ ...status, bonus: 999 }, 'user-a'), /err.dailyResponse/)
   assert.throws(() => validateDailyRewardsStatus({ ...status, server_now: 'broken' }, 'user-a'), /err.dailyResponse/)
   assert.throws(() => validateDailyRewardsStatus({ ...status, earned_today: 5 }, 'user-a'), /err.dailyResponse/)
+  // An un-migrated server still answers reward = 2 for a check-in: refuse it
+  // instead of rendering free votes on top of the quiz cap.
+  assert.throws(() => validateDailyRewardsStatus({ ...status, login: { ...status.login, reward: 2 } }, 'user-a'),
+    /err.dailyResponse/)
+  assert.throws(() => validateDailyRewardsStatus({ ...status, login: { ...status.login, vote_reward: 2 } }, 'user-a'),
+    /err.dailyResponse/)
+  assert.equal(validateDailyRewardsStatus({ ...status, login: { ...status.login, vote_reward: 0 } }, 'user-a').login.claimed, false)
 
   const started = startRound()
   // An answer leaked before submission is rejected, not rendered.

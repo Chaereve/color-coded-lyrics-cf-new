@@ -3,7 +3,12 @@
    browser constants. */
 import { isCalendarDay, isCalendarMonth } from './checkInCalendar.js'
 
-export const DAILY_LOGIN_REWARD = 2
+/* Product policy: a check-in is presence only. It awards no votes, no points
+   and no other currency — the K-pop quiz is the single vote-awarding path
+   (1 correct answer = 1 vote, hard ceiling 5 a day). The constant stays
+   explicit so a server that still promises a check-in reward is rejected
+   instead of being rendered as free votes. */
+export const DAILY_LOGIN_REWARD = 0
 export const DAILY_QUIZ_QUESTIONS = 5
 export const QUIZ_CORRECT_REWARD = 1
 /* The ceiling is a product rule, not a UI hint: the server enforces the same
@@ -119,7 +124,13 @@ export function validateDailyRewardsStatus(status, userId) {
       || !Number.isFinite(Date.parse(status.server_now)) || !Number.isFinite(Date.parse(status.reset_at))
       || ![status.credits, status.purchased, status.bonus, status.earned_today].every(natural)
       || status.credits !== status.purchased + status.bonus
-      || typeof status.login?.claimed !== 'boolean' || status.login.reward !== DAILY_LOGIN_REWARD) bad()
+      || typeof status.login?.claimed !== 'boolean') bad()
+  // A check-in may never carry a vote amount. `vote_reward` is the migrated
+  // name; `reward` is the legacy one an un-migrated server still sends as 2
+  // — whichever key arrives, the only acceptable value is 0.
+  for (const key of ['vote_reward', 'reward']) {
+    if (status.login[key] !== undefined && status.login[key] !== DAILY_LOGIN_REWARD) bad()
+  }
   // Optional on older installations, strict when present. No fabricated
   // history: only real, ordered, owner-scoped dates in the server's month.
   if ('claimed_days' in status.login) {
@@ -142,8 +153,8 @@ export function validateDailyRewardsStatus(status, userId) {
     if (login.total_days < monthDays) bad()
   }
   validateQuizState(status.quiz, status)
-  if (status.earned_today !== (status.login.claimed ? DAILY_LOGIN_REWARD : 0)
-      + (status.quiz?.votes_awarded || 0)) bad()
+  // Votes earned today come from the quiz alone: a check-in adds nothing.
+  if (status.earned_today !== (status.quiz?.votes_awarded || 0)) bad()
   return status
 }
 

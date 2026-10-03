@@ -69,7 +69,7 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
     await mount('login')
     await waitFor(() => query('.daily-claim') && !query('.daily-claim').disabled)
 
-    await t.test('daily login shows only check-in and credits the shared bonus wallet once', async () => {
+    await t.test('daily login shows only the check-in calendar and never credits the vote wallet', async () => {
       assert.ok(query('.daily-login-page'))
       assert.equal(query('.daily-quiz-start'), null)
       assert.equal(query('.daily-quiz'), null)
@@ -81,7 +81,8 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(container.querySelectorAll('.check-in-calendar-grid button').length, 1,
         'only today is actionable in the calendar grid')
       assert.equal(query('.check-in-day.is-today').getAttribute('aria-current'), 'date')
-      assert.match(query('.check-in-day.is-today').getAttribute('aria-label'), /Check in to claim \+2/)
+      assert.match(query('.check-in-day.is-today').getAttribute('aria-label'), /check in today/)
+      assert.doesNotMatch(query('.check-in-day.is-today').getAttribute('aria-label'), /\+|vote|reward/i)
       assert.match(query('.check-in-calendar-head > span').textContent, /0 check-ins/)
       assert.equal(query('.check-in-calendar-unavailable'), null)
       assert.equal(container.querySelectorAll('.check-in-stat').length, 4)
@@ -92,19 +93,25 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(container.querySelectorAll('.check-in-nav')[1].disabled, true)
       const button = query('.check-in-day.is-today')
       await act(async () => { button.click(); query('.daily-claim').click() })
-      await waitFor(() => /Claimed today/.test(query('.daily-claim').textContent))
+      await waitFor(() => /Checked in today/.test(query('.daily-claim').textContent))
       assert.equal(query('.daily-claim').disabled, true)
-      assert.equal(balances.at(-1).bonus, 6)
+      assert.equal(balances.at(-1).bonus, 4, 'a check-in awards no votes at all')
       assert.equal(balances.at(-1).purchased, 7)
       assert.equal(ledger().logins.length, 1)
       assert.equal(query('.check-in-day.is-today').disabled, true)
       assert.ok(query('.check-in-day.is-today').classList.contains('is-checked'))
       assert.equal(container.querySelectorAll('.check-in-day.is-checked').length, 1)
-      assert.match(query('.check-in-calendar-head > span').textContent, /1 check-in.*\+2/)
+      assert.match(query('.check-in-calendar-head > span').textContent, /^1 check-in this month$/)
+      assert.doesNotMatch(query('.check-in-calendar').textContent, /\+\s*\d|bonus votes|reward/i,
+        'the calendar never promises a vote, a point or a reward')
       assert.deepEqual([...container.querySelectorAll('.check-in-stat b')].map(n => n.textContent), ['1/31', '1', '1', '1'])
       assert.ok(query('.check-in-calendar').classList.contains('is-celebrating'))
-      assert.match(query('.daily-notice').textContent, /\+2 bonus votes/)
-      assert.match(query('.daily-rewards-foot').textContent, /Today’s check-in: \+2/)
+      assert.match(query('.daily-notice').textContent, /Checked in for today/)
+      assert.doesNotMatch(query('.daily-notice').textContent, /\+\s*\d|bonus votes/i)
+      assert.match(query('.daily-rewards-foot').textContent, /Checked in today/)
+      assert.match(query('.daily-rewards-foot').textContent, /Check-ins never award votes/)
+      assert.doesNotMatch(query('.daily-login-page').textContent, /\+2|bonus votes/i,
+        'no screen of the check-in flow may imply a vote reward')
     })
 
     let quiz
@@ -176,7 +183,7 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(query('.daily-quiz'), null)
       assert.equal(query('.daily-quiz-review'), null)
       assert.ok(query('.check-in-day.is-today.is-checked'))
-      assert.match(query('.daily-rewards-foot').textContent, /Today’s check-in: \+2/)
+      assert.match(query('.daily-rewards-foot').textContent, /Checked in today/)
       await render('quiz')
       await waitFor(() => query('.daily-quiz'))
       // Question 1 is already locked in, so the round resumes on question 2.
@@ -230,13 +237,13 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.match(container.textContent, /4\/5 correct/)
       assert.match(container.textContent, /Today’s quiz: \+4 bonus votes/)
       assert.match(query('.daily-quiz-review').textContent, /Correct answer:/)
-      assert.equal(balances.at(-1).bonus, 10)
+      assert.equal(balances.at(-1).bonus, 8, 'four correct answers on top of an untouched wallet')
       assert.equal(balances.at(-1).purchased, 7)
       await unmount()
       await mount('quiz')
       await waitFor(() => query('.daily-quiz-review'))
       assert.match(container.textContent, /4\/5 correct/)
-      assert.equal(balances.at(-1).bonus, 10)
+      assert.equal(balances.at(-1).bonus, 8)
       await act(async () => { window.dispatchEvent(new window.Event('focus')) })
       assert.equal(ledger().quizzes.length, 1)
     })
@@ -247,12 +254,12 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(query('.daily-rewards'), null)
       assert.equal(query('.daily-claim'), null)
       assert.equal(query('.daily-quiz-start'), null)
-      assert.match(query('.spin-bonus b').textContent, /^10votes$/)
+      assert.match(query('.spin-bonus b').textContent, /^8votes$/)
       assert.match(query('.spin-purchased b').textContent, /^7votes$/)
       await render('login')
       await waitFor(() => query('.daily-claim')?.disabled)
       assert.equal(query('.daily-quiz-review'), null)
-      assert.match(query('.daily-rewards-foot').textContent, /Today’s check-in: \+2/)
+      assert.match(query('.daily-rewards-foot').textContent, /Checked in today/)
       assert.equal(ledger().logins.length, 1)
     })
 
@@ -310,7 +317,7 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       const day = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
       const status = { user_id: 'other-user', day, server_now: new Date().toISOString(),
         reset_at: new Date(Date.now() + 3600_000).toISOString(), purchased: 0, bonus: 0, credits: 0,
-        login: { claimed: false, reward: 2 }, earned_today: 0,
+        login: { claimed: false, vote_reward: 0 }, earned_today: 0,
         quiz: { state: 'ready', question_count: 5, max_votes: 5 } }
       liveClient.rpc = (name, args) => ({ abortSignal: async () => {
         calls.push({ name, args })

@@ -62,7 +62,7 @@ test('demo calendar history is current-month, sorted, distinct and derived from 
   assert.deepEqual(before.data.status.login.claimed_days, ['2026-10-01', '2026-10-02'])
   const claim = demoDailyRewards({ ...initial, action: 'claim', expectedDay: '2026-10-03' })
   assert.deepEqual(claim.data.status.login.claimed_days, ['2026-10-01', '2026-10-02', '2026-10-03'])
-  assert.equal(claim.profile.bonus_credits, 6)
+  assert.equal(claim.profile.bonus_credits, 4, 'a check-in records the day, never a vote')
   validateDailyRewardsStatus(claim.data.status, initial.userId)
   const midnight = demoDailyRewards({ ...initial, entries: claim.entries, profile: claim.profile, now: now + 2000 })
   assert.equal(midnight.data.status.day, '2026-10-04')
@@ -70,7 +70,7 @@ test('demo calendar history is current-month, sorted, distinct and derived from 
   assert.equal(newMonth.data.status.day, '2026-11-01')
   assert.deepEqual(newMonth.data.status.login.claimed_days, [])
   assert.equal(buildCheckInCalendar(newMonth.data.status).monthLabel, 'November 2026')
-  assert.equal(newMonth.profile.bonus_credits, 6, 'a month boundary does not reset or award wallet credits')
+  assert.equal(newMonth.profile.bonus_credits, 4, 'a month boundary does not reset or award wallet credits')
   const other = demoDailyRewards({ userId: 'other-user', profile: { vote_credits: 0, bonus_credits: 0 }, now })
   assert.deepEqual(other.data.status.login.claimed_days, [])
 })
@@ -82,7 +82,12 @@ test('malformed, future, duplicate or foreign-month history is rejected, while o
   }
   assert.throws(() => validateDailyRewardsStatus({ ...original, login: { claimed: true, reward: 2, claimed_days: [] } }, 'u'), /err.dailyResponse/)
   for (const day of ['2026-02-30', '2025-02-29']) assert.throws(() => validateDailyRewardsStatus({ ...original, day }, 'u'), /err.dailyResponse/)
-  const old = { ...original, login: { claimed: false, reward: 2 } }
+  // A server that still promises a +2 check-in reward is refused outright —
+  // free votes on top of the quiz cap must never render.
+  assert.throws(() => validateDailyRewardsStatus({ ...original, login: { claimed: false, reward: 2 } }, 'u'),
+    /err.dailyResponse/)
+  // A payload that carries no check-in amount at all stays compatible.
+  const old = { ...original, login: { claimed: false } }
   assert.equal(validateDailyRewardsStatus(old, 'u'), old)
 })
 

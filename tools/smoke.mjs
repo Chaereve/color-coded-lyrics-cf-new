@@ -2186,6 +2186,69 @@ realLog('\n── daily quiz ──')
     && chunks.map((f) => rd(`../supabase/setup/${f}`)).every((body) => schemaSql.includes(body)))
 }
 
+/* ---------- 10c. daily login: điểm danh KHÔNG thưởng vote ---------- */
+where = 'daily login'
+realLog('\n── daily login ──')
+{
+  const { readFileSync: rf2 } = await import('node:fs')
+  const rd = (rel) => rf2(new URL(rel, import.meta.url), 'utf8')
+  const schemaSql = rd('../supabase/schema.sql')
+  const fix = rd('../supabase/migrations/20261118_daily_login_no_votes.sql')
+  const first = rd('../supabase/migrations/20261112_daily_rewards.sql')
+
+  check('daily login: migration sửa lỗi nằm nguyên văn trong schema.sql và là file MỚI, không sửa file cũ',
+    schemaSql.includes(fix)
+    && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(fix)
+    && /bonus_credits = bonus_credits \+ v_claim\.reward/.test(first),
+    '20261112 giữ nguyên lịch sử; 20261118 là bản sửa chạy sau cùng')
+
+  check('daily login: điểm danh không đụng tới bất kỳ số dư vote nào',
+    (() => {
+      const body = fix.slice(fix.indexOf('create or replace function public.claim_daily_login')).split('end $$;')[0]
+      return !/bonus_credits|vote_credits|free_vote/.test(body)
+        && /insert into public\.daily_login_rewards/.test(body)
+        && /'reward', 0/.test(body)
+    })())
+
+  check('daily login: cột reward khoá ở 0, lịch sử điểm danh được giữ nguyên',
+    /update public\.daily_login_rewards set reward = 0 where reward <> 0/.test(fix)
+    && /add constraint daily_login_rewards_reward_check check \(reward = 0\)/.test(fix)
+    && !/drop table|truncate|delete from public\.daily_login_rewards/.test(fix))
+
+  check('daily login: payload không còn hứa thưởng vote, earned_today chỉ tính quiz',
+    /'vote_reward', 0/.test(fix) && !/'reward', 2/.test(fix)
+    && /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/.test(fix)
+    && !/coalesce\(l\.reward, 0\)/.test(fix))
+
+  check('daily login: không thêm cột, tiền tệ, XP hay ledger thưởng mới',
+    !/add column/.test(fix) && !/create table/.test(fix) && !/\bxp\b|badge|points/i.test(fix))
+
+  check('daily login: giao diện bỏ hẳn "+2" và mọi chữ gợi ý điểm danh có thưởng',
+    (() => {
+      const lib = rd('../src/lib/dailyRewards.js')
+      const screen = rd('../src/components/DailyRewards.jsx')
+      const calendar = rd('../src/components/DailyLoginCalendar.jsx')
+      const dict = rd('../src/lib/i18n.jsx')
+      return /DAILY_LOGIN_REWARD = 0/.test(lib)
+        && !/\+\$\{?DAILY_LOGIN_REWARD/.test(screen + calendar)
+        && !/DAILY_LOGIN_REWARD/.test(screen + calendar)
+        && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*\+/.test(dict)
+        && !/'calendar\.(rule|claimDay|monthSummary|monthSummaryOne|historyUnavailable)':[^']*\+/.test(dict)
+    })())
+
+  check('daily login: bản demo offline cũng không cộng vote khi điểm danh',
+    (() => {
+      const demo = rd('../src/lib/dailyRewardsDemo.js')
+      return !/bonus_credits \+= DAILY_LOGIN_REWARD/.test(demo)
+        && /vote_reward: DAILY_LOGIN_REWARD/.test(demo)
+        && !/\(claimed \? DAILY_LOGIN_REWARD : 0\)/.test(demo)
+    })())
+
+  check('daily login: file cài tay có bản cắt của phần sửa lỗi',
+    rd('../supabase/setup/15-daily-login-no-votes.sql').length > 1000
+    && schemaSql.includes(rd('../supabase/setup/15-daily-login-no-votes.sql')))
+}
+
 /* ---------- 11. kết luận ---------- */
 where = 'kết thúc'
 const runtime = problems.filter(p => p.kind !== 'warn')

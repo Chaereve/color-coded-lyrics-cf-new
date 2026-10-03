@@ -148,8 +148,9 @@ export function demoDailyRewards({ entries = { logins: [], quizzes: [] }, profil
     replayed = entries.logins.some(l => l.day === expectedDay)
     if (!replayed) {
       if (expectedDay !== day) throw new Error('err.dailyDayChanged')
+      // A check-in records the day only: no bonus votes, no free votes,
+      // nothing that can be stacked with the quiz cap.
       entries.logins.push({ day, created_at: at })
-      profile.bonus_credits += DAILY_LOGIN_REWARD
     }
     reward = DAILY_LOGIN_REWARD
   } else if (action === 'start') {
@@ -195,9 +196,9 @@ export function demoDailyRewards({ entries = { logins: [], quizzes: [] }, profil
     user_id: userId, day, server_now: at, reset_at: nextSpinReset(now),
     purchased: profile.vote_credits || 0, bonus: profile.bonus_credits || 0,
     credits: (profile.vote_credits || 0) + (profile.bonus_credits || 0),
-    login: { claimed, reward: DAILY_LOGIN_REWARD, claimed_days: claimedDays,
+    login: { claimed, vote_reward: DAILY_LOGIN_REWARD, claimed_days: claimedDays,
       total_days: stats.total, first_day: stats.first, streak: stats.streak, best_streak: stats.best },
-    earned_today: (claimed ? DAILY_LOGIN_REWARD : 0) + (quiz?.questions.reduce((sum, q) => sum + (q.awarded || 0), 0) || 0),
+    earned_today: quiz?.questions.reduce((sum, q) => sum + (q.awarded || 0), 0) || 0,
     quiz: quizState(quiz),
   }
   return { entries, profile, data: { status, replayed, reward, score } }

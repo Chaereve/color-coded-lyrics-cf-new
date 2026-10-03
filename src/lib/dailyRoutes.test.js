@@ -50,5 +50,9 @@ test('login and quiz render only their own controls, results and earned totals',
   assert.match(component, /<DailyLoginCalendar status=\{status\} disabled=\{disabled\} onClaim=/)
   assert.doesNotMatch(component, /status\.earned_today|daily\.subtitle|daily\.title|daily\.earned'/)
   assert.match(component, /daily\.quizEarned/)
-  assert.match(component, /daily\.loginEarned/)
+  // The check-in page reports its own state and never a vote amount:
+  // the quiz is the only screen that may show a reward.
+  assert.match(component, /daily\.checkedInToday/)
+  assert.match(component, /daily\.loginNoVotes/)
+  assert.doesNotMatch(component, /daily\.loginEarned|DAILY_LOGIN_REWARD/)
 })

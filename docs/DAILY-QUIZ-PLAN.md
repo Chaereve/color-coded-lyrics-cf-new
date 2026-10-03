@@ -1,7 +1,9 @@
 # Daily Quiz — 5-question / +5 vote plan
 
 Status: **implemented.** Migrations `20261115`–`20261117` and the five-question
-screen are in place; see §13 for what shipped and what is still blocked.
+screen are in place, and `20261118` removed the +2 check-in reward so the
+quiz is the only vote source (max 5 votes/day). See §13 for what shipped
+and what is still blocked.
 This document was the output of Phase 2 (inspection + planning). Phase 1
 (HTTP status schema migration) is finished and green; see §1–§3.
 
@@ -19,6 +21,9 @@ Product rules as shipped:
 - The automatic 3-free-votes/day grant is retired (`free_vote_grant_enabled =
   false`), so quiz votes cannot stack with it; the switch is kept in
   `public.daily_quiz_config`.
+- **Daily login awards nothing.** The calendar, streak, best streak,
+  lifetime count and monthly progress stay; the +2 votes are gone
+  (`20261118`). A check-in + five correct answers = 5 votes, never 7.
 
 Product rule this plan implements:
 
@@ -791,6 +796,7 @@ Questions for the user
 | Strings | `src/lib/i18n.jsx` |
 | Static smoke checks | `tools/smoke.mjs` (section "daily quiz") |
 | Documentation | `docs/DAILY-REWARDS.md`, this file |
+| Corrective migration: check-in awards no vote | `supabase/migrations/20261118_daily_login_no_votes.sql`, `supabase/setup/15-daily-login-no-votes.sql` |
 
 ### Still open
 
@@ -804,6 +810,9 @@ Questions for the user
    not an automatic grandfathering.
 3. **Hard questions** stay disabled until the validated hard pool reaches
    `min_hard_pool_to_enable` (30).
-4. **Robots `Allow` precedence and 429/5xx retry** in the validator are still
+4. **Nothing else may award votes.** `20261118` removed the +2 check-in
+   reward, so a check-in plus five correct answers is 5 votes, never 7. Any
+   future reward source needs its own migration, config flag and cap test.
+5. **Robots `Allow` precedence and 429/5xx retry** in the validator are still
    unresolved (see §3) — they affect how fast the bank can be validated, not how
    the quiz behaves.

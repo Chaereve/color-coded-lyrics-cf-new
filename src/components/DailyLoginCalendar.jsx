@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
-import { DAILY_LOGIN_REWARD } from '../lib/dailyRewards.js'
 import {
   buildCheckInCalendar, shiftMonth, monthOf, isCalendarMonth, isCalendarDay, CHECK_IN_MILESTONES,
 } from '../lib/checkInCalendar.js'
@@ -72,7 +71,7 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
       </div>
       <span>
         {monthCount === null ? t('calendar.unknown')
-          : t(monthCount === 1 ? 'calendar.monthSummaryOne' : 'calendar.monthSummary', { n: monthCount, reward: monthCount * DAILY_LOGIN_REWARD })}
+          : t(monthCount === 1 ? 'calendar.monthSummaryOne' : 'calendar.monthSummary', { n: monthCount })}
       </span>
     </div>
     <div className="check-in-stats" aria-label={t('calendar.stats')}>
@@ -108,11 +107,11 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         const className = `check-in-day is-${cell.state}${cell.isToday ? ' is-today' : ''}`
         const content = <><time dateTime={cell.day}>{cell.number}</time>
           <span className="check-in-day-mark" aria-hidden="true">
-            {cell.state === 'checked' ? <Icon name="check" size={14} /> : cell.isToday ? `+${DAILY_LOGIN_REWARD}` : cell.state === 'missed' ? '—' : '·'}
+            {cell.state === 'checked' ? <Icon name="check" size={14} /> : cell.isToday ? <Icon name="calendar" size={13} /> : cell.state === 'missed' ? '—' : '·'}
           </span></>
         return <td key={cell.day} title={label}>{cell.isToday && isCurrent
           ? <button type="button" className={className} data-day={cell.day} aria-current="date"
-            aria-label={cell.state === 'checked' ? label : t('calendar.claimDay', { day: cell.label, n: DAILY_LOGIN_REWARD })}
+            aria-label={cell.state === 'checked' ? label : t('calendar.claimDay', { day: cell.label })}
             disabled={disabled || cell.state === 'checked'} onClick={onClaim}>{content}</button>
           : <div className={className} data-day={cell.day} aria-label={label}>{content}</div>}
         </td>
