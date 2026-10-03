@@ -266,6 +266,17 @@ where = 'khách chưa đăng nhập'
     check('sidebar có mục About me để bấm', false, (q('.side-nav')?.textContent || '').slice(0, 80))
   }
 
+  for (const [label, route] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz']]) {
+    const item = q(`.side-item[href="${route}"]`)
+    check(`menu có mục ${label} riêng`, !!item)
+    if (item) {
+      await click(item)
+      await tick(180)
+      check(`${label} của khách có lời mời đăng nhập, không dựng nội dung riêng tư`,
+        !!q('.signin-panel') && !q('.daily-rewards') && !q('.daily-spin'))
+    }
+  }
+
   /* DAILY SPIN của khách: trước đây `{user && <DailySpin/>}` cho ra một trang
      trắng. Nay phải có chữ, lý do và một nút. */
   const spinItem = qa('.side-item').find(el => /Daily Spin/i.test(el.textContent || ''))
@@ -780,12 +791,30 @@ if (voteBtn) {
 }
 
 /* ---------- 8. các mục còn lại ---------- */
-for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
+for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
   where = name
   window.history.pushState({}, '', path)
   window.dispatchEvent(new window.Event('popstate'))
   await waitFor(() => !q('.splash') && text().length > 200)
   check(`${name} dựng được`, text().length > 200)
+  if (name === 'Daily login') {
+    await waitFor(() => !!q('.daily-login-page'))
+    await waitFor(() => !!q('.check-in-day.is-today'))
+    check('Daily login có lịch điểm danh 7 cột và chỉ ngày hôm nay bấm được',
+      qa('.check-in-calendar-grid th').length === 7 && qa('.check-in-calendar-grid button').length === 1
+      && !!q('.check-in-day[aria-current="date"]') && qa('.check-in-stat').length === 4
+      && qa('.check-in-nav').length === 2)
+    check('Daily login là trang riêng: chỉ có điểm danh',
+      !!q('.daily-claim') && !q('.daily-quiz-start') && !q('.daily-quiz') && !q('.daily-spin'))
+  }
+  if (name === 'Music quiz') {
+    await waitFor(() => !!q('.music-quiz-page'))
+    check('Music quiz là K-pop mức dễ, không dựng lịch điểm danh',
+      q('.daily-quiz-level')?.textContent === 'Easy' && /K-pop/.test(q('.music-quiz-page')?.textContent || '')
+      && /Lyrics hooks/.test(q('.music-quiz-page')?.textContent || '') && !q('.check-in-calendar'))
+    check('Music quiz là trang riêng: không có điểm danh hay vòng quay',
+      !!q('.daily-quiz-start') && !q('.daily-claim') && !q('.daily-spin'))
+  }
   if (name === 'Xếp hạng') {
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
     /* Câu luật KHÔNG còn vế "· ties go to …" (vòng 12) — vế đó vừa dài vừa lặp
@@ -828,6 +857,7 @@ for (const [name, path] of [['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ra
     }
   }
   if (name === 'Daily Spin') {
+    check('Daily Spin chỉ giữ vòng quay, không dồn daily login/quiz vào chung', !q('.daily-rewards'))
     /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là
        con số. Trước đây mỗi nhãn còn kèm "×9" nên mặt đĩa đọc như bảng dữ liệu. */
     check('đĩa có 16 ô', qa('.spin-sector').length === 16, `${qa('.spin-sector').length} ô`)
@@ -1108,7 +1138,7 @@ const auditDom = (label) => {
     [...new Set(nested)].slice(0, 4).join(' | '))
 }
 
-for (const [label, path] of [['Trang chủ', '/'], ['Daily Spin', '/daily-spin'],
+for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'],
   ['Xếp hạng', '/ranking'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
   where = `rà soát DOM · ${label}`
   window.history.pushState({}, '', path)
@@ -1907,6 +1937,15 @@ where = 'bài trả phí'
     check('địa chỉ thôi nói về trang cá nhân vừa rời (F5 không mở lại nó)',
       !new URLSearchParams(window.location.search).has('profile'), window.location.search)
   }
+  for (const [label, route, selector] of [
+    ['Daily login', '/daily-login', '.daily-login-page'], ['Music quiz', '/quiz', '.music-quiz-page'],
+  ]) {
+    await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+    await click(q(`.side-nav .side-item[href="${route}"]`))
+    await waitFor(() => !!q(selector) && !q('.public-profile'), 3000)
+    check(`bấm ${label} từ trang cá nhân: chỉ dựng đúng MỘT trang`,
+      !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-rewards').length === 1)
+  }
   /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
   await goto('/', () => items().length > 0)
   check('quay lại bảng: danh sách có hàng và không còn trang nào khác',
@@ -2079,6 +2118,72 @@ where = 'click-path'
   /* Dọn trạng thái để phần kết luận không thừa hưởng danh sách/hộp đang mở. */
   await goto('/', () => items().length > 0)
   }
+}
+
+/* ---------- 10b. daily quiz: năm câu, năm phiếu, chỉ câu đã duyệt ---------- */
+where = 'daily quiz'
+realLog('\n── daily quiz ──')
+{
+  const { readFileSync: rf } = await import('node:fs')
+  const rd = (rel) => rf(new URL(rel, import.meta.url), 'utf8')
+  const schemaSql = rd('../supabase/schema.sql')
+  const quizFiles = ['20261115_daily_quiz_schema.sql', '20261116_daily_quiz_pool.sql',
+    '20261117_daily_quiz_flow.sql']
+  const quizSql = quizFiles.map((f) => rd(`../supabase/migrations/${f}`)).join('\n')
+
+  check('daily quiz: ba migration nằm nguyên văn trong schema.sql',
+    quizFiles.every((f) => schemaSql.includes(rd(`../supabase/migrations/${f}`))))
+  check('daily quiz: sổ câu trả lời có khoá (user_id, quiz_date, question_id)',
+    /primary key \(user_id, quiz_date, question_id\)/.test(quizSql))
+  check('daily quiz: đúng một lượt mỗi người mỗi ngày',
+    /unique index if not exists daily_quiz_attempts_user_quiz_date_idx/.test(quizSql))
+  check('daily quiz: trần 5 phiếu/ngày nằm trong ràng buộc',
+    /check \(max_votes between 1 and 5\)/.test(quizSql)
+    && /check \(votes_awarded between 0 and 5\)/.test(quizSql))
+  check('daily quiz: chỉ câu đã duyệt + nguồn đã đo mới được chọn',
+    /approval_status = 'approved'/.test(quizSql)
+    && /daily_eligibility_status = 'eligible'/.test(quizSql)
+    && /retirement_status = 'active'/.test(quizSql)
+    && /source_fact_match = 'pass'/.test(quizSql)
+    && /source_final_http_status = '200'/.test(quizSql)
+    && /source_last_checked > p_day -/.test(quizSql)
+    && /quality_score, 0\) >= public\.daily_quiz_int\('min_quality_score', 97\)/.test(quizSql))
+  check('daily quiz: câu khó khoá theo cờ, câu legacy không được grandfather',
+    /\('hard_question_enabled',\s+'false'\)/.test(quizSql)
+    && /min_hard_pool_to_enable/.test(quizSql)
+    && /approval_status\s+text not null default 'draft'/.test(quizSql)
+    && /daily_eligibility_status text not null default 'ineligible'/.test(quizSql))
+  check('daily quiz: nộp từng câu, thưởng có hạn mức, trùng lặp không trả tiền hai lần',
+    /submit_daily_quiz_answer\(/.test(quizSql)
+    && /on conflict \(user_id, quiz_date, question_id\) do nothing/.test(quizSql)
+    && /v_awarded := case when v_correct and v_votes < v_cap then 1 else 0 end/.test(quizSql))
+  check('daily quiz: đường nộp cũ không còn trả thưởng',
+    /raise exception 'err\.dailyQuizRetired'/.test(quizSql))
+  check('daily quiz: 3 phiếu miễn phí tự động đã tắt, nhưng vẫn là một công tắc',
+    /\('free_vote_grant_enabled',\s+'false'\)/.test(quizSql)
+    && /create or replace function public\.daily_free_vote_grant/.test(quizSql)
+    && /v_grant := public\.daily_free_vote_grant\(v_uid, v_day\)/.test(quizSql)
+    && /\('global_daily_vote_cap_enabled',\s+'false'\)/.test(quizSql))
+
+  const screen = rd('../src/components/DailyRewards.jsx')
+  const lib = rd('../src/lib/dailyRewards.js')
+  const beforeVerdict = screen.split('question.answered && <div')[0]
+  check('daily quiz: đáp án chỉ lộ sau khi nộp — phần hiển thị trước đó không đụng tới correct_option_id',
+    /question\.answered && <div className=\{`daily-quiz-verdict/.test(screen)
+    && !/correct_option_id/.test(beforeVerdict))
+  check('daily quiz: gửi option id ổn định, không gửi vị trí A/B/C/D',
+    /submitDailyQuizAnswer\(userId, status\.quiz\.attempt_id,[\s\S]{0,120}answers\[status\.quiz\.questions\[step\]\.id\]/.test(screen)
+    && /export function validateQuizAnswer\(questionId, optionId\)/.test(lib))
+  check('daily quiz: 5 câu, trần 5 phiếu, xáo thứ tự ở client',
+    /DAILY_QUIZ_QUESTIONS = 5/.test(lib) && /MAX_DAILY_QUIZ_VOTES = 5/.test(lib)
+    && /export function displayOrder\(/.test(lib) && /orderedOptions\(question, attemptId\)/.test(screen))
+  check('daily quiz: trạng thái "chưa có câu đủ điều kiện" là một màn hình, không phải lỗi',
+    /quizUnavailableTitle/.test(screen) && /quiz\?\.state === 'unavailable'/.test(screen))
+
+  const chunks = ['12-daily-quiz-schema.sql', '13-daily-quiz-pool.sql', '14-daily-quiz-flow.sql']
+  check('daily quiz: các file cài tay đã được cắt và ghép lại khớp schema',
+    chunks.every((f) => rd(`../supabase/setup/${f}`).length > 1000)
+    && chunks.map((f) => rd(`../supabase/setup/${f}`)).every((body) => schemaSql.includes(body)))
 }
 
 /* ---------- 11. kết luận ---------- */

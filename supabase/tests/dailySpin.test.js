@@ -402,6 +402,13 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
     await t.test('bonus works with existing free-vote priority, spending and refunds', async () => {
       const uid = await newUser(), token = await register(uid)
       const win = await spin(uid, token)
+      // The automatic 3-free-votes/day grant is retired by default: votes come
+      // from the Daily Quiz or from the wallet. The switch itself is what this
+      // subtest is about, so it is turned back on for the rest of the checks.
+      const retired = await as(uid, 'select * from public.my_vote_status()')
+      assert.equal(retired[0].free_limit, 0)
+      await pool.query("update public.daily_quiz_config set value = 'true' where key = 'free_vote_grant_enabled'")
+      assert.equal((await as(uid, 'select * from public.my_vote_status()'))[0].free_limit, 3)
       const request = randomUUID()
       await pool.query("insert into public.requests (id, user_id, artist, title, status) values ($1, $2, 'Artist', 'Song', 'queued')", [request, uid])
       await as(uid, 'select * from public.cast_vote($1, 3)', [request])
@@ -411,6 +418,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       await as(uid, 'select * from public.cast_vote($1, -1)', [request])
       assert.equal(await balance(uid), win.spin.reward)
       assert.equal((await status(uid, token)).device_used, 1) // refund is NOT a spin reset
+      await pool.query("update public.daily_quiz_config set value = 'false' where key = 'free_vote_grant_enabled'")
     })
 
     await t.test('RLS/privileges block direct credit, ledger, identity and helper access', async () => {
