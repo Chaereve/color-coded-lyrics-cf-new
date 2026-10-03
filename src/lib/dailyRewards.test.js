@@ -63,6 +63,9 @@ test('starting and refreshing a quiz returns one persistent set of five, without
   assert.equal(started.profile.bonus_credits, 4)
   assert.equal(quiz.state, 'in_progress')
   assert.equal(quiz.votes_awarded, 0)
+  // Launch mix, offline as well as on the server.
+  const mix = quiz.questions.reduce((acc, q) => ({ ...acc, [q.difficulty]: (acc[q.difficulty] || 0) + 1 }), {})
+  assert.deepEqual(mix, { easy: 2, medium: 3 })
   assert.equal(quiz.max_votes, MAX_DAILY_QUIZ_VOTES)
   for (const q of quiz.questions) {
     assert.equal('correct_option_id' in q, false)

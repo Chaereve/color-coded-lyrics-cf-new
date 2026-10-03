@@ -70,21 +70,27 @@ const shuffle = (pool, random) => {
   return copy
 }
 
-// Same rules as the server: five questions, at most two per artist, at least
-// three distinct artists, and no question the player saw in the last 90 days
-// while the bank can still supply alternatives.
+/* Same rules as the server: five questions in the launch mix (2 easy +
+   3 medium), at most two per artist, and no question the player saw in the
+   last 90 days while the bank can still supply alternatives. */
 const drawQuestions = (seen, random) => {
   const ranked = shuffle(decorated, random)
     .sort((a, b) => Number(seen.includes(a.id)) - Number(seen.includes(b.id)))
   const picked = []
   const perArtist = {}
-  for (const q of ranked) {
-    if (picked.length >= DAILY_QUIZ_QUESTIONS) break
-    const artist = q.prompt.slice(0, 24)
-    if ((perArtist[artist] || 0) >= 2) continue
-    perArtist[artist] = (perArtist[artist] || 0) + 1
-    picked.push(q)
+  const take = (difficulty, count) => {
+    for (const q of ranked) {
+      if (count <= 0) return
+      if (q.difficulty !== difficulty || picked.includes(q)) continue
+      const artist = q.prompt.slice(0, 24)
+      if ((perArtist[artist] || 0) >= 2) continue
+      perArtist[artist] = (perArtist[artist] || 0) + 1
+      picked.push(q)
+      count--
+    }
   }
+  take('easy', 2)
+  take('medium', 3)
   return structuredClone(picked)
 }
 
