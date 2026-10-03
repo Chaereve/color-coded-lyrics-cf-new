@@ -291,6 +291,8 @@ test('mọi mục của app đều đứng ngoài trang cá nhân — cùng MỘ
     'điều kiện dựng mục phải dùng onProfile, không so profileId trực tiếp')
   for (const [label, re] of [
     ['bảng', /\{section === 'board' && !onProfile && \(/],
+    ['Daily login', /\{section === 'login' && !onProfile && \(/],
+    ['Music quiz', /\{section === 'quiz' && !onProfile && \(/],
     ['Daily Spin', /\{section === 'spin' && !onProfile && \(/],
     ['xếp hạng', /\{section === 'ranking' && !onProfile && \(/],
     ['About me (khách)', /\{section === 'mine' && !onProfile && !user && \(/],
