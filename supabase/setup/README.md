@@ -1,10 +1,10 @@
 # Cài Supabase khi `schema.sql` quá dài cho SQL Editor
 
-`supabase/schema.sql` là **bản SQL gộp (~193 KB)**, gồm schema gốc và nhiều bản vá theo thứ tự. Kích thước này là **kích thước câu lệnh để dán vào Dashboard**, không phải dung lượng database/bảng đã đầy. Nếu nút **Save** trong SQL Editor báo lỗi, lưu ý: **Save chỉ lưu bản nháp query; phải bấm Run để áp dụng SQL vào database. Không cần bấm Save.** Nếu Run báo lỗi, nguyên nhân có thể *khác* kích thước file — xem thông báo lỗi cụ thể.
+`supabase/schema.sql` là **bản SQL gộp (khoảng 240 KiB)**, gồm schema gốc và nhiều bản vá theo thứ tự. Kích thước này là **kích thước câu lệnh để dán vào Dashboard**, không phải dung lượng database/bảng đã đầy. Nếu nút **Save** trong SQL Editor báo lỗi, lưu ý: **Save chỉ lưu bản nháp query; phải bấm Run để áp dụng SQL vào database. Không cần bấm Save.** Nếu Run báo lỗi, nguyên nhân có thể *khác* kích thước file — xem thông báo lỗi cụ thể.
 
 ## Chọn đúng trường hợp
 
-- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`08`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), xác định phiên bản đã cài, rồi chạy **chỉ những file còn thiếu** trong `supabase/migrations/`, theo thứ tự phụ thuộc. Không chạy cả thư mục migrations một cách mù quáng. Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định migration cần dùng.
+- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`14`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), xác định phiên bản đã cài, rồi chạy **chỉ những file còn thiếu** trong `supabase/migrations/`, theo thứ tự phụ thuộc. Không chạy cả thư mục migrations một cách mù quáng. Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định migration cần dùng.
 - **Project Supabase mới, chưa cài app:** Làm các bước bên dưới. Trước khi chạy, kiểm tra bằng query nhỏ này trong **Database → SQL Editor → New query → Run**:
 
 ```sql
@@ -30,8 +30,14 @@ Mở **New query**, copy **toàn bộ nội dung đúng MỘT file** từ danh s
 | 6 | `06-watch-comments-streak.sql` | 25 KB |
 | 7 | `07-security-audit.sql` | 30 KB |
 | 8 | `08-comments-activity.sql` | 24 KB |
+| 9 | `09-funnel-events.sql` | 10 KB |
+| 10 | `10-daily-rewards.sql` | 24 KB |
+| 11 | `11-daily-rewards-upgrade.sql` | 23 KB |
+| 12 | `12-daily-quiz-schema.sql` | 15 KB |
+| 13 | `13-daily-quiz-pool.sql` | 16 KB |
+| 14 | `14-daily-quiz-flow.sql` | 19 KB |
 
-Sau bước 8, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
+Sau bước 14, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
 
 ```sql
 select to_regclass('public.requests') is not null as requests_ok,
@@ -41,6 +47,10 @@ select to_regclass('public.requests') is not null as requests_ok,
        to_regclass('public.achievement_rewards') is not null as achievements_ok,
        to_regprocedure('public.spin_daily(text,uuid,uuid,text,text,text)') is not null as spin_rpc_ok,
        to_regprocedure('public.touch_my_activity()') is not null as visit_rpc_ok,
+       to_regprocedure('public.my_daily_rewards_status()') is not null as daily_rewards_ok,
+       to_regprocedure('public.submit_daily_quiz_answer(uuid,uuid,text,text)') is not null as quiz_rpc_ok,
+       to_regclass('public.daily_quiz_answers') is not null as quiz_answers_ok,
+       to_regclass('public.daily_quiz_seen') is not null as quiz_seen_ok,
        exists (select 1 from pg_policies
                where schemaname = 'public' and tablename = 'votes'
                  and policyname = 'read own votes') as votes_rls_ok;
@@ -58,4 +68,4 @@ Lệnh trên **không** dùng `--single-transaction`: bản gộp đã có các 
 
 ## Giữ các file nhỏ đồng bộ
 
-Các file `01`–`08` được **cắt nguyên văn từ `supabase/schema.sql`**; ghép lại theo thứ tự khôi phục đúng từng byte của bản gộp. Khi sửa schema, chạy `npm run schema:split`, sau đó `npm run schema:split:check` và `npm test` trước khi đưa lên repo. Không chỉnh SQL trong các file nhỏ bằng tay.
+Các file `01`–`14` được **cắt nguyên văn từ `supabase/schema.sql`**; ghép lại theo thứ tự khôi phục đúng từng byte của bản gộp. Khi sửa schema, chạy `npm run schema:split`, sau đó `npm run schema:split:check` và `npm test` trước khi đưa lên repo. Không chỉnh SQL trong các file nhỏ bằng tay.

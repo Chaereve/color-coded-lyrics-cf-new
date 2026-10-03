@@ -76,6 +76,8 @@ test('SQL Editor chunks install on separate connections into a disposable fresh 
                  to_regclass('public.activity_days') is not null as activity_ok,
                  to_regclass('public.achievement_rewards') is not null as achievements_ok,
                  to_regprocedure('public.touch_my_activity()') is not null as visit_rpc_ok,
+                 to_regprocedure('public.my_daily_rewards_status()') is not null as daily_rewards_rpc_ok,
+                 to_regprocedure('public.submit_daily_quiz(uuid,uuid,integer[])') is not null as quiz_rpc_ok,
                  exists (select 1 from pg_policies where schemaname = 'public'
                            and tablename = 'votes' and policyname = 'read own votes') as votes_rls_ok
         `)

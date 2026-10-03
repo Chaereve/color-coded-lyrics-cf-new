@@ -247,7 +247,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       assert.deepEqual(racedSlots.rows.map(r => r.fp_slot), [1])
     })
 
-    await t.test('an IP that already saw 5 distinct fingerprints refuses a 6th', async () => {
+    await t.test('shared public IPs allow distinct browsers without bypassing fingerprint limits', async () => {
       const ipHash = 'd'.repeat(64)
       const fpFor = n => String(n).padStart(64, '0')
       const seen = []
@@ -258,14 +258,23 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
         await as(uid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
           [token, randomUUID(), uid, fpFor(i), ipHash])
       }
-      // Vân tay thứ 6 trên cùng IP → dấu hiệu anti-detect browser → chặn.
+      // 20261111_shared_ip_spin.sql intentionally made IP audit-only: CGNAT,
+      // office/school Wi-Fi are not identities. The old 6th-browser rejection
+      // contradicted the canonical schema. Device/fingerprint limits stay on.
       const sixthUid = await newUser(), sixthToken = await register(sixthUid)
+      const sixth = await as(sixthUid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
+        [sixthToken, randomUUID(), sixthUid, fpFor(6), ipHash])
+      assert.equal(sixth[0].v.replayed, false)
+      assert.ok(await balance(sixthUid) > 0)
+      const audit = await pool.query('select count(distinct fp_hash)::int as n from public.daily_spins where ip_hash=$1', [ipHash])
+      assert.equal(audit.rows[0].n, 6)
+      const switchedUid = await newUser(), switchedToken = await register(switchedUid)
       await assert.rejects(
-        as(sixthUid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
-          [sixthToken, randomUUID(), sixthUid, fpFor(6), ipHash]),
-        /err.spinEdgeIp/)
-      // Vân tay đã biết vẫn giữ 2 lượt riêng của nó (đếm vân tay KHÁC nhau, không
-      // khoá cụm cả IP như KV — người thật chung Wi-Fi không bị vạ lây).
+        as(switchedUid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
+          [switchedToken, randomUUID(), switchedUid, fpFor(6), ipHash]),
+        /err.spinDeviceAccount/)
+      assert.equal(await balance(switchedUid), 0)
+      // Existing fingerprints still keep their own second spin on this IP.
       const again = await as(seen[0].uid, 'select public.spin_daily($1, $2, $3, $4, $5) as v',
         [seen[0].token, randomUUID(), seen[0].uid, seen[0].fp, ipHash])
       assert.equal(again[0].v.replayed, false)

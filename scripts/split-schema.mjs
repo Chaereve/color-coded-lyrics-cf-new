@@ -19,6 +19,11 @@ export const PARTS = [
   { name: '07-security-audit.sql', start: '-- Color Coded Lyrics — security audit hardening' },
   { name: '08-comments-activity.sql', start: '-- BEGIN COMMENTS / SPIN FIXES:' },
   { name: '09-funnel-events.sql', start: '-- BEGIN FUNNEL EVENTS: mirror 20261110_funnel_events.sql' },
+  { name: '10-daily-rewards.sql', start: '-- BEGIN DAILY REWARDS: mirror 20261112_daily_rewards.sql' },
+  { name: '11-daily-rewards-upgrade.sql', start: '-- BEGIN DAILY REWARDS UPGRADE: mirror 20261114_daily_rewards_upgrade.sql' },
+  { name: '12-daily-quiz-schema.sql', start: '-- BEGIN DAILY QUIZ SCHEMA: mirror 20261115_daily_quiz_schema.sql' },
+  { name: '13-daily-quiz-pool.sql', start: '-- BEGIN DAILY QUIZ POOL: mirror 20261116_daily_quiz_pool.sql' },
+  { name: '14-daily-quiz-flow.sql', start: '-- BEGIN DAILY QUIZ FLOW: mirror 20261117_daily_quiz_flow.sql' },
 ]
 
 const SOURCE = new URL('../supabase/schema.sql', import.meta.url)

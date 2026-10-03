@@ -2,7 +2,7 @@
 --  COLOR CODED LYRICS — REQUEST BOARD  ·  (c) @chaereve
 --  Schema v3: admin, duyet request, vote credits, paid request
 --  File GỘP để đối chiếu / chạy bằng psql; KHÔNG dán cả file vào SQL Editor.
---  DB MỚI: xem supabase/setup/README.md, chạy 01 → 08 từng file nhỏ.
+--  DB MỚI: xem supabase/setup/README.md, chạy 01 → 10 từng file nhỏ.
 --  DB ĐÃ CÓ DỮ LIỆU: backup rồi chỉ chạy migration còn thiếu theo thứ tự;
 --  KHÔNG chạy lại schema.sql hay các file setup trên database đang dùng.
 -- ============================================================
@@ -4388,3 +4388,1697 @@ begin
     'status', public.daily_spin_payload(v_hash, v_uid, clock_timestamp())
   );
 end $$;
+
+-- BEGIN DAILY REWARDS: mirror 20261112_daily_rewards.sql
+-- Daily login (+2) and one 3-question music quiz (+1 per correct answer).
+-- Run AFTER the existing bonus, activity and security migrations. Rerunnable:
+-- no historical rewards are backfilled and existing attempts are preserved.
+begin;
+
+create table if not exists public.daily_login_rewards (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reward_day date not null,
+  reward int not null default 2 check (reward = 2),
+  created_at timestamptz not null default now(),
+  primary key (user_id, reward_day)
+);
+
+-- Neither the question bank nor attempt snapshots may be read from REST:
+-- they contain correct answers. Only the sanitized RPC payload is public.
+create table if not exists public.daily_quiz_questions (
+  id text primary key,
+  prompt text not null,
+  options jsonb not null check (jsonb_typeof(options) = 'array' and jsonb_array_length(options) = 4),
+  correct_option int not null check (correct_option between 0 and 3),
+  explanation text not null,
+  active boolean not null default true
+);
+
+create table if not exists public.daily_quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  quiz_day date not null,
+  -- Freeze all question content at start, including private answers. Editing
+  -- or retiring a bank question cannot change an already-started round.
+  questions jsonb not null check (jsonb_typeof(questions) = 'array' and jsonb_array_length(questions) = 3),
+  answers int[],
+  score int check (score between 0 and 3),
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  unique (user_id, quiz_day),
+  constraint daily_quiz_completion check (
+    (completed_at is null and answers is null and score is null)
+    or (completed_at is not null and answers is not null and score is not null
+        and cardinality(answers) = 3)
+  )
+);
+
+alter table public.daily_login_rewards enable row level security;
+alter table public.daily_quiz_questions enable row level security;
+alter table public.daily_quiz_attempts enable row level security;
+-- No browser policies: all reading/writing goes through owner-scoped RPCs.
+revoke all on public.daily_login_rewards, public.daily_quiz_questions, public.daily_quiz_attempts
+  from public, anon, authenticated;
+grant all on public.daily_login_rewards, public.daily_quiz_questions, public.daily_quiz_attempts
+  to service_role;
+
+-- Answers use zero-based indices, matching the browser's option values.
+-- ON CONFLICT preserves editorial changes and does not reactivate old entries.
+insert into public.daily_quiz_questions (id, prompt, options, correct_option, explanation) values
+  ('kpop-dynamite', 'Which group released "Dynamite"?', '["EXO","BTS","SEVENTEEN","SHINee"]', 1, 'BTS released the English-language single "Dynamite" in 2020.'),
+  ('kpop-ddudu', 'Which group released "DDU-DU DDU-DU"?', '["BLACKPINK","TWICE","Red Velvet","ITZY"]', 0, '"DDU-DU DDU-DU" is a BLACKPINK single from the EP Square Up.'),
+  ('kpop-gods-menu', 'Which group performs "God''s Menu"?', '["ATEEZ","NCT 127","Stray Kids","MONSTA X"]', 2, '"God''s Menu" is the title track of Stray Kids'' album GO LIVE.'),
+  ('kpop-ditto', 'Which group released "Ditto"?', '["IVE","aespa","LE SSERAFIM","NewJeans"]', 3, 'NewJeans released "Ditto" in December 2022.'),
+  ('kpop-super', 'Which group released "Super" on the album FML?', '["BTS","SEVENTEEN","EXO","TXT"]', 1, '"Super" is one of the title tracks on SEVENTEEN''s FML.'),
+  ('kpop-cheer-up', 'Which group released "CHEER UP"?', '["TWICE","GFRIEND","MAMAMOO","Apink"]', 0, 'TWICE released "CHEER UP" as the title track of Page Two.'),
+  ('kpop-love-shot', 'Which group released "Love Shot"?', '["SHINee","GOT7","EXO","NCT DREAM"]', 2, 'EXO released "Love Shot" in 2018.'),
+  ('kpop-psy', 'Who performs "Gangnam Style"?', '["Rain","G-DRAGON","J.Y. Park","PSY"]', 3, 'PSY released the worldwide hit "Gangnam Style" in 2012.'),
+  ('kpop-maknae', 'In a K-pop group, what does "maknae" mean?', '["The leader","The youngest member","The main dancer","The oldest member"]', 1, 'Maknae is the Korean term for the youngest member of a group.'),
+  ('kpop-bias', 'What does a fan usually mean by their "bias"?', '["Their favorite member","A concert ticket","An album version","A dance practice"]', 0, 'A bias is a fan''s favorite member of a group.'),
+  ('kpop-comeback', 'What does a K-pop "comeback" usually refer to?', '["A member''s birthday","A fan meeting","A new music release and its promotions","A concert encore"]', 2, 'A comeback refers to a new release and the related promotional activities.'),
+  ('lyrics-colors', 'What do different colors usually identify in color-coded group lyrics?', '["Album sales","Song genres","The music video location","Which member is singing"]', 3, 'Color-coded lyrics use colors to show who sings each part.'),
+  ('lyrics-romanization', 'What is romanization in a lyrics video?', '["A dance tutorial","Writing another script using Latin letters","A song remix","An album review"]', 1, 'Romanization represents words from another writing system using Latin letters.'),
+  ('music-bpm', 'What does BPM stand for in music?', '["Beats per minute","Bass per melody","Band performance mode","Bridge pattern meter"]', 0, 'BPM measures tempo in beats per minute.'),
+  ('music-acappella', 'What is an a cappella performance?', '["An instrumental solo","A faster remix","Singing without instrumental accompaniment","A live dance performance"]', 2, 'A cappella means singing without instrumental accompaniment.'),
+  ('music-chorus', 'Which section commonly repeats the main hook of a song?', '["The intro","The bridge","The outro","The chorus"]', 3, 'The chorus often repeats the song''s main hook and melody.'),
+  ('music-duet', 'How many performers are featured in a duet?', '["One","Two","Three","Four"]', 1, 'A duet is a performance by two people.'),
+  ('music-ep', 'What does EP stand for on a music release?', '["Extended play","Extra performance","Electronic pop","Encore playlist"]', 0, 'EP stands for extended play, typically shorter than a full-length album.'),
+  ('music-mv', 'What does MV usually stand for in K-pop?', '["Main vocal","Music version","Music video","Member vote"]', 2, 'MV is the common abbreviation for music video.'),
+  ('music-encore', 'What is an encore at a concert?', '["The soundcheck","The opening act","A costume change","An extra performance after the main set"]', 3, 'An encore is an additional performance after the main set ends.'),
+  ('music-instrumental', 'What is usually absent from an instrumental version of a song?', '["The rhythm","The lead vocals","The melody","The instruments"]', 1, 'An instrumental version generally removes the lead vocal track.'),
+  ('music-bridge', 'What is the usual purpose of a song''s bridge?', '["To introduce a contrasting section","To list the album tracks","To adjust speaker volume","To announce the singer"]', 0, 'A bridge adds contrast to the repeated verse and chorus sections.'),
+  ('music-lightstick', 'What do many K-pop fans bring to concerts to light up the crowd?', '["A metronome","A microphone","A light stick","A guitar pick"]', 2, 'Fans use group-specific light sticks to support artists at concerts.'),
+  ('music-cover', 'What is a cover song?', '["An album''s title page","A hidden bonus track","A song without lyrics","A performance of a song originally by another artist"]', 3, 'A cover is a new performance of a song originally recorded by another artist.')
+on conflict (id) do nothing;
+
+-- Internal-only helper. The recipient and timestamp are never client inputs
+-- to this function. Correct answers/explanations appear ONLY after completion.
+create or replace function public.daily_rewards_payload(p_uid uuid, p_now timestamptz)
+returns jsonb language sql stable security definer set search_path = public as $$
+  with d as (select (p_now at time zone 'Asia/Ho_Chi_Minh')::date as day)
+  select jsonb_build_object(
+    'user_id', p_uid,
+    'day', d.day,
+    'server_now', p_now,
+    'reset_at', (d.day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh',
+    'credits', p.vote_credits + p.bonus_credits,
+    'purchased', p.vote_credits,
+    'bonus', p.bonus_credits,
+    'login', jsonb_build_object('claimed', l.user_id is not null, 'reward', 2),
+    'earned_today', coalesce(l.reward, 0) + coalesce(a.score, 0),
+    'quiz', case when a.id is null then null else jsonb_build_object(
+      'attempt_id', a.id,
+      'completed', a.completed_at is not null,
+      'score', a.score,
+      'reward', a.score,
+      'answers', to_jsonb(a.answers),
+      'questions', (
+        select jsonb_agg(
+          jsonb_build_object('id', q.item->'id', 'prompt', q.item->'prompt', 'options', q.item->'options')
+          || case when a.completed_at is not null
+             then jsonb_build_object('correct_option', q.item->'correct_option', 'explanation', q.item->'explanation')
+             else '{}'::jsonb end
+          order by q.ord
+        ) from jsonb_array_elements(a.questions) with ordinality as q(item, ord)
+      )
+    ) end
+  ) from d
+  join public.profiles p on p.id = p_uid
+  left join public.daily_login_rewards l on l.user_id = p_uid and l.reward_day = d.day
+  left join public.daily_quiz_attempts a on a.user_id = p_uid and a.quiz_day = d.day;
+$$;
+revoke all on function public.daily_rewards_payload(uuid,timestamptz) from public, anon, authenticated;
+
+create or replace function public.my_daily_rewards_status()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare v_uid uuid := auth.uid();
+begin
+  if v_uid is null or not exists (select 1 from public.profiles where id = v_uid) then
+    raise exception 'err.signin';
+  end if;
+  return public.daily_rewards_payload(v_uid, clock_timestamp());
+end $$;
+revoke all on function public.my_daily_rewards_status() from public, anon, authenticated;
+grant execute on function public.my_daily_rewards_status() to authenticated;
+
+create or replace function public.claim_daily_login(p_expected_user_id uuid, p_expected_day date)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_claim public.daily_login_rewards;
+  v_replayed boolean;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  -- The same lock as votes/spin/achievements: no lost wallet updates, even
+  -- when several devices or tabs claim at once. Capture time AFTER the lock.
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  v_now := clock_timestamp();
+  v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+  select * into v_claim from public.daily_login_rewards
+    where user_id = v_uid and reward_day = p_expected_day;
+  v_replayed := found;
+  if not v_replayed then
+    -- The expected day only guards stale clicks/retries at midnight. It NEVER
+    -- selects the awarded date. A browser cannot claim a past or future day.
+    if p_expected_day is distinct from v_day then raise exception 'err.dailyDayChanged'; end if;
+    insert into public.daily_login_rewards (user_id, reward_day, reward, created_at)
+    values (v_uid, v_day, 2, v_now) returning * into v_claim;
+    update public.profiles set bonus_credits = bonus_credits + v_claim.reward where id = v_uid;
+    insert into public.activity_days (user_id, day) values (v_uid, v_day)
+      on conflict (user_id, day) do nothing;
+  end if;
+  return jsonb_build_object('reward', v_claim.reward, 'replayed', v_replayed,
+    'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.claim_daily_login(uuid,date) from public, anon, authenticated;
+grant execute on function public.claim_daily_login(uuid,date) to authenticated;
+
+create or replace function public.start_daily_quiz(p_expected_user_id uuid, p_expected_day date)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_attempt public.daily_quiz_attempts;
+  v_questions jsonb;
+  v_replayed boolean;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  v_now := clock_timestamp();
+  v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+  if p_expected_day is distinct from v_day then raise exception 'err.dailyDayChanged'; end if;
+  select * into v_attempt from public.daily_quiz_attempts where user_id = v_uid and quiz_day = v_day;
+  v_replayed := found;
+  if not v_replayed then
+    select jsonb_agg(jsonb_build_object('id', q.id, 'prompt', q.prompt, 'options', q.options,
+      'correct_option', q.correct_option, 'explanation', q.explanation) order by q.draw)
+      into v_questions
+    from (select b.*, random() as draw from public.daily_quiz_questions b
+          where b.active order by draw limit 3) q;
+    if v_questions is null or jsonb_array_length(v_questions) <> 3 then raise exception 'err.dailySetup'; end if;
+    insert into public.daily_quiz_attempts (user_id, quiz_day, questions, created_at)
+    values (v_uid, v_day, v_questions, v_now);
+    insert into public.activity_days (user_id, day) values (v_uid, v_day)
+      on conflict (user_id, day) do nothing;
+  end if;
+  return jsonb_build_object('replayed', v_replayed,
+    'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.start_daily_quiz(uuid,date) from public, anon, authenticated;
+grant execute on function public.start_daily_quiz(uuid,date) to authenticated;
+
+create or replace function public.submit_daily_quiz(p_expected_user_id uuid, p_attempt_id uuid, p_answers int[])
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_attempt public.daily_quiz_attempts;
+  v_score int;
+  v_replayed boolean;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  -- Lock order is always profile, then attempt; identical on every quiz path.
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  select * into v_attempt from public.daily_quiz_attempts
+    where id = p_attempt_id and user_id = v_uid for update;
+  if not found then raise exception 'err.dailyQuizSession'; end if;
+  v_replayed := v_attempt.completed_at is not null;
+  if not v_replayed then
+    v_now := clock_timestamp();
+    v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+    if v_attempt.quiz_day <> v_day then raise exception 'err.dailyDayChanged'; end if;
+    if p_answers is null or cardinality(p_answers) <> 3 or array_ndims(p_answers) <> 1
+       or array_lower(p_answers, 1) <> 1
+       or exists (select 1 from unnest(p_answers) n where n is null or n not between 0 and 3) then
+      raise exception 'err.dailyQuizAnswers';
+    end if;
+    -- NO client-provided score, reward, correct answers, question IDs or date.
+    select count(*)::int into v_score
+      from jsonb_array_elements(v_attempt.questions) with ordinality as q(item, ord)
+      where (q.item->>'correct_option')::int = p_answers[q.ord::int];
+    update public.daily_quiz_attempts set answers = p_answers, score = v_score, completed_at = v_now
+      where id = v_attempt.id returning * into v_attempt;
+    update public.profiles set bonus_credits = bonus_credits + v_score where id = v_uid;
+    insert into public.activity_days (user_id, day) values (v_uid, v_day)
+      on conflict (user_id, day) do nothing;
+  end if;
+  -- Completed attempts replay even across midnight, without changing balances.
+  return jsonb_build_object('reward', v_attempt.score, 'score', v_attempt.score, 'replayed', v_replayed,
+    'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.submit_daily_quiz(uuid,uuid,int[]) from public, anon, authenticated;
+grant execute on function public.submit_daily_quiz(uuid,uuid,int[]) to authenticated;
+
+notify pgrst, 'reload schema';
+commit;
+
+-- BEGIN CHECK-IN CALENDAR / K-POP QUIZ: mirror 20261113_calendar_kpop_quiz.sql
+-- Run AFTER 20261112_daily_rewards.sql. Add real current-month check-in dates
+-- and replace the factory quiz bank with beginner-friendly K-pop questions.
+-- No wallet/ledger/session changes. Already-started quizzes keep their frozen
+-- questions and scores; these questions apply only to newly started rounds.
+begin;
+
+-- Retire only the original factory seeds, not custom editorial questions.
+-- Keep every row/snapshot for historical reviews. Reruns preserve edits to
+-- the new bank (ON CONFLICT DO NOTHING) and never award bonus votes.
+update public.daily_quiz_questions set active = false
+where id in (
+  'kpop-dynamite',
+  'kpop-ddudu',
+  'kpop-gods-menu',
+  'kpop-ditto',
+  'kpop-super',
+  'kpop-cheer-up',
+  'kpop-love-shot',
+  'kpop-psy',
+  'kpop-maknae',
+  'kpop-bias',
+  'kpop-comeback',
+  'lyrics-colors',
+  'lyrics-romanization',
+  'music-bpm',
+  'music-acappella',
+  'music-chorus',
+  'music-duet',
+  'music-ep',
+  'music-mv',
+  'music-encore',
+  'music-instrumental',
+  'music-bridge',
+  'music-lightstick',
+  'music-cover'
+);
+
+insert into public.daily_quiz_questions (id, prompt, options, correct_option, explanation) values
+  ('kpop-easy-dynamite', 'Which K-pop group sings "Dynamite"?', '["BTS","BLACKPINK","TWICE","EXO"]', 0, '"Dynamite" is one of BTS’s biggest hits.'),
+  ('kpop-easy-ddudu', 'Which K-pop girl group released "DDU-DU DDU-DU"?', '["TWICE","BLACKPINK","Red Velvet","ITZY"]', 1, '"DDU-DU DDU-DU" is a hit song by BLACKPINK.'),
+  ('kpop-easy-army', 'What are BTS fans called?', '["BLINK","STAY","ARMY","ONCE"]', 2, 'ARMY is the official name of BTS’s fandom.'),
+  ('kpop-easy-blink', 'What are BLACKPINK fans called?', '["ARMY","ONCE","STAY","BLINK"]', 3, 'BLACKPINK’s official fandom name is BLINK.'),
+  ('kpop-easy-tt', 'Which K-pop girl group sings "TT"?', '["TWICE","BLACKPINK","aespa","IVE"]', 0, '"TT" is one of TWICE’s signature songs.'),
+  ('kpop-easy-gangnam', 'Who sings the K-pop hit "Gangnam Style"?', '["Jungkook","PSY","G-DRAGON","J.Y. Park"]', 1, 'PSY is the artist behind "Gangnam Style".'),
+  ('kpop-easy-solo', 'Which BLACKPINK member released "SOLO"?', '["Lisa","Jisoo","Jennie","Rosé"]', 2, '"SOLO" is Jennie’s debut solo single.'),
+  ('kpop-easy-lalisa', 'Which BLACKPINK member sings "LALISA"?', '["Rosé","Jennie","Jisoo","Lisa"]', 3, '"LALISA" is Lisa’s solo debut song.'),
+  ('kpop-easy-bts-count', 'How many members are in BTS?', '["7","4","5","9"]', 0, 'BTS has seven members: RM, Jin, SUGA, j-hope, Jimin, V and Jungkook.'),
+  ('kpop-easy-blackpink-count', 'How many members are in BLACKPINK?', '["7","4","9","5"]', 1, 'BLACKPINK has four members: Jisoo, Jennie, Rosé and Lisa.'),
+  ('kpop-easy-twice-count', 'How many members are in TWICE?', '["4","7","9","5"]', 2, 'TWICE has nine members.'),
+  ('kpop-easy-jungkook', 'Which K-pop group is Jungkook a member of?', '["EXO","Stray Kids","SEVENTEEN","BTS"]', 3, 'Jungkook is the youngest member of BTS.'),
+  ('kpop-easy-s-class', 'Which K-pop group sings "S-Class"?', '["Stray Kids","BTS","EXO","TXT"]', 0, '"S-Class" is a hit song by Stray Kids.'),
+  ('kpop-easy-gods-menu', 'Which K-pop group released "God''s Menu"?', '["BTS","Stray Kids","SEVENTEEN","EXO"]', 1, '"God’s Menu" is one of Stray Kids’ best-known songs.'),
+  ('kpop-easy-super-shy', 'Which K-pop girl group sings "Super Shy"?', '["IVE","aespa","NewJeans","TWICE"]', 2, '"Super Shy" is a hit song by NewJeans.'),
+  ('kpop-easy-hype-boy', 'Which K-pop girl group released "Hype Boy"?', '["aespa","IVE","LE SSERAFIM","NewJeans"]', 3, '"Hype Boy" is a NewJeans song.'),
+  ('kpop-easy-love-dive', 'Which K-pop girl group sings "LOVE DIVE"?', '["IVE","TWICE","BLACKPINK","ITZY"]', 0, '"LOVE DIVE" is a hit song by IVE.'),
+  ('kpop-easy-next-level', 'Which K-pop girl group sings "Next Level"?', '["ITZY","aespa","Red Velvet","TWICE"]', 1, '"Next Level" is an aespa song.'),
+  ('kpop-easy-wannabe', 'Which K-pop girl group released "WANNABE"?', '["TWICE","BLACKPINK","ITZY","IVE"]', 2, '"WANNABE" is one of ITZY’s best-known songs.'),
+  ('kpop-easy-antifragile', 'Which K-pop girl group sings "ANTIFRAGILE"?', '["aespa","IVE","TWICE","LE SSERAFIM"]', 3, '"ANTIFRAGILE" is a hit song by LE SSERAFIM.'),
+  ('kpop-easy-once', 'What are TWICE fans called?', '["ONCE","ARMY","BLINK","STAY"]', 0, 'ONCE is TWICE’s official fandom name.'),
+  ('kpop-easy-stay', 'What are Stray Kids fans called?', '["ARMY","STAY","BLINK","ONCE"]', 1, 'STAY is the official name of Stray Kids’ fandom.'),
+  ('kpop-easy-bang-chan', 'Which K-pop group is Bang Chan the leader of?', '["BTS","EXO","Stray Kids","TXT"]', 2, 'Bang Chan is the leader of Stray Kids.'),
+  ('kpop-easy-red-flavor', 'Which K-pop girl group sings "Red Flavor"?', '["TWICE","BLACKPINK","ITZY","Red Velvet"]', 3, '"Red Flavor" is a hit song by Red Velvet.')
+on conflict (id) do nothing;
+
+-- Same private helper and sanitized answer visibility as before. Only the
+-- owner’s real check-in dates are added, using the server’s Vietnam month.
+create or replace function public.daily_rewards_payload(p_uid uuid, p_now timestamptz)
+returns jsonb language sql stable security definer set search_path = public as $$
+  with d as (select (p_now at time zone 'Asia/Ho_Chi_Minh')::date as day)
+  select jsonb_build_object(
+    'user_id', p_uid,
+    'day', d.day,
+    'server_now', p_now,
+    'reset_at', (d.day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh',
+    'credits', p.vote_credits + p.bonus_credits,
+    'purchased', p.vote_credits,
+    'bonus', p.bonus_credits,
+    'login', jsonb_build_object('claimed', l.user_id is not null, 'reward', 2,
+      'claimed_days', coalesce((
+        select jsonb_agg(c.reward_day order by c.reward_day)
+        from public.daily_login_rewards c
+        where c.user_id = p_uid
+          and c.reward_day >= date_trunc('month', d.day)::date
+          and c.reward_day <= d.day
+      ), '[]'::jsonb)),
+    'earned_today', coalesce(l.reward, 0) + coalesce(a.score, 0),
+    'quiz', case when a.id is null then null else jsonb_build_object(
+      'attempt_id', a.id,
+      'completed', a.completed_at is not null,
+      'score', a.score,
+      'reward', a.score,
+      'answers', to_jsonb(a.answers),
+      'questions', (
+        select jsonb_agg(
+          jsonb_build_object('id', q.item->'id', 'prompt', q.item->'prompt', 'options', q.item->'options')
+          || case when a.completed_at is not null
+             then jsonb_build_object('correct_option', q.item->'correct_option', 'explanation', q.item->'explanation')
+             else '{}'::jsonb end
+          order by q.ord
+        ) from jsonb_array_elements(a.questions) with ordinality as q(item, ord)
+      )
+    ) end
+  ) from d
+  join public.profiles p on p.id = p_uid
+  left join public.daily_login_rewards l on l.user_id = p_uid and l.reward_day = d.day
+  left join public.daily_quiz_attempts a on a.user_id = p_uid and a.quiz_day = d.day;
+$$;
+revoke all on function public.daily_rewards_payload(uuid,timestamptz) from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+commit;
+
+-- BEGIN DAILY REWARDS UPGRADE: mirror 20261114_daily_rewards_upgrade.sql
+-- Run AFTER 20261113_calendar_kpop_quiz.sql. Check-in calendar gains real
+-- multi-month history + streak stats, and the quiz gains a bigger, categorised
+-- K-pop bank that avoids repeating the player's recent questions.
+-- Reward rules are unchanged (+2 check-in, +1 per correct answer, max +3).
+-- No wallet/ledger/session changes and no backfilled rewards. Rerunnable.
+begin;
+
+-- Categories only label questions for the player. The column is additive and
+-- never part of scoring, so existing rows keep a safe default.
+alter table public.daily_quiz_questions
+  add column if not exists category text not null default 'Songs';
+
+update public.daily_quiz_questions set category = 'Songs'
+where id in ('kpop-easy-dynamite','kpop-easy-ddudu','kpop-easy-tt','kpop-easy-gangnam',
+  'kpop-easy-solo','kpop-easy-lalisa','kpop-easy-jungkook','kpop-easy-s-class',
+  'kpop-easy-gods-menu','kpop-easy-super-shy','kpop-easy-hype-boy','kpop-easy-love-dive',
+  'kpop-easy-next-level','kpop-easy-wannabe','kpop-easy-antifragile','kpop-easy-bang-chan',
+  'kpop-easy-red-flavor');
+update public.daily_quiz_questions set category = 'Groups'
+where id in ('kpop-easy-bts-count','kpop-easy-blackpink-count','kpop-easy-twice-count');
+update public.daily_quiz_questions set category = 'Fandom'
+where id in ('kpop-easy-army','kpop-easy-blink','kpop-easy-once','kpop-easy-stay');
+
+-- More easy, familiar K-pop questions: hooks/lyrics, songs, members, fandoms.
+-- ON CONFLICT DO NOTHING keeps later editorial edits and never resets scores.
+insert into public.daily_quiz_questions (id, prompt, options, correct_option, explanation, category) values
+  ('kpop-lyric-stars', 'Which K-pop song has the hook “''Cause I-I-I''m in the stars tonight”?', '["Dynamite","Butter","Life Goes On","Boy With Luv"]', 0, '“Dynamite” opens with that line. It is one of BTS''s biggest hits.', 'Lyrics'),
+  ('kpop-lyric-butter', 'Which K-pop song says “Smooth like butter, like a criminal undercover”?', '["Butter","Dynamite","Fake Love","IDOL"]', 0, 'That is the opening line of “Butter” by BTS.', 'Lyrics'),
+  ('kpop-lyric-ddu-du', 'Which BLACKPINK song repeats “ddu-du ddu-du du”?', '["Whistle","DDU-DU DDU-DU","As If It''s Your Last","Boombayah"]', 1, 'The hook gives “DDU-DU DDU-DU” its name.', 'Lyrics'),
+  ('kpop-lyric-shy', 'Which TWICE song has the famous “shy, shy, shy” hook?', '["TT","CHEER UP","LIKEY","What is Love?"]', 1, '“CHEER UP” is known for its “shy shy shy” chorus.', 'Lyrics'),
+  ('kpop-lyric-gangnam', 'Which K-pop global hit includes “Oppan Gangnam Style”?', '["Gangnam Style","Gentleman","Daddy","Hangover"]', 0, 'PSY''s “Gangnam Style” made that phrase world-famous.', 'Lyrics'),
+  ('kpop-lyric-super-shy', 'Which NewJeans song repeats “I''m super shy, super shy”?', '["Ditto","Hype Boy","Super Shy","Cool With You"]', 2, '“Super Shy” became a viral TikTok hook in 2023.', 'Lyrics'),
+  ('kpop-lyric-love-dive', 'Which IVE song repeats “LOVE DIVE” in its chorus?', '["LOVE DIVE","ELEVEN","After LIKE","Kitsch"]', 0, '“LOVE DIVE” was IVE''s breakout hit.', 'Lyrics'),
+  ('kpop-lyric-wannabe', 'Which ITZY song sings “I wanna be me, me, me”?', '["WANNABE","DALLA DALLA","ICY","Not Shy"]', 0, '“WANNABE” is one of ITZY''s best-known songs.', 'Lyrics'),
+  ('kpop-lyric-antifragile', 'Which LE SSERAFIM song has the hook “Anti-ti-ti-ti fragile”?', '["ANTIFRAGILE","FEARLESS","UNFORGIVEN","EASY"]', 0, 'LE SSERAFIM sing that hook in “ANTIFRAGILE”.', 'Lyrics'),
+  ('kpop-lyric-red-flavor', 'Which Red Velvet song repeats “Red Flavor” as its hook?', '["Red Flavor","Russian Roulette","Bad Boy","Psycho"]', 0, '“Red Flavor” is a summer hit by Red Velvet.', 'Lyrics'),
+  ('kpop-lyric-next-level', 'Which aespa song says “I''m on the Next Level”?', '["Next Level","Black Mamba","Savage","Supernova"]', 0, '“Next Level” made aespa widely known.', 'Lyrics'),
+  ('kpop-lyric-maniac', 'Which Stray Kids song repeats “MANIAC” in its chorus?', '["MANIAC","God''s Menu","Thunderous","CASE 143"]', 0, '“MANIAC” is the title track of Stray Kids'' ODDINARY.', 'Lyrics'),
+  ('kpop-lyric-cupid', 'Which K-pop group released the viral song “Cupid”?', '["FIFTY FIFTY","IVE","aespa","Kep1er"]', 0, '“Cupid” by FIFTY FIFTY went viral worldwide in 2023.', 'Lyrics'),
+  ('kpop-song-boy-with-luv', '“Boy With Luv” is a BTS collaboration with which artist?', '["Halsey","Selena Gomez","Dua Lipa","Camila Cabello"]', 0, 'BTS recorded “Boy With Luv” with Halsey.', 'Songs'),
+  ('kpop-song-eleven', 'Which K-pop girl group debuted with the song “ELEVEN”?', '["IVE","aespa","ITZY","NMIXX"]', 0, 'IVE debuted in 2021 with “ELEVEN”.', 'Songs'),
+  ('kpop-song-tomboy', 'Which K-pop group released the hit song “TOMBOY”?', '["(G)I-DLE","ITZY","MAMAMOO","Red Velvet"]', 0, '“TOMBOY” is a 2022 hit by (G)I-DLE.', 'Songs'),
+  ('kpop-song-maria', '“MARÍA” is a solo hit by which MAMAMOO member?', '["Hwasa","Solar","Wheein","Moonbyul"]', 0, 'Hwasa released “MARÍA” as a solo artist.', 'Songs'),
+  ('kpop-song-ditto', 'Which K-pop group released the song “Ditto”?', '["NewJeans","IVE","LE SSERAFIM","aespa"]', 0, 'NewJeans released “Ditto” in December 2022.', 'Songs'),
+  ('kpop-song-psycho', 'Which K-pop girl group sings “Psycho”?', '["Red Velvet","BLACKPINK","TWICE","aespa"]', 0, '“Psycho” is one of Red Velvet''s signature songs.', 'Songs'),
+  ('kpop-song-lilac', 'Which K-pop solo artist released the hit song “LILAC”?', '["IU","Taeyeon","Sunmi","Hwasa"]', 0, 'IU released “LILAC” in 2021.', 'Songs'),
+  ('kpop-song-flower', 'Which BLACKPINK member released the solo song “Flower”?', '["Jisoo","Jennie","Rosé","Lisa"]', 0, '“Flower” is Jisoo''s solo single.', 'Songs'),
+  ('kpop-song-girls', '“Girls” is a 2022 title track by which K-pop group?', '["aespa","ITZY","EVERGLOW","STAYC"]', 0, 'aespa released “Girls” in 2022.', 'Songs'),
+  ('kpop-member-leader-bts', 'Who is the leader of BTS?', '["RM","Jin","SUGA","j-hope"]', 0, 'RM is the leader of BTS.', 'Members'),
+  ('kpop-member-maknae-bts', 'Who is the youngest member (maknae) of BTS?', '["Jungkook","V","Jimin","Jin"]', 0, 'Jungkook, born in 1997, is the maknae of BTS.', 'Members'),
+  ('kpop-member-maknae-blackpink', 'Who is the maknae (youngest member) of BLACKPINK?', '["Lisa","Rosé","Jennie","Jisoo"]', 0, 'Lisa, born in 1997, is the youngest BLACKPINK member.', 'Members'),
+  ('kpop-member-leader-twice', 'Who is the leader of TWICE?', '["Jihyo","Nayeon","Sana","Mina"]', 0, 'Jihyo is the leader of TWICE.', 'Members'),
+  ('kpop-member-pop', 'Which TWICE member released the solo song “POP!”?', '["Nayeon","Jihyo","Momo","Dahyun"]', 0, '“POP!” is Nayeon''s solo debut single.', 'Members'),
+  ('kpop-member-winter-bear', 'Which BTS member released the solo song “Winter Bear”?', '["V","Jin","Jungkook","RM"]', 0, 'V released “Winter Bear” as a solo track.', 'Members'),
+  ('kpop-member-seven', 'Which BTS member sings the solo hit “Seven”?', '["Jungkook","Jimin","RM","SUGA"]', 0, '“Seven” is Jungkook''s solo single featuring Latto.', 'Members'),
+  ('kpop-member-hanni', 'Which member of NewJeans is known for singing “Hype Boy”''s opening?', '["Hanni","Minji","Danielle","Haerin"]', 0, 'Hanni is one of NewJeans'' most recognisable vocalists.', 'Members'),
+  ('kpop-fandom-nctzen', 'What are the fans of K-pop group NCT called?', '["NCTzen","MY","ReVeluv","MIDZY"]', 0, 'NCT''s fandom name is NCTzen.', 'Fandom'),
+  ('kpop-fandom-midzy', 'What are ITZY fans called?', '["MIDZY","MY","DIVE","Atiny"]', 0, 'ITZY''s fandom name is MIDZY.', 'Fandom'),
+  ('kpop-fandom-my', 'What are aespa fans called?', '["MY","DIVE","NCTzen","MOA"]', 0, 'aespa''s fandom name is MY.', 'Fandom'),
+  ('kpop-fandom-dive', 'What are IVE fans called?', '["DIVE","MIDZY","BUDDY","MOA"]', 0, 'IVE''s fandom name is DIVE.', 'Fandom'),
+  ('kpop-fandom-moa', 'What are the fans of K-pop group TXT called?', '["MOA","CARAT","Atiny","ENGENE"]', 0, 'TXT''s fandom name is MOA.', 'Fandom'),
+  ('kpop-fandom-carat', 'What are the fans of K-pop group SEVENTEEN called?', '["CARAT","MOA","ENGENE","STAY"]', 0, 'SEVENTEEN''s fandom name is CARAT.', 'Fandom'),
+  ('kpop-fandom-engene', 'What are the fans of K-pop group ENHYPEN called?', '["ENGENE","MOA","CARAT","Atiny"]', 0, 'ENHYPEN''s fandom name is ENGENE.', 'Fandom'),
+  ('kpop-fandom-reveluv', 'What are Red Velvet fans called?', '["ReVeluv","MY","DIVE","BLINK"]', 0, 'Red Velvet''s fandom name is ReVeluv.', 'Fandom'),
+  ('kpop-fandom-atiny', 'What are the fans of K-pop group ATEEZ called?', '["ATINY","ENGENE","CARAT","MOA"]', 0, 'ATINY blends ATEEZ and destiny.', 'Fandom')
+on conflict (id) do nothing;
+
+/* Research pass: the K-pop formats fans play most (boy/girl group, group
+   leader, maknae, stage vs. real name, fandom name, finishing a song title),
+   written from scratch at beginner difficulty. Facts checked against public
+   group profiles; no third-party question text is copied. */
+insert into public.daily_quiz_questions (id, prompt, options, correct_option, explanation, category) values
+  ('kpop-group-gender-blackpink', 'Is BLACKPINK a girl group or a boy group?', '["Girl group","Boy group","Co-ed group","Solo act"]', 0, 'BLACKPINK is a four-member girl group from YG Entertainment.', 'Groups'),
+  ('kpop-group-gender-bts', 'Is BTS a boy group or a girl group?', '["Boy group","Girl group","Co-ed group","Dance crew"]', 0, 'BTS is a seven-member boy group that debuted in 2013.', 'Groups'),
+  ('kpop-group-gender-kard', 'Which of these K-pop groups is co-ed?', '["KARD","SEVENTEEN","TWICE","aespa"]', 0, 'KARD has both male and female members, which is rare in K-pop.', 'Groups'),
+  ('kpop-group-count-seventeen', 'How many members does SEVENTEEN have?', '["13","17","7","9"]', 0, 'SEVENTEEN has 13 members in three units — the name comes from 13 members + 3 units + 1 team.', 'Groups'),
+  ('kpop-group-count-straykids', 'How many members does Stray Kids have today?', '["8","9","7","6"]', 0, 'Stray Kids promotes with eight members after Woojin left in 2019.', 'Groups'),
+  ('kpop-company-blackpink', 'Which company debuted BLACKPINK?', '["YG Entertainment","JYP Entertainment","SM Entertainment","KQ Entertainment"]', 0, 'BLACKPINK is YG Entertainment''s girl group.', 'Groups'),
+  ('kpop-company-twice', 'Which company formed TWICE?', '["JYP Entertainment","YG Entertainment","SM Entertainment","HYBE"]', 0, 'TWICE was formed by JYP Entertainment through Sixteen.', 'Groups'),
+  ('kpop-company-aespa', 'Which company debuted aespa?', '["SM Entertainment","JYP Entertainment","YG Entertainment","Pledis"]', 0, 'aespa debuted under SM Entertainment in 2020.', 'Groups'),
+  ('kpop-company-ateez', 'Which company debuted ATEEZ?', '["KQ Entertainment","SM Entertainment","JYP Entertainment","Starship"]', 0, 'ATEEZ debuted under KQ Entertainment in October 2018.', 'Groups'),
+  ('kpop-debut-bts-year', 'In which year did BTS debut?', '["2013","2015","2010","2018"]', 0, 'BTS debuted on 13 June 2013 with "No More Dream".', 'Groups'),
+  ('kpop-leader-shinee', 'Who is the leader of SHINee?', '["Onew","Key","Minho","Taemin"]', 0, 'Onew is the leader of SHINee.', 'Members'),
+  ('kpop-leader-redvelvet', 'Who is the leader of Red Velvet?', '["Irene","Seulgi","Wendy","Joy"]', 0, 'Irene is the leader of Red Velvet.', 'Members'),
+  ('kpop-leader-itzy', 'Who is the leader of ITZY?', '["Yeji","Lia","Ryujin","Yuna"]', 0, 'Yeji is the leader of ITZY.', 'Members'),
+  ('kpop-leader-aespa', 'Who is the leader of aespa?', '["Karina","Giselle","Winter","Ningning"]', 0, 'Karina is the leader of aespa.', 'Members'),
+  ('kpop-leader-ateez', 'Who is the leader and producer of ATEEZ?', '["Hongjoong","Seonghwa","Yunho","Jongho"]', 0, 'Hongjoong leads ATEEZ and produces much of their music.', 'Members'),
+  ('kpop-leader-enhypen', 'Who is the leader of ENHYPEN?', '["Jungwon","Heeseung","Jay","Ni-ki"]', 0, 'Jungwon is the leader of ENHYPEN.', 'Members'),
+  ('kpop-leader-gidle', 'Who is the leader of (G)I-DLE?', '["Soyeon","Miyeon","Minnie","Yuqi"]', 0, 'Soyeon leads (G)I-DLE and writes many of their songs.', 'Members'),
+  ('kpop-maknae-newjeans', 'Who is the maknae (youngest member) of NewJeans?', '["Hyein","Haerin","Danielle","Minji"]', 0, 'Hyein, born in 2008, is the youngest NewJeans member.', 'Members'),
+  ('kpop-maknae-itzy', 'Who is the maknae of ITZY?', '["Yuna","Yeji","Chaeryeong","Ryujin"]', 0, 'Yuna is the youngest member of ITZY.', 'Members'),
+  ('kpop-maknae-seventeen', 'Who is the maknae of SEVENTEEN?', '["Dino","Vernon","Woozi","Hoshi"]', 0, 'Dino is the youngest member of SEVENTEEN.', 'Members'),
+  ('kpop-realname-v', 'Which BTS member''s real name is Kim Tae-hyung?', '["V","RM","Jimin","Jin"]', 0, 'V was born Kim Tae-hyung.', 'Members'),
+  ('kpop-realname-lisa', 'Which BLACKPINK member''s real first name is Lalisa?', '["Lisa","Jennie","Rosé","Jisoo"]', 0, 'Lisa was born Pranpriya, later Lalisa Manobal.', 'Members'),
+  ('kpop-realname-jungkook', 'Which BTS member''s real name is Jeon Jung-kook?', '["Jungkook","Jimin","SUGA","Jin"]', 0, 'Jungkook''s full name is Jeon Jung-kook.', 'Members'),
+  ('kpop-fandom-exo-l', 'What are the fans of K-pop group EXO called?', '["EXO-L","EXO-M","EXO-K","Eris"]', 0, 'EXO-L stands for EXO-Love.', 'Fandom'),
+  ('kpop-fandom-bunnies', 'What are NewJeans fans called?', '["Bunnies","Tokkis","Carats","DIVE"]', 0, 'NewJeans'' fandom name is Bunnies.', 'Fandom'),
+  ('kpop-fandom-shawol', 'What are SHINee fans called?', '["Shawol","SHINee World","Shawols","SHINeez"]', 0, 'Shawol comes from "SHINee World".', 'Fandom'),
+  ('kpop-fandom-monbebe', 'What are MONSTA X fans called?', '["MONBEBE","MONSTA","Monbebes","X-Lovers"]', 0, 'MONBEBE mixes MONSTA X with the French word bébé.', 'Fandom'),
+  ('kpop-fandom-neverland', 'What are (G)I-DLE fans called?', '["NEVERLAND","Idleland","DLE","Neverlands"]', 0, 'NEVERLAND is the (G)I-DLE fandom, after Peter Pan.', 'Fandom'),
+  ('kpop-fandom-moomoo', 'What are MAMAMOO fans called?', '["Moomoo","Mamamoo","Moomoos","Moo"]', 0, 'MAMAMOO''s fandom name is Moomoo.', 'Fandom'),
+  ('kpop-fandom-sone', 'What are Girls'' Generation fans called?', '["SONE","SoShi","Girls","Soshi"]', 0, 'SONE comes from the Korean word for "wish".', 'Fandom'),
+  ('kpop-fandom-vip', 'What are BIGBANG fans called?', '["VIP","Bang","Big","V.I.P"]', 0, 'BIGBANG''s fandom name is VIP.', 'Fandom'),
+  ('kpop-title-blood-sweat', 'Finish this BTS song title: "Blood Sweat & ___"', '["Tears","Fears","Years","Dreams"]', 0, 'The 2016 hit is "Blood Sweat & Tears".', 'Lyrics'),
+  ('kpop-title-fake-love', 'Finish this BTS song title: "Fake ___"', '["Love","Hope","Smile","Friends"]', 0, '"Fake Love" was released in 2018.', 'Lyrics'),
+  ('kpop-title-kill-this-love', 'Finish this BLACKPINK song title: "Kill This ___"', '["Love","Pain","Night","Beat"]', 0, '"Kill This Love" is a 2019 BLACKPINK single.', 'Lyrics'),
+  ('kpop-title-boy-with-luv', 'Finish this BTS song title: "Boy With ___"', '["Luv","Love","You","Us"]', 0, '"Boy With Luv" features Halsey.', 'Lyrics'),
+  ('kpop-title-dalla-dalla', 'Which K-pop group debuted with the song "DALLA DALLA"?', '["ITZY","aespa","IVE","NMIXX"]', 0, 'ITZY debuted in 2019 with "DALLA DALLA".', 'Lyrics')
+on conflict (id) do nothing;
+
+-- Without at least three active questions a round cannot start.
+do $$
+begin
+  if (select count(*) from public.daily_quiz_questions where active) < 3 then
+    raise exception 'err.dailySetup';
+  end if;
+end $$;
+
+/* Same sanitized payload as before, plus lifetime/streak check-in statistics
+   and question categories. Statistics are read-only: nothing here awards a
+   reward, and a streak is only a display counter. */
+create or replace function public.daily_rewards_payload(p_uid uuid, p_now timestamptz)
+returns jsonb language sql stable security definer set search_path = public as $$
+  with d as (select (p_now at time zone 'Asia/Ho_Chi_Minh')::date as day)
+  select jsonb_build_object(
+    'user_id', p_uid,
+    'day', d.day,
+    'server_now', p_now,
+    'reset_at', (d.day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh',
+    'credits', p.vote_credits + p.bonus_credits,
+    'purchased', p.vote_credits,
+    'bonus', p.bonus_credits,
+    'login', jsonb_build_object('claimed', l.user_id is not null, 'reward', 2,
+      'claimed_days', coalesce((
+        select jsonb_agg(c.reward_day order by c.reward_day)
+        from public.daily_login_rewards c
+        where c.user_id = p_uid
+          and c.reward_day >= date_trunc('month', d.day)::date
+          and c.reward_day <= d.day
+      ), '[]'::jsonb),
+      'total_days', coalesce(st.total_days, 0),
+      'first_day', st.first_day,
+      -- A streak stays alive until the end of the next day, then restarts.
+      'streak', case when st.last_day is null or st.last_day < d.day - 1 then 0 else st.run end,
+      'best_streak', coalesce(st.best_streak, 0)),
+    'earned_today', coalesce(l.reward, 0) + coalesce(a.score, 0),
+    'quiz', case when a.id is null then null else jsonb_build_object(
+      'attempt_id', a.id,
+      'completed', a.completed_at is not null,
+      'score', a.score,
+      'reward', a.score,
+      'answers', to_jsonb(a.answers),
+      'questions', (
+        select jsonb_agg(
+          jsonb_build_object('id', q.item->'id', 'prompt', q.item->'prompt', 'options', q.item->'options',
+            'category', coalesce(q.item->>'category', 'Songs'))
+          || case when a.completed_at is not null
+             then jsonb_build_object('correct_option', q.item->'correct_option', 'explanation', q.item->'explanation')
+             else '{}'::jsonb end
+          order by q.ord
+        ) from jsonb_array_elements(a.questions) with ordinality as q(item, ord)
+      )
+    ) end
+  ) from d
+  join public.profiles p on p.id = p_uid
+  left join lateral (
+    select count(*)::int as total_days,
+           min(c.reward_day) as first_day,
+           (select max(x.reward_day) from public.daily_login_rewards x
+             where x.user_id = p_uid and x.reward_day <= d.day) as last_day,
+           coalesce((select max(runs.n) from (
+             select count(*)::int as n from (
+               select c2.reward_day - (row_number() over (order by c2.reward_day))::int as grp
+               from public.daily_login_rewards c2 where c2.user_id = p_uid
+             ) g group by g.grp
+           ) runs), 0)::int as best_streak,
+           coalesce((select count(*)::int from (
+             select c3.reward_day - (row_number() over (order by c3.reward_day))::int as grp
+             from public.daily_login_rewards c3
+             where c3.user_id = p_uid and c3.reward_day <= d.day
+           ) h group by h.grp order by h.grp desc limit 1), 0)::int as run
+    from public.daily_login_rewards c
+    where c.user_id = p_uid
+  ) st on true
+  left join public.daily_login_rewards l on l.user_id = p_uid and l.reward_day = d.day
+  left join public.daily_quiz_attempts a on a.user_id = p_uid and a.quiz_day = d.day;
+$$;
+revoke all on function public.daily_rewards_payload(uuid,timestamptz) from public, anon, authenticated;
+
+-- Do not hand the same questions back day after day: prefer active questions
+-- the player has not seen in the last 30 days, then fall back to any active
+-- question. Scoring, rewards and the frozen snapshot are unchanged.
+create or replace function public.start_daily_quiz(p_expected_user_id uuid, p_expected_day date)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_attempt public.daily_quiz_attempts;
+  v_questions jsonb;
+  v_replayed boolean;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  v_now := clock_timestamp();
+  v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+  if p_expected_day is distinct from v_day then raise exception 'err.dailyDayChanged'; end if;
+  select * into v_attempt from public.daily_quiz_attempts where user_id = v_uid and quiz_day = v_day;
+  v_replayed := found;
+  if not v_replayed then
+    select jsonb_agg(jsonb_build_object('id', q.id, 'prompt', q.prompt, 'options', q.options,
+      'correct_option', q.correct_option, 'explanation', q.explanation, 'category', q.category)
+      order by q.seen, q.draw)
+      into v_questions
+    from (
+      select b.*, random() as draw,
+             case when exists (
+               select 1 from public.daily_quiz_attempts a,
+                    jsonb_array_elements(a.questions) item
+               where a.user_id = v_uid and a.quiz_day > v_day - 30
+                 and item->>'id' = b.id
+             ) then 1 else 0 end as seen
+      from public.daily_quiz_questions b
+      where b.active
+      order by seen, draw
+      limit 3
+    ) q;
+    if v_questions is null or jsonb_array_length(v_questions) <> 3 then raise exception 'err.dailySetup'; end if;
+    insert into public.daily_quiz_attempts (user_id, quiz_day, questions, created_at)
+    values (v_uid, v_day, v_questions, v_now);
+    insert into public.activity_days (user_id, day) values (v_uid, v_day)
+      on conflict (user_id, day) do nothing;
+  end if;
+  return jsonb_build_object('replayed', v_replayed,
+    'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.start_daily_quiz(uuid,date) from public, anon, authenticated;
+grant execute on function public.start_daily_quiz(uuid,date) to authenticated;
+
+/* Calendar browsing for any month, owner-scoped and read-only. It returns the
+   real check-in ledger only, never activity/streak rows, and never awards a
+   reward. Days after the server's Vietnam day are simply absent. */
+create or replace function public.my_daily_checkin_month(p_month date)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_day date;
+  v_from date;
+  v_to date;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_month is null then raise exception 'err.dailyDayChanged'; end if;
+  v_day := (clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date;
+  v_from := date_trunc('month', p_month)::date;
+  v_to := (date_trunc('month', v_from) + interval '1 month - 1 day')::date;
+  if v_to > v_day then v_to := v_day; end if;
+  return jsonb_build_object(
+    'user_id', v_uid,
+    'month', to_char(v_from, 'YYYY-MM'),
+    'day', v_day,
+    'days', coalesce((
+      select jsonb_agg(c.reward_day order by c.reward_day)
+      from public.daily_login_rewards c
+      where c.user_id = v_uid and c.reward_day >= v_from and c.reward_day <= v_to
+    ), '[]'::jsonb)
+  );
+end $$;
+revoke all on function public.my_daily_checkin_month(date) from public, anon, authenticated;
+grant execute on function public.my_daily_checkin_month(date) to authenticated;
+
+notify pgrst, 'reload schema';
+commit;
+
+-- BEGIN DAILY QUIZ SCHEMA: mirror 20261115_daily_quiz_schema.sql
+-- Five-question Daily Quiz — tables, columns, constraints and configuration.
+-- Run AFTER 20261114_daily_rewards_upgrade.sql, BEFORE
+-- 20261116_daily_quiz_rpcs.sql. Rerunnable.
+--
+-- The quiz can only draw from source-validated questions: the 99 legacy bank
+-- questions stay in the table for non-voting practice/legacy use and are
+-- marked so that no code path can mistake them for production material. They
+-- can be promoted one at a time after research (see docs/DAILY-QUIZ-PLAN.md).
+begin;
+
+
+-- =========================================================
+-- 1. CONFIGURATION
+-- =========================================================
+-- One row per switch. Everything the product owner may need to change later
+-- lives here; nothing below hard-codes a reward, a quota or a flag.
+create table if not exists public.daily_quiz_config (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.daily_quiz_config enable row level security;
+revoke all on public.daily_quiz_config from public, anon, authenticated;
+grant all on public.daily_quiz_config to service_role;
+
+insert into public.daily_quiz_config (key, value) values
+  -- Set size and difficulty mix -------------------------------------------
+  ('questions_per_day',          '5'),
+  ('easy_count',                 '2'),
+  ('medium_count',               '3'),
+  ('hard_count',                 '0'),
+  ('hard_question_enabled',      'false'),
+  ('max_hard_per_set',           '1'),
+  ('min_hard_pool_to_enable',    '30'),
+  -- Diversity --------------------------------------------------------------
+  ('min_distinct_artists',       '3'),
+  ('max_per_artist',             '2'),
+  ('min_profile',                '1'),
+  ('min_lyrics',                 '1'),
+  ('max_true_false',             '1'),
+  ('max_lyrics_keyword',         '1'),
+  -- Quality gates ---------------------------------------------------------
+  ('repeat_cooldown_days',       '90'),
+  ('freshness_days',             '30'),
+  ('min_quality_score',          '97'),
+  ('max_source_redirects',       '3'),
+  -- Votes -----------------------------------------------------------------
+  ('daily_vote_cap',             '5'),
+  ('free_vote_grant_enabled',    'false'),
+  ('free_votes_per_day',         '3'),
+  ('global_daily_vote_cap_enabled', 'false'),
+  ('global_daily_vote_cap',      '5'),
+  -- Legacy bank: kept for practice only, never for votes -------------------
+  ('legacy_pool_enabled',        'false')
+on conflict (key) do nothing;
+
+-- Typed readers. Defaults are the safe side of every switch: a missing or
+-- unreadable row must never widen the pool or raise a cap.
+create or replace function public.daily_quiz_int(p_key text, p_default int)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce((select nullif(value #>> '{}', '')::int from public.daily_quiz_config where key = p_key), p_default)
+$$;
+
+create or replace function public.daily_quiz_bool(p_key text, p_default boolean)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select nullif(value #>> '{}', '')::boolean from public.daily_quiz_config where key = p_key), p_default)
+$$;
+
+create or replace function public.daily_quiz_num(p_key text)
+returns float8 language sql stable security definer set search_path = public as $$
+  select (select nullif(value #>> '{}', '')::float8 from public.daily_quiz_config where key = p_key)
+$$;
+
+revoke all on function public.daily_quiz_int(text,int),
+                       public.daily_quiz_bool(text,boolean),
+                       public.daily_quiz_num(text) from public, anon, authenticated;
+
+-- =========================================================
+-- 2. QUESTION BANK: source, review and diversity metadata
+-- =========================================================
+alter table public.daily_quiz_questions
+  add column if not exists option_ids        text[] not null default array['opt-a','opt-b','opt-c','opt-d'],
+  add column if not exists artist            text,
+  add column if not exists difficulty        text not null default 'easy',
+  add column if not exists sub_category      text not null default 'profile',
+  add column if not exists question_type     text not null default 'mcq',
+  add column if not exists fact_key          text,
+  add column if not exists song_key          text,
+  add column if not exists quality_score     int,
+  add column if not exists approval_status   text not null default 'draft',
+  add column if not exists daily_eligibility_status text not null default 'ineligible',
+  add column if not exists retirement_status text not null default 'active',
+  add column if not exists source_url        text,
+  add column if not exists source_initial_http_status text,
+  add column if not exists source_final_http_status   text,
+  add column if not exists source_final_url           text,
+  add column if not exists source_redirect_count      text,
+  add column if not exists source_access_status       text,
+  add column if not exists source_fact_match          text,
+  add column if not exists source_last_checked        date,
+  add column if not exists safety_flags      text[] not null default '{}',
+  add column if not exists copyright_flags   text[] not null default '{}',
+  add column if not exists duplicate_of      text references public.daily_quiz_questions(id);
+
+-- The 99 legacy questions have never been source-validated. Mark them as what
+-- they are so no code path can mistake them for production material. They stay
+-- in the table (practice/legacy use, future research) but are NOT eligible:
+-- eligibility below requires approval_status = 'approved'.
+update public.daily_quiz_questions
+   set source_fact_match          = coalesce(source_fact_match, 'pending_external_validation'),
+       source_access_status       = coalesce(source_access_status, 'unknown_not_observable'),
+       source_initial_http_status = coalesce(source_initial_http_status, 'unknown_not_observable'),
+       source_final_http_status   = coalesce(source_final_http_status, 'unknown_not_observable'),
+       source_redirect_count      = coalesce(source_redirect_count, 'unknown_not_observable')
+ where coalesce(source_final_url, '') = '';
+
+-- Legacy rows were filed under a display category only; mirror it so the
+-- future research queue can be triaged by sub-category.
+update public.daily_quiz_questions
+   set sub_category = 'lyrics'
+ where coalesce(source_final_url, '') = ''
+   and category = 'Lyrics'
+   and sub_category = 'profile';
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_difficulty_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_difficulty_check
+  check (difficulty in ('easy','medium','hard'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_sub_category_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_sub_category_check
+  check (sub_category in ('profile','lyrics','lyrics_keyword'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_question_type_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_question_type_check
+  check (question_type in ('mcq','true_false'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_approval_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_approval_check
+  check (approval_status in ('draft','pending_verification','approved','rejected'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_eligibility_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_eligibility_check
+  check (daily_eligibility_status in ('eligible','temporarily_ineligible','ineligible'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_retirement_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_retirement_check
+  check (retirement_status in ('active','review_required','retired','superseded'));
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_quality_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_quality_check
+  check (quality_score is null or quality_score between 0 and 100);
+
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_option_ids_check;
+alter table public.daily_quiz_questions add constraint daily_quiz_questions_option_ids_check
+  check (cardinality(option_ids) = 4
+     and option_ids[1] <> option_ids[2] and option_ids[1] <> option_ids[3] and option_ids[1] <> option_ids[4]
+     and option_ids[2] <> option_ids[3] and option_ids[2] <> option_ids[4] and option_ids[3] <> option_ids[4]);
+
+-- Stable option identity: an id that survives client-side shuffling. It is
+-- DERIVED from the canonical order, so the frozen snapshot and the live row can
+-- never disagree and no importer has to keep two fields in sync by hand.
+alter table public.daily_quiz_questions drop constraint if exists daily_quiz_questions_correct_id_check;
+alter table public.daily_quiz_questions drop column if exists correct_option_id;
+alter table public.daily_quiz_questions add column correct_option_id text
+  generated always as (option_ids[correct_option + 1]) stored;
+
+create index if not exists daily_quiz_questions_pool_idx
+  on public.daily_quiz_questions (difficulty, artist)
+  where approval_status = 'approved'
+    and daily_eligibility_status = 'eligible'
+    and retirement_status = 'active'
+    and active;
+
+-- =========================================================
+-- 3. ATTEMPTS
+-- =========================================================
+alter table public.daily_quiz_attempts
+  add column if not exists quiz_date      date,
+  add column if not exists question_count int not null default 5,
+  add column if not exists max_votes      int not null default 5,
+  add column if not exists votes_awarded  int not null default 0,
+  add column if not exists submitted_at   timestamptz,
+  add column if not exists locked         boolean not null default false,
+  add column if not exists selection      jsonb not null default '{}'::jsonb;
+
+-- Historical 3-question rounds keep their real size; only new rounds are 5.
+update public.daily_quiz_attempts
+   set question_count = jsonb_array_length(questions)
+ where question_count = 5
+   and jsonb_array_length(questions) <> 5;
+
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_attempts_questions_check;
+alter table public.daily_quiz_attempts add constraint daily_quiz_attempts_questions_check
+  check (jsonb_typeof(questions) = 'array' and jsonb_array_length(questions) in (3,5));
+
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_attempts_score_check;
+alter table public.daily_quiz_attempts add constraint daily_quiz_attempts_score_check
+  check (score is null or score between 0 and 5);
+
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_attempts_question_count_check;
+alter table public.daily_quiz_attempts add constraint daily_quiz_attempts_question_count_check
+  check (question_count in (3,5));
+
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_attempts_max_votes_check;
+-- The structural ceiling: no round can ever be worth more than 5 votes.
+-- daily_quiz_config.daily_vote_cap may lower it, never raise it.
+alter table public.daily_quiz_attempts add constraint daily_quiz_attempts_max_votes_check
+  check (max_votes between 1 and 5);
+
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_attempts_votes_awarded_check;
+alter table public.daily_quiz_attempts add constraint daily_quiz_attempts_votes_awarded_check
+  check (votes_awarded between 0 and 5);
+
+-- New 5-question rounds are graded per answer in public.daily_quiz_answers, so
+-- the attempt itself never carries answers/score. Legacy 3-question rounds keep
+-- their original all-at-once shape untouched.
+alter table public.daily_quiz_attempts drop constraint if exists daily_quiz_completion;
+alter table public.daily_quiz_attempts add constraint daily_quiz_completion check (
+  (question_count = 5 and answers is null and score is null and completed_at is null
+                      and ((submitted_at is null and not locked)
+                           or (submitted_at is not null and locked)))
+  or (question_count = 3 and (
+        (completed_at is null and answers is null and score is null)
+     or (completed_at is not null and answers is not null and score is not null
+         and cardinality(answers) = 3)))
+);
+
+create unique index if not exists daily_quiz_attempts_user_quiz_date_idx
+  on public.daily_quiz_attempts (user_id, quiz_date)
+  where quiz_date is not null;
+
+-- =========================================================
+-- 4. ANSWER LEDGER — the idempotency anchor
+-- =========================================================
+-- One row per (user, quiz date, question). The primary key is what makes a
+-- replay, a retry, a second tab or a crafted duplicate a no-op instead of a
+-- second vote. question_id is intentionally NOT a foreign key: the frozen
+-- snapshot is the history, and deleting an edited question must never be able
+-- to delete or resurrect an award.
+create table if not exists public.daily_quiz_answers (
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  quiz_date    date not null,
+  question_id  text not null,
+  attempt_id   uuid not null references public.daily_quiz_attempts(id) on delete cascade,
+  option_id    text not null,
+  correct      boolean not null,
+  awarded      int not null default 0 check (awarded in (0,1)),
+  answered_at  timestamptz not null default clock_timestamp(),
+  primary key (user_id, quiz_date, question_id)
+);
+
+create index if not exists daily_quiz_answers_day_idx
+  on public.daily_quiz_answers (user_id, quiz_date);
+
+-- =========================================================
+-- 5. REPEAT HISTORY — 90-day cooldown
+-- =========================================================
+create table if not exists public.daily_quiz_seen (
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  question_id text not null,
+  last_seen   date not null,
+  primary key (user_id, question_id)
+);
+
+create index if not exists daily_quiz_seen_recent_idx
+  on public.daily_quiz_seen (user_id, last_seen);
+
+alter table public.daily_quiz_answers enable row level security;
+alter table public.daily_quiz_seen enable row level security;
+revoke all on public.daily_quiz_answers, public.daily_quiz_seen from public, anon, authenticated;
+grant all on public.daily_quiz_answers, public.daily_quiz_seen to service_role;
+
+notify pgrst, 'reload schema';
+commit;
+
+-- BEGIN DAILY QUIZ POOL: mirror 20261116_daily_quiz_pool.sql
+-- Five-question Daily Quiz — the eligible pool and the sanitized payload.
+-- Run AFTER 20261115_daily_quiz_schema.sql, BEFORE 20261117_daily_quiz_flow.sql.
+--
+-- Eligibility is decided here and nowhere else: approval, daily eligibility,
+-- retirement, quality score, safety/copyright flags, duplicate marker, fact
+-- match, access status, a measured final HTTP 200, a final URL, a redirect
+-- count inside the limit and a fresh last-checked date. Hard questions are
+-- excluded while daily_quiz_config.hard_question_enabled is false.
+begin;
+
+-- 6. ELIGIBLE POOL
+-- =========================================================
+-- The only place that decides whether a question may ever award a vote.
+-- Legacy/unverified rows fail here on approval_status, source_fact_match and
+-- the measured HTTP fields; there is no override and no relaxation.
+create or replace function public.daily_quiz_candidates(p_uid uuid, p_day date)
+returns table (
+  id text, prompt text, options jsonb, option_ids text[], correct_option int,
+  correct_option_id text, explanation text, category text, difficulty text,
+  sub_category text, question_type text, artist text, fact_key text, song_key text,
+  seen_recently boolean
+)
+language sql stable security definer set search_path = public as $$
+  select q.id, q.prompt, q.options, q.option_ids, q.correct_option, q.correct_option_id,
+         q.explanation, q.category, q.difficulty, q.sub_category, q.question_type,
+         q.artist, q.fact_key, q.song_key,
+         exists (select 1 from public.daily_quiz_seen s
+                  where s.user_id = p_uid
+                    and s.question_id = q.id
+                    and s.last_seen > p_day - public.daily_quiz_int('repeat_cooldown_days', 90)) as seen_recently
+    from public.daily_quiz_questions q
+   where q.active
+     and q.approval_status = 'approved'
+     and q.daily_eligibility_status = 'eligible'
+     and q.retirement_status = 'active'
+     and q.duplicate_of is null
+     and coalesce(cardinality(q.safety_flags), 0) = 0
+     and coalesce(cardinality(q.copyright_flags), 0) = 0
+     and coalesce(q.quality_score, 0) >= public.daily_quiz_int('min_quality_score', 97)
+     and q.source_fact_match = 'pass'
+     and q.source_access_status in ('public_accessible','accessible_with_redirect')
+     and q.source_final_http_status = '200'
+     and coalesce(q.source_final_url, '') <> ''
+     and coalesce(nullif(q.source_redirect_count, '')::int, 99)
+         <= public.daily_quiz_int('max_source_redirects', 3)
+     and q.source_last_checked is not null
+     and q.source_last_checked > p_day - public.daily_quiz_int('freshness_days', 30)
+     and (q.difficulty <> 'hard'
+          or (public.daily_quiz_bool('hard_question_enabled', false)
+              and public.daily_quiz_bool('legacy_pool_enabled', false) is not null))
+$$;
+revoke all on function public.daily_quiz_candidates(uuid,date) from public, anon, authenticated;
+
+create or replace function public.daily_quiz_pool(p_uid uuid, p_day date)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'total',  count(*),
+    'easy',   count(*) filter (where difficulty = 'easy'),
+    'medium', count(*) filter (where difficulty = 'medium'),
+    'hard',   count(*) filter (where difficulty = 'hard'))
+  from public.daily_quiz_candidates(p_uid, p_day);
+$$;
+revoke all on function public.daily_quiz_pool(uuid,date) from public, anon, authenticated;
+
+-- Difficulty mix for one round, clamped to what the pool can actually supply.
+-- Hard questions only enter the mix when the flag is on AND the validated hard
+-- pool has reached min_hard_pool_to_enable.
+create or replace function public.daily_quiz_mix(p_pool jsonb)
+returns table (need_easy int, need_medium int, need_hard int)
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  v_total  int := public.daily_quiz_int('questions_per_day', 5);
+  v_easy   int := public.daily_quiz_int('easy_count', 2);
+  v_medium int := public.daily_quiz_int('medium_count', 3);
+  v_hard   int := public.daily_quiz_int('hard_count', 0);
+  v_pool_hard   int := coalesce((p_pool ->> 'hard')::int, 0);
+  v_pool_medium int := coalesce((p_pool ->> 'medium')::int, 0);
+  v_pool_easy   int := coalesce((p_pool ->> 'easy')::int, 0);
+  v_hard_on boolean := public.daily_quiz_bool('hard_question_enabled', false)
+                       and v_pool_hard >= public.daily_quiz_int('min_hard_pool_to_enable', 30);
+  v_options jsonb := '[]'::jsonb;
+  v_pick jsonb;
+  v_seed float8;
+begin
+  -- Deterministic for tests: daily_quiz_config.random_seed, when present,
+  -- pins the Postgres RNG for the whole session.
+  v_seed := public.daily_quiz_num('random_seed');
+  if v_seed is not null then perform setseed(v_seed); end if;
+
+  v_options := v_options || jsonb_build_array(jsonb_build_array(v_easy, v_medium, v_hard));
+  if v_hard_on then
+    -- Ranges once hard questions are enabled: 1-2 easy / 2-3 medium / 0-1 hard.
+    v_options := v_options || jsonb_build_array(
+      jsonb_build_array(v_easy - 1, v_medium, v_hard + 1),
+      jsonb_build_array(v_easy, v_medium - 1, v_hard + 1));
+  end if;
+
+  v_pick := v_options -> (floor(random() * jsonb_array_length(v_options))::int);
+  v_hard   := least(coalesce((v_pick ->> 2)::int, 0), v_pool_hard, public.daily_quiz_int('max_hard_per_set', 1));
+  v_medium := least(coalesce((v_pick ->> 1)::int, 0), v_pool_medium);
+  v_easy   := greatest(0, v_total - v_hard - v_medium);
+  -- Whatever easy cannot cover is pushed back onto medium, then reported as
+  -- infeasible by the caller if the pool still falls short.
+  if v_easy > v_pool_easy then
+    v_medium := least(v_medium + (v_easy - v_pool_easy), v_pool_medium);
+    v_easy   := greatest(0, v_total - v_hard - v_medium);
+  end if;
+  return query select v_easy, v_medium, v_hard;
+end $$;
+revoke all on function public.daily_quiz_mix(jsonb) from public, anon, authenticated;
+
+-- Greedy draw with randomized retries. Returns 5 ids when the constraints can
+-- be met at this relaxation level, 0 rows otherwise.
+create or replace function public.daily_quiz_pick(
+  p_uid uuid, p_day date,
+  p_need_easy int, p_need_medium int, p_need_hard int,
+  p_unseen_only boolean, p_min_artists int,
+  p_require_profile boolean, p_require_lyrics boolean,
+  p_attempts int default 60
+)
+returns table (question_id text)
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  v_max_artist int := public.daily_quiz_int('max_per_artist', 2);
+  v_max_tf     int := public.daily_quiz_int('max_true_false', 1);
+  v_max_lk     int := public.daily_quiz_int('max_lyrics_keyword', 1);
+  v_try int;
+  v_pool jsonb;
+  v_item jsonb;
+  v_i int;
+  v_diff text;
+  v_picked text[] := '{}';
+  v_artists text[] := '{}';
+  v_facts text[] := '{}';
+  v_songs text[] := '{}';
+  v_tf int;
+  v_lk int;
+  v_profile int;
+  v_lyrics int;
+  v_counts jsonb;
+  v_need jsonb := jsonb_build_object('easy', p_need_easy, 'medium', p_need_medium, 'hard', p_need_hard);
+begin
+  for v_try in 1 .. greatest(p_attempts, 1) loop
+    -- Interleave artists (row_number per artist) so the first picks naturally
+    -- come from different artists, then randomize inside each artist.
+    select coalesce(jsonb_agg(x.item order by x.ar, x.r), '[]'::jsonb)
+      into v_pool
+      from (
+        select c.item, c.ar, random() as r
+          from (
+            select jsonb_build_object(
+                     'id', q.id, 'difficulty', q.difficulty,
+                     'sub_category', q.sub_category, 'question_type', q.question_type,
+                     'artist', coalesce(q.artist, 'unknown'),
+                     'fact', coalesce(q.fact_key, 'fact:' || q.id),
+                     'song', coalesce(q.song_key, 'song:' || q.id)) as item,
+                   row_number() over (partition by coalesce(q.artist, 'unknown') order by random()) as ar
+              from public.daily_quiz_candidates(p_uid, p_day) q
+             where (not p_unseen_only or not q.seen_recently)
+          ) c
+      ) x;
+
+    v_picked  := '{}';
+    v_artists := '{}';
+    v_facts   := '{}';
+    v_songs   := '{}';
+    v_tf      := 0;
+    v_lk      := 0;
+    v_profile := 0;
+    v_lyrics  := 0;
+    v_counts  := jsonb_build_object('easy', 0, 'medium', 0, 'hard', 0);
+
+    for v_i in 0 .. jsonb_array_length(v_pool) - 1 loop
+      v_item := v_pool -> v_i;
+      v_diff := v_item ->> 'difficulty';
+
+      continue when (v_counts ->> v_diff)::int >= coalesce((v_need ->> v_diff)::int, 0);
+      continue when v_item ->> 'question_type' = 'true_false' and v_tf >= v_max_tf;
+      continue when v_item ->> 'sub_category' = 'lyrics_keyword' and v_lk >= v_max_lk;
+      continue when (select count(*) from unnest(v_artists) a where a = v_item ->> 'artist') >= v_max_artist;
+      continue when v_item ->> 'fact' = any (v_facts);
+      continue when v_item ->> 'song' = any (v_songs);
+
+      v_picked  := v_picked || (v_item ->> 'id');
+      v_artists := v_artists || (v_item ->> 'artist');
+      v_facts   := v_facts   || (v_item ->> 'fact');
+      v_songs   := v_songs   || (v_item ->> 'song');
+      v_counts  := jsonb_set(v_counts, array[v_diff], to_jsonb((v_counts ->> v_diff)::int + 1));
+      if v_item ->> 'question_type' = 'true_false' then v_tf := v_tf + 1; end if;
+      if v_item ->> 'sub_category' = 'lyrics_keyword' then v_lk := v_lk + 1; end if;
+      if v_item ->> 'sub_category' = 'profile' then v_profile := v_profile + 1; end if;
+      if v_item ->> 'sub_category' in ('lyrics','lyrics_keyword') then v_lyrics := v_lyrics + 1; end if;
+    end loop;
+
+    if coalesce(array_length(v_picked, 1), 0) = public.daily_quiz_int('questions_per_day', 5)
+       and (select count(distinct a) from unnest(v_artists) a) >= p_min_artists
+       and (not p_require_profile or v_profile >= public.daily_quiz_int('min_profile', 1))
+       and (not p_require_lyrics or v_lyrics >= public.daily_quiz_int('min_lyrics', 1)) then
+      return query select u from unnest(v_picked) u;
+      return;
+    end if;
+  end loop;
+end $$;
+revoke all on function public.daily_quiz_pick(uuid,date,int,int,int,boolean,int,boolean,boolean,int)
+  from public, anon, authenticated;
+
+-- =========================================================
+-- 7. SANITIZED PAYLOAD
+-- =========================================================
+create or replace function public.daily_rewards_payload(p_uid uuid, p_now timestamptz)
+returns jsonb language sql stable security definer set search_path = public as $$
+  with d as (select (p_now at time zone 'Asia/Ho_Chi_Minh')::date as day),
+  pool as (select public.daily_quiz_pool(p_uid, d.day) as p from d),
+  mix as (select m.* from pool, public.daily_quiz_mix(pool.p) m),
+  quiz_state as (
+    select case
+             when a.question_count <> 5 then 'retired'
+             when a.locked then 'completed'
+             else 'in_progress' end as state,
+           a.*
+      from public.daily_quiz_attempts a cross join d
+     where a.user_id = p_uid and a.quiz_day = d.day
+  )
+  select jsonb_build_object(
+    'user_id', p_uid,
+    'day', d.day,
+    'server_now', p_now,
+    'reset_at', (d.day + 1)::timestamp at time zone 'Asia/Ho_Chi_Minh',
+    'credits', p.vote_credits + p.bonus_credits,
+    'purchased', p.vote_credits,
+    'bonus', p.bonus_credits,
+    'login', jsonb_build_object('claimed', l.user_id is not null, 'reward', 2,
+      'claimed_days', coalesce((
+        select jsonb_agg(c.reward_day order by c.reward_day)
+        from public.daily_login_rewards c
+        where c.user_id = p_uid
+          and c.reward_day >= date_trunc('month', d.day)::date
+          and c.reward_day <= d.day
+      ), '[]'::jsonb),
+      'total_days', coalesce(st.total_days, 0),
+      'first_day', st.first_day,
+      'streak', case when st.last_day is null or st.last_day < d.day - 1 then 0 else st.run end,
+      'best_streak', coalesce(st.best_streak, 0)),
+    'earned_today', coalesce(l.reward, 0) + coalesce((select a.votes_awarded from quiz_state a), 0),
+    'quiz', case
+      when (select count(*) from quiz_state) = 0 then jsonb_build_object(
+        'state', case when (select (p.p ->> 'total')::int from pool p) >= 5
+                       and (select (p.p ->> 'easy')::int from pool p) >= (select mix.need_easy from mix)
+                       and (select (p.p ->> 'medium')::int from pool p) >= (select mix.need_medium from mix)
+                       and (select (p.p ->> 'hard')::int from pool p) >= (select mix.need_hard from mix)
+                      then 'ready' else 'unavailable' end,
+        'question_count', public.daily_quiz_int('questions_per_day', 5),
+        'max_votes', public.daily_quiz_int('daily_vote_cap', 5),
+        'pool', (select p.p from pool p))
+      when (select state from quiz_state) = 'retired' then jsonb_build_object('state', 'retired')
+      else jsonb_build_object(
+        'state', (select state from quiz_state),
+        'attempt_id', (select a.id from quiz_state a),
+        'quiz_date', (select a.quiz_date from quiz_state a),
+        'question_count', (select a.question_count from quiz_state a),
+        'max_votes', (select a.max_votes from quiz_state a),
+        'votes_awarded', (select a.votes_awarded from quiz_state a),
+        'answered_count', (select count(*)::int from public.daily_quiz_answers w
+                            where w.user_id = p_uid and w.quiz_date = d.day),
+        'submitted_at', (select a.submitted_at from quiz_state a),
+        'locked', (select a.locked from quiz_state a),
+        'questions', (
+          select jsonb_agg(
+            jsonb_build_object('id', q.item ->> 'id', 'prompt', q.item ->> 'prompt',
+              'options', q.item -> 'options', 'option_ids', q.item -> 'option_ids',
+              'category', coalesce(q.item ->> 'category', 'Songs'),
+              'difficulty', q.item ->> 'difficulty',
+              'sub_category', q.item ->> 'sub_category',
+              'question_type', q.item ->> 'question_type',
+              'answered', w.question_id is not null)
+            || case when w.question_id is null then '{}'::jsonb
+               else jsonb_build_object('option_id', w.option_id, 'correct', w.correct,
+                                       'awarded', w.awarded,
+                                       'correct_option_id', q.item ->> 'correct_option_id',
+                                       'explanation', q.item ->> 'explanation') end
+            order by q.ord)
+          from jsonb_array_elements((select a.questions from quiz_state a)) with ordinality as q(item, ord)
+          left join public.daily_quiz_answers w
+            on w.user_id = p_uid and w.quiz_date = d.day and w.question_id = q.item ->> 'id'
+        )) end
+  ) from d
+  join public.profiles p on p.id = p_uid
+  cross join pool
+  left join lateral (
+    select count(*)::int as total_days,
+           min(c.reward_day) as first_day,
+           (select max(x.reward_day) from public.daily_login_rewards x
+             where x.user_id = p_uid and x.reward_day <= d.day) as last_day,
+           coalesce((select max(runs.n) from (
+             select count(*)::int as n from (
+               select c2.reward_day - (row_number() over (order by c2.reward_day))::int as grp
+               from public.daily_login_rewards c2 where c2.user_id = p_uid
+             ) g group by g.grp
+           ) runs), 0)::int as best_streak,
+           coalesce((select count(*)::int from (
+             select c3.reward_day - (row_number() over (order by c3.reward_day))::int as grp
+             from public.daily_login_rewards c3
+             where c3.user_id = p_uid and c3.reward_day <= d.day
+           ) h group by h.grp order by h.grp desc limit 1), 0)::int as run
+    from public.daily_login_rewards c
+    where c.user_id = p_uid
+  ) st on true
+  left join public.daily_login_rewards l on l.user_id = p_uid and l.reward_day = d.day;
+$$;
+revoke all on function public.daily_rewards_payload(uuid,timestamptz) from public, anon, authenticated;
+
+-- =========================================================
+
+notify pgrst, 'reload schema';
+commit;
+
+-- BEGIN DAILY QUIZ FLOW: mirror 20261117_daily_quiz_flow.sql
+-- Five-question Daily Quiz — start, per-answer submission and vote accounting.
+-- Run AFTER 20261116_daily_quiz_pool.sql. Rerunnable.
+--
+-- Server-side rules (never decided by the browser):
+--   · exactly 5 questions per user per quiz date (Asia/Ho_Chi_Minh),
+--   · launch mix = exactly 2 easy + 3 medium, from the validated pool only,
+--   · 1 correct answer = 1 bonus vote, hard cap 5 votes per user per quiz date,
+--     enforced by unique (user_id, quiz_date, question_id) in the answer ledger,
+--   · the automatic 3-free-votes/day grant is retired by configuration, so
+--     Daily Quiz votes cannot stack with it.
+begin;
+
+-- 8. START
+-- =========================================================
+create or replace function public.start_daily_quiz(p_expected_user_id uuid, p_expected_day date)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_attempt public.daily_quiz_attempts;
+  v_pool jsonb;
+  v_easy int;
+  v_medium int;
+  v_hard int;
+  v_ids text[];
+  v_questions jsonb;
+  v_level int;
+  v_relaxed jsonb := '[]'::jsonb;
+  v_replayed boolean;
+  v_total int := public.daily_quiz_int('questions_per_day', 5);
+  v_min_artists int := public.daily_quiz_int('min_distinct_artists', 3);
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('daily_quiz:' || v_uid::text, 11));
+  v_now := clock_timestamp();
+  v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+  if p_expected_day is distinct from v_day then raise exception 'err.dailyDayChanged'; end if;
+
+  select * into v_attempt from public.daily_quiz_attempts
+    where user_id = v_uid and quiz_day = v_day;
+  v_replayed := found;
+  if v_replayed then
+    return jsonb_build_object('attempt_id', v_attempt.id, 'quiz_date', v_attempt.quiz_date,
+      'replayed', true, 'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+  end if;
+
+  v_pool := public.daily_quiz_pool(v_uid, v_day);
+  select m.need_easy, m.need_medium, m.need_hard into v_easy, v_medium, v_hard
+    from public.daily_quiz_mix(v_pool) m;
+
+  -- Not enough validated material: say so instead of falling back to the
+  -- unverified legacy bank. This is a product state, not an error to hide.
+  if coalesce((v_pool ->> 'easy')::int, 0) < v_easy
+     or coalesce((v_pool ->> 'medium')::int, 0) < v_medium
+     or coalesce((v_pool ->> 'hard')::int, 0) < v_hard
+     or (v_easy + v_medium + v_hard) <> v_total then
+    raise exception 'err.dailyQuizUnavailable';
+  end if;
+
+  -- Documented, deterministic relaxation ladder. Production eligibility,
+  -- source validation, safety, the vote cap and the set size are NEVER relaxed.
+  for v_level in 0 .. 3 loop
+    select array(select p.question_id from public.daily_quiz_pick(
+        v_uid, v_day, v_easy, v_medium, v_hard,
+        v_level < 1,                                       -- 90-day cooldown
+        case when v_level < 2 then v_min_artists else 0 end, -- distinct artists
+        v_level < 3, v_level < 3) p)                        -- profile + lyrics minimums
+      into v_ids;
+    -- Every step taken is recorded, including the one that finally worked, so
+    -- an auditor can see exactly which preferences had to give way.
+    v_relaxed := v_relaxed || to_jsonb(v_level);
+    if coalesce(array_length(v_ids, 1), 0) = v_total then exit; end if;
+    v_relaxed := v_relaxed || to_jsonb(v_level);
+  end loop;
+
+  if coalesce(array_length(v_ids, 1), 0) <> v_total then
+    raise exception 'err.dailyQuizUnavailable';
+  end if;
+
+  -- Freeze everything the round needs, private fields included. Later edits or
+  -- retirements cannot change a round that has already been handed out.
+  select jsonb_agg(jsonb_build_object('id', q.id, 'prompt', q.prompt, 'options', q.options,
+      'option_ids', q.option_ids, 'correct_option', q.correct_option,
+      'correct_option_id', q.correct_option_id, 'explanation', q.explanation,
+      'category', q.category, 'difficulty', q.difficulty, 'sub_category', q.sub_category,
+      'question_type', q.question_type, 'artist', q.artist)
+    order by array_position(v_ids, q.id))
+    into v_questions
+    from public.daily_quiz_questions q
+   where q.id = any (v_ids);
+
+  if v_questions is null or jsonb_array_length(v_questions) <> v_total then
+    raise exception 'err.dailySetup';
+  end if;
+
+  insert into public.daily_quiz_attempts
+    (user_id, quiz_day, quiz_date, questions, question_count, max_votes, created_at,
+     selection)
+  values (v_uid, v_day, v_day, v_questions, v_total,
+          public.daily_quiz_int('daily_vote_cap', 5), v_now,
+          jsonb_build_object('pool', v_pool, 'mix', jsonb_build_object(
+            'easy', v_easy, 'medium', v_medium, 'hard', v_hard),
+            'relaxed_steps', v_relaxed,
+            'hard_enabled', public.daily_quiz_bool('hard_question_enabled', false)))
+  returning * into v_attempt;
+
+  insert into public.daily_quiz_seen (user_id, question_id, last_seen)
+    select v_uid, u, v_day from unnest(v_ids) u
+  on conflict (user_id, question_id)
+    do update set last_seen = greatest(public.daily_quiz_seen.last_seen, excluded.last_seen);
+
+  insert into public.activity_days (user_id, day) values (v_uid, v_day)
+    on conflict (user_id, day) do nothing;
+
+  return jsonb_build_object('attempt_id', v_attempt.id, 'quiz_date', v_attempt.quiz_date,
+    'replayed', false, 'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.start_daily_quiz(uuid,date) from public, anon, authenticated;
+grant execute on function public.start_daily_quiz(uuid,date) to authenticated;
+
+-- =========================================================
+-- 9. SUBMIT ONE ANSWER
+-- =========================================================
+create or replace function public.submit_daily_quiz_answer(
+  p_expected_user_id uuid,
+  p_attempt_id uuid,
+  p_question_id text,
+  p_option_id text
+)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_now timestamptz;
+  v_day date;
+  v_attempt public.daily_quiz_attempts;
+  v_item jsonb;
+  v_correct boolean;
+  v_awarded int := 0;
+  v_cap int := public.daily_quiz_int('daily_vote_cap', 5);
+  v_votes int;
+  v_answered int;
+  v_replayed boolean := false;
+  v_stored public.daily_quiz_answers;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  if p_expected_user_id is distinct from v_uid then raise exception 'err.dailyAccountChanged'; end if;
+  if p_question_id is null or p_option_id is null then raise exception 'err.dailyQuizAnswers'; end if;
+
+  -- Same lock order everywhere: profile, then advisory, then attempt.
+  perform 1 from public.profiles where id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('daily_quiz:' || v_uid::text, 11));
+
+  select * into v_attempt from public.daily_quiz_attempts
+    where id = p_attempt_id and user_id = v_uid for update;
+  if not found then raise exception 'err.dailyQuizSession'; end if;
+  if v_attempt.question_count <> 5 then raise exception 'err.dailyQuizRetired'; end if;
+  -- The award ceiling is the smaller of the configured cap and the ceiling
+  -- frozen into the attempt at start time.
+  v_cap := least(v_cap, v_attempt.max_votes);
+
+  v_now := clock_timestamp();
+  v_day := (v_now at time zone 'Asia/Ho_Chi_Minh')::date;
+  if v_attempt.quiz_date is distinct from v_day then raise exception 'err.dailyDayChanged'; end if;
+
+  -- The question must be one this user was actually assigned, and the option
+  -- must belong to that question. Both come from the frozen snapshot.
+  select item into v_item
+    from jsonb_array_elements(v_attempt.questions) item
+   where item ->> 'id' = p_question_id;
+  if v_item is null then raise exception 'err.dailyQuizQuestion'; end if;
+  if not (p_option_id = any (array(select jsonb_array_elements_text(v_item -> 'option_ids')))) then
+    raise exception 'err.dailyQuizOption';
+  end if;
+
+  -- Idempotency: one row per (user, quiz date, question) ever.
+  select * into v_stored from public.daily_quiz_answers
+    where user_id = v_uid and quiz_date = v_day and question_id = p_question_id;
+  v_replayed := found;
+
+  if not v_replayed then
+    v_correct := (p_option_id = (v_item ->> 'correct_option_id'));
+    select count(*)::int into v_votes from public.daily_quiz_answers
+      where user_id = v_uid and quiz_date = v_day and awarded = 1;
+    -- Cap is re-read after the locks, inside the same transaction.
+    v_awarded := case when v_correct and v_votes < v_cap then 1 else 0 end;
+
+    insert into public.daily_quiz_answers
+      (user_id, quiz_date, question_id, attempt_id, option_id, correct, awarded, answered_at)
+    values (v_uid, v_day, p_question_id, v_attempt.id, p_option_id, v_correct, v_awarded, v_now)
+    on conflict (user_id, quiz_date, question_id) do nothing;
+
+    if not found then
+      -- A concurrent request (second tab, retry, replay) won the race: return
+      -- its stored result instead of awarding anything.
+      select * into v_stored from public.daily_quiz_answers
+        where user_id = v_uid and quiz_date = v_day and question_id = p_question_id;
+      v_replayed := true;
+    else
+      v_stored := null;
+    end if;
+
+    if not v_replayed then
+      if v_awarded = 1 then
+        update public.profiles set bonus_credits = bonus_credits + 1 where id = v_uid;
+      end if;
+      insert into public.activity_days (user_id, day) values (v_uid, v_day)
+        on conflict (user_id, day) do nothing;
+    end if;
+  end if;
+
+  select count(*)::int into v_votes from public.daily_quiz_answers
+    where user_id = v_uid and quiz_date = v_day and awarded = 1;
+  select count(*)::int into v_answered from public.daily_quiz_answers
+    where user_id = v_uid and quiz_date = v_day;
+
+  if not v_replayed then
+    update public.daily_quiz_attempts
+       set votes_awarded = v_votes,
+           locked        = (v_answered >= v_attempt.question_count),
+           submitted_at  = case when v_answered >= v_attempt.question_count then v_now else null end
+     where id = v_attempt.id;
+  end if;
+
+  return jsonb_build_object(
+    'question_id', p_question_id,
+    'replayed', v_replayed,
+    'correct', coalesce(v_stored.correct,
+      (p_option_id = (v_item ->> 'correct_option_id'))),
+    'option_id', coalesce(v_stored.option_id, p_option_id),
+    'correct_option_id', v_item ->> 'correct_option_id',
+    'explanation', v_item ->> 'explanation',
+    'awarded', coalesce(v_stored.awarded, v_awarded),
+    'votes_awarded', v_votes,
+    'answered_count', v_answered,
+    'question_count', v_attempt.question_count,
+    'locked', (v_answered >= v_attempt.question_count),
+    'status', public.daily_rewards_payload(v_uid, clock_timestamp()));
+end $$;
+revoke all on function public.submit_daily_quiz_answer(uuid,uuid,text,text) from public, anon, authenticated;
+grant execute on function public.submit_daily_quiz_answer(uuid,uuid,text,text) to authenticated;
+
+-- The old all-at-once path graded the unverified legacy bank. Retired: no
+-- round created before this migration may award votes from unvalidated
+-- questions, and no new round can use this signature.
+create or replace function public.submit_daily_quiz(p_expected_user_id uuid, p_attempt_id uuid, p_answers int[])
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  raise exception 'err.dailyQuizRetired';
+end $$;
+revoke all on function public.submit_daily_quiz(uuid,uuid,int[]) from public, anon, authenticated;
+
+-- =========================================================
+-- 10. VOTES: Daily Quiz accounting, and the retired free grant
+-- =========================================================
+-- Votes a user has actually earned from the quiz today. Read by the grant and
+-- cap logic; never by the client.
+create or replace function public.daily_quiz_votes_on(p_uid uuid, p_day date)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.daily_quiz_answers
+   where user_id = p_uid and quiz_date = p_day and awarded = 1;
+$$;
+revoke all on function public.daily_quiz_votes_on(uuid,date) from public, anon, authenticated;
+
+-- How many automatic free votes the account gets today. With
+-- free_vote_grant_enabled = false (the launch policy) the answer is 0: a user
+-- earns votes through Daily Quiz answers, or buys them. Turning the switch
+-- back on restores the old per-day grant, optionally shared with quiz votes
+-- under one global cap.
+create or replace function public.daily_free_vote_grant(p_uid uuid, p_day date)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when not public.daily_quiz_bool('free_vote_grant_enabled', false) then 0
+    when public.daily_quiz_bool('global_daily_vote_cap_enabled', false) then
+      greatest(0, least(public.daily_quiz_int('free_votes_per_day', 3),
+                        public.daily_quiz_int('global_daily_vote_cap', 5)
+                        - public.daily_quiz_votes_on(p_uid, p_day)))
+    else greatest(0, public.daily_quiz_int('free_votes_per_day', 3))
+  end;
+$$;
+revoke all on function public.daily_free_vote_grant(uuid,date) from public, anon, authenticated;
+
+create or replace function public.my_vote_status()
+returns table (free_used int, free_limit int, credits int, purchased int, bonus int)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_day date := (clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date;
+begin
+  if v_uid is null then raise exception 'err.signin'; end if;
+  return query
+    select
+      (select count(*)::int from public.votes
+        where user_id = v_uid and used_credit = false and vote_day = v_day),
+      public.daily_free_vote_grant(v_uid, v_day),
+      (select vote_credits + bonus_credits from public.profiles where id = v_uid),
+      (select vote_credits from public.profiles where id = v_uid),
+      (select bonus_credits from public.profiles where id = v_uid);
+end $$;
+
+create or replace function public.cast_vote(
+  p_request_id uuid,
+  p_delta int default 1,
+  p_fp_hash text default null,
+  p_ip_hash text default null,
+  p_gate_token text default null
+)
+returns table (votes int, my_votes int, free_used int, credits int)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid       uuid := auth.uid();
+  v_day       date;
+  v_new       int;
+  v_status    text;
+  v_picked    timestamptz;
+  v_mine      int;
+  v_n         int;
+  v_purch     int;
+  v_bonus     int;
+  v_credit    int;
+  v_freeUsed  int;
+  v_fpUsed    int := 0;
+  v_grant     int;
+  v_freeLeft  int;
+  v_fpLeft    int;
+  v_useFree   int;
+  v_useCred   int;
+  v_useBonus  int;
+  v_usePurch  int;
+  v_capped    boolean := false;
+  v_refBonus  int;
+  v_refPurch  int;
+begin
+  if v_uid is null then raise exception 'err.voteAuth'; end if;
+  if p_delta = 0 or abs(p_delta) > 100 then raise exception 'err.voteQty'; end if;
+
+  if not public.edge_gate_ok(p_gate_token) then raise exception 'err.voteGate'; end if;
+
+  if p_fp_hash is not null and p_fp_hash !~ '^[a-f0-9]{64}$' then p_fp_hash := null; end if;
+  if p_ip_hash is not null and p_ip_hash !~ '^[a-f0-9]{64}$' then p_ip_hash := null; end if;
+
+  select r.status, r.picked_at into v_status, v_picked
+    from public.requests r where r.id = p_request_id;
+  if v_status is null then raise exception 'err.requestMissing'; end if;
+  if v_status not in ('queued','in_progress') then raise exception 'err.voteClosed'; end if;
+  if v_picked is not null then raise exception 'err.voteLocked'; end if;
+
+  select p.vote_credits, p.bonus_credits into v_purch, v_bonus
+    from public.profiles p where p.id = v_uid for update;
+  if not found then raise exception 'err.signin'; end if;
+
+  if p_fp_hash is not null then
+    perform pg_advisory_xact_lock(hashtextextended(p_fp_hash, 3));
+  end if;
+
+  v_n     := abs(p_delta);
+  v_day   := (clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date;
+  v_grant := public.daily_free_vote_grant(v_uid, v_day);
+  v_credit := v_purch + v_bonus;
+
+  if p_delta < 0 then
+    select count(*) into v_mine from public.votes
+     where request_id = p_request_id and user_id = v_uid;
+    if v_mine < v_n then raise exception 'err.notVoted'; end if;
+
+    with doomed as (
+      select id, credit_kind, used_credit from public.votes
+       where request_id = p_request_id and user_id = v_uid
+       order by created_at desc, id desc
+       limit v_n
+    ), gone as (
+      delete from public.votes v using doomed d where v.id = d.id
+      returning v.credit_kind, v.used_credit
+    )
+    select
+      count(*) filter (where credit_kind = 'bonus'),
+      count(*) filter (where credit_kind = 'purchased'
+                          or (credit_kind is null and used_credit))
+      into v_refBonus, v_refPurch
+    from gone;
+
+    if coalesce(v_refBonus, 0) > 0 or coalesce(v_refPurch, 0) > 0 then
+      update public.profiles
+         set bonus_credits = bonus_credits + coalesce(v_refBonus, 0),
+             vote_credits  = vote_credits  + coalesce(v_refPurch, 0)
+       where id = v_uid;
+    end if;
+
+    update public.requests r set votes = greatest(r.votes - v_n, 0), updated_at = now()
+      where r.id = p_request_id returning r.votes into v_new;
+  else
+    select count(*)::int into v_freeUsed from public.votes
+     where user_id = v_uid and used_credit = false and vote_day = v_day;
+    v_freeLeft := greatest(v_grant - v_freeUsed, 0);
+
+    -- Hạn mức vân tay: đếm CHUNG mọi tài khoản trên cùng một trình duyệt.
+    v_fpLeft := v_freeLeft;
+    if p_fp_hash is not null then
+      select count(*)::int into v_fpUsed from public.votes
+       where fp_hash = p_fp_hash and used_credit = false and vote_day = v_day;
+      v_fpLeft := greatest(v_grant - v_fpUsed, 0);
+      if v_fpLeft < v_freeLeft then v_capped := true; end if;
+    end if;
+
+    v_useFree := least(v_n, v_freeLeft, v_fpLeft);
+    v_useCred := v_n - v_useFree;
+
+    if v_useCred > v_credit then
+      if v_capped and v_useCred > 0 then
+        raise exception 'err.voteFpLimit' using detail = v_fpLeft::text;
+      end if;
+      raise exception 'err.notEnoughVotes' using detail = (v_freeLeft + v_credit)::text;
+    end if;
+
+    v_useBonus := least(v_useCred, v_bonus);
+    v_usePurch := v_useCred - v_useBonus;
+
+    if v_useCred > 0 then
+      update public.profiles
+         set bonus_credits = bonus_credits - v_useBonus,
+             vote_credits  = vote_credits  - v_usePurch
+       where id = v_uid;
+    end if;
+
+    insert into public.votes (
+      request_id, user_id, used_credit, credit_kind,
+      vote_day, free_slot, fp_slot, fp_hash, ip_hash
+    )
+    select
+      p_request_id, v_uid, g.i > v_useFree,
+      case when g.i <= v_useFree                then 'free'
+           when g.i <= v_useFree + v_useBonus   then 'bonus'
+           else 'purchased' end,
+      v_day,
+      case when g.i <= v_useFree then (v_freeUsed + g.i)::smallint end,
+      case when g.i <= v_useFree and p_fp_hash is not null
+           then (v_fpUsed + g.i)::smallint end,
+      p_fp_hash, p_ip_hash
+    from generate_series(1, v_n) as g(i);
+
+    update public.requests r set votes = r.votes + v_n, updated_at = now()
+      where r.id = p_request_id returning r.votes into v_new;
+  end if;
+
+  select count(*)::int into v_mine from public.votes
+   where request_id = p_request_id and user_id = v_uid;
+  select s.free_used, s.credits into v_freeUsed, v_credit from public.my_vote_status() s;
+  return query select v_new, v_mine, v_freeUsed, v_credit;
+end $$;
+
+notify pgrst, 'reload schema';
+commit;
