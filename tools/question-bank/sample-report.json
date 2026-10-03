@@ -1,0 +1,144 @@
+{
+  "tool": "validate-question-bank.mjs",
+  "version": "1.0.0",
+  "mode": "offline",
+  "generatedAt": "2026-10-03T17:04:51.871Z",
+  "inputFile": "tools/question-bank/sample-input.csv",
+  "configFile": "tools/question-bank.config.json",
+  "config": {
+    "userAgent": "KpopQuizValidator/1.0 (contact: YOUR_EMAIL_OR_DOMAIN)",
+    "allowedDomains": [
+      "en.wikipedia.org",
+      "kpopprofiles.com",
+      "genius.com",
+      "www.billboard.com",
+      "circlechart.kr",
+      "www.melon.com",
+      "www.hanteochart.com",
+      "www.genie.co.kr",
+      "ibighit.com",
+      "www.jype.com",
+      "www.smtown.com",
+      "blackpinkofficial.com",
+      "weverse.io",
+      "pledis.co.kr",
+      "www.starship-ent.com",
+      "ador.world",
+      "www.oricon.co.jp",
+      "www.riaj.or.jp",
+      "www.riaa.com",
+      "www.bpi.co.uk"
+    ],
+    "requestsPerSecondPerDomain": 0.5,
+    "maxRetries": 2,
+    "maxRedirects": 3,
+    "dynamicDays": 30,
+    "evergreenDays": 90,
+    "respectRobots": true,
+    "artistLimit": 10,
+    "songLimit": 3
+  },
+  "summary": {
+    "totalRecords": 3,
+    "draftsPendingVerification": 3,
+    "approvedProductionReady": 0,
+    "rejected": 0,
+    "errors": 0,
+    "warnings": 1,
+    "exitStatus": 0
+  },
+  "counts": {
+    "byCategory": {
+      "profile": 2,
+      "lyrics": 1
+    },
+    "bySubCategory": {
+      "agency_or_label": 2,
+      "lyrics_language_or_version": 1
+    },
+    "byDifficulty": {
+      "easy": 3,
+      "medium": 0,
+      "hard": 0
+    },
+    "byQuestionType": {
+      "mcq": 1,
+      "true_false": 2
+    },
+    "bySourceTier": {
+      "A": 0,
+      "B": 0,
+      "C": 0,
+      "D": 3,
+      "E": 0
+    },
+    "byApprovalStatus": {
+      "approved": 0,
+      "pending_verification": 3,
+      "revise": 0,
+      "reject": 0
+    },
+    "byEligibility": {
+      "eligible": 0,
+      "temporarily_ineligible": 3,
+      "needs_review": 0,
+      "retired": 0
+    },
+    "distinctArtists": 3,
+    "topArtists": [
+      "Twice: 1",
+      "Blackpink: 1",
+      "BTS: 1"
+    ],
+    "songsReferenced": 1,
+    "zeroQuoteLyrics": 1
+  },
+  "checksByReason": {
+    "warning:secondary_unchecked": 1
+  },
+  "issues": {
+    "errors": [],
+    "warnings": [
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ001",
+        "column": "secondary_last_checked"
+      }
+    ]
+  },
+  "sources": {
+    "checked": 0,
+    "failedSources": [],
+    "deadLinks": [],
+    "soft404": [],
+    "blocked": [],
+    "redirects": [],
+    "details": []
+  },
+  "recordsRequiringManualReview": [
+    {
+      "id": "KPQ001",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ004",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ011",
+      "reason": "pending external live validation"
+    }
+  ],
+  "dailyPool": {
+    "eligible": [],
+    "temporarilyIneligible": [
+      "KPQ001",
+      "KPQ004",
+      "KPQ011"
+    ],
+    "needsReview": [],
+    "retired": [],
+    "excludedFromVoting": 3
+  }
+}
