@@ -15,9 +15,18 @@ export const DAILY_REWARD_MIGRATIONS = ['20261112_daily_rewards', '20261113_cale
   '20261117_daily_quiz_flow']
 
 const SCAFFOLD = `
-  do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
-  do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
-  do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
+  -- Roles live in pg_authid, which is cluster-wide: CREATE DATABASE isolates
+  -- tables, schemas and functions but NOT roles, so every parallel test file
+  -- races to create the same three names on the same server. CREATE ROLE probes
+  -- for the name and then inserts, so two concurrent sessions can both pass the
+  -- probe and collide on the unique index pg_authid_rolname_index, which raises
+  -- 23505 unique_violation rather than 42710 duplicate_object. Both mean "it
+  -- already exists", so both are ignored. The handler wraps this one statement
+  -- only, so no other SQL error can be masked, and the roles are never dropped
+  -- again because another parallel database may still be using them.
+  do $$ begin create role anon nologin; exception when duplicate_object or unique_violation then null; end $$;
+  do $$ begin create role authenticated nologin; exception when duplicate_object or unique_violation then null; end $$;
+  do $$ begin create role service_role nologin bypassrls; exception when duplicate_object or unique_violation then null; end $$;
   create schema auth;
   create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
   create function auth.uid() returns uuid language sql stable as $$
