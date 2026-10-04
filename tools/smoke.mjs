@@ -2186,6 +2186,50 @@ realLog('\n── daily quiz ──')
     && chunks.map((f) => rd(`../supabase/setup/${f}`)).every((body) => schemaSql.includes(body)))
 }
 
+/* ---------- 10d. triển khai migration: bản viết lại lịch sử bị cách ly ---------- */
+where = 'migration'
+realLog('\n── migration ──')
+{
+  const { readFileSync: rf3, readdirSync: rds3 } = await import('node:fs')
+  const rd = (rel) => rf3(new URL(rel, import.meta.url), 'utf8')
+  const dir = new URL('../supabase/migrations/', import.meta.url)
+  const active = rds3(dir).filter((name) => name.endsWith('.sql')).sort()
+  const archived = rd('../supabase/migrations/archive/20261118_daily_login_no_votes.sql.superseded')
+  const manifest = JSON.parse(rd('../supabase/migrations/archive/quarantine.json'))
+  const code = (sql) => sql.replace(/--[^\n]*/g, '')
+  const rewrite = /update\s+(public\.)?daily_login_rewards\s+set\s+reward\s*=/i
+  const tableCheck = /add\s+constraint[\s\S]{0,120}?check\s*\(\s*reward\s*=\s*0\s*\)/i
+
+  check('migration: bản viết lại lịch sử (20261118) đã bị cách ly, không còn trong thư mục chạy',
+    !active.some((name) => name.includes('20261118'))
+    && manifest.quarantined.some((e) => e.id === '20261118_daily_login_no_votes')
+    && !manifest.quarantined[0].path.endsWith('.sql')
+    && rewrite.test(archived) && tableCheck.test(archived),
+    'file nằm ở archive/, đuôi .superseded, có trong quarantine.json')
+
+  check('migration: không migration nào trong đường chạy mặc định được viết lại lịch sử điểm danh',
+    active.every((name) => !rewrite.test(code(rd(`../supabase/migrations/${name}`)))
+      && !tableCheck.test(code(rd(`../supabase/migrations/${name}`)))),
+    `${active.length} file; 20261119/20261120 chỉ nhắc lệnh cũ trong chú thích`)
+
+  check('migration: schema.sql và mọi file cài tay đều sạch lệnh viết lại lịch sử',
+    !rewrite.test(code(rd('../supabase/schema.sql'))) && !tableCheck.test(code(rd('../supabase/schema.sql')))
+    && rds3(new URL('../supabase/setup/', import.meta.url)).filter((n) => n.endsWith('.sql'))
+      .every((name) => !rewrite.test(code(rd(`../supabase/setup/${name}`)))
+        && !tableCheck.test(code(rd(`../supabase/setup/${name}`)))))
+
+  check('migration: đường cài mới không có bước cho 20261118',
+    !rds3(new URL('../supabase/setup/', import.meta.url)).some((n) => /no-votes/.test(n))
+    && rds3(new URL('../supabase/setup/', import.meta.url)).includes('15-preserve-legacy-daily-login-rewards.sql')
+    && rds3(new URL('../supabase/setup/', import.meta.url)).includes('16-daily-login-reward-immutable.sql'))
+
+  check('migration: runner có kiểm tra tĩnh, từ chối baseline mơ hồ và không chạy file cách ly',
+    /export function assertMigrationSafety/.test(rd('../tools/migrate.mjs'))
+    && /refusing to guess/.test(rd('../tools/migrate.mjs'))
+    && /quarantinedNeverRuns/.test(rd('../tools/migrate.mjs'))
+    && /--check/.test(rd('../tools/migrate.mjs')))
+}
+
 /* ---------- 10c. daily login: điểm danh KHÔNG thưởng vote ---------- */
 where = 'daily login'
 realLog('\n── daily login ──')
@@ -2194,7 +2238,6 @@ realLog('\n── daily login ──')
   const rd = (rel) => rf2(new URL(rel, import.meta.url), 'utf8')
   const schemaSql = rd('../supabase/schema.sql')
   const first = rd('../supabase/migrations/20261112_daily_rewards.sql')
-  const noVote = rd('../supabase/migrations/20261118_daily_login_no_votes.sql')
   const preserve = rd('../supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql')
   const immutable = rd('../supabase/migrations/20261120_daily_login_reward_immutable.sql')
   // Chỉ xét phần mã, bỏ chú thích: chú thích nhắc đến các lệnh cũ để giải thích.
@@ -2202,11 +2245,11 @@ realLog('\n── daily login ──')
   const claimBody = (sql) => sql.slice(sql.indexOf('create or replace function public.claim_daily_login')).split('end $$;')[0]
 
   check('daily login: hai migration sửa lỗi nằm nguyên văn trong schema.sql, append-only, chạy sau cùng',
-    schemaSql.includes(noVote) && schemaSql.includes(preserve)
-    && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(noVote)
+    schemaSql.includes(preserve) && schemaSql.includes(immutable)
     && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(preserve)
+    && !schemaSql.includes('BEGIN DAILY LOGIN NO VOTES')
     && /bonus_credits = bonus_credits \+ v_claim\.reward/.test(first),
-    '20261112 giữ nguyên văn bản lịch sử; 20261118/20261119 là bản sửa chạy sau cùng')
+    '20261112 giữ nguyên văn bản lịch sử; 20261119/20261120 là bản sửa, 20261118 đã bị cách ly')
 
   check('daily login: 20261119 không viết lại lịch sử — không UPDATE/DELETE toàn bảng, không trừ ví',
     !/update\s+public\.daily_login_rewards\s+set\s+reward\s*=/i.test(code(preserve))
@@ -2235,8 +2278,10 @@ realLog('\n── daily login ──')
     && /disable trigger daily_login_rewards_no_vote/.test(immutable),
     'sửa dữ liệu lịch sử chỉ qua migration một lần của admin, có log trước/sau')
 
+  // `preserve` restates the RPC and the payload; `immutable` only redefines the
+  // trigger, so it has neither.
   check('daily login: RPC điểm danh trả reward = 0 và không đụng số dư vote nào',
-    [noVote, preserve].every((sql) => {
+    [preserve].every((sql) => {
       const body = claimBody(sql)
       return !/bonus_credits|vote_credits|free_vote/.test(body)
         && /insert into public\.daily_login_rewards/.test(body)
@@ -2244,7 +2289,7 @@ realLog('\n── daily login ──')
     }))
 
   check('daily login: payload không hứa thưởng vote, earned_today chỉ tính quiz',
-    [noVote, preserve].every((sql) => /'vote_reward', 0/.test(sql) && !/'reward', 2/.test(sql)
+    [preserve].every((sql) => /'vote_reward', 0/.test(sql) && !/'reward', 2/.test(sql)
       && /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/.test(sql)
       && !/coalesce\(l\.reward, 0\)/.test(sql)))
 
@@ -2276,9 +2321,8 @@ realLog('\n── daily login ──')
         && !/\(claimed \? DAILY_LOGIN_REWARD : 0\)/.test(demo)
     })())
 
-  check('daily login: file cài tay có bản cắt của cả ba phần sửa lỗi',
-    ['15-daily-login-no-votes.sql', '16-preserve-legacy-daily-login-rewards.sql',
-      '17-daily-login-reward-immutable.sql']
+  check('daily login: file cài tay có bản cắt của hai phần sửa lỗi (không có bước cho 20261118)',
+    ['15-preserve-legacy-daily-login-rewards.sql', '16-daily-login-reward-immutable.sql']
       .every((f) => rd(`../supabase/setup/${f}`).length > 1000 && schemaSql.includes(rd(`../supabase/setup/${f}`))))
 }
 

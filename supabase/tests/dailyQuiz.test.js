@@ -163,12 +163,10 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         '20261114_daily_rewards_upgrade.sql']
       for (const m of baseMigrations) await pool.query(read(m))
       for (const part of [migration, poolMigration, flowMigration]) await pool.query(part)
-      // The corrective policy migration is append-only and runs last: a
-      // check-in awards no vote, the quiz is the only vote path.
-      await pool.query(read('20261118_daily_login_no_votes.sql'))
-      // 20261119 then replaces the table-wide rewrite with audit-safe,
-      // future-write-only enforcement (safe to run after 20261118), and
-      // 20261120 makes every recorded amount immutable.
+      // The corrective policy migrations are append-only and run last: a
+      // check-in awards no vote, the quiz is the only vote path. 20261118 is
+      // quarantined (it rewrites history), so the supported order is
+      // 20261119 then 20261120.
       await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
       await pool.query(read('20261120_daily_login_reward_immutable.sql'))
 

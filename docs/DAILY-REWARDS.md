@@ -94,7 +94,7 @@ Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn 
 
 | File | Vai trò |
 | --- | --- |
-| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên. **Đã bị thay thế, không dùng cho production**: chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng (viết lại lịch sử) và thêm `CHECK (reward = 0)`. |
+| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên. **ĐÃ BỊ CÁCH LY — không bao giờ chạy**: chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng (viết lại lịch sử) và thêm `CHECK (reward = 0)`. File đã chuyển sang `supabase/migrations/archive/20261118_daily_login_no_votes.sql.superseded` (cùng `archive/quarantine.json`), nên không nằm trong đường chạy mặc định của runner hay Supabase CLI, và không có trong `schema.sql`/file setup. |
 | `20261119_preserve_legacy_daily_login_rewards.sql` | Bỏ ràng buộc toàn bảng, **không** UPDATE/DELETE dòng nào; chỉ chặn bản ghi **mới** bằng trigger. Chứa đủ phần sửa của 20261118 nên có thể thay thế nó. |
 | `20261120_daily_login_reward_immutable.sql` | Khoá **bất biến** giá trị đã ghi: không cho sửa `2 → 0`, `0 → 2` hay bất kỳ thay đổi nào của cột `reward`. |
 
@@ -127,21 +127,23 @@ Không có đường sửa nào trong app: không RPC, không frontend, không r
 
 **Cách chạy**
 
+Cách chạy chính thức (chi tiết, kịch bản khôi phục, lệnh kiểm tra) nằm ở **`docs/DB-MIGRATIONS.md`**. Tóm tắt:
+
 **a) Production chưa chạy migration nào trong chuỗi này (trường hợp khuyến nghị)**
 
 1. Sao lưu (`npm run backup:db`).
-2. Chạy **toàn bộ**, đúng thứ tự, mỗi file một lần trong SQL Editor → **Run**:
-   `20261112` → `20261113` → `20261114` → `20261115` → `20261116` → `20261117` → `20261119` → `20261120`.
-   **Bỏ qua `20261118`.**
-3. Deploy frontend cùng thay đổi (UI và validator mới).
+2. Xem kế hoạch — phải đúng 2 file: `SUPABASE_DB_URL='…' npm run db:plan -- --baseline 20261117`
+3. Chạy: `SUPABASE_DB_URL='…' npm run db:deploy -- --baseline 20261117`
+
+`20261118` **không bao giờ** nằm trong kế hoạch: nó đã bị cách ly, nên lệnh trên không cần ai nhớ phải bỏ qua nó.
 
 **b) Môi trường đã lỡ chạy `20261118`**
 
-Chạy tiếp `20261119` rồi `20261120` (đúng thứ tự). Hai file này bỏ ràng buộc toàn bảng và khoá giá trị đã ghi; chúng **không** khôi phục được các dòng lịch sử mà 20261118 đã đưa về 0 — việc đó, nếu cần, là quy trình sửa một lần ở mục trên.
+`npm run db:deploy` (có lịch sử) hoặc `npm run db:deploy -- --baseline 20261118` (chạy tay, chưa có lịch sử). Cả hai chạy tiếp `20261119` rồi `20261120`: bỏ ràng buộc toàn bảng và khoá giá trị đã ghi, nhưng **không** khôi phục được các dòng lịch sử mà 20261118 đã đưa về 0 — việc đó, nếu cần, là quy trình sửa một lần ở mục trên.
 
 **c) Cài mới (project trống)**
 
-Dùng file setup `01`–`17`. Bước 15 (`20261118`) đã bị thay thế và chỉ còn để tương thích; bước 16 và 17 sửa lại đúng trạng thái trước khi dùng production. Trên bảng trống, bước 15 không gây mất dữ liệu.
+Dùng file setup `01`–`16`. **Không có bước nào cho `20261118`**: đường cài mới không chứa bản viết lại lịch sử.
 
 **Không** chạy lại `schema.sql` hay setup trên database đang dùng. Kiểm tra sau khi chạy:
 

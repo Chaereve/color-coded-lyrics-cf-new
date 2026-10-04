@@ -24,9 +24,11 @@ export const PARTS = [
   { name: '12-daily-quiz-schema.sql', start: '-- BEGIN DAILY QUIZ SCHEMA: mirror 20261115_daily_quiz_schema.sql' },
   { name: '13-daily-quiz-pool.sql', start: '-- BEGIN DAILY QUIZ POOL: mirror 20261116_daily_quiz_pool.sql' },
   { name: '14-daily-quiz-flow.sql', start: '-- BEGIN DAILY QUIZ FLOW: mirror 20261117_daily_quiz_flow.sql' },
-  { name: '15-daily-login-no-votes.sql', start: '-- BEGIN DAILY LOGIN NO VOTES: mirror 20261118_daily_login_no_votes.sql' },
-  { name: '16-preserve-legacy-daily-login-rewards.sql', start: '-- BEGIN PRESERVE LEGACY DAILY LOGIN REWARDS: mirror 20261119_preserve_legacy_daily_login_rewards.sql' },
-  { name: '17-daily-login-reward-immutable.sql', start: '-- BEGIN DAILY LOGIN REWARD IMMUTABLE: mirror 20261120_daily_login_reward_immutable.sql' },
+  // 20261118 (the table-wide `SET reward = 0` rewrite) is deliberately absent:
+  // it is quarantined in supabase/migrations/archive/ and must never reach a
+  // default install path. See docs/DB-MIGRATIONS.md.
+  { name: '15-preserve-legacy-daily-login-rewards.sql', start: '-- BEGIN PRESERVE LEGACY DAILY LOGIN REWARDS: mirror 20261119_preserve_legacy_daily_login_rewards.sql' },
+  { name: '16-daily-login-reward-immutable.sql', start: '-- BEGIN DAILY LOGIN REWARD IMMUTABLE: mirror 20261120_daily_login_reward_immutable.sql' },
 ]
 
 const SOURCE = new URL('../supabase/schema.sql', import.meta.url)

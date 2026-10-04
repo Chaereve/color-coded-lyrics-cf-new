@@ -799,7 +799,7 @@ Questions for the user
 | Strings | `src/lib/i18n.jsx` |
 | Static smoke checks | `tools/smoke.mjs` (section "daily quiz") |
 | Documentation | `docs/DAILY-REWARDS.md`, this file |
-| Corrective migrations: check-in awards no vote | `supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql` + `20261120_daily_login_reward_immutable.sql`, `supabase/setup/16-…` + `17-…` (supersede `20261118` / setup `15`) |
+| Corrective migrations: check-in awards no vote | `supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql` + `20261120_daily_login_reward_immutable.sql`, `supabase/setup/15-…` + `16-…` (`20261118` is quarantined in `supabase/migrations/archive/` and has no setup chunk) |
 
 ### Still open
 

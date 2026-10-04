@@ -4,7 +4,7 @@
 
 ## Chọn đúng trường hợp
 
-- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`17`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), xác định phiên bản đã cài, rồi chạy **chỉ những file còn thiếu** trong `supabase/migrations/`, theo thứ tự phụ thuộc. Không chạy cả thư mục migrations một cách mù quáng. Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định migration cần dùng.
+- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`16`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), rồi dùng lệnh triển khai an toàn trong `docs/DB-MIGRATIONS.md` (`npm run db:plan` / `npm run db:deploy`) — lệnh này tự bỏ qua migration đã chạy và **không bao giờ** chạy `20261118` (bản viết lại lịch sử đã bị cách ly). Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định baseline.
 - **Project Supabase mới, chưa cài app:** Làm các bước bên dưới. Trước khi chạy, kiểm tra bằng query nhỏ này trong **Database → SQL Editor → New query → Run**:
 
 ```sql
@@ -36,17 +36,16 @@ Mở **New query**, copy **toàn bộ nội dung đúng MỘT file** từ danh s
 | 12 | `12-daily-quiz-schema.sql` | 15 KB |
 | 13 | `13-daily-quiz-pool.sql` | 16 KB |
 | 14 | `14-daily-quiz-flow.sql` | 19 KB |
-| 15 | `15-daily-login-no-votes.sql` | 11 KB |
-| 16 | `16-preserve-legacy-daily-login-rewards.sql` | 12 KB |
-| 17 | `17-daily-login-reward-immutable.sql` | 4 KB |
+| 15 | `15-preserve-legacy-daily-login-rewards.sql` | 12 KB |
+| 16 | `16-daily-login-reward-immutable.sql` | 4 KB |
 
-Bước 15–17 là bản sửa chính sách điểm danh (append-only): điểm danh hằng ngày **không** thưởng vote; chỉ quiz K-pop mới thưởng (1 câu đúng = 1 vote, tối đa 5/ngày).
+Bước 15–16 là bản sửa chính sách điểm danh (append-only): điểm danh hằng ngày **không** thưởng vote; chỉ quiz K-pop mới thưởng (1 câu đúng = 1 vote, tối đa 5/ngày). Bước 15 bỏ ràng buộc toàn bảng và không đụng vào dòng lịch sử nào; bước 16 khoá luôn giá trị đã ghi (không cho sửa `2 → 0` hay chiều ngược lại).
 
-> **Bước 15 (`15-daily-login-no-votes.sql`, migration `20261118`) đã BỊ THAY THẾ — không dùng cho production.** Nó chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng (viết lại lịch sử) và thêm `CHECK (reward = 0)`. Nó chỉ còn ở đây để tương thích với project nào đã lỡ chạy; **bước 16 và 17 sửa lại đúng trạng thái đó trước khi đưa vào dùng**: 16 bỏ ràng buộc toàn bảng và không đụng vào dòng lịch sử nào, 17 khoá luôn giá trị đã ghi (không cho sửa `2 → 0` hay chiều ngược lại). Cả hai đều append-only và chạy được sau 15.
+> **Không có bước nào cho migration `20261118`, và đó là chủ ý.** Bản đó chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng — viết lại lịch sử, không thể hoàn tác. Nó đã được **cách ly** tại `supabase/migrations/archive/20261118_daily_login_no_votes.sql.superseded` (kèm `archive/quarantine.json`), nên: không nằm trong thư mục mà Supabase CLI quét, không đuôi `.sql` để mọi glob bỏ qua, không có trong `schema.sql`, và không có file cài tay nào ở đây. Đường cài mới vì thế sạch và an toàn mặc định. Xem `docs/DB-MIGRATIONS.md` để biết xử lý khi một môi trường đã lỡ chạy bản đó.
 
 Không trừ vote đã cấp ở bất kỳ bước nào.
 
-Sau bước 17, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
+Sau bước 16, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
 
 ```sql
 select to_regclass('public.requests') is not null as requests_ok,
@@ -82,4 +81,4 @@ Lệnh trên **không** dùng `--single-transaction`: bản gộp đã có các 
 
 ## Giữ các file nhỏ đồng bộ
 
-Các file `01`–`14` được **cắt nguyên văn từ `supabase/schema.sql`**; ghép lại theo thứ tự khôi phục đúng từng byte của bản gộp. Khi sửa schema, chạy `npm run schema:split`, sau đó `npm run schema:split:check` và `npm test` trước khi đưa lên repo. Không chỉnh SQL trong các file nhỏ bằng tay.
+Các file `01`–`16` được **cắt nguyên văn từ `supabase/schema.sql`**; ghép lại theo thứ tự khôi phục đúng từng byte của bản gộp. Khi sửa schema, chạy `npm run schema:split`, sau đó `npm run schema:split:check` và `npm test` trước khi đưa lên repo. Không chỉnh SQL trong các file nhỏ bằng tay.

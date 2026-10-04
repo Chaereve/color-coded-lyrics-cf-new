@@ -10,7 +10,10 @@ import pg from 'pg'
 const migration = readFileSync(new URL('../migrations/20261112_daily_rewards.sql', import.meta.url), 'utf8')
 const calendarMigration = readFileSync(new URL('../migrations/20261113_calendar_kpop_quiz.sql', import.meta.url), 'utf8')
 const upgradeMigration = readFileSync(new URL('../migrations/20261114_daily_rewards_upgrade.sql', import.meta.url), 'utf8')
-const noVoteMigration = readFileSync(new URL('../migrations/20261118_daily_login_no_votes.sql', import.meta.url), 'utf8')
+// 20261118 is quarantined: it rewrites recorded check-in amounts, so it is not
+// a migration any runner may execute. It lives in archive/ and is read here
+// only to document what was taken out of the default path.
+const noVoteMigration = readFileSync(new URL('../migrations/archive/20261118_daily_login_no_votes.sql.superseded', import.meta.url), 'utf8')
 const preserveMigration = readFileSync(new URL('../migrations/20261119_preserve_legacy_daily_login_rewards.sql', import.meta.url), 'utf8')
 const immutableMigration = readFileSync(new URL('../migrations/20261120_daily_login_reward_immutable.sql', import.meta.url), 'utf8')
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8')
@@ -20,16 +23,26 @@ test('daily rewards migration is mirrored verbatim in the canonical schema', () 
   assert.ok(schema.includes(migration))
   assert.match(migration, /primary key \(user_id, reward_day\)/)
   assert.match(migration, /unique \(user_id, quiz_day\)/)
-  // 20261112 shipped a +2 check-in reward; 20261118 removes it (append-only,
-  // the historical file is never rewritten). Both halves are asserted here
-  // and in the corrective test below.
+  // 20261112 shipped a +2 check-in reward; 20261119/20261120 remove it and
+  // lock the recorded amount (append-only: 20261118, which rewrote history, is
+  // quarantined in supabase/migrations/archive/).
   assert.match(migration, /bonus_credits = bonus_credits \+ v_claim\.reward/)
   assert.match(migration, /bonus_credits = bonus_credits \+ v_score/)
   assert.doesNotMatch(migration, /set vote_credits|cron\.schedule/)
 })
 
+test('the destructive corrective migration is quarantined out of every default path', () => {
+  assert.ok(!schema.includes(noVoteMigration), 'the rewrite must never reach schema.sql')
+  assert.ok(!noVoteMigration.startsWith('-- (quarantined)'))
+  // What it did, and why that disqualifies it from the default path.
+  assert.match(noVoteMigration, /update public\.daily_login_rewards set reward = 0 where reward <> 0/)
+  assert.match(noVoteMigration, /add constraint daily_login_rewards_reward_check check \(reward = 0\)/)
+  // 20261119 + 20261120 replace it, and both are in the canonical schema.
+  assert.ok(schema.includes(preserveMigration))
+  assert.ok(schema.includes(immutableMigration))
+})
+
 test('the corrective migration makes a check-in award no vote, without rewriting history', () => {
-  assert.ok(schema.includes(noVoteMigration))
   // Append-only: the historical files keep their original text, the correction
   // is a separate migration that only runs after 20261117.
   assert.match(noVoteMigration, /Run AFTER 20261117_daily_quiz_flow\.sql/)

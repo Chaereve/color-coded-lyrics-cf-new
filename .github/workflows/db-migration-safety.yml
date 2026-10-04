@@ -1,0 +1,41 @@
+# Deployment-safety guard for the database layer.
+#
+# This workflow applies NOTHING and needs no database credentials: the project
+# has no automated migration deployment, so the risk it guards against is a
+# destructive statement reaching the default execution path (the thing 20261118
+# did — see docs/DB-MIGRATIONS.md).
+name: DB migration safety
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Fails if any migration, schema.sql or setup chunk rewrites check-in
+      # history, or if the quarantine manifest is inconsistent.
+      - name: No destructive statement in the default migration path
+        run: npm run db:check
+
+      # The fresh-install chunks must still be a byte-exact split of schema.sql.
+      - name: Setup chunks match schema.sql
+        run: npm run schema:split:check
+
+      - name: Tests (database-backed suites self-skip without a test URL)
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
