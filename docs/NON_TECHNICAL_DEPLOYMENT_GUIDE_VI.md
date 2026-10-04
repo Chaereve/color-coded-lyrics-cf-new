@@ -49,8 +49,7 @@ Tick nếu đúng — nếu **có bất kỳ ô nào được tick**, chưa merg
 - [ ] Trong PR có file/check chưa chạy xong (biểu tượng ❌ / “Some checks were
       not successful” / “failing”).
 - [ ] Trong PR có comment của người review yêu cầu sửa mà chưa được giải quyết.
-- [ ] Tôi thấy trong PR có nhắc đến migration **`20261118`** được đề nghị chạy.
-      (Migration này **không bao giờ được chạy** — nó xoá dấu vết lịch sử.)
+- [ ] Tôi thấy trong PR có nhắc đến migration **`20261118`** được đề nghị chạy (migration này **không** bao giờ được chạy — nó xoá dấu vết lịch sử).
 - [ ] Tôi (hoặc developer) **chưa có bản sao lưu (backup)** của database
       production, hoặc chưa chắc backup khôi phục được.
 - [ ] Chưa có ai chạy thử trên **staging** (môi trường thử) — hoặc nếu không có
@@ -204,13 +203,13 @@ union all select 6, 'Khoá bảo vệ lịch sử điểm danh (trigger daily_lo
        'CHƯA CÓ = chưa chạy 20261119/20261120; ĐÃ CÓ = đã chạy xong' from st
 union all select 7, 'Ràng buộc cũ trên cột reward',
        case when so_check_reward = 0 then 'KHÔNG CÓ'
-            when so_check_reward_0 > 0 then 'CÓ (reward = 0) — dấu hiệu đã chạy 20261118'
+            when so_check_reward_0 > 0 then 'CÓ (reward = 0) — dấu hiệu đã lỡ chạy 20261118'
             else 'CÓ (reward = 2) — bình thường trước khi nâng cấp' end,
        'sau nâng cấp phải là KHÔNG CÓ' from st
 union all select 8, 'KẾT LUẬN',
        case
          when so_check_reward_0 > 0 then
-           'D. CÓ DẤU HIỆU ĐÃ CHẠY 20261118 — DỪNG LẠI, nhờ developer xử lý (mode D)'
+           'D. CÓ DẤU HIỆU ĐÃ CHẠY 20261118 — DỪNG LẠI, KHÔNG tự chạy thêm, nhờ developer xử lý (mode D)'
          when so_trigger > 0 and so_check_reward = 0 then
            'A. ĐÃ Ở TRẠNG THÁI CUỐI — chỉ cần kiểm tra giao diện (không chạy thêm SQL)'
          when bang_quiz_1 is not null and bang_quiz_2 is not null and bang_quiz_3 is not null
