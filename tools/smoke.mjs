@@ -2196,6 +2196,7 @@ realLog('\n── daily login ──')
   const first = rd('../supabase/migrations/20261112_daily_rewards.sql')
   const noVote = rd('../supabase/migrations/20261118_daily_login_no_votes.sql')
   const preserve = rd('../supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql')
+  const immutable = rd('../supabase/migrations/20261120_daily_login_reward_immutable.sql')
   // Chỉ xét phần mã, bỏ chú thích: chú thích nhắc đến các lệnh cũ để giải thích.
   const code = (sql) => sql.replace(/--[^\n]*/g, '')
   const claimBody = (sql) => sql.slice(sql.indexOf('create or replace function public.claim_daily_login')).split('end $$;')[0]
@@ -2221,6 +2222,18 @@ realLog('\n── daily login ──')
     && /raise exception 'err\.dailyLoginRewardRetired'/.test(code(preserve))
     && /alter column reward set default 0/.test(code(preserve)),
     'lịch sử giữ nguyên; mọi điểm danh mới phải reward = 0')
+
+  check('daily login: 20261120 khoá luôn giá trị đã ghi — không cho sửa 2 → 0 hay chiều ngược lại',
+    schemaSql.includes(immutable)
+    && /Run AFTER 20261119_preserve_legacy_daily_login_rewards\.sql/.test(immutable)
+    && !/update\s+public\.daily_login_rewards\s+set\s+reward\s*=/i.test(code(immutable))
+    && !/delete\s+from\s+public\./i.test(code(immutable))
+    && !/add constraint[^\n]*check \(reward = 0\)/.test(code(immutable))
+    && /if tg_op = 'INSERT' then[\s\S]*new\.reward is distinct from 0 then[\s\S]*'err\.dailyLoginRewardImmutable'/.test(immutable)
+    && /elsif new\.reward is distinct from old\.reward then[\s\S]*'err\.dailyLoginRewardImmutable'/.test(immutable)
+    && !/new\.reward is distinct from old\.reward and new\.reward is distinct from 0/.test(immutable)
+    && /disable trigger daily_login_rewards_no_vote/.test(immutable),
+    'sửa dữ liệu lịch sử chỉ qua migration một lần của admin, có log trước/sau')
 
   check('daily login: RPC điểm danh trả reward = 0 và không đụng số dư vote nào',
     [noVote, preserve].every((sql) => {
@@ -2263,8 +2276,9 @@ realLog('\n── daily login ──')
         && !/\(claimed \? DAILY_LOGIN_REWARD : 0\)/.test(demo)
     })())
 
-  check('daily login: file cài tay có bản cắt của cả hai phần sửa lỗi',
-    ['15-daily-login-no-votes.sql', '16-preserve-legacy-daily-login-rewards.sql']
+  check('daily login: file cài tay có bản cắt của cả ba phần sửa lỗi',
+    ['15-daily-login-no-votes.sql', '16-preserve-legacy-daily-login-rewards.sql',
+      '17-daily-login-reward-immutable.sql']
       .every((f) => rd(`../supabase/setup/${f}`).length > 1000 && schemaSql.includes(rd(`../supabase/setup/${f}`))))
 }
 

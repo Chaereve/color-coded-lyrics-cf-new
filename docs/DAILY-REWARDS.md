@@ -86,16 +86,17 @@ Database mới dùng thêm các file setup `12-daily-quiz-schema.sql`, `13-daily
 
 Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn (ít câu hơn, trần thấp hơn).
 
-## Điểm danh không còn thưởng vote (migration 20261119, thay thế 20261118)
+## Điểm danh không còn thưởng vote (migration 20261119 + 20261120, thay thế 20261118)
 
 **Lý do:** điểm danh từng cộng **+2 vote/ngày**. Cộng với 5 câu đúng của quiz (trần +5) thành **7 vote/ngày**, vượt trần dự kiến của sản phẩm.
 
-**Hai migration, và tại sao có migration thứ hai**
+**Ba migration, và thứ tự khuyến nghị**
 
 | File | Vai trò |
 | --- | --- |
-| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên: bỏ cộng vote, đổi payload. **Đã bị thay thế** — nó còn chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng và thêm `CHECK (reward = 0)`, hai việc viết lại/làm mất giá trị lịch sử. |
-| `20261119_preserve_legacy_daily_login_rewards.sql` | **Bản dùng để triển khai.** Bỏ ràng buộc toàn bảng, không UPDATE/DELETE dòng nào, và chỉ chặn bản ghi **mới** bằng trigger. |
+| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên. **Đã bị thay thế, không dùng cho production**: chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng (viết lại lịch sử) và thêm `CHECK (reward = 0)`. |
+| `20261119_preserve_legacy_daily_login_rewards.sql` | Bỏ ràng buộc toàn bảng, **không** UPDATE/DELETE dòng nào; chỉ chặn bản ghi **mới** bằng trigger. Chứa đủ phần sửa của 20261118 nên có thể thay thế nó. |
+| `20261120_daily_login_reward_immutable.sql` | Khoá **bất biến** giá trị đã ghi: không cho sửa `2 → 0`, `0 → 2` hay bất kỳ thay đổi nào của cột `reward`. |
 
 **Nguyên tắc sau sửa**
 
@@ -106,39 +107,54 @@ Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn 
 | Ghi nhận | `daily_login_rewards` (ngày; dòng mới `reward = 0`) | `daily_quiz_answers` (unique `user_id, quiz_date, question_id`) |
 | Hiển thị | lịch tháng, streak, best streak, lifetime, tiến trình tháng | số câu đã trả lời, số vote 0–5 |
 
-**Ngữ nghĩa lưu vết (audit)**
+**Ngữ nghĩa lưu vết (audit) — giá trị đã ghi là bất biến**
 
-- **Dòng lịch sử** (tạo trước 20261118) **giữ nguyên** giá trị `reward`, kể cả `2`. Không cập nhật, không xoá, không đổi cách hiểu. Chúng **không bao giờ** tạo vote mới: không hàm nào cộng `reward` vào ví, và `earned_today` không đọc cột này.
-- **Dòng mới** luôn có `reward = 0`, `votes_awarded = 0`; không đụng `vote_credits`, `bonus_credits`, phiếu miễn phí hay ledger vote nào. Chỉ ghi ngày, streak và lịch sử tháng.
-- Cách chặn: trigger `daily_login_rewards_no_vote` (`BEFORE INSERT OR UPDATE OF reward`) — `INSERT` phải có `reward = 0`; `UPDATE` không được đưa `reward` về giá trị khác 0 (sửa `2 → 0` vẫn cho phép). Ném `err.dailyLoginRewardRetired`.
-- Vì trigger chỉ chặn **thao tác ghi mới**, việc khôi phục dữ liệu cũ (restore) có `reward = 2` vẫn được chấp nhận và không sinh vote.
-- Client không có đường ghi: RLS bật, không có policy ghi, privilege đã revoke; migration sẽ **từ chối cài** nếu tồn tại policy INSERT/UPDATE/DELETE. RPC `claim_daily_login` (security definer) là đường duy nhất.
-- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. 3 vote miễn phí tự động vẫn tắt (`free_vote_grant_enabled = false`).
-- **Không** thu hồi vote đã cấp: migration không trừ ví ai, không xoá ledger vote nào.
-- Payload RPC: `login.vote_reward = 0` (thay cho `login.reward = 2` cũ); `earned_today` chỉ tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2` thay vì cộng dồn thành 7.
+- **Dòng lịch sử** giữ nguyên `reward` (kể cả `2`). Không cập nhật, không xoá, không đổi cách hiểu, và **không bao giờ** tạo vote mới: không hàm nào cộng `reward` vào ví, `earned_today` không đọc cột này.
+- **Dòng mới** luôn `reward = 0`, `votes_awarded = 0`; không đụng `vote_credits`, `bonus_credits`, phiếu miễn phí hay ledger vote nào. Chỉ ghi ngày, streak và lịch sử tháng.
+- Trigger `daily_login_rewards_no_vote` (`BEFORE INSERT OR UPDATE OF reward`):
+  - `INSERT`: chỉ chấp nhận `reward = 0`, giá trị khác ném `err.dailyLoginRewardImmutable`.
+  - `UPDATE OF reward`: **mọi** thay đổi giá trị đều bị chối (`2 → 0`, `2 → 5`, `0 → 2`, `0 → 1`), lỗi `err.dailyLoginRewardImmutable`.
+  - Cập nhật trường khác (vd. `created_at`) hoặc ghi lại chính giá trị cũ vẫn được phép — trigger không cản.
+- Vì chỉ chặn **thao tác ghi**, việc restore dữ liệu cũ có `reward = 2` vẫn được chấp nhận và không sinh vote.
+- Client không có đường ghi: RLS bật, không policy ghi, privilege đã revoke; migration **từ chối cài** nếu tồn tại policy INSERT/UPDATE/DELETE. `claim_daily_login` (security definer) là đường duy nhất.
+- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. `free_vote_grant_enabled` vẫn `false`.
+- **Không** thu hồi vote đã cấp: không migration nào trừ ví hay xoá ledger vote.
+- Payload RPC: `login.vote_reward = 0` (thay cho `login.reward = 2` cũ); `earned_today` chỉ tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2`.
 
-**Cách chạy (database đang dùng)**
+**Sửa dữ liệu lịch sử trong trường hợp đặc biệt**
+
+Không có đường sửa nào trong app: không RPC, không frontend, không role `authenticated`. Nếu bắt buộc phải sửa, đó là **một migration một lần, chỉ admin chạy**, gồm: (1) ghi log trước/sau (số dòng theo từng mức `reward` và các cặp `user_id`/`reward_day` bị ảnh hưởng); (2) chạy trong một transaction, tắt trigger đúng thời điểm câu lệnh sửa rồi bật lại ngay; (3) không để lại đường sửa nào sau đó. Quy trình này được ghi trong phần chú thích đầu file `20261120`.
+
+**Cách chạy**
+
+**a) Production chưa chạy migration nào trong chuỗi này (trường hợp khuyến nghị)**
 
 1. Sao lưu (`npm run backup:db`).
-2. Xác nhận đã chạy `20261112` → `20261113` → `20261114` → `20261115` → `20261116` → `20261117`.
-3. Chạy **toàn bộ** `supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql` trong SQL Editor → **Run**. Một transaction, chạy lại an toàn.
-   **Bỏ qua `20261118`** — nó đã bị 20261119 thay thế (20261119 chứa đủ phần sửa của 20261118). Nếu vì lý do nào đó 20261118 đã chạy rồi, chạy tiếp 20261119 vẫn an toàn.
-4. Deploy frontend cùng thay đổi (UI và validator mới).
-5. Kiểm tra:
+2. Chạy **toàn bộ**, đúng thứ tự, mỗi file một lần trong SQL Editor → **Run**:
+   `20261112` → `20261113` → `20261114` → `20261115` → `20261116` → `20261117` → `20261119` → `20261120`.
+   **Bỏ qua `20261118`.**
+3. Deploy frontend cùng thay đổi (UI và validator mới).
+
+**b) Môi trường đã lỡ chạy `20261118`**
+
+Chạy tiếp `20261119` rồi `20261120` (đúng thứ tự). Hai file này bỏ ràng buộc toàn bảng và khoá giá trị đã ghi; chúng **không** khôi phục được các dòng lịch sử mà 20261118 đã đưa về 0 — việc đó, nếu cần, là quy trình sửa một lần ở mục trên.
+
+**c) Cài mới (project trống)**
+
+Dùng file setup `01`–`17`. Bước 15 (`20261118`) đã bị thay thế và chỉ còn để tương thích; bước 16 và 17 sửa lại đúng trạng thái trước khi dùng production. Trên bảng trống, bước 15 không gây mất dữ liệu.
+
+**Không** chạy lại `schema.sql` hay setup trên database đang dùng. Kiểm tra sau khi chạy:
 
 ```sql
--- Dòng lịch sử giữ nguyên giá trị (0 = không có dòng nào từng được ghi 2,
--- con số khác 0 là BÌNH THƯỜNG nếu trước đây từng có thưởng điểm danh).
+-- Giá trị lịch sử giữ nguyên (có mức 2 là BÌNH THƯỜNG nếu trước đây từng thưởng điểm danh).
 select reward, count(*) from public.daily_login_rewards group by reward order by reward;
--- Không còn ràng buộc toàn bảng nào trên cột reward (kỳ vọng: 0 dòng).
+-- Không còn ràng buộc toàn bảng trên cột reward (kỳ vọng: 0 dòng).
 select count(*) as reward_checks from pg_constraint
  where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'
    and pg_get_constraintdef(oid) like '%reward%';
--- Trigger chặn bản ghi mới (kỳ vọng: 1 dòng).
+-- Trigger bảo vệ (kỳ vọng: 1 dòng).
 select tgname from pg_trigger where tgrelid = 'public.daily_login_rewards'::regclass and not tgisinternal;
 ```
-
-Database mới dùng thêm file setup `15-daily-login-no-votes.sql` (phần của 20261118, chạy trên bảng trống nên vô hại) và `16-preserve-legacy-daily-login-rewards.sql`. **Không** chạy lại schema/setup trên database đang dùng.
 
 ## Tính toàn vẹn
 
