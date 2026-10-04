@@ -33,6 +33,7 @@ import Progress from './components/Progress'
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
+const DailyRewards = lazy(() => import('./components/DailyRewards'))
 import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
@@ -70,7 +71,7 @@ import {
    không phải hộp thoại: nó là nơi làm việc thật (soát bài, duyệt, sửa mốc tiến
    độ, xử lý đơn) nên phải vào được bằng link, F5 không mất chỗ đang đứng, và
    mở được ở tab trình duyệt thứ hai bên cạnh trang công khai. */
-const SECTIONS = ['board', 'spin', 'ranking', 'mine']
+const SECTIONS = ['board', 'login', 'quiz', 'spin', 'ranking', 'mine']
 const ADMIN_ONLY = 'admin'
 
 /* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
@@ -95,10 +96,11 @@ const NOW_SHOW = 2
    mà bảng đã nói bằng số. Mục nào không có trong bảng này thì không vẽ dòng
    phụ, chứ không vẽ một dòng rỗng. */
 const NAV_SUB = {
-  board: 'nav.boardSub', spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
+  board: 'nav.boardSub', login: 'nav.loginSub', quiz: 'nav.quizSub',
+  spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 
-const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', quiz: '/quiz', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
@@ -461,8 +463,15 @@ function AppInner() {
     bonus_requests: 0,
   })
   const balanceVersion = useRef(0)
+  const dailyBalanceStamp = useRef({ userId: null, time: 0 })
   const applySpinBalance = useCallback(status => {
     if (status.user_id !== currentUserId.current) return
+    // Both missions and the wheel can read balances concurrently. A slower,
+    // older server snapshot must not undo a more recent reward from either.
+    const time = Date.parse(status.server_now)
+    const last = dailyBalanceStamp.current
+    if (last.userId === status.user_id && Number.isFinite(time) && time < last.time) return
+    dailyBalanceStamp.current = { userId: status.user_id, time: Number.isFinite(time) ? time : last.time }
     ++balanceVersion.current // discard older balance reads still in flight
     setVoteStatus(previous => ({
       ...previous,
@@ -2380,6 +2389,26 @@ function AppInner() {
               <Pager {...pgBoard} onChange={pgBoard.setPage} scrollTo={listRef} />
             </div>{/* /.board-list */}
           </div>
+        )}
+
+        {section === 'login' && !onProfile && (
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
+              <DailyRewards key={`login-${user.id}`} kind="login" userId={user.id} onBalance={applySpinBalance} />
+            </Suspense>
+          ) : (
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needDailyLogin')} onSignIn={() => setAuthPrompt(true)} />
+          )
+        )}
+
+        {section === 'quiz' && !onProfile && (
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
+              <DailyRewards key={`quiz-${user.id}`} kind="quiz" userId={user.id} onBalance={applySpinBalance} />
+            </Suspense>
+          ) : (
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needQuiz')} onSignIn={() => setAuthPrompt(true)} />
+          )
         )}
 
         {section === 'spin' && !onProfile && (

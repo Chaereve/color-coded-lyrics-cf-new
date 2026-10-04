@@ -1,0 +1,22 @@
+{
+  "$comment": "Machine-readable list of migrations that are removed from the default execution path. Consumed by tools/migrate.mjs, tools/smoke.mjs and the tests. A file listed here is never executed by `npm run db:deploy`, never mirrored into supabase/schema.sql, and never shipped as a supabase/setup chunk. See ../../../docs/DB-MIGRATIONS.md.",
+  "quarantined": [
+    {
+      "version": "20261118",
+      "path": "archive/20261118_daily_login_no_votes.sql.superseded",
+      "originalPath": "20261118_daily_login_no_votes.sql",
+      "supersededBy": [
+        "20261119_preserve_legacy_daily_login_rewards.sql",
+        "20261120_daily_login_reward_immutable.sql"
+      ],
+      "destructive": true,
+      "reason": "Table-wide historical rewrite: UPDATE public.daily_login_rewards SET reward = 0 WHERE reward <> 0, plus a table-wide CHECK (reward = 0). It irreversibly overwrites recorded check-in amounts, so it can never run against a database that has history.",
+      "destructiveStatements": [
+        "update public.daily_login_rewards set reward = 0 where reward <> 0",
+        "add constraint daily_login_rewards_reward_check check (reward = 0)"
+      ],
+      "ifAlreadyApplied": "Leave the history row alone. 20261119 and 20261120 are safe to run afterwards; they remove the table-wide CHECK and install the immutability trigger. Reward values already zeroed by this migration are NOT restored — restoring them is the separate administrator-only repair described in 20261120.",
+      "id": "20261118_daily_login_no_votes"
+    }
+  ]
+}

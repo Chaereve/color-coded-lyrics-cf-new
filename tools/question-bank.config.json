@@ -1,0 +1,62 @@
+{
+  "$comment": "Configuration for tools/validate-question-bank.mjs. Edit the contact address before running live checks, and keep the allowlist limited to domains you are permitted to fetch lawfully.",
+  "fieldSemantics": {
+    "$comment": "Documentation only: the single source of truth for what each measured link field means.",
+    "source_initial_http_status": "HTTP status returned by the originally requested source_url",
+    "source_final_http_status": "HTTP status returned by the final resolved source_final_url",
+    "source_final_url": "final canonical URL after redirects",
+    "source_redirect_count": "number of redirects followed from source_url to source_final_url",
+    "secondary_initial_http_status": "HTTP status returned by the requested secondary_source_url",
+    "secondary_final_http_status": "HTTP status returned by the final resolved secondary_final_url",
+    "secondary_final_url": "final canonical secondary URL after redirects",
+    "secondary_redirect_count": "number of redirects followed for the secondary source",
+    "draftSentinel": "unknown_not_observable (status fields and redirect count) or blank (URL fields) when no live validation has run",
+    "productionEligibility": "source_final_http_status = 200 AND source_final_url present AND source_fact_match = pass AND source_access_status in [public_accessible, accessible_with_redirect] AND source_redirect_count <= 3 AND source_last_checked within freshness window. An initial 200 is never evidence on its own."
+  },
+  "userAgent": "KpopQuizValidator/1.0 (contact: kimtong1906@gmail.com)",
+  "allowedDomains": [
+    "genius.com",
+    "www.billboard.com",
+    "circlechart.kr",
+    "www.melon.com",
+    "www.hanteochart.com",
+    "www.genie.co.kr",
+    "ibighit.com",
+    "www.jype.com",
+    "www.smtown.com",
+    "blackpinkofficial.com",
+    "weverse.io",
+    "pledis.co.kr",
+    "www.starship-ent.com",
+    "ador.world",
+    "www.oricon.co.jp",
+    "www.riaj.or.jp",
+    "www.riaa.com",
+    "www.bpi.co.uk",
+    "sourcemusic.com",
+    "highup-ent.com",
+    "korea.net"
+  ],
+  "rateLimit": {
+    "requestsPerSecondPerDomain": 0.5,
+    "maxRetries": 2,
+    "retryBaseDelayMs": 1500,
+    "timeoutMs": 15000,
+    "maxRedirects": 3
+  },
+  "freshness": {
+    "dynamicDays": 30,
+    "evergreenDays": 90
+  },
+  "concurrency": {
+    "domains": 4
+  },
+  "live": {
+    "respectRobots": true,
+    "minBodyChars": 400
+  },
+  "limits": {
+    "artistQuestions": 10,
+    "songQuestions": 3
+  }
+}

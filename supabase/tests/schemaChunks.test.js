@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import { splitSchema, PARTS, MAX_PART_BYTES } from '../../scripts/split-schema.mjs'
+import { findDestructive } from '../../tools/migrate.mjs'
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8')
 const schema = read('../schema.sql')
@@ -17,6 +18,17 @@ test('SQL Editor setup files concatenate byte-for-byte to the canonical schema',
     assert.ok(Buffer.byteLength(sql, 'utf8') <= MAX_PART_BYTES, `${name} is too large for the small-file workflow`)
   }
   assert.equal(chunks.map(({ sql }) => sql).join(''), schema)
+})
+
+test('no setup chunk can rewrite check-in history', () => {
+  // The fresh-install path is the only place that installs everything at once;
+  // 20261118 (the table-wide `SET reward = 0`) must not be one of its chunks.
+  assert.equal(PARTS.filter(({ name }) => /no-votes/.test(name)).length, 0)
+  for (const { name, sql } of chunks) {
+    assert.deepEqual(findDestructive(sql), [], `${name} rewrites recorded check-in history`)
+  }
+  assert.ok(PARTS.some(({ name }) => /preserve-legacy-daily-login-rewards/.test(name)))
+  assert.ok(PARTS.some(({ name }) => /daily-login-reward-immutable/.test(name)))
 })
 
 test('splitter refuses missing / duplicate cut markers or an oversized final part', () => {
@@ -76,10 +88,48 @@ test('SQL Editor chunks install on separate connections into a disposable fresh 
                  to_regclass('public.activity_days') is not null as activity_ok,
                  to_regclass('public.achievement_rewards') is not null as achievements_ok,
                  to_regprocedure('public.touch_my_activity()') is not null as visit_rpc_ok,
+                 to_regprocedure('public.my_daily_rewards_status()') is not null as daily_rewards_rpc_ok,
+                 to_regprocedure('public.submit_daily_quiz(uuid,uuid,integer[])') is not null as quiz_rpc_ok,
                  exists (select 1 from pg_policies where schemaname = 'public'
                            and tablename = 'votes' and policyname = 'read own votes') as votes_rls_ok
         `)
         assert.ok(Object.values(result).every(Boolean), JSON.stringify(result))
+
+        // The fresh install lands in the audit-safe state: no table-wide rule,
+        // the immutability trigger on, a check-in worth 0 votes.
+        const legacy = randomUUID()
+        await check.query('insert into auth.users (id, email) values ($1, $2)', [legacy, `${legacy}@example.test`])
+        await check.query('update public.profiles set vote_credits = 7, bonus_credits = 4 where id = $1', [legacy])
+        // The documented administrator path: a historical amount is inserted
+        // with the trigger disabled for that statement only, then kept.
+        await check.query('alter table public.daily_login_rewards disable trigger daily_login_rewards_no_vote')
+        await check.query('insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1, current_date - 1, 2)', [legacy])
+        await check.query('alter table public.daily_login_rewards enable trigger daily_login_rewards_no_vote')
+        const { rows: [state] } = await check.query(`
+          select (select count(*)::int from pg_constraint
+                    where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'
+                      and pg_get_constraintdef(oid) like '%reward%') as table_checks,
+                 (select count(*)::int from pg_trigger
+                    where tgrelid = 'public.daily_login_rewards'::regclass
+                      and tgname = 'daily_login_rewards_no_vote') as triggers,
+                 (select reward from public.daily_login_rewards where user_id = $1) as legacy_reward,
+                 (select count(*)::int from public.votes) as votes`, [legacy])
+        assert.equal(state.table_checks, 0, 'no table-wide CHECK survives the install')
+        assert.equal(state.triggers, 1, 'the immutability trigger is installed')
+        assert.equal(state.legacy_reward, 2, 'a recorded amount is preserved, not rewritten')
+        assert.equal(state.votes, 0)
+        await assert.rejects(() => check.query(
+          'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1, current_date - 2, 2)', [legacy]),
+        /err\.dailyLoginRewardImmutable/)
+        await check.query("select set_config('request.jwt.claim.sub', $1, false)", [legacy])
+        const claimed = JSON.parse((await check.query(
+          "select public.claim_daily_login($1, (clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date)::text as v",
+          [legacy])).rows[0].v)
+        assert.equal(claimed.reward, 0, 'a check-in awards nothing')
+        assert.equal(claimed.votes_awarded, 0)
+        const { rows: [wallet] } = await check.query(
+          'select vote_credits, bonus_credits from public.profiles where id = $1', [legacy])
+        assert.deepEqual(wallet, { vote_credits: 7, bonus_credits: 4 }, 'no balance moved')
       } finally { await check.end() }
     } finally {
       try {

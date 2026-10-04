@@ -444,13 +444,13 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   // The transaction is already committed, but do not spoil the result while
   // the wheel is still moving. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
-  // Dang quay thi giu nguyen con so (giao dich da xong nhung khong spoils ket
-  // qua); dung lai thi lay theo status server vua tai. Backend cu chi tra tong
-  // credits, khong co purchased/bonus: hien 0 cho on dinh bo cuc.
+  // Freeze balances only during the animation. Otherwise use the parent's
+  // shared wallet: login/quiz can award votes without refreshing wheel status.
+  // Standalone/older clients may still fall back to the wheel's own snapshot.
   const shown = active ? held : {
-    credits: status?.credits ?? credits ?? 0,
-    purchased: status?.purchased ?? purchased ?? 0,
-    bonus: status?.bonus ?? bonus ?? 0,
+    credits: credits ?? status?.credits ?? 0,
+    purchased: purchased ?? status?.purchased ?? 0,
+    bonus: bonus ?? status?.bonus ?? 0,
   }
   const won = result ? spinSectorIndex(result.segment, rewards) : null
   const buttonLabel = phase === 'requesting' ? 'spin.requesting'

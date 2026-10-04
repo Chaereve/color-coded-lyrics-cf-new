@@ -20,6 +20,20 @@
     <priority>1.0</priority>
   </url>
 
+  <!-- Điểm danh và quiz: mỗi tính năng có trang riêng; thưởng cần đăng nhập. -->
+  <url>
+    <loc>https://chaereve.pages.dev/daily-login</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://chaereve.pages.dev/quiz</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>
+
   <!-- Vòng quay thưởng: nội dung tĩnh, chỉ số dư là của riêng người dùng. -->
   <url>
     <loc>https://chaereve.pages.dev/daily-spin</loc>

@@ -77,7 +77,7 @@ export default function Sidebar({
      dựng nút Sign out không có gì để đăng xuất). */
   const signedIn = !!user?.id
   const initials = (user?.name || '?').trim()[0].toUpperCase()
-  const NAV_ICON = { board: 'board', spin: 'spin', ranking: 'cup', mine: 'user', admin: 'shield' }
+  const NAV_ICON = { board: 'board', login: 'calendar', quiz: 'quiz', spin: 'spin', ranking: 'cup', mine: 'user', admin: 'shield' }
   const adminTotal = counts.pending + counts.orders + Number(counts.expired || 0)
   const toggleLabel = collapsed ? t('side.expand') : t('side.collapse')
 

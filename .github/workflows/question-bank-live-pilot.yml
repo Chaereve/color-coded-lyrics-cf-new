@@ -1,0 +1,203 @@
+# =============================================================
+# Manual question-bank LIVE validation pilot (read-only).
+#
+# SAFETY STATEMENT
+# ----------------
+# * Successful source checks do NOT approve questions. The validator never
+#   writes approval_status = approved, daily_eligibility_status = eligible or
+#   retirement_status = active. It only records measured link metadata into the
+#   report and, on failure, demotes a record in memory only.
+# * Failed source checks do NOT modify any CSV. This workflow never passes
+#   CSV-output flag, so the validator writes no CSV at all; the repository file
+#   data/kpop-quiz-bank/batch-01.csv is never touched. Both the pilot CSV and
+#   the JSON report live under $RUNNER_TEMP, outside the repository workspace.
+# * No database or Daily Quiz operation occurs. There are no service
+#   containers, no database credentials, no secrets, and no migration, deploy
+#   or import command anywhere in this job.
+# * The report artifact requires MANUAL review before any later CSV update is
+#   approved (see docs/QUESTION-BANK-PROMOTION.md, stage 4 - human/QA review).
+#   Nothing in this workflow promotes, imports, approves or makes a record
+#   eligible, and nothing changes vote behavior.
+#
+# Trigger is workflow_dispatch ONLY: this job can never run on push, pull
+# request, schedule, deployment or release.
+#
+# Fixed scope: B1Q001, B1Q009, B1Q010, B1Q019, B1Q022. There is deliberately no
+# free-form record-ID input, so the set cannot be expanded from the UI.
+# Excluded: B1Q014, B1Q024, B1Q025, every other Batch 1 record, and every
+# music.apple.com URL.
+# =============================================================
+name: Question bank live validation pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_pilot:
+        description: 'Type exactly "confirm" to run the five-record live pilot.'
+        required: true
+        default: ''
+        type: string
+
+# Read-only repository contents. No write or elevated scope of any kind.
+permissions:
+  contents: read
+
+# Never run two pilots at once: they would hit the same hosts and the same
+# per-domain rate limit. Queued runs wait instead of cancelling each other.
+concurrency:
+  group: question-bank-live-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Runs before checkout and before anything else: an unconfirmed dispatch
+      # must not build the pilot CSV or send a single request.
+      - name: Require explicit confirmation
+        env:
+          RUN_LIVE_PILOT: ${{ inputs.run_live_pilot }}
+        run: |
+          set -euo pipefail
+          if [ "$RUN_LIVE_PILOT" != "confirm" ]; then
+            echo "::error::run_live_pilot must be exactly 'confirm' (got '${RUN_LIVE_PILOT}'). Refusing to continue."
+            exit 1
+          fi
+          echo "Confirmation accepted; proceeding to checkout."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Do not leave the GitHub token behind in .git/config.
+          persist-credentials: false
+
+      # The validator has zero npm dependencies, so no dependency install step
+      # and no npm cache is needed. setup-node is only here to pin a Node version.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Build the five-record pilot CSV outside the repository workspace and
+      # assert the scope BEFORE any request is sent.
+      - name: Build five-record pilot CSV under RUNNER_TEMP
+        run: |
+          set -euo pipefail
+
+          PILOT_DIR="${RUNNER_TEMP}/qb-pilot"
+          mkdir -p "$PILOT_DIR"
+          CSV="${PILOT_DIR}/pilot-5.csv"
+
+          # Header + the five approved records. IDs are fixed width B1Q0NN and
+          # anchored with '^ID,' so no neighbouring ID can match.
+          head -1 data/kpop-quiz-bank/batch-01.csv > "$CSV"
+          grep -E '^(B1Q001|B1Q009|B1Q010|B1Q019|B1Q022),' \
+            data/kpop-quiz-bank/batch-01.csv >> "$CSV"
+
+          # --- pre-network assertions -------------------------------------
+          lines=$(wc -l < "$CSV")
+          if [ "$lines" -ne 6 ]; then
+            echo "::error::pilot CSV must have exactly 6 lines (header + 5 records), got ${lines}"
+            exit 1
+          fi
+
+          for id in B1Q001 B1Q009 B1Q010 B1Q019 B1Q022; do
+            count=$(grep -c "^${id}," "$CSV" || true)
+            if [ "$count" -ne 1 ]; then
+              echo "::error::${id} occurs ${count} time(s) in the pilot CSV (expected exactly 1)"
+              exit 1
+            fi
+          done
+
+          for id in B1Q014 B1Q024 B1Q025; do
+            if grep -q "^${id}," "$CSV"; then
+              echo "::error::${id} must never be part of the pilot"
+              exit 1
+            fi
+          done
+
+          if grep -qi 'music.apple.com' "$CSV"; then
+            echo "::error::music.apple.com must never appear in the pilot CSV"
+            exit 1
+          fi
+
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::repository workspace is dirty before validation"
+            echo "$dirty"
+            exit 1
+          fi
+
+          echo "Pilot CSV ready at ${CSV} with exactly 5 records; workspace clean."
+
+      # --live with --report only. No CSV-output flag is ever passed, so the
+      # validator writes no CSV anywhere.
+      - name: Run live validation (report only)
+        run: |
+          set -euo pipefail
+          PILOT_DIR="${RUNNER_TEMP}/qb-pilot"
+          node tools/validate-question-bank.mjs "${PILOT_DIR}/pilot-5.csv" --live \
+            --config tools/question-bank.config.json \
+            --report "${PILOT_DIR}/pilot-5.report.json"
+
+      # Concise counts only. No secrets, no environment dump, no config dump.
+      - name: Print concise report summary
+        if: always()
+        env:
+          REPORT_PATH: ${{ runner.temp }}/qb-pilot/pilot-5.report.json
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const p = process.env.REPORT_PATH;
+            if (!p || !fs.existsSync(p)) {
+              console.log("Report not produced; skipping summary.");
+              process.exit(0);
+            }
+            const r = JSON.parse(fs.readFileSync(p, "utf8"));
+            const s = r.summary || {};
+            const src = r.sources || {};
+            const pool = r.dailyPool || {};
+            const n = v => (Array.isArray(v) ? v.length : v == null ? 0 : v);
+            const rows = [
+              ["records", s.totalRecords],
+              ["errors", s.errors],
+              ["warnings", s.warnings],
+              ["sources checked", src.checked],
+              ["failed sources", n(src.failedSources)],
+              ["dead links", n(src.deadLinks)],
+              ["soft-404", n(src.soft404)],
+              ["blocked", n(src.blocked)],
+              ["redirects", n(src.redirects)],
+              ["approved", s.approvedProductionReady],
+              ["eligible", n(pool.eligible)],
+              ["excluded from voting", pool.excludedFromVoting]
+            ];
+            console.log("=== question-bank live pilot summary ===");
+            for (const [k, v] of rows) console.log(String(k).padEnd(22) + ": " + String(v));
+          '
+
+      # Proof that nothing in the repository workspace changed.
+      - name: Show workspace is unchanged
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "=== git status --porcelain after validation (empty means clean) ==="
+          git status --porcelain
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::repository workspace changed; investigate before using this report"
+            exit 1
+          fi
+          echo "Workspace clean."
+
+      # Only the JSON report. No CSV, no repository files, no env logs.
+      - name: Upload pilot report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: question-bank-live-pilot-report-${{ github.run_number }}
+          path: ${{ runner.temp }}/qb-pilot/pilot-5.report.json
+          retention-days: 7
+          if-no-files-found: error

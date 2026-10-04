@@ -1,0 +1,216 @@
+# Daily login & music quiz
+
+Hai cách kiếm thêm **tối đa 5 vote bonus/ngày**, bên cạnh vòng quay đang có. Hai tính năng có **mục menu và trang riêng**, không gộp vào vòng quay:
+
+- **Daily login** → `/daily-login`
+- **Music quiz** → `/quiz`
+- **Daily Spin** → `/daily-spin` (chỉ vòng quay, giữ URL cũ)
+
+Giao diện tiếp tục dùng tiếng Anh như phần còn lại của app.
+
+## Luật mặc định
+
+- **Daily login:** lịch điểm danh (thứ Hai → Chủ nhật) với **điều hướng tháng**: bấm ‹ › để xem lại các tháng trước, lịch sử lấy từ ledger thật của đúng tài khoản; tháng trước/tương lai chỉ đọc. Ngày đã nhận có dấu ✓, hôm nay nổi bật và là **ô duy nhất bấm được**, ngày sắp tới mờ.
+  - Thống kê phía trên lịch: **This month** (số ngày đã điểm danh/tháng), **Streak** (chuỗi ngày liên tiếp, còn sống đến hết hôm nay), **Best streak**, **Lifetime** (tổng số ngày). Thanh tiến trình có mốc 5/10/20 ngày — **chỉ để hiển thị, không có jackpot và không có thưởng**.
+  - Bấm ô **hôm nay** hoặc **Check in today** để **ghi nhận điểm danh**, một lần/tài khoản/ngày. Không nhận bù ngày trước, không nhận trước ngày tương lai. Không cần đăng xuất/đăng nhập lại; việc mở trang không tự điểm danh.
+  - **Điểm danh KHÔNG thưởng gì cả**: 0 vote, 0 phiếu miễn phí, 0 điểm, 0 XP. Nó chỉ ghi ngày, giữ streak và lịch sử tháng. Music quiz là **đường duy nhất** tạo vote thưởng: 1 đáp án đúng = 1 vote, trần **5 vote/người/ngày**.
+- **Music quiz:** một vòng **5 câu dễ/trung bình về K-pop**, chia loại **Lyrics · Songs · Groups · Members · Fandom** — hook lời bài hát, bài hit, số thành viên, tên fandom, lightstick. Không còn câu nhạc lý chung (BPM, nhạc cụ, v.v.).
+  - **Chỉ câu đã duyệt mới được chọn.** Câu phải có `approval_status = approved`, `daily_eligibility_status = eligible`, `retirement_status = active`, `source_fact_match = pass`, `source_final_http_status = 200`, `source_final_url`, `source_last_checked` còn hạn, `quality_score >= 97` và không có cờ an toàn/bản quyền/trùng lặp. **99 câu legacy chưa có nguồn được kiểm chứng sẽ không bao giờ được chọn và không thể trả thưởng** (chúng vẫn nằm trong bảng để thực hành và để được nghiên cứu, kiểm chứng rồi nâng cấp từng câu sau này).
+  - Khi chưa đủ 5 câu đủ điều kiện, trang quiz hiện trạng thái **“not available yet”** có chủ đích thay vì rút từ ngân hàng chưa kiểm chứng.
+  - Tỉ lệ ra mắt: **đúng 2 câu easy + 3 câu medium**. Câu hard bị khoá cho đến khi cờ `hard_question_enabled` bật (và ngân hàng hard đạt `min_hard_pool_to_enable`, mặc định 30 câu); lúc đó tối đa **1 câu hard** mỗi vòng.
+  - Máy chủ **tránh câu đã hỏi trong 90 ngày**, tối đa 2 câu/nghệ sĩ, ưu tiên ≥3 nghệ sĩ khác nhau, ≥1 câu profile và ≥1 câu lyrics, tối đa 1 câu đúng/sai và 1 câu `lyrics_keyword`, và không trùng bài/album/sự kiện trong cùng một vòng.
+  - Dạng câu lấy cảm hứng từ các bộ K-pop phổ biến trên Sporcle ([danh sách thẻ Kpop Quiz](https://www.sporcle.com/games/tags/kpopquiz)): nhóm nam/nữ, ai là leader, ai là maknae, tên thật của idol, tên fandom, công ty/năm debut, và **điền tiếp tên bài hát**. Chỉ lấy ý tưởng định dạng; **toàn bộ câu hỏi được viết lại**, không copy nội dung của họ.
+  - Giao diện: thẻ câu hỏi có nhãn loại, 4 đáp án dạng thẻ (A/B/C/D) **được xáo thứ tự ở client nhưng vẫn mang option id ổn định**, thanh bước 1–5 bấm được, phím **1–4** chọn, **←/→** chuyển câu, **Enter** nộp. **Nộp từng câu**: mỗi câu đúng **+1 bonus**, sai **+0**, trần **+5/ngày**. Câu đã nộp khoá lại và hiện đáp án đúng + giải thích ngay. Sau 5 câu: thẻ điểm, review từng câu và đếm ngược đến lượt mới.
+  - **Vote:** mỗi ngày một người chỉ nhận tối đa **5 vote từ quiz** (1 vote/đáp án đúng). Khoản **3 vote miễn phí tự động mỗi ngày đã tắt** (`free_vote_grant_enabled = false`), nên vote quiz không cộng dồn với nó; nếu cần bật lại, công tắc nằm trong `public.daily_quiz_config` cùng `global_daily_vote_cap_enabled`.
+- Ngày mới bắt đầu lúc **00:00 Asia/Ho_Chi_Minh (GMT+7)**. Câu chưa nộp của ngày trước hết hạn. Vòng mới có thể gặp lại câu cũ.
+- Bonus cộng vào `profiles.bonus_credits`, **không** vào vote đã mua; dùng và hết hạn cuối tháng 10 theo luật ví đang có. Ledger nhận thưởng không bị xóa khi ví reset, nên reset ví không cho nhận lại thưởng đã lấy.
+- Tải lại trang giữ nguyên bộ câu hỏi. Lựa chọn đang làm lưu nháp theo tài khoản + ID lượt chơi trên trình duyệt (nếu storage được cho phép); đổi thiết bị vẫn có cùng câu hỏi nhưng phải chọn lại câu trả lời chưa nộp. Kết quả đã nộp lưu trên máy chủ.
+
+## Áp dụng cho database đang dùng, chưa có daily rewards
+
+1. Sao lưu theo hướng dẫn hiện có (`npm run backup:db`).
+2. Xác nhận các migration bonus, activity và security hiện tại đã có (đến `20261111_shared_ip_spin.sql`).
+3. Chạy **toàn bộ** `supabase/migrations/20261112_daily_rewards.sql`, rồi `supabase/migrations/20261113_calendar_kpop_quiz.sql` bằng SQL Editor → **Run**. Các file có transaction, chạy lại an toàn, không backfill thưởng và không reset dữ liệu cũ.
+4. Deploy frontend cùng thay đổi. Không cần Worker mới, biến môi trường mới hay cron mới. Nếu đã có daily rewards thì chỉ cần migration calendar/K-pop trong mục bên dưới.
+
+**Không chạy lại `schema.sql` hoặc các file setup trên database đang dùng.** Với project mới, làm theo `supabase/setup/README.md`, gồm file `10-daily-rewards.sql` đã được cắt từ schema. Nếu chưa cài migration, app hiển thị thông báo setup và nút refresh; vòng quay cũ vẫn dùng được.
+
+## Cập nhật calendar nâng cao & quiz K-pop cho database đã có daily rewards
+
+1. Sao lưu; xác nhận đã chạy `20261112_daily_rewards.sql`.
+2. Chạy **toàn bộ** `supabase/migrations/20261113_calendar_kpop_quiz.sql` trong SQL Editor. Sau đó deploy frontend.
+3. Migration bổ sung `login.claimed_days` cho tháng/ngày Việt Nam từ `daily_login_rewards` của đúng tài khoản. Chỉ tắt 24 câu seed cũ và thêm 24 câu K-pop dễ; không đụng dữ liệu thưởng, số dư, câu hỏi admin tự thêm hoặc snapshot quiz đã có. Có thể chạy lại, không cộng thưởng mới.
+4. Lượt quiz đã bắt đầu/đã nộp vẫn giữ câu hỏi, nháp, kết quả và quota cũ; bộ K-pop mới áp dụng cho **lượt mới**, không reset quiz để nhận thưởng hai lần trong ngày. Điều này áp dụng cả demo.
+5. Nếu frontend đi trước migration, check-in hôm nay vẫn hoạt động; các ngày cũ hiện **History unavailable**, không giả định là chưa điểm danh. Production chỉ đổi sang bank K-pop sau khi chạy migration.
+
+### Nâng cấp calendar (tháng trước, streak) và ngân hàng câu hỏi lớn
+
+1. Sao lưu; xác nhận đã chạy `20261112_daily_rewards.sql` **và** `20261113_calendar_kpop_quiz.sql`.
+2. Chạy **toàn bộ** `supabase/migrations/20261114_daily_rewards_upgrade.sql` trong SQL Editor, rồi deploy frontend.
+3. Migration: thêm cột `category` cho câu hỏi, thêm **39 câu K-pop dễ** (tổng 63 câu active), đổi `start_daily_quiz` để ưu tiên câu chưa hỏi trong 30 ngày, mở RPC đọc-only `my_daily_checkin_month(date)` để xem lịch tháng bất kỳ, và bổ sung `login.total_days` / `streak` / `best_streak` / `first_day`.
+4. **Không** đổi mức thưởng, không cộng/reset ví, không xoá ledger hay snapshot, không đổi quyền truy cập bảng. Chạy lại được nhiều lần. Streak chỉ là bộ đếm hiển thị — bỏ một ngày là đếm lại từ 0, không có thưởng streak.
+5. Nếu frontend đi trước migration này, lịch vẫn đúng tháng hiện tại nhưng thống kê hiện **—** và không bấm được mũi tên tháng; các chức năng thưởng không đổi.
+
+Database mới dùng các file setup `01`–`11` như trước: file `10` + `11` đã chứa cả ba migration. **Không** chạy lại schema/setup trên database đang dùng.
+
+## Daily Quiz 5 câu (migration 20261115 → 20261117)
+
+1. Sao lưu; xác nhận đã chạy `20261112`, `20261113` và `20261114`.
+2. Chạy **toàn bộ** từng file, đúng thứ tự, trong SQL Editor → **Run**:
+   `20261115_daily_quiz_schema.sql` → `20261116_daily_quiz_pool.sql` → `20261117_daily_quiz_flow.sql`.
+   Ba file tách nhau vì giới hạn 32 KB của luồng cài tay; mỗi file là một transaction, chạy lại an toàn, không backfill thưởng.
+3. Deploy frontend cùng thay đổi.
+4. Sau bước 2, quiz **chưa có câu nào đủ điều kiện** (99 câu legacy bị đánh dấu `draft`/`ineligible`) nên trang `/quiz` hiện “not available yet” — đây là trạng thái mong đợi cho đến khi ngân hàng câu đã kiểm chứng được import.
+5. Đường nộp cũ `submit_daily_quiz(uuid,uuid,int[])` bị khoá (`err.dailyQuizRetired`): vòng 3 câu của phiên bản trước không thể trả thưởng nữa.
+
+Database mới dùng thêm các file setup `12-daily-quiz-schema.sql`, `13-daily-quiz-pool.sql`, `14-daily-quiz-flow.sql`.
+
+### Cấu hình (`public.daily_quiz_config`, một dòng mỗi khoá)
+
+| Khoá | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `questions_per_day` | `5` | Số câu mỗi vòng |
+| `easy_count` / `medium_count` / `hard_count` | `2` / `3` / `0` | Tỉ lệ lúc ra mắt |
+| `hard_question_enabled` | `false` | Bật câu hard |
+| `min_hard_pool_to_enable` | `30` | Ngân hàng hard tối thiểu để cờ có hiệu lực |
+| `max_hard_per_set` | `1` | Tối đa 1 câu hard mỗi vòng |
+| `min_distinct_artists` / `max_per_artist` | `3` / `2` | Đa dạng nghệ sĩ |
+| `min_profile` / `min_lyrics` | `1` / `1` | Có ít nhất một câu profile và một câu lyrics |
+| `max_true_false` / `max_lyrics_keyword` | `1` / `1` | Giới hạn định dạng |
+| `repeat_cooldown_days` / `freshness_days` | `90` / `30` | Không lặp lại câu / hạn kiểm tra nguồn |
+| `min_quality_score` / `max_source_redirects` | `97` / `3` | Cửa chất lượng và link |
+| `daily_vote_cap` | `5` | Trần vote quiz mỗi ngày |
+| `free_vote_grant_enabled` | `false` | Khoá 3 vote miễn phí tự động |
+| `global_daily_vote_cap_enabled` / `global_daily_vote_cap` | `false` / `5` | (Tuỳ chọn) trần chung mọi nguồn vote |
+| `legacy_pool_enabled` | `false` | Ngân hàng legacy, luôn không được chọn |
+
+Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn (ít câu hơn, trần thấp hơn).
+
+## Điểm danh không còn thưởng vote (migration 20261119 + 20261120, thay thế 20261118)
+
+**Lý do:** điểm danh từng cộng **+2 vote/ngày**. Cộng với 5 câu đúng của quiz (trần +5) thành **7 vote/ngày**, vượt trần dự kiến của sản phẩm.
+
+**Ba migration, và thứ tự khuyến nghị**
+
+| File | Vai trò |
+| --- | --- |
+| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên. **ĐÃ BỊ CÁCH LY — không bao giờ chạy**: chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng (viết lại lịch sử) và thêm `CHECK (reward = 0)`. File đã chuyển sang `supabase/migrations/archive/20261118_daily_login_no_votes.sql.superseded` (cùng `archive/quarantine.json`), nên không nằm trong đường chạy mặc định của runner hay Supabase CLI, và không có trong `schema.sql`/file setup. |
+| `20261119_preserve_legacy_daily_login_rewards.sql` | Bỏ ràng buộc toàn bảng, **không** UPDATE/DELETE dòng nào; chỉ chặn bản ghi **mới** bằng trigger. Chứa đủ phần sửa của 20261118 nên có thể thay thế nó. |
+| `20261120_daily_login_reward_immutable.sql` | Khoá **bất biến** giá trị đã ghi: không cho sửa `2 → 0`, `0 → 2` hay bất kỳ thay đổi nào của cột `reward`. |
+
+**Nguyên tắc sau sửa**
+
+| | Điểm danh | Music quiz |
+| --- | --- | --- |
+| Vote thưởng | **0** (không có) | 1 / đáp án đúng |
+| Trần mỗi ngày | — | **5** |
+| Ghi nhận | `daily_login_rewards` (ngày; dòng mới `reward = 0`) | `daily_quiz_answers` (unique `user_id, quiz_date, question_id`) |
+| Hiển thị | lịch tháng, streak, best streak, lifetime, tiến trình tháng | số câu đã trả lời, số vote 0–5 |
+
+**Ngữ nghĩa lưu vết (audit) — giá trị đã ghi là bất biến**
+
+- **Dòng lịch sử** giữ nguyên `reward` (kể cả `2`). Không cập nhật, không xoá, không đổi cách hiểu, và **không bao giờ** tạo vote mới: không hàm nào cộng `reward` vào ví, `earned_today` không đọc cột này.
+- **Dòng mới** luôn `reward = 0`, `votes_awarded = 0`; không đụng `vote_credits`, `bonus_credits`, phiếu miễn phí hay ledger vote nào. Chỉ ghi ngày, streak và lịch sử tháng.
+- Trigger `daily_login_rewards_no_vote` (`BEFORE INSERT OR UPDATE OF reward`):
+  - `INSERT`: chỉ chấp nhận `reward = 0`, giá trị khác ném `err.dailyLoginRewardImmutable`.
+  - `UPDATE OF reward`: **mọi** thay đổi giá trị đều bị chối (`2 → 0`, `2 → 5`, `0 → 2`, `0 → 1`), lỗi `err.dailyLoginRewardImmutable`.
+  - Cập nhật trường khác (vd. `created_at`) hoặc ghi lại chính giá trị cũ vẫn được phép — trigger không cản.
+- Vì chỉ chặn **thao tác ghi**, việc restore dữ liệu cũ có `reward = 2` vẫn được chấp nhận và không sinh vote.
+- Client không có đường ghi: RLS bật, không policy ghi, privilege đã revoke; migration **từ chối cài** nếu tồn tại policy INSERT/UPDATE/DELETE. `claim_daily_login` (security definer) là đường duy nhất.
+- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. `free_vote_grant_enabled` vẫn `false`.
+- **Không** thu hồi vote đã cấp: không migration nào trừ ví hay xoá ledger vote.
+- Payload RPC: `login.vote_reward = 0` (thay cho `login.reward = 2` cũ); `earned_today` chỉ tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2`.
+
+**Sửa dữ liệu lịch sử trong trường hợp đặc biệt**
+
+Không có đường sửa nào trong app: không RPC, không frontend, không role `authenticated`. Nếu bắt buộc phải sửa, đó là **một migration một lần, chỉ admin chạy**, gồm: (1) ghi log trước/sau (số dòng theo từng mức `reward` và các cặp `user_id`/`reward_day` bị ảnh hưởng); (2) chạy trong một transaction, tắt trigger đúng thời điểm câu lệnh sửa rồi bật lại ngay; (3) không để lại đường sửa nào sau đó. Quy trình này được ghi trong phần chú thích đầu file `20261120`.
+
+**Cách chạy**
+
+Cách chạy chính thức (chi tiết, kịch bản khôi phục, lệnh kiểm tra) nằm ở **`docs/DB-MIGRATIONS.md`**. Tóm tắt:
+
+**a) Production chưa chạy migration nào trong chuỗi này (trường hợp khuyến nghị)**
+
+1. Sao lưu (`npm run backup:db`).
+2. Đối chiếu schema (bắt buộc): `SUPABASE_DB_URL='…' npm run db:verify-baseline -- --baseline 20261117` — phải in `READY`.
+3. Xem kế hoạch — phải đúng 2 file: `SUPABASE_DB_URL='…' npm run db:plan -- --baseline 20261117`
+4. Chạy: `SUPABASE_DB_URL='…' npm run db:deploy -- --baseline 20261117` (lệnh này tự chạy lại bước 2; **không bao giờ** dùng `--baseline` khi bước 2 chưa qua)
+
+`20261118` **không bao giờ** nằm trong kế hoạch: nó đã bị cách ly, nên lệnh trên không cần ai nhớ phải bỏ qua nó.
+
+**b) Môi trường đã lỡ chạy `20261118`**
+
+`npm run db:deploy` (có lịch sử) hoặc `npm run db:deploy -- --baseline 20261118` (chạy tay, chưa có lịch sử). Cả hai chạy tiếp `20261119` rồi `20261120`: bỏ ràng buộc toàn bảng và khoá giá trị đã ghi, nhưng **không** khôi phục được các dòng lịch sử mà 20261118 đã đưa về 0 — việc đó, nếu cần, là quy trình sửa một lần ở mục trên.
+
+**c) Cài mới (project trống)**
+
+Dùng file setup `01`–`16`. **Không có bước nào cho `20261118`**: đường cài mới không chứa bản viết lại lịch sử.
+
+**Không** chạy lại `schema.sql` hay setup trên database đang dùng. Kiểm tra sau khi chạy:
+
+```sql
+-- Giá trị lịch sử giữ nguyên (có mức 2 là BÌNH THƯỜNG nếu trước đây từng thưởng điểm danh).
+select reward, count(*) from public.daily_login_rewards group by reward order by reward;
+-- Không còn ràng buộc toàn bảng trên cột reward (kỳ vọng: 0 dòng).
+select count(*) as reward_checks from pg_constraint
+ where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'
+   and pg_get_constraintdef(oid) like '%reward%';
+-- Trigger bảo vệ (kỳ vọng: 1 dòng).
+select tgname from pg_trigger where tgrelid = 'public.daily_login_rewards'::regclass and not tgisinternal;
+```
+
+## Tính toàn vẹn
+
+- Máy chủ quyết định người nhận (`auth.uid()`), ngày, câu hỏi, đáp án và điểm. `p_expected_user_id` chỉ là chốt chống đổi phiên; `p_expected_day` chỉ chặn thao tác cũ qua nửa đêm, không cho browser chọn ngày thưởng.
+- Ba bảng `daily_login_rewards`, `daily_quiz_questions`, `daily_quiz_attempts` bật RLS và **revoke all** khỏi `public`, `anon`, `authenticated`; không có đường đọc/ghi REST trực tiếp, kể cả đáp án trong snapshot.
+- Chỉ 4 RPC cho người đã đăng nhập: `my_daily_rewards_status`, `claim_daily_login`, `start_daily_quiz`, `submit_daily_quiz_answer`. Helper `daily_rewards_payload` không có quyền execute cho browser. RPC cũ `submit_daily_quiz(uuid,uuid,int[])` bị revoke.
+- Khóa row ví trước khi ghi ledger; ghi kết quả và cộng bonus trong cùng transaction. Unique `(user_id, reward_day)` và `(user_id, quiz_day)` ngăn nhận lại từ tab/thiết bị khác. Retry trả kết quả đã lưu, không cộng lại tiền.
+- Mỗi lượt quiz chụp snapshot câu hỏi và đáp án; chỉnh ngân hàng sau khi người dùng bắt đầu không đổi kết quả của lượt đó. Đáp án/explanation chỉ trả về **sau khi câu đó đã nộp**, không phải trước.
+- `daily_quiz_answers` có khoá chính `(user_id, quiz_date, question_id)`: một câu chỉ được trả lời và chỉ được thưởng **một lần mỗi ngày**, bất kể retry, tab thứ hai hay request trùng lặp. Trần 5 vote/ngày được tính lại trong cùng transaction, sau khi đã khoá ví.
+- Hạn mức **theo tài khoản**, không phải thiết bị/IP. Đây không phải cơ chế chống tạo nhiều tài khoản; các giới hạn fingerprint/Turnstile của vòng quay không tự áp dụng cho daily missions.
+
+## Bổ sung câu hỏi
+
+Dùng SQL Editor với quyền quản trị (hoặc backend `service_role`), **không** đưa service key vào frontend:
+
+Câu hỏi muốn **được chọn và được trả thưởng** phải có đủ metadata nguồn; nếu không, nó vẫn nằm trong bảng (thực hành) nhưng không bao giờ vào vòng chơi:
+
+```sql
+insert into public.daily_quiz_questions
+  (id, prompt, options, correct_option, explanation, category, difficulty, sub_category,
+   question_type, artist, fact_key, song_key, quality_score,
+   approval_status, daily_eligibility_status, retirement_status,
+   source_url, source_final_url, source_initial_http_status, source_final_http_status,
+   source_redirect_count, source_access_status, source_fact_match, source_last_checked)
+values
+  ('unique-question-id', 'Your question?', '["Option A","Option B","Option C","Option D"]'::jsonb,
+   1, 'Explain why Option B is correct.', 'Songs', 'easy', 'profile', 'mcq',
+   'Artist name', 'fact:unique', 'song:artist:release', 99,
+   'approved', 'eligible', 'active',
+   'https://en.wikipedia.org/wiki/...', 'https://en.wikipedia.org/wiki/...',
+   '200', '200', '0', 'public_accessible', 'pass', current_date);
+```
+
+`correct_option` đếm từ **0 đến 3**; `correct_option_id` (option id ổn định để chấm khi client xáo thứ tự) được **tự sinh** từ `option_ids`, không nhập tay. `source_final_http_status` phải là trạng thái của **URL cuối cùng** (`source_final_url`), không phải của URL ban đầu. `source_last_checked` phải còn trong `freshness_days` (mặc định 30 ngày).
+
+Đặt `active=false` hoặc `daily_eligibility_status <> 'eligible'` để ngừng chọn câu cho vòng mới; câu đã nằm trong lượt đã bắt đầu vẫn giữ nguyên trong snapshot. Cần ít nhất 5 câu đủ điều kiện để mở một vòng. Không chạy migration cũ để đổi mức thưởng: **0 vote cho điểm danh** và +1/đáp án đúng, trần +5/ngày là luật cố định trong RPC, constraint và các hằng UI; thay mức thưởng cần một migration mới và cập nhật test/UI tương ứng.
+
+## Kiểm tra
+
+```sh
+npm test
+npm run build
+npm run lint
+npm run schema:split:check
+npm run smoke
+
+# Chỉ database LOCAL/TEST với quyền CREATEDB. Tạo database tạm rồi tự xóa.
+DAILY_REWARDS_TEST_DATABASE_URL=postgres://... npm run test:daily:db
+
+# Daily Quiz (5 câu, trần 5 phiếu, chỉ câu đã duyệt)
+DAILY_QUIZ_TEST_DATABASE_URL=postgres://... npm run test:dailyquiz:db
+```
+
+Bộ DB test kiểm tra upgrade (calendar, bank K-pop, nâng cấp streak/tháng), lịch nhiều tháng và đúng tài khoản, quyền table/RPC, 20 request đồng thời, điểm 0–3, replay, câu hỏi không lặp, đổi tài khoản, hết ngày, snapshot, rollback ví, chạy lại migration và xóa tài khoản. Bộ UI test bấm ô hôm nay, thống kê/tháng, làm quiz bằng chuột lẫn phím, tải lại, xem đáp án, xác nhận số dư thật và cô lập tài khoản.
+
+Kiểm tra thủ công: đăng nhập → mở Daily login → thấy lịch đúng tháng → bấm ô hôm nay → dấu check + hiệu ứng, **ví vote không đổi** → bấm ‹ xem tháng trước (chỉ đọc) → refresh/đổi tab không nhận thêm → sang Music quiz → làm quiz → thấy số điểm và bonus (tối đa +5) → cộng điểm danh + 5 câu đúng vẫn là **5** vote, không phải 7 → refresh vẫn khóa lượt → qua 00:00 VN mở lại lượt mới. Đăng xuất thì chỉ còn lời mời đăng nhập; kiểm tra thêm trên màn hình hẹp.

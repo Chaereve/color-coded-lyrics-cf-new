@@ -1,0 +1,63 @@
+# Deployment-safety guard for the database layer.
+#
+# This workflow applies NOTHING to any real environment: the project has no
+# automated migration deployment, so the risk it guards against is (a) a
+# destructive statement reaching the default execution path — the thing 20261118
+# did — and (b) a baseline being recorded for a database that does not actually
+# have the schema it claims. See docs/DB-MIGRATIONS.md.
+name: DB migration safety
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # A throwaway database so the migration/baseline suites really run instead
+    # of self-skipping. It is created by the runner and dropped by the tests;
+    # no credentials of any real environment are involved.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      MIGRATION_DEPLOY_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      SCHEMA_CHUNKS_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      DAILY_REWARDS_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      DAILY_QUIZ_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      DAILY_SPIN_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      COMMENTS_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Fails if any migration, schema.sql or setup chunk rewrites check-in
+      # history, or if the quarantine manifest is inconsistent.
+      - name: No destructive statement in the default migration path
+        run: npm run db:check
+
+      # The fresh-install chunks must still be a byte-exact split of schema.sql.
+      - name: Setup chunks match schema.sql
+        run: npm run schema:split:check
+
+      # Full suite against the throwaway Postgres service: deployment modes,
+      # baseline readiness, quarantine, fresh install, quiz/spin/comments.
+      - name: Tests (including the real-PostgreSQL migration and baseline suites)
+        run: npm test
+
+      - name: Lint
+        run: npm run lint

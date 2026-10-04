@@ -1,0 +1,280 @@
+{
+  "tool": "validate-question-bank.mjs",
+  "version": "1.0.0",
+  "mode": "offline",
+  "generatedAt": "2026-10-03T17:04:51.830Z",
+  "inputFile": "data/kpop-quiz-bank/pilot-batch-01.csv",
+  "configFile": "tools/question-bank.config.json",
+  "config": {
+    "userAgent": "KpopQuizValidator/1.0 (contact: YOUR_EMAIL_OR_DOMAIN)",
+    "allowedDomains": [
+      "en.wikipedia.org",
+      "kpopprofiles.com",
+      "genius.com",
+      "www.billboard.com",
+      "circlechart.kr",
+      "www.melon.com",
+      "www.hanteochart.com",
+      "www.genie.co.kr",
+      "ibighit.com",
+      "www.jype.com",
+      "www.smtown.com",
+      "blackpinkofficial.com",
+      "weverse.io",
+      "pledis.co.kr",
+      "www.starship-ent.com",
+      "ador.world",
+      "www.oricon.co.jp",
+      "www.riaj.or.jp",
+      "www.riaa.com",
+      "www.bpi.co.uk"
+    ],
+    "requestsPerSecondPerDomain": 0.5,
+    "maxRetries": 2,
+    "maxRedirects": 3,
+    "dynamicDays": 30,
+    "evergreenDays": 90,
+    "respectRobots": true,
+    "artistLimit": 10,
+    "songLimit": 3
+  },
+  "summary": {
+    "totalRecords": 20,
+    "draftsPendingVerification": 20,
+    "approvedProductionReady": 0,
+    "rejected": 0,
+    "errors": 0,
+    "warnings": 8,
+    "exitStatus": 0
+  },
+  "counts": {
+    "byCategory": {
+      "profile": 10,
+      "lyrics": 10
+    },
+    "bySubCategory": {
+      "agency_or_label": 3,
+      "debut": 5,
+      "member": 1,
+      "discography": 1,
+      "lyrics_language_or_version": 1,
+      "lyrics_credit": 2,
+      "lyrics_metadata": 5,
+      "lyrics_context": 1,
+      "lyrics_theme": 1
+    },
+    "byDifficulty": {
+      "easy": 7,
+      "medium": 9,
+      "hard": 4
+    },
+    "byQuestionType": {
+      "mcq": 17,
+      "true_false": 3
+    },
+    "bySourceTier": {
+      "A": 0,
+      "B": 0,
+      "C": 0,
+      "D": 20,
+      "E": 0
+    },
+    "byApprovalStatus": {
+      "approved": 0,
+      "pending_verification": 20,
+      "revise": 0,
+      "reject": 0
+    },
+    "byEligibility": {
+      "eligible": 0,
+      "temporarily_ineligible": 20,
+      "needs_review": 0,
+      "retired": 0
+    },
+    "distinctArtists": 5,
+    "topArtists": [
+      "Blackpink: 7",
+      "BTS: 4",
+      "Twice: 3",
+      "Seventeen: 3",
+      "aespa: 3"
+    ],
+    "songsReferenced": 11,
+    "zeroQuoteLyrics": 10
+  },
+  "checksByReason": {
+    "warning:secondary_unchecked": 8
+  },
+  "issues": {
+    "errors": [],
+    "warnings": [
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ001",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ002",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ006",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ007",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ008",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ009",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ010",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "KPQ013",
+        "column": "secondary_last_checked"
+      }
+    ]
+  },
+  "sources": {
+    "checked": 0,
+    "failedSources": [],
+    "deadLinks": [],
+    "soft404": [],
+    "blocked": [],
+    "redirects": [],
+    "details": []
+  },
+  "recordsRequiringManualReview": [
+    {
+      "id": "KPQ001",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ002",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ003",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ004",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ005",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ006",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ007",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ008",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ009",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ010",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ011",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ012",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ013",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ014",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ015",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ016",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ017",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ018",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ019",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "KPQ020",
+      "reason": "pending external live validation"
+    }
+  ],
+  "dailyPool": {
+    "eligible": [],
+    "temporarilyIneligible": [
+      "KPQ001",
+      "KPQ002",
+      "KPQ003",
+      "KPQ004",
+      "KPQ005",
+      "KPQ006",
+      "KPQ007",
+      "KPQ008",
+      "KPQ009",
+      "KPQ010",
+      "KPQ011",
+      "KPQ012",
+      "KPQ013",
+      "KPQ014",
+      "KPQ015",
+      "KPQ016",
+      "KPQ017",
+      "KPQ018",
+      "KPQ019",
+      "KPQ020"
+    ],
+    "needsReview": [],
+    "retired": [],
+    "excludedFromVoting": 20
+  }
+}

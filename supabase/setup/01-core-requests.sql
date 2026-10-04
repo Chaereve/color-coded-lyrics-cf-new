@@ -2,7 +2,7 @@
 --  COLOR CODED LYRICS — REQUEST BOARD  ·  (c) @chaereve
 --  Schema v3: admin, duyet request, vote credits, paid request
 --  File GỘP để đối chiếu / chạy bằng psql; KHÔNG dán cả file vào SQL Editor.
---  DB MỚI: xem supabase/setup/README.md, chạy 01 → 08 từng file nhỏ.
+--  DB MỚI: xem supabase/setup/README.md, chạy 01 → 10 từng file nhỏ.
 --  DB ĐÃ CÓ DỮ LIỆU: backup rồi chỉ chạy migration còn thiếu theo thứ tự;
 --  KHÔNG chạy lại schema.sql hay các file setup trên database đang dùng.
 -- ============================================================

@@ -1,0 +1,3492 @@
+{
+  "baseline": "20261111",
+  "note": "core app only — before the Daily Rewards / Daily Quiz migrations",
+  "generatedBy": "tools/schema-readiness.mjs on PostgreSQL 18.4 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "postgresMajor": "18",
+  "state": {
+    "tables": {
+      "achievement_definitions": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "active": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "true",
+            "generated": ""
+          },
+          "badge": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "bonus_requests": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "bonus_votes": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "id": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "source": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "threshold": {
+            "type": "integer",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "achievement_definitions_active_not_null",
+            "type": "n",
+            "columns": [
+              "active"
+            ],
+            "references": null,
+            "definition": "NOT NULL active"
+          },
+          {
+            "name": "achievement_definitions_badge_not_null",
+            "type": "n",
+            "columns": [
+              "badge"
+            ],
+            "references": null,
+            "definition": "NOT NULL badge"
+          },
+          {
+            "name": "achievement_definitions_bonus_requests_check",
+            "type": "c",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "CHECK (((bonus_requests >= 0) AND (bonus_requests <= 100)))"
+          },
+          {
+            "name": "achievement_definitions_bonus_requests_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_requests"
+          },
+          {
+            "name": "achievement_definitions_bonus_votes_check",
+            "type": "c",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "CHECK (((bonus_votes >= 0) AND (bonus_votes <= 1000)))"
+          },
+          {
+            "name": "achievement_definitions_bonus_votes_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_votes"
+          },
+          {
+            "name": "achievement_definitions_id_check",
+            "type": "c",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "CHECK ((id ~ '^[A-Za-z][A-Za-z0-9_]{1,63}$'::text))"
+          },
+          {
+            "name": "achievement_definitions_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "achievement_definitions_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "achievement_definitions_source_check",
+            "type": "c",
+            "columns": [
+              "source"
+            ],
+            "references": null,
+            "definition": "CHECK ((source = ANY (ARRAY['streak'::text, 'requests'::text, 'completed'::text, 'paid'::text, 'votes'::text, 'leaderboard'::text])))"
+          },
+          {
+            "name": "achievement_definitions_source_not_null",
+            "type": "n",
+            "columns": [
+              "source"
+            ],
+            "references": null,
+            "definition": "NOT NULL source"
+          },
+          {
+            "name": "achievement_definitions_threshold_check",
+            "type": "c",
+            "columns": [
+              "threshold"
+            ],
+            "references": null,
+            "definition": "CHECK ((threshold > 0))"
+          },
+          {
+            "name": "achievement_definitions_threshold_not_null",
+            "type": "n",
+            "columns": [
+              "threshold"
+            ],
+            "references": null,
+            "definition": "NOT NULL threshold"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "achievement_definitions_pkey",
+            "definition": "CREATE UNIQUE INDEX achievement_definitions_pkey ON public.achievement_definitions USING btree (id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "achievement_definitions_read",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "true",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "achievement_rewards": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "achievement_id": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "badge": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "bonus_requests": {
+            "type": "integer",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "bonus_votes": {
+            "type": "integer",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "granted_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "achievement_rewards_achievement_id_fkey",
+            "type": "f",
+            "columns": [
+              "achievement_id"
+            ],
+            "references": "achievement_definitions({id})",
+            "definition": "FOREIGN KEY (achievement_id) REFERENCES achievement_definitions(id)"
+          },
+          {
+            "name": "achievement_rewards_achievement_id_not_null",
+            "type": "n",
+            "columns": [
+              "achievement_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL achievement_id"
+          },
+          {
+            "name": "achievement_rewards_badge_not_null",
+            "type": "n",
+            "columns": [
+              "badge"
+            ],
+            "references": null,
+            "definition": "NOT NULL badge"
+          },
+          {
+            "name": "achievement_rewards_bonus_requests_check",
+            "type": "c",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_requests >= 0))"
+          },
+          {
+            "name": "achievement_rewards_bonus_requests_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_requests"
+          },
+          {
+            "name": "achievement_rewards_bonus_votes_check",
+            "type": "c",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_votes >= 0))"
+          },
+          {
+            "name": "achievement_rewards_bonus_votes_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_votes"
+          },
+          {
+            "name": "achievement_rewards_granted_at_not_null",
+            "type": "n",
+            "columns": [
+              "granted_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL granted_at"
+          },
+          {
+            "name": "achievement_rewards_pkey",
+            "type": "p",
+            "columns": [
+              "user_id",
+              "achievement_id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (user_id, achievement_id)"
+          },
+          {
+            "name": "achievement_rewards_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "achievement_rewards_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "achievement_rewards_pkey",
+            "definition": "CREATE UNIQUE INDEX achievement_rewards_pkey ON public.achievement_rewards USING btree (user_id, achievement_id)"
+          },
+          {
+            "name": "achievement_rewards_user_idx",
+            "definition": "CREATE INDEX achievement_rewards_user_idx ON public.achievement_rewards USING btree (user_id, granted_at DESC)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "achievement_rewards_read",
+            "cmd": "SELECT",
+            "roles": "{authenticated}",
+            "qual": "((user_id = auth.uid()) OR is_admin())",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "activity_days": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "day": {
+            "type": "date",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "activity_days_day_not_null",
+            "type": "n",
+            "columns": [
+              "day"
+            ],
+            "references": null,
+            "definition": "NOT NULL day"
+          },
+          {
+            "name": "activity_days_pkey",
+            "type": "p",
+            "columns": [
+              "user_id",
+              "day"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (user_id, day)"
+          },
+          {
+            "name": "activity_days_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "activity_days_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "activity_days_day_idx",
+            "definition": "CREATE INDEX activity_days_day_idx ON public.activity_days USING btree (day)"
+          },
+          {
+            "name": "activity_days_pkey",
+            "definition": "CREATE UNIQUE INDEX activity_days_pkey ON public.activity_days USING btree (user_id, day)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read own activity days",
+            "cmd": "SELECT",
+            "roles": "{authenticated}",
+            "qual": "((user_id = auth.uid()) OR is_admin())",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "daily_spin_devices": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "clock_timestamp()",
+            "generated": ""
+          },
+          "device_hash": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "registered_by": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "daily_spin_devices_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "daily_spin_devices_device_hash_check",
+            "type": "c",
+            "columns": [
+              "device_hash"
+            ],
+            "references": null,
+            "definition": "CHECK ((device_hash ~ '^[a-f0-9]{64}$'::text))"
+          },
+          {
+            "name": "daily_spin_devices_device_hash_not_null",
+            "type": "n",
+            "columns": [
+              "device_hash"
+            ],
+            "references": null,
+            "definition": "NOT NULL device_hash"
+          },
+          {
+            "name": "daily_spin_devices_pkey",
+            "type": "p",
+            "columns": [
+              "device_hash"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (device_hash)"
+          },
+          {
+            "name": "daily_spin_devices_registered_by_fkey",
+            "type": "f",
+            "columns": [
+              "registered_by"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (registered_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "daily_spin_devices_pkey",
+            "definition": "CREATE UNIQUE INDEX daily_spin_devices_pkey ON public.daily_spin_devices USING btree (device_hash)"
+          },
+          {
+            "name": "daily_spin_registration_idx",
+            "definition": "CREATE INDEX daily_spin_registration_idx ON public.daily_spin_devices USING btree (registered_by, created_at)"
+          }
+        ],
+        "policies": [],
+        "triggers": []
+      },
+      "daily_spins": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "account_slot": {
+            "type": "smallint",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "clock_timestamp()",
+            "generated": ""
+          },
+          "device_hash": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "device_slot": {
+            "type": "smallint",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "fp_hash": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "fp_slot": {
+            "type": "smallint",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "ip_hash": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "request_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "reward": {
+            "type": "integer",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "segment": {
+            "type": "smallint",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "spin_day": {
+            "type": "date",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "daily_spins_account_slot_check",
+            "type": "c",
+            "columns": [
+              "account_slot"
+            ],
+            "references": null,
+            "definition": "CHECK (((account_slot >= 1) AND (account_slot <= 2)))"
+          },
+          {
+            "name": "daily_spins_account_slot_not_null",
+            "type": "n",
+            "columns": [
+              "account_slot"
+            ],
+            "references": null,
+            "definition": "NOT NULL account_slot"
+          },
+          {
+            "name": "daily_spins_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "daily_spins_device_hash_fkey",
+            "type": "f",
+            "columns": [
+              "device_hash"
+            ],
+            "references": "daily_spin_devices({device_hash})",
+            "definition": "FOREIGN KEY (device_hash) REFERENCES daily_spin_devices(device_hash)"
+          },
+          {
+            "name": "daily_spins_device_hash_not_null",
+            "type": "n",
+            "columns": [
+              "device_hash"
+            ],
+            "references": null,
+            "definition": "NOT NULL device_hash"
+          },
+          {
+            "name": "daily_spins_device_hash_spin_day_device_slot_key",
+            "type": "u",
+            "columns": [
+              "device_hash",
+              "spin_day",
+              "device_slot"
+            ],
+            "references": null,
+            "definition": "UNIQUE (device_hash, spin_day, device_slot)"
+          },
+          {
+            "name": "daily_spins_device_slot_check",
+            "type": "c",
+            "columns": [
+              "device_slot"
+            ],
+            "references": null,
+            "definition": "CHECK (((device_slot >= 1) AND (device_slot <= 2)))"
+          },
+          {
+            "name": "daily_spins_device_slot_not_null",
+            "type": "n",
+            "columns": [
+              "device_slot"
+            ],
+            "references": null,
+            "definition": "NOT NULL device_slot"
+          },
+          {
+            "name": "daily_spins_fp_hash_check",
+            "type": "c",
+            "columns": [
+              "fp_hash"
+            ],
+            "references": null,
+            "definition": "CHECK (((fp_hash IS NULL) OR (fp_hash ~ '^[a-f0-9]{64}$'::text)))"
+          },
+          {
+            "name": "daily_spins_fp_slot_check",
+            "type": "c",
+            "columns": [
+              "fp_slot"
+            ],
+            "references": null,
+            "definition": "CHECK (((fp_slot IS NULL) OR ((fp_slot >= 1) AND (fp_slot <= 2))))"
+          },
+          {
+            "name": "daily_spins_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "daily_spins_ip_hash_check",
+            "type": "c",
+            "columns": [
+              "ip_hash"
+            ],
+            "references": null,
+            "definition": "CHECK (((ip_hash IS NULL) OR (ip_hash ~ '^[a-f0-9]{64}$'::text)))"
+          },
+          {
+            "name": "daily_spins_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "daily_spins_request_id_not_null",
+            "type": "n",
+            "columns": [
+              "request_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL request_id"
+          },
+          {
+            "name": "daily_spins_reward_check",
+            "type": "c",
+            "columns": [
+              "reward"
+            ],
+            "references": null,
+            "definition": "CHECK ((reward = ANY (ARRAY[1, 2, 3, 5])))"
+          },
+          {
+            "name": "daily_spins_reward_not_null",
+            "type": "n",
+            "columns": [
+              "reward"
+            ],
+            "references": null,
+            "definition": "NOT NULL reward"
+          },
+          {
+            "name": "daily_spins_segment_check",
+            "type": "c",
+            "columns": [
+              "segment"
+            ],
+            "references": null,
+            "definition": "CHECK (((segment >= 0) AND (segment <= 15)))"
+          },
+          {
+            "name": "daily_spins_segment_not_null",
+            "type": "n",
+            "columns": [
+              "segment"
+            ],
+            "references": null,
+            "definition": "NOT NULL segment"
+          },
+          {
+            "name": "daily_spins_spin_day_not_null",
+            "type": "n",
+            "columns": [
+              "spin_day"
+            ],
+            "references": null,
+            "definition": "NOT NULL spin_day"
+          },
+          {
+            "name": "daily_spins_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+          },
+          {
+            "name": "daily_spins_user_id_request_id_key",
+            "type": "u",
+            "columns": [
+              "user_id",
+              "request_id"
+            ],
+            "references": null,
+            "definition": "UNIQUE (user_id, request_id)"
+          },
+          {
+            "name": "daily_spins_user_id_spin_day_account_slot_key",
+            "type": "u",
+            "columns": [
+              "user_id",
+              "spin_day",
+              "account_slot"
+            ],
+            "references": null,
+            "definition": "UNIQUE (user_id, spin_day, account_slot)"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "daily_spins_device_hash_spin_day_device_slot_key",
+            "definition": "CREATE UNIQUE INDEX daily_spins_device_hash_spin_day_device_slot_key ON public.daily_spins USING btree (device_hash, spin_day, device_slot)"
+          },
+          {
+            "name": "daily_spins_fp_quota_idx",
+            "definition": "CREATE UNIQUE INDEX daily_spins_fp_quota_idx ON public.daily_spins USING btree (fp_hash, spin_day, fp_slot) WHERE (fp_hash IS NOT NULL)"
+          },
+          {
+            "name": "daily_spins_pkey",
+            "definition": "CREATE UNIQUE INDEX daily_spins_pkey ON public.daily_spins USING btree (id)"
+          },
+          {
+            "name": "daily_spins_user_id_request_id_key",
+            "definition": "CREATE UNIQUE INDEX daily_spins_user_id_request_id_key ON public.daily_spins USING btree (user_id, request_id)"
+          },
+          {
+            "name": "daily_spins_user_id_spin_day_account_slot_key",
+            "definition": "CREATE UNIQUE INDEX daily_spins_user_id_spin_day_account_slot_key ON public.daily_spins USING btree (user_id, spin_day, account_slot)"
+          }
+        ],
+        "policies": [],
+        "triggers": [
+          {
+            "name": "activity_on_spin",
+            "definition": "CREATE TRIGGER activity_on_spin AFTER INSERT ON public.daily_spins FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION touch_activity_day()"
+          }
+        ]
+      },
+      "edge_gate": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "id": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "true",
+            "generated": ""
+          },
+          "token_hash": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "updated_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "edge_gate_id_check",
+            "type": "c",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "CHECK (id)"
+          },
+          {
+            "name": "edge_gate_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "edge_gate_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "edge_gate_updated_at_not_null",
+            "type": "n",
+            "columns": [
+              "updated_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL updated_at"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "edge_gate_pkey",
+            "definition": "CREATE UNIQUE INDEX edge_gate_pkey ON public.edge_gate USING btree (id)"
+          }
+        ],
+        "policies": [],
+        "triggers": []
+      },
+      "funnel_events": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "event": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "bigint",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "meta": {
+            "type": "jsonb",
+            "notNull": true,
+            "default": "'{}'::jsonb",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "funnel_events_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "funnel_events_event_check",
+            "type": "c",
+            "columns": [
+              "event"
+            ],
+            "references": null,
+            "definition": "CHECK (((char_length(event) >= 1) AND (char_length(event) <= 32)))"
+          },
+          {
+            "name": "funnel_events_event_not_null",
+            "type": "n",
+            "columns": [
+              "event"
+            ],
+            "references": null,
+            "definition": "NOT NULL event"
+          },
+          {
+            "name": "funnel_events_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "funnel_events_meta_check",
+            "type": "c",
+            "columns": [
+              "meta"
+            ],
+            "references": null,
+            "definition": "CHECK ((pg_column_size(meta) <= 512))"
+          },
+          {
+            "name": "funnel_events_meta_not_null",
+            "type": "n",
+            "columns": [
+              "meta"
+            ],
+            "references": null,
+            "definition": "NOT NULL meta"
+          },
+          {
+            "name": "funnel_events_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "funnel_events_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "profiles({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "funnel_events_created_idx",
+            "definition": "CREATE INDEX funnel_events_created_idx ON public.funnel_events USING btree (created_at)"
+          },
+          {
+            "name": "funnel_events_event_created_idx",
+            "definition": "CREATE INDEX funnel_events_event_created_idx ON public.funnel_events USING btree (event, created_at)"
+          },
+          {
+            "name": "funnel_events_pkey",
+            "definition": "CREATE UNIQUE INDEX funnel_events_pkey ON public.funnel_events USING btree (id)"
+          }
+        ],
+        "policies": [],
+        "triggers": []
+      },
+      "media": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "is_hidden": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "kind": {
+            "type": "text",
+            "notNull": true,
+            "default": "'video'::text",
+            "generated": ""
+          },
+          "note": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "position": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "thumb": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "title": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "updated_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "url": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "media_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "media_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "media_is_hidden_not_null",
+            "type": "n",
+            "columns": [
+              "is_hidden"
+            ],
+            "references": null,
+            "definition": "NOT NULL is_hidden"
+          },
+          {
+            "name": "media_kind_check",
+            "type": "c",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "CHECK ((kind = ANY (ARRAY['featured'::text, 'video'::text, 'playlist'::text])))"
+          },
+          {
+            "name": "media_kind_not_null",
+            "type": "n",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "NOT NULL kind"
+          },
+          {
+            "name": "media_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "media_position_not_null",
+            "type": "n",
+            "columns": [
+              "position"
+            ],
+            "references": null,
+            "definition": "NOT NULL \"position\""
+          },
+          {
+            "name": "media_title_not_null",
+            "type": "n",
+            "columns": [
+              "title"
+            ],
+            "references": null,
+            "definition": "NOT NULL title"
+          },
+          {
+            "name": "media_updated_at_not_null",
+            "type": "n",
+            "columns": [
+              "updated_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL updated_at"
+          },
+          {
+            "name": "media_url_not_null",
+            "type": "n",
+            "columns": [
+              "url"
+            ],
+            "references": null,
+            "definition": "NOT NULL url"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "media_kind_idx",
+            "definition": "CREATE INDEX media_kind_idx ON public.media USING btree (kind, \"position\")"
+          },
+          {
+            "name": "media_pkey",
+            "definition": "CREATE UNIQUE INDEX media_pkey ON public.media USING btree (id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read media",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "((NOT is_hidden) OR is_admin())",
+            "withCheck": ""
+          }
+        ],
+        "triggers": [
+          {
+            "name": "media_limit",
+            "definition": "CREATE TRIGGER media_limit BEFORE INSERT ON public.media FOR EACH ROW EXECUTE FUNCTION enforce_media_limit()"
+          }
+        ]
+      },
+      "notifications": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "artist": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "cycle": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "dismissed_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "bigint",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "kind": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "pct": {
+            "type": "integer",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "read_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "reason": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "request_id": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "sent_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "sig": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "song_key": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "title": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "url": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "votes": {
+            "type": "integer",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "notifications_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "notifications_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "notifications_kind_check",
+            "type": "c",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "CHECK ((kind = ANY (ARRAY['near'::text, 'lead'::text, 'approved'::text, 'picked'::text, 'started'::text, 'progress'::text, 'done'::text, 'denied'::text, 'votes'::text, 'expired'::text, 'comment'::text, 'reply'::text, 'mention'::text])))"
+          },
+          {
+            "name": "notifications_kind_not_null",
+            "type": "n",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "NOT NULL kind"
+          },
+          {
+            "name": "notifications_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "notifications_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "profiles({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "notifications_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "notif_one_near_per_cycle",
+            "definition": "CREATE UNIQUE INDEX notif_one_near_per_cycle ON public.notifications USING btree (user_id, song_key, kind, cycle) WHERE (kind = ANY (ARRAY['near'::text, 'lead'::text]))"
+          },
+          {
+            "name": "notif_sig_uidx",
+            "definition": "CREATE UNIQUE INDEX notif_sig_uidx ON public.notifications USING btree (user_id, sig) WHERE (sig IS NOT NULL)"
+          },
+          {
+            "name": "notif_user_new_idx",
+            "definition": "CREATE INDEX notif_user_new_idx ON public.notifications USING btree (user_id, created_at DESC) WHERE (read_at IS NULL)"
+          },
+          {
+            "name": "notifications_pkey",
+            "definition": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "notif_read",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "((auth.uid() = user_id) AND (dismissed_at IS NULL))",
+            "withCheck": ""
+          },
+          {
+            "name": "notif_read_own",
+            "cmd": "UPDATE",
+            "roles": "{public}",
+            "qual": "(auth.uid() = user_id)",
+            "withCheck": "((auth.uid() = user_id) AND (read_at IS NOT NULL))"
+          }
+        ],
+        "triggers": []
+      },
+      "orders": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "amount_usd": {
+            "type": "numeric(10,2)",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "amount_vnd": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "kind": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "note": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "pack": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "qty": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "request_id": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "status": {
+            "type": "text",
+            "notNull": true,
+            "default": "'awaiting'::text",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "orders_amount_usd_not_null",
+            "type": "n",
+            "columns": [
+              "amount_usd"
+            ],
+            "references": null,
+            "definition": "NOT NULL amount_usd"
+          },
+          {
+            "name": "orders_amount_vnd_not_null",
+            "type": "n",
+            "columns": [
+              "amount_vnd"
+            ],
+            "references": null,
+            "definition": "NOT NULL amount_vnd"
+          },
+          {
+            "name": "orders_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "orders_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "orders_kind_check",
+            "type": "c",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "CHECK ((kind = ANY (ARRAY['votes'::text, 'paid_request'::text])))"
+          },
+          {
+            "name": "orders_kind_not_null",
+            "type": "n",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "NOT NULL kind"
+          },
+          {
+            "name": "orders_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "orders_qty_not_null",
+            "type": "n",
+            "columns": [
+              "qty"
+            ],
+            "references": null,
+            "definition": "NOT NULL qty"
+          },
+          {
+            "name": "orders_request_id_fkey",
+            "type": "f",
+            "columns": [
+              "request_id"
+            ],
+            "references": "requests({id})",
+            "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE SET NULL"
+          },
+          {
+            "name": "orders_status_check",
+            "type": "c",
+            "columns": [
+              "status"
+            ],
+            "references": null,
+            "definition": "CHECK ((status = ANY (ARRAY['awaiting'::text, 'paid'::text, 'rejected'::text])))"
+          },
+          {
+            "name": "orders_status_not_null",
+            "type": "n",
+            "columns": [
+              "status"
+            ],
+            "references": null,
+            "definition": "NOT NULL status"
+          },
+          {
+            "name": "orders_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "orders_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "orders_pkey",
+            "definition": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)"
+          },
+          {
+            "name": "orders_status_idx",
+            "definition": "CREATE INDEX orders_status_idx ON public.orders USING btree (status, created_at DESC)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read own orders",
+            "cmd": "SELECT",
+            "roles": "{authenticated}",
+            "qual": "((user_id = auth.uid()) OR is_admin())",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "profiles": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "avatar_url": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "bonus_credits": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "bonus_requests": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "is_admin": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "name": {
+            "type": "text",
+            "notNull": true,
+            "default": "'Anonymous'::text",
+            "generated": ""
+          },
+          "vote_credits": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "profiles_bonus_credits_nonneg",
+            "type": "c",
+            "columns": [
+              "bonus_credits"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_credits >= 0))"
+          },
+          {
+            "name": "profiles_bonus_credits_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_credits"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_credits"
+          },
+          {
+            "name": "profiles_bonus_requests_nonneg",
+            "type": "c",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_requests >= 0))"
+          },
+          {
+            "name": "profiles_bonus_requests_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_requests"
+          },
+          {
+            "name": "profiles_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "profiles_credits_nonneg",
+            "type": "c",
+            "columns": [
+              "vote_credits"
+            ],
+            "references": null,
+            "definition": "CHECK ((vote_credits >= 0))"
+          },
+          {
+            "name": "profiles_id_fkey",
+            "type": "f",
+            "columns": [
+              "id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "profiles_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "profiles_is_admin_not_null",
+            "type": "n",
+            "columns": [
+              "is_admin"
+            ],
+            "references": null,
+            "definition": "NOT NULL is_admin"
+          },
+          {
+            "name": "profiles_name_not_null",
+            "type": "n",
+            "columns": [
+              "name"
+            ],
+            "references": null,
+            "definition": "NOT NULL name"
+          },
+          {
+            "name": "profiles_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "profiles_vote_credits_not_null",
+            "type": "n",
+            "columns": [
+              "vote_credits"
+            ],
+            "references": null,
+            "definition": "NOT NULL vote_credits"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "profiles_pkey",
+            "definition": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read profiles",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "true",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "request_comments": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "body": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "deleted_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "parent_id": {
+            "type": "uuid",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "request_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "request_comments_body_check",
+            "type": "c",
+            "columns": [
+              "body"
+            ],
+            "references": null,
+            "definition": "CHECK (((char_length(TRIM(BOTH FROM body)) >= 1) AND (char_length(TRIM(BOTH FROM body)) <= 180)))"
+          },
+          {
+            "name": "request_comments_body_not_null",
+            "type": "n",
+            "columns": [
+              "body"
+            ],
+            "references": null,
+            "definition": "NOT NULL body"
+          },
+          {
+            "name": "request_comments_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "request_comments_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "request_comments_parent_id_fkey",
+            "type": "f",
+            "columns": [
+              "parent_id"
+            ],
+            "references": "request_comments({id})",
+            "definition": "FOREIGN KEY (parent_id) REFERENCES request_comments(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "request_comments_parent_request_fk",
+            "type": "f",
+            "columns": [
+              "parent_id",
+              "request_id"
+            ],
+            "references": "request_comments({id,request_id})",
+            "definition": "FOREIGN KEY (parent_id, request_id) REFERENCES request_comments(id, request_id) ON DELETE CASCADE NOT VALID"
+          },
+          {
+            "name": "request_comments_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "request_comments_request_id_fkey",
+            "type": "f",
+            "columns": [
+              "request_id"
+            ],
+            "references": "requests({id})",
+            "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "request_comments_request_id_not_null",
+            "type": "n",
+            "columns": [
+              "request_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL request_id"
+          },
+          {
+            "name": "request_comments_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "profiles({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "request_comments_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "request_comments_id_request_idx",
+            "definition": "CREATE UNIQUE INDEX request_comments_id_request_idx ON public.request_comments USING btree (id, request_id)"
+          },
+          {
+            "name": "request_comments_parent_idx",
+            "definition": "CREATE INDEX request_comments_parent_idx ON public.request_comments USING btree (parent_id, created_at)"
+          },
+          {
+            "name": "request_comments_pkey",
+            "definition": "CREATE UNIQUE INDEX request_comments_pkey ON public.request_comments USING btree (id)"
+          },
+          {
+            "name": "request_comments_request_created_idx",
+            "definition": "CREATE INDEX request_comments_request_created_idx ON public.request_comments USING btree (request_id, created_at DESC)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "request_comments_admin_read",
+            "cmd": "SELECT",
+            "roles": "{authenticated}",
+            "qual": "is_admin()",
+            "withCheck": ""
+          },
+          {
+            "name": "request_comments_authenticated_insert",
+            "cmd": "INSERT",
+            "roles": "{authenticated}",
+            "qual": "",
+            "withCheck": "((auth.uid() = user_id) AND (deleted_at IS NULL) AND ((parent_id IS NULL) OR (EXISTS ( SELECT 1 FROM request_comments p WHERE ((p.id = request_comments.parent_id) AND (p.request_id = request_comments.request_id) AND (p.deleted_at IS NULL))))))"
+          },
+          {
+            "name": "request_comments_owner_or_admin_delete",
+            "cmd": "DELETE",
+            "roles": "{authenticated}",
+            "qual": "((auth.uid() = user_id) OR is_admin())",
+            "withCheck": ""
+          },
+          {
+            "name": "request_comments_public_read",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "(deleted_at IS NULL)",
+            "withCheck": ""
+          }
+        ],
+        "triggers": [
+          {
+            "name": "activity_on_comment",
+            "definition": "CREATE TRIGGER activity_on_comment AFTER INSERT ON public.request_comments FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION touch_activity_day()"
+          },
+          {
+            "name": "request_comments_hide_subtree",
+            "definition": "CREATE TRIGGER request_comments_hide_subtree AFTER UPDATE OF deleted_at ON public.request_comments FOR EACH ROW WHEN (((old.deleted_at IS NULL) AND (new.deleted_at IS NOT NULL))) EXECUTE FUNCTION hide_comment_subtree()"
+          },
+          {
+            "name": "request_comments_limits",
+            "definition": "CREATE TRIGGER request_comments_limits BEFORE INSERT ON public.request_comments FOR EACH ROW EXECUTE FUNCTION enforce_comment_limits()"
+          },
+          {
+            "name": "request_comments_update_guard",
+            "definition": "CREATE TRIGGER request_comments_update_guard BEFORE UPDATE ON public.request_comments FOR EACH ROW EXECUTE FUNCTION guard_comment_update()"
+          },
+          {
+            "name": "tr_notify_on_comment",
+            "definition": "CREATE TRIGGER tr_notify_on_comment AFTER INSERT ON public.request_comments FOR EACH ROW EXECUTE FUNCTION notify_on_comment()"
+          }
+        ]
+      },
+      "requests": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "artist": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "deny_reason": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "done_edit": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "done_layout": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "done_lyrics": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "expired_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "is_paid": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "kind": {
+            "type": "text",
+            "notNull": true,
+            "default": "'Color Coded Lyrics'::text",
+            "generated": ""
+          },
+          "link": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "note": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "payment_status": {
+            "type": "text",
+            "notNull": true,
+            "default": "'none'::text",
+            "generated": ""
+          },
+          "picked_at": {
+            "type": "timestamp with time zone",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "progress": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "requester": {
+            "type": "text",
+            "notNull": true,
+            "default": "'Anonymous'::text",
+            "generated": ""
+          },
+          "status": {
+            "type": "text",
+            "notNull": true,
+            "default": "'pending'::text",
+            "generated": ""
+          },
+          "title": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "updated_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "video_url": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "votes": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "requests_artist_not_null",
+            "type": "n",
+            "columns": [
+              "artist"
+            ],
+            "references": null,
+            "definition": "NOT NULL artist"
+          },
+          {
+            "name": "requests_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "requests_done_edit_not_null",
+            "type": "n",
+            "columns": [
+              "done_edit"
+            ],
+            "references": null,
+            "definition": "NOT NULL done_edit"
+          },
+          {
+            "name": "requests_done_layout_not_null",
+            "type": "n",
+            "columns": [
+              "done_layout"
+            ],
+            "references": null,
+            "definition": "NOT NULL done_layout"
+          },
+          {
+            "name": "requests_done_lyrics_not_null",
+            "type": "n",
+            "columns": [
+              "done_lyrics"
+            ],
+            "references": null,
+            "definition": "NOT NULL done_lyrics"
+          },
+          {
+            "name": "requests_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "requests_is_paid_not_null",
+            "type": "n",
+            "columns": [
+              "is_paid"
+            ],
+            "references": null,
+            "definition": "NOT NULL is_paid"
+          },
+          {
+            "name": "requests_kind_check",
+            "type": "c",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "CHECK ((kind = ANY (ARRAY['Color Coded Lyrics'::text, 'Full Album'::text, '1 Hour Loop'::text, 'Short'::text])))"
+          },
+          {
+            "name": "requests_kind_not_null",
+            "type": "n",
+            "columns": [
+              "kind"
+            ],
+            "references": null,
+            "definition": "NOT NULL kind"
+          },
+          {
+            "name": "requests_payment_status_check",
+            "type": "c",
+            "columns": [
+              "payment_status"
+            ],
+            "references": null,
+            "definition": "CHECK ((payment_status = ANY (ARRAY['none'::text, 'awaiting'::text, 'paid'::text])))"
+          },
+          {
+            "name": "requests_payment_status_not_null",
+            "type": "n",
+            "columns": [
+              "payment_status"
+            ],
+            "references": null,
+            "definition": "NOT NULL payment_status"
+          },
+          {
+            "name": "requests_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "requests_progress_check",
+            "type": "c",
+            "columns": [
+              "progress"
+            ],
+            "references": null,
+            "definition": "CHECK (((progress >= 0) AND (progress <= 100)))"
+          },
+          {
+            "name": "requests_progress_not_null",
+            "type": "n",
+            "columns": [
+              "progress"
+            ],
+            "references": null,
+            "definition": "NOT NULL progress"
+          },
+          {
+            "name": "requests_progress_range",
+            "type": "c",
+            "columns": [
+              "progress"
+            ],
+            "references": null,
+            "definition": "CHECK (((progress >= 0) AND (progress <= 100)))"
+          },
+          {
+            "name": "requests_requester_not_null",
+            "type": "n",
+            "columns": [
+              "requester"
+            ],
+            "references": null,
+            "definition": "NOT NULL requester"
+          },
+          {
+            "name": "requests_status_check",
+            "type": "c",
+            "columns": [
+              "status"
+            ],
+            "references": null,
+            "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'queued'::text, 'in_progress'::text, 'completed'::text, 'denied'::text])))"
+          },
+          {
+            "name": "requests_status_not_null",
+            "type": "n",
+            "columns": [
+              "status"
+            ],
+            "references": null,
+            "definition": "NOT NULL status"
+          },
+          {
+            "name": "requests_title_not_null",
+            "type": "n",
+            "columns": [
+              "title"
+            ],
+            "references": null,
+            "definition": "NOT NULL title"
+          },
+          {
+            "name": "requests_updated_at_not_null",
+            "type": "n",
+            "columns": [
+              "updated_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL updated_at"
+          },
+          {
+            "name": "requests_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "requests_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          },
+          {
+            "name": "requests_votes_not_null",
+            "type": "n",
+            "columns": [
+              "votes"
+            ],
+            "references": null,
+            "definition": "NOT NULL votes"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "requests_created_idx",
+            "definition": "CREATE INDEX requests_created_idx ON public.requests USING btree (created_at DESC)"
+          },
+          {
+            "name": "requests_expired_idx",
+            "definition": "CREATE INDEX requests_expired_idx ON public.requests USING btree (expired_at) WHERE (expired_at IS NOT NULL)"
+          },
+          {
+            "name": "requests_picked_idx",
+            "definition": "CREATE INDEX requests_picked_idx ON public.requests USING btree (picked_at) WHERE (picked_at IS NOT NULL)"
+          },
+          {
+            "name": "requests_pkey",
+            "definition": "CREATE UNIQUE INDEX requests_pkey ON public.requests USING btree (id)"
+          },
+          {
+            "name": "requests_status_idx",
+            "definition": "CREATE INDEX requests_status_idx ON public.requests USING btree (status)"
+          },
+          {
+            "name": "requests_user_idx",
+            "definition": "CREATE INDEX requests_user_idx ON public.requests USING btree (user_id)"
+          },
+          {
+            "name": "requests_votes_idx",
+            "definition": "CREATE INDEX requests_votes_idx ON public.requests USING btree (votes DESC)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read requests",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "true",
+            "withCheck": ""
+          }
+        ],
+        "triggers": [
+          {
+            "name": "activity_on_request",
+            "definition": "CREATE TRIGGER activity_on_request AFTER INSERT ON public.requests FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION touch_activity_day()"
+          },
+          {
+            "name": "requests_notify_tri",
+            "definition": "CREATE TRIGGER requests_notify_tri AFTER UPDATE OF status, picked_at, video_url, progress, votes ON public.requests FOR EACH ROW EXECUTE FUNCTION requests_notify()"
+          },
+          {
+            "name": "requests_selfwatch_tri",
+            "definition": "CREATE TRIGGER requests_selfwatch_tri AFTER INSERT ON public.requests FOR EACH ROW EXECUTE FUNCTION requests_selfwatch()"
+          },
+          {
+            "name": "trg_pick_cycle_after_pick",
+            "definition": "CREATE TRIGGER trg_pick_cycle_after_pick AFTER UPDATE OF picked_at ON public.requests FOR EACH ROW EXECUTE FUNCTION pick_cycle_touch()"
+          }
+        ]
+      },
+      "season_rewards_log": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "bonus_requests": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "bonus_votes": {
+            "type": "integer",
+            "notNull": true,
+            "default": "0",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "gen_random_uuid()",
+            "generated": ""
+          },
+          "period_key": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "rank": {
+            "type": "integer",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "season_type": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "title": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "season_rewards_log_bonus_requests_check",
+            "type": "c",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_requests >= 0))"
+          },
+          {
+            "name": "season_rewards_log_bonus_requests_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_requests"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_requests"
+          },
+          {
+            "name": "season_rewards_log_bonus_votes_check",
+            "type": "c",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "CHECK ((bonus_votes >= 0))"
+          },
+          {
+            "name": "season_rewards_log_bonus_votes_not_null",
+            "type": "n",
+            "columns": [
+              "bonus_votes"
+            ],
+            "references": null,
+            "definition": "NOT NULL bonus_votes"
+          },
+          {
+            "name": "season_rewards_log_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "season_rewards_log_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "season_rewards_log_period_key_not_null",
+            "type": "n",
+            "columns": [
+              "period_key"
+            ],
+            "references": null,
+            "definition": "NOT NULL period_key"
+          },
+          {
+            "name": "season_rewards_log_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "season_rewards_log_rank_check",
+            "type": "c",
+            "columns": [
+              "rank"
+            ],
+            "references": null,
+            "definition": "CHECK (((rank >= 1) AND (rank <= 3)))"
+          },
+          {
+            "name": "season_rewards_log_rank_not_null",
+            "type": "n",
+            "columns": [
+              "rank"
+            ],
+            "references": null,
+            "definition": "NOT NULL rank"
+          },
+          {
+            "name": "season_rewards_log_season_type_check",
+            "type": "c",
+            "columns": [
+              "season_type"
+            ],
+            "references": null,
+            "definition": "CHECK ((season_type = ANY (ARRAY['week'::text, 'month'::text])))"
+          },
+          {
+            "name": "season_rewards_log_season_type_not_null",
+            "type": "n",
+            "columns": [
+              "season_type"
+            ],
+            "references": null,
+            "definition": "NOT NULL season_type"
+          },
+          {
+            "name": "season_rewards_log_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "profiles({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "season_rewards_log_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          },
+          {
+            "name": "uq_season_rewards_rank",
+            "type": "u",
+            "columns": [
+              "season_type",
+              "period_key",
+              "rank"
+            ],
+            "references": null,
+            "definition": "UNIQUE (season_type, period_key, rank)"
+          },
+          {
+            "name": "uq_season_rewards_user",
+            "type": "u",
+            "columns": [
+              "season_type",
+              "period_key",
+              "user_id"
+            ],
+            "references": null,
+            "definition": "UNIQUE (season_type, period_key, user_id)"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_season_rewards_user",
+            "definition": "CREATE INDEX idx_season_rewards_user ON public.season_rewards_log USING btree (user_id)"
+          },
+          {
+            "name": "season_rewards_log_pkey",
+            "definition": "CREATE UNIQUE INDEX season_rewards_log_pkey ON public.season_rewards_log USING btree (id)"
+          },
+          {
+            "name": "uq_season_rewards_rank",
+            "definition": "CREATE UNIQUE INDEX uq_season_rewards_rank ON public.season_rewards_log USING btree (season_type, period_key, rank)"
+          },
+          {
+            "name": "uq_season_rewards_user",
+            "definition": "CREATE UNIQUE INDEX uq_season_rewards_user ON public.season_rewards_log USING btree (season_type, period_key, user_id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "season_rewards_public_read",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "true",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "settings": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "key": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "updated_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "value": {
+            "type": "jsonb",
+            "notNull": true,
+            "default": "'{}'::jsonb",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "settings_key_not_null",
+            "type": "n",
+            "columns": [
+              "key"
+            ],
+            "references": null,
+            "definition": "NOT NULL key"
+          },
+          {
+            "name": "settings_pkey",
+            "type": "p",
+            "columns": [
+              "key"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (key)"
+          },
+          {
+            "name": "settings_updated_at_not_null",
+            "type": "n",
+            "columns": [
+              "updated_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL updated_at"
+          },
+          {
+            "name": "settings_value_not_null",
+            "type": "n",
+            "columns": [
+              "value"
+            ],
+            "references": null,
+            "definition": "NOT NULL value"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "settings_pkey",
+            "definition": "CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (key)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read settings",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "true",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      },
+      "votes": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "credit_kind": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "fp_hash": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "fp_slot": {
+            "type": "smallint",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "free_slot": {
+            "type": "smallint",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "id": {
+            "type": "bigint",
+            "notNull": true,
+            "default": "nextval('votes_id_seq'::regclass)",
+            "generated": ""
+          },
+          "ip_hash": {
+            "type": "text",
+            "notNull": false,
+            "default": "",
+            "generated": ""
+          },
+          "request_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "used_credit": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "vote_day": {
+            "type": "date",
+            "notNull": true,
+            "default": "((clock_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "votes_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "votes_credit_kind_check",
+            "type": "c",
+            "columns": [
+              "credit_kind"
+            ],
+            "references": null,
+            "definition": "CHECK (((credit_kind IS NULL) OR (credit_kind = ANY (ARRAY['free'::text, 'bonus'::text, 'purchased'::text]))))"
+          },
+          {
+            "name": "votes_fp_slot_check",
+            "type": "c",
+            "columns": [
+              "fp_slot"
+            ],
+            "references": null,
+            "definition": "CHECK (((fp_slot IS NULL) OR ((fp_slot >= 1) AND (fp_slot <= 3))))"
+          },
+          {
+            "name": "votes_free_slot_check",
+            "type": "c",
+            "columns": [
+              "free_slot"
+            ],
+            "references": null,
+            "definition": "CHECK (((free_slot IS NULL) OR ((free_slot >= 1) AND (free_slot <= 3))))"
+          },
+          {
+            "name": "votes_id_not_null",
+            "type": "n",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "NOT NULL id"
+          },
+          {
+            "name": "votes_pkey",
+            "type": "p",
+            "columns": [
+              "id"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (id)"
+          },
+          {
+            "name": "votes_request_id_fkey",
+            "type": "f",
+            "columns": [
+              "request_id"
+            ],
+            "references": "requests({id})",
+            "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "votes_request_id_not_null",
+            "type": "n",
+            "columns": [
+              "request_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL request_id"
+          },
+          {
+            "name": "votes_used_credit_not_null",
+            "type": "n",
+            "columns": [
+              "used_credit"
+            ],
+            "references": null,
+            "definition": "NOT NULL used_credit"
+          },
+          {
+            "name": "votes_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "users({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "votes_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          },
+          {
+            "name": "votes_vote_day_not_null",
+            "type": "n",
+            "columns": [
+              "vote_day"
+            ],
+            "references": null,
+            "definition": "NOT NULL vote_day"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "votes_created_idx",
+            "definition": "CREATE INDEX votes_created_idx ON public.votes USING btree (created_at)"
+          },
+          {
+            "name": "votes_day_idx",
+            "definition": "CREATE INDEX votes_day_idx ON public.votes USING btree (vote_day, user_id)"
+          },
+          {
+            "name": "votes_fp_free_quota_idx",
+            "definition": "CREATE UNIQUE INDEX votes_fp_free_quota_idx ON public.votes USING btree (fp_hash, vote_day, fp_slot) WHERE ((fp_hash IS NOT NULL) AND (fp_slot IS NOT NULL))"
+          },
+          {
+            "name": "votes_fp_idx",
+            "definition": "CREATE INDEX votes_fp_idx ON public.votes USING btree (fp_hash, vote_day) WHERE (fp_hash IS NOT NULL)"
+          },
+          {
+            "name": "votes_free_quota_idx",
+            "definition": "CREATE UNIQUE INDEX votes_free_quota_idx ON public.votes USING btree (user_id, vote_day, free_slot) WHERE (free_slot IS NOT NULL)"
+          },
+          {
+            "name": "votes_ip_idx",
+            "definition": "CREATE INDEX votes_ip_idx ON public.votes USING btree (ip_hash, vote_day) WHERE (ip_hash IS NOT NULL)"
+          },
+          {
+            "name": "votes_pkey",
+            "definition": "CREATE UNIQUE INDEX votes_pkey ON public.votes USING btree (id)"
+          },
+          {
+            "name": "votes_user_day_idx",
+            "definition": "CREATE INDEX votes_user_day_idx ON public.votes USING btree (user_id, created_at DESC)"
+          },
+          {
+            "name": "votes_user_request_idx",
+            "definition": "CREATE INDEX votes_user_request_idx ON public.votes USING btree (user_id, request_id)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "read own votes",
+            "cmd": "SELECT",
+            "roles": "{authenticated}",
+            "qual": "((user_id = auth.uid()) OR is_admin())",
+            "withCheck": ""
+          }
+        ],
+        "triggers": [
+          {
+            "name": "activity_on_vote",
+            "definition": "CREATE TRIGGER activity_on_vote AFTER INSERT ON public.votes FOR EACH ROW WHEN ((new.user_id IS NOT NULL)) EXECUTE FUNCTION touch_activity_day()"
+          }
+        ]
+      },
+      "watches": {
+        "rls": true,
+        "forceRls": false,
+        "columns": {
+          "artist": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "created_at": {
+            "type": "timestamp with time zone",
+            "notNull": true,
+            "default": "now()",
+            "generated": ""
+          },
+          "own": {
+            "type": "boolean",
+            "notNull": true,
+            "default": "false",
+            "generated": ""
+          },
+          "song_key": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "title": {
+            "type": "text",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          },
+          "user_id": {
+            "type": "uuid",
+            "notNull": true,
+            "default": "",
+            "generated": ""
+          }
+        },
+        "constraints": [
+          {
+            "name": "watches_artist_not_null",
+            "type": "n",
+            "columns": [
+              "artist"
+            ],
+            "references": null,
+            "definition": "NOT NULL artist"
+          },
+          {
+            "name": "watches_created_at_not_null",
+            "type": "n",
+            "columns": [
+              "created_at"
+            ],
+            "references": null,
+            "definition": "NOT NULL created_at"
+          },
+          {
+            "name": "watches_own_not_null",
+            "type": "n",
+            "columns": [
+              "own"
+            ],
+            "references": null,
+            "definition": "NOT NULL own"
+          },
+          {
+            "name": "watches_pkey",
+            "type": "p",
+            "columns": [
+              "user_id",
+              "song_key"
+            ],
+            "references": null,
+            "definition": "PRIMARY KEY (user_id, song_key)"
+          },
+          {
+            "name": "watches_song_key_not_null",
+            "type": "n",
+            "columns": [
+              "song_key"
+            ],
+            "references": null,
+            "definition": "NOT NULL song_key"
+          },
+          {
+            "name": "watches_title_not_null",
+            "type": "n",
+            "columns": [
+              "title"
+            ],
+            "references": null,
+            "definition": "NOT NULL title"
+          },
+          {
+            "name": "watches_user_id_fkey",
+            "type": "f",
+            "columns": [
+              "user_id"
+            ],
+            "references": "profiles({id})",
+            "definition": "FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE"
+          },
+          {
+            "name": "watches_user_id_not_null",
+            "type": "n",
+            "columns": [
+              "user_id"
+            ],
+            "references": null,
+            "definition": "NOT NULL user_id"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "watches_pkey",
+            "definition": "CREATE UNIQUE INDEX watches_pkey ON public.watches USING btree (user_id, song_key)"
+          },
+          {
+            "name": "watches_song_key_idx",
+            "definition": "CREATE INDEX watches_song_key_idx ON public.watches USING btree (song_key)"
+          }
+        ],
+        "policies": [
+          {
+            "name": "watches_read",
+            "cmd": "SELECT",
+            "roles": "{public}",
+            "qual": "(auth.uid() = user_id)",
+            "withCheck": ""
+          }
+        ],
+        "triggers": []
+      }
+    },
+    "functions": {
+      "admin_media_delete(p_id uuid)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_media_reorder(p_ids uuid[])": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_media_save(p_id uuid, p_kind text, p_title text, p_note text, p_url text, p_thumb text, p_hidden boolean)": {
+        "returns": "media",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_order(p_order_id uuid, p_approve boolean)": {
+        "returns": "orders",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_pick(p_id uuid, p_picked boolean)": {
+        "returns": "requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_pick_group(p_id uuid, p_picked boolean)": {
+        "returns": "SETOF requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_review(p_id uuid, p_approve boolean, p_reason text, p_video_url text)": {
+        "returns": "requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "admin_update(p_id uuid, p_status text, p_progress integer, p_video_url text, p_layout boolean, p_lyrics boolean, p_edit boolean, p_artist text, p_title text)": {
+        "returns": "requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "buy_votes(p_pack text, p_qty integer, p_usd numeric, p_vnd integer)": {
+        "returns": "orders",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "cancel_my_order(p_id uuid)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "cast_vote(p_request_id uuid, p_delta integer, p_fp_hash text, p_ip_hash text, p_gate_token text)": {
+        "returns": "TABLE(votes integer, my_votes integer, free_used integer, credits integer)",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "claim_achievements()": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "comment_mention_handle(p_name text)": {
+        "returns": "text",
+        "volatility": "i",
+        "securityDefiner": false,
+        "language": "sql",
+        "kind": "f"
+      },
+      "create_request(p_kind text, p_artist text, p_title text, p_link text, p_note text, p_paid boolean, p_use_bonus boolean)": {
+        "returns": "requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "daily_spin_device_hash(p_token text)": {
+        "returns": "text",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "daily_spin_payload(p_hash text, p_uid uuid, p_now timestamp with time zone)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "sql",
+        "kind": "f"
+      },
+      "daily_spin_prizes()": {
+        "returns": "integer[]",
+        "volatility": "i",
+        "securityDefiner": false,
+        "language": "sql",
+        "kind": "f"
+      },
+      "delete_my_request(p_id uuid)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "dismiss_notification(p_id bigint, p_sig text)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "edge_gate_ok(p_token text)": {
+        "returns": "boolean",
+        "volatility": "s",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "enforce_comment_limits()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "enforce_media_limit()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "flush_notifications()": {
+        "returns": "integer",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "funnel_summary(p_days integer)": {
+        "returns": "TABLE(day date, event text, n bigint)",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "grant_season_reward(p_user_id text, p_bonus_votes integer, p_bonus_requests integer, p_title text)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "guard_comment_update()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "handle_new_user()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "hide_comment_subtree()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "is_admin()": {
+        "returns": "boolean",
+        "volatility": "s",
+        "securityDefiner": true,
+        "language": "sql",
+        "kind": "f"
+      },
+      "my_daily_spin_status(p_device_token text)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "my_daily_spin_status(p_device_token text, p_fp_hash text)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "my_vote_status()": {
+        "returns": "TABLE(free_used integer, free_limit integer, credits integer, purchased integer, bonus integer)",
+        "volatility": "s",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "notify_on_comment()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "pick_cycle_touch()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "pick_top_request(force boolean)": {
+        "returns": "SETOF requests",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "public_streak(p_user_id uuid)": {
+        "returns": "jsonb",
+        "volatility": "s",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "recount_request_votes()": {
+        "returns": "integer",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "register_daily_spin_device()": {
+        "returns": "text",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "requests_notify()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "requests_selfwatch()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "reset_bonus_votes()": {
+        "returns": "integer",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "set_edge_gate_token(p_token text)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "settle_current_season_rewards(p_season_type text)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "settle_season_rewards(p_season_type text, p_period_key text, p_start timestamp with time zone, p_end timestamp with time zone)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "song_key(p_artist text, p_title text)": {
+        "returns": "text",
+        "volatility": "i",
+        "securityDefiner": false,
+        "language": "sql",
+        "kind": "f"
+      },
+      "spin_daily(p_device_token text, p_request_id uuid, p_expected_user_id uuid, p_fp_hash text, p_ip_hash text, p_gate_token text)": {
+        "returns": "jsonb",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "toggle_watch(p_artist text, p_title text)": {
+        "returns": "boolean",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "touch_activity_day()": {
+        "returns": "trigger",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "touch_my_activity()": {
+        "returns": "date",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "track_funnel(p_event text, p_meta jsonb)": {
+        "returns": "void",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "update_my_profile(p_name text, p_avatar text)": {
+        "returns": "profiles",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "plpgsql",
+        "kind": "f"
+      },
+      "votes_received(p_since timestamp with time zone)": {
+        "returns": "TABLE(request_id uuid, created_at timestamp with time zone)",
+        "volatility": "v",
+        "securityDefiner": true,
+        "language": "sql",
+        "kind": "f"
+      }
+    },
+    "config": {}
+  }
+}

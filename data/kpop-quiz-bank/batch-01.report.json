@@ -1,0 +1,459 @@
+{
+  "tool": "validate-question-bank.mjs",
+  "version": "1.0.0",
+  "mode": "offline",
+  "generatedAt": "2026-10-04T10:49:12.905Z",
+  "inputFile": "data/kpop-quiz-bank/batch-01.csv",
+  "configFile": "tools/question-bank.config.json",
+  "config": {
+    "userAgent": "KpopQuizValidator/1.0 (contact: YOUR_EMAIL_OR_DOMAIN)",
+    "allowedDomains": [
+      "en.wikipedia.org",
+      "kpopprofiles.com",
+      "genius.com",
+      "www.billboard.com",
+      "circlechart.kr",
+      "www.melon.com",
+      "www.hanteochart.com",
+      "www.genie.co.kr",
+      "ibighit.com",
+      "www.jype.com",
+      "www.smtown.com",
+      "blackpinkofficial.com",
+      "weverse.io",
+      "pledis.co.kr",
+      "www.starship-ent.com",
+      "ador.world",
+      "www.oricon.co.jp",
+      "www.riaj.or.jp",
+      "www.riaa.com",
+      "www.bpi.co.uk"
+    ],
+    "requestsPerSecondPerDomain": 0.5,
+    "maxRetries": 2,
+    "maxRedirects": 3,
+    "dynamicDays": 30,
+    "evergreenDays": 90,
+    "respectRobots": true,
+    "artistLimit": 10,
+    "songLimit": 3
+  },
+  "summary": {
+    "totalRecords": 25,
+    "draftsPendingVerification": 25,
+    "approvedProductionReady": 0,
+    "rejected": 0,
+    "errors": 0,
+    "warnings": 33,
+    "exitStatus": 0
+  },
+  "counts": {
+    "byCategory": {
+      "profile": 15,
+      "lyrics": 10
+    },
+    "bySubCategory": {
+      "other_verified_fact": 3,
+      "debut": 6,
+      "discography": 3,
+      "member": 1,
+      "agency_or_label": 2,
+      "lyrics_language_or_version": 1,
+      "lyrics_metadata": 9
+    },
+    "byDifficulty": {
+      "easy": 10,
+      "medium": 13,
+      "hard": 2
+    },
+    "byQuestionType": {
+      "mcq": 23,
+      "true_false": 2
+    },
+    "bySourceTier": {
+      "A": 6,
+      "B": 0,
+      "C": 1,
+      "D": 0,
+      "E": 18
+    },
+    "byApprovalStatus": {
+      "approved": 0,
+      "pending_verification": 25,
+      "revise": 0,
+      "reject": 0
+    },
+    "byEligibility": {
+      "eligible": 0,
+      "temporarily_ineligible": 25,
+      "needs_review": 0,
+      "retired": 0
+    },
+    "distinctArtists": 17,
+    "topArtists": [
+      "Super Junior: 3",
+      "STAYC: 3",
+      "LE SSERAFIM: 2",
+      "Girls' Generation: 2",
+      "Wonder Girls: 2",
+      "OH MY GIRL: 2",
+      "Girls' Generation-TTS: 1",
+      "2NE1: 1",
+      "EXO-CBX: 1",
+      "ATEEZ: 1"
+    ],
+    "songsReferenced": 22,
+    "zeroQuoteLyrics": 10
+  },
+  "checksByReason": {
+    "warning:secondary_unchecked": 25,
+    "warning:domain_not_allowlisted": 8
+  },
+  "issues": {
+    "errors": [],
+    "warnings": [
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host sourcemusic.com is not in the live-fetch allowlist",
+        "id": "B1Q001",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q001",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host sourcemusic.com is not in the live-fetch allowlist",
+        "id": "B1Q002",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q002",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q003",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q004",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q005",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q006",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q007",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q008",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host music.apple.com is not in the live-fetch allowlist",
+        "id": "B1Q009",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q009",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host www.highup-ent.com is not in the live-fetch allowlist",
+        "id": "B1Q010",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q010",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host www.highup-ent.com is not in the live-fetch allowlist",
+        "id": "B1Q011",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q011",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q012",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host www.korea.net is not in the live-fetch allowlist",
+        "id": "B1Q013",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q013",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q014",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q015",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "secondary_source_url host www.korea.net is not in the live-fetch allowlist",
+        "id": "B1Q016",
+        "column": "secondary_source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q016",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q017",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q018",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q019",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "domain_not_allowlisted",
+        "message": "source_url host www.highup-ent.com is not in the live-fetch allowlist",
+        "id": "B1Q020",
+        "column": "source_url"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q020",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q021",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q022",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q023",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q024",
+        "column": "secondary_last_checked"
+      },
+      {
+        "code": "secondary_unchecked",
+        "message": "secondary source present but not yet validated",
+        "id": "B1Q025",
+        "column": "secondary_last_checked"
+      }
+    ]
+  },
+  "sources": {
+    "checked": 0,
+    "failedSources": [],
+    "deadLinks": [],
+    "soft404": [],
+    "blocked": [],
+    "redirects": [],
+    "details": []
+  },
+  "recordsRequiringManualReview": [
+    {
+      "id": "B1Q001",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q002",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q003",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q004",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q005",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q006",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q007",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q008",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q009",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q010",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q011",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q012",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q013",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q014",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q015",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q016",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q017",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q018",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q019",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q020",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q021",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q022",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q023",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q024",
+      "reason": "pending external live validation"
+    },
+    {
+      "id": "B1Q025",
+      "reason": "pending external live validation"
+    }
+  ],
+  "dailyPool": {
+    "eligible": [],
+    "temporarilyIneligible": [
+      "B1Q001",
+      "B1Q002",
+      "B1Q003",
+      "B1Q004",
+      "B1Q005",
+      "B1Q006",
+      "B1Q007",
+      "B1Q008",
+      "B1Q009",
+      "B1Q010",
+      "B1Q011",
+      "B1Q012",
+      "B1Q013",
+      "B1Q014",
+      "B1Q015",
+      "B1Q016",
+      "B1Q017",
+      "B1Q018",
+      "B1Q019",
+      "B1Q020",
+      "B1Q021",
+      "B1Q022",
+      "B1Q023",
+      "B1Q024",
+      "B1Q025"
+    ],
+    "needsReview": [],
+    "retired": [],
+    "excludedFromVoting": 25
+  }
+}
