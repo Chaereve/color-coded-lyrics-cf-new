@@ -12,6 +12,7 @@ const calendarMigration = readFileSync(new URL('../migrations/20261113_calendar_
 const upgradeMigration = readFileSync(new URL('../migrations/20261114_daily_rewards_upgrade.sql', import.meta.url), 'utf8')
 const noVoteMigration = readFileSync(new URL('../migrations/20261118_daily_login_no_votes.sql', import.meta.url), 'utf8')
 const preserveMigration = readFileSync(new URL('../migrations/20261119_preserve_legacy_daily_login_rewards.sql', import.meta.url), 'utf8')
+const immutableMigration = readFileSync(new URL('../migrations/20261120_daily_login_reward_immutable.sql', import.meta.url), 'utf8')
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8')
 const url = process.env.DAILY_REWARDS_TEST_DATABASE_URL
 
@@ -81,6 +82,29 @@ test('20261119 preserves legacy check-in amounts and enforces zero only for new 
   assert.match(preserveMigration, /'vote_reward', 0/)
   assert.match(preserveMigration, /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/)
   assert.doesNotMatch(preserveMigration, /free_vote_grant_enabled[^']*'true'/)
+})
+
+test('20261120 makes a recorded check-in reward immutable, for new rows and for history', () => {
+  assert.ok(schema.includes(immutableMigration))
+  assert.match(immutableMigration, /Run AFTER 20261119_preserve_legacy_daily_login_rewards\.sql/)
+  const code = immutableMigration.replace(/--[^\n]*/g, '')
+  // Still no historical rewrite and no table-wide rule.
+  assert.doesNotMatch(code, /update\s+public\.daily_login_rewards\s+set\s+reward\s*=/i)
+  assert.doesNotMatch(code, /delete\s+from\s+public\./i)
+  assert.doesNotMatch(code, /add constraint[^\n]*check \(reward = 0\)/)
+  assert.doesNotMatch(code, /add column|create table/i)
+  // INSERT must be 0; UPDATE may never change the recorded amount at all.
+  const body = immutableMigration.slice(immutableMigration.indexOf('create or replace function public.daily_login_rewards_no_vote'))
+    .split('end $$;')[0]
+  assert.match(body, /if tg_op = 'INSERT' then[\s\S]*new\.reward is distinct from 0 then[\s\S]*'err\.dailyLoginRewardImmutable'/)
+  assert.match(body, /elsif new\.reward is distinct from old\.reward then[\s\S]*'err\.dailyLoginRewardImmutable'/)
+  assert.doesNotMatch(body, /new\.reward is distinct from 0 then\s*\n\s*raise[^\s]*\s*\n?[\s\S]*elsif new\.reward is distinct from old\.reward and new\.reward is distinct from 0/)
+  assert.match(immutableMigration, /before insert or update of reward on public\.daily_login_rewards/)
+  assert.match(immutableMigration, /revoke all on public\.daily_login_rewards from public, anon, authenticated/)
+  assert.match(immutableMigration, /cmd in \('INSERT', 'UPDATE', 'DELETE', 'ALL'\)/)
+  // The repair path stays documented and out of the application's reach.
+  assert.match(immutableMigration, /disable trigger daily_login_rewards_no_vote/)
+  assert.doesNotMatch(code, /grant (update|insert|delete)/i)
 })
 
 test('daily rewards keep all answer keys private and restrict RPC execution', () => {
@@ -584,8 +608,40 @@ test('Daily rewards — real transactions, permissions, replay and concurrency',
         /err\.dailyLoginRewardRetired/)
       await assert.rejects(pool.query('update public.daily_login_rewards set reward = 5 where user_id=$1', [legacy]),
         /err\.dailyLoginRewardRetired/)
-      // ...while correcting a legacy amount down to 0 stays allowed.
-      await pool.query('update public.daily_login_rewards set reward = 0 where user_id=$1 and reward_day=$2', [legacy, dayBefore])
+
+      // 4. 20261120: a recorded amount is immutable.
+      await pool.query(immutableMigration)
+      const amountOf = async (uid, rewardDay) => (await pool.query(
+        'select reward from public.daily_login_rewards where user_id=$1 and reward_day=$2', [uid, rewardDay])).rows[0].reward
+      assert.equal(await amountOf(legacy, today), 2, 'a historical row keeps its amount after 20261120')
+      assert.equal(await amountOf(legacy, dayBefore), 2)
+      assert.equal(await amountOf(fresh, today), 0, 'a post-policy row keeps its amount too')
+      // 2 -> 0, 2 -> 5, 0 -> 2 and 0 -> 1 are all refused.
+      for (const [uid, day_, value] of [[legacy, today, 0], [legacy, today, 5], [fresh, today, 2], [fresh, today, 1]]) {
+        await assert.rejects(pool.query(
+          'update public.daily_login_rewards set reward = $3 where user_id=$1 and reward_day=$2', [uid, day_, value]),
+          /err\.dailyLoginRewardImmutable/, `reward ${value} on ${day_} must be refused`)
+      }
+      assert.equal(await amountOf(legacy, today), 2)
+      assert.equal(await amountOf(fresh, today), 0)
+      // Re-saving the same value, or writing any other permitted field, is fine.
+      await pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1 and reward_day=$2', [legacy, today])
+      await pool.query('update public.daily_login_rewards set reward = 0 where user_id=$1 and reward_day=$2', [fresh, today])
+      await pool.query('update public.daily_login_rewards set created_at = now() where user_id=$1', [fresh])
+      assert.equal(await amountOf(legacy, today), 2)
+      assert.equal(await amountOf(fresh, today), 0)
+      // A new row is only accepted with reward = 0.
+      await assert.rejects(pool.query(
+        'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [fresh, dayBefore]),
+        /err\.dailyLoginRewardImmutable/)
+      const scratch = await user()
+      await pool.query('insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,0)', [scratch, dayBefore])
+      assert.equal(await amountOf(scratch, dayBefore), 0)
+      // A claim still pays nothing, and history still produces no votes.
+      const after = await claim(await user(), today)
+      assert.equal(after.reward, 0)
+      assert.equal(after.votes_awarded, 0)
+      assert.deepEqual(await wallet(legacy), before, 'historical non-zero amounts never create votes')
       // 3. Replay / refresh / multiple tabs stay idempotent.
       const tabs = await user()
       const results = await Promise.all(Array.from({ length: 10 }, () => claim(tabs, today)))

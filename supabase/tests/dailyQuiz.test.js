@@ -167,8 +167,10 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
       // check-in awards no vote, the quiz is the only vote path.
       await pool.query(read('20261118_daily_login_no_votes.sql'))
       // 20261119 then replaces the table-wide rewrite with audit-safe,
-      // future-write-only enforcement (safe to run after 20261118).
+      // future-write-only enforcement (safe to run after 20261118), and
+      // 20261120 makes every recorded amount immutable.
       await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
+      await pool.query(read('20261120_daily_login_reward_immutable.sql'))
 
       const as = async (uid, sql, values = [], role = 'authenticated') => {
         const db = await pool.connect()
@@ -668,10 +670,10 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         assert.equal(quizRows.rows[0].n, 0, 'a check-in creates no vote-ledger entry')
         // The amount column can no longer hold a vote at all, for anyone.
         await assert.rejects(pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1', [u]),
-          /err\.dailyLoginRewardRetired/)
+          /err\.dailyLoginReward(Retired|Immutable)/)
         await assert.rejects(pool.query(
           'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [u, day]),
-          /err\.dailyLoginRewardRetired/)
+          /err\.dailyLoginReward(Retired|Immutable)/)
         // No table-wide rule is left that could reject valid history.
         const rules = await pool.query(`select pg_get_constraintdef(oid) as d from pg_constraint
           where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'`)
@@ -732,8 +734,17 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         assert.equal(view.login.vote_reward, 0)
         assert.equal(view.earned_today, 0)
         assert.equal(view.login.total_days, 1)
+        // The amount is immutable now: neither 2 -> 0 nor 2 -> 5 is allowed.
+        for (const value of [0, 5]) {
+          await assert.rejects(pool.query(
+            'update public.daily_login_rewards set reward = $2 where user_id = $1', [u, value]),
+            /err\.dailyLoginRewardImmutable/, `reward 2 -> ${value} must be refused`)
+        }
+        // Re-saving the same value stays allowed.
+        await pool.query('update public.daily_login_rewards set reward = 2 where user_id = $1', [u])
         // The row is still there after a rerun, with its amount intact.
         await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
+        await pool.query(read('20261120_daily_login_reward_immutable.sql'))
         assert.equal((await pool.query('select reward from public.daily_login_rewards where user_id=$1', [u])).rows[0].reward, 2)
         await reset()
       })
