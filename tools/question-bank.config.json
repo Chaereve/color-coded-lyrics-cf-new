@@ -15,8 +15,6 @@
   },
   "userAgent": "KpopQuizValidator/1.0 (contact: YOUR_EMAIL_OR_DOMAIN)",
   "allowedDomains": [
-    "en.wikipedia.org",
-    "kpopprofiles.com",
     "genius.com",
     "www.billboard.com",
     "circlechart.kr",
@@ -34,7 +32,10 @@
     "www.oricon.co.jp",
     "www.riaj.or.jp",
     "www.riaa.com",
-    "www.bpi.co.uk"
+    "www.bpi.co.uk",
+    "sourcemusic.com",
+    "highup-ent.com",
+    "korea.net"
   ],
   "rateLimit": {
     "requestsPerSecondPerDomain": 0.5,
