@@ -4,7 +4,7 @@
 
 ## Chọn đúng trường hợp
 
-- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`15`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), xác định phiên bản đã cài, rồi chạy **chỉ những file còn thiếu** trong `supabase/migrations/`, theo thứ tự phụ thuộc. Không chạy cả thư mục migrations một cách mù quáng. Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định migration cần dùng.
+- **Đã có database đang dùng / có dữ liệu:** **KHÔNG chạy các file `01`–`16`, cũng không chạy lại `schema.sql`**. Sao lưu trước (`npm run backup:db` theo `HUONG-DAN.md`), xác định phiên bản đã cài, rồi chạy **chỉ những file còn thiếu** trong `supabase/migrations/`, theo thứ tự phụ thuộc. Không chạy cả thư mục migrations một cách mù quáng. Nếu không rõ bước nào đã chạy, gửi thông báo lỗi Supabase và trạng thái database để xác định migration cần dùng.
 - **Project Supabase mới, chưa cài app:** Làm các bước bên dưới. Trước khi chạy, kiểm tra bằng query nhỏ này trong **Database → SQL Editor → New query → Run**:
 
 ```sql
@@ -37,10 +37,11 @@ Mở **New query**, copy **toàn bộ nội dung đúng MỘT file** từ danh s
 | 13 | `13-daily-quiz-pool.sql` | 16 KB |
 | 14 | `14-daily-quiz-flow.sql` | 19 KB |
 | 15 | `15-daily-login-no-votes.sql` | 11 KB |
+| 16 | `16-preserve-legacy-daily-login-rewards.sql` | 12 KB |
 
-Bước 15 là bản sửa chính sách (append-only): điểm danh hằng ngày **không** thưởng vote; chỉ quiz K-pop mới thưởng (1 câu đúng = 1 vote, tối đa 5/ngày). Nó không xoá lịch sử điểm danh và không trừ vote đã cấp.
+Bước 15–16 là bản sửa chính sách (append-only): điểm danh hằng ngày **không** thưởng vote; chỉ quiz K-pop mới thưởng (1 câu đúng = 1 vote, tối đa 5/ngày). Bước 16 là bản được khuyến nghị triển khai: nó bỏ ràng buộc toàn bảng của bước 15, **không** cập nhật hay xoá dòng lịch sử nào, và chỉ chặn bản ghi **mới** bằng trigger. Không trừ vote đã cấp.
 
-Sau bước 15, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
+Sau bước 16, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
 
 ```sql
 select to_regclass('public.requests') is not null as requests_ok,
@@ -54,7 +55,11 @@ select to_regclass('public.requests') is not null as requests_ok,
        to_regprocedure('public.submit_daily_quiz_answer(uuid,uuid,text,text)') is not null as quiz_rpc_ok,
        to_regclass('public.daily_quiz_answers') is not null as quiz_answers_ok,
        to_regclass('public.daily_quiz_seen') is not null as quiz_seen_ok,
-       (select count(*) = 0 from public.daily_login_rewards where reward <> 0) as login_no_votes_ok,
+       (select count(*) = 0 from pg_constraint
+         where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'
+           and pg_get_constraintdef(oid) like '%reward%') as login_no_table_check_ok,
+       exists (select 1 from pg_trigger where tgrelid = 'public.daily_login_rewards'::regclass
+               and tgname = 'daily_login_rewards_no_vote') as login_trigger_ok,
        exists (select 1 from pg_policies
                where schemaname = 'public' and tablename = 'votes'
                  and policyname = 'read own votes') as votes_rls_ok;

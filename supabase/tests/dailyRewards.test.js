@@ -11,6 +11,7 @@ const migration = readFileSync(new URL('../migrations/20261112_daily_rewards.sql
 const calendarMigration = readFileSync(new URL('../migrations/20261113_calendar_kpop_quiz.sql', import.meta.url), 'utf8')
 const upgradeMigration = readFileSync(new URL('../migrations/20261114_daily_rewards_upgrade.sql', import.meta.url), 'utf8')
 const noVoteMigration = readFileSync(new URL('../migrations/20261118_daily_login_no_votes.sql', import.meta.url), 'utf8')
+const preserveMigration = readFileSync(new URL('../migrations/20261119_preserve_legacy_daily_login_rewards.sql', import.meta.url), 'utf8')
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8')
 const url = process.env.DAILY_REWARDS_TEST_DATABASE_URL
 
@@ -35,7 +36,10 @@ test('the corrective migration makes a check-in award no vote, without rewriting
   // The ledger survives, only the amount is locked at zero.
   assert.match(noVoteMigration, /update public\.daily_login_rewards set reward = 0 where reward <> 0/)
   assert.match(noVoteMigration, /alter column reward set default 0/)
-  assert.match(noVoteMigration, /add constraint daily_login_rewards_reward_check check \(reward = 0\)/)
+  // This file's table-wide rewrite and CHECK are superseded by 20261119,
+  // which keeps history verbatim and enforces zero only on new writes.
+  assert.match(noVoteMigration, /update public\.daily_login_rewards set reward = 0 where reward <> 0/)
+  assert.ok(schema.includes(preserveMigration))
   const claim = noVoteMigration.slice(noVoteMigration.indexOf('create or replace function public.claim_daily_login'))
     .split('end $$;')[0]
   assert.doesNotMatch(claim, /bonus_credits|vote_credits|free_vote/, 'a check-in must not touch any vote balance')
@@ -49,6 +53,34 @@ test('the corrective migration makes a check-in award no vote, without rewriting
   assert.doesNotMatch(payload, /coalesce\(l\.reward, 0\)/)
   // No automatic vote path is restored anywhere in the daily-reward flow.
   assert.doesNotMatch(noVoteMigration, /free_vote_grant_enabled[^']*'true'/)
+})
+
+test('20261119 preserves legacy check-in amounts and enforces zero only for new writes', () => {
+  assert.ok(schema.includes(preserveMigration))
+  assert.match(preserveMigration, /Run AFTER 20261117_daily_quiz_flow\.sql/)
+  const code = preserveMigration.replace(/--[^\n]*/g, '')
+  // History is never rewritten: no table-wide UPDATE/DELETE, no wallet change.
+  assert.doesNotMatch(code, /update public\.daily_login_rewards set reward\s*=/i)
+  assert.doesNotMatch(code, /delete from public\./i)
+  assert.doesNotMatch(code, /update public\.profiles set/i)
+  assert.doesNotMatch(code, /bonus_credits\s*=\s*bonus_credits\s*[-+]/)
+  // The table-wide rule is gone; future writes are enforced by a row trigger.
+  assert.match(code, /alter table public\.daily_login_rewards drop constraint %I/)
+  assert.doesNotMatch(code, /add constraint[^\n]*check \(reward = 0\)/)
+  assert.match(code, /create trigger daily_login_rewards_no_vote\s*\nbefore insert or update of reward on public\.daily_login_rewards/)
+  assert.match(code, /raise exception 'err\.dailyLoginRewardRetired'/)
+  assert.doesNotMatch(code, /add column|create table/i)
+  // Client write paths stay closed: RLS, revoked privileges, no write policy.
+  assert.match(code, /revoke all on public\.daily_login_rewards from public, anon, authenticated/)
+  assert.match(code, /cmd in \('INSERT', 'UPDATE', 'DELETE', 'ALL'\)/)
+  // The RPC and payload are re-stated, so the file stands on its own.
+  const claim = preserveMigration.slice(preserveMigration.indexOf('create or replace function public.claim_daily_login'))
+    .split('end $$;')[0]
+  assert.doesNotMatch(claim, /bonus_credits|vote_credits|free_vote/)
+  assert.match(claim, /'reward', 0/)
+  assert.match(preserveMigration, /'vote_reward', 0/)
+  assert.match(preserveMigration, /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/)
+  assert.doesNotMatch(preserveMigration, /free_vote_grant_enabled[^']*'true'/)
 })
 
 test('daily rewards keep all answer keys private and restrict RPC execution', () => {
@@ -491,45 +523,82 @@ test('Daily rewards — real transactions, permissions, replay and concurrency',
         assert.equal((await pool.query(`select count(*)::int as n from public.${table} where user_id=$1`, [b])).rows[0].n, 0)
       }
     })
-    await t.test('after the corrective migration a check-in awards no vote and keeps every counter', async () => {
-      // Append-only chain: the correction runs last, nothing historical is edited.
+    await t.test('a check-in awards no vote; legacy amounts, history and vote ledger survive 20261119', async () => {
+      // Recommended deployment: 20261118 is superseded and skipped, so the
+      // quiz schema lands first, then 20261119 on top of untouched history.
       for (const file of ['20261115_daily_quiz_schema.sql', '20261116_daily_quiz_pool.sql',
-        '20261117_daily_quiz_flow.sql', '20261118_daily_login_no_votes.sql']) {
+        '20261117_daily_quiz_flow.sql']) {
         await pool.query(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
       }
-      const x = await user()
-      const before = await wallet(x)
-      const claimed = await claim(x, today)
+      // History written under the retired policy: two check-ins that paid 2 and
+      // a vote already spent from that balance.
+      const legacy = await user()
+      await pool.query('insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [legacy, dayBefore])
+      await pool.query('insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [legacy, today])
+      const request = randomUUID()
+      await pool.query("insert into public.requests (id, user_id, artist, title, status) values ($1,$2,'A','B','queued')", [request, legacy])
+      await pool.query('insert into public.votes (request_id, user_id, used_credit) values ($1,$2,true)', [request, legacy])
+      const before = await wallet(legacy)
+      const ledgerBefore = (await pool.query('select count(*)::int as n from public.daily_login_rewards')).rows[0].n
+      const votesBefore = (await pool.query('select count(*)::int as n from public.votes')).rows[0].n
+
+      await pool.query(preserveMigration)
+
+      // 1. Historical integrity.
+      const dayOf = value => (value instanceof Date ? value.toISOString().slice(0, 10) : value)
+      const rows = await pool.query('select reward_day, reward from public.daily_login_rewards where user_id=$1 order by reward_day', [legacy])
+      assert.deepEqual(rows.rows.map(r => [dayOf(r.reward_day), r.reward]), [[dayBefore, 2], [today, 2]],
+        'a historical row keeps the amount it recorded')
+      assert.equal((await pool.query('select count(*)::int as n from public.daily_login_rewards')).rows[0].n, ledgerBefore,
+        'no historical check-in row is deleted')
+      assert.equal((await pool.query('select count(*)::int as n from public.votes')).rows[0].n, votesBefore,
+        'no historical vote ledger entry is deleted')
+      assert.deepEqual(await wallet(legacy), before, 'no vote already granted is subtracted')
+      const checks = await pool.query(`select pg_get_constraintdef(oid) as d from pg_constraint
+        where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'`)
+      assert.equal(checks.rows.filter(r => /reward/.test(r.d)).length, 0,
+        'no table-wide CHECK is left that could reject valid historical data')
+      // A legacy amount never turns into a new vote.
+      const view = await status(legacy)
+      assert.equal(view.login.claimed, true)
+      assert.equal(view.login.vote_reward, 0)
+      assert.equal(view.login.reward, undefined)
+      assert.equal(view.earned_today, 0, 'earned_today counts quiz votes only')
+      assert.equal(view.login.total_days, 2)
+      assert.equal(view.login.streak, 2, 'streak still counts legacy days')
+      assert.deepEqual(await wallet(legacy), before)
+
+      // 2. New check-ins: 0 votes, and every counter still works.
+      const fresh = await user()
+      const claimed = await claim(fresh, today)
       assert.equal(claimed.reward, 0)
       assert.equal(claimed.votes_awarded, 0)
       assert.equal(claimed.replayed, false)
-      assert.deepEqual(await wallet(x), before, 'a check-in never changes a vote balance')
-      const rows = await pool.query('select * from public.daily_login_rewards where user_id=$1', [x])
-      assert.equal(rows.rows.length, 1, 'the day is still recorded — history is preserved')
-      assert.equal(rows.rows[0].reward, 0)
-      // No vote ledger entry of any kind: no quiz answer row, no free grant.
-      assert.equal((await pool.query('select count(*)::int as n from public.daily_quiz_answers where user_id=$1', [x])).rows[0].n, 0)
-      // The amount is locked at zero for every writer, not just this function.
-      await assert.rejects(pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1', [x]),
-        /reward_check/)
-      const view = await status(x)
-      assert.equal(view.login.claimed, true)
-      assert.equal(view.login.vote_reward, 0)
-      assert.equal(view.login.reward, undefined, 'the legacy reward key is gone from the payload')
-      assert.equal(view.earned_today, 0, 'earned_today counts quiz votes only')
-      assert.equal(view.login.streak, 1, 'the streak counter still works')
-      assert.equal(view.login.best_streak, 1)
-      assert.equal(view.login.total_days, 1)
-      assert.deepEqual(view.login.claimed_days, [today])
-      // A replay cannot credit anything either, and the calendar still answers.
-      assert.equal((await claim(x, today)).replayed, true)
-      assert.deepEqual(await wallet(x), before)
-      const month = (await as(x, 'select public.my_daily_checkin_month($1::date) as v', [today]))[0].v
+      assert.deepEqual(await wallet(fresh), { vote_credits: 7, bonus_credits: 4 })
+      assert.equal((await pool.query('select reward from public.daily_login_rewards where user_id=$1', [fresh])).rows[0].reward, 0)
+      assert.equal((await pool.query('select count(*)::int as n from public.daily_quiz_answers where user_id=$1', [fresh])).rows[0].n, 0,
+        'a check-in creates no vote-ledger entry')
+      // Direct attempts to write a non-zero amount are rejected...
+      await assert.rejects(pool.query(
+        'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [fresh, dayBefore]),
+        /err\.dailyLoginRewardRetired/)
+      await assert.rejects(pool.query('update public.daily_login_rewards set reward = 5 where user_id=$1', [legacy]),
+        /err\.dailyLoginRewardRetired/)
+      // ...while correcting a legacy amount down to 0 stays allowed.
+      await pool.query('update public.daily_login_rewards set reward = 0 where user_id=$1 and reward_day=$2', [legacy, dayBefore])
+      // 3. Replay / refresh / multiple tabs stay idempotent.
+      const tabs = await user()
+      const results = await Promise.all(Array.from({ length: 10 }, () => claim(tabs, today)))
+      assert.equal(results.filter(r => !r.replayed).length, 1, 'ten tabs create one check-in')
+      assert.deepEqual(await wallet(tabs), { vote_credits: 7, bonus_credits: 4 })
+      const month = (await as(tabs, 'select public.my_daily_checkin_month($1::date) as v', [today]))[0].v
       assert.deepEqual(month.days, [today])
-      // Rerunning the corrective migration changes nothing.
-      await pool.query(noVoteMigration)
-      assert.deepEqual(await wallet(x), before)
-      assert.deepEqual((await status(x)).login.claimed_days, [today])
+      // Rerunning the migration changes nothing.
+      await pool.query(preserveMigration)
+      assert.deepEqual(await wallet(tabs), { vote_credits: 7, bonus_credits: 4 })
+      assert.deepEqual((await status(tabs)).login.claimed_days, [today])
+      assert.equal((await pool.query('select reward from public.daily_login_rewards where user_id=$1 and reward_day=$2',
+        [legacy, today])).rows[0].reward, 2, 'rerunning never rewrites history')
     })
 
   } finally {

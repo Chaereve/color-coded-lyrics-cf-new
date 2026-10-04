@@ -166,6 +166,9 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
       // The corrective policy migration is append-only and runs last: a
       // check-in awards no vote, the quiz is the only vote path.
       await pool.query(read('20261118_daily_login_no_votes.sql'))
+      // 20261119 then replaces the table-wide rewrite with audit-safe,
+      // future-write-only enforcement (safe to run after 20261118).
+      await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
 
       const as = async (uid, sql, values = [], role = 'authenticated') => {
         const db = await pool.connect()
@@ -665,10 +668,14 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         assert.equal(quizRows.rows[0].n, 0, 'a check-in creates no vote-ledger entry')
         // The amount column can no longer hold a vote at all, for anyone.
         await assert.rejects(pool.query('update public.daily_login_rewards set reward = 2 where user_id=$1', [u]),
-          /reward_check/)
+          /err\.dailyLoginRewardRetired/)
         await assert.rejects(pool.query(
           'insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [u, day]),
-          /reward_check/)
+          /err\.dailyLoginRewardRetired/)
+        // No table-wide rule is left that could reject valid history.
+        const rules = await pool.query(`select pg_get_constraintdef(oid) as d from pg_constraint
+          where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'`)
+        assert.equal(rules.rows.filter(r => /reward/.test(r.d)).length, 0)
         // Check-in + five correct answers = five votes, never seven.
         const round = await start(u)
         let votes = 0
@@ -706,6 +713,49 @@ test('Daily Quiz — real transactions, caps, idempotency, concurrency and pool 
         const month = JSON.parse(await run(u, `public.my_daily_checkin_month($1::date)::text`, [day]))
         assert.equal(month.month, day.slice(0, 7))
         assert.deepEqual(month.days, [day])
+        await reset()
+      })
+
+      await t.test('a restored historical non-zero check-in row is kept and never pays again', async () => {
+        const u = await user()
+        // How a backup restore (or a late legacy row) lands: no constraint and
+        // no trigger rewrite rejects valid historical data.
+        await pool.query('alter table public.daily_login_rewards disable trigger daily_login_rewards_no_vote')
+        await pool.query('insert into public.daily_login_rewards (user_id, reward_day, reward) values ($1,$2,2)', [u, day])
+        await pool.query('alter table public.daily_login_rewards enable trigger daily_login_rewards_no_vote')
+        const walletOf = async () => (await pool.query('select vote_credits, bonus_credits from public.profiles where id=$1', [u])).rows[0]
+        const before = await walletOf()
+        assert.equal((await pool.query('select reward from public.daily_login_rewards where user_id=$1', [u])).rows[0].reward, 2)
+        assert.deepEqual(await walletOf(), before, 'a historical amount never pays out again')
+        const view = await status(u)
+        assert.equal(view.login.claimed, true)
+        assert.equal(view.login.vote_reward, 0)
+        assert.equal(view.earned_today, 0)
+        assert.equal(view.login.total_days, 1)
+        // The row is still there after a rerun, with its amount intact.
+        await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
+        assert.equal((await pool.query('select reward from public.daily_login_rewards where user_id=$1', [u])).rows[0].reward, 2)
+        await reset()
+      })
+
+      await t.test('historical Daily Quiz vote rows survive the migration and are never re-awarded', async () => {
+        await seedPool()
+        const u = await user()
+        const round = await start(u)
+        for (const q of round.status.quiz.questions) await answer(u, round.attempt_id, q.id, 'opt-a')
+        const ledger = await pool.query(
+          'select question_id, awarded from public.daily_quiz_answers where user_id=$1 order by question_id', [u])
+        assert.equal(ledger.rows.length, 5)
+        assert.ok(ledger.rows.every(r => r.awarded === 1))
+        assert.equal(await bonus(u), 5)
+        const snapshot = ledger.rows.map(r => ({ ...r }))
+        await pool.query(read('20261119_preserve_legacy_daily_login_rewards.sql'))
+        const after = await pool.query(
+          'select question_id, awarded from public.daily_quiz_answers where user_id=$1 order by question_id', [u])
+        assert.deepEqual(after.rows, snapshot, 'no historical vote ledger entry is deleted or edited')
+        assert.equal(await bonus(u), 5, 'five votes stay five: nothing is re-awarded or removed')
+        assert.equal((await status(u)).quiz.votes_awarded, 5)
+        assert.equal((await status(u)).earned_today, 5)
         await reset()
       })
 
