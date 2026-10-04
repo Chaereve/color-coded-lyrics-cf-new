@@ -45,7 +45,13 @@ Bước 15–16 là bản sửa chính sách điểm danh (append-only): điểm
 
 Không trừ vote đã cấp ở bất kỳ bước nào.
 
-Sau bước 16, kiểm tra các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
+Sau bước 16, **xác nhận bằng lệnh đối chiếu schema** (không dùng `--baseline` khi chưa chạy lệnh này):
+
+```sh
+SUPABASE_DB_URL='…' npm run db:verify-baseline -- --baseline 20261120   # phải in READY
+```
+
+Còn có thể kiểm tra bằng tay các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
 
 ```sql
 select to_regclass('public.requests') is not null as requests_ok,

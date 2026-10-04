@@ -14,6 +14,7 @@
  * The connection string comes from SUPABASE_DB_URL (or --db-url). Never commit
  * it, never paste it into chat. */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { verifyBaseline, formatReport, availableBaselines } from './schema-readiness.mjs'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -191,17 +192,19 @@ export async function ensureHistory (client) {
 }
 
 export async function readHistory (client) {
+  const { rows: [row] } = await client.query(`select to_regclass('${HISTORY_TABLE}') is not null as ok`)
+  if (!row.ok) return []
   const { rows } = await client.query(`select version from ${HISTORY_TABLE} order by version`)
   return rows.map(row => row.version)
 }
 
 /** Refuses to run against a database that has app tables but no history. */
-export async function assertBaselineKnown (client, baseline) {
+export async function assertBaselineKnown (client, baseline, recorded = 0) {
   const { rows: [state] } = await client.query(`
     select to_regclass('public.profiles') is not null as has_app_tables,
-           to_regclass('public.daily_login_rewards') is not null as has_login_table,
-           (select count(*) from ${HISTORY_TABLE})::int as recorded`)
-  if (state.recorded > 0) return state
+           to_regclass('public.daily_login_rewards') is not null as has_login_table`)
+  state.recorded = recorded
+  if (recorded > 0) return state
   if (!state.has_app_tables) {
     throw new Error('this database has no app tables: use the fresh-install setup files ' +
       '(supabase/setup/01…16, see supabase/setup/README.md), not the migration runner')
@@ -255,15 +258,33 @@ export async function applyMigration (client, migration) {
 
 export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = {}) {
   const { active, quarantined } = assertMigrationSafety(dir)
-  await ensureHistory(client)
+  // Read-only until the plan is accepted: a refused deployment must not leave
+  // even an empty history table behind.
   const applied = await readHistory(client)
-  const state = await assertBaselineKnown(client, applied.length ? null : baseline)
+  const appliedSet = new Set(applied)
+  // A baseline claims "everything up to here is already in this database".
+  // That claim is only accepted when the live schema matches a committed
+  // fingerprint of that migration's result, and only when it is about to be
+  // recorded — re-running a finished deployment needs no re-verification.
+  const toRecord = baseline === null ? [] : active.filter(({ id, version }) => version <= baseline && !appliedSet.has(id))
+  let readiness = null
+  if (toRecord.length) {
+    readiness = await verifyBaseline(client, baseline)
+    if (!readiness.ok) {
+      throw new Error(`baseline ${baseline} is not verified against this database:\n${formatReport(readiness)}\n` +
+        '  Nothing was recorded and nothing was applied. Do not use --baseline unless the automated ' +
+        'schema-readiness verification passes — see docs/DB-MIGRATIONS.md (modes A, B, E).')
+    }
+  }
+  const state = await assertBaselineKnown(client, applied.length ? null : baseline, applied.length)
   const plan = planPending({ active, quarantined, applied, baseline: applied.length ? null : baseline })
-  return { ...plan, applied, state, active }
+  return { ...plan, applied, state, active, readiness, toRecord }
 }
 
 export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, onApplied = () => {} } = {}) {
   const result = await plan(client, { dir, baseline })
+  // Only now, with the baseline verified, may the history table be created.
+  if (result.toRecord.length || result.pending.length) await ensureHistory(client)
   result.recordedBaseline = await recordBaseline(client, { active: result.active, baseline })
   for (const migration of result.pending) {
     await applyMigration(client, migration)
@@ -277,7 +298,7 @@ export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, o
 function parseArgs (argv) {
   const args = { mode: null, baseline: null, dbUrl: process.env.SUPABASE_DB_URL ?? null }
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--plan' || argv[i] === '--apply' || argv[i] === '--check') args.mode = argv[i].slice(2)
+    if (argv[i] === '--plan' || argv[i] === '--apply' || argv[i] === '--check' || argv[i] === '--verify') args.mode = argv[i].slice(2)
     else if (argv[i] === '--baseline') args.baseline = argv[++i]
     else if (argv[i] === '--db-url') args.dbUrl = argv[++i]
     else throw new Error(`unknown argument ${argv[i]} (use --check, --plan or --apply)`)
@@ -286,8 +307,39 @@ function parseArgs (argv) {
   return args
 }
 
+/* --verify with a baseline: readiness report for that baseline (exit 1 if it
+   fails). --verify without one: diagnose an unknown / partial database against
+   every known baseline and print a report for a human to review. */
+async function verifyCommand (baseline, dbUrl) {
+  if (!dbUrl) throw new Error('missing database URL: set SUPABASE_DB_URL or pass --db-url (never commit it)')
+  const { default: pg } = await import('pg')
+  const client = new pg.Client({ connectionString: dbUrl })
+  await client.connect()
+  try {
+    if (baseline !== null) {
+      const result = await verifyBaseline(client, baseline)
+      console.log(formatReport(result))
+      return result.ok ? 0 : 1
+    }
+    console.log('No baseline given — diagnosing this database against every known baseline.\n')
+    let matched = false
+    for (const candidate of availableBaselines()) {
+      const result = await verifyBaseline(client, candidate)
+      matched = matched || result.ok
+      console.log(`${formatReport(result)}\n`)
+    }
+    console.log(matched
+      ? 'A baseline matched: deploy with --baseline <the version that matched>.'
+      : 'No baseline matched. This database is unknown or partial (mode E): do not migrate it ' +
+        'automatically. Pick a strategy from docs/DB-MIGRATIONS.md — restore it to a known-good ' +
+        'state, or have a reviewed snapshot generated for its exact state.')
+    return matched ? 0 : 1
+  } finally { await client.end().catch(() => {}) }
+}
+
 async function main (argv) {
   const { mode, baseline, dbUrl } = parseArgs(argv)
+  if (mode === 'verify') return verifyCommand(baseline, dbUrl)
   if (mode === 'check') {
     const { active, quarantined } = assertMigrationSafety()
     console.log(`OK  ${active.length} active migrations, ${quarantined.length} quarantined, ` +
@@ -320,6 +372,7 @@ async function main (argv) {
       return 0
     }
     if (mode === 'plan') return 0
+    if (result.toRecord.length || result.pending.length) await ensureHistory(client)
     if (result.skippedBaseline.length) {
       await recordBaseline(client, { active: result.active, baseline })
       console.log(`recorded ${result.skippedBaseline.length} migration(s) at or below --baseline ${baseline} as applied`)

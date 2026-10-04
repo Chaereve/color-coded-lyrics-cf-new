@@ -80,6 +80,15 @@ replaced by:
 3. **Clean fresh-install path (Option C).** The superseded 20261118 block is removed from
    `supabase/schema.sql`, so the regenerated setup chunks are `01 … 16`, with no
    superseded destructive chunk in the recommended list.
+4. **Baseline hardening.** Recording a baseline says "this database already
+   contains everything up to migration X". Because this project applied SQL by
+   hand, that claim is easy to get wrong and impossible to notice later — so the
+   runner verifies it: the live schema is compared against a committed
+   fingerprint (`supabase/baselines/<version>.json`) of tables, columns, types,
+   defaults, constraints, indexes, RLS, policies, functions, triggers and
+   `daily_quiz_config` rows, plus a check for objects that a *later* migration
+   creates. Any mismatch refuses the baseline, records nothing and applies
+   nothing (modes A–E below).
 
 Why not the alternatives: “please skip it” is not a control; editing the file in
 place breaks append-only discipline for environments where it already ran;
@@ -87,104 +96,155 @@ deleting it destroys the audit trail of what was once shipped.
 
 ---
 
-## 4. Exact commands
+## 4. The five deployment modes — and the exact commands
 
-### A. Production / staging that has never run 20261112–20261120
+> **Do not use `--baseline` unless the automated schema-readiness verification
+> passes.** A baseline is a claim that the database already contains everything
+> up to that migration. The runner only records it after comparing the live
+> schema against a committed fingerprint (`supabase/baselines/<version>.json`),
+> object by object. If that claim is unverifiable, the runner records nothing
+> and applies nothing.
+
+First, find out which mode you are in — this is read-only and safe to run
+anytime:
 
 ```sh
-# 0. Back up first (see HUONG-DAN.md).
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline
+# no --baseline: verifies against every known baseline and prints a report
+```
+
+### A. Existing database already equivalent to post-20261117
+
+```sh
 npm run backup:db
-
-# 1. Nothing is applied yet — print the plan. It must list exactly two files.
-SUPABASE_DB_URL='postgresql://…' npm run db:plan -- --baseline 20261117
-
-# 2. Apply.
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261117   # must print READY
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117            # verifies again, then applies
 ```
 
-`--baseline 20261117` means “everything up to and including 20261117 is already
-in this database; only run what comes after it”. The runner refuses to continue
-without it when the history table is empty and app tables exist, so it can never
-replay old migrations against live data.
-
-Expected plan output:
+`db:deploy` re-runs the readiness check inside the same invocation; it is not a
+separate step you can forget. Only when it passes does the runner write the
+baseline rows and apply `20261119` + `20261120`:
 
 ```
+READY  baseline 20261117
 skip 20261118  quarantined — Table-wide historical rewrite: …
-skip 34 migration(s) at or below --baseline 20261117 (they will be recorded as applied, not executed)
-would apply 20261119  20261119_preserve_legacy_daily_login_rewards.sql
-would apply 20261120  20261120_daily_login_reward_immutable.sql
+skip 34 migration(s) at or below --baseline 20261117
+recorded 34 migration(s) at or below --baseline 20261117 as applied
+apply 20261119  20261119_preserve_legacy_daily_login_rewards.sql
+apply 20261120  20261120_daily_login_reward_immutable.sql
 ```
 
-`--apply` writes the baseline down first (`baseline 20261117: recorded, not
-executed`), so running the same command twice is a no-op instead of a replay:
-the second run prints `up to date — nothing to apply`. The runner records each
-migration and its history row in one transaction, and takes a transaction-scoped
-advisory lock so two deploys cannot interleave.
+Running the same command again prints `up to date — nothing to apply`.
 
-SQL Editor fallback (same result, still safe because the destructive file is not
-in the folder): paste `20261119…sql`, Run; paste `20261120…sql`, Run.
+### B. Existing database that has NOT applied 20261112–20261117
 
-### B. An environment where 20261118 already ran
+`--baseline 20261117` will be **refused** (the readiness check lists the missing
+tables, RPCs, triggers and config rows). Do not work around it. Declare the
+state that *is* there and let the runner apply the rest for real:
 
 ```sh
-# If the migration history is tracked (the CLI was used): just deploy —
-# the runner reports the quarantined row and never re-runs it.
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy
-
-# If nothing is tracked (files were pasted by hand): declare the baseline.
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118
+npm run backup:db
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261111
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261111
 ```
 
-Both apply `20261119` then `20261120`. They remove the table-wide `CHECK` and
-install the immutability trigger, so **no further** history can be rewritten —
-but reward values that 20261118 already set to `0` are **not** restored. That
-restore, if it is ever wanted, is the separate administrator-only repair
-migration documented in the header of `20261120` (before/after audit log,
-trigger disabled for one statement).
+That applies `20261112 → 20261113 → 20261114 → 20261115 → 20261116 → 20261117 →
+20261119 → 20261120` as real SQL. `20261118` is quarantined, so it is skipped
+without anyone having to remember; historical `reward = 2` rows written after
+20261112 are preserved. Finish with
+`npm run db:verify-baseline -- --baseline 20261120` (must print `READY`).
 
-If you later adopt the Supabase CLI and `db push` refuses with
-`Remote migration versions not found in local migrations directory.`:
+If the database is somewhere in between (some of 20261112–20261117 applied), it
+is **mode E**, not mode B — the `ahead-of-baseline` check refuses
+`--baseline 20261111` as soon as it sees an object a later migration creates.
+
+### C. Fresh empty database
+
+No baseline, no migrations — use the install path:
+
+- **SQL Editor:** `supabase/setup/01-core-requests.sql` … `supabase/setup/16-daily-login-reward-immutable.sql`, one file per query, in order.
+- **psql:** `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/schema.sql`
+
+Then verify the result instead of trusting it:
 
 ```sh
-supabase migration repair 20261118 --status reverted   # deletes the history row only
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261120   # must print READY
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records history, applies nothing
 ```
 
-This runs **no SQL** and touches **no data**. Run it only while
-`supabase/migrations/20261118_daily_login_no_votes.sql` does **not** exist
-locally (it does not — it is quarantined); otherwise `db push` would try to
-execute it again.
+The second command only seeds the migration history — no SQL is applied — and
+neither path reaches the quarantined migration.
 
-### C. Fresh installation (empty project)
-
-Recommended, in **Database → SQL Editor → New query → Run**, one file per query,
-in order: `supabase/setup/01-core-requests.sql` … `supabase/setup/16-daily-login-reward-immutable.sql`
-(each file is a mirror of a slice of `supabase/schema.sql`, kept in sync by
-`npm run schema:split`). Details: `supabase/setup/README.md`.
-
-Or, from your own machine with `psql` and the **Session pooler** URL:
+### D. Database where 20261118 already ran
 
 ```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/schema.sql
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261118   # the incident state
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120
 ```
 
-Neither path contains the destructive rewrite: there is no chunk for 20261118,
-and `schema.sql` no longer carries it.
+The report also tells you when a database you assumed was clean is not:
+verifying an affected database against `20261117` prints the incompatible
+`reward` default and CHECK **and** the note
 
-### D. Partial history (staging, dev, half-applied)
+```
+note: a CHECK on the reward column exists (daily_login_rewards_reward_check: CHECK ((reward = 0))) —
+20261118 appears to have run here. Use --baseline 20261118 (mode D) …
+```
+
+Afterwards the table-wide `CHECK` is gone and the immutability trigger is
+installed. **Rewards that 20261118 already set to 0 are NOT restored** — that is
+the administrator-only repair described in `20261120`, never an automatic step.
+
+### E. Unknown or partial database
+
+Do not migrate. Produce a report and choose deliberately:
 
 ```sh
-SUPABASE_DB_URL='postgresql://…' npm run db:plan        # shows what is missing
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy      # applies only those
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline        # diagnostics for every baseline
+SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261117
 ```
 
-The runner compares the file list with `supabase_migrations.schema_migrations`
-and applies only what is missing, in filename order, each migration in a single
-transaction together with its history row.
+The runner refuses every `--baseline` whose fingerprint does not match, prints
+every missing/incompatible object, writes no history and applies nothing.
+Recovery options, in order of preference:
 
----
+1. Restore the database from backup to a state that verifies (then mode A/B/C).
+2. Bring the database forward by hand, one file at a time in SQL Editor, until
+   `db:verify-baseline -- --baseline <the state it now matches>` prints `READY`.
+3. If the state is legitimate and permanent, have a fingerprint generated for it
+   and reviewed: build a reference database in that exact state, run
+   `npm run db:baseline:snapshot -- --baseline <version>`, review the diff and
+   commit it. Never hand-edit a fingerprint to make a deploy pass.
 
-## 5. Verification after any deployment
+## 5. Production runbook
+
+| Step | Command | Gate |
+| --- | --- | --- |
+| 1 | `npm run backup:db` | backup file exists |
+| 2 | `npm run db:verify-baseline` (no `--baseline`) | identifies the mode |
+| 3 | `npm run db:verify-baseline -- --baseline <mode's version>` | prints `READY` |
+| 4 | `npm run db:deploy -- --baseline <mode's version>` | prints the two applied migrations |
+| 5 | queries in section 6 | histogram unchanged, 0 reward CHECKs, 1 trigger |
+| 6 | deploy the frontend in the same release | — |
+
+Never pass `--baseline` on the strength of "it looks up to date" or "we pasted
+those files last year". If the readiness check fails, you are in mode E.
+
+## 5b. Staging runbook
+
+Staging is where the baseline is proven before production:
+
+1. Restore the production snapshot into staging (`npm run backup:db` → restore).
+2. `npm run db:verify-baseline` — confirm it reports the same mode you expect in production.
+3. Run the same `db:deploy -- --baseline <version>` you intend to run in production.
+4. Run the section 6 queries; compare the `reward` histogram with production.
+5. Exercise the app: check-in (0 votes, wallet unmoved) and a full quiz (5 correct = 5 votes, never 7).
+6. Only then repeat steps 1–5 against production.
+
+A staging database that has drifted (mode E) is a finding, not an obstacle:
+rebuild it from the production snapshot rather than inventing a new baseline.
+
+## 6. Verification after any deployment
 
 ```sql
 -- 1. History is untouched: rows with reward = 2 are EXPECTED and must survive.
@@ -212,19 +272,20 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 
 ---
 
-## 6. Rollback and recovery
+## 7. Rollback and recovery
 
 | Situation | What to do |
 | --- | --- |
 | A migration fails mid-way | Each migration runs in one transaction with its history row; nothing partial is committed. Fix the cause and re-run `db:deploy`. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
-| 20261118 already ran | Section B above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |
+| 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |
+| A baseline was recorded against the wrong state | The migrations it skipped were never applied. Do not "fix" it by editing `supabase_migrations.schema_migrations` by hand — re-verify with `db:verify-baseline`, then bring the database forward with the real migrations (mode B) or from backup (mode E). |
 | Point-in-time restore needed | `npm run backup:db` / `npm run backup:verify` (`scripts/backup-db.sh`, `scripts/verify-backup.sh`) and Supabase PITR. |
 
 ---
 
-## 7. Adding a migration
+## 8. Adding a migration
 
 - New file: `supabase/migrations/<YYYYMMDD>_<snake_case_name>.sql`, one
   transaction (`begin;` … `commit;`), rerunnable.
@@ -234,15 +295,20 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
   `npm run db:check` fails the build if one appears.
 - Mirror the file into `supabase/schema.sql`, then `npm run schema:split` and
   `npm run schema:split:check`.
+- Regenerate the affected baseline fingerprints (`npm run db:baseline:snapshot`)
+  if the migration changes an object any of them covers, and commit the result:
+  `npm run test:baseline:db` fails while a fingerprint is stale.
 
 ---
 
-## 8. Automated guards
+## 9. Automated guards
 
 | Command | What it proves |
 | --- | --- |
 | `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent. No database needed. |
-| `npm test` | Includes `tools/migration-safety.test.mjs` (9 static deployment-safety tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js` (scenarios A, B, D on a real database) and `supabase/tests/schemaChunks.test.js` (scenario C, fresh install). |
+| `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. |
+| `npm run test:baseline:db` | On a real database: mode A/B/C/D/E behaviour, every failure class, and that a failed readiness check writes no migration history. |
+| `npm test` | Includes `tools/migration-safety.test.mjs` (9 static deployment-safety tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js` (deployment scenarios on a real database), `supabase/tests/baselineReadiness.test.js` (18 baseline-safety tests) and `supabase/tests/schemaChunks.test.js` (fresh install). |
 | `npm run schema:split:check` | The setup chunks still concatenate byte-for-byte to `schema.sql`. |
 | `.github/workflows/db-migration-safety.yml` | On every push/PR touching `supabase/**`, `tools/migrate.mjs` or `scripts/split-schema.mjs`: `npm run db:check`, `npm run schema:split:check`, `npm test`, `npm run lint`. It applies nothing and needs no credentials. |
 

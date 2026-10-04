@@ -132,8 +132,9 @@ Cách chạy chính thức (chi tiết, kịch bản khôi phục, lệnh kiểm
 **a) Production chưa chạy migration nào trong chuỗi này (trường hợp khuyến nghị)**
 
 1. Sao lưu (`npm run backup:db`).
-2. Xem kế hoạch — phải đúng 2 file: `SUPABASE_DB_URL='…' npm run db:plan -- --baseline 20261117`
-3. Chạy: `SUPABASE_DB_URL='…' npm run db:deploy -- --baseline 20261117`
+2. Đối chiếu schema (bắt buộc): `SUPABASE_DB_URL='…' npm run db:verify-baseline -- --baseline 20261117` — phải in `READY`.
+3. Xem kế hoạch — phải đúng 2 file: `SUPABASE_DB_URL='…' npm run db:plan -- --baseline 20261117`
+4. Chạy: `SUPABASE_DB_URL='…' npm run db:deploy -- --baseline 20261117` (lệnh này tự chạy lại bước 2; **không bao giờ** dùng `--baseline` khi bước 2 chưa qua)
 
 `20261118` **không bao giờ** nằm trong kế hoạch: nó đã bị cách ly, nên lệnh trên không cần ai nhớ phải bỏ qua nó.
 

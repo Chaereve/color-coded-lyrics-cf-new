@@ -215,8 +215,13 @@ test('the recommended deployment path never runs the destructive migration',
           'a populated database with no migration history needs a declared baseline')
       })
       await withDatabase(async (pool, client) => {
-        await assert.rejects(() => plan(client, { baseline: '20261117' }), /fresh-install setup files/,
+        // Readiness verification comes first: there is nothing here to baseline.
+        await assert.rejects(() => plan(client, { baseline: '20261117' }), /no app tables/,
           'an empty database is installed with supabase/setup, not with migrations')
+        assert.equal((await client.query(`
+          select count(*)::int as n from information_schema.tables
+           where table_schema = 'supabase_migrations' and table_name = 'schema_migrations'`)).rows[0].n &&
+          (await client.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n, 0)
       })
     })
   })

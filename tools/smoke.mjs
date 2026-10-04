@@ -2223,6 +2223,30 @@ realLog('\n── migration ──')
     && rds3(new URL('../supabase/setup/', import.meta.url)).includes('15-preserve-legacy-daily-login-rewards.sql')
     && rds3(new URL('../supabase/setup/', import.meta.url)).includes('16-daily-login-reward-immutable.sql'))
 
+  const baselines = ['20261111', '20261117', '20261118', '20261120']
+  check('migration: baseline chỉ được ghi sau khi đối chiếu toàn bộ schema với fingerprint đã commit',
+    baselines.every((v) => {
+      const snap = JSON.parse(rd(`../supabase/baselines/${v}.json`))
+      return snap.baseline === v && Object.keys(snap.state.tables).length > 10
+        && Object.keys(snap.state.functions).length > 20
+    })
+    && /export async function verifyBaseline/.test(rd('../tools/schema-readiness.mjs'))
+    && /export function aheadOfBaseline/.test(rd('../tools/schema-readiness.mjs'))
+    && /not verified against this database/.test(rd('../tools/migrate.mjs'))
+    && /--verify/.test(rd('../tools/migrate.mjs')),
+    'thiếu bảng/cột/ràng buộc/index/RLS/policy/hàm/trigger/cấu hình đều bị chối')
+
+  check('migration: fingerprint 20261117 có đủ đối tượng bắt buộc của điểm danh và quiz',
+    (() => {
+      const state = JSON.parse(rd('../supabase/baselines/20261117.json')).state
+      return ['daily_login_rewards', 'activity_days', 'daily_quiz_attempts', 'daily_quiz_answers',
+        'daily_quiz_seen', 'daily_quiz_config', 'votes', 'profiles'].every((t) => state.tables[t])
+        && ['claim_daily_login', 'daily_rewards_payload', 'my_daily_rewards_status',
+          'start_daily_quiz', 'submit_daily_quiz_answer'].every((fn) =>
+          Object.keys(state.functions).some((sig) => sig.startsWith(`${fn}(`)))
+        && state.config.questions_per_day === '5'
+    })())
+
   check('migration: runner có kiểm tra tĩnh, từ chối baseline mơ hồ và không chạy file cách ly',
     /export function assertMigrationSafety/.test(rd('../tools/migrate.mjs'))
     && /refusing to guess/.test(rd('../tools/migrate.mjs'))
