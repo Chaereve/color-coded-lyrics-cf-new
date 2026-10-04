@@ -31,6 +31,17 @@ async function withDatabase (fn) {
     const target = new URL(url)
     target.pathname = `/${name}`
     const pool = new pg.Pool({ connectionString: target.toString(), max: 4 })
+    // Track every connection this pool opens until its socket really closes.
+    // `pool.end()` only drains what the pool still knows is checked out, and
+    // the `drop database ... with (force)` below terminates whatever is left
+    // attached — which is what made an in-flight query die with "terminating
+    // connection due to administrator command". Registered before anything can
+    // use the pool, so no connection can escape tracking.
+    const ended = []
+    pool.on('connect', client => ended.push(new Promise(resolve => client.once('end', resolve))))
+    let failure = null
+    let client = null
+    let shutdown = null
     try {
       await pool.query(`
         do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
@@ -44,10 +55,26 @@ async function withDatabase (fn) {
         alter default privileges in schema public grant all on tables to anon, authenticated;
         alter default privileges in schema public grant all on sequences to anon, authenticated;
         create publication supabase_realtime;`)
-      const client = new pg.Client({ connectionString: target.toString() })
+      client = new pg.Client({ connectionString: target.toString() })
       await client.connect()
-      try { await fn(pool, client) } finally { await client.end() }
-    } finally { await pool.end() }
+      await fn(pool, client)
+    } catch (error) {
+      failure = error
+    } finally {
+      // Close the client and the pool cleanly, then wait for every tracked
+      // connection to report that it actually ended — only then may the
+      // database be force-dropped by the block below.
+      const settled = await Promise.allSettled([client?.end(), pool.end(), ...ended])
+      const errors = settled.filter(result => result.status === 'rejected').map(result => result.reason)
+      if (errors.length) shutdown = errors.map(error => error?.message ?? String(error)).join('; ')
+    }
+    // A shutdown failure is never swallowed: it fails the run outright, and a
+    // test body that already failed still propagates its own error.
+    if (failure) {
+      if (shutdown) console.error(`test database ${name} did not shut down cleanly: ${shutdown}`)
+      throw failure
+    }
+    if (shutdown) throw new Error(`test database ${name} did not shut down cleanly: ${shutdown}`)
   } finally {
     try { if (created) await admin.query(`drop database if exists ${name} with (force)`) } finally { await admin.end() }
   }
