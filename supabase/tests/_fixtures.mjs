@@ -51,26 +51,29 @@ export async function withDatabase (url, fn) {
     const client = new pg.Client({ connectionString: connection })
     await client.connect()
     let failure = null
+    let shutdown = null
+    let result
     try {
       await pool.query(SCAFFOLD)
-      return await fn(pool, client)
+      result = await fn(pool, client)
     } catch (error) {
       failure = error
-      throw error
     } finally {
       // Close cleanly first, then wait for every tracked connection to report
-      // that it actually ended. Only then may the database be force-dropped.
-      // A shutdown failure is never swallowed: it is reported, and it fails
-      // the run outright unless the test body already failed on its own.
+      // that it actually ended — only then may the database be force-dropped
+      // by the block below.
       const settled = await Promise.allSettled([client.end(), pool.end(), ...ended])
-      const shutdown = settled.filter(result => result.status === 'rejected').map(result => result.reason)
-      if (shutdown.length) {
-        const detail = shutdown.map(error => error?.message ?? String(error)).join('; ')
-        const message = `test database ${name} did not shut down cleanly: ${detail}`
-        if (!failure) throw new Error(message)
-        console.error(message)
-      }
+      const errors = settled.filter(item => item.status === 'rejected').map(item => item.reason)
+      if (errors.length) shutdown = errors.map(error => error?.message ?? String(error)).join('; ')
     }
+    // A shutdown failure is never swallowed: it fails the run outright, and a
+    // test body that already failed still propagates its own error.
+    if (failure) {
+      if (shutdown) console.error(`test database ${name} did not shut down cleanly: ${shutdown}`)
+      throw failure
+    }
+    if (shutdown) throw new Error(`test database ${name} did not shut down cleanly: ${shutdown}`)
+    return result
   } finally {
     try { if (created) await admin.query(`drop database if exists ${name} with (force)`) } finally { await admin.end() }
   }
