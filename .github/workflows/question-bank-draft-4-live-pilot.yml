@@ -1,0 +1,85 @@
+# Manual, fixed-scope question-bank pilot for the four unapproved drafts.
+#
+# SAFETY
+# * workflow_dispatch only; there are no ID or free-form shell inputs.
+# * The helper hard-codes B1Q026-B1Q029 and checks their source CSV states.
+# * It reads the checked-out bank and writes only a four-row snapshot and JSON
+#   report under RUNNER_TEMP. It never writes the source CSV.
+# * No status promotion, quality scoring, SQL, database credentials, DB service,
+#   migration, or import is used. Only the JSON report is uploaded (7 days).
+# * If the draft rows are not present in the checked-out commit, preflight fails
+#   before any URL request and still emits a report. A GitHub runner cannot see
+#   uncommitted local worktree changes.
+name: Question bank draft-4 live validation pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: question-bank-draft-4-live-pilot
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Fixed IDs are embedded in the helper. No IDs are passed via shell or UI.
+      - name: Run fixed B1Q026-B1Q029 live pilot
+        run: node tools/question-bank/draft-4-live-pilot.mjs
+
+      - name: Print concise report summary
+        if: always()
+        env:
+          REPORT_PATH: ${{ runner.temp }}/qb-draft-4-live-pilot/draft-4.report.json
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const p = process.env.REPORT_PATH;
+            if (!p || !fs.existsSync(p)) {
+              console.log("Pilot report not produced; see the preflight/run step.");
+              process.exit(0);
+            }
+            const r = JSON.parse(fs.readFileSync(p, "utf8"));
+            console.log(JSON.stringify({
+              ids: r.pilotIds,
+              preflight: r.preflight,
+              summary: r.summary,
+              sourceCsvUnchanged: r.sourceCsvIntegrity?.unchanged
+            }, null, 2));
+          '
+
+      # Always upload the JSON, including when preflight or a URL check fails.
+      - name: Upload JSON report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: question-bank-draft-4-live-report-${{ github.run_number }}
+          path: ${{ runner.temp }}/qb-draft-4-live-pilot/draft-4.report.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Verify repository checkout is unchanged
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Pilot changed the checkout; do not use this report until investigated."
+            git status --short
+            exit 1
+          fi
+          echo "Checkout clean; pilot left repository files unchanged."
