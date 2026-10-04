@@ -40,14 +40,36 @@ export async function withDatabase (url, fn) {
     target.pathname = `/${name}`
     const connection = target.toString()
     const pool = new pg.Pool({ connectionString: connection, max: 4 })
+    // Track every connection this pool ever opens until its socket really
+    // closes. `pool.end()` only drains what the pool still knows is checked
+    // out, and the `drop database ... with (force)` below terminates whatever
+    // is left attached — which is what made an in-flight query die with
+    // "terminating connection due to administrator command". Registered before
+    // anything can use the pool, so no connection can escape tracking.
+    const ended = []
+    pool.on('connect', client => ended.push(new Promise(resolve => client.once('end', resolve))))
     const client = new pg.Client({ connectionString: connection })
     await client.connect()
+    let failure = null
     try {
       await pool.query(SCAFFOLD)
       return await fn(pool, client)
+    } catch (error) {
+      failure = error
+      throw error
     } finally {
-      await client.end().catch(() => {})
-      await pool.end().catch(() => {})
+      // Close cleanly first, then wait for every tracked connection to report
+      // that it actually ended. Only then may the database be force-dropped.
+      // A shutdown failure is never swallowed: it is reported, and it fails
+      // the run outright unless the test body already failed on its own.
+      const settled = await Promise.allSettled([client.end(), pool.end(), ...ended])
+      const shutdown = settled.filter(result => result.status === 'rejected').map(result => result.reason)
+      if (shutdown.length) {
+        const detail = shutdown.map(error => error?.message ?? String(error)).join('; ')
+        const message = `test database ${name} did not shut down cleanly: ${detail}`
+        if (!failure) throw new Error(message)
+        console.error(message)
+      }
     }
   } finally {
     try { if (created) await admin.query(`drop database if exists ${name} with (force)`) } finally { await admin.end() }
