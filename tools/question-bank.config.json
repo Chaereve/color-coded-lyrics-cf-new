@@ -13,7 +13,7 @@
     "draftSentinel": "unknown_not_observable (status fields and redirect count) or blank (URL fields) when no live validation has run",
     "productionEligibility": "source_final_http_status = 200 AND source_final_url present AND source_fact_match = pass AND source_access_status in [public_accessible, accessible_with_redirect] AND source_redirect_count <= 3 AND source_last_checked within freshness window. An initial 200 is never evidence on its own."
   },
-  "userAgent": "KpopQuizValidator/1.0 (contact: YOUR_EMAIL_OR_DOMAIN)",
+  "userAgent": "KpopQuizValidator/1.0 (contact: kimtong1906@gmail.com)",
   "allowedDomains": [
     "genius.com",
     "www.billboard.com",
