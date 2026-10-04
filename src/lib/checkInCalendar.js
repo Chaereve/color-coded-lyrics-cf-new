@@ -55,7 +55,7 @@ export function checkInStats(days, today) {
   return { total: sorted.length, first: sorted[0] || null, last, streak, best, days: sorted }
 }
 
-// Visual milestones only: check-in always pays the same +2, never a jackpot.
+// Visual milestones only: a check-in records the day, never a reward.
 export const CHECK_IN_MILESTONES = [5, 10, 20]
 
 export function buildCheckInCalendar(status, options = {}) {

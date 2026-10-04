@@ -186,6 +186,7 @@ const S = {
   'err.dailyQuizAnswers': 'Choose one answer before submitting it.',
   'err.dailyQuizUnavailable': 'Today’s quiz is not available yet — there are not enough approved questions. Try again tomorrow.',
   'err.dailyQuizRetired': 'This quiz round was created by an older version and can no longer award votes. A new round unlocks tomorrow.',
+  'err.dailyLoginRewardRetired': 'Check-ins no longer award votes.',
   'err.dailyQuizQuestion': 'That question is not part of today’s round. Refresh to reload your questions.',
   'err.dailyQuizOption': 'That answer does not belong to this question. Refresh to reload your questions.',
   'err.dailyResponse': 'The server returned an invalid daily reward status. Refresh to try again.',
@@ -932,7 +933,7 @@ const S = {
      About me và Daily Spin (trước đây hai chỗ đó để trống trơn). */
   'gate.needTitle': 'Sign in to open this page',
   'gate.needBody': 'Your profile, your requests and your daily spins belong to an account.',
-  'gate.needDailyLogin': 'Sign in to open your check-in calendar and collect +2 bonus votes every day.',
+  'gate.needDailyLogin': 'Sign in to open your check-in calendar and keep your streak alive.',
   'gate.needQuiz': 'Sign in to play an easy K-pop quiz — three questions, up to +3 bonus votes.',
   'gate.needSpin': 'Sign in to spin — two free spins a day, and the votes land on your account.',
 

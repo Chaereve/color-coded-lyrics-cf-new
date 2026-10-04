@@ -86,9 +86,16 @@ Database mới dùng thêm các file setup `12-daily-quiz-schema.sql`, `13-daily
 
 Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn (ít câu hơn, trần thấp hơn).
 
-## Điểm danh không còn thưởng vote (migration 20261118)
+## Điểm danh không còn thưởng vote (migration 20261119, thay thế 20261118)
 
-**Lý do:** điểm danh từng cộng **+2 vote/ngày**. Cộng với 5 câu đúng của quiz (trần +5) thành **7 vote/ngày**, vượt trần dự kiến của sản phẩm. Migration `20261118_daily_login_no_votes.sql` sửa việc này.
+**Lý do:** điểm danh từng cộng **+2 vote/ngày**. Cộng với 5 câu đúng của quiz (trần +5) thành **7 vote/ngày**, vượt trần dự kiến của sản phẩm.
+
+**Hai migration, và tại sao có migration thứ hai**
+
+| File | Vai trò |
+| --- | --- |
+| `20261118_daily_login_no_votes.sql` | Bản sửa đầu tiên: bỏ cộng vote, đổi payload. **Đã bị thay thế** — nó còn chạy `UPDATE daily_login_rewards SET reward = 0` trên toàn bảng và thêm `CHECK (reward = 0)`, hai việc viết lại/làm mất giá trị lịch sử. |
+| `20261119_preserve_legacy_daily_login_rewards.sql` | **Bản dùng để triển khai.** Bỏ ràng buộc toàn bảng, không UPDATE/DELETE dòng nào, và chỉ chặn bản ghi **mới** bằng trigger. |
 
 **Nguyên tắc sau sửa**
 
@@ -96,29 +103,42 @@ Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn 
 | --- | --- | --- |
 | Vote thưởng | **0** (không có) | 1 / đáp án đúng |
 | Trần mỗi ngày | — | **5** |
-| Ghi nhận | ledger `daily_login_rewards` (ngày + `reward = 0`) | `daily_quiz_answers` (unique `user_id, quiz_date, question_id`) |
+| Ghi nhận | `daily_login_rewards` (ngày; dòng mới `reward = 0`) | `daily_quiz_answers` (unique `user_id, quiz_date, question_id`) |
 | Hiển thị | lịch tháng, streak, best streak, lifetime, tiến trình tháng | số câu đã trả lời, số vote 0–5 |
 
-- Điểm danh **không** cộng vote mua, vote bonus hay phiếu miễn phí; không có điểm/XP/huy hiệu thay thế và **không thêm cột hay bảng mới**.
-- `daily_login_rewards.reward` bị khoá ở `0` bằng ràng buộc; lịch sử điểm danh **giữ nguyên** (chỉ cột số tiền bị đưa về 0).
-- Payload RPC đổi `login.reward = 2` thành `login.vote_reward = 0`; `earned_today` chỉ còn tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2` thay vì cộng dồn thành 7.
-- 3 vote miễn phí tự động vẫn tắt (`free_vote_grant_enabled = false`), không thêm đường cấp vote tự động nào khác.
-- **Không** thu hồi vote đã cấp ở production: migration không trừ ví ai.
+**Ngữ nghĩa lưu vết (audit)**
+
+- **Dòng lịch sử** (tạo trước 20261118) **giữ nguyên** giá trị `reward`, kể cả `2`. Không cập nhật, không xoá, không đổi cách hiểu. Chúng **không bao giờ** tạo vote mới: không hàm nào cộng `reward` vào ví, và `earned_today` không đọc cột này.
+- **Dòng mới** luôn có `reward = 0`, `votes_awarded = 0`; không đụng `vote_credits`, `bonus_credits`, phiếu miễn phí hay ledger vote nào. Chỉ ghi ngày, streak và lịch sử tháng.
+- Cách chặn: trigger `daily_login_rewards_no_vote` (`BEFORE INSERT OR UPDATE OF reward`) — `INSERT` phải có `reward = 0`; `UPDATE` không được đưa `reward` về giá trị khác 0 (sửa `2 → 0` vẫn cho phép). Ném `err.dailyLoginRewardRetired`.
+- Vì trigger chỉ chặn **thao tác ghi mới**, việc khôi phục dữ liệu cũ (restore) có `reward = 2` vẫn được chấp nhận và không sinh vote.
+- Client không có đường ghi: RLS bật, không có policy ghi, privilege đã revoke; migration sẽ **từ chối cài** nếu tồn tại policy INSERT/UPDATE/DELETE. RPC `claim_daily_login` (security definer) là đường duy nhất.
+- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. 3 vote miễn phí tự động vẫn tắt (`free_vote_grant_enabled = false`).
+- **Không** thu hồi vote đã cấp: migration không trừ ví ai, không xoá ledger vote nào.
+- Payload RPC: `login.vote_reward = 0` (thay cho `login.reward = 2` cũ); `earned_today` chỉ tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2` thay vì cộng dồn thành 7.
 
 **Cách chạy (database đang dùng)**
 
 1. Sao lưu (`npm run backup:db`).
 2. Xác nhận đã chạy `20261112` → `20261113` → `20261114` → `20261115` → `20261116` → `20261117`.
-3. Chạy **toàn bộ** `supabase/migrations/20261118_daily_login_no_votes.sql` trong SQL Editor → **Run**. Một transaction, chạy lại an toàn.
+3. Chạy **toàn bộ** `supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql` trong SQL Editor → **Run**. Một transaction, chạy lại an toàn.
+   **Bỏ qua `20261118`** — nó đã bị 20261119 thay thế (20261119 chứa đủ phần sửa của 20261118). Nếu vì lý do nào đó 20261118 đã chạy rồi, chạy tiếp 20261119 vẫn an toàn.
 4. Deploy frontend cùng thay đổi (UI và validator mới).
 5. Kiểm tra:
 
 ```sql
-select (select count(*) from public.daily_login_rewards where reward <> 0) as login_rewards_nonzero,
-       (select count(*) from public.daily_quiz_answers where awarded = 1) as quiz_votes_awarded;
+-- Dòng lịch sử giữ nguyên giá trị (0 = không có dòng nào từng được ghi 2,
+-- con số khác 0 là BÌNH THƯỜNG nếu trước đây từng có thưởng điểm danh).
+select reward, count(*) from public.daily_login_rewards group by reward order by reward;
+-- Không còn ràng buộc toàn bảng nào trên cột reward (kỳ vọng: 0 dòng).
+select count(*) as reward_checks from pg_constraint
+ where conrelid = 'public.daily_login_rewards'::regclass and contype = 'c'
+   and pg_get_constraintdef(oid) like '%reward%';
+-- Trigger chặn bản ghi mới (kỳ vọng: 1 dòng).
+select tgname from pg_trigger where tgrelid = 'public.daily_login_rewards'::regclass and not tgisinternal;
 ```
 
-Cả hai phải phù hợp kỳ vọng (cột đầu = 0). Database mới dùng thêm file setup `15-daily-login-no-votes.sql`. **Không** chạy lại schema/setup trên database đang dùng.
+Database mới dùng thêm file setup `15-daily-login-no-votes.sql` (phần của 20261118, chạy trên bảng trống nên vô hại) và `16-preserve-legacy-daily-login-rewards.sql`. **Không** chạy lại schema/setup trên database đang dùng.
 
 ## Tính toàn vẹn
 

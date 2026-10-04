@@ -2193,37 +2193,54 @@ realLog('\n── daily login ──')
   const { readFileSync: rf2 } = await import('node:fs')
   const rd = (rel) => rf2(new URL(rel, import.meta.url), 'utf8')
   const schemaSql = rd('../supabase/schema.sql')
-  const fix = rd('../supabase/migrations/20261118_daily_login_no_votes.sql')
   const first = rd('../supabase/migrations/20261112_daily_rewards.sql')
+  const noVote = rd('../supabase/migrations/20261118_daily_login_no_votes.sql')
+  const preserve = rd('../supabase/migrations/20261119_preserve_legacy_daily_login_rewards.sql')
+  // Chỉ xét phần mã, bỏ chú thích: chú thích nhắc đến các lệnh cũ để giải thích.
+  const code = (sql) => sql.replace(/--[^\n]*/g, '')
+  const claimBody = (sql) => sql.slice(sql.indexOf('create or replace function public.claim_daily_login')).split('end $$;')[0]
 
-  check('daily login: migration sửa lỗi nằm nguyên văn trong schema.sql và là file MỚI, không sửa file cũ',
-    schemaSql.includes(fix)
-    && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(fix)
+  check('daily login: hai migration sửa lỗi nằm nguyên văn trong schema.sql, append-only, chạy sau cùng',
+    schemaSql.includes(noVote) && schemaSql.includes(preserve)
+    && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(noVote)
+    && /Run AFTER 20261117_daily_quiz_flow\.sql/.test(preserve)
     && /bonus_credits = bonus_credits \+ v_claim\.reward/.test(first),
-    '20261112 giữ nguyên lịch sử; 20261118 là bản sửa chạy sau cùng')
+    '20261112 giữ nguyên văn bản lịch sử; 20261118/20261119 là bản sửa chạy sau cùng')
 
-  check('daily login: điểm danh không đụng tới bất kỳ số dư vote nào',
-    (() => {
-      const body = fix.slice(fix.indexOf('create or replace function public.claim_daily_login')).split('end $$;')[0]
+  check('daily login: 20261119 không viết lại lịch sử — không UPDATE/DELETE toàn bảng, không trừ ví',
+    !/update\s+public\.daily_login_rewards\s+set\s+reward\s*=/i.test(code(preserve))
+    && !/delete\s+from\s+public\./i.test(code(preserve))
+    && !/update\s+public\.profiles\s+set/i.test(code(preserve))
+    && !/bonus_credits\s*=\s*bonus_credits\s*[-+]/i.test(code(preserve)),
+    'bản ghi reward = 2 của ngày cũ giữ nguyên giá trị')
+
+  check('daily login: bỏ ràng buộc toàn bảng, thay bằng trigger chỉ chặn bản ghi MỚI',
+    /alter table public\.daily_login_rewards drop constraint %I/.test(code(preserve))
+    && !/add constraint[^\n]*check \(reward = 0\)/.test(code(preserve))
+    && /create trigger daily_login_rewards_no_vote\s*\nbefore insert or update of reward on public\.daily_login_rewards/.test(code(preserve))
+    && /raise exception 'err\.dailyLoginRewardRetired'/.test(code(preserve))
+    && /alter column reward set default 0/.test(code(preserve)),
+    'lịch sử giữ nguyên; mọi điểm danh mới phải reward = 0')
+
+  check('daily login: RPC điểm danh trả reward = 0 và không đụng số dư vote nào',
+    [noVote, preserve].every((sql) => {
+      const body = claimBody(sql)
       return !/bonus_credits|vote_credits|free_vote/.test(body)
         && /insert into public\.daily_login_rewards/.test(body)
-        && /'reward', 0/.test(body)
-    })())
+        && /'reward', 0/.test(body) && /'votes_awarded', 0/.test(body)
+    }))
 
-  check('daily login: cột reward khoá ở 0, lịch sử điểm danh được giữ nguyên',
-    /update public\.daily_login_rewards set reward = 0 where reward <> 0/.test(fix)
-    && /add constraint daily_login_rewards_reward_check check \(reward = 0\)/.test(fix)
-    && !/drop table|truncate|delete from public\.daily_login_rewards/.test(fix))
+  check('daily login: payload không hứa thưởng vote, earned_today chỉ tính quiz',
+    [noVote, preserve].every((sql) => /'vote_reward', 0/.test(sql) && !/'reward', 2/.test(sql)
+      && /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/.test(sql)
+      && !/coalesce\(l\.reward, 0\)/.test(sql)))
 
-  check('daily login: payload không còn hứa thưởng vote, earned_today chỉ tính quiz',
-    /'vote_reward', 0/.test(fix) && !/'reward', 2/.test(fix)
-    && /'earned_today', coalesce\(\(select a\.votes_awarded from quiz_state a\), 0\)/.test(fix)
-    && !/coalesce\(l\.reward, 0\)/.test(fix))
+  check('daily login: không thêm cột, tiền tệ, điểm, XP hay ledger thưởng mới',
+    !/add column|create table/i.test(code(preserve))
+    && !/\bxp\b|badge|point balance|reward_policy_version/i.test(code(preserve))
+    && !/free_vote_grant_enabled[^']*'true'/.test(code(preserve)))
 
-  check('daily login: không thêm cột, tiền tệ, XP hay ledger thưởng mới',
-    !/add column/.test(fix) && !/create table/.test(fix) && !/\bxp\b|badge|points/i.test(fix))
-
-  check('daily login: giao diện bỏ hẳn "+2" và mọi chữ gợi ý điểm danh có thưởng',
+  check('daily login: giao diện không còn "+2", "bonus votes" hay "Daily Login reward"',
     (() => {
       const lib = rd('../src/lib/dailyRewards.js')
       const screen = rd('../src/components/DailyRewards.jsx')
@@ -2232,8 +2249,10 @@ realLog('\n── daily login ──')
       return /DAILY_LOGIN_REWARD = 0/.test(lib)
         && !/\+\$\{?DAILY_LOGIN_REWARD/.test(screen + calendar)
         && !/DAILY_LOGIN_REWARD/.test(screen + calendar)
-        && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*\+/.test(dict)
-        && !/'calendar\.(rule|claimDay|monthSummary|monthSummaryOne|historyUnavailable)':[^']*\+/.test(dict)
+        && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*(\+|bonus)/.test(dict)
+        && !/'calendar\.(rule|claimDay|monthSummary|monthSummaryOne|historyUnavailable)':[^']*(\+|bonus)/.test(dict)
+        && !/'gate\.needDailyLogin':[^']*(\+|bonus|reward)/.test(dict)
+        && !/daily login reward/i.test(dict)
     })())
 
   check('daily login: bản demo offline cũng không cộng vote khi điểm danh',
@@ -2244,9 +2263,9 @@ realLog('\n── daily login ──')
         && !/\(claimed \? DAILY_LOGIN_REWARD : 0\)/.test(demo)
     })())
 
-  check('daily login: file cài tay có bản cắt của phần sửa lỗi',
-    rd('../supabase/setup/15-daily-login-no-votes.sql').length > 1000
-    && schemaSql.includes(rd('../supabase/setup/15-daily-login-no-votes.sql')))
+  check('daily login: file cài tay có bản cắt của cả hai phần sửa lỗi',
+    ['15-daily-login-no-votes.sql', '16-preserve-legacy-daily-login-rewards.sql']
+      .every((f) => rd(`../supabase/setup/${f}`).length > 1000 && schemaSql.includes(rd(`../supabase/setup/${f}`))))
 }
 
 /* ---------- 11. kết luận ---------- */
