@@ -148,6 +148,10 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
   assert.match(sql, /raise exception 'err\.voteCalendarQuota/)
   assert.match(sql, /except all/)
   assert.match(sql, /count\(distinct \(user_id, quiz_date, question_id\)\)/)
+  assert.match(sql, /public\.daily_quiz_attempts\|quiz_date\|date\|false/,
+    'the source intentionally allows NULL quiz_date for legacy three-question attempts')
+  assert.match(sql, /where question_count = 5[\s\S]*quiz_date is null or quiz_day is distinct from quiz_date/,
+    'five-question source attempts still require a coherent quiz day/date')
   assert.match(sql, /daily_vote_quota_config.*from public\.daily_quiz_config/s)
   assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_config/)
   assert.match(sql, /daily_vote_quota_earnings[\s\S]*primary key \(source, user_id, vote_day, source_key\)/)
