@@ -62,6 +62,9 @@ begin
 
   if to_regclass('public.daily_vote_quota_config') is not null
      or to_regclass('public.daily_vote_quota_earnings') is not null
+     or to_regclass('public.daily_vote_quota_config_pkey') is not null
+     or to_regclass('public.daily_vote_quota_earnings_pkey') is not null
+     or to_regclass('public.daily_vote_quota_earnings_user_day_idx') is not null
      or exists (
        select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
@@ -71,43 +74,44 @@ begin
     raise exception 'err.voteCalendarPreflight: partial/unknown target objects already exist';
   end if;
 
-  -- If migration history exists, it must prove the required source migrations.
-  -- A fresh SQL-Editor install has no history table; catalog checks below still
-  -- apply. Never infer state from an empty or partial history table.
-  if to_regclass('supabase_migrations.schema_migrations') is not null then
-    if not exists (
-      select 1 from information_schema.columns
-       where table_schema = 'supabase_migrations'
-         and table_name = 'schema_migrations' and column_name = 'version'
-         and data_type = 'text' and is_nullable = 'NO'
-    ) then
-      raise exception 'err.voteCalendarPreflight: migration history version column is not the expected NOT NULL text';
-    end if;
-
-    if exists (select 1 from supabase_migrations.schema_migrations
-                where version in ('20261121_vote_calendar_decoupling', '20261121')) then
-      raise exception 'err.voteCalendarPreflight: target migration is already recorded';
-    end if;
-
-    foreach v_name in array array[
-      '20261112_daily_rewards|20261112',
-      '20261113_calendar_kpop_quiz|20261113',
-      '20261114_daily_rewards_upgrade|20261114',
-      '20261115_daily_quiz_schema|20261115',
-      '20261116_daily_quiz_pool|20261116',
-      '20261117_daily_quiz_flow|20261117',
-      '20261119_preserve_legacy_daily_login_rewards|20261119',
-      '20261120_daily_login_reward_immutable|20261120'
-    ] loop
-      if not exists (
-        select 1 from supabase_migrations.schema_migrations
-         where version = split_part(v_name, '|', 1)
-            or version = split_part(v_name, '|', 2)
-      ) then
-        raise exception 'err.voteCalendarPreflight: required migration state missing (%)', v_name;
-      end if;
-    end loop;
+  -- This data-dependent migration must be applied by the guarded runner. Its
+  -- required migration history is mandatory: never infer state from an absent,
+  -- empty or partial history table, even if the public catalog looks plausible.
+  if to_regclass('supabase_migrations.schema_migrations') is null then
+    raise exception 'err.voteCalendarPreflight: guarded-runner migration history is missing';
   end if;
+  if not exists (
+    select 1 from information_schema.columns
+     where table_schema = 'supabase_migrations'
+       and table_name = 'schema_migrations' and column_name = 'version'
+       and data_type = 'text' and is_nullable = 'NO'
+  ) then
+    raise exception 'err.voteCalendarPreflight: migration history version column is not the expected NOT NULL text';
+  end if;
+
+  if exists (select 1 from supabase_migrations.schema_migrations
+              where version in ('20261121_vote_calendar_decoupling', '20261121')) then
+    raise exception 'err.voteCalendarPreflight: target migration is already recorded';
+  end if;
+
+  foreach v_name in array array[
+    '20261112_daily_rewards|20261112',
+    '20261113_calendar_kpop_quiz|20261113',
+    '20261114_daily_rewards_upgrade|20261114',
+    '20261115_daily_quiz_schema|20261115',
+    '20261116_daily_quiz_pool|20261116',
+    '20261117_daily_quiz_flow|20261117',
+    '20261119_preserve_legacy_daily_login_rewards|20261119',
+    '20261120_daily_login_reward_immutable|20261120'
+  ] loop
+    if not exists (
+      select 1 from supabase_migrations.schema_migrations
+       where version = split_part(v_name, '|', 1)
+          or version = split_part(v_name, '|', 2)
+    ) then
+      raise exception 'err.voteCalendarPreflight: required migration state missing (%)', v_name;
+    end if;
+  end loop;
 
   -- Freeze every live table used by the source functions/backfill before
   -- validating its columns/config or taking the data snapshot. SHARE blocks
@@ -151,7 +155,7 @@ begin
     'public.daily_quiz_attempts|id|uuid|true',
     'public.daily_quiz_attempts|user_id|uuid|true',
     'public.daily_quiz_attempts|quiz_day|date|true',
-    -- quiz_date is intentionally nullable for legacy 3-question attempts.
+    -- quiz_date is intentionally nullable for legacy three-question attempts.
     'public.daily_quiz_attempts|quiz_date|date|false',
     'public.daily_quiz_attempts|questions|jsonb|true',
     'public.daily_quiz_attempts|question_count|integer|true',
@@ -184,9 +188,9 @@ begin
     end if;
   end loop;
 
-  -- quiz_date is nullable by design on legacy three-question attempts. New
-  -- five-question attempts must have matching day/date values before their
-  -- answer writer is replaced; otherwise the source state is not understood.
+  -- New five-question attempts must keep the legacy day and canonical quiz
+  -- date aligned. Legacy three-question snapshots may legitimately have NULL
+  -- quiz_date and remain readable; they are not rewritten here.
   if exists (
     select 1 from public.daily_quiz_attempts
      where question_count = 5
@@ -247,18 +251,25 @@ begin
   end if;
   if not exists (
     select 1 from pg_constraint c
-     where c.conrelid = 'public.daily_quiz_answers'::regclass and c.contype = 'c'
-       and (position('any (array[0, 1])' in lower(pg_get_constraintdef(c.oid))) > 0
-         or position('in (0, 1)' in lower(pg_get_constraintdef(c.oid))) > 0)
+     where c.conrelid = 'public.daily_quiz_answers'::regclass
+       and c.conname = 'daily_quiz_answers_awarded_check' and c.contype = 'c'
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g')
+           = 'checkawarded=anyarray[0,1]'
+       and c.convalidated
   ) or exists (
     select 1 from public.daily_quiz_answers where awarded not in (0, 1)
   ) then
     raise exception 'err.voteCalendarPreflight: exact awarded IN (0,1) check/data is missing or invalid';
   end if;
   if not exists (
-    select 1 from pg_indexes
-     where schemaname = 'public' and tablename = 'daily_quiz_answers'
-       and indexname = 'daily_quiz_answers_day_idx' and indexdef ilike '%(user_id, quiz_date)%'
+    select 1
+      from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.daily_quiz_answers'::regclass
+       and idx.relname = 'daily_quiz_answers_day_idx'
+       and not i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 2 and i.indnatts = 2 and i.indpred is null
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'user_id'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'quiz_date'
   ) then
     raise exception 'err.voteCalendarPreflight: daily_quiz_answers day index is missing/invalid';
   end if;
@@ -281,45 +292,75 @@ begin
     raise exception 'err.voteCalendarPreflight: a source primary key is missing or incompatible';
   end if;
   if not exists (
-    select 1 from pg_constraint c where c.conrelid = 'public.edge_gate'::regclass and c.contype = 'c'
-      and pg_get_constraintdef(c.oid) ilike 'CHECK (id)'
+    select 1 from pg_constraint c
+     where c.conrelid = 'public.edge_gate'::regclass and c.conname = 'edge_gate_id_check'
+       and c.contype = 'c' and c.convalidated
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g') = 'checkid'
   ) or not exists (
-    select 1 from pg_constraint c where c.conrelid = 'public.votes'::regclass and c.contype = 'c'
-      and position('free_slot' in lower(pg_get_constraintdef(c.oid))) > 0
-      and position('1' in pg_get_constraintdef(c.oid)) > 0
-      and position('3' in pg_get_constraintdef(c.oid)) > 0
+    select 1 from pg_constraint c
+     where c.conrelid = 'public.votes'::regclass and c.conname = 'votes_free_slot_check'
+       and c.contype = 'c' and c.convalidated
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g')
+           = 'checkfree_slotisnullorfree_slot>=1andfree_slot<=3'
   ) or not exists (
-    select 1 from pg_constraint c where c.conrelid = 'public.votes'::regclass and c.contype = 'c'
-      and position('fp_slot' in lower(pg_get_constraintdef(c.oid))) > 0
-      and position('1' in pg_get_constraintdef(c.oid)) > 0
-      and position('3' in pg_get_constraintdef(c.oid)) > 0
+    select 1 from pg_constraint c
+     where c.conrelid = 'public.votes'::regclass and c.conname = 'votes_fp_slot_check'
+       and c.contype = 'c' and c.convalidated
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g')
+           = 'checkfp_slotisnullorfp_slot>=1andfp_slot<=3'
   ) or not exists (
-    select 1 from pg_constraint c where c.conrelid = 'public.votes'::regclass and c.contype = 'c'
-      and position('credit_kind' in lower(pg_get_constraintdef(c.oid))) > 0
-      and position('free' in lower(pg_get_constraintdef(c.oid))) > 0
-      and position('bonus' in lower(pg_get_constraintdef(c.oid))) > 0
-      and position('purchased' in lower(pg_get_constraintdef(c.oid))) > 0
+    select 1 from pg_constraint c
+     where c.conrelid = 'public.votes'::regclass and c.conname = 'votes_credit_kind_check'
+       and c.contype = 'c' and c.convalidated
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g')
+           = 'checkcredit_kindisnullorcredit_kind=anyarray[''free''::text,''bonus''::text,''purchased''::text]'
   ) then
     raise exception 'err.voteCalendarPreflight: a source CHECK constraint is missing or incompatible';
   end if;
   if not exists (
-    select 1 from pg_indexes where schemaname = 'public' and tablename = 'votes'
-      and indexname = 'votes_free_quota_idx' and indexdef ilike '%unique index%user_id, vote_day, free_slot%'
-      and indexdef ilike '%where%free_slot%is not null%'
+    select 1 from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.votes'::regclass and idx.relname = 'votes_free_quota_idx'
+       and i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 3 and i.indnatts = 3
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'user_id'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'vote_day'
+       and pg_get_indexdef(i.indexrelid, 3, true) = 'free_slot'
+       and regexp_replace(lower(pg_get_expr(i.indpred, i.indrelid)), '[[:space:]()]', '', 'g')
+           = 'free_slotisnotnull'
   ) or not exists (
-    select 1 from pg_indexes where schemaname = 'public' and tablename = 'votes'
-      and indexname = 'votes_fp_free_quota_idx' and indexdef ilike '%unique index%fp_hash, vote_day, fp_slot%'
-      and indexdef ilike '%where%fp_hash%is not null%fp_slot%is not null%'
+    select 1 from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.votes'::regclass and idx.relname = 'votes_fp_free_quota_idx'
+       and i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 3 and i.indnatts = 3
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'fp_hash'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'vote_day'
+       and pg_get_indexdef(i.indexrelid, 3, true) = 'fp_slot'
+       and regexp_replace(lower(pg_get_expr(i.indpred, i.indrelid)), '[[:space:]()]', '', 'g')
+           in ('fp_hashisnotnullandfp_slotisnotnull', 'fp_slotisnotnullandfp_hashisnotnull')
   ) or not exists (
-    select 1 from pg_indexes where schemaname = 'public' and tablename = 'votes'
-      and indexname = 'votes_day_idx' and indexdef ilike '%(vote_day, user_id)%'
+    select 1 from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.votes'::regclass and idx.relname = 'votes_day_idx'
+       and not i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 2 and i.indnatts = 2 and i.indpred is null
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'vote_day'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'user_id'
   ) or not exists (
-    select 1 from pg_indexes where schemaname = 'public' and tablename = 'votes'
-      and indexname = 'votes_user_request_idx' and indexdef ilike '%(user_id, request_id)%'
+    select 1 from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.votes'::regclass and idx.relname = 'votes_user_request_idx'
+       and not i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 2 and i.indnatts = 2 and i.indpred is null
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'user_id'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'request_id'
   ) or not exists (
-    select 1 from pg_indexes where schemaname = 'public' and tablename = 'daily_quiz_attempts'
-      and indexname = 'daily_quiz_attempts_user_quiz_date_idx'
-      and indexdef ilike '%unique index%user_id, quiz_date%where%quiz_date%is not null%'
+    select 1 from pg_index i join pg_class idx on idx.oid = i.indexrelid
+     where i.indrelid = 'public.daily_quiz_attempts'::regclass
+       and idx.relname = 'daily_quiz_attempts_user_quiz_date_idx'
+       and i.indisunique and i.indisvalid and i.indisready
+       and i.indnkeyatts = 2 and i.indnatts = 2
+       and pg_get_indexdef(i.indexrelid, 1, true) = 'user_id'
+       and pg_get_indexdef(i.indexrelid, 2, true) = 'quiz_date'
+       and regexp_replace(lower(pg_get_expr(i.indpred, i.indrelid)), '[[:space:]()]', '', 'g')
+           = 'quiz_dateisnotnull'
   ) then
     raise exception 'err.voteCalendarPreflight: a source unique/supporting index is missing or incompatible';
   end if;
@@ -405,12 +446,19 @@ begin
     select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid
      where t.tgrelid = 'public.daily_login_rewards'::regclass
        and t.tgname = 'daily_login_rewards_no_vote' and t.tgenabled = 'O'
-       and not t.tgisinternal and p.proname = 'daily_login_rewards_no_vote'
+       and t.tgtype = 23 and not t.tgisinternal
+       and regexp_replace(t.tgattr::text, '[[:space:]{}]', '', 'g') = (
+         select a.attnum::text from pg_attribute a
+          where a.attrelid = t.tgrelid and a.attname = 'reward' and not a.attisdropped
+       )
+       and t.tgqual is null
+       and p.proname = 'daily_login_rewards_no_vote'
+       and p.pronamespace = 'public'::regnamespace
   ) or not exists (
     select 1 from pg_attrdef d join pg_attribute a
       on a.attrelid = d.adrelid and a.attnum = d.adnum
      where d.adrelid = 'public.daily_login_rewards'::regclass and a.attname = 'reward'
-       and pg_get_expr(d.adbin, d.adrelid) like '0%'
+       and pg_get_expr(d.adbin, d.adrelid) = '0'
   ) then
     raise exception 'err.voteCalendarPreflight: daily_login_rewards schema/immutability state is not ready';
   end if;
@@ -432,8 +480,11 @@ begin
     raise exception 'err.voteCalendarPreflight: daily_login_rewards RLS/ACL is unsafe';
   end if;
   v_def := lower(pg_get_functiondef('public.daily_login_rewards_no_vote()'::regprocedure));
-  if position(lower('err.dailyLoginRewardImmutable') in v_def) = 0
-     or position('new.reward is distinct from old.reward' in v_def) = 0 then
+  if position('dailyloginrewardimmutable' in v_def) = 0
+     or position('new.reward is distinct from old.reward' in v_def) = 0
+     or position('if tg_op = ''insert'' then' in v_def) = 0
+     or position('new.reward is distinct from 0' in v_def) = 0
+     or position('return new' in v_def) = 0 then
     raise exception 'err.voteCalendarPreflight: immutable check-in guard is unknown';
   end if;
   if not has_function_privilege('authenticated', 'public.claim_daily_login(uuid,date)', 'EXECUTE')
@@ -444,7 +495,9 @@ begin
   if not exists (
     select 1 from pg_constraint c
      where c.conrelid = 'public.activity_days'::regclass and c.contype in ('p','u')
-       and pg_get_constraintdef(c.oid) ilike '%(user_id, day)%'
+       and c.convalidated and not c.condeferrable
+       and regexp_replace(lower(pg_get_constraintdef(c.oid)), '[[:space:]()]', '', 'g')
+           in ('primarykeyuser_id,day', 'uniqueuser_id,day')
   ) then
     raise exception 'err.voteCalendarPreflight: activity_days idempotency constraint is missing';
   end if;
@@ -601,7 +654,7 @@ create table public.daily_vote_quota_config (
 
 create table public.daily_vote_quota_earnings (
   source text not null check (source ~ '^[a-z][a-z0-9_]{0,31}$'),
-  -- No FK: preserve the neutral event and keep account-deletion behavior
+  -- No FK/CASCADE: preserve the neutral event and keep account deletion behavior
   -- unchanged; this immutable quota audit row may outlive its auth profile.
   user_id uuid not null,
   vote_day date not null,
@@ -623,6 +676,17 @@ select key, value, updated_at
   from public.daily_quiz_config
  where key in ('free_vote_grant_enabled','free_votes_per_day',
                'global_daily_vote_cap_enabled','global_daily_vote_cap');
+
+do $snapshot_guard$
+begin
+  if exists (
+    select 1 from _ccl_vote_quiz_source_snapshot
+     where awarded = 1 and length(question_id) = 0
+  ) then
+    raise exception 'err.voteCalendarBackfill: an awarded quiz answer has an empty source key';
+  end if;
+end
+$snapshot_guard$;
 
 -- Keep the snapshot complete, including non-awarded rows; only awarded source
 -- rows become neutral vote-earnings events.
@@ -1171,10 +1235,10 @@ returns jsonb language sql stable security definer set search_path = public as $
                select count(*)::integer as n
                  from (
                    select r.reward_day - (row_number() over (order by r.reward_day))::integer as grp
-                 from public.daily_login_rewards r
-                 cross join d d3
-                where r.user_id = p_uid and r.reward_day <= d3.day
-               ) groups_all
+                     from public.daily_login_rewards r
+                     cross join d d3
+                    where r.user_id = p_uid and r.reward_day <= d3.day
+                 ) groups_all
                 group by groups_all.grp
              ) run_group
            ), 0)::integer as best_streak,

@@ -24,6 +24,8 @@ test('Calendar status accepts only the owner-scoped calendar contract', () => {
 test('Calendar status rejects malformed, stale, future or inconsistent server dates', () => {
   for (const invalid of [
     { day: '2026-02-30' },
+    { server_now: '2026-10-04T16:59:59.000Z' },
+    { server_now: '2026-10-05T17:00:01.000Z' },
     { timezone: 'UTC' },
     { reset_at: '2026-10-05T16:59:59.000Z' },
     { login: { ...status().login, claimed: true } },

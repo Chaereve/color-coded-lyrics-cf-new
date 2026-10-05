@@ -14,7 +14,7 @@ anything.
 | Is the Supabase CLI configured? | **No.** There is no `supabase/config.toml` and no `supabase link`. |
 | How do migrations get applied today? | By hand: paste one file into **Dashboard → SQL Editor → Run**, or `psql -f`. |
 | What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` deliberately stays out of that manual bundle and is applied by the guarded runner only. |
-| Is there a migration history table? | Not in the app schema. `supabase_migrations.schema_migrations` only exists if/when the Supabase CLI is used. |
+| Is there a migration history table? | Not in the app schema/setup bundle. The guarded runner creates `supabase_migrations.schema_migrations` after baseline verification and writes each migration row atomically; a pre-existing Supabase CLI history is also recognized. Migration 20261121 refuses to run without that table and its required source-state rows. |
 
 Supabase CLI behaviour, for the day someone adopts it ([CLI reference](https://supabase.com/docs/reference/cli/supabase-migration-repair)):
 
@@ -67,8 +67,11 @@ backfills only already-awarded answer events into a neutral vote ledger, and
 checks source/copy counts, exact rows, uniqueness, per-user/day totals and the
 actual source-vs-neutral grant result before replacing vote functions. It does
 not seed a quota, edit wallet balances/history or change free/bonus/purchased
-spending order. A new quiz answer records its already-existing +1 bonus award in
-the neutral ledger in the same transaction; replay does not write twice.
+spending order. Baseline readiness requires all four live quota keys but does not
+compare their production values to repo seeds; 20261121 validates and copies the
+actual values and proves equivalence before cutover. A new quiz answer records
+its already-existing +1 bonus award in the neutral ledger in the same
+transaction; replay does not write twice.
 
 The same migration introduces Calendar-only status/claim RPCs. Claim identity
 comes only from `auth.uid()`; `p_expected_day` is a stale-client guard, while
@@ -82,6 +85,13 @@ rolls back neutral objects/data and leaves source functions untouched. The
 runner strips the migration file's outer `BEGIN/COMMIT` because it owns the
 transaction that also writes migration history. A partially present target is
 refused, not overwritten; do not try to clean it up with `DROP/CASCADE`.
+
+`npm run test:migration:pglite` executes this file end to end against PostgreSQL
+compiled to WASM: it proves the strict catalog preflight matches a real server,
+that the live config/ledger equivalence and the cutover commit together, that
+the Calendar RPCs answer under a real `auth.uid()`, and that every abort class
+leaves no neutral object and no history row behind. It is the check to run
+before requesting deploy approval when no disposable Postgres is available.
 
 It is intentionally **not** mirrored into `schema.sql` or setup chunk `17`:
 those files remain a verifiable `20261120` baseline. A fresh install first runs
@@ -315,7 +325,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | Situation | What to do |
 | --- | --- |
 | A migration fails mid-way | Each migration body and its history row run in one transaction; nothing partial is committed. Fix the cause and re-run `db:deploy` only after confirming the original transaction rolled back. |
-| 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables, ledger data, grants/RLS and the Calendar-only API. The retained earning ledger is then an audit snapshot, not a live quota source; future Quiz awards return to the source answer table. Its transaction first requires the recorded 20261121 history row and exact agreement between the live quota config/source awards and their neutral copies; on drift it aborts rather than restoring a stale quota. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
+| 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It requires the recorded cutover state and exact agreement between live quota config, source awards and neutral ledger; on drift it aborts rather than restoring a stale quota. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables/data, grants/RLS and the Calendar-only API. The neutral ledger then remains an audit snapshot; future Quiz awards return to the source answer table. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |
@@ -349,6 +359,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent. No database needed. |
 | `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. |
 | `npm run test:baseline:db` | On a real database: mode A/B/C/D/E behaviour, every failure class, and that a failed readiness check writes no migration history. |
+| `npm run test:migration:pglite` | `supabase/tests/voteCalendarDecoupling.pglite.mjs`: builds the `20261117`+`20261119`+`20261120` source state inside PGlite (PostgreSQL compiled to WASM, bundled as a dev dependency) and runs the real `20261121` migration and rollback files against it — live-config copy, backfill/equivalence, RLS/ACL, spending order, quiz idempotency, the Calendar-only RPCs, the drift-refusing rollback and every abort class. No server, no credentials, no network; opt-in so the default `npm test` stays fast. |
 | `npm test` | Includes `tools/migration-safety.test.mjs` (12 static/deployment-runner tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js`, `supabase/tests/baselineReadiness.test.js`, `supabase/tests/voteCalendarDecoupling.test.js` (real cutover, live quota, RLS, Calendar and rollback checks), and `supabase/tests/schemaChunks.test.js`. PostgreSQL-only tests are reported as skipped unless a disposable test database URL is configured. |
 | `npm run schema:split:check` | The setup chunks still concatenate byte-for-byte to `schema.sql`. |
 | `.github/workflows/db-migration-safety.yml` | On every push/PR touching `supabase/**`, `tools/migrate.mjs` or `scripts/split-schema.mjs`: `npm run db:check`, `npm run schema:split:check`, `npm test`, `npm run lint`. It applies nothing and needs no credentials. |

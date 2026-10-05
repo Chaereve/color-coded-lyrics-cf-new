@@ -52,6 +52,7 @@ export function validateDailyLoginCalendarStatus(status, expectedUserId) {
   if (!exactKeys(status, STATUS_KEYS)) throw new Error('err.dailyResponse')
   if (status.user_id !== expectedUserId) throw new Error('err.dailyAccountChanged')
   if (!isCalendarDay(status.day) || !timestamp(status.server_now) || !timestamp(status.reset_at)
+      || spinDay(Date.parse(status.server_now)) !== status.day
       || status.timezone !== 'Asia/Ho_Chi_Minh' || !exactKeys(status.login, LOGIN_KEYS)) {
     throw new Error('err.dailyResponse')
   }

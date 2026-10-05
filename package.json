@@ -17,6 +17,7 @@
     "question-bank:validate": "node tools/validate-question-bank.mjs",
     "test:migrate": "node --test tools/migration-safety.test.mjs",
     "test:migration:db": "node --test supabase/tests/migrationDeploy.test.js",
+    "test:migration:pglite": "node --test supabase/tests/voteCalendarDecoupling.pglite.mjs",
     "test:baseline:db": "node --test supabase/tests/baselineReadiness.test.js",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:verify": "bash scripts/verify-backup.sh",
@@ -38,6 +39,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",

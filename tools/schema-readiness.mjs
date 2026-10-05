@@ -28,6 +28,15 @@ export const BASELINE_NOTES = {
   20261120: 'core + 20261112…20261117 + 20261119 + 20261120 — the final state, and what a fresh install produces',
 }
 
+// These four rows are authoritative production policy, not schema defaults.
+// Baseline verification requires each key to exist but deliberately does not
+// compare its live value with the repository seed; 20261121 validates the
+// actual JSON types/ranges, snapshots the values and proves quota equivalence.
+export const LIVE_VOTE_QUOTA_CONFIG_KEYS = new Set([
+  'free_vote_grant_enabled', 'free_votes_per_day',
+  'global_daily_vote_cap_enabled', 'global_daily_vote_cap',
+])
+
 export const availableBaselines = () => readdirSync(SNAPSHOT_DIR)
   .filter(name => /^\d{8}\.json$/.test(name)).map(name => name.slice(0, -5)).sort()
 
@@ -197,7 +206,9 @@ export function diffSchema (expected, actual) {
 
   for (const [key, value] of Object.entries(expected.config)) {
     if (!(key in actual.config)) add('missing-config', `daily_quiz_config.${key}`, `expected ${value}`)
-    else if (actual.config[key] !== value) add('incompatible-config', `daily_quiz_config.${key}`, `expected ${value}, found ${actual.config[key]}`)
+    else if (!LIVE_VOTE_QUOTA_CONFIG_KEYS.has(key) && actual.config[key] !== value) {
+      add('incompatible-config', `daily_quiz_config.${key}`, `expected ${value}, found ${actual.config[key]}`)
+    }
   }
 
   // Extras are not failures on their own (a database may be further ahead), but
