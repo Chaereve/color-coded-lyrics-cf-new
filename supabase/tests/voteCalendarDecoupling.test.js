@@ -103,7 +103,7 @@ const migrationFailureLeavesNoCutover = async (pool, client) => {
 }
 
 async function withPreparedSource (fn, options = {}) {
-  return withDatabase(async (pool, client) => {
+  return withDatabase(url, async (pool, client) => {
     await installPost20261120(pool, client, options)
     const { d, y } = await dayOf(pool)
     const userId = await seedUser(pool)
