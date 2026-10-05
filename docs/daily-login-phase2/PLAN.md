@@ -1,24 +1,16 @@
-# Phase 2 implementation plan — chờ review, KHÔNG triển khai
+# Phase 2 implementation plan — PR #29 vote + Calendar decoupling
 
-Ngày lập: 2026-10-05. Source/PR head đã kiểm tra: `99709f05511a8278b2a1645c4048fe101a65a273`.
+Cập nhật: 2026-10-05. PR #28 đã **MERGED**. Owner đã cho phép tạo **Draft PR #29** sau khi cập nhật đúng hai điều kiện bắt buộc ở E1/E2 dưới đây.
 
-**Trạng thái hiện tại: chỉ cập nhật tài liệu local theo đặc tả Daily Ritual owner đã chốt. Không chạy database test/migration, không đổi runtime, không commit/push, tạo implementation PR, merge hoặc deploy.** Không cập nhật PR #28 để tránh kích hoạt Cloudflare preview tự động khi push. Tài liệu này thay thế các **đề xuất policy chưa chốt** ở Phase 1; không sửa lại evidence audit lịch sử.
+**Scope hiện tại của PR #29 chỉ gồm:** vote/quota decoupling; Calendar API/payload decoupling; migration kỹ thuật bắt buộc; test/harness/docs/rollback liên quan. Không gồm Daily Card, Fortune Cookie, Plant, Daily Ritual reward schema, bonus grant mới, thay Daily Login payout/streak, đổi quota/spending order, redirect `/quiz`, xóa quiz/question bank, `DROP`/`CASCADE`, production migration hoặc deploy. Daily Quiz/quiz route hiện có phải tiếp tục hoạt động.
 
-Các mục A–C giữ nguyên evidence của lượt audit trước; lần bổ sung đặc tả này không rerun test/lint hoặc xác minh lại trạng thái GitHub. Các mục D–H đã được cập nhật cho đủ Daily Login, Daily Card Flip, Fortune Cookie và Plant Growth; đây là scope đã chốt, không phải feature mở rộng cần xin thêm scope.
+PR #29 được phép implement và mở dưới dạng **Draft** sau khi hai điều kiện bắt buộc đã được phản ánh trong plan và code. Mọi SQL migration chỉ được tạo/lint/test trên repo hoặc disposable test DB; **không áp dụng production, không merge, không deploy**. Các mục ritual D/E3–E5 còn trong tài liệu là kế hoạch tương lai, không nằm trong PR #29.
 
-## A. Xác nhận PR #28
+Các mục A–C là evidence/audit lịch sử từ lượt trước (không phải kết quả test hiện tại); không sửa lịch sử nhưng trạng thái PR #28 và scope PR #29 được cập nhật bên dưới.
 
-Đã đọc lại GitHub PR API: [PR #28](https://github.com/Chaereve/color-coded-lyrics-cf-new/pull/28) **OPEN, draft**, đúng **7 files added**, **959 additions, 0 deletions**, một commit `99709f0`:
+## A. Trạng thái PR #28 (đã cập nhật)
 
-1. `docs/daily-login-phase1/README.md`
-2. `docs/daily-login-phase1/01-inventory.md`
-3. `docs/daily-login-phase1/02-database.md`
-4. `docs/daily-login-phase1/03-backup-rollback.md`
-5. `docs/daily-login-phase1/04-design-rollout.md`
-6. `docs/daily-login-phase1/05-audit-test-plan.md`
-7. `docs/daily-login-phase1/calendar-preview.html`
-
-**Không có source runtime, migration, RPC, route, config hoặc workflow trong diff.** Tài liệu Phase2 local này chưa nằm trong PR #28. Cloudflare branch preview đã tự chạy ở lượt push Phase1 trước, không phải lệnh deploy mới trong lượt này.
+GitHub PR API đã xác nhận [PR #28](https://github.com/Chaereve/color-coded-lyrics-cf-new/pull/28) **MERGED** vào `main` ngày 2026-10-05. PR đó chỉ chứa docs/mock; không có runtime code, migration, RPC, route, config hoặc workflow. Tài liệu Phase2 này được đưa vào PR #29 theo scope cập nhật ở đầu file. Thông tin “OPEN/draft” trong audit cũ đã lỗi thời.
 
 ## B. Chính xác 13 DB tests bị skip ở lần chạy local Phase1
 
@@ -232,34 +224,39 @@ Không thêm large vote reward ở day100; không tự sáng tạo reward ngoài
 - Audit/map với existing achievement/reward semantic identities trước SQL. Nếu cùng **Plant milestone** đã có grant/unlock qua đường khác, reuse canonical event/receipt, không trả tiền lần nữa qua achievement API. Day100 cosmetic không được kích hoạt secondary achievement vote ngoài ý muốn. Giữ mọi historical badges/title/rewards; không global-disable các achievement khác chỉ vì trùng số7/14/30/60/100.
 - Overlap achievement **login streak** vẫn theo D4; không dùng việc suppress streak votes để suppress nhầm Plant rewards owner đã chốt. Kiểm cả returned metadata/UI để không hứa thêm một payout trùng.
 
-## E. Implementation theo dependency bắt buộc
+## E. PR #29 implementation theo dependency bắt buộc
 
-`vote decoupling → calendar payload decoupling → schema/RPC/RLS → test DB/concurrency → UI integration`
+`vote/quota migration → Calendar API/payload migration → isolated client + Quiz-only UI → safety/test/docs/rollback`
 
-Đây là thứ tự thiết kế/commit và review gate. Những commit schema/RPC có thể được viết trong repo sau duyệt implementation, nhưng **DB chỉ được áp dụng khi owner cho phép test/deploy đúng environment**. Không áp từng intermediate commit lên production.
+Thứ tự trên áp dụng cho **Draft PR #29**. Migration phải là một transaction fail-closed; viết file SQL không có nghĩa là đã áp dụng DB. Không chạy migration production, không merge, không deploy.
 
-### E1. Vote decoupling — giữ nguyên semantics
+### E1. Vote decoupling — hai điều kiện bắt buộc
 
-**Files:** `supabase/migrations/<next>_vote_policy_decoupling.sql` (chỉ sau review), mirrors schema/setup, `src/lib/db.js` contract nếu cần; tests voteHardening/dailyQuiz/dailySpin và tests quota mới. Không sửa Worker gate/fingerprint limits chỉ để bỏ quiz.
+**Migration:** `supabase/migrations/20261121_vote_calendar_decoupling.sql`; test/harness, corrective SQL và docs liên quan. Chưa mirror migration này vào `supabase/schema.sql`/setup chunks: bản fresh-install hiện có là baseline 20261120 đã fingerprint, còn 20261121 bắt buộc chạy qua guarded runner để source/config/data preflight, snapshot, backfill và cutover nằm trong một transaction có history atomicity. Fresh install chạy setup 01–16, verify baseline 20261120, rồi runner áp migration 20261121 sau approval riêng. Không sửa Worker gate/fingerprint limits.
 
-- Read-only inventory live policy trước: free_vote_grant_enabled, free_votes_per_day, global_daily_vote_cap_enabled, global_daily_vote_cap, actual `cast_vote`/`my_vote_status` signatures/grants. Không dùng default repo để quyết định live quota.
-- Đưa quota sang **neutral vote policy** với đúng giá trị/semantics đã xác minh; helper mới không read daily_quiz_* tables/functions/config. Giữ API signatures/return shape/gate/refund behavior để không gây old client lỗi.
-- Thứ tự source hiện tại theo repo: **free quota → bonus credits → purchased credits**; giữ nguyên. Refund đúng `votes.credit_kind`, không hoàn free thành bonus, không charge daily login amount vào free_used/free_limit.
-- Có một trường hợp **blocker cần xử lý rõ**: live `global_daily_vote_cap_enabled=true` thì quota cũ tính theo quiz award count. Không được vừa bỏ dependency vừa âm thầm tăng/giảm quota. Cần compatibility design riêng: neutral per-day legacy award counter + server-only writer duy trì đúng semantics, snapshot/catch-up kiểm chứng trước switch; hoặc owner quyết định policy mới rõ ràng. Không thay bằng login award count và không hardcode0. Nếu chưa xác minh/mapping chưa được review thì **dừng E1 activation**.
-- Stage code mới inactive; giữ quiz tables/writers cho regression, không bật tính năng reward mới. Thử equivalence trước/sau với mọi flag đã có, purchased/bonus balances, vote±/refund, fingerprint/Edge gate và race. Dependency scan cả function body late-bound SQL, không chỉ `pg_depend`.
+1. **Preflight fail-closed trước mọi cutover:** xác minh source tables/functions/signatures/return types, PK/unique indexes/check constraints, RLS/ACL/policies, live config rows/types, required migration history và absence của partial target objects. Bất kỳ missing/mismatch/ambiguous state nào `RAISE EXCEPTION`.
+2. Khoá live `daily_quiz_config` và `daily_quiz_answers`; snapshot/count source trong transaction. Copy chính xác bốn giá trị live (`free_vote_grant_enabled`, `free_votes_per_day`, `global_daily_vote_cap_enabled`, `global_daily_vote_cap`) sang config vote trung tính; không dùng repo seed/default và không tự giả định quota.
+3. Backfill từng answer award `awarded = 1` vào neutral vote-earnings ledger. Đối chiếu source/backfill row count, exact row content, uniqueness, per-user/day totals và phép tính quota trước/sau. Lỗi/đếm lệch/config không hợp lệ/quota không tương đương đều `RAISE EXCEPTION`; rollback toàn DDL, data, config copy và cutover.
+4. Quiz answer RPC tiếp tục hoạt động và chỉ ghi neutral earnings event trong cùng transaction khi một answer mới thật sự được award; replay không tạo event/balance lần hai. New `daily_free_vote_grant()` chỉ đọc neutral vote config/ledger, không tham chiếu `daily_quiz_*`. Không sửa quiz content, quiz limits, balance/history hoặc số tiền đã award.
+5. Chỉ sau mọi kiểm tra thành công mới thay `daily_free_vote_grant()`, `my_vote_status()` và `cast_vote()`. Giữ signatures/return shape, Edge/fingerprint gate, idempotency/refund, balances và chính xác spending order **free → bonus → purchased**. Không đổi free quota thực tế hoặc quy tắc cap.
+6. RLS bật, không có authenticated/anon write policy/direct table grants cho neutral config/ledger; chỉ trusted service role và security-definer RPC dùng được. Rollback/corrective SQL xác minh migration history và exact agreement giữa live source config/awards với neutral copies trước khi khôi phục source functions; có drift thì abort, không làm đổi quota. Nếu rollback thành công, neutral ledger được giữ làm audit snapshot (không còn nhận Quiz awards mới). Không DROP/CASCADE; app-only revert giữ migration/history/data mới.
 
-**Gate E1:** output/side effects vote tương đương baseline hợp lệ; không quota change hoặc ordering change; mọi active voter dependency sau switch không quiz. Không drop helper cũ lúc này.
+**Gate E1:** test chứng minh exact equivalence và rollback-on-any-failure; mọi voter path mới không đọc quiz schema/config, ngoại trừ quiz writer chỉ materialize event trung tính atomically. Không cutover khi preflight không chứng minh đủ state.
 
-### E2. Calendar payload decoupling — chốt contract trước backend mới
+### E2. Calendar API/payload decoupling — contract bắt buộc
 
-**Files:** dedicated login client/validator module + tests, new controller boundary; plan thay `DailyRewards.jsx`, `DailyLoginCalendar.jsx`, `checkInCalendar.js`, `db.js` và App login mount. Chưa wire paid UI hoặc production route trong giai đoạn này.
+**New API:** `my_daily_login_status()` và `claim_daily_login_calendar(p_expected_day date)` (hoặc signature status-equivalent không args nếu implementation chứng minh cần). Calendar month browsing tiếp tục dùng `my_daily_checkin_month(p_month date)` đã có. UI mới tách riêng khỏi `DailyRewards.jsx`; quiz screen/route vẫn chạy bằng endpoint hiện hữu.
 
-- Contract riêng `my_daily_login_status()`, `my_daily_login_month(date)`, claim response. No quiz state, pool, question, progress, cap5 hoặc unavailable-quiz error.
-- Fields: server day/now/timezone, rollout availability/reason/next eligible time, current/claim streak + seed verification, policy projection, base/bonus/total, claimed dates (legacy/new), receipt, balances. Không suy từ month total thành streak. Ritual status riêng/section rõ trả login-gated Card/Cookie availability, stored outcomes khi đã mở, plant total/stage/milestones; Calendar không phụ thuộc catalog Cookie hoặc RNG Card để claim login. Read status không reveal/open/water/grant.
-- Legacy month history read-only, nhãn rõ old check-in ≠ new paid claim. Unknown history không phải missed. Auth guard/cancel stale requests account switch; history-error Retry không khoá claim hiện tại nếu status đáng tin.
-- Define strict validators / contract fixtures trước implementation; retain current mounted page trong code đang chạy cho đến UI integration gate. Calendar status phải load được ngay cả quiz pool thiếu/broken.
+- Không nhận hoặc gửi `user_id` trong **Calendar RPC args**. Server lấy identity **duy nhất từ `auth.uid()`**; response có thể echo `user_id` do server suy ra để client phát hiện account switch, không bao giờ dùng làm authority. Ngày authoritative luôn `(clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date`. `p_expected_day` chỉ là stale-client guard: so sánh với ngày server rồi reject nếu khác; không được dùng để chọn ngày ghi/đọc claim.
+- Calendar payload mới chỉ có calendar status cần thiết (user identity response từ server, server day/time/reset, claimed state/history/streak counters). Không chứa quiz/progress/pool/question/attempt fields, wallet/balance, payout/reward amount hoặc `votes_awarded`.
+- New status/claim endpoints không gọi `my_daily_rewards_status`, `daily_rewards_payload`, `start_daily_quiz` hoặc quiz endpoints. Old quiz/rewards RPC có thể còn để tương thích quiz/old clients nhưng Calendar UI mới không gọi endpoint nhận user ID.
+- Account-switch cancellation/local identity validation vẫn được giữ ở client; identity chỉ để đối chiếu response và **không** được gửi trong RPC args. Missing/broken quiz pool không ảnh hưởng Calendar status/claim.
 
-**Gate E2:** source/import graph mới không quiz; tests assert không gọi `my_daily_rewards_status`, start/submit quiz; browser enforcement ở E5. Đây là payload decoupling, không phải đã thay UI trên production.
+**Gate E2:** static + runtime tests assert exact RPC names/args, stale-day behavior, `auth.uid()` identity, no `p_expected_user_id`, no quiz/wallet/payout fields, and continued Daily Quiz operation.
+
+### E3–E5. Deferred — không thuộc PR #29
+
+Các mục Daily Ritual bên dưới trong tài liệu (Card Flip, Fortune Cookie, Plant, new reward schema/grants, streak payout/carry-over, rollout, `/quiz` redirect, question-bank cleanup) là kế hoạch tương lai riêng. Chúng **không** được implement/schema-migrate/include vào PR #29; chỉ mở lại khi có scope/approval riêng.
 
 ### E3. Schema/RPC/RLS và rollout bridge
 
@@ -356,23 +353,21 @@ Card/Cookie parent-login FK gồm cả user/day, không chỉ UUID để tránh 
 
 **Gate E5:** build/test/lint zero added warning, actual database suite no skip, real browser screenshots/network/a11y evidence. Static mock không thay thế integrated UI pass. Chỉ sau owner review PR + migration/deploy plan mới deploy; xong deployment được xác nhận mới schedule T.
 
-## F. PR và approval checkpoints
+## F. PR #29 and approval checkpoints
 
-1. **Hiện tại:** PR #28 docs/mock bất biến; Phase2 plan local chờ owner. Không push nên không tạo deployment/CI mới.
-2. **Sau review plan + cho phép implementation:** PR1 runtime theo E1→E5, all code/config inactive default; giữ same session branch, không switch/create branch khác. Nếu muốn PR riêng kế tiếp, cần xử lý docs PR lifecycle được owner duyệt trước; không gộp runtime vào #28 mà vẫn gọi “7 docs only”.
-3. **Trước bất kỳ DB test:** owner cho phép ephemeral harness vì test có CREATE/DROP và schema apply. Đây không là production approval.
-4. **Trước staging/production migration/deploy:** owner duyệt exact diff/migration list/rollback, đúng target/environment, backup và secret isolation. Không tự bấm deploy; push cũng cần lưu ý automatic Cloudflare preview.
-5. **Sau migration+deploy xác nhận:** trusted rollout config mới schedule next ICT day; không lịch fixed bây giờ. Owner xác nhận final go-live.
-6. **PR2 UI/routes/tooling retirement:** chỉ sau cả4 gate D6; `/quiz` redirect sau final go-live. Không drop tables/RPCs để làm code dead-check pass.
-7. **PR3 destructive cleanup:** tiếp tục approval riêng sau vận hành ổn định và owner-reviewed restore drill; keep immutable historical migrations/baselines/financial records theo retention được duyệt.
+1. PR #28 docs/mock is **MERGED**; do not edit it.
+2. This implementation is **Draft PR #29 only**: vote/quota decoupling, Calendar API/payload decoupling, required technical migration, tests/harness/docs/corrective SQL. Daily Quiz remains working. Do not include Card/Cookie/Plant, Daily Ritual schema or grants, new bonus credits, changed login payout/streak, changed quota/order, `/quiz` redirect, quiz/question-bank deletion, `DROP`/`CASCADE`, or production migration/deploy.
+3. Static/local tests may run in this workspace. Any real PostgreSQL migration/integration test must use a throwaway disposable DB only; report skipped DB suites honestly. This is not production approval.
+4. Creating Draft PR #29 is authorized after the two conditions in E1/E2 are implemented and tested as far as the available environment permits. Stop after opening Draft PR #29 and report URL, commit/hash, diff stat/files, full migration SQL, corrective SQL, RLS/grants diff, tests run/not run, and confirmation that it is not merged/deployed.
+5. Any staging/production migration, merge, or deploy requires separate explicit approval. No preview/deployment action is initiated by this plan.
 
 ## G. Những điểm chưa có thông tin, không tự suy đoán
 
-- **Scope/rules Daily Login + Daily Card Flip + Fortune Cookie + Plant Growth đã chốt đầy đủ ở D1–D9**, không còn yêu cầu owner cung cấp lại game mechanics. Chi tiết kỹ thuật còn review trong implementation PR: schema/ledger live để reuse, RNG implementation, catalog nội dung curated/recent-window config, immutable snapshot và cosmetic/achievement semantic mapping; không dùng review kỹ thuật làm lý do loại feature khỏi scope.
-- Actual production free quota/global cap semantics/DB version/objects/ACL; source defaults không chứng minh live config. Không tự set free quota0, bật+3 hoặc áp login payout vào cap.
-- Financial audit retention và account deletion behavior của FK mới; không áp ON DELETE RESTRICT mà vô tình chặn xoá account, cũng không CASCADE mất audit chưa được duyệt.
-- Approval chạy DB test trên cluster disposable, rồi staging/production từng bước. Lượt này chưa xin/nhận quyền qua suy diễn từ câu “đã chốt quyết định”.
+- Daily Ritual rules in D1–D9 are **future scope only** and explicitly excluded from PR #29; they do not authorize Card/Cookie/Plant schema, grants, or UI in this PR.
+- Actual production free quota/global-cap values are not known from repo seeds. Migration must copy/validate live values and fail closed on missing/invalid config; it must not infer a quota or substitute defaults. No quota/order change is allowed.
+- PR #29 does not add payout/streak semantics. Existing Calendar history stays read-only; no historical reward/balance rewrite.
+- Local database tooling availability is not assumed. Report any PostgreSQL-only suites that cannot run; never redirect DB tests to staging/production.
 
-## H. Exit condition của lượt lập kế hoạch
+## H. PR #29 completion condition
 
-Chỉ cập nhật/giao tài liệu này; giữ nguyên các evidence PR #28/test/lint của lượt trước, không tuyên bố đã chạy lại audit trong lần bổ sung spec. Không source changes, không migrations executed, không rerun workflow, không PR merge, không deploy. Những giả định Phase1 như “streak mới luôn bắt đầu1” hoặc “automatic free quota=0” **không còn là implementation policy**; thực hiện theo carry-over kiểm chứng và quota-preservation mà owner đã chốt.
+Update the plan and implement only the PR #29 allowlist above. Create a **Draft** PR after the no-user-id Calendar contract and fully transactional fail-closed vote migration are in code. Report all requested migration/corrective SQL, RLS/grants, files, test execution/skips and PR metadata. Stop before merge, production migration, or deploy. Historical audit figures in A–C remain historical, not current test claims.

@@ -10,10 +10,9 @@ test('comments transport preserves parent on all failures and reports denied del
     root: fileURLToPath(new URL('../../', import.meta.url)), configFile: false,
     mode: 'test', logLevel: 'error', envPrefix: 'CCL_COMMENTS_DB_TEST_',
     cacheDir: 'node_modules/.vite-comments-db-test',
-    plugins: [{ name: 'test-supabase-transport', transform(code, id) {
-      if (!id.endsWith('/src/lib/db.js')) return
-      return code.replace('export const hasSupabase = Boolean(URL && KEY && URL.startsWith(\'http\'))', 'export const hasSupabase = true')
-        .replace('export const supabase = hasSupabase ? createClient(URL, KEY) : null', 'export const supabase = globalThis.__commentsTestTransport')
+    plugins: [{ name: 'test-supabase-transport', transform(_code, id) {
+      if (!id.endsWith('/src/lib/supabaseClient.js')) return
+      return 'export const hasSupabase = true\nexport const supabase = globalThis.__commentsTestTransport'
     } }],
     server: { middlewareMode: true, hmr: false, watch: null },
   })

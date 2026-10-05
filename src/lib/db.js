@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { hasSupabase, supabase } from './supabaseClient.js'
+export { hasSupabase, supabase } from './supabaseClient.js'
 import { parseYoutube } from './youtube'
 import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
@@ -12,7 +13,7 @@ import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
-import { validateDailyRewardsStatus, validateQuizAnswer, validateCheckInMonth } from './dailyRewards.js'
+import { validateDailyRewardsStatus, validateQuizAnswer } from './dailyRewards.js'
 
 /* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
    đều ra đúng triệu chứng "vào web không thấy dữ liệu, F5 thì được":
@@ -27,11 +28,6 @@ function readQuery(build) {
     .catch((error) => ({ data: null, error }))
 }
 
-const URL = import.meta.env.VITE_SUPABASE_URL
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-export const hasSupabase = Boolean(URL && KEY && URL.startsWith('http'))
-export const supabase = hasSupabase ? createClient(URL, KEY) : null
 /* Đăng ký client cho funnel (lib/funnel.js không import db.js — xem chú thích
    ở đó). Demo mode: supabase = null thì funnel tự thành no-op. */
 _useFunnelClient(supabase)
@@ -717,28 +713,12 @@ export async function fetchDailyRewardsStatus(userId) {
   return validateDailyRewardsStatus(data, userId)
 }
 
-export async function claimDailyLogin(userId, expectedDay) {
-  const data = hasSupabase ? await dailyRewardsRpc('claim_daily_login', {
-    p_expected_user_id: userId, p_expected_day: expectedDay,
-  }) : await demoRewardsRpc('claim', userId, { expectedDay })
-  validateDailyRewardsStatus(data?.status, userId)
-  return data
-}
-
 export async function startDailyQuiz(userId, expectedDay) {
   const data = hasSupabase ? await dailyRewardsRpc('start_daily_quiz', {
     p_expected_user_id: userId, p_expected_day: expectedDay,
   }) : await demoRewardsRpc('start', userId, { expectedDay })
   validateDailyRewardsStatus(data?.status, userId)
   return data
-}
-
-/* Read-only calendar browsing. Older databases without the upgraded RPC report
-   a setup error, and the calendar then simply shows history as unavailable. */
-export async function fetchCheckInMonth(userId, month) {
-  const data = hasSupabase ? await dailyRewardsRpc('my_daily_checkin_month', { p_month: `${month}-01` })
-    : await demoRewardsRpc('month', userId, { month })
-  return validateCheckInMonth(data, userId)
 }
 
 /* One answer at a time. The client sends the assigned question id and the

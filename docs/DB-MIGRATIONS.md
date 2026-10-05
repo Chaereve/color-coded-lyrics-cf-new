@@ -13,7 +13,7 @@ anything.
 | Is there a migration runner in CI? | **No.** `.github/workflows/` contains only `backup-db.yml` (scheduled backup). No workflow applies SQL. |
 | Is the Supabase CLI configured? | **No.** There is no `supabase/config.toml` and no `supabase link`. |
 | How do migrations get applied today? | By hand: paste one file into **Dashboard → SQL Editor → Run**, or `psql -f`. |
-| What is `supabase/schema.sql`? | The assembled current state (base schema + every migration in order). It is cut verbatim into `supabase/setup/NN-*.sql`, which is the fresh-install path. |
+| What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` deliberately stays out of that manual bundle and is applied by the guarded runner only. |
 | Is there a migration history table? | Not in the app schema. `supabase_migrations.schema_migrations` only exists if/when the Supabase CLI is used. |
 
 Supabase CLI behaviour, for the day someone adopts it ([CLI reference](https://supabase.com/docs/reference/cli/supabase-migration-repair)):
@@ -59,6 +59,37 @@ replaced by:
   change after `INSERT` (`2 → 0`, `2 → 5`, `0 → 2` all raise
   `err.dailyLoginRewardImmutable`).
 
+### 20261121 — vote quota + Calendar decoupling (Draft PR #29)
+
+`20261121_vote_calendar_decoupling.sql` is a new, data-dependent cutover. It
+copies the four **live** quota rows, snapshots the existing quiz-answer ledger,
+backfills only already-awarded answer events into a neutral vote ledger, and
+checks source/copy counts, exact rows, uniqueness, per-user/day totals and the
+actual source-vs-neutral grant result before replacing vote functions. It does
+not seed a quota, edit wallet balances/history or change free/bonus/purchased
+spending order. A new quiz answer records its already-existing +1 bonus award in
+the neutral ledger in the same transaction; replay does not write twice.
+
+The same migration introduces Calendar-only status/claim RPCs. Claim identity
+comes only from `auth.uid()`; `p_expected_day` is a stale-client guard, while
+the server day comes from its Vietnam-local clock. Calendar responses omit quiz,
+wallet and vote-award fields. Existing Quiz RPCs remain available.
+
+The migration validates required source objects, signatures, RLS/ACL, indexes,
+constraints, live config and migration state; locks source tables; and keeps
+snapshot, backfill, assertions, cutover and commit together. Any exception
+rolls back neutral objects/data and leaves source functions untouched. The
+runner strips the migration file's outer `BEGIN/COMMIT` because it owns the
+transaction that also writes migration history. A partially present target is
+refused, not overwritten; do not try to clean it up with `DROP/CASCADE`.
+
+It is intentionally **not** mirrored into `schema.sql` or setup chunk `17`:
+those files remain a verifiable `20261120` baseline. A fresh install first runs
+setup `01`–`16`, verifies baseline `20261120`, and (only after separate deploy
+approval) uses `npm run db:deploy -- --baseline 20261120` to apply this guarded
+migration. Do not paste the cutover into an untracked SQL Editor session or run
+it against production as part of this PR.
+
 ---
 
 ## 3. The strategy chosen: quarantine (20261118 never runs) + guarded runner + clean fresh-install path
@@ -77,9 +108,10 @@ replaced by:
    skips quarantined versions, skips versions already recorded in history,
    refuses to guess a baseline for a populated database, and **fails closed** if
    any migration in the default path rewrites check-in history.
-3. **Clean fresh-install path (Option C).** The superseded 20261118 block is removed from
-   `supabase/schema.sql`, so the regenerated setup chunks are `01 … 16`, with no
-   superseded destructive chunk in the recommended list.
+3. **Clean fresh-install path (Option C).** The superseded 20261118 block is absent from
+   `supabase/schema.sql`; setup chunks `01`–`16` land exactly at baseline 20261120.
+   The data-dependent 20261121 cutover is a separate guarded-runner step, not a
+   manually pasted setup chunk.
 4. **Baseline hardening.** Recording a baseline says "this database already
    contains everything up to migration X". Because this project applied SQL by
    hand, that claim is easy to get wrong and impossible to notice later — so the
@@ -123,7 +155,7 @@ SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117     
 
 `db:deploy` re-runs the readiness check inside the same invocation; it is not a
 separate step you can forget. Only when it passes does the runner write the
-baseline rows and apply `20261119` + `20261120`:
+baseline rows and apply `20261119` + `20261120` + `20261121`:
 
 ```
 READY  baseline 20261117
@@ -132,6 +164,7 @@ skip 34 migration(s) at or below --baseline 20261117
 recorded 34 migration(s) at or below --baseline 20261117 as applied
 apply 20261119  20261119_preserve_legacy_daily_login_rewards.sql
 apply 20261120  20261120_daily_login_reward_immutable.sql
+apply 20261121  20261121_vote_calendar_decoupling.sql
 ```
 
 Running the same command again prints `up to date — nothing to apply`.
@@ -149,10 +182,13 @@ SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261111
 ```
 
 That applies `20261112 → 20261113 → 20261114 → 20261115 → 20261116 → 20261117 →
-20261119 → 20261120` as real SQL. `20261118` is quarantined, so it is skipped
-without anyone having to remember; historical `reward = 2` rows written after
-20261112 are preserved. Finish with
-`npm run db:verify-baseline -- --baseline 20261120` (must print `READY`).
+20261119 → 20261120 → 20261121` as real SQL. `20261118` is quarantined, so it is
+skipped without anyone having to remember; historical `reward = 2` rows written
+after 20261112 are preserved. The 20261121 source/config/data preflight must pass
+before any vote function is replaced. Finish with
+`npm run db:verify-baseline -- --baseline 20261120` (must print `READY`); that
+committed fingerprint covers the source baseline, while the migration history
+row confirms the post-baseline cutover was applied.
 
 If the database is somewhere in between (some of 20261112–20261117 applied), it
 is **mode E**, not mode B — the `ahead-of-baseline` check refuses
@@ -169,17 +205,19 @@ Then verify the result instead of trusting it:
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261120   # must print READY
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records history, applies nothing
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records the verified baseline, then applies 20261121
 ```
 
-The second command only seeds the migration history — no SQL is applied — and
-neither path reaches the quarantined migration.
+The runner records the verified pre-cutover history and applies the guarded
+20261121 SQL in the same migration transaction as its history row. If any live
+source/config/data check fails, it rolls back and records nothing for that
+migration. This path still never reaches the quarantined 20261118 migration.
 
 ### D. Database where 20261118 already ran
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261118   # the incident state
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120 + 20261121
 ```
 
 The report also tells you when a database you assumed was clean is not:
@@ -223,7 +261,7 @@ Recovery options, in order of preference:
 | 1 | `npm run backup:db` | backup file exists |
 | 2 | `npm run db:verify-baseline` (no `--baseline`) | identifies the mode |
 | 3 | `npm run db:verify-baseline -- --baseline <mode's version>` | prints `READY` |
-| 4 | `npm run db:deploy -- --baseline <mode's version>` | prints the two applied migrations |
+| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then fail-closed `20261121` |
 | 5 | queries in section 6 | histogram unchanged, 0 reward CHECKs, 1 trigger |
 | 6 | deploy the frontend in the same release | — |
 
@@ -276,7 +314,8 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 
 | Situation | What to do |
 | --- | --- |
-| A migration fails mid-way | Each migration runs in one transaction with its history row; nothing partial is committed. Fix the cause and re-run `db:deploy`. |
+| A migration fails mid-way | Each migration body and its history row run in one transaction; nothing partial is committed. Fix the cause and re-run `db:deploy` only after confirming the original transaction rolled back. |
+| 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables, ledger data, grants/RLS and the Calendar-only API. The retained earning ledger is then an audit snapshot, not a live quota source; future Quiz awards return to the source answer table. Its transaction first requires the recorded 20261121 history row and exact agreement between the live quota config/source awards and their neutral copies; on drift it aborts rather than restoring a stale quota. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |
@@ -287,17 +326,19 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 
 ## 8. Adding a migration
 
-- New file: `supabase/migrations/<YYYYMMDD>_<snake_case_name>.sql`, one
-  transaction (`begin;` … `commit;`), rerunnable.
+- New file: `supabase/migrations/<YYYYMMDD>_<snake_case_name>.sql`. Transactional migrations may have an explicit outer `begin;` … `commit;`; the guarded runner removes that pair so migration SQL and its history row commit together. A data-dependent fail-closed cutover may deliberately reject reruns/partial target state rather than use `IF NOT EXISTS`.
 - Never modify a file that may already have been applied anywhere.
 - Never rewrite check-in history: no `update daily_login_rewards set reward = …`,
   no `delete from daily_login_rewards`, no table-wide `CHECK (reward = 0)`.
   `npm run db:check` fails the build if one appears.
-- Mirror the file into `supabase/schema.sql`, then `npm run schema:split` and
-  `npm run schema:split:check`.
-- Regenerate the affected baseline fingerprints (`npm run db:baseline:snapshot`)
-  if the migration changes an object any of them covers, and commit the result:
-  `npm run test:baseline:db` fails while a fingerprint is stale.
+- Mirror ordinary static schema changes into `supabase/schema.sql`, then run
+  `npm run schema:split` and `npm run schema:split:check`. Do **not** mirror a
+  data-dependent cutover into the manual fresh-install bundle unless its
+  baseline/history path has been reviewed; 20261121 is the explicit guarded-
+  runner exception described above.
+- Regenerate affected baseline fingerprints only from a known-good PostgreSQL
+  database (`npm run db:baseline:snapshot`) and commit the reviewed result.
+  Never hand-author a snapshot to make a deploy pass.
 
 ---
 
@@ -308,7 +349,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent. No database needed. |
 | `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. |
 | `npm run test:baseline:db` | On a real database: mode A/B/C/D/E behaviour, every failure class, and that a failed readiness check writes no migration history. |
-| `npm test` | Includes `tools/migration-safety.test.mjs` (9 static deployment-safety tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js` (deployment scenarios on a real database), `supabase/tests/baselineReadiness.test.js` (18 baseline-safety tests) and `supabase/tests/schemaChunks.test.js` (fresh install). |
+| `npm test` | Includes `tools/migration-safety.test.mjs` (12 static/deployment-runner tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js`, `supabase/tests/baselineReadiness.test.js`, `supabase/tests/voteCalendarDecoupling.test.js` (real cutover, live quota, RLS, Calendar and rollback checks), and `supabase/tests/schemaChunks.test.js`. PostgreSQL-only tests are reported as skipped unless a disposable test database URL is configured. |
 | `npm run schema:split:check` | The setup chunks still concatenate byte-for-byte to `schema.sql`. |
 | `.github/workflows/db-migration-safety.yml` | On every push/PR touching `supabase/**`, `tools/migrate.mjs` or `scripts/split-schema.mjs`: `npm run db:check`, `npm run schema:split:check`, `npm test`, `npm run lint`. It applies nothing and needs no credentials. |
 

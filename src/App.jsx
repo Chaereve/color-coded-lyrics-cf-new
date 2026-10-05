@@ -33,6 +33,7 @@ import Progress from './components/Progress'
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
+const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const DailyRewards = lazy(() => import('./components/DailyRewards'))
 import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
@@ -2394,7 +2395,7 @@ function AppInner() {
         {section === 'login' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <DailyRewards key={`login-${user.id}`} kind="login" userId={user.id} onBalance={applySpinBalance} />
+              <DailyLogin key={`login-${user.id}`} userId={user.id} />
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needDailyLogin')} onSignIn={() => setAuthPrompt(true)} />
@@ -2404,7 +2405,7 @@ function AppInner() {
         {section === 'quiz' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <DailyRewards key={`quiz-${user.id}`} kind="quiz" userId={user.id} onBalance={applySpinBalance} />
+              <DailyRewards key={`quiz-${user.id}`} userId={user.id} onBalance={applySpinBalance} />
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needQuiz')} onSignIn={() => setAuthPrompt(true)} />

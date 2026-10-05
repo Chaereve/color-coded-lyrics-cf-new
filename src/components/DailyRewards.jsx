@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
-import DailyLoginCalendar from './DailyLoginCalendar'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { hasSupabase, fetchDailyRewardsStatus, claimDailyLogin, startDailyQuiz,
-  submitDailyQuizAnswer, fetchCheckInMonth } from '../lib/db'
+import { hasSupabase, fetchDailyRewardsStatus, startDailyQuiz, submitDailyQuizAnswer } from '../lib/db'
 import {
   DAILY_QUIZ_QUESTIONS, QUIZ_CORRECT_REWARD, MAX_DAILY_QUIZ_VOTES,
   DAILY_REWARDS_SYNC_KEY, readQuizDraft, saveQuizDraft, announceDailyRewardsChange,
@@ -13,11 +11,10 @@ import { SPIN_SYNC_KEY, announceSpinChange } from '../lib/spinDevice.js'
 import { spinCountdown } from '../lib/dailySpin.js'
 import './DailyRewards.css'
 
-/* Two independent screens share the same ledger/controller. App never
-   renders them together, and the wheel remains on its own route. */
-export default function DailyRewards({ kind, userId, onBalance }) {
+/* Quiz-only controller. The Calendar has its own API and component so it never
+   imports or calls this combined legacy quiz/rewards endpoint. */
+export default function DailyRewards({ userId, onBalance }) {
   const { t } = useI18n()
-  const isQuiz = kind === 'quiz'
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [action, setAction] = useState(null)
@@ -36,9 +33,6 @@ export default function DailyRewards({ kind, userId, onBalance }) {
   const dayRef = useRef(null)
   const questionRef = useRef(null)
   const formRef = useRef(null)
-
-  // Read-only calendar browsing; an old server simply reports no history.
-  const loadMonth = useCallback(month => fetchCheckInMonth(userId, month), [userId])
 
   const applyStatus = useCallback(next => {
     if (next?.user_id !== userId) throw new Error('err.dailyAccountChanged')
@@ -101,23 +95,21 @@ export default function DailyRewards({ kind, userId, onBalance }) {
   }, [deadline, load])
 
   const run = async actionKind => {
-    if (busy.current || !status || (isQuiz ? actionKind === 'claim' : actionKind !== 'claim')) return
+    if (busy.current || !status || actionKind === 'claim') return
     busy.current = true
     ++readVersion.current // a read that began before this mutation cannot undo it
     setAction(actionKind); setError(''); setNotice(''); setLoading(false)
     let refreshDay = false
     try {
-      const data = actionKind === 'claim' ? await claimDailyLogin(userId, status.day)
-        : actionKind === 'start' ? await startDailyQuiz(userId, status.day)
-          : await submitDailyQuizAnswer(userId, status.quiz.attempt_id,
-              status.quiz.questions[step].id, answers[status.quiz.questions[step].id])
+      const data = actionKind === 'start' ? await startDailyQuiz(userId, status.day)
+        : await submitDailyQuizAnswer(userId, status.quiz.attempt_id,
+            status.quiz.questions[step].id, answers[status.quiz.questions[step].id])
       announceDailyRewardsChange()
       announceSpinChange()
       // A committed result still updates the wallet after leaving this page;
       // the parent also verifies user_id, so account changes cannot leak it.
       if (!mounted.current) { onBalance(data.status); return }
       applyStatus(data.status)
-      if (actionKind === 'claim') setNotice(t(data.replayed ? 'daily.alreadyClaimed' : 'daily.claimSuccess'))
       if (actionKind === 'answer') {
         // The server decides: the toast reports what was actually awarded.
         setNotice(t(data.replayed ? 'daily.answerLocked'
@@ -142,7 +134,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
   const quiz = status?.quiz
   const questions = quiz?.questions || []
   const question = questions[step]
-  const liveQuestion = isQuiz && question && !question.answered && !quiz.locked
+  const liveQuestion = question && !question.answered && !quiz.locked
   // Options are shown in a shuffled order but always submitted by stable id.
   const options = useMemo(
     () => (question ? orderedOptions(question, attemptId) : []),
@@ -166,7 +158,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
 
   // Keyboard play: 1–4 picks an option, arrows move, Enter submits the answer.
   useEffect(() => {
-    if (!isQuiz || !liveQuestion || !status || !!action) return
+    if (!liveQuestion || !status || !!action) return
     const onKey = event => {
       if (event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target
@@ -182,7 +174,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [isQuiz, liveQuestion, action, status, step, options, selected, choose, move])
+  }, [liveQuestion, action, status, step, options, selected, choose, move])
 
   const categoryLabel = category => {
     const label = t(`daily.cat.${category}`)
@@ -191,16 +183,16 @@ export default function DailyRewards({ kind, userId, onBalance }) {
   const answeredCount = quiz?.answered_count ?? questions.filter(q => q.answered).length
   const votesToday = quiz?.votes_awarded ?? 0
   const disabled = loading || !!action || !status
-  const titleId = `daily-${kind}-title`
-  const unavailable = isQuiz && quiz?.state === 'unavailable'
-  const retired = isQuiz && quiz?.state === 'retired'
+  const titleId = 'daily-quiz-title'
+  const unavailable = quiz?.state === 'unavailable'
+  const retired = quiz?.state === 'retired'
 
   return (
-    <section className={`daily-rewards ${isQuiz ? 'music-quiz-page' : 'daily-login-page'}`} aria-labelledby={titleId} aria-busy={loading || !!action}>
+    <section className="daily-rewards music-quiz-page" aria-labelledby={titleId} aria-busy={loading || !!action}>
       <header className="daily-rewards-head">
         <div>
-          <h2 id={titleId}>{t(isQuiz ? 'daily.quizHeading' : 'daily.loginHeading')}</h2>
-          <p>{isQuiz ? t('daily.quizSubtitle', { n: MAX_DAILY_QUIZ_VOTES }) : t('daily.loginSubtitle')}</p>
+          <h2 id={titleId}>{t('daily.quizHeading')}</h2>
+          <p>{t('daily.quizSubtitle', { n: MAX_DAILY_QUIZ_VOTES })}</p>
         </div>
         <div className="daily-rewards-reset" title={t('daily.resetRule')}>
           <span>{t('daily.nextReset')}</span>
@@ -213,20 +205,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
         <button type="button" className="btn btn-sm" disabled={!!action} onClick={load}>{t('daily.refresh')}</button>
       </div>}
       <div className="daily-missions">
-        {!isQuiz && <article className={`daily-mission${status?.login.claimed ? ' is-complete' : ''}`}>
-          <div className="daily-mission-heading">
-            <span className="daily-mission-icon"><Icon name="calendar" size={21} /></span>
-            <h3>{t('daily.loginTitle')}</h3>
-          </div>
-          <p>{t(status?.login.claimed ? 'daily.loginDone' : 'daily.loginDesc')}</p>
-          {status && <DailyLoginCalendar status={status} disabled={disabled} onClaim={() => run('claim')} loadMonth={loadMonth} />}
-          <button type="button" className={`btn${status?.login.claimed ? ' btn-ok' : ' btn-primary'} daily-claim`}
-            disabled={disabled || status?.login.claimed} onClick={() => run('claim')}>
-            {status?.login.claimed && <Icon name="check" size={15} />}
-            {t(action === 'claim' ? 'daily.claiming' : status?.login.claimed ? 'daily.claimed' : 'daily.claim')}
-          </button>
-        </article>}
-        {isQuiz && <article className={`daily-mission${quiz?.locked ? ' is-complete' : ''}`}>
+        <article className={`daily-mission${quiz?.locked ? ' is-complete' : ''}`}>
           <div className="daily-mission-heading">
             <span className="daily-mission-icon"><Icon name="quiz" size={21} /></span>
             <h3>{t('daily.quizTitle')}</h3>
@@ -262,11 +241,11 @@ export default function DailyRewards({ kind, userId, onBalance }) {
               ? t('daily.score', { score: votesToday, total: DAILY_QUIZ_QUESTIONS, n: votesToday })
               : t('daily.inProgress', { n: answeredCount, total: DAILY_QUIZ_QUESTIONS })}
           </span>}
-        </article>}
+        </article>
       </div>
       {loading && <p className="daily-loading" role="status">{t('daily.loading')}</p>}
       <p className="daily-notice" role="status" aria-live="polite">{notice}</p>
-      {isQuiz && question && !quiz.locked && <form className="daily-quiz" ref={formRef} onSubmit={e => {
+      {question && !quiz.locked && <form className="daily-quiz" ref={formRef} onSubmit={e => {
         e.preventDefault()
         if (!disabled && selected && !question.answered) run('answer')
       }}>
@@ -314,7 +293,7 @@ export default function DailyRewards({ kind, userId, onBalance }) {
         </div>
         <p className="daily-quiz-hint">{question.answered ? t('daily.answerLocked') : t('daily.pickOne')}</p>
       </form>}
-      {isQuiz && quiz?.locked && <div className="daily-quiz-review">
+      {quiz?.locked && <div className="daily-quiz-review">
         <div className="daily-quiz-result" data-score={votesToday}>
           <b>{votesToday}/{DAILY_QUIZ_QUESTIONS}</b>
           <strong>{t(votesToday === DAILY_QUIZ_QUESTIONS ? 'daily.perfect' : votesToday > 0 ? 'daily.great' : 'daily.tryAgain')}</strong>
@@ -333,10 +312,8 @@ export default function DailyRewards({ kind, userId, onBalance }) {
         <p className="daily-quiz-next">{t('daily.nextQuizIn', { time: deadline === null ? '--:--:--' : spinCountdown(deadline - clock) })}</p>
       </div>}
       <footer className="daily-rewards-foot">
-        <span>{!status ? t('daily.resetRule')
-          : isQuiz ? t('daily.quizEarned', { n: votesToday })
-            : t(status.login.claimed ? 'daily.checkedInToday' : 'daily.notCheckedIn')}</span>
-        <span>{t(isQuiz ? 'daily.bonusRule' : 'daily.loginNoVotes')}</span>
+        <span>{!status ? t('daily.resetRule') : t('daily.quizEarned', { n: votesToday })}</span>
+        <span>{t('daily.bonusRule')}</span>
       </footer>
     </section>
   )
