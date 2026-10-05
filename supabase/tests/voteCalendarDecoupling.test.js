@@ -66,6 +66,14 @@ async function seedQuizAttempt (pool, userId, day, { emptyQuestionKey = false } 
   return attemptId
 }
 
+async function seedLegacyQuizAttempt (pool, userId, day) {
+  await pool.query(`
+    insert into public.daily_quiz_attempts
+      (id, user_id, quiz_day, questions, question_count, max_votes, votes_awarded)
+    values ($1, $2, $3, $4::jsonb, 3, 5, 0)`,
+  [randomUUID(), userId, day, JSON.stringify([{ id: 'legacy-1' }, { id: 'legacy-2' }, { id: 'legacy-3' }])])
+}
+
 async function setLiveQuota (pool) {
   const values = [
     ['free_vote_grant_enabled', true],
@@ -100,6 +108,7 @@ async function withPreparedSource (fn, options = {}) {
     const { d, y } = await dayOf(pool)
     const userId = await seedUser(pool)
     const attemptId = await seedQuizAttempt(pool, userId, d, options)
+    await seedLegacyQuizAttempt(pool, userId, y)
     await setLiveQuota(pool)
     await fn(pool, client, { day: d, previousDay: y, userId, attemptId })
   })

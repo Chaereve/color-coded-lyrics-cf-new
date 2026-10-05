@@ -150,7 +150,9 @@ begin
     'public.daily_quiz_config|updated_at|timestamp with time zone|true',
     'public.daily_quiz_attempts|id|uuid|true',
     'public.daily_quiz_attempts|user_id|uuid|true',
-    'public.daily_quiz_attempts|quiz_date|date|true',
+    'public.daily_quiz_attempts|quiz_day|date|true',
+    -- quiz_date is intentionally nullable for legacy 3-question attempts.
+    'public.daily_quiz_attempts|quiz_date|date|false',
     'public.daily_quiz_attempts|questions|jsonb|true',
     'public.daily_quiz_attempts|question_count|integer|true',
     'public.daily_quiz_attempts|max_votes|integer|true',
@@ -181,6 +183,17 @@ begin
       raise exception 'err.voteCalendarPreflight: missing/incompatible source column (%)', v_name;
     end if;
   end loop;
+
+  -- quiz_date is nullable by design on legacy three-question attempts. New
+  -- five-question attempts must have matching day/date values before their
+  -- answer writer is replaced; otherwise the source state is not understood.
+  if exists (
+    select 1 from public.daily_quiz_attempts
+     where question_count = 5
+       and (quiz_date is null or quiz_day is distinct from quiz_date)
+  ) then
+    raise exception 'err.voteCalendarPreflight: 5-question attempt dates are incomplete or inconsistent';
+  end if;
 
   if not exists (
     select 1 from pg_attribute a
