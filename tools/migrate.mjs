@@ -238,12 +238,33 @@ export async function recordBaseline (client, { active, baseline }) {
   return rows
 }
 
+/** Migration files keep BEGIN/COMMIT so they are atomic when executed as a
+ *  standalone SQL script (for example by the disposable DB harness). The runner
+ *  already owns the transaction that also records migration history, so remove
+ *  exactly one outer pair before sending the body; a nested COMMIT would
+ *  otherwise make history failure leave an unrecorded partial deployment. */
+export function stripExplicitTransaction (sql) {
+  const lines = sql.split('\n')
+  const begins = []
+  const commits = []
+  lines.forEach((line, index) => {
+    const statement = line.trim().toLowerCase()
+    if (statement === 'begin;') begins.push(index)
+    if (statement === 'commit;') commits.push(index)
+  })
+  if (!begins.length && !commits.length) return sql
+  if (begins.length !== 1 || commits.length !== 1 || begins[0] >= commits[0]) {
+    throw new Error('migration must have at most one balanced outer BEGIN/COMMIT pair')
+  }
+  return lines.filter((_, index) => index !== begins[0] && index !== commits[0]).join('\n')
+}
+
 export async function applyMigration (client, migration) {
   const { id, name, sql } = migration
   await client.query('begin')
   try {
     await client.query(`select pg_advisory_xact_lock(('x' || md5($1))::bit(64)::bigint)`, [LOCK_KEY])
-    await client.query(sql)
+    await client.query(stripExplicitTransaction(sql))
     // version = file name without extension: unique even when two migrations
     // share a day, and it is what `plan` compares against the file list.
     await client.query(`insert into ${HISTORY_TABLE} (version, statements, name) values ($1, $2, $3)`,

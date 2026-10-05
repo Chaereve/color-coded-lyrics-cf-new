@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
   collectMigrations, assertMigrationSafety, planPending, findDestructive, readQuarantine,
+  stripExplicitTransaction, applyMigration, stripSqlNoise,
 } from './migrate.mjs'
 
 const REWRITE = 'update public.daily_login_rewards set reward = 0 where reward <> 0;'
@@ -107,7 +108,8 @@ test('the default plan never schedules a quarantined migration', () => {
   // A: production that has never run 20261112–20261120 — baseline declared.
   const fresh = planPending({ active, quarantined, applied: [], baseline: '20261117' })
   assert.deepEqual(fresh.pending.map(({ id }) => id),
-    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+      '20261121_vote_calendar_decoupling'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -116,7 +118,8 @@ test('the default plan never schedules a quarantined migration', () => {
   const upTo = active.filter(({ version }) => version <= '20261117').map(({ id }) => id)
   const after = planPending({ active, quarantined, applied: [...upTo, '20261118_daily_login_no_votes'] })
   assert.deepEqual(after.pending.map(({ id }) => id),
-    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+      '20261121_vote_calendar_decoupling'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -127,11 +130,64 @@ test('the default plan never schedules a quarantined migration', () => {
     applied: active.filter(({ version }) => version <= '20261117').map(({ id }) => id)
       .concat(['20261119_preserve_legacy_daily_login_rewards']),
   })
-  assert.deepEqual(partial.pending.map(({ id }) => id), ['20261120_daily_login_reward_immutable'])
+  assert.deepEqual(partial.pending.map(({ id }) => id),
+    ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
   assert.deepEqual(done.pending, [])
+})
+
+test('the vote/Calendar migration is fail-closed, transactional, and keeps Calendar identity server-side', () => {
+  const sql = readFileSync(join(MIGRATIONS_DIR, '20261121_vote_calendar_decoupling.sql'), 'utf8')
+  assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m)
+  assert.doesNotMatch(sql, /\bdrop\b|\bcascade\b/i)
+  assert.match(sql, /lock table public\.profiles,[\s\S]*in share mode;/i)
+  assert.match(sql, /create temporary table _ccl_vote_quiz_source_snapshot as/i)
+  assert.match(sql, /raise exception 'err\.voteCalendarBackfill/)
+  assert.match(sql, /raise exception 'err\.voteCalendarQuota/)
+  assert.match(sql, /except all/)
+  assert.match(sql, /count\(distinct \(user_id, quiz_date, question_id\)\)/)
+  assert.match(sql, /daily_vote_quota_config.*from public\.daily_quiz_config/s)
+  assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_config/)
+  assert.match(sql, /daily_vote_quota_earnings[\s\S]*primary key \(source, user_id, vote_day, source_key\)/)
+  const cutover = sql.indexOf('create or replace function public.daily_free_vote_grant', sql.indexOf('$equivalence$;'))
+  assert.ok(cutover > sql.indexOf('$equivalence$;'), 'vote cutover follows every backfill/quota assertion')
+  const calendarClaim = sql.slice(sql.indexOf('create or replace function public.claim_daily_login_calendar'),
+    sql.indexOf('revoke all on function public.claim_daily_login_calendar'))
+  assert.match(calendarClaim, /p_expected_day date/)
+  assert.match(calendarClaim, /auth\.uid\(\)/)
+  assert.match(calendarClaim, /v_now := clock_timestamp\(\);[\s\S]*v_day := \(v_now at time zone 'Asia\/Ho_Chi_Minh'\)::date/)
+  assert.doesNotMatch(calendarClaim, /p_expected_user_id|p_uid|p_user_id/)
+  const calendarStatus = sql.slice(sql.indexOf('create or replace function public.my_daily_login_status'),
+    sql.indexOf('revoke all on function public.my_daily_login_status'))
+  assert.match(calendarStatus, /auth\.uid\(\)/)
+  assert.doesNotMatch(calendarStatus, /p_expected_user_id|p_uid|p_user_id/)
+  const grant = sql.slice(sql.indexOf('create or replace function public.daily_free_vote_grant'),
+    sql.indexOf('revoke all on function public.daily_free_vote_grant'))
+  assert.match(grant, /daily_vote_quota_config/)
+  assert.doesNotMatch(grant, /daily_quiz_(?:int|bool)|\b(?:3|5)\b/)
+  const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
+    'supabase', 'rollback', '20261121_vote_calendar_decoupling.sql'), 'utf8')
+  assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b/i)
+  assert.match(rollback, /create or replace function public\.daily_free_vote_grant/)
+  assert.match(rollback, /create or replace function public\.cast_vote/)
+  assert.equal([...rollback.matchAll(/create or replace function public\.my_vote_status\(/g)].length, 1,
+    'the corrective rollback must define my_vote_status exactly once')
+  assert.match(rollback, /create or replace function public\.submit_daily_quiz_answer/)
+  assert.match(rollback, /daily_vote_quota_earnings|Calendar-only API/i)
+  assert.match(rollback, /rollback_preflight/)
+  assert.match(rollback, /20261121_vote_calendar_decoupling/)
+  assert.match(rollback, /source and neutral quota config differ/)
+  assert.match(rollback, /source answers and neutral earning ledger differ/)
+
+  const preCutover = readFileSync(join(MIGRATIONS_DIR, '20261117_daily_quiz_flow.sql'), 'utf8')
+  const getFunction = (source, name) => source.match(
+    new RegExp(`create or replace function public\\.${name}\\b[\\s\\S]*?\\$\\$;`, 'i'))?.[0]
+  for (const name of ['daily_free_vote_grant', 'my_vote_status', 'cast_vote', 'submit_daily_quiz_answer']) {
+    assert.equal(getFunction(rollback, name), getFunction(preCutover, name),
+      `rollback restores the reviewed 20261117 ${name} implementation exactly`)
+  }
 })
 
 test('the runner refuses to guess a baseline for a populated database', () => {
@@ -139,6 +195,39 @@ test('the runner refuses to guess a baseline for a populated database', () => {
   assert.throws(() => planPending({ active, quarantined, applied: [] }), /refusing to guess/)
   assert.throws(() => planPending({ active, quarantined, applied: [], baseline: 'not-a-version' }),
     /invalid baseline/)
+})
+
+test('explicit SQL transaction wrappers are stripped only when the runner owns the enclosing transaction', () => {
+  const wrapped = '-- header\nBEGIN;\nselect 1;\nCOMMIT;\n'
+  assert.equal(stripExplicitTransaction(wrapped), '-- header\nselect 1;\n')
+  assert.equal(stripExplicitTransaction('select 1;\n'), 'select 1;\n')
+  assert.throws(() => stripExplicitTransaction('BEGIN;\nselect 1;\n'), /balanced outer BEGIN\/COMMIT/)
+  assert.throws(() => stripExplicitTransaction('BEGIN;\nselect 1;\nCOMMIT;\nCOMMIT;'), /balanced outer BEGIN\/COMMIT/)
+})
+
+test('migration body and history commit together; body failure records no history', async () => {
+  const calls = []
+  const client = { async query(sql, values) { calls.push({ sql, values }); return { rows: [] } } }
+  await applyMigration(client, { id: '20261121_fixture', name: 'fixture.sql', sql: 'BEGIN;\nselect 1;\nCOMMIT;' })
+  assert.deepEqual(calls.map(({ sql }) => sql), [
+    'begin',
+    "select pg_advisory_xact_lock(('x' || md5($1))::bit(64)::bigint)",
+    'select 1;',
+    'insert into supabase_migrations.schema_migrations (version, statements, name) values ($1, $2, $3)',
+    'commit',
+  ])
+
+  const failedCalls = []
+  const failing = { async query(sql) {
+    failedCalls.push(sql)
+    if (sql.includes('select fail;')) throw new Error('simulated query failure')
+    return { rows: [] }
+  } }
+  await assert.rejects(() => applyMigration(failing,
+    { id: '20261121_fixture', name: 'fixture.sql', sql: 'BEGIN;\nselect fail;\nCOMMIT;' }),
+  /fixture\.sql: simulated query failure/)
+  assert.equal(failedCalls.at(-1), 'rollback')
+  assert.equal(failedCalls.some(sql => sql.startsWith('insert into supabase_migrations.schema_migrations')), false)
 })
 
 test('no documentation tells anyone to run the superseded migration', () => {

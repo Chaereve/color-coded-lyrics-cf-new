@@ -1,5 +1,5 @@
-/* Actual React client tests: independent login, quiz and spin screens share
-   one wallet, while drafts/replay survive navigation and reload. */
+/* Actual React client tests: Calendar and quiz are independent screens; quiz
+   wallet, drafts/replay and spin visibility survive navigation/reload. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -31,9 +31,10 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
   })
   let app, liveServer, liveClient
   const { default: DailyRewards } = await server.ssrLoadModule('/src/components/DailyRewards.jsx')
+  const { default: DailyLogin } = await server.ssrLoadModule('/src/components/DailyLogin.jsx')
   const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
   const { default: DailySpin } = await server.ssrLoadModule('/src/components/DailySpin.jsx')
-  const db = await server.ssrLoadModule('/src/lib/db.js')
+  const calendarApi = await server.ssrLoadModule('/src/lib/dailyLoginCalendar.js')
   const balances = []
   const onBalance = s => balances.push(s)
   function DemoPage({ kind, userId }) {
@@ -46,9 +47,10 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       setWallet(prev => prev.credits === s.credits && prev.purchased === s.purchased && prev.bonus === s.bonus
         ? prev : { credits: s.credits, purchased: s.purchased, bonus: s.bonus })
     }, [])
-    return kind === 'spin'
-      ? createElement(DailySpin, { key: `${kind}-${userId}`, userId, ...wallet, onBalance: apply, onVote() {} })
-      : createElement(DailyRewards, { key: `${kind}-${userId}`, kind, userId, onBalance: apply })
+    if (kind === 'spin') return createElement(DailySpin,
+      { key: `${kind}-${userId}`, userId, ...wallet, onBalance: apply, onVote() {} })
+    if (kind === 'login') return createElement(DailyLogin, { key: `${kind}-${userId}`, userId })
+    return createElement(DailyRewards, { key: `${kind}-${userId}`, userId, onBalance: apply })
   }
   const query = selector => container.querySelector(selector)
   const waitFor = async check => {
@@ -63,6 +65,8 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
   const mount = async (...args) => { app = createRoot(container); await render(...args) }
   const unmount = async () => { if (app) await act(async () => { app.unmount(); app = null }) }
   const ledger = () => JSON.parse(window.localStorage.getItem('ccl.daily.rewards.demo.v1.demo-user'))
+  const loginLedger = userId => JSON.parse(window.localStorage.getItem(`ccl.daily.login.calendar.demo.v1.${userId}`) || '{"days":[]}')
+  const profile = () => JSON.parse(window.localStorage.getItem('ccl3_prof'))
   try {
     window.localStorage.setItem('ccl3_user', JSON.stringify({ id: 'demo-user', name: 'Demo' }))
     window.localStorage.setItem('ccl3_prof', JSON.stringify({ vote_credits: 7, bonus_credits: 4 }))
@@ -74,7 +78,7 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(query('.daily-quiz-start'), null)
       assert.equal(query('.daily-quiz'), null)
       assert.equal(query('.daily-spin'), null)
-      assert.equal(balances.at(-1).bonus, 4)
+      assert.deepEqual({ purchased: profile().vote_credits, bonus: profile().bonus_credits }, { purchased: 7, bonus: 4 })
       assert.equal(container.querySelectorAll('.check-in-calendar-grid th').length, 7)
       assert.equal(query('.check-in-calendar-grid th').textContent, 'Mon')
       assert.equal(container.querySelectorAll('.check-in-day.is-today').length, 1)
@@ -95,9 +99,9 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       await act(async () => { button.click(); query('.daily-claim').click() })
       await waitFor(() => /Checked in today/.test(query('.daily-claim').textContent))
       assert.equal(query('.daily-claim').disabled, true)
-      assert.equal(balances.at(-1).bonus, 4, 'a check-in awards no votes at all')
-      assert.equal(balances.at(-1).purchased, 7)
-      assert.equal(ledger().logins.length, 1)
+      assert.deepEqual({ purchased: profile().vote_credits, bonus: profile().bonus_credits }, { purchased: 7, bonus: 4 },
+        'a check-in leaves both wallet balances unchanged')
+      assert.equal(loginLedger('demo-user').days.length, 1)
       assert.equal(query('.check-in-day.is-today').disabled, true)
       assert.ok(query('.check-in-day.is-today').classList.contains('is-checked'))
       assert.equal(container.querySelectorAll('.check-in-day.is-checked').length, 1)
@@ -260,7 +264,7 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       await waitFor(() => query('.daily-claim')?.disabled)
       assert.equal(query('.daily-quiz-review'), null)
       assert.match(query('.daily-rewards-foot').textContent, /Checked in today/)
-      assert.equal(ledger().logins.length, 1)
+      assert.equal(loginLedger('demo-user').days.length, 1)
     })
 
     await t.test('switching accounts cannot show or redeem the previous account’s round', async () => {
@@ -271,11 +275,12 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(query('.daily-quiz-review'), null)
       assert.equal(query('.daily-quiz'), null)
       assert.equal(container.querySelectorAll('.check-in-day.is-checked').length, 0)
-      assert.equal(balances.at(-1).user_id, 'other-user')
+      assert.equal(loginLedger('other-user').days.length, 0)
+      const staleStatus = await calendarApi.fetchDailyLoginCalendarStatus('demo-user')
+      assert.throws(() => calendarApi.validateDailyLoginCalendarStatus(staleStatus, 'other-user'), /err.dailyAccountChanged/)
       await render('quiz', 'other-user')
       await waitFor(() => query('.daily-quiz-start') && !query('.daily-quiz-start').disabled)
       assert.equal(query('.daily-claim'), null)
-      await assert.rejects(db.claimDailyLogin('demo-user', balances.at(-1).day), /err.dailyAccountChanged/)
       assert.equal(ledger().quizzes.length, 1)
     })
 
@@ -314,19 +319,32 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
       assert.equal(liveDb.hasSupabase, true)
       let configured = false
       const calls = []
-      const day = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
-      const status = { user_id: 'other-user', day, server_now: new Date().toISOString(),
-        reset_at: new Date(Date.now() + 3600_000).toISOString(), purchased: 0, bonus: 0, credits: 0,
-        login: { claimed: false, vote_reward: 0 }, earned_today: 0,
+      const serverNow = new Date().toISOString()
+      const day = new Date(Date.parse(serverNow) + 7 * 3600_000).toISOString().slice(0, 10)
+      const resetAt = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000 - 7 * 3600_000).toISOString()
+      const calendarStatus = { user_id: 'other-user', day, server_now: serverNow, reset_at: resetAt,
+        timezone: 'Asia/Ho_Chi_Minh', login: { claimed: false, claimed_days: [], total_days: 0,
+          first_day: null, streak: 0, best_streak: 0 } }
+      const claimedStatus = { ...calendarStatus, login: { ...calendarStatus.login, claimed: true,
+        claimed_days: [day], total_days: 1, first_day: day, streak: 1, best_streak: 1 } }
+      const quizStatus = { user_id: 'other-user', day, server_now: serverNow, reset_at: resetAt,
+        purchased: 0, bonus: 0, credits: 0, login: { claimed: false, vote_reward: 0 }, earned_today: 0,
         quiz: { state: 'ready', question_count: 5, max_votes: 5 } }
+      liveClient.auth.getUser = async () => ({ data: { user: { id: 'other-user' } }, error: null })
       liveClient.rpc = (name, args) => ({ abortSignal: async () => {
         calls.push({ name, args })
-        return configured ? { data: status, error: null } : { data: null, error: { code: 'PGRST202' } }
+        if (!configured) return { data: null, error: { code: 'PGRST202' } }
+        if (name === 'my_daily_login_status') return { data: calendarStatus, error: null }
+        if (name === 'claim_daily_login_calendar') return { data: { replayed: false, status: claimedStatus }, error: null }
+        if (name === 'my_daily_rewards_status') return { data: quizStatus, error: null }
+        return { data: null, error: { code: 'PGRST202' } }
       } })
-      const Component = (await liveServer.ssrLoadModule('/src/components/DailyRewards.jsx')).default
+      const QuizComponent = (await liveServer.ssrLoadModule('/src/components/DailyRewards.jsx')).default
+      const LoginComponent = (await liveServer.ssrLoadModule('/src/components/DailyLogin.jsx')).default
       const Provider = (await liveServer.ssrLoadModule('/src/lib/i18n.jsx')).I18nProvider
-      for (const [kind, actionSelector, otherSelector] of [
-        ['login', '.daily-claim', '.daily-quiz-start'], ['quiz', '.daily-quiz-start', '.daily-claim'],
+      for (const [kind, Component, actionSelector, otherSelector] of [
+        ['login', LoginComponent, '.daily-claim', '.daily-quiz-start'],
+        ['quiz', QuizComponent, '.daily-quiz-start', '.daily-claim'],
       ]) {
         configured = false
         await mount(kind, 'other-user', Component, Provider)
@@ -339,13 +357,21 @@ test('separate daily login, quiz and spin screens preserve rewards and drafts', 
         await waitFor(() => !query(actionSelector).disabled)
         assert.equal(query('[role="alert"]'), null)
         if (kind === 'login') {
-          assert.ok(query('.check-in-calendar-unavailable'), 'old server supports today without fabricating calendar history')
+          assert.equal(query('.check-in-calendar-unavailable'), null)
           assert.equal(query('.check-in-day.is-today').disabled, false)
-          assert.equal(container.querySelectorAll('.check-in-day.is-missed').length, 0)
+          await click(query('.daily-claim'))
+          await waitFor(() => query('.daily-claim').disabled)
+          const claimCall = calls.findLast(call => call.name === 'claim_daily_login_calendar')
+          assert.deepEqual(claimCall.args, { p_expected_day: day }, 'Calendar claim sends only the stale-day guard')
         }
         await unmount()
       }
-      assert.ok(calls.every(c => c.name === 'my_daily_rewards_status' && c.args === undefined), 'read RPC accepts no client recipient/date/reward')
+      assert.ok(calls.some(call => call.name === 'my_daily_login_status' && call.args === undefined),
+        'Calendar status has no client-supplied user id or date')
+      assert.ok(calls.some(call => call.name === 'my_daily_rewards_status' && call.args === undefined),
+        'the quiz keeps its existing combined quiz endpoint')
+      assert.ok(calls.every(call => !call.args || !('p_expected_user_id' in call.args)),
+        'Calendar requests never send p_expected_user_id')
     })
   } finally {
     await unmount()
