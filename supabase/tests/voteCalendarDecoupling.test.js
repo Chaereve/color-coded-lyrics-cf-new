@@ -28,16 +28,18 @@ const REQUIRED_HISTORY = [
   '20261120_daily_login_reward_immutable',
 ]
 
-async function installPost20261120 (pool, client, { omitHistory = [] } = {}) {
+async function installPost20261120 (pool, client, { omitHistory = [], createHistory = true } = {}) {
   await installLevel(pool, '20261117')
   await pool.query(migrationSql('20261119_preserve_legacy_daily_login_rewards'))
   await pool.query(migrationSql('20261120_daily_login_reward_immutable'))
-  await ensureHistory(client)
-  for (const version of REQUIRED_HISTORY.filter(value => !omitHistory.includes(value))) {
-    await client.query(
-      'insert into supabase_migrations.schema_migrations (version, statements, name) values ($1, $2, $3)',
-      [version, [], `verified fixture state: ${version}`],
-    )
+  if (createHistory) {
+    await ensureHistory(client)
+    for (const version of REQUIRED_HISTORY.filter(value => !omitHistory.includes(value))) {
+      await client.query(
+        'insert into supabase_migrations.schema_migrations (version, statements, name) values ($1, $2, $3)',
+        [version, [], `verified fixture state: ${version}`],
+      )
+    }
   }
 }
 
@@ -145,23 +147,31 @@ test('20261121 preserves live quota, bonus spending order, quiz idempotency, and
       'the neutral ledger/config reproduces the actual source quota result')
 
       const rls = (await pool.query(`
-        select c.relrowsecurity as rls,
+        select c.relname as table_name, c.relrowsecurity as rls,
                has_table_privilege('anon', c.oid, 'SELECT') as anon_read,
                has_table_privilege('authenticated', c.oid, 'SELECT') as auth_read,
                has_table_privilege('service_role', c.oid, 'SELECT') as service_read
-          from pg_class c where c.oid = 'public.daily_vote_quota_config'::regclass`)).rows[0]
-      assert.deepEqual(rls, { rls: true, anon_read: false, auth_read: false, service_read: true })
-      assert.equal((await pool.query(`
-        select has_table_privilege('anon', 'public.daily_vote_quota_earnings', 'SELECT') as anon_read,
-               has_table_privilege('authenticated', 'public.daily_vote_quota_earnings', 'SELECT') as auth_read,
-               has_table_privilege('service_role', 'public.daily_vote_quota_earnings', 'SELECT') as service_read`)).rows[0].anon_read, false)
-      assert.equal((await pool.query(`
+          from pg_class c
+         where c.oid in ('public.daily_vote_quota_config'::regclass,
+                         'public.daily_vote_quota_earnings'::regclass)
+         order by c.relname`)).rows
+      assert.deepEqual(rls, [
+        { table_name: 'daily_vote_quota_config', rls: true, anon_read: false, auth_read: false, service_read: true },
+        { table_name: 'daily_vote_quota_earnings', rls: true, anon_read: false, auth_read: false, service_read: true },
+      ])
+      assert.deepEqual((await pool.query(`
         select has_function_privilege('authenticated', 'public.my_vote_status()', 'EXECUTE') as auth_vote,
                has_function_privilege('anon', 'public.my_vote_status()', 'EXECUTE') as anon_vote,
                has_function_privilege('authenticated', 'public.daily_free_vote_grant(uuid,date)', 'EXECUTE') as auth_helper,
+               has_function_privilege('anon', 'public.daily_free_vote_grant(uuid,date)', 'EXECUTE') as anon_helper,
+               has_function_privilege('authenticated', 'public.daily_login_calendar_payload(uuid,timestamptz)', 'EXECUTE') as auth_payload,
+               has_function_privilege('authenticated', 'public.my_daily_login_status()', 'EXECUTE') as auth_status,
+               has_function_privilege('anon', 'public.my_daily_login_status()', 'EXECUTE') as anon_status,
                has_function_privilege('authenticated', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as auth_calendar,
                has_function_privilege('anon', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as anon_calendar`)).rows[0], {
-        auth_vote: true, anon_vote: false, auth_helper: false, auth_calendar: true, anon_calendar: false,
+        auth_vote: true, anon_vote: false, auth_helper: false, anon_helper: false,
+        auth_payload: false, auth_status: true, anon_status: false,
+        auth_calendar: true, anon_calendar: false,
       })
 
       await client.query("select set_config('request.jwt.claim.sub', $1, false)", [userId])
@@ -237,6 +247,13 @@ test('20261121 preserves live quota, bonus spending order, quiz idempotency, and
       'the server excludes a future check-in and computes only recorded VN days')
       await assert.rejects(() => client.query(
         'select public.claim_daily_login_calendar($1::date)', [previousDay]), /err\.dailyDayChanged/)
+      await assert.rejects(() => client.query(
+        'select public.claim_daily_login_calendar($1::date)', [null]), /err\.dailyDayChanged/)
+      assert.deepEqual((await pool.query(`
+        select to_regprocedure('public.claim_daily_login_calendar(date)') is not null as new_signature,
+               to_regprocedure('public.claim_daily_login_calendar(uuid,date)') is null as no_client_user_signature`)).rows[0], {
+        new_signature: true, no_client_user_signature: true,
+      })
       const claim = JSON.parse((await client.query(
         'select public.claim_daily_login_calendar($1::date)::text as result', [day])).rows[0].result)
       assert.equal(claim.replayed, false)
@@ -311,6 +328,12 @@ test('missing live config or migration history aborts before creating vote objec
         await assert.rejects(() => applyMigration(client, MIGRATION), /required migration state missing/)
         await migrationFailureLeavesNoCutover(pool, client)
       })
+    })
+    await t.test('absent guarded-runner migration history is refused', async () => {
+      await withPreparedSource(async (pool, client) => {
+        await assert.rejects(() => applyMigration(client, MIGRATION), /migration history is missing/)
+        await migrationFailureLeavesNoCutover(pool, client)
+      }, { createHistory: false })
     })
     await t.test('an unknown partial target object is not overwritten', async () => {
       await withPreparedSource(async (pool, client) => {

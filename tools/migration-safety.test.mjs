@@ -141,18 +141,28 @@ test('the default plan never schedules a quarantined migration', () => {
 test('the vote/Calendar migration is fail-closed, transactional, and keeps Calendar identity server-side', () => {
   const sql = readFileSync(join(MIGRATIONS_DIR, '20261121_vote_calendar_decoupling.sql'), 'utf8')
   assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m)
-  assert.doesNotMatch(sql, /\bdrop\b|\bcascade\b/i)
+  assert.doesNotMatch(stripSqlNoise(sql), /\bdrop\b|\bcascade\b/i)
+  assert.match(sql, /to_regclass\('supabase_migrations\.schema_migrations'\) is null[\s\S]*migration history is missing/)
   assert.match(sql, /lock table public\.profiles,[\s\S]*in share mode;/i)
   assert.match(sql, /create temporary table _ccl_vote_quiz_source_snapshot as/i)
+  assert.match(sql, /an awarded quiz answer has an empty source key/)
+  assert.ok(sql.indexOf('do $snapshot_guard$') < sql.indexOf('insert into public.daily_vote_quota_earnings'),
+    'invalid source keys are rejected before inserting any earning event')
   assert.match(sql, /raise exception 'err\.voteCalendarBackfill/)
   assert.match(sql, /raise exception 'err\.voteCalendarQuota/)
   assert.match(sql, /except all/)
   assert.match(sql, /count\(distinct \(user_id, quiz_date, question_id\)\)/)
-  assert.match(sql, /public\.daily_quiz_attempts\|quiz_date\|date\|false/,
-    'the source intentionally allows NULL quiz_date for legacy three-question attempts')
-  assert.match(sql, /where question_count = 5[\s\S]*quiz_date is null or quiz_day is distinct from quiz_date/,
-    'five-question source attempts still require a coherent quiz day/date')
+  assert.match(sql, /daily_quiz_answers_awarded_check/)
+  assert.match(sql, /indnkeyatts = 3 and i\.indnatts = 3/)
+  assert.match(sql, /daily_quiz_attempts_user_quiz_date_idx/)
+  assert.match(sql, /public\.daily_quiz_attempts\|quiz_day\|date\|true/)
+  assert.match(sql, /where question_count = 5[\s\S]*quiz_date is null or quiz_day is distinct from quiz_date/)
+  assert.match(sql, /t\.tgtype = 23/)
+  assert.match(sql, /activity_days idempotency constraint is missing/)
+  assert.match(sql, /source_key, amount, recorded_at\)[\s\S]*p_question_id, 1, v_now/)
+  assert.match(sql, /left join public\.daily_login_rewards c[\s\S]*c\.reward_day <= d\.day/)
   assert.match(sql, /daily_vote_quota_config.*from public\.daily_quiz_config/s)
+  assert.match(sql, /enable row level security;[\s\S]*revoke all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings from public, anon, authenticated;[\s\S]*grant all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings to service_role;/)
   assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_config/)
   assert.match(sql, /daily_vote_quota_earnings[\s\S]*primary key \(source, user_id, vote_day, source_key\)/)
   const cutover = sql.indexOf('create or replace function public.daily_free_vote_grant', sql.indexOf('$equivalence$;'))
@@ -162,11 +172,18 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
   assert.match(calendarClaim, /p_expected_day date/)
   assert.match(calendarClaim, /auth\.uid\(\)/)
   assert.match(calendarClaim, /v_now := clock_timestamp\(\);[\s\S]*v_day := \(v_now at time zone 'Asia\/Ho_Chi_Minh'\)::date/)
+  assert.match(calendarClaim, /p_expected_day is distinct from v_day/)
   assert.doesNotMatch(calendarClaim, /p_expected_user_id|p_uid|p_user_id/)
   const calendarStatus = sql.slice(sql.indexOf('create or replace function public.my_daily_login_status'),
     sql.indexOf('revoke all on function public.my_daily_login_status'))
   assert.match(calendarStatus, /auth\.uid\(\)/)
+  assert.match(calendarStatus, /clock_timestamp\(\)/)
   assert.doesNotMatch(calendarStatus, /p_expected_user_id|p_uid|p_user_id/)
+  const calendarPayload = sql.slice(sql.indexOf('create or replace function public.daily_login_calendar_payload'),
+    sql.indexOf('revoke all on function public.daily_login_calendar_payload'))
+  assert.doesNotMatch(calendarPayload, /quiz|votes_awarded|credits|purchased|bonus/i)
+  assert.match(calendarPayload, /reward_day <= d\.day/,
+    'future/corrupt rows do not inflate Calendar totals or streaks')
   const grant = sql.slice(sql.indexOf('create or replace function public.daily_free_vote_grant'),
     sql.indexOf('revoke all on function public.daily_free_vote_grant'))
   assert.match(grant, /daily_vote_quota_config/)
@@ -174,11 +191,12 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
   const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
     'supabase', 'rollback', '20261121_vote_calendar_decoupling.sql'), 'utf8')
   assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b/i)
-  assert.match(rollback, /create or replace function public\.daily_free_vote_grant/)
-  assert.match(rollback, /create or replace function public\.cast_vote/)
-  assert.equal([...rollback.matchAll(/create or replace function public\.my_vote_status\(/g)].length, 1,
-    'the corrective rollback must define my_vote_status exactly once')
-  assert.match(rollback, /create or replace function public\.submit_daily_quiz_answer/)
+  for (const functionName of ['daily_free_vote_grant', 'my_vote_status', 'cast_vote', 'submit_daily_quiz_answer']) {
+    const declarations = rollback.match(new RegExp(`create or replace function public\\.${functionName}\\b`, 'g')) || []
+    assert.equal(declarations.length, 1, `rollback restores ${functionName} exactly once`)
+  }
+  assert.match(rollback, /grant execute on function public\.my_vote_status\(\) to authenticated/)
+  assert.match(rollback, /grant execute on function public\.cast_vote\(uuid,integer,text,text,text\) to authenticated/)
   assert.match(rollback, /daily_vote_quota_earnings|Calendar-only API/i)
   assert.match(rollback, /rollback_preflight/)
   assert.match(rollback, /20261121_vote_calendar_decoupling/)

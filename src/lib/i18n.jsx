@@ -188,7 +188,7 @@ const S = {
   'err.dailyQuizRetired': 'This quiz round was created by an older version and can no longer award votes. A new round unlocks tomorrow.',
   'err.dailyLoginRewardRetired': 'Check-ins no longer award votes.',
   'err.dailyLoginRewardImmutable': 'A recorded check-in reward cannot be changed.',
-  'err.voteQuotaConfig': 'Daily vote settings could not be loaded. Refresh and try again.',
+  'err.voteQuotaConfig': 'Vote quota configuration is unavailable. Please contact support.',
   'err.dailyQuizQuestion': 'That question is not part of today’s round. Refresh to reload your questions.',
   'err.dailyQuizOption': 'That answer does not belong to this question. Refresh to reload your questions.',
   'err.dailyResponse': 'The server returned an invalid daily reward status. Refresh to try again.',

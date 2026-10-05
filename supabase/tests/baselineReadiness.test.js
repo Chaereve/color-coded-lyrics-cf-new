@@ -13,7 +13,10 @@ import {
   insertHistorical, dayOf, migrationSql, archivedSql,
 } from './_fixtures.mjs'
 import { deploy, plan } from '../../tools/migrate.mjs'
-import { verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES } from '../../tools/schema-readiness.mjs'
+import {
+  verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES,
+  diffSchema, LIVE_VOTE_QUOTA_CONFIG_KEYS,
+} from '../../tools/schema-readiness.mjs'
 
 const url = process.env.MIGRATION_DEPLOY_TEST_DATABASE_URL
 
@@ -43,12 +46,41 @@ test('the committed readiness snapshots cover the deployable baselines', () => {
     availableBaselines().map(b => `${b}.json`))
 })
 
+test('baseline fingerprints require live vote quota keys but never treat repo values as production policy', () => {
+  const keys = [...LIVE_VOTE_QUOTA_CONFIG_KEYS].sort()
+  assert.deepEqual(keys, [
+    'free_vote_grant_enabled', 'free_votes_per_day',
+    'global_daily_vote_cap', 'global_daily_vote_cap_enabled',
+  ])
+  const expected = {
+    tables: {}, functions: {},
+    config: Object.fromEntries(keys.map(key => [key, 'repository seed value'])),
+  }
+  const actual = {
+    tables: {}, functions: {},
+    config: Object.fromEntries(keys.map(key => [key, 'different live production value'])),
+  }
+  assert.deepEqual(diffSchema(expected, actual).problems, [],
+    'the 20261121 preflight, not a repository fingerprint, validates and copies live policy')
+  delete actual.config.free_votes_per_day
+  assert.deepEqual(diffSchema(expected, actual).problems.map(problem => problem.object),
+    ['daily_quiz_config.free_votes_per_day'], 'missing live config is still refused')
+})
+
 test('mode A — a database equivalent to post-20261117 is verified, and only then baselined',
   { skip: !url, timeout: 180_000 }, async () => {
     await withDatabase(url, async (pool, client) => {
       await installLevel(pool, '20261117')
       const legacy = await seedUser(pool, { legacy: true })
       const { d, y } = await dayOf(pool)
+      const liveQuota = [
+        ['free_vote_grant_enabled', true], ['free_votes_per_day', 2],
+        ['global_daily_vote_cap_enabled', true], ['global_daily_vote_cap', 4],
+      ]
+      for (const [key, value] of liveQuota) {
+        await pool.query('update public.daily_quiz_config set value = $2::jsonb where key = $1',
+          [key, JSON.stringify(value)])
+      }
 
       const readiness = await verifyBaseline(client, '20261117')
       assert.equal(readiness.ok, true, JSON.stringify(readiness.problems))
@@ -65,6 +97,17 @@ test('mode A — a database equivalent to post-20261117 is verified, and only th
       assert.ok(history.includes('20261121_vote_calendar_decoupling'))
       assert.equal(history.filter(v => v.startsWith('20261118')).length, 0)
       assert.equal(history.length, result.recordedBaseline.length + 3, 'history is written only after verification passed')
+      const copiedQuota = await pool.query(`
+        select key, value from public.daily_vote_quota_config
+         where key = any($1::text[]) order by key`, [liveQuota.map(([key]) => key)])
+      assert.deepEqual(copiedQuota.rows.map(row => [row.key, row.value]), [
+        ['free_vote_grant_enabled', true],
+        ['free_votes_per_day', 2],
+        ['global_daily_vote_cap', 4],
+        ['global_daily_vote_cap_enabled', true],
+      ], 'production quota values are copied, not replaced by snapshot/repo defaults')
+      assert.equal((await pool.query(
+        'select public.daily_free_vote_grant($1, $2)::int as n', [legacy, d])).rows[0].n, 2)
 
       assert.equal(await rewardOf(pool, legacy, y), 2, 'a recorded amount survives the deployment')
       assert.equal(await rewardOf(pool, legacy, d), 2)
