@@ -6,3 +6,7 @@ preview-am-thanh
 
 # Bản sao lưu database (scripts/backup-db.sh) — dữ liệu thật, không commit
 backup/
+
+# Ảnh/JSON sinh ra khi chạy kiểm chứng trong CI (xem tools/browserSmoke.mjs,
+# tools/revoked-rpc-evidence.mjs) — tải từ artifact của run, không commit.
+artifacts/
