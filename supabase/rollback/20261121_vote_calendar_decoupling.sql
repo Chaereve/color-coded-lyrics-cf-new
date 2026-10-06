@@ -101,7 +101,8 @@ begin
   end if;
 
   v_def := lower(pg_get_functiondef('public.daily_free_vote_grant(uuid,date)'::regprocedure));
-  if position('daily_vote_quota_config' in v_def) = 0
+  if position('daily_vote_quota_bool' in v_def) = 0
+     or position('daily_vote_earned_on' in v_def) = 0
      or position('daily_quiz_config' in v_def) > 0 then
     raise exception 'err.voteCalendarRollback: current quota function is not the expected cutover';
   end if;

@@ -164,12 +164,18 @@ test('20261121 preserves live quota, bonus spending order, quiz idempotency, and
                has_function_privilege('anon', 'public.my_vote_status()', 'EXECUTE') as anon_vote,
                has_function_privilege('authenticated', 'public.daily_free_vote_grant(uuid,date)', 'EXECUTE') as auth_helper,
                has_function_privilege('anon', 'public.daily_free_vote_grant(uuid,date)', 'EXECUTE') as anon_helper,
+               has_function_privilege('authenticated', 'public.daily_vote_quota_bool(text)', 'EXECUTE') as auth_reader_bool,
+               has_function_privilege('anon', 'public.daily_vote_quota_bool(text)', 'EXECUTE') as anon_reader_bool,
+               has_function_privilege('authenticated', 'public.daily_vote_quota_int(text)', 'EXECUTE') as auth_reader_int,
+               has_function_privilege('anon', 'public.daily_vote_quota_int(text)', 'EXECUTE') as anon_reader_int,
                has_function_privilege('authenticated', 'public.daily_login_calendar_payload(uuid,timestamptz)', 'EXECUTE') as auth_payload,
                has_function_privilege('authenticated', 'public.my_daily_login_status()', 'EXECUTE') as auth_status,
                has_function_privilege('anon', 'public.my_daily_login_status()', 'EXECUTE') as anon_status,
                has_function_privilege('authenticated', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as auth_calendar,
                has_function_privilege('anon', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as anon_calendar`)).rows[0], {
         auth_vote: true, anon_vote: false, auth_helper: false, anon_helper: false,
+        auth_reader_bool: false, anon_reader_bool: false,
+        auth_reader_int: false, anon_reader_int: false,
         auth_payload: false, auth_status: true, anon_status: false,
         auth_calendar: true, anon_calendar: false,
       })
@@ -278,7 +284,7 @@ test('20261121 preserves live quota, bonus spending order, quiz idempotency, and
       await client.query('rollback')
       const stillCutOver = (await pool.query(
         "select pg_get_functiondef('public.daily_free_vote_grant(uuid,date)'::regprocedure) as body")).rows[0].body
-      assert.match(stillCutOver, /daily_vote_quota_config/,
+      assert.match(stillCutOver, /daily_vote_quota_bool/,
         'a failed corrective preflight leaves the neutral vote path intact')
       await pool.query(`update public.daily_vote_quota_config set value = 'true'::jsonb
                          where key = 'free_vote_grant_enabled'`)
@@ -303,6 +309,49 @@ test('20261121 preserves live quota, bonus spending order, quiz idempotency, and
         select count(*)::int as n from public.daily_vote_quota_earnings
          where source = 'daily_quiz' and user_id = $1 and vote_day = $2`, [userId, day])).rows[0].n, 2,
       'the corrective rollback leaves both neutral ledger events intact')
+    })
+  })
+
+test('the neutral quota readers fail closed instead of defaulting',
+  { skip: !url, timeout: 180_000 }, async () => {
+    await withPreparedSource(async (pool, client, { day, userId }) => {
+      const oldGrant = (await pool.query(
+        'select public.daily_free_vote_grant($1, $2)::int as n', [userId, day])).rows[0].n
+      await applyMigration(client, MIGRATION)
+      const grant = async () => (await pool.query(
+        'select public.daily_free_vote_grant($1, $2)::int as n', [userId, day])).rows[0].n
+      assert.equal(await grant(), oldGrant, 'the cutover grant matches the source grant')
+
+      // First line of defence: the table CHECK itself refuses a mistyped value,
+      // so a boolean key can never hold a number in the first place.
+      await assert.rejects(() => pool.query(`update public.daily_vote_quota_config set value = '0'::jsonb
+                                               where key = 'free_vote_grant_enabled'`),
+      /daily_vote_quota_config_value_check/,
+      'the neutral config table rejects a JSON number for a boolean key')
+
+      // Missing row: the reader must RAISE err.voteQuotaConfig, never fall back
+      // to a repository default that could silently change the live quota.
+      const stored = (await pool.query(
+        "select value::text as v from public.daily_vote_quota_config where key = 'free_votes_per_day'")).rows[0].v
+      await pool.query("delete from public.daily_vote_quota_config where key = 'free_votes_per_day'")
+      await assert.rejects(grant, /err\.voteQuotaConfig/)
+      await client.query("select set_config('request.jwt.claim.sub', $1, false)", [userId])
+      await assert.rejects(() => client.query('select public.my_vote_status()'), /err\.voteQuotaConfig/,
+        'my_vote_status propagates the fail-closed reader error instead of inventing a quota')
+      await pool.query(
+        'insert into public.daily_vote_quota_config (key, value, updated_at) values ($1, $2::jsonb, clock_timestamp())',
+        ['free_votes_per_day', stored])
+      assert.equal(await grant(), oldGrant, 'restoring the live row restores the exact live grant')
+
+      // Defence in depth: even if the CHECK was dropped by an operator, the
+      // reader itself still refuses the mistyped row instead of coercing it.
+      await pool.query('alter table public.daily_vote_quota_config drop constraint daily_vote_quota_config_value_check')
+      await pool.query(`update public.daily_vote_quota_config set value = '0'::jsonb
+                         where key = 'free_vote_grant_enabled'`)
+      await assert.rejects(grant, /err\.voteQuotaConfig/)
+      await pool.query(`update public.daily_vote_quota_config set value = 'null'::jsonb
+                         where key = 'global_daily_vote_cap'`)
+      await assert.rejects(grant, /err\.voteQuotaConfig/)
     })
   })
 

@@ -69,7 +69,8 @@ begin
        select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
           and p.proname in ('daily_vote_earned_on','daily_login_calendar_payload',
-                            'my_daily_login_status','claim_daily_login_calendar')
+                            'my_daily_login_status','claim_daily_login_calendar',
+                            'daily_vote_quota_bool','daily_vote_quota_int')
      ) then
     raise exception 'err.voteCalendarPreflight: partial/unknown target objects already exist';
   end if;
@@ -892,35 +893,58 @@ returns integer language sql stable security definer set search_path = public as
 $$;
 revoke all on function public.daily_vote_earned_on(uuid,date) from public, anon, authenticated;
 
-create or replace function public.daily_free_vote_grant(p_uid uuid, p_day date)
-returns integer language plpgsql stable security definer set search_path = public as $$
-declare
-  v_enabled boolean;
-  v_free_per_day integer;
-  v_global_enabled boolean;
-  v_global_cap integer;
-  v_earned integer;
+-- Neutral typed readers for the copied quota config. They mirror the source
+-- daily_quiz_int/bool idiom but are deliberately stricter: a missing row, a
+-- NULL, or a wrong JSON type RAISES instead of falling back to a default,
+-- because no default quota may silently widen or shrink the live free-vote
+-- grant. The accepted types match exactly what this migration's preflight
+-- validated before copying (boolean / non-negative int4-range number).
+create or replace function public.daily_vote_quota_bool(p_key text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+declare v_value jsonb;
 begin
-  select (value #>> '{}')::boolean into v_enabled
-    from public.daily_vote_quota_config where key = 'free_vote_grant_enabled';
-  if not found or v_enabled is null then raise exception 'err.voteQuotaConfig'; end if;
-  select (value #>> '{}')::integer into v_free_per_day
-    from public.daily_vote_quota_config where key = 'free_votes_per_day';
-  if not found or v_free_per_day is null then raise exception 'err.voteQuotaConfig'; end if;
-  select (value #>> '{}')::boolean into v_global_enabled
-    from public.daily_vote_quota_config where key = 'global_daily_vote_cap_enabled';
-  if not found or v_global_enabled is null then raise exception 'err.voteQuotaConfig'; end if;
-  select (value #>> '{}')::integer into v_global_cap
-    from public.daily_vote_quota_config where key = 'global_daily_vote_cap';
-  if not found or v_global_cap is null then raise exception 'err.voteQuotaConfig'; end if;
-
-  if not v_enabled then return 0; end if;
-  if v_global_enabled then
-    v_earned := public.daily_vote_earned_on(p_uid, p_day);
-    return greatest(0, least(v_free_per_day, v_global_cap - v_earned));
+  select value into v_value from public.daily_vote_quota_config where key = p_key;
+  if not found or v_value is null or jsonb_typeof(v_value) <> 'boolean' then
+    raise exception 'err.voteQuotaConfig';
   end if;
-  return greatest(0, v_free_per_day);
+  return (v_value #>> '{}')::boolean;
 end $$;
+revoke all on function public.daily_vote_quota_bool(text) from public, anon, authenticated;
+
+create or replace function public.daily_vote_quota_int(p_key text)
+returns integer language plpgsql stable security definer set search_path = public as $$
+declare v_value jsonb;
+begin
+  select value into v_value from public.daily_vote_quota_config where key = p_key;
+  if not found or v_value is null or jsonb_typeof(v_value) <> 'number'
+     or (v_value #>> '{}') !~ '^[0-9]+$'
+     or (v_value #>> '{}')::numeric > 2147483647 then
+    raise exception 'err.voteQuotaConfig';
+  end if;
+  return (v_value #>> '{}')::integer;
+end $$;
+revoke all on function public.daily_vote_quota_int(text) from public, anon, authenticated;
+
+-- Cutover of the free-vote grant. The body reads ONLY the neutral
+-- config/ledger, and the function keeps the exact fingerprint-visible
+-- attributes recorded in supabase/baselines/20261120.json for the source
+-- version (returns integer, language sql, stable, security definer): a
+-- post-cutover database must still verify READY against the committed
+-- 20261120 baseline — the migration history row is what proves the cutover
+-- was applied, not a changed function shape. The fail-closed strictness
+-- lives in the typed readers above, never in silent defaults. Formula and
+-- evaluation order are the source formula, term for term.
+create or replace function public.daily_free_vote_grant(p_uid uuid, p_day date)
+returns integer language sql stable security definer set search_path = public as $$
+  select case
+    when not public.daily_vote_quota_bool('free_vote_grant_enabled') then 0
+    when public.daily_vote_quota_bool('global_daily_vote_cap_enabled') then
+      greatest(0, least(public.daily_vote_quota_int('free_votes_per_day'),
+                        public.daily_vote_quota_int('global_daily_vote_cap')
+                        - public.daily_vote_earned_on(p_uid, p_day)))
+    else greatest(0, public.daily_vote_quota_int('free_votes_per_day'))
+  end;
+$$;
 revoke all on function public.daily_free_vote_grant(uuid,date) from public, anon, authenticated;
 
 create or replace function public.my_vote_status()
@@ -1334,6 +1358,10 @@ comment on table public.daily_vote_quota_config is
   'Trusted mirror of the live free-vote quota inputs captured during migration 20261121; update through reviewed owner-only config changes, never from the browser.';
 comment on table public.daily_vote_quota_earnings is
   'Neutral append-only source events used by daily_free_vote_grant; quiz awards are materialized transactionally, without changing quiz history or wallet balances.';
+comment on function public.daily_vote_quota_bool(text) is
+  'Internal typed reader for daily_vote_quota_config: raises err.voteQuotaConfig on a missing, NULL or non-boolean row; never defaults. Not executable by client roles.';
+comment on function public.daily_vote_quota_int(text) is
+  'Internal typed reader for daily_vote_quota_config: raises err.voteQuotaConfig on a missing, NULL or non-int4-range-number row; never defaults. Not executable by client roles.';
 comment on function public.my_daily_login_status() is
   'Calendar-only status. Identity is auth.uid(); response contains no quiz, wallet, payout or vote-award fields.';
 comment on function public.claim_daily_login_calendar(date) is

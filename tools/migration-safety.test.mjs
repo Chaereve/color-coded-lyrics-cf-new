@@ -163,10 +163,19 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
   assert.match(sql, /left join public\.daily_login_rewards c[\s\S]*c\.reward_day <= d\.day/)
   assert.match(sql, /daily_vote_quota_config.*from public\.daily_quiz_config/s)
   assert.match(sql, /enable row level security;[\s\S]*revoke all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings from public, anon, authenticated;[\s\S]*grant all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings to service_role;/)
-  assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_config/)
+  assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_bool/)
   assert.match(sql, /daily_vote_quota_earnings[\s\S]*primary key \(source, user_id, vote_day, source_key\)/)
   const cutover = sql.indexOf('create or replace function public.daily_free_vote_grant', sql.indexOf('$equivalence$;'))
   assert.ok(cutover > sql.indexOf('$equivalence$;'), 'vote cutover follows every backfill/quota assertion')
+  // Fail-closed neutral typed readers: no silent default quota may exist.
+  for (const reader of ['daily_vote_quota_bool', 'daily_vote_quota_int']) {
+    assert.match(sql,
+      new RegExp(`create or replace function public\\.${reader}\\(p_key text\\)[\\s\\S]*?raise exception 'err\\.voteQuotaConfig'`),
+      `${reader} raises on a missing/NULL/mistyped neutral config row instead of defaulting`)
+    assert.match(sql, new RegExp(`revoke all on function public\\.${reader}\\(text\\) from public, anon, authenticated;`))
+  }
+  assert.match(sql, /p\.proname in \('daily_vote_earned_on','daily_login_calendar_payload',\s*'my_daily_login_status','claim_daily_login_calendar',\s*'daily_vote_quota_bool','daily_vote_quota_int'\)/,
+    'the preflight refuses partial target objects, including the typed readers')
   const calendarClaim = sql.slice(sql.indexOf('create or replace function public.claim_daily_login_calendar'),
     sql.indexOf('revoke all on function public.claim_daily_login_calendar'))
   assert.match(calendarClaim, /p_expected_day date/)
@@ -186,8 +195,17 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
     'future/corrupt rows do not inflate Calendar totals or streaks')
   const grant = sql.slice(sql.indexOf('create or replace function public.daily_free_vote_grant'),
     sql.indexOf('revoke all on function public.daily_free_vote_grant'))
-  assert.match(grant, /daily_vote_quota_config/)
+  assert.match(grant, /daily_vote_quota_bool/)
+  assert.match(grant, /daily_vote_quota_int/)
   assert.doesNotMatch(grant, /daily_quiz_(?:int|bool)|\b(?:3|5)\b/)
+  // REGRESSION PIN (the CI failure that sank Draft PR #29): the committed
+  // 20261120 fingerprint records daily_free_vote_grant as language sql. A
+  // plpgsql replacement changes a fingerprint-visible attribute, so mode B of
+  // baselineReadiness ("the bootstrap lands in the final state") fails against
+  // verifyBaseline('20261120'). Fail-closed strictness belongs in the typed
+  // readers above, never in the grant function's visible shape.
+  assert.match(grant, /returns integer language sql stable security definer set search_path = public/i,
+    'the cutover keeps daily_free_vote_grant attribute-compatible with baseline 20261120 (language sql)')
   const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
     'supabase', 'rollback', '20261121_vote_calendar_decoupling.sql'), 'utf8')
   assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b/i)

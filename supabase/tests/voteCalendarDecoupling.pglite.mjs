@@ -118,9 +118,12 @@ async function applyMigration (db) {
 /** Runs SQL that must fail, then clears the aborted transaction so the session
  *  can be inspected, exactly like `assert.rejects` + `rollback` in the
  *  DB-gated suite. */
-async function rejected (db, sql, pattern) {
+async function rejected (db, sql, pattern, params = []) {
   let error = null
-  try { await db.exec(sql) } catch (caught) { error = caught } finally {
+  try {
+    if (params.length) await db.query(sql, params)
+    else await db.exec(sql)
+  } catch (caught) { error = caught } finally {
     await db.exec('rollback').catch(() => {})
   }
   assert.ok(error, `expected the SQL to fail with ${pattern}`)
@@ -150,7 +153,8 @@ async function assertNoCutover (db, { preexisting = [] } = {}) {
            (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public'
                 and p.proname in ('daily_vote_earned_on', 'daily_login_calendar_payload',
-                                  'my_daily_login_status', 'claim_daily_login_calendar')) as functions`)).rows[0]
+                                  'my_daily_login_status', 'claim_daily_login_calendar',
+                                  'daily_vote_quota_bool', 'daily_vote_quota_int')) as functions`)).rows[0]
   assert.deepEqual(state, { tables: preexisting.length, functions: 0 })
   const hasHistory = (await db.query(
     "select to_regclass('supabase_migrations.schema_migrations') is not null as ok")).rows[0].ok
@@ -185,6 +189,38 @@ test('the cutover preserves live quota, spending order, quiz idempotency, Calend
     assert.equal(await ledgerCount(db, userId, day), 1, 'one awarded answer becomes one neutral event')
     assert.equal(await grantOf(db, userId, day), sourceGrant, 'the neutral ledger reproduces the source quota')
 
+    // The cutover keeps the fingerprint-visible shape of the source function
+    // (baseline 20261120 records language sql), so a post-cutover database
+    // still verifies READY; the migration history row proves the cutover.
+    const cutoverBody = await functionBody(db, 'public.daily_free_vote_grant(uuid,date)')
+    assert.match(cutoverBody, /language sql/i,
+      'daily_free_vote_grant stays language sql so verifyBaseline(20261120) still passes')
+    assert.match(cutoverBody, /daily_vote_quota_bool/, 'the cutover reads the neutral config only')
+    assert.doesNotMatch(cutoverBody, /daily_quiz_(?:int|bool)/)
+
+    // Fail-closed typed readers. The table CHECK is the first line of defence:
+    // a mistyped value cannot even be stored, and the failed write rolls back
+    // on its own, so the live config stays untouched.
+    await assert.rejects(() => db.query(
+      "update public.daily_vote_quota_config set value = '0'::jsonb where key = 'free_vote_grant_enabled'"),
+    /daily_vote_quota_config_value_check/, 'the table CHECK refuses a JSON number for a boolean key')
+    // Deleting the live row is something the CHECK cannot prevent; every reader
+    // must then RAISE err.voteQuotaConfig instead of returning a repo default.
+    // The probe runs inside an explicit transaction that is rolled back, so the
+    // real cutover config is exactly as it was afterwards.
+    await db.exec('begin')
+    await db.query("delete from public.daily_vote_quota_config where key = 'free_votes_per_day'")
+    await rejected(db, 'select public.daily_free_vote_grant($1, $2)', /err\.voteQuotaConfig/, [userId, day])
+    assert.equal(await grantOf(db, userId, day), sourceGrant,
+      'the live row is back after the probe rollback — a default was never substituted')
+    // Defence in depth: even without the CHECK the readers still refuse the row.
+    await db.exec('begin')
+    await db.query('alter table public.daily_vote_quota_config drop constraint daily_vote_quota_config_value_check')
+    await db.query("update public.daily_vote_quota_config set value = 'null'::jsonb where key = 'global_daily_vote_cap'")
+    await rejected(db, 'select public.daily_vote_quota_int($1)', /err\.voteQuotaConfig/, ['global_daily_vote_cap'])
+    assert.equal(await grantOf(db, userId, day), sourceGrant,
+      'the CHECK-drop probe rolled back too: the cutover config and its grant are unchanged')
+
     // RLS and grants: readable only by the trusted service role.
     assert.deepEqual((await db.query(`
       select c.relname, c.relrowsecurity as rls,
@@ -202,14 +238,18 @@ test('the cutover preserves live quota, spending order, quiz idempotency, Calend
       select has_function_privilege('authenticated', 'public.my_vote_status()', 'EXECUTE') as auth_vote,
              has_function_privilege('anon', 'public.my_vote_status()', 'EXECUTE') as anon_vote,
              has_function_privilege('authenticated', 'public.daily_free_vote_grant(uuid,date)', 'EXECUTE') as auth_helper,
+             has_function_privilege('authenticated', 'public.daily_vote_quota_bool(text)', 'EXECUTE') as auth_reader_bool,
+             has_function_privilege('anon', 'public.daily_vote_quota_int(text)', 'EXECUTE') as anon_reader_int,
              has_function_privilege('authenticated', 'public.daily_login_calendar_payload(uuid,timestamptz)', 'EXECUTE') as auth_payload,
              has_function_privilege('authenticated', 'public.my_daily_login_status()', 'EXECUTE') as auth_status,
              has_function_privilege('anon', 'public.my_daily_login_status()', 'EXECUTE') as anon_status,
              has_function_privilege('authenticated', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as auth_calendar,
              has_function_privilege('anon', 'public.claim_daily_login_calendar(date)', 'EXECUTE') as anon_calendar`)).rows[0], {
-      auth_vote: true, anon_vote: false, auth_helper: false, auth_payload: false,
-      auth_status: true, anon_status: false, auth_calendar: true, anon_calendar: false,
-    }, 'the Calendar RPC is authenticated-only and its payload helper is internal')
+      auth_vote: true, anon_vote: false, auth_helper: false,
+      auth_reader_bool: false, anon_reader_int: false,
+      auth_payload: false, auth_status: true, anon_status: false,
+      auth_calendar: true, anon_calendar: false,
+    }, 'the Calendar RPC is authenticated-only and both payload and quota helpers are internal')
 
     await db.query("select set_config('request.jwt.claim.sub', $1, false)", [userId])
     const statusBefore = (await db.query('select * from public.my_vote_status()')).rows[0]
@@ -298,7 +338,7 @@ test('the cutover preserves live quota, spending order, quiz idempotency, Calend
     const beforeRollback = await walletOf(db, userId)
     await db.query("update public.daily_vote_quota_config set value = 'false'::jsonb where key = 'free_vote_grant_enabled'")
     await rejected(db, ROLLBACK, /err\.voteCalendarRollback: source and neutral quota config differ/)
-    assert.match(await functionBody(db, 'public.daily_free_vote_grant(uuid,date)'), /daily_vote_quota_config/,
+    assert.match(await functionBody(db, 'public.daily_free_vote_grant(uuid,date)'), /daily_vote_quota_bool/,
       'a refused rollback leaves the cutover in place')
     await db.query("update public.daily_vote_quota_config set value = 'true'::jsonb where key = 'free_vote_grant_enabled'")
     await db.exec(ROLLBACK)
