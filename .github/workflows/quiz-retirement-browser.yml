@@ -1,0 +1,97 @@
+# Kiểm chứng "Daily Quiz đã nghỉ hưu" bằng TRÌNH DUYỆT THẬT + EDGE Cloudflare Pages.
+#
+# Vì sao cần workflow này: sandbox phát triển không có Chromium và không ra được
+# Internet ngoài allowlist, nên `npm run smoke` (jsdom) không trả lời được ba câu
+# hỏi cuối — /quiz có được 301 ở edge, có lỗi console thật không, và bố cục
+# mobile/desktop ra sao. Runner của GitHub thì có Chromium và có mạng.
+#
+# Job này CHỈ ĐỌC: dựng dist/ tại chỗ, mở app bằng Chromium, gọi HTTP tới URL
+# preview của Cloudflare Pages. Không deploy, không migration, không database,
+# không secret nào của production.
+name: Quiz retirement — browser & edge check
+
+on:
+  workflow_dispatch:
+    inputs:
+      edge_url:
+        description: Cloudflare Pages preview URL
+        required: false
+        default: https://arena-2544c5f9-color-coded-l.chaereve.pages.dev
+      live_url:
+        description: 'Tuỳ chọn: URL site thật để chạy smoke chỉ-đọc (vd https://chaereve.pages.dev)'
+        required: false
+        default: ''
+  push:
+    branches: ['arena/2544c5f9-color-coded-lyrics-cf-new']
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EDGE_URL: ${{ inputs.edge_url || 'https://arena-2544c5f9-color-coded-l.chaereve.pages.dev' }}
+      LIVE_URL: ${{ inputs.live_url || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Playwright chỉ được cài trong job này (không thêm vào package.json):
+      # máy dev không cần tải Chromium chỉ để chạy `npm test`.
+      - name: Cài Playwright + Chromium
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Dựng bundle production
+        run: npm run build
+
+      - name: Kiểm chứng bằng Chromium (desktop + mobile) và edge /quiz
+        run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
+        # LIVE_URL chỉ dùng khi được truyền tay: mở site thật như một khách,
+        # không bấm gì, không đăng nhập.
+
+      - name: Smoke trên site thật (chỉ đọc)
+        if: inputs.live_url != ''
+        run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
+
+      - name: Lưu ảnh chụp + log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiz-retirement-browser
+          path: artifacts/
+          if-no-files-found: warn
+
+      # Ghi kết quả vào ĐÚNG một bình luận trên PR (tạo lần đầu, sửa lại các lần
+      # sau) để người review đọc được từ GitHub, không phải mở log của runner.
+      - name: Đăng kết quả lên PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node tools/browserSmokeReport.mjs \
+            --in artifacts/browser-smoke.json --run-url "$RUN_URL" --commit "$GITHUB_SHA" > /tmp/comment.md
+          if [ ! -s /tmp/comment.md ]; then echo 'không có kết quả để đăng'; exit 0; fi
+          PR=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then echo 'nhánh này không có PR đang mở'; exit 0; fi
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("<!-- quiz-retirement-browser -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@/tmp/comment.md > /dev/null
+            echo "đã cập nhật bình luận $ID trên PR #$PR"
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@/tmp/comment.md > /dev/null
+            echo "đã tạo bình luận trên PR #$PR"
+          fi

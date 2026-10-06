@@ -10,7 +10,6 @@ const S = {
   /* dieu huong sidebar / mobile */
   'nav.board': 'Requests',
   'nav.login': 'Daily login',
-  'nav.quiz': 'Music quiz',
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
   'nav.mine': 'About me',
@@ -19,7 +18,6 @@ const S = {
      liệu (dải thống kê ngay dưới đã làm việc đó) */
   'nav.boardSub': 'Vote for what gets made next',
   'nav.loginSub': 'Your daily check-in calendar',
-  'nav.quizSub': 'Easy K-pop questions for bonus votes',
   'nav.spinSub': 'Two free spins a day',
   'nav.mineSub': 'Your profile',
   'nav.adminSub': 'Manage queue & orders',
@@ -84,13 +82,10 @@ const S = {
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
   'spin.legendAria': 'The four prize tiers on the wheel',
-  /* Daily login / music quiz. Daily login is a check-in calendar only:
-     it tracks presence and streak and never awards votes. The music quiz is
-     the only vote-awarding path (1 correct answer = 1 vote, max 5 a day). */
+  /* Daily Login. It is a check-in calendar only: it tracks presence and streak
+     and never awards votes. No other daily screen exists. */
   'daily.loginHeading': 'Your check-in calendar',
   'daily.loginSubtitle': 'One check-in a day keeps your streak alive',
-  'daily.quizHeading': 'Today’s K-pop challenge',
-  'daily.quizSubtitle': 'Lyrics, groups, members & fandoms · Earn up to +{n} bonus votes',
   'calendar.caption': '{month} check-in calendar',
   'calendar.monthSummaryOne': '1 check-in this month',
   'calendar.monthSummary': '{n} check-ins this month',
@@ -132,62 +127,27 @@ const S = {
   'daily.claimed': 'Checked in today',
   'daily.claimSuccess': 'Checked in for today. See you tomorrow!',
   'daily.alreadyClaimed': 'You are already checked in for today.',
-  'daily.quizTitle': 'K-pop quiz',
-  'daily.cat.Lyrics': 'Lyrics',
-  'daily.cat.Songs': 'Songs',
-  'daily.cat.Groups': 'Groups',
-  'daily.cat.Members': 'Members',
-  'daily.cat.Fandom': 'Fandom',
-  'daily.quizTopics': 'Lyrics hooks · hit songs · members · fandom names',
-  'daily.quizStartHint': 'Fresh questions every day · {total} questions · up to +{n} bonus votes',
-  'daily.answeredCount': '{n}/{total} answered',
-  'daily.jumpQuestion': 'Go to question {n}',
-  'daily.perfect': 'Perfect round!',
-  'daily.great': 'Great job!',
-  'daily.tryAgain': 'Tomorrow is another round.',
-  'daily.resultSummary': 'You scored {score}/{total} · +{n} bonus votes',
-  'daily.nextQuizIn': 'A new K-pop quiz unlocks in {time}.',
-  'daily.reviewTitle': 'Answer review',
-  'daily.easy': 'Easy',
-  'daily.savedRound': 'Saved round',
-  'daily.quizDesc': '{total} easy K-pop questions · +{n} bonus vote per correct answer · maximum +{max} per day',
-  'daily.upTo': 'Up to +{n}',
-  'daily.start': 'Start today’s quiz',
-  'daily.starting': 'Starting…',
-  'daily.inProgress': 'In progress · {n}/{total} answered',
-  'daily.score': '{score}/{total} correct · +{n} bonus votes',
-  'daily.question': 'Question {n} of {total}',
-  'daily.back': 'Back',
-  'daily.yourAnswer': 'Your answer: {answer}',
-  'daily.correctAnswer': 'Correct answer: {answer}',
   'daily.checkedInToday': 'Checked in today',
   'daily.notCheckedIn': 'Not checked in yet today',
-  'daily.loginNoVotes': 'Check-ins never award votes — only the K-pop quiz does.',
-  'daily.quizEarned': 'Today’s quiz: +{n} bonus votes',
-  'daily.bonusRule': 'Bonus votes reset at the end of October each year.',
+  'daily.loginNoVotes': 'Check-ins never award votes.',
   'daily.loading': 'Loading today’s rewards…',
   'daily.refresh': 'Refresh status',
   'err.dailySetup': 'Daily missions are not set up yet. The site owner needs to apply the daily rewards database migration.',
   'err.dailyAccountChanged': 'Your account changed. Refresh the page before collecting rewards.',
   'err.dailyDayChanged': 'A new day has started. Refresh to get today’s missions.',
   'err.dailyQuizSession': 'This quiz session could not be found. Refresh to resume today’s quiz.',
-  'daily.answerCorrect': 'Correct! +{n} bonus vote.',
-  'daily.answerWrong': 'Not this time — no bonus vote for this answer.',
-  'daily.submitAnswer': 'Submit answer',
-  'daily.submittingAnswer': 'Checking…',
-  'daily.nextQuestion': 'Next question',
-  'daily.lastQuestion': 'Finish round',
-  'daily.answerLocked': 'Answer locked',
-  'daily.pickOne': 'Pick one answer, then submit it. Answers are final.',
-  'daily.votesToday': 'Quiz votes today: {n}/{max}',
-  'daily.quizUnavailableTitle': 'Today’s quiz is not available yet',
-  'daily.quizUnavailableBody': 'The quiz only uses questions whose sources have been checked and approved. New questions are being reviewed — check back soon.',
-  'daily.quizRetiredBody': 'This round was created by an older version of the quiz and can no longer award bonus votes. A fresh round unlocks tomorrow.',
   'err.dailyQuizAnswers': 'Choose one answer before submitting it.',
   'err.dailyQuizUnavailable': 'Today’s quiz is not available yet — there are not enough approved questions. Try again tomorrow.',
   'err.dailyQuizRetired': 'This quiz round was created by an older version and can no longer award votes. A new round unlocks tomorrow.',
   'err.dailyLoginRewardRetired': 'Check-ins no longer award votes.',
   'err.dailyLoginRewardImmutable': 'A recorded check-in reward cannot be changed.',
+  'err.voteQuotaConfig': 'Vote quota configuration is unavailable. Please contact support.',
+  'err.featureRetiredPreflight': 'This change could not be applied because the database is not in the expected state.',
+  'err.featureRetiredState': 'The database did not reach the expected state, so the change was rolled back.',
+  'err.featureRetiredRollback': 'The restore could not be applied because the database is not in the expected state.',
+  /* Client cũ (bundle đã cache) gọi một RPC đã bị revoke: KHÔNG hiện text
+     Postgres, KHÔNG để màn hình trắng — mời người dùng nạp lại trang. */
+  'err.featureRetiredClient': 'This feature was retired. Please refresh the page to get the newest version — you will land on the daily check-in calendar.',
   'err.dailyQuizQuestion': 'That question is not part of today’s round. Refresh to reload your questions.',
   'err.dailyQuizOption': 'That answer does not belong to this question. Refresh to reload your questions.',
   'err.dailyResponse': 'The server returned an invalid daily reward status. Refresh to try again.',
@@ -935,9 +895,7 @@ const S = {
   'gate.needTitle': 'Sign in to open this page',
   'gate.needBody': 'Your profile, your requests and your daily spins belong to an account.',
   'gate.needDailyLogin': 'Sign in to open your check-in calendar and keep your streak alive.',
-  'gate.needQuiz': 'Sign in to play an easy K-pop quiz — three questions, up to +3 bonus votes.',
   'gate.needSpin': 'Sign in to spin — two free spins a day, and the votes land on your account.',
-
 
   /* bang dieu hanh */
   'adm.pageAria': 'Admin workspace',
@@ -1164,8 +1122,12 @@ const fill = (s, vars) =>
 
 const I18nCtx = createContext(null)
 
+/* Dịch một mã khoá bằng chính từ điển của app, không cần React — provider và
+   bài test cùng đi qua đây, nên câu chữ hiển thị cho người dùng là một nguồn. */
+export const translate = (key, vars) => fill(S[key] ?? key, vars)
+
 export function I18nProvider({ children }) {
-  const t = useCallback((key, vars) => fill(S[key] ?? key, vars), [])
+  const t = useCallback((key, vars) => translate(key, vars), [])
   const value = useMemo(() => ({ t }), [t])
   return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
 }
@@ -1189,6 +1151,16 @@ export function errMsg(t, e) {
   if (m.startsWith('err.')) return t(m, e?.vars)
   const c = typeof e?.code === 'string' ? e.code : ''
   if (c.startsWith('err.')) return t(c, e?.vars)
+  /* 20261122 revoke năm cửa RPC của quiz khỏi mọi client role. Một bundle cũ
+     còn nằm trong cache (hoặc tab mở từ trước) vẫn gọi chúng và nhận SQLSTATE
+     42501; PostgREST trả về "permission denied for function <tên>". Gặp đúng
+     dạng đó thì mời nạp lại trang — câu này còn vô nghĩa hơn cả err.generic, và
+     cũng không được lộ tên hàm hay text Postgres. Chỉ khớp khi đối tượng bị từ
+     chối là FUNCTION: "permission denied for table/relation/schema" và lỗi RLS
+     vẫn đi đường cũ. */
+  if ((c === '42501' || /insufficient privilege/i.test(m)) && /permission denied for function/i.test(m)) {
+    return t('err.featureRetiredClient')
+  }
   if (!m || /^(position|detail|hint|context):|SQLSTATE|row-level security|violates |permission denied|does not exist/i.test(m)) {
     return t('err.generic')
   }

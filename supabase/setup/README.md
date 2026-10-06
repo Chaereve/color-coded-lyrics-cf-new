@@ -1,6 +1,6 @@
 # Cài Supabase khi `schema.sql` quá dài cho SQL Editor
 
-`supabase/schema.sql` là **bản SQL gộp (khoảng 240 KiB)**, gồm schema gốc và nhiều bản vá theo thứ tự. Kích thước này là **kích thước câu lệnh để dán vào Dashboard**, không phải dung lượng database/bảng đã đầy. Nếu nút **Save** trong SQL Editor báo lỗi, lưu ý: **Save chỉ lưu bản nháp query; phải bấm Run để áp dụng SQL vào database. Không cần bấm Save.** Nếu Run báo lỗi, nguyên nhân có thể *khác* kích thước file — xem thông báo lỗi cụ thể.
+`supabase/schema.sql` là **bản SQL gộp tới baseline 20261120** (khoảng 313 KiB), gồm schema gốc và các migration tĩnh theo thứ tự. Kích thước này là **kích thước câu lệnh để dán vào Dashboard**, không phải dung lượng database/bảng đã đầy. Migration data-dependent `20261121_vote_calendar_decoupling.sql` cố ý không nằm trong bundle này; chỉ guarded runner mới được áp dụng sau khi baseline 20261120 đã được xác minh. Nếu nút **Save** trong SQL Editor báo lỗi, lưu ý: **Save chỉ lưu bản nháp query; phải bấm Run để áp dụng SQL vào database. Không cần bấm Save.** Nếu Run báo lỗi, nguyên nhân có thể *khác* kích thước file — xem thông báo lỗi cụ thể.
 
 ## Chọn đúng trường hợp
 
@@ -50,6 +50,14 @@ Sau bước 16, **xác nhận bằng lệnh đối chiếu schema** (không dùn
 ```sh
 SUPABASE_DB_URL='…' npm run db:verify-baseline -- --baseline 20261120   # phải in READY
 ```
+
+Sau khi có deploy approval riêng, guarded runner có thể ghi baseline đã xác minh rồi áp dụng migration 20261121 trong transaction fail-closed:
+
+```sh
+SUPABASE_DB_URL='…' npm run db:deploy -- --baseline 20261120
+```
+
+Không paste migration 20261121 vào SQL Editor và không chạy lệnh này trong PR #29; deployment yêu cầu approval riêng. Migration copy live quota config, snapshot/backfill ledger và dừng/rollback nếu source/config/schema state không khớp.
 
 Còn có thể kiểm tra bằng tay các bảng/RPC/chính sách quan trọng (tất cả phải là `true`):
 

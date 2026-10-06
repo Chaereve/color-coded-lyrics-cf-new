@@ -8,10 +8,13 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
-  collectMigrations, assertMigrationSafety, planPending, findDestructive, readQuarantine,
+  collectMigrations, assertMigrationSafety, planPending, planLines, findDestructive, readQuarantine,
+  stripExplicitTransaction, applyMigration, stripSqlNoise,
+  normalizePath, pathName, pathDir, classifyMigrationFile,
+  bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
 } from './migrate.mjs'
 
 const REWRITE = 'update public.daily_login_rewards set reward = 0 where reward <> 0;'
@@ -28,7 +31,7 @@ function fixture (files) {
   for (const entry of quarantined) writeFileSync(join(dir, entry.path), entry.sql)
   for (const [name, body] of Object.entries(files)) {
     const path = join(dir, name)
-    mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
+    mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, body)
   }
   return dir
@@ -64,6 +67,79 @@ test('a fresh-install setup path has no chunk for the superseded migration', () 
   assert.equal(chunks.filter(name => /no-votes/.test(name)).length, 0)
   assert.ok(chunks.includes('15-preserve-legacy-daily-login-rewards.sql'))
   assert.ok(chunks.includes('16-daily-login-reward-immutable.sql'))
+})
+
+/* The fresh-install bundle is the NEWEST COMMITTED BASELINE, not "whatever the
+   migrations end at". If schema.sql is ever regenerated from a database where a
+   post-baseline migration already ran, it bakes in objects that only that
+   migration creates. The runner would then refuse every fresh install with
+   `err.voteCalendarPreflight: partial/unknown target objects already exist`,
+   and verification could not tell the difference. These tests pin both halves:
+   the current bundle is clean, and a regenerated one fails closed loudly. */
+
+test('the fresh-install bundle stays at the newest committed baseline', () => {
+  const floor = bundleBaseline()
+  assert.equal(floor, '20261120', 'the bundle baseline is the newest committed fingerprint')
+  const known = baselineObjects(floor)
+  assert.ok(known.has('daily_quiz_config') && known.has('daily_free_vote_grant'),
+    'objects the baseline already describes may be replaced by later migrations')
+  const post = postBaselineObjects()
+  // Exactly the objects migration 20261121 introduces; nothing from the baseline.
+  for (const name of ['daily_vote_quota_config', 'daily_vote_quota_earnings', 'daily_vote_earned_on',
+    'daily_vote_quota_bool', 'daily_vote_quota_int', 'daily_login_calendar_payload',
+    'my_daily_login_status', 'claim_daily_login_calendar']) {
+    assert.ok(post.has(name), `${name} must be recognised as a post-baseline object`)
+  }
+  for (const name of known) assert.equal(post.has(name), false,
+    `${name} exists in baseline ${floor} and must never be treated as bundle-forbidden`)
+  // The committed bundle is clean, and the guard agrees.
+  const bundle = [SCHEMA_FILE,
+    ...readdirSync(SETUP_DIR).filter(n => n.endsWith('.sql')).map(n => join(SETUP_DIR, n))]
+  assert.deepEqual(bundleAheadOfBaseline(bundle), [], 'supabase/schema.sql + setup chunks are at the baseline')
+  assert.doesNotThrow(() => assertMigrationSafety())
+})
+
+test('a regenerated schema.sql that contains post-baseline objects fails closed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ccl-bundle-'))
+  const schema = join(dir, 'schema.sql')
+  const setup = join(dir, 'setup')
+  mkdirSync(setup)
+  writeFileSync(join(setup, '16-daily-login-reward-immutable.sql'), 'select 1;\n')
+  try {
+    // What `npm run db:baseline:snapshot`-style regeneration from a cutover
+    // database looks like: the neutral objects are now part of the bundle.
+    writeFileSync(schema, [
+      'create table public.daily_vote_quota_config (key text primary key, value jsonb not null);',
+      'create or replace function public.my_daily_login_status() returns jsonb as $$ select \'{}\'::jsonb $$;',
+    ].join('\n'))
+    assert.throws(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }),
+      error => {
+        assert.match(error.message, /ahead of baseline 20261120/)
+        assert.match(error.message, /public\.daily_vote_quota_config .*20261121_vote_calendar_decoupling/)
+        assert.match(error.message, /public\.my_daily_login_status/)
+        assert.match(error.message, /regenerate it from a pre-cutover database, or supersede the baseline/)
+        assert.match(error.message, /partial\/unknown target objects already exist/)
+        return true
+      })
+
+    // A setup chunk is part of the same bundle and must be caught identically.
+    writeFileSync(schema, 'select 1;\n')
+    writeFileSync(join(setup, '17-vote-calendar-decoupling.sql'),
+      'create table public.daily_vote_quota_earnings (source text not null, user_id uuid not null);')
+    assert.throws(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }),
+      /17-vote-calendar-decoupling\.sql declares public\.daily_vote_quota_earnings/)
+
+    // Documentation is not a declaration: comments and strings never trip it.
+    writeFileSync(schema, [
+      "-- 20261121 adds public.daily_vote_quota_config; it is NOT part of this bundle.",
+      "select 'public.daily_vote_quota_earnings' as note;",
+    ].join('\n'))
+    writeFileSync(join(setup, '17-vote-calendar-decoupling.sql'), 'select 1;\n')
+    assert.doesNotThrow(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }))
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('a commented-out rewrite is documentation; a real one is a hard failure', () => {
@@ -107,7 +183,9 @@ test('the default plan never schedules a quarantined migration', () => {
   // A: production that has never run 20261112–20261120 — baseline declared.
   const fresh = planPending({ active, quarantined, applied: [], baseline: '20261117' })
   assert.deepEqual(fresh.pending.map(({ id }) => id),
-    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -116,7 +194,9 @@ test('the default plan never schedules a quarantined migration', () => {
   const upTo = active.filter(({ version }) => version <= '20261117').map(({ id }) => id)
   const after = planPending({ active, quarantined, applied: [...upTo, '20261118_daily_login_no_votes'] })
   assert.deepEqual(after.pending.map(({ id }) => id),
-    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+    ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -127,11 +207,142 @@ test('the default plan never schedules a quarantined migration', () => {
     applied: active.filter(({ version }) => version <= '20261117').map(({ id }) => id)
       .concat(['20261119_preserve_legacy_daily_login_rewards']),
   })
-  assert.deepEqual(partial.pending.map(({ id }) => id), ['20261120_daily_login_reward_immutable'])
+  assert.deepEqual(partial.pending.map(({ id }) => id),
+    ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
+      '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
   assert.deepEqual(done.pending, [])
+})
+
+test('the quiz-runtime migration is revoke-only: no drop, no update, no new object', () => {
+  const sql = readFileSync(join(MIGRATIONS_DIR, '20261122_disable_daily_quiz_runtime.sql'), 'utf8')
+  const statements = stripSqlNoise(sql)
+  assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m, 'một transaction, append-only')
+  assert.doesNotMatch(statements, /\bdrop\b|\bcascade\b|\bdelete\b|\btruncate\b/i,
+    'không câu lệnh nào xoá dữ liệu hay object')
+  assert.doesNotMatch(statements, /\bupdate\s+public\./i, 'không UPDATE bảng nào')
+  assert.doesNotMatch(statements, /create\s+(or\s+replace\s+)?(table|function|index|view|policy)/i,
+    'không tạo object mới: bundle fresh-install và baseline 20261120 giữ nguyên')
+  assert.match(sql, /to_regclass\('supabase_migrations\.schema_migrations'\) is null[\s\S]*migration history is missing/,
+    'thiếu bảng history là abort')
+  assert.match(sql, /20261121_vote_calendar_decoupling[\s\S]*is not recorded/, 'phải chạy sau cutover 20261121')
+  const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (const signature of ['public.start_daily_quiz(uuid,date)', 'public.submit_daily_quiz_answer(uuid,uuid,text,text)',
+    'public.submit_daily_quiz(uuid,uuid,int[])', 'public.my_daily_rewards_status()', 'public.claim_daily_login(uuid,date)']) {
+    assert.match(sql, new RegExp(`'${escapeRegex(signature)}'`), `danh sách revoke phải có ${signature}`)
+  }
+  assert.match(sql, /revoke all on function %s from public, anon, authenticated/,
+    'revoke cả pseudo-role public, không chỉ hai role có tên')
+  assert.match(sql, /has_function_privilege\('authenticated', v_name, 'EXECUTE'\)[\s\S]*quiz entry point is still callable/,
+    'post-condition: cửa quiz phải thật sự đóng sau khi revoke')
+  assert.match(sql, /public\.my_daily_login_status\(\)[\s\S]*public\.cast_vote\(uuid,integer,text,text,text\)/,
+    'post-condition: API còn sống (Calendar + vote) phải giữ grant')
+  assert.match(sql, /v_quiz_counts_after is distinct from v_quiz_counts_before/,
+    'đếm lại số dòng bảng quiz: revoke không được đổi dữ liệu')
+  assert.match(sql, /notify pgrst, 'reload schema';/, 'ACL đổi thì PostgREST phải nạp lại cache')
+
+  const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
+    'supabase', 'rollback', '20261122_disable_daily_quiz_runtime.sql'), 'utf8')
+  assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b|\bdelete\b|\btruncate\b/i)
+  assert.match(rollback, /grant execute on function %s to authenticated/)
+  assert.match(rollback, /public\.submit_daily_quiz\(uuid,uuid,int\[\]\)[\s\S]*must stay closed/,
+    'cửa đã đóng từ 20261117 (bản nộp một lần) không được mở lại')
+  assert.match(rollback, /has_function_privilege\('authenticated', v_name, 'EXECUTE'\)[\s\S]*the disable is not the live state/,
+    'rollback fail-closed khi disable không còn là trạng thái sống')
+})
+
+test('the vote/Calendar migration is fail-closed, transactional, and keeps Calendar identity server-side', () => {
+  const sql = readFileSync(join(MIGRATIONS_DIR, '20261121_vote_calendar_decoupling.sql'), 'utf8')
+  assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m)
+  assert.doesNotMatch(stripSqlNoise(sql), /\bdrop\b|\bcascade\b/i)
+  assert.match(sql, /to_regclass\('supabase_migrations\.schema_migrations'\) is null[\s\S]*migration history is missing/)
+  assert.match(sql, /lock table public\.profiles,[\s\S]*in share mode;/i)
+  assert.match(sql, /create temporary table _ccl_vote_quiz_source_snapshot as/i)
+  assert.match(sql, /an awarded quiz answer has an empty source key/)
+  assert.ok(sql.indexOf('do $snapshot_guard$') < sql.indexOf('insert into public.daily_vote_quota_earnings'),
+    'invalid source keys are rejected before inserting any earning event')
+  assert.match(sql, /raise exception 'err\.voteCalendarBackfill/)
+  assert.match(sql, /raise exception 'err\.voteCalendarQuota/)
+  assert.match(sql, /except all/)
+  assert.match(sql, /count\(distinct \(user_id, quiz_date, question_id\)\)/)
+  assert.match(sql, /daily_quiz_answers_awarded_check/)
+  assert.match(sql, /indnkeyatts = 3 and i\.indnatts = 3/)
+  assert.match(sql, /daily_quiz_attempts_user_quiz_date_idx/)
+  assert.match(sql, /public\.daily_quiz_attempts\|quiz_day\|date\|true/)
+  assert.match(sql, /where question_count = 5[\s\S]*quiz_date is null or quiz_day is distinct from quiz_date/)
+  assert.match(sql, /t\.tgtype = 23/)
+  assert.match(sql, /activity_days idempotency constraint is missing/)
+  assert.match(sql, /source_key, amount, recorded_at\)[\s\S]*p_question_id, 1, v_now/)
+  assert.match(sql, /left join public\.daily_login_rewards c[\s\S]*c\.reward_day <= d\.day/)
+  assert.match(sql, /daily_vote_quota_config.*from public\.daily_quiz_config/s)
+  assert.match(sql, /enable row level security;[\s\S]*revoke all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings from public, anon, authenticated;[\s\S]*grant all on public\.daily_vote_quota_config, public\.daily_vote_quota_earnings to service_role;/)
+  assert.match(sql, /create or replace function public\.daily_free_vote_grant[\s\S]*daily_vote_quota_bool/)
+  assert.match(sql, /daily_vote_quota_earnings[\s\S]*primary key \(source, user_id, vote_day, source_key\)/)
+  const cutover = sql.indexOf('create or replace function public.daily_free_vote_grant', sql.indexOf('$equivalence$;'))
+  assert.ok(cutover > sql.indexOf('$equivalence$;'), 'vote cutover follows every backfill/quota assertion')
+  // Fail-closed neutral typed readers: no silent default quota may exist.
+  for (const reader of ['daily_vote_quota_bool', 'daily_vote_quota_int']) {
+    assert.match(sql,
+      new RegExp(`create or replace function public\\.${reader}\\(p_key text\\)[\\s\\S]*?raise exception 'err\\.voteQuotaConfig'`),
+      `${reader} raises on a missing/NULL/mistyped neutral config row instead of defaulting`)
+    assert.match(sql, new RegExp(`revoke all on function public\\.${reader}\\(text\\) from public, anon, authenticated;`))
+  }
+  assert.match(sql, /p\.proname in \('daily_vote_earned_on','daily_login_calendar_payload',\s*'my_daily_login_status','claim_daily_login_calendar',\s*'daily_vote_quota_bool','daily_vote_quota_int'\)/,
+    'the preflight refuses partial target objects, including the typed readers')
+  const calendarClaim = sql.slice(sql.indexOf('create or replace function public.claim_daily_login_calendar'),
+    sql.indexOf('revoke all on function public.claim_daily_login_calendar'))
+  assert.match(calendarClaim, /p_expected_day date/)
+  assert.match(calendarClaim, /auth\.uid\(\)/)
+  assert.match(calendarClaim, /v_now := clock_timestamp\(\);[\s\S]*v_day := \(v_now at time zone 'Asia\/Ho_Chi_Minh'\)::date/)
+  assert.match(calendarClaim, /p_expected_day is distinct from v_day/)
+  assert.doesNotMatch(calendarClaim, /p_expected_user_id|p_uid|p_user_id/)
+  const calendarStatus = sql.slice(sql.indexOf('create or replace function public.my_daily_login_status'),
+    sql.indexOf('revoke all on function public.my_daily_login_status'))
+  assert.match(calendarStatus, /auth\.uid\(\)/)
+  assert.match(calendarStatus, /clock_timestamp\(\)/)
+  assert.doesNotMatch(calendarStatus, /p_expected_user_id|p_uid|p_user_id/)
+  const calendarPayload = sql.slice(sql.indexOf('create or replace function public.daily_login_calendar_payload'),
+    sql.indexOf('revoke all on function public.daily_login_calendar_payload'))
+  assert.doesNotMatch(calendarPayload, /quiz|votes_awarded|credits|purchased|bonus/i)
+  assert.match(calendarPayload, /reward_day <= d\.day/,
+    'future/corrupt rows do not inflate Calendar totals or streaks')
+  const grant = sql.slice(sql.indexOf('create or replace function public.daily_free_vote_grant'),
+    sql.indexOf('revoke all on function public.daily_free_vote_grant'))
+  assert.match(grant, /daily_vote_quota_bool/)
+  assert.match(grant, /daily_vote_quota_int/)
+  assert.doesNotMatch(grant, /daily_quiz_(?:int|bool)|\b(?:3|5)\b/)
+  // REGRESSION PIN (the CI failure that sank Draft PR #29): the committed
+  // 20261120 fingerprint records daily_free_vote_grant as language sql. A
+  // plpgsql replacement changes a fingerprint-visible attribute, so mode B of
+  // baselineReadiness ("the bootstrap lands in the final state") fails against
+  // verifyBaseline('20261120'). Fail-closed strictness belongs in the typed
+  // readers above, never in the grant function's visible shape.
+  assert.match(grant, /returns integer language sql stable security definer set search_path = public/i,
+    'the cutover keeps daily_free_vote_grant attribute-compatible with baseline 20261120 (language sql)')
+  const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
+    'supabase', 'rollback', '20261121_vote_calendar_decoupling.sql'), 'utf8')
+  assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b/i)
+  for (const functionName of ['daily_free_vote_grant', 'my_vote_status', 'cast_vote', 'submit_daily_quiz_answer']) {
+    const declarations = rollback.match(new RegExp(`create or replace function public\\.${functionName}\\b`, 'g')) || []
+    assert.equal(declarations.length, 1, `rollback restores ${functionName} exactly once`)
+  }
+  assert.match(rollback, /grant execute on function public\.my_vote_status\(\) to authenticated/)
+  assert.match(rollback, /grant execute on function public\.cast_vote\(uuid,integer,text,text,text\) to authenticated/)
+  assert.match(rollback, /daily_vote_quota_earnings|Calendar-only API/i)
+  assert.match(rollback, /rollback_preflight/)
+  assert.match(rollback, /20261121_vote_calendar_decoupling/)
+  assert.match(rollback, /source and neutral quota config differ/)
+  assert.match(rollback, /source answers and neutral earning ledger differ/)
+
+  const preCutover = readFileSync(join(MIGRATIONS_DIR, '20261117_daily_quiz_flow.sql'), 'utf8')
+  const getFunction = (source, name) => source.match(
+    new RegExp(`create or replace function public\\.${name}\\b[\\s\\S]*?\\$\\$;`, 'i'))?.[0]
+  for (const name of ['daily_free_vote_grant', 'my_vote_status', 'cast_vote', 'submit_daily_quiz_answer']) {
+    assert.equal(getFunction(rollback, name), getFunction(preCutover, name),
+      `rollback restores the reviewed 20261117 ${name} implementation exactly`)
+  }
 })
 
 test('the runner refuses to guess a baseline for a populated database', () => {
@@ -139,6 +350,39 @@ test('the runner refuses to guess a baseline for a populated database', () => {
   assert.throws(() => planPending({ active, quarantined, applied: [] }), /refusing to guess/)
   assert.throws(() => planPending({ active, quarantined, applied: [], baseline: 'not-a-version' }),
     /invalid baseline/)
+})
+
+test('explicit SQL transaction wrappers are stripped only when the runner owns the enclosing transaction', () => {
+  const wrapped = '-- header\nBEGIN;\nselect 1;\nCOMMIT;\n'
+  assert.equal(stripExplicitTransaction(wrapped), '-- header\nselect 1;\n')
+  assert.equal(stripExplicitTransaction('select 1;\n'), 'select 1;\n')
+  assert.throws(() => stripExplicitTransaction('BEGIN;\nselect 1;\n'), /balanced outer BEGIN\/COMMIT/)
+  assert.throws(() => stripExplicitTransaction('BEGIN;\nselect 1;\nCOMMIT;\nCOMMIT;'), /balanced outer BEGIN\/COMMIT/)
+})
+
+test('migration body and history commit together; body failure records no history', async () => {
+  const calls = []
+  const client = { async query(sql, values) { calls.push({ sql, values }); return { rows: [] } } }
+  await applyMigration(client, { id: '20261121_fixture', name: 'fixture.sql', sql: 'BEGIN;\nselect 1;\nCOMMIT;' })
+  assert.deepEqual(calls.map(({ sql }) => sql), [
+    'begin',
+    "select pg_advisory_xact_lock(('x' || md5($1))::bit(64)::bigint)",
+    'select 1;',
+    'insert into supabase_migrations.schema_migrations (version, statements, name) values ($1, $2, $3)',
+    'commit',
+  ])
+
+  const failedCalls = []
+  const failing = { async query(sql) {
+    failedCalls.push(sql)
+    if (sql.includes('select fail;')) throw new Error('simulated query failure')
+    return { rows: [] }
+  } }
+  await assert.rejects(() => applyMigration(failing,
+    { id: '20261121_fixture', name: 'fixture.sql', sql: 'BEGIN;\nselect fail;\nCOMMIT;' }),
+  /fixture\.sql: simulated query failure/)
+  assert.equal(failedCalls.at(-1), 'rollback')
+  assert.equal(failedCalls.some(sql => sql.startsWith('insert into supabase_migrations.schema_migrations')), false)
 })
 
 test('no documentation tells anyone to run the superseded migration', () => {
@@ -164,4 +408,62 @@ test('no documentation tells anyone to run the superseded migration', () => {
   const runbook = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)), 'docs', 'DB-MIGRATIONS.md'), 'utf8')
   assert.match(runbook, /never executes|cách ly|quarantined/)
   assert.doesNotMatch(runbook, /npm run db:deploy[^\n]*20261118[^\n]*baseline 2026111[0-7]/)
+})
+
+/* Windows + Git Bash: `readdirSync`/`join` trả '\\' nên code cũ (`lastIndexOf('/')`)
+   coi tệp TOP-LEVEL là tệp trong thư mục con và `db:plan` chết với thông báo
+   "supabase/migrations/C:\\Users\\…\\20250601_auto_pick.sql is not a migration".
+   Bài này khoá lại cách phân loại không phụ thuộc dấu phân cách. */
+test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windows \\ và POSIX /)', () => {
+  const win = { file: 'C:\\Users\\kimto\\repo\\supabase\\migrations\\20250601_auto_pick.sql', dir: 'C:\\Users\\kimto\\repo\\supabase\\migrations' }
+  const posix = { file: '/home/kimto/repo/supabase/migrations/20250601_auto_pick.sql', dir: '/home/kimto/repo/supabase/migrations' }
+  const mixed = { file: 'supabase/migrations\\20250601_auto_pick.sql', dir: 'supabase/migrations/' }
+
+  for (const { file, dir } of [win, posix, mixed]) {
+    const classified = classifyMigrationFile(file, dir)
+    assert.equal(classified.name, '20250601_auto_pick.sql', `tên tệp phải là basename: ${file}`)
+    assert.equal(classified.topLevel, true, `tệp top-level phải được nhận là top-level: ${file}`)
+  }
+
+  /* Tệp trong thư mục con thì vẫn phải bị coi là KHÔNG top-level — nếu không,
+     guard "Supabase CLI chỉ quét top level" sẽ mất tác dụng. */
+  for (const nested of ['supabase\\migrations\\archive\\20261118_x.sql', 'supabase/migrations/archive/20261118_x.sql']) {
+    const classified = classifyMigrationFile(nested, 'supabase/migrations')
+    assert.equal(classified.topLevel, false, `tệp trong thư mục con: ${nested}`)
+    assert.equal(classified.name, '20261118_x.sql')
+  }
+
+  assert.equal(normalizePath('supabase\\migrations\\'), 'supabase/migrations')
+  assert.equal(normalizePath('C:\\repo\\supabase\\migrations'), 'C:/repo/supabase/migrations')
+  assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
+  assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
+
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 39 migration đang hoạt động. */
+  const { active, quarantined } = collectMigrations()
+  assert.equal(active.length, 39)
+  assert.equal(quarantined.length, 1)
+  assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
+})
+
+test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được chỉ in dòng skip', () => {
+  /* Lỗi đã gặp trên database production (mode E): `db:plan -- --baseline 20261120`
+     in "skip 36 migration(s) …" rồi hết, vì nhánh plan trả về trước vòng lặp in.
+     Người vận hành tưởng không có gì để chạy. Bài này khoá lại hợp đồng: danh
+     sách pending phải được in ra, và phải đúng ba bản > 20261120. */
+  const { active, quarantined } = collectMigrations()
+  const planned = planPending({ active, quarantined, applied: [], baseline: '20261120' })
+  assert.deepEqual(planned.pending.map(({ id }) => id),
+    ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
+  const lines = planLines(planned)
+  assert.equal(lines[0], '3 migration(s) would be applied:')
+  assert.deepEqual(lines.slice(1), [
+    'apply 20261121  20261121_vote_calendar_decoupling.sql',
+    'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
+    'apply 20261123  20261123_reconcile_security_drift.sql',
+  ])
+  /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
+  const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
+  assert.deepEqual(done.pending, [])
+  assert.deepEqual(planLines(done).slice(1), [])
 })

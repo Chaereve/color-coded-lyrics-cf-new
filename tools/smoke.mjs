@@ -14,7 +14,8 @@
        trong một cụm biết xuống dòng thì báo (lỗi "tag chồng nhau");
      · in ra mọi console.error / console.warn / exception kèm mục đang đứng.
 
-   Chạy: npm run smoke     (SMOKE_DUMP=1 để in thêm HTML vài khu vực)
+   Chạy: npm run smoke     (SMOKE_DUMP=1 in thêm HTML vài khu vực;
+                            SMOKE_VERBOSE=1 in từng mục đạt để gửi log kiểm chứng)
    ========================================================= */
 import { JSDOM } from 'jsdom'
 import { createServer } from 'vite'
@@ -94,7 +95,7 @@ const server = await createServer({
 const { createElement, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const App = (await server.ssrLoadModule('/src/App.jsx')).default
-const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+const { I18nProvider, errMsg, translate } = await server.ssrLoadModule('/src/lib/i18n.jsx')
 /* Số đo vệt mờ lấy từ CHÍNH mô-đun, không chép lại: smoke kiểm "khung có vẽ
    đúng con số mà mã đang dùng" chứ không phải "khung có vẽ con số nào đó".
    Mặc định 0 để lượt chạy với mã CŨ (chưa có FRAME_FADE) đỏ gọn ở phép kiểm
@@ -147,12 +148,16 @@ const checks = []
 const check = (name, ok, extra = '') => {
   checks.push({ name, ok, extra })
   if (!ok) realLog(` FAIL  ${name}${extra ? ` — ${extra}` : ''}`)
+  /* SMOKE_VERBOSE=1 in ra từng mục đạt — dùng khi cần gửi log kiểm chứng cho
+     người duyệt, chứ lượt chạy thường chỉ cần thấy mục hỏng. */
+  else if (VERBOSE) realLog(`  ok  ${name}${extra ? ` — ${extra}` : ''}`)
 }
 
 /* ---------- in HTML của vùng đang soi (SMOKE_DUMP=1) ----------
    Đọc mã trả lời được "phần tử có tồn tại không"; chỉ đọc HTML đã dựng mới trả
    lời được "nó nằm ở đâu, lồng trong cái gì" — đúng loại câu hỏi phát sinh khi
    bố cục sai. In theo yêu cầu để lượt chạy thường không bị rối. */
+const VERBOSE = !!process.env.SMOKE_VERBOSE
 const DUMP = !!process.env.SMOKE_DUMP
 const dump = (label, sel) => {
   if (!DUMP) return
@@ -266,16 +271,17 @@ where = 'khách chưa đăng nhập'
     check('sidebar có mục About me để bấm', false, (q('.side-nav')?.textContent || '').slice(0, 80))
   }
 
-  for (const [label, route] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz']]) {
+  for (const [label, route] of [['Daily login', '/daily-login']]) {
     const item = q(`.side-item[href="${route}"]`)
     check(`menu có mục ${label} riêng`, !!item)
     if (item) {
       await click(item)
       await tick(180)
       check(`${label} của khách có lời mời đăng nhập, không dựng nội dung riêng tư`,
-        !!q('.signin-panel') && !q('.daily-rewards') && !q('.daily-spin'))
+        !!q('.signin-panel') && !q('.daily-login-page') && !q('.daily-spin'))
     }
   }
+  check('menu của khách không còn mục Music quiz', !q('.side-item[href="/quiz"]'))
 
   /* DAILY SPIN của khách: trước đây `{user && <DailySpin/>}` cho ra một trang
      trắng. Nay phải có chữ, lý do và một nút. */
@@ -791,7 +797,7 @@ if (voteBtn) {
 }
 
 /* ---------- 8. các mục còn lại ---------- */
-for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
+for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
   where = name
   window.history.pushState({}, '', path)
   window.dispatchEvent(new window.Event('popstate'))
@@ -805,15 +811,7 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/qu
       && !!q('.check-in-day[aria-current="date"]') && qa('.check-in-stat').length === 4
       && qa('.check-in-nav').length === 2)
     check('Daily login là trang riêng: chỉ có điểm danh',
-      !!q('.daily-claim') && !q('.daily-quiz-start') && !q('.daily-quiz') && !q('.daily-spin'))
-  }
-  if (name === 'Music quiz') {
-    await waitFor(() => !!q('.music-quiz-page'))
-    check('Music quiz là K-pop mức dễ, không dựng lịch điểm danh',
-      q('.daily-quiz-level')?.textContent === 'Easy' && /K-pop/.test(q('.music-quiz-page')?.textContent || '')
-      && /Lyrics hooks/.test(q('.music-quiz-page')?.textContent || '') && !q('.check-in-calendar'))
-    check('Music quiz là trang riêng: không có điểm danh hay vòng quay',
-      !!q('.daily-quiz-start') && !q('.daily-claim') && !q('.daily-spin'))
+      !!q('.daily-claim') && !q('.daily-spin') && !/quiz/i.test(text()))
   }
   if (name === 'Xếp hạng') {
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
@@ -857,7 +855,8 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/qu
     }
   }
   if (name === 'Daily Spin') {
-    check('Daily Spin chỉ giữ vòng quay, không dồn daily login/quiz vào chung', !q('.daily-rewards'))
+    check('Daily Spin chỉ giữ vòng quay, không dồn daily login vào chung',
+      !q('.daily-login-page') && !q('.check-in-calendar'))
     /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là
        con số. Trước đây mỗi nhãn còn kèm "×9" nên mặt đĩa đọc như bảng dữ liệu. */
     check('đĩa có 16 ô', qa('.spin-sector').length === 16, `${qa('.spin-sector').length} ô`)
@@ -970,6 +969,17 @@ if (q('.nt-btn')) {
   await tick(120)
   check('bấm lần nữa là bảng đóng', !q('#nt-panel'))
 }
+
+/* /quiz đã nghỉ hưu: gõ thẳng địa chỉ cũ phải được đưa về lịch điểm danh và
+   không dựng lại bất kỳ màn quiz nào. */
+where = 'đường dẫn cũ /quiz'
+window.history.pushState({}, '', '/quiz')
+window.dispatchEvent(new window.Event('popstate'))
+await waitFor(() => !!q('.daily-login-page'), 3000)
+await tick(140)
+check('/quiz chuyển hướng về Daily login', window.location.pathname === '/daily-login', window.location.pathname)
+check('/quiz không dựng lại màn quiz và không còn chữ quiz trên trang',
+  !q('.music-quiz-page') && !q('.daily-quiz') && !q('.daily-quiz-start') && !/quiz/i.test(text()))
 
 /* ---------- 9. trang quản trị ---------- */
 where = 'trang quản trị'
@@ -1138,7 +1148,7 @@ const auditDom = (label) => {
     [...new Set(nested)].slice(0, 4).join(' | '))
 }
 
-for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'],
+for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'],
   ['Xếp hạng', '/ranking'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
   where = `rà soát DOM · ${label}`
   window.history.pushState({}, '', path)
@@ -1938,14 +1948,20 @@ where = 'bài trả phí'
       !new URLSearchParams(window.location.search).has('profile'), window.location.search)
   }
   for (const [label, route, selector] of [
-    ['Daily login', '/daily-login', '.daily-login-page'], ['Music quiz', '/quiz', '.music-quiz-page'],
+    ['Daily login', '/daily-login', '.daily-login-page'],
   ]) {
     await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
     await click(q(`.side-nav .side-item[href="${route}"]`))
     await waitFor(() => !!q(selector) && !q('.public-profile'), 3000)
     check(`bấm ${label} từ trang cá nhân: chỉ dựng đúng MỘT trang`,
-      !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-rewards').length === 1)
+      !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-login-page').length === 1)
   }
+  /* Địa chỉ /quiz cũ, gõ thẳng từ trang cá nhân: về lịch điểm danh, không mở
+     lại màn quiz và cũng không để trang cá nhân dính lại. */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/quiz', () => !!q('.daily-login-page'))
+  check('mở /quiz từ trang cá nhân: chỉ còn Daily login, không còn chữ quiz',
+    !q('.public-profile') && !q('.music-quiz-page') && !/quiz/i.test(text()))
   /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
   await goto('/', () => items().length > 0)
   check('quay lại bảng: danh sách có hàng và không còn trang nào khác',
@@ -2121,17 +2137,17 @@ where = 'click-path'
 }
 
 /* ---------- 10b. daily quiz: năm câu, năm phiếu, chỉ câu đã duyệt ---------- */
-where = 'daily quiz'
-realLog('\n── daily quiz ──')
+where = 'daily quiz (đã nghỉ hưu)'
+realLog('\n── daily quiz: dữ liệu còn nguyên, giao diện đã gỡ ──')
 {
-  const { readFileSync: rf } = await import('node:fs')
+  const { readFileSync: rf, existsSync: ex } = await import('node:fs')
   const rd = (rel) => rf(new URL(rel, import.meta.url), 'utf8')
   const schemaSql = rd('../supabase/schema.sql')
   const quizFiles = ['20261115_daily_quiz_schema.sql', '20261116_daily_quiz_pool.sql',
     '20261117_daily_quiz_flow.sql']
   const quizSql = quizFiles.map((f) => rd(`../supabase/migrations/${f}`)).join('\n')
 
-  check('daily quiz: ba migration nằm nguyên văn trong schema.sql',
+  check('daily quiz: ba migration vẫn nằm nguyên văn trong schema.sql — dữ liệu KHÔNG bị bỏ',
     quizFiles.every((f) => schemaSql.includes(rd(`../supabase/migrations/${f}`))))
   check('daily quiz: sổ câu trả lời có khoá (user_id, quiz_date, question_id)',
     /primary key \(user_id, quiz_date, question_id\)/.test(quizSql))
@@ -2159,29 +2175,65 @@ realLog('\n── daily quiz ──')
     && /v_awarded := case when v_correct and v_votes < v_cap then 1 else 0 end/.test(quizSql))
   check('daily quiz: đường nộp cũ không còn trả thưởng',
     /raise exception 'err\.dailyQuizRetired'/.test(quizSql))
-  check('daily quiz: 3 phiếu miễn phí tự động đã tắt, nhưng vẫn là một công tắc',
+  check('daily quiz: 3 phiếu miễn phí tự động vẫn tắt (không bật trong PR này)',
     /\('free_vote_grant_enabled',\s+'false'\)/.test(quizSql)
-    && /create or replace function public\.daily_free_vote_grant/.test(quizSql)
-    && /v_grant := public\.daily_free_vote_grant\(v_uid, v_day\)/.test(quizSql)
     && /\('global_daily_vote_cap_enabled',\s+'false'\)/.test(quizSql))
 
-  const screen = rd('../src/components/DailyRewards.jsx')
-  const lib = rd('../src/lib/dailyRewards.js')
-  const beforeVerdict = screen.split('question.answered && <div')[0]
-  check('daily quiz: đáp án chỉ lộ sau khi nộp — phần hiển thị trước đó không đụng tới correct_option_id',
-    /question\.answered && <div className=\{`daily-quiz-verdict/.test(screen)
-    && !/correct_option_id/.test(beforeVerdict))
-  check('daily quiz: gửi option id ổn định, không gửi vị trí A/B/C/D',
-    /submitDailyQuizAnswer\(userId, status\.quiz\.attempt_id,[\s\S]{0,120}answers\[status\.quiz\.questions\[step\]\.id\]/.test(screen)
-    && /export function validateQuizAnswer\(questionId, optionId\)/.test(lib))
-  check('daily quiz: 5 câu, trần 5 phiếu, xáo thứ tự ở client',
-    /DAILY_QUIZ_QUESTIONS = 5/.test(lib) && /MAX_DAILY_QUIZ_VOTES = 5/.test(lib)
-    && /export function displayOrder\(/.test(lib) && /orderedOptions\(question, attemptId\)/.test(screen))
-  check('daily quiz: trạng thái "chưa có câu đủ điều kiện" là một màn hình, không phải lỗi',
-    /quizUnavailableTitle/.test(screen) && /quiz\?\.state === 'unavailable'/.test(screen))
+  /* Giao diện + đường gọi: quiz không còn ở đâu trong mã chạy được. */
+  const gone = ['../src/components/DailyRewards.jsx', '../src/components/DailyRewards.test.js',
+    '../src/components/DailyRewards.css', '../src/lib/dailyRewards.js',
+    '../src/lib/dailyRewards.test.js', '../src/lib/dailyRewardsDemo.js']
+  check('quiz đã nghỉ hưu: sáu tệp màn hình/điều khiển quiz không còn tồn tại',
+    gone.every((rel) => !ex(new URL(rel, import.meta.url))))
+  const app = rd('../src/App.jsx')
+  const dbLib = rd('../src/lib/db.js')
+  const calendarLib = rd('../src/lib/dailyLoginCalendar.js')
+  const screenText = [rd('../src/components/DailyLogin.jsx'), rd('../src/components/DailyLoginCalendar.jsx')].join('\n')
+  check('quiz đã nghỉ hưu: /quiz chỉ còn là đường dẫn cũ chuyển về lịch điểm danh',
+    /RETIRED_PATHS = \{ '\/quiz': '\/daily-login' \}/.test(app)
+    && !/<DailyRewards|needQuiz/.test(app)
+    && !/quiz/i.test(screenText))
+  check('quiz đã nghỉ hưu: client chỉ còn gọi Calendar API, không còn cửa RPC nào của quiz',
+    !/start_daily_quiz|submit_daily_quiz_answer|submit_daily_quiz|my_daily_rewards_status/.test(dbLib + calendarLib)
+    && !/claim_daily_login\(/.test(dbLib + calendarLib)
+    && /claim_daily_login_calendar/.test(calendarLib)
+    && !/quiz/i.test(dbLib + calendarLib))
+
+  const disableSql = rd('../supabase/migrations/20261122_disable_daily_quiz_runtime.sql')
+  const disableCode = disableSql.replace(/--[^\n]*/g, ' ')
+  const rollbackSql = rd('../supabase/rollback/20261122_disable_daily_quiz_runtime.sql')
+  check('quiz đã nghỉ hưu: 20261122 chỉ revoke — không drop/delete/update, không tạo object',
+    !/\bdrop\b|\bdelete\b|\btruncate\b|\bupdate\s+public\./i.test(disableCode)
+    && !/create\s+(or\s+replace\s+)?(table|function|index|view|policy)/i.test(disableCode)
+    && /revoke all on function %s from public, anon, authenticated/.test(disableSql))
+  check('quiz đã nghỉ hưu: đủ 5 cửa bị revoke; rollback mở lại đúng 4 cửa từng mở',
+    ['public.start_daily_quiz(uuid,date)', 'public.submit_daily_quiz_answer(uuid,uuid,text,text)',
+      'public.submit_daily_quiz(uuid,uuid,int[])', 'public.my_daily_rewards_status()',
+      'public.claim_daily_login(uuid,date)'].every((sig) => disableSql.includes(`'${sig}'`))
+    && /v_restore text\[\] := array\[/.test(rollbackSql)
+    && (rollbackSql.match(/grant execute on function %s to authenticated/g) || []).length === 1
+    && /legacy single-shot submit must stay closed/.test(rollbackSql))
+
+  /* Client cũ (bundle đã cache) gọi lại cửa đã revoke → PostgREST trả 42501.
+     Câu hiển thị phải xử lý được: mời nạp lại trang, không lộ text Postgres. */
+  where = 'client cũ · RPC đã revoke'
+  const friendly = translate('err.featureRetiredClient')
+  check('client cũ: cả 5 cửa revoke đều hiện câu mời nạp lại trang, không lộ text Postgres',
+    ['start_daily_quiz', 'submit_daily_quiz_answer', 'submit_daily_quiz',
+      'my_daily_rewards_status', 'claim_daily_login'].every((rpc) => {
+      const shown = errMsg(translate, { code: '42501', message: `permission denied for function ${rpc}` })
+      return shown === friendly && /refresh/i.test(shown)
+        && !/permission denied|SQLSTATE|42501|quiz/i.test(shown)
+    }))
+  check('client cũ: câu đó không hứa hẹn gì thêm và chỉ về lịch điểm danh',
+    /daily check-in/i.test(friendly) && friendly.length < 200)
+  check('lỗi quyền ngoài nhóm revoke không bị gán nhầm thành "nghỉ hưu"',
+    ['permission denied for table request_comments', 'permission denied for relation votes',
+      'permission denied for schema public'].every((m) => errMsg(translate, { code: '42501', message: m }) !== friendly))
+  where = 'daily quiz (đã nghỉ hưu)'
 
   const chunks = ['12-daily-quiz-schema.sql', '13-daily-quiz-pool.sql', '14-daily-quiz-flow.sql']
-  check('daily quiz: các file cài tay đã được cắt và ghép lại khớp schema',
+  check('daily quiz: file cài tay vẫn khớp schema.sql — baseline 20261120 không đổi',
     chunks.every((f) => rd(`../supabase/setup/${f}`).length > 1000)
     && chunks.map((f) => rd(`../supabase/setup/${f}`)).every((body) => schemaSql.includes(body)))
 }
@@ -2324,13 +2376,11 @@ realLog('\n── daily login ──')
 
   check('daily login: giao diện không còn "+2", "bonus votes" hay "Daily Login reward"',
     (() => {
-      const lib = rd('../src/lib/dailyRewards.js')
-      const screen = rd('../src/components/DailyRewards.jsx')
+      const login = rd('../src/components/DailyLogin.jsx')
       const calendar = rd('../src/components/DailyLoginCalendar.jsx')
       const dict = rd('../src/lib/i18n.jsx')
-      return /DAILY_LOGIN_REWARD = 0/.test(lib)
-        && !/\+\$\{?DAILY_LOGIN_REWARD/.test(screen + calendar)
-        && !/DAILY_LOGIN_REWARD/.test(screen + calendar)
+      return /daily-login-page/.test(login) && /check-in-calendar/.test(calendar)
+        && !/\+\d+\s*(bonus )?votes?/i.test(login + calendar)
         && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*(\+|bonus)/.test(dict)
         && !/'calendar\.(rule|claimDay|monthSummary|monthSummaryOne|historyUnavailable)':[^']*(\+|bonus)/.test(dict)
         && !/'gate\.needDailyLogin':[^']*(\+|bonus|reward)/.test(dict)
@@ -2339,10 +2389,9 @@ realLog('\n── daily login ──')
 
   check('daily login: bản demo offline cũng không cộng vote khi điểm danh',
     (() => {
-      const demo = rd('../src/lib/dailyRewardsDemo.js')
-      return !/bonus_credits \+= DAILY_LOGIN_REWARD/.test(demo)
-        && /vote_reward: DAILY_LOGIN_REWARD/.test(demo)
-        && !/\(claimed \? DAILY_LOGIN_REWARD : 0\)/.test(demo)
+      const demo = rd('../src/lib/dailyLoginCalendar.js')
+      return !/bonus_credits|vote_credits|votes_awarded|free_vote/i.test(demo)
+        && /writeDemo\(userId, \[\.\.\.days, before\.day\]\.sort\(\)\)/.test(demo)
     })())
 
   check('daily login: file cài tay có bản cắt của hai phần sửa lỗi (không có bước cho 20261118)',

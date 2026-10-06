@@ -33,7 +33,7 @@ import Progress from './components/Progress'
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
-const DailyRewards = lazy(() => import('./components/DailyRewards'))
+const DailyLogin = lazy(() => import('./components/DailyLogin'))
 import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
@@ -71,7 +71,7 @@ import {
    không phải hộp thoại: nó là nơi làm việc thật (soát bài, duyệt, sửa mốc tiến
    độ, xử lý đơn) nên phải vào được bằng link, F5 không mất chỗ đang đứng, và
    mở được ở tab trình duyệt thứ hai bên cạnh trang công khai. */
-const SECTIONS = ['board', 'login', 'quiz', 'spin', 'ranking', 'mine']
+const SECTIONS = ['board', 'login', 'spin', 'ranking', 'mine']
 const ADMIN_ONLY = 'admin'
 
 /* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
@@ -96,13 +96,22 @@ const NOW_SHOW = 2
    mà bảng đã nói bằng số. Mục nào không có trong bảng này thì không vẽ dòng
    phụ, chứ không vẽ một dòng rỗng. */
 const NAV_SUB = {
-  board: 'nav.boardSub', login: 'nav.loginSub', quiz: 'nav.quizSub',
+  board: 'nav.boardSub', login: 'nav.loginSub',
   spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 
-const ROUTES = { board: '/', login: '/daily-login', quiz: '/quiz', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+
+/* Đường dẫn của tính năng đã nghỉ hưu. `/quiz` từng là màn quiz âm nhạc và đã
+   bị gỡ khỏi sản phẩm; ai còn bookmark/link cũ (hoặc tab mở từ bundle cũ) được
+   đưa thẳng về lịch điểm danh — ở tầng Pages bằng 301 trong `_redirects`, còn ở
+   đây để một request lọt qua SPA cũng không dựng màn trắng. Bảng này là chỗ DUY
+   NHẤT trong mã còn nhắc tới đường dẫn cũ, và chỉ để chuyển hướng. */
+const RETIRED_PATHS = { '/quiz': '/daily-login' }
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
+  const target = RETIRED_PATHS[clean]
+  if (target) return Object.keys(ROUTES).find(k => ROUTES[k] === target) || 'login'
   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
 }
 
@@ -767,6 +776,12 @@ function AppInner() {
 
   useEffect(() => {
     const onPop = () => {
+      const clean = window.location.pathname.replace(/\/+$/, '') || '/'
+      /* Back/Forward rơi vào đường dẫn đã nghỉ hưu: mục hiển thị là màn còn
+         sống (sectionOf lo việc đó), nhưng địa chỉ phải được thay tại chỗ —
+         để nguyên `/quiz` trên address bar nghĩa là F5 vẫn quay lại đường dẫn
+         cũ, và bước Back kế tiếp lại rơi vào đó lần nữa. */
+      if (RETIRED_PATHS[clean]) putUrl(null, RETIRED_PATHS[clean] + window.location.search)
       setSection(sectionOf(window.location.pathname))
       /* Back/Forward trên trang quản trị: mục đang mở cũng nằm ở địa chỉ nên
          phải đọc lại cùng lúc với mục của trang — không thì địa chỉ nói
@@ -845,7 +860,13 @@ function AppInner() {
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
-    if (!Object.values(ROUTES).includes(clean) && !clean.startsWith('/u/')) {
+    /* Đường dẫn của tính năng đã nghỉ hưu đi trước: người dùng còn bookmark
+       được đưa về màn còn sống (`putUrl` = replace, không đẻ thêm một bước
+       Back đứng giữa hai lần chuyển hướng). */
+    const retired = RETIRED_PATHS[clean]
+    if (retired) {
+      putUrl(null, retired + window.location.search)
+    } else if (!Object.values(ROUTES).includes(clean) && !clean.startsWith('/u/')) {
       putUrl(null, ROUTES.board + window.location.search)
     }
   }, [])
@@ -2394,20 +2415,10 @@ function AppInner() {
         {section === 'login' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <DailyRewards key={`login-${user.id}`} kind="login" userId={user.id} onBalance={applySpinBalance} />
+              <DailyLogin key={`login-${user.id}`} userId={user.id} />
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needDailyLogin')} onSignIn={() => setAuthPrompt(true)} />
-          )
-        )}
-
-        {section === 'quiz' && !onProfile && (
-          user ? (
-            <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <DailyRewards key={`quiz-${user.id}`} kind="quiz" userId={user.id} onBalance={applySpinBalance} />
-            </Suspense>
-          ) : (
-            <SignInPanel title={t('gate.needTitle')} body={t('gate.needQuiz')} onSignIn={() => setAuthPrompt(true)} />
           )
         )}
 

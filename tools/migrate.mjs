@@ -14,13 +14,33 @@
  * The connection string comes from SUPABASE_DB_URL (or --db-url). Never commit
  * it, never paste it into chat. */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { verifyBaseline, formatReport, availableBaselines } from './schema-readiness.mjs'
+import { verifyBaseline, formatReport, availableBaselines, snapshotPath } from './schema-readiness.mjs'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 
 export const REPO = fileURLToPath(new URL('..', import.meta.url))
 export const MIGRATIONS_DIR = join(REPO, 'supabase', 'migrations')
+
+/* ---------------------------------------------------------------- đường dẫn
+   Đường dẫn trong repo viết bằng '/', nhưng readdirSync/join trên Windows trả
+   '\'. Vì vậy mọi phép so sánh đường dẫn ở đây phải chuẩn hoá CẢ HAI dấu phân
+   cách — dùng path.sep một mình là không đủ. Đây chính là bug đã làm `db:plan`
+   chết trên Git Bash/Windows: `path.lastIndexOf('/')` trả -1 cho đường dẫn có
+   '\', nên một tệp TOP-LEVEL bị coi là "nằm trong thư mục con" và tên tệp bị
+   in ra thành cả đường dẫn tuyệt đối. */
+export const normalizePath = value => value.replaceAll('\\', '/').replace(/\/+$/, '')
+const lastSeparator = value => Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+export const pathName = value => value.slice(lastSeparator(value) + 1)
+export const pathDir = value => { const at = lastSeparator(value); return at < 0 ? '' : value.slice(0, at) }
+
+/** Phân loại một tệp .sql so với thư mục migrations. Hàm thuần (không I/O) để
+ *  unit test được cả đường dẫn kiểu Windows trên CI Linux — xem
+ *  tools/migration-safety.test.mjs. */
+export const classifyMigrationFile = (file, dir) => ({
+  name: pathName(file),
+  topLevel: normalizePath(pathDir(file)) === normalizePath(dir),
+})
 export const SCHEMA_FILE = join(REPO, 'supabase', 'schema.sql')
 export const SETUP_DIR = join(REPO, 'supabase', 'setup')
 export const QUARANTINE_FILE = 'quarantine.json'
@@ -43,8 +63,7 @@ export const DESTRUCTIVE_PATTERNS = [
 ]
 
 /** Removes comments and blanks string literals, so only real code is scanned.
- *  Dollar-quoted bodies are kept (recursively), because dynamic SQL lives there. */
-export function stripSqlNoise (sql) {
+ *  Dollar-quoted bodies are kept (recursively), because dynamic SQL lives there. */export function stripSqlNoise (sql) {
   let out = ''
   let i = 0
   const at = n => sql[i + n]
@@ -89,6 +108,71 @@ export function findDestructive (sql) {
   return DESTRUCTIVE_PATTERNS.filter(({ re }) => re.test(code))
 }
 
+/* ------------------- fresh-install bundle vs baseline ------------------- */
+
+/** The newest committed fresh-install baseline: what `supabase/schema.sql` and
+ *  the `supabase/setup/*.sql` chunks are allowed to describe. */
+export const bundleBaseline = () =>
+  availableBaselines().filter(name => /^\d{8}$/.test(name)).sort().at(-1)
+
+/** Every table/function name the baseline fingerprint already contains. A later
+ *  migration may legitimately `create or replace` these; it may not introduce
+ *  them. */
+export function baselineObjects (baseline = bundleBaseline()) {
+  const snapshot = JSON.parse(readFileSync(snapshotPath(baseline), 'utf8'))
+  const tables = Object.keys(snapshot.state.tables ?? {})
+  const functions = Object.keys(snapshot.state.functions ?? {})
+    .map(signature => signature.slice(0, signature.indexOf('(')))
+  return new Set([...tables, ...functions])
+}
+
+/** Objects that ONLY migrations after the newest baseline create (name → the
+ *  migration id that introduces it). These must never appear in the
+ *  fresh-install bundle: a fresh install of the bundle is the baseline, and the
+ *  guarded runner refuses to adopt pre-existing target objects, so a bundled
+ *  copy would make every upgrade from that bundle impossible. */
+export function postBaselineObjects (dir = MIGRATIONS_DIR) {
+  const { active } = collectMigrations(dir)
+  const floor = bundleBaseline()
+  const known = baselineObjects(floor)
+  const objects = new Map()
+  const remember = (name, id) => { if (!known.has(name)) objects.set(name, id) }
+  for (const { id, version, sql } of active) {
+    if (version <= floor) continue
+    const code = stripSqlNoise(sql)
+    for (const match of code.matchAll(
+      /create\s+(?:or\s+replace\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)/gi)) {
+      remember(match[1], id)
+    }
+    for (const match of code.matchAll(
+      /create\s+or\s+replace\s+function\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*\(/gi)) {
+      remember(match[1], id)
+    }
+  }
+  return objects
+}
+
+/** A declaration of `name` inside a bundle file. Comments and string literals
+ *  are ignored, so a documented name is not a hit — only real DDL is. */
+const declaresObject = (sql, name) => new RegExp(
+  `create\\s+(?:or\\s+replace\\s+)?(?:table|function|unique\\s+index|index|policy|trigger|type|view)\\s+` +
+  `(?:if\\s+not\\s+exists\\s+)?(?:public\\.)?${name}\\b`, 'i').test(stripSqlNoise(sql))
+
+/** Fails closed when the fresh-install bundle already contains objects that a
+ *  later migration creates — the state a regenerated `schema.sql` produces. */
+export function bundleAheadOfBaseline (files, dir = MIGRATIONS_DIR) {
+  const objects = postBaselineObjects(dir)
+  if (!objects.size) return []
+  const hits = []
+  for (const path of files) {
+    const sql = readFileSync(path, 'utf8')
+    for (const [name, migration] of objects) {
+      if (declaresObject(sql, name)) hits.push({ path, object: `public.${name}`, migration })
+    }
+  }
+  return hits
+}
+
 export function readQuarantine (dir = MIGRATIONS_DIR) {
   const manifest = JSON.parse(readFileSync(join(dir, 'archive', QUARANTINE_FILE), 'utf8'))
   return manifest.quarantined.map(entry => ({
@@ -114,13 +198,12 @@ export function listSqlFiles (dir) {
  *  `supabase/migrations/<version>_<name>.sql`, in filename order. */
 export function collectMigrations (dir = MIGRATIONS_DIR) {
   const quarantined = readQuarantine(dir)
-  const quarantinedPaths = new Set(quarantined.map(({ path }) => join(dir, path)))
+  const quarantinedPaths = new Set(quarantined.map(({ path }) => normalizePath(join(dir, path))))
   const active = []
   const seen = new Set()
-  for (const path of listSqlFiles(dir)) {
-    const name = path.slice(path.lastIndexOf('/') + 1)
-    const topLevel = path.slice(0, path.lastIndexOf('/')) === dir
-    if (quarantinedPaths.has(path)) continue
+  for (const file of listSqlFiles(dir)) {
+    const { name, topLevel } = classifyMigrationFile(file, dir)
+    if (quarantinedPaths.has(normalizePath(file))) continue
     if (!topLevel) throw new Error(`supabase/migrations/${name} is not a migration: ` +
       'the Supabase CLI only scans the top level. List it in archive/quarantine.json or move it out.')
     const match = /^(\d{8,})_(.+)\.sql$/.exec(name)
@@ -130,14 +213,18 @@ export function collectMigrations (dir = MIGRATIONS_DIR) {
     const id = name.slice(0, -4)
     if (seen.has(id)) throw new Error(`duplicate migration ${id}`)
     seen.add(id)
-    active.push({ id, version: match[1], name, path, sql: readFileSync(path, 'utf8') })
+    active.push({ id, version: match[1], name, path: file, sql: readFileSync(file, 'utf8') })
   }
   active.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return { active, quarantined }
 }
 
-/** Static guard: the default path must never contain a historical rewrite. */
-export function assertMigrationSafety (dir = MIGRATIONS_DIR) {
+/** Readable file label: repo-relative when possible, absolute otherwise. */
+const displayPath = path => path.startsWith(REPO) ? path.slice(REPO.length) : path
+
+/** Static guard: the default path must never contain a historical rewrite, and
+ *  the fresh-install bundle must stay at the newest committed baseline. */
+export function assertMigrationSafety (dir = MIGRATIONS_DIR, { schemaFile = SCHEMA_FILE, setupDir = SETUP_DIR } = {}) {
   const { active, quarantined } = collectMigrations(dir)
   for (const { version, name, sql } of active) {
     const hits = findDestructive(sql)
@@ -154,12 +241,35 @@ export function assertMigrationSafety (dir = MIGRATIONS_DIR) {
       throw new Error(`quarantine entry ${entry.version} is marked destructive but no longer matches — update ${QUARANTINE_FILE}`)
     }
   }
-  for (const path of [SCHEMA_FILE, ...readdirSync(SETUP_DIR).filter(n => n.endsWith('.sql')).map(n => join(SETUP_DIR, n))]) {
+  const bundleFiles = [schemaFile,
+    ...readdirSync(setupDir).filter(n => n.endsWith('.sql')).map(n => join(setupDir, n))]
+  for (const path of bundleFiles) {
     const hits = findDestructive(readFileSync(path, 'utf8'))
-    if (hits.length) throw new Error(`${path.slice(REPO.length)} contains a forbidden statement [${hits.map(h => h.id).join(', ')}]`)
+    if (hits.length) throw new Error(`${displayPath(path)} contains a forbidden statement [${hits.map(h => h.id).join(', ')}]`)
+  }
+  const ahead = bundleAheadOfBaseline(bundleFiles, dir)
+  if (ahead.length) {
+    const floor = bundleBaseline()
+    const detail = ahead.map(hit =>
+      `${displayPath(hit.path)} declares ${hit.object} (created by ${hit.migration})`).join('; ')
+    throw new Error(`the fresh-install bundle is ahead of baseline ${floor}: ${detail}. ` +
+      `The bundle (supabase/schema.sql + supabase/setup chunks) must stay at baseline ${floor}: ` +
+      'regenerate it from a pre-cutover database, or supersede the baseline in a reviewed PR. ' +
+      'A bundled copy makes every upgrade fail closed, because the guarded runner refuses to ' +
+      'adopt pre-existing target objects (err.voteCalendarPreflight: partial/unknown target objects already exist).')
   }
   return { active, quarantined }
 }
+
+/* Danh sách migration sẽ chạy, ở dạng in được. Tồn tại như một hàm riêng vì nhánh
+   `--plan` của CLI trước đây trả về TRƯỚC vòng lặp in, nên `db:plan` báo
+   "skip 36 migration(s) …" rồi im lặng về ba migration thật sự sẽ chạy — người
+   vận hành không có cách nào chỉ-đọc để xem kế hoạch. Định dạng dòng giữ nguyên
+   như `db:deploy` in (và như docs/DB-MIGRATIONS.md mô tả). */
+export const planLines = result => [
+  `${result.pending.length} migration(s) would be applied:`,
+  ...result.pending.map(({ version, name }) => `apply ${version}  ${name}`),
+]
 
 export function planPending ({ active, quarantined = [], applied = [], baseline = null }) {
   const appliedSet = new Set(applied)
@@ -238,12 +348,33 @@ export async function recordBaseline (client, { active, baseline }) {
   return rows
 }
 
+/** Migration files keep BEGIN/COMMIT so they are atomic when executed as a
+ *  standalone SQL script (for example by the disposable DB harness). The runner
+ *  already owns the transaction that also records migration history, so remove
+ *  exactly one outer pair before sending the body; a nested COMMIT would
+ *  otherwise make history failure leave an unrecorded partial deployment. */
+export function stripExplicitTransaction (sql) {
+  const lines = sql.split('\n')
+  const begins = []
+  const commits = []
+  lines.forEach((line, index) => {
+    const statement = line.trim().toLowerCase()
+    if (statement === 'begin;') begins.push(index)
+    if (statement === 'commit;') commits.push(index)
+  })
+  if (!begins.length && !commits.length) return sql
+  if (begins.length !== 1 || commits.length !== 1 || begins[0] >= commits[0]) {
+    throw new Error('migration must have at most one balanced outer BEGIN/COMMIT pair')
+  }
+  return lines.filter((_, index) => index !== begins[0] && index !== commits[0]).join('\n')
+}
+
 export async function applyMigration (client, migration) {
   const { id, name, sql } = migration
   await client.query('begin')
   try {
     await client.query(`select pg_advisory_xact_lock(('x' || md5($1))::bit(64)::bigint)`, [LOCK_KEY])
-    await client.query(sql)
+    await client.query(stripExplicitTransaction(sql))
     // version = file name without extension: unique even when two migrations
     // share a day, and it is what `plan` compares against the file list.
     await client.query(`insert into ${HISTORY_TABLE} (version, statements, name) values ($1, $2, $3)`,
@@ -277,7 +408,15 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = 
     }
   }
   const state = await assertBaselineKnown(client, applied.length ? null : baseline, applied.length)
-  const plan = planPending({ active, quarantined, applied, baseline: applied.length ? null : baseline })
+  /* `--baseline V` là lời tuyên bố "mọi thứ ≤ V đã có trong database này", và nó chỉ
+     được chấp nhận SAU khi fingerprint của V khớp (khối if ở trên). Vì vậy V luôn là
+     SÀN của kế hoạch: các bản ≤ V chưa có trong history thuộc nhóm toRecord (được
+     GHI, không chạy), không bao giờ nằm trong pending — kể cả khi history đã có sẵn
+     một phần. Trước bản vá này, chỉ cần history có một dòng là mọi bản ≤ V bị đẩy
+     vào pending: runner sẽ chạy lại migration cũ rồi vỡ bằng lỗi khoá chính khi ghi
+     history (recordBaseline đã ghi trước đó), tức một abort khó hiểu thay vì kế
+     hoạch đúng. */
+  const plan = planPending({ active, quarantined, applied, baseline })
   return { ...plan, applied, state, active, readiness, toRecord }
 }
 
@@ -343,7 +482,8 @@ async function main (argv) {
   if (mode === 'check') {
     const { active, quarantined } = assertMigrationSafety()
     console.log(`OK  ${active.length} active migrations, ${quarantined.length} quarantined, ` +
-      'no destructive statement in the default path (migrations, schema.sql, setup chunks)')
+      'no destructive statement in the default path and no post-baseline object in the fresh-install ' +
+      `bundle (schema.sql + setup chunks stay at baseline ${bundleBaseline()})`)
     return 0
   }
   if (!dbUrl) {
@@ -371,7 +511,12 @@ async function main (argv) {
       console.log('up to date — nothing to apply')
       return 0
     }
-    if (mode === 'plan') return 0
+    if (mode === 'plan') {
+      /* Chỉ in, không ghi: lệnh này phải cho người vận hành thấy ĐỦ những gì sẽ
+         chạy trước khi họ gõ db:deploy. */
+      for (const line of planLines(result)) console.log(line)
+      return 0
+    }
     if (result.toRecord.length || result.pending.length) await ensureHistory(client)
     if (result.skippedBaseline.length) {
       await recordBaseline(client, { active: result.active, baseline })

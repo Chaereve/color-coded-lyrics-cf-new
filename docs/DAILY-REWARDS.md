@@ -1,9 +1,17 @@
 # Daily login & music quiz
 
-Hai cách kiếm thêm **tối đa 5 vote bonus/ngày**, bên cạnh vòng quay đang có. Hai tính năng có **mục menu và trang riêng**, không gộp vào vòng quay:
+> ⚠️ **Trạng thái hiện tại (retirement):** phần **Music quiz đã bị gỡ khỏi giao
+> diện** — không còn mục menu, không còn màn quiz, và `/quiz` chỉ còn là đường
+> dẫn cũ chuyển hướng về `/daily-login`. Dữ liệu quiz trong database vẫn được
+> giữ nguyên (không xoá), và các cửa RPC quiz đã bị revoke khỏi mọi client role.
+> Tài liệu dưới đây mô tả thiết kế gốc của hai tính năng; phần quiz là lịch sử,
+> không còn là hướng dẫn vận hành. Xem `docs/DAILY-QUIZ-RETIREMENT.md` để biết
+> cái gì còn, cái gì mất, và danh sách object cho giai đoạn dọn dẹp sau.
+
+Daily login là **cách duy nhất** còn lại trong nhóm này, bên cạnh vòng quay:
 
 - **Daily login** → `/daily-login`
-- **Music quiz** → `/quiz`
+- **Music quiz** → `/quiz` (đã nghỉ hưu; chuyển hướng về `/daily-login`)
 - **Daily Spin** → `/daily-spin` (chỉ vòng quay, giữ URL cũ)
 
 Giao diện tiếp tục dùng tiếng Anh như phần còn lại của app.

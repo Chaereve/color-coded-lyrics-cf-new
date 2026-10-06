@@ -147,7 +147,9 @@ test('the recommended deployment path never runs the destructive migration',
         const result = await deploy(client, { baseline: '20261117' })
 
         assert.deepEqual(result.pending.map(({ id }) => id),
-          ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'],
+          ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'],
           '20261118 is quarantined: it is not a file the runner can execute')
         assert.equal(result.quarantinedNeverRuns.length, 1)
         // The declared baseline is written down, not executed: a second run of
@@ -155,9 +157,10 @@ test('the recommended deployment path never runs the destructive migration',
         const history = await readHistory(client)
         assert.ok(history.includes('20261119_preserve_legacy_daily_login_rewards'))
         assert.ok(history.includes('20261120_daily_login_reward_immutable'))
+        assert.ok(history.includes('20261121_vote_calendar_decoupling'))
         assert.equal(history.filter(v => v.startsWith('20261118')).length, 0,
           'the quarantined migration is never recorded as executed by the runner')
-        assert.equal(history.length, result.recordedBaseline.length + 2)
+        assert.equal(history.length, result.recordedBaseline.length + 5)
         const again = await deploy(client)
         assert.deepEqual(again.pending, [], 're-running the documented command changes nothing')
         assert.deepEqual(await readHistory(client), history)
@@ -199,7 +202,9 @@ test('the recommended deployment path never runs the destructive migration',
         const result = await deploy(client)
 
         assert.deepEqual(result.pending.map(({ id }) => id),
-          ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+          ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'])
         assert.equal(result.recordedQuarantined.length, 1, 'the runner reports the quarantined row and never re-runs it')
         const checks = await rewardChecks(pool)
         assert.equal(checks.table_checks, 0, '20261119 removed the table-wide CHECK')
@@ -226,7 +231,9 @@ test('the recommended deployment path never runs the destructive migration',
 
         const result = await deploy(client)
 
-        assert.deepEqual(result.pending.map(({ id }) => id), ['20261120_daily_login_reward_immutable'])
+        assert.deepEqual(result.pending.map(({ id }) => id),
+          ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
+            '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift'])
         assert.equal(await rewardOf(pool, legacy, y), 2)
         await assert.rejects(() => pool.query(
           'update public.daily_login_rewards set reward = 0 where user_id = $1 and reward_day = $2', [legacy, y]),

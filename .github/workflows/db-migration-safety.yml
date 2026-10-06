@@ -59,5 +59,19 @@ jobs:
       - name: Tests (including the real-PostgreSQL migration and baseline suites)
         run: npm test
 
+      # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
+      # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.
+      # Chạy trên chính database throwaway ở trên, không đụng môi trường thật.
+      - name: Old client meets the revoked RPCs (a–d evidence table)
+        run: node tools/revoked-rpc-evidence.mjs
+
+      - name: Lưu bảng bằng chứng
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revoked-rpc-client-view
+          path: artifacts/revoked-rpc-client-view.json
+          if-no-files-found: warn
+
       - name: Lint
         run: npm run lint

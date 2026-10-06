@@ -12,8 +12,11 @@ import {
   withDatabase, installLevel, seedUser, rewardOf, rewardChecks, historyRows, claim,
   insertHistorical, dayOf, migrationSql, archivedSql,
 } from './_fixtures.mjs'
-import { deploy, plan } from '../../tools/migrate.mjs'
-import { verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES } from '../../tools/schema-readiness.mjs'
+import { deploy, plan, ensureHistory } from '../../tools/migrate.mjs'
+import {
+  verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES,
+  diffSchema, classifyDrift, captureSchema, LIVE_VOTE_QUOTA_CONFIG_KEYS,
+} from '../../tools/schema-readiness.mjs'
 
 const url = process.env.MIGRATION_DEPLOY_TEST_DATABASE_URL
 
@@ -43,12 +46,41 @@ test('the committed readiness snapshots cover the deployable baselines', () => {
     availableBaselines().map(b => `${b}.json`))
 })
 
+test('baseline fingerprints require live vote quota keys but never treat repo values as production policy', () => {
+  const keys = [...LIVE_VOTE_QUOTA_CONFIG_KEYS].sort()
+  assert.deepEqual(keys, [
+    'free_vote_grant_enabled', 'free_votes_per_day',
+    'global_daily_vote_cap', 'global_daily_vote_cap_enabled',
+  ])
+  const expected = {
+    tables: {}, functions: {},
+    config: Object.fromEntries(keys.map(key => [key, 'repository seed value'])),
+  }
+  const actual = {
+    tables: {}, functions: {},
+    config: Object.fromEntries(keys.map(key => [key, 'different live production value'])),
+  }
+  assert.deepEqual(diffSchema(expected, actual).problems, [],
+    'the 20261121 preflight, not a repository fingerprint, validates and copies live policy')
+  delete actual.config.free_votes_per_day
+  assert.deepEqual(diffSchema(expected, actual).problems.map(problem => problem.object),
+    ['daily_quiz_config.free_votes_per_day'], 'missing live config is still refused')
+})
+
 test('mode A — a database equivalent to post-20261117 is verified, and only then baselined',
   { skip: !url, timeout: 180_000 }, async () => {
     await withDatabase(url, async (pool, client) => {
       await installLevel(pool, '20261117')
       const legacy = await seedUser(pool, { legacy: true })
       const { d, y } = await dayOf(pool)
+      const liveQuota = [
+        ['free_vote_grant_enabled', true], ['free_votes_per_day', 2],
+        ['global_daily_vote_cap_enabled', true], ['global_daily_vote_cap', 4],
+      ]
+      for (const [key, value] of liveQuota) {
+        await pool.query('update public.daily_quiz_config set value = $2::jsonb where key = $1',
+          [key, JSON.stringify(value)])
+      }
 
       const readiness = await verifyBaseline(client, '20261117')
       assert.equal(readiness.ok, true, JSON.stringify(readiness.problems))
@@ -57,12 +89,27 @@ test('mode A — a database equivalent to post-20261117 is verified, and only th
 
       const result = await deploy(client, { baseline: '20261117' })
       assert.deepEqual(result.pending.map(({ id }) => id),
-        ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+        ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'])
       const history = await historyRows(client)
       assert.ok(history.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(history.includes('20261120_daily_login_reward_immutable'))
+      assert.ok(history.includes('20261121_vote_calendar_decoupling'))
+      assert.ok(history.includes('20261122_disable_daily_quiz_runtime'))
       assert.equal(history.filter(v => v.startsWith('20261118')).length, 0)
-      assert.equal(history.length, result.recordedBaseline.length + 2, 'history is written only after verification passed')
+      assert.equal(history.length, result.recordedBaseline.length + 5, 'history is written only after verification passed')
+      const copiedQuota = await pool.query(`
+        select key, value from public.daily_vote_quota_config
+         where key = any($1::text[]) order by key`, [liveQuota.map(([key]) => key)])
+      assert.deepEqual(copiedQuota.rows.map(row => [row.key, row.value]), [
+        ['free_vote_grant_enabled', true],
+        ['free_votes_per_day', 2],
+        ['global_daily_vote_cap', 4],
+        ['global_daily_vote_cap_enabled', true],
+      ], 'production quota values are copied, not replaced by snapshot/repo defaults')
+      assert.equal((await pool.query(
+        'select public.daily_free_vote_grant($1, $2)::int as n', [legacy, d])).rows[0].n, 2)
 
       assert.equal(await rewardOf(pool, legacy, y), 2, 'a recorded amount survives the deployment')
       assert.equal(await rewardOf(pool, legacy, d), 2)
@@ -143,6 +190,9 @@ test('mode B — a database that never applied 20261112-20261117 bootstraps inst
       assert.ok(applied.includes('20261117_daily_quiz_flow'))
       assert.ok(applied.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(applied.includes('20261120_daily_login_reward_immutable'))
+      assert.ok(applied.includes('20261121_vote_calendar_decoupling'))
+      assert.ok(applied.includes('20261122_disable_daily_quiz_runtime'))
+      assert.ok(applied.includes('20261123_reconcile_security_drift'))
       assert.equal(applied.filter(id => id.startsWith('20261118')).length, 0)
 
       assert.equal((await verifyBaseline(client, '20261120')).ok, true, 'the bootstrap lands in the final state')
@@ -193,7 +243,9 @@ test('mode D — a database where 20261118 ran is detected and still moves forwa
       assert.equal(incident.ok, true, 'the incident state itself is verifiable')
       const result = await deploy(client, { baseline: '20261118' })
       assert.deepEqual(result.pending.map(({ id }) => id),
-        ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable'])
+        ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'])
       const checks = await rewardChecks(pool)
       assert.equal(checks.table_checks, 0, '20261119 removed the table-wide CHECK')
       assert.equal(checks.triggers, 1)
@@ -237,3 +289,77 @@ async function historyCount (client) {
   if (!rows[0].n) return 0
   return (await client.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n
 }
+
+test('cổng không chặn oan vì khác bản PostgreSQL, nhưng vẫn chặn NOT NULL bị mất thật',
+  { skip: !url, timeout: 120_000 }, async () => {
+    /* Bối cảnh production (2026-10-06): fingerprint sinh trên PostgreSQL 18, còn
+       server production là bản cũ hơn nên KHÔNG có 147 dòng pg_constraint
+       contype='n'. Trước bản vá này, verifyBaseline tính chúng là problem nên
+       `db:plan -- --baseline 20261120` từ chối chạy và cả hai drift thật (policy
+       yếu, index DESC) bị che mất. Bài này khoá lại cả hai nửa:
+         · database THIẾU dòng 'n' nhưng CỘT vẫn not null ⇒ không phải problem;
+         · cột thật sự MẤT NOT NULL ⇒ vẫn NOT READY, và là `incompatible-nullability`.
+       Không snapshot nào bị sửa; chỉ cách SO SÁNH được sửa. */
+    await withDatabase(url, async (pool, client) => {
+      await installLevel(pool, 'fresh')
+      const snapshot = JSON.parse(readFileSync(`${SNAPSHOT_DIR}/20261120.json`, 'utf8'))
+      const actual = await captureSchema(client)
+
+      /* (a) máy này (PG18) khớp fingerprint: READY. */
+      const live = await verifyBaseline(client, '20261120')
+      assert.equal(live.ok, true, `DB cài mới phải READY: ${JSON.stringify(live.problems.slice(0, 3))}`)
+
+      /* (b) giả lập server PG cũ: bỏ các dòng 'n' khỏi bản chụp, cột giữ nguyên
+         not null = true ⇒ 147 missing-constraint nhưng KHÔNG có mục cần đọc. */
+      const older = structuredClone(actual)
+      let stripped = 0
+      for (const table of Object.values(older.tables)) {
+        const before = table.constraints.length
+        table.constraints = table.constraints.filter(c => c.type !== 'n')
+        stripped += before - table.constraints.length
+      }
+      assert.equal(stripped, 147, 'đúng 147 dòng cơ chế catalog như production báo')
+      const raw = diffSchema(snapshot.state, older).problems
+      assert.equal(raw.filter(p => p.kind === 'missing-constraint').length, 147)
+      const classified = classifyDrift(snapshot.state, older, raw)
+      assert.deepEqual(classified.review, [], 'không được còn mục nào cần người đọc')
+      assert.equal(classified.artifacts.length, 147)
+
+      /* (c) nhưng nếu một cột THẬT SỰ mất NOT NULL thì cổng vẫn phải chặn. */
+      const broken = structuredClone(older)
+      broken.tables.requests.columns.status.notNull = false
+      const brokenRaw = diffSchema(snapshot.state, broken).problems
+      const brokenClassified = classifyDrift(snapshot.state, broken, brokenRaw)
+      assert.ok(brokenClassified.review.some(p => p.kind === 'incompatible-nullability'),
+        'mất NOT NULL thật phải nằm trong nhóm cần người đọc')
+
+      /* (d) và trên database thật: DROP NOT NULL ⇒ verifyBaseline NOT READY. */
+      await pool.query('alter table public.requests alter column status drop not null')
+      const afterDrop = await verifyBaseline(client, '20261120')
+      assert.equal(afterDrop.ok, false, 'mất NOT NULL trên database thật phải làm cổng NOT READY')
+      assert.ok(afterDrop.problems.some(p => p.kind === 'incompatible-nullability'),
+        `phải là incompatible-nullability: ${JSON.stringify(afterDrop.problems.map(p => p.kind))}`)
+    })
+  })
+
+test('--baseline vẫn là SÀN khi history đã có một phần: bản ≤ baseline được GHI, không chạy lại',
+  { skip: !url, timeout: 120_000 }, async () => {
+    /* Trước bản vá: chỉ cần history có một dòng là mọi migration ≤ baseline bị đẩy
+       vào pending ⇒ runner chạy lại migration cũ rồi vỡ bằng lỗi khoá chính khi ghi
+       history (recordBaseline đã ghi trước đó). Bài này khoá lại hành vi đúng. */
+    await withDatabase(url, async (pool, client) => {
+      await installLevel(pool, 'fresh')
+      await ensureHistory(client)
+      await client.query(`insert into supabase_migrations.schema_migrations (version, statements, name)
+                          values ('20261112_daily_rewards', '{}', 'thử: history một phần')`)
+
+      const result = await plan(client, { baseline: '20261120' })
+      assert.deepEqual(result.pending.map(({ id }) => id),
+        ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'], 'chỉ các bản SAU baseline được xếp vào pending')
+      assert.ok(result.pending.every(({ version }) => version > '20261120'))
+      assert.ok(result.toRecord.every(({ version }) => version <= '20261120'), 'toRecord chỉ gồm bản ≤ baseline')
+      assert.equal(result.toRecord.length, 35, '35 bản ≤ 20261120 chưa có trong history (20261118 đã quarantine)')
+      assert.ok(!result.toRecord.some(({ id }) => id === '20261112_daily_rewards'), 'bản đã ghi thì không ghi lại')
+    })
+  })
