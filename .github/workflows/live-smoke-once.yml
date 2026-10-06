@@ -1,0 +1,54 @@
+# TỆM — chạy MỘT lần rồi xoá khỏi nhánh.
+#
+# Vì sao tồn tại: `gh workflow run` (workflow_dispatch) trả 403
+# "Resource not accessible by integration" — token GitHub của phiên Arena không
+# có quyền `actions: write`, nên không dispatch được
+# quiz-retirement-browser.yml với input live_url. Workflow này chỉ là cái vỏ
+# kích đúng script smoke đã có (tools/browserSmoke.mjs) qua push event, chạy
+# CHỈ-ĐỌC trên site thật https://chaereve.pages.dev.
+#
+# Đây KHÔNG phải thay thế quiz-retirement-browser.yml: file này bị xoá ngay sau
+# khi lấy kết quả, không đi vào main.
+name: Live smoke (tạm, một lần) — chaereve.pages.dev
+
+on:
+  push:
+    branches: ['arena/2544c5f9-color-coded-lyrics-cf-new']
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LIVE_URL: https://chaereve.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cài Playwright + Chromium
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Dựng bundle production
+        run: npm run build
+
+      - name: Smoke trên site thật (chỉ đọc, không đăng nhập)
+        run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
+
+      - name: Lưu ảnh chụp + log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-chaereve-pages-dev
+          path: artifacts/
+          if-no-files-found: warn
