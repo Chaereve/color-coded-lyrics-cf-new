@@ -30,6 +30,16 @@ const results = []
 const check = (name, ok, extra = '') => {
   results.push({ name, ok, extra })
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? ` — ${extra}` : ''}`)
+  writeSummary()
+}
+/* Ghi kết quả SAU MỖI mục: job thất bại giữa đường vẫn còn tệp để CI đăng lên
+   PR, thay vì mất trắng vì một bước sau đó ném lỗi. */
+const writeSummary = () => {
+  try {
+    mkdirSync(outDir, { recursive: true })
+    writeFileSync(join(outDir, 'browser-smoke.json'), JSON.stringify(
+      { edge: edge || null, total: results.length, failed: results.filter(r => !r.ok).length, results }, null, 2))
+  } catch { /* ghi chú không được làm hỏng phép kiểm */ }
 }
 
 /* ---------- 1. edge: 301 của Cloudflare Pages ---------- */
@@ -47,17 +57,21 @@ if (edge) {
     }
   }
   console.log(`\n── edge: ${edge} ──`)
-  const quiz = await waitFor()
-  check('edge: /quiz trả 301/308 (không dựng lại màn quiz)', [301, 308].includes(quiz.status), `status=${quiz.status}`)
-  const location = String(quiz.headers.get('location') || '')
-  check('edge: Location trỏ về /daily-login', /\/daily-login$/.test(location), location || '(thiếu Location)')
+  try {
+    const quiz = await waitFor()
+    check('edge: /quiz trả 301/308 (không dựng lại màn quiz)', [301, 308].includes(quiz.status), `status=${quiz.status}`)
+    const location = String(quiz.headers.get('location') || '')
+    check('edge: Location trỏ về /daily-login', /\/daily-login$/.test(location), location || '(thiếu Location)')
 
-  const login = await fetch(`${edge}/daily-login`)
-  const html = await login.text()
-  check('edge: /daily-login trả 200', login.status === 200, `status=${login.status}`)
-  check('edge: HTML không còn chữ quiz', !/quiz/i.test(html))
-  const cache = String(login.headers.get('cache-control') || '')
-  check('edge: HTML không bị cache lâu (must-revalidate)', /must-revalidate/i.test(cache), cache || '(thiếu Cache-Control)')
+    const login = await fetch(`${edge}/daily-login`)
+    const html = await login.text()
+    check('edge: /daily-login trả 200', login.status === 200, `status=${login.status}`)
+    check('edge: HTML không còn chữ quiz', !/quiz/i.test(html))
+    const cache = String(login.headers.get('cache-control') || '')
+    check('edge: HTML không bị cache lâu (must-revalidate)', /must-revalidate/i.test(cache), cache || '(thiếu Cache-Control)')
+  } catch (e) {
+    check('edge: gọi được URL preview', false, String(e).slice(0, 160))
+  }
 }
 
 /* ---------- 2. dựng dist/ bằng một static server nhỏ ---------- */
@@ -89,6 +103,7 @@ const viewports = [
 ]
 for (const vp of viewports) {
   console.log(`\n── ${vp.name} (${vp.width}×${vp.height}) ──`)
+  try {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } })
   const page = await context.newPage()
   const errors = []
@@ -125,12 +140,16 @@ for (const vp of viewports) {
   await page.screenshot({ path: shot, fullPage: true })
   console.log(`  ảnh: ${shot}`)
   await context.close()
+  } catch (e) {
+    check(`${vp.name}: chạy hết được kịch bản`, false, String(e).slice(0, 200))
+    results.push({ name: `${vp.name}: lỗi khi chạy`, ok: false, extra: String(e).slice(0, 200) })
+    writeSummary()
+  }
 }
 await browser.close()
 server.close()
 
 const failed = results.filter(r => !r.ok)
-mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, 'browser-smoke.json'), JSON.stringify({ edge: edge || null, results }, null, 2))
+writeSummary()
 console.log(`\n──────── ${results.length - failed.length}/${results.length} mục đạt ────────`)
 if (failed.length) { failed.forEach(f => console.log(`FAIL  ${f.name}${f.extra ? ` — ${f.extra}` : ''}`)); process.exit(1) }

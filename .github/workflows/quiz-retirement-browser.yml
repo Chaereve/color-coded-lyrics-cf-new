@@ -22,6 +22,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   browser:
@@ -59,3 +61,26 @@ jobs:
           name: quiz-retirement-browser
           path: artifacts/
           if-no-files-found: warn
+
+      # Ghi kết quả vào ĐÚNG một bình luận trên PR (tạo lần đầu, sửa lại các lần
+      # sau) để người review đọc được từ GitHub, không phải mở log của runner.
+      - name: Đăng kết quả lên PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node tools/browserSmokeReport.mjs \
+            --in artifacts/browser-smoke.json --run-url "$RUN_URL" --commit "$GITHUB_SHA" > /tmp/comment.md
+          if [ ! -s /tmp/comment.md ]; then echo 'không có kết quả để đăng'; exit 0; fi
+          PR=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$PR" ]; then echo 'nhánh này không có PR đang mở'; exit 0; fi
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("<!-- quiz-retirement-browser -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@/tmp/comment.md > /dev/null
+            echo "đã cập nhật bình luận $ID trên PR #$PR"
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@/tmp/comment.md > /dev/null
+            echo "đã tạo bình luận trên PR #$PR"
+          fi
