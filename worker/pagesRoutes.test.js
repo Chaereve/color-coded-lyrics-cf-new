@@ -224,10 +224,107 @@ test('_headers: khối /* mang security headers, và không header nào bị kha
   assert.match(csp, /default-src 'self'/)
   assert.match(csp, /script-src 'self' https:\/\/challenges\.cloudflare\.com/)
   assert.match(csp, /connect-src[^;]*https:\/\/\*\.supabase\.co/)
+  /* Realtime đi bằng WebSocket: `https://*.supabase.co` KHÔNG phủ `wss://`
+     (khác scheme là khác nguồn), nên phải khai riêng. Test ngay bên dưới chốt
+     bằng đúng URL mà live smoke thấy bị từ chối trên production. */
+  assert.match(csp, /connect-src[^;]*wss:\/\/\*\.supabase\.co/)
   assert.match(csp, /frame-src[^;]*https:\/\/www\.youtube\.com/)
   assert.match(csp, /object-src 'none'/)
   assert.match(csp, /frame-ancestors 'none'/)
   assert.ok(!/unsafe-eval/.test(csp), 'CSP không được mở unsafe-eval')
+})
+
+/* ---------- connect-src: khoá bằng URL THẬT mà live smoke bắt được ----------
+   Site thật ngày 2026-10-06: live smoke 32/34, hai mục đỏ đều là "không có lỗi
+   console / exception" (desktop + mobile), cùng một câu:
+
+     Refused to connect to 'wss://<ref>.supabase.co/realtime/v1/websocket?apikey=…&vsn=2.0.0'
+     because it violates the following Content Security Policy directive:
+     "connect-src 'self' https://*.supabase.co …"
+
+   `npm test` và `npm run smoke` KHÔNG bắt được: jsdom không mở socket thật, và
+   bundle CI không có VITE_SUPABASE_* nên `hasSupabase` = false — hai kênh
+   `live`/`live-media` trong src/App.jsx chưa bao giờ được dựng. Chỉ site đã
+   deploy mới lộ. Vì vậy ba phép kiểm dưới đây chốt bằng chính URL đó. */
+
+/* Project ref thật, cùng giá trị với VITE_SUPABASE_URL trong .env.example và
+   với host trong câu lỗi CSP ở trên. Đổi project thì đổi cả ba chỗ. */
+const SUPABASE_HOST = 'yooxntqwdlvkxcblgqbw.supabase.co'
+const REALTIME_URL = `wss://${SUPABASE_HOST}/realtime/v1/websocket?apikey=sb_publishable_4jGXNIjGvToqfcTCMGVP-g_u0FYOhdt&vsn=2.0.0`
+
+/* Danh sách nguồn của một directive, đọc từ CSP của khối bắt-all trong _headers. */
+const cspSources = (directive) => {
+  const csp = parseHeaders().find(b => b.pattern === '/*')?.headers
+    .find(h => h.name === 'content-security-policy')?.value || ''
+  const part = csp.split(';').map(s => s.trim()).find(s => s.startsWith(`${directive} `))
+  return part ? part.slice(directive.length + 1).split(/\s+/).filter(Boolean) : []
+}
+
+/* Một URL có được danh sách nguồn cho phép không. Chỉ cài ĐÚNG ba luật mà tệp
+   này cần (không cài hết spec CSP): nguồn phải có scheme tường minh, scheme phải
+   khớp đúng từng chữ — `https://` không kéo theo `wss://` — và `*.` chỉ khớp
+   miền con. */
+const cspAllows = (sources, rawUrl) => {
+  const u = new URL(rawUrl)
+  const scheme = u.protocol.replace(/:$/, '').toLowerCase()
+  const host = u.hostname.toLowerCase()
+  return sources.some(src => {
+    const m = /^([a-z][a-z0-9+.-]*):\/\/([^/]+)$/i.exec(src)
+    if (!m) return false                        // 'self', data:, blob: … không xét ở đây
+    if (m[1].toLowerCase() !== scheme) return false
+    const pattern = m[2].toLowerCase()
+    if (pattern === '*') return true
+    if (pattern.startsWith('*.')) return host.endsWith(pattern.slice(1))
+    return host === pattern
+  })
+}
+
+test('_headers: connect-src đủ cho Realtime (wss) lẫn REST/auth (https) của Supabase', () => {
+  const connect = cspSources('connect-src')
+  assert.ok(connect.length >= 5, `không đọc được connect-src: "${connect.join(' ')}"`)
+
+  /* Đúng URL bị từ chối ở trên — đây là phép kiểm trả lời câu "sửa xong chưa". */
+  assert.ok(cspAllows(connect, REALTIME_URL),
+    `Realtime vẫn bị CSP chặn: connect-src = ${connect.join(' ')}`)
+  /* Sửa wss không được làm rớt ba cửa https đang dùng (PostgREST, Auth, Storage). */
+  for (const path of ['/rest/v1/requests?select=*', '/auth/v1/token?grant_type=refresh_token', '/storage/v1/object/public/avatars/a.png']) {
+    assert.ok(cspAllows(connect, `https://${SUPABASE_HOST}${path}`),
+      `https://${SUPABASE_HOST}${path} phải qua được connect-src`)
+  }
+})
+
+test('_headers: connect-src liệt kê đúng danh sách nguồn — thêm/bớt phải sửa test có chủ đích', () => {
+  /* Khoá cứng cả danh sách vì lỗi ở đây im lặng tuyệt đối: thiếu một nguồn thì
+     tính năng chết trên production còn `npm test` vẫn xanh (xem ghi chú trên).
+     Test đỏ nghĩa là CÓ NGUỒN MỚI được mở ra — phải là một quyết định, không
+     phải một dòng tiện tay. */
+  assert.deepEqual(cspSources('connect-src'), [
+    "'self'",
+    'https://*.supabase.co',
+    'wss://*.supabase.co',
+    'https://api.cloudinary.com',
+    'https://api.vietqr.io',
+    'https://challenges.cloudflare.com',
+    'https://*.pages.dev',
+    'https://*.workers.dev',
+    'https://i.ytimg.com',
+  ])
+})
+
+test('_headers: wss chỉ mở cho *.supabase.co — không mở socket ra mọi host', () => {
+  const connect = cspSources('connect-src')
+  /* `wss:` (mọi host) và `wss://*` là hai cách viết "cho hết": một trang bị chèn
+     mã sẽ nối ra máy chủ lạ mà CSP không nói một lời. Cũng không được có `*`
+     trần — nó mở luôn cả https/wss cho mọi nơi. */
+  for (const bad of ['wss:', 'wss://*', '*', 'ws:', 'ws://*']) {
+    assert.ok(!connect.includes(bad), `connect-src không được chứa "${bad}"`)
+  }
+  assert.equal(connect.filter(s => s.startsWith('wss')).length, 1,
+    'chỉ MỘT nguồn wss được mở')
+  assert.ok(!cspAllows(connect, 'wss://evil.example.com/realtime/v1/websocket'),
+    'socket tới host lạ phải bị chặn')
+  assert.ok(!cspAllows(connect, 'wss://supabase.co.evil.example.com/'),
+    'wildcard phải khớp theo nhãn miền, không theo chuỗi con')
 })
 
 test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store', () => {
