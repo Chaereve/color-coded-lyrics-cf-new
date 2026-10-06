@@ -398,7 +398,15 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = 
     }
   }
   const state = await assertBaselineKnown(client, applied.length ? null : baseline, applied.length)
-  const plan = planPending({ active, quarantined, applied, baseline: applied.length ? null : baseline })
+  /* `--baseline V` là lời tuyên bố "mọi thứ ≤ V đã có trong database này", và nó chỉ
+     được chấp nhận SAU khi fingerprint của V khớp (khối if ở trên). Vì vậy V luôn là
+     SÀN của kế hoạch: các bản ≤ V chưa có trong history thuộc nhóm toRecord (được
+     GHI, không chạy), không bao giờ nằm trong pending — kể cả khi history đã có sẵn
+     một phần. Trước bản vá này, chỉ cần history có một dòng là mọi bản ≤ V bị đẩy
+     vào pending: runner sẽ chạy lại migration cũ rồi vỡ bằng lỗi khoá chính khi ghi
+     history (recordBaseline đã ghi trước đó), tức một abort khó hiểu thay vì kế
+     hoạch đúng. */
+  const plan = planPending({ active, quarantined, applied, baseline })
   return { ...plan, applied, state, active, readiness, toRecord }
 }
 

@@ -12,7 +12,7 @@ import {
   withDatabase, installLevel, seedUser, rewardOf, rewardChecks, historyRows, claim,
   insertHistorical, dayOf, migrationSql, archivedSql,
 } from './_fixtures.mjs'
-import { deploy, plan } from '../../tools/migrate.mjs'
+import { deploy, plan, ensureHistory } from '../../tools/migrate.mjs'
 import {
   verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES,
   diffSchema, classifyDrift, captureSchema, LIVE_VOTE_QUOTA_CONFIG_KEYS,
@@ -339,5 +339,27 @@ test('cổng không chặn oan vì khác bản PostgreSQL, nhưng vẫn chặn N
       assert.equal(afterDrop.ok, false, 'mất NOT NULL trên database thật phải làm cổng NOT READY')
       assert.ok(afterDrop.problems.some(p => p.kind === 'incompatible-nullability'),
         `phải là incompatible-nullability: ${JSON.stringify(afterDrop.problems.map(p => p.kind))}`)
+    })
+  })
+
+test('--baseline vẫn là SÀN khi history đã có một phần: bản ≤ baseline được GHI, không chạy lại',
+  { skip: !url, timeout: 120_000 }, async () => {
+    /* Trước bản vá: chỉ cần history có một dòng là mọi migration ≤ baseline bị đẩy
+       vào pending ⇒ runner chạy lại migration cũ rồi vỡ bằng lỗi khoá chính khi ghi
+       history (recordBaseline đã ghi trước đó). Bài này khoá lại hành vi đúng. */
+    await withDatabase(url, async (pool, client) => {
+      await installLevel(pool, 'fresh')
+      await ensureHistory(client)
+      await client.query(`insert into supabase_migrations.schema_migrations (version, statements, name)
+                          values ('20261112_daily_rewards', '{}', 'thử: history một phần')`)
+
+      const result = await plan(client, { baseline: '20261120' })
+      assert.deepEqual(result.pending.map(({ id }) => id),
+        ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+          '20261123_reconcile_security_drift'], 'chỉ các bản SAU baseline được xếp vào pending')
+      assert.ok(result.pending.every(({ version }) => version > '20261120'))
+      assert.ok(result.toRecord.every(({ version }) => version <= '20261120'), 'toRecord chỉ gồm bản ≤ baseline')
+      assert.equal(result.toRecord.length, 35, '35 bản ≤ 20261120 chưa có trong history (20261118 đã quarantine)')
+      assert.ok(!result.toRecord.some(({ id }) => id === '20261112_daily_rewards'), 'bản đã ghi thì không ghi lại')
     })
   })
