@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
-  collectMigrations, assertMigrationSafety, planPending, findDestructive, readQuarantine,
+  collectMigrations, assertMigrationSafety, planPending, planLines, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
   normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
@@ -443,4 +443,27 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(active.length, 39)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
+})
+
+test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được chỉ in dòng skip', () => {
+  /* Lỗi đã gặp trên database production (mode E): `db:plan -- --baseline 20261120`
+     in "skip 36 migration(s) …" rồi hết, vì nhánh plan trả về trước vòng lặp in.
+     Người vận hành tưởng không có gì để chạy. Bài này khoá lại hợp đồng: danh
+     sách pending phải được in ra, và phải đúng ba bản > 20261120. */
+  const { active, quarantined } = collectMigrations()
+  const planned = planPending({ active, quarantined, applied: [], baseline: '20261120' })
+  assert.deepEqual(planned.pending.map(({ id }) => id),
+    ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
+  const lines = planLines(planned)
+  assert.equal(lines[0], '3 migration(s) would be applied:')
+  assert.deepEqual(lines.slice(1), [
+    'apply 20261121  20261121_vote_calendar_decoupling.sql',
+    'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
+    'apply 20261123  20261123_reconcile_security_drift.sql',
+  ])
+  /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
+  const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
+  assert.deepEqual(done.pending, [])
+  assert.deepEqual(planLines(done).slice(1), [])
 })

@@ -290,6 +290,12 @@ apply 20261121  20261121_vote_calendar_decoupling.sql
 apply 20261122  20261122_disable_daily_quiz_runtime.sql
 ```
 
+`db:plan -- --baseline <version>` prints the same `skip …` lines plus a
+`<n> migration(s) would be applied:` header and one `apply <version>  <file.sql>`
+line per pending migration, and writes nothing at all — use it to see the plan
+before running `db:deploy`. (Before this was fixed the plan branch returned before
+printing the list, so a database with pending work printed only the `skip …` lines.)
+
 Running the same command again prints `up to date — nothing to apply`.
 
 ### B. Existing database that has NOT applied 20261112–20261117

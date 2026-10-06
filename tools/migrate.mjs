@@ -261,6 +261,16 @@ export function assertMigrationSafety (dir = MIGRATIONS_DIR, { schemaFile = SCHE
   return { active, quarantined }
 }
 
+/* Danh sách migration sẽ chạy, ở dạng in được. Tồn tại như một hàm riêng vì nhánh
+   `--plan` của CLI trước đây trả về TRƯỚC vòng lặp in, nên `db:plan` báo
+   "skip 36 migration(s) …" rồi im lặng về ba migration thật sự sẽ chạy — người
+   vận hành không có cách nào chỉ-đọc để xem kế hoạch. Định dạng dòng giữ nguyên
+   như `db:deploy` in (và như docs/DB-MIGRATIONS.md mô tả). */
+export const planLines = result => [
+  `${result.pending.length} migration(s) would be applied:`,
+  ...result.pending.map(({ version, name }) => `apply ${version}  ${name}`),
+]
+
 export function planPending ({ active, quarantined = [], applied = [], baseline = null }) {
   const appliedSet = new Set(applied)
   if (baseline !== null && !/^\d{8}$/.test(baseline)) {
@@ -501,7 +511,12 @@ async function main (argv) {
       console.log('up to date — nothing to apply')
       return 0
     }
-    if (mode === 'plan') return 0
+    if (mode === 'plan') {
+      /* Chỉ in, không ghi: lệnh này phải cho người vận hành thấy ĐỦ những gì sẽ
+         chạy trước khi họ gõ db:deploy. */
+      for (const line of planLines(result)) console.log(line)
+      return 0
+    }
     if (result.toRecord.length || result.pending.length) await ensureHistory(client)
     if (result.skippedBaseline.length) {
       await recordBaseline(client, { active: result.active, baseline })
