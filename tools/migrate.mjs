@@ -21,6 +21,26 @@ import process from 'node:process'
 
 export const REPO = fileURLToPath(new URL('..', import.meta.url))
 export const MIGRATIONS_DIR = join(REPO, 'supabase', 'migrations')
+
+/* ---------------------------------------------------------------- đường dẫn
+   Đường dẫn trong repo viết bằng '/', nhưng readdirSync/join trên Windows trả
+   '\'. Vì vậy mọi phép so sánh đường dẫn ở đây phải chuẩn hoá CẢ HAI dấu phân
+   cách — dùng path.sep một mình là không đủ. Đây chính là bug đã làm `db:plan`
+   chết trên Git Bash/Windows: `path.lastIndexOf('/')` trả -1 cho đường dẫn có
+   '\', nên một tệp TOP-LEVEL bị coi là "nằm trong thư mục con" và tên tệp bị
+   in ra thành cả đường dẫn tuyệt đối. */
+export const normalizePath = value => value.replaceAll('\\', '/').replace(/\/+$/, '')
+const lastSeparator = value => Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
+export const pathName = value => value.slice(lastSeparator(value) + 1)
+export const pathDir = value => { const at = lastSeparator(value); return at < 0 ? '' : value.slice(0, at) }
+
+/** Phân loại một tệp .sql so với thư mục migrations. Hàm thuần (không I/O) để
+ *  unit test được cả đường dẫn kiểu Windows trên CI Linux — xem
+ *  tools/migration-safety.test.mjs. */
+export const classifyMigrationFile = (file, dir) => ({
+  name: pathName(file),
+  topLevel: normalizePath(pathDir(file)) === normalizePath(dir),
+})
 export const SCHEMA_FILE = join(REPO, 'supabase', 'schema.sql')
 export const SETUP_DIR = join(REPO, 'supabase', 'setup')
 export const QUARANTINE_FILE = 'quarantine.json'
@@ -178,13 +198,12 @@ export function listSqlFiles (dir) {
  *  `supabase/migrations/<version>_<name>.sql`, in filename order. */
 export function collectMigrations (dir = MIGRATIONS_DIR) {
   const quarantined = readQuarantine(dir)
-  const quarantinedPaths = new Set(quarantined.map(({ path }) => join(dir, path)))
+  const quarantinedPaths = new Set(quarantined.map(({ path }) => normalizePath(join(dir, path))))
   const active = []
   const seen = new Set()
-  for (const path of listSqlFiles(dir)) {
-    const name = path.slice(path.lastIndexOf('/') + 1)
-    const topLevel = path.slice(0, path.lastIndexOf('/')) === dir
-    if (quarantinedPaths.has(path)) continue
+  for (const file of listSqlFiles(dir)) {
+    const { name, topLevel } = classifyMigrationFile(file, dir)
+    if (quarantinedPaths.has(normalizePath(file))) continue
     if (!topLevel) throw new Error(`supabase/migrations/${name} is not a migration: ` +
       'the Supabase CLI only scans the top level. List it in archive/quarantine.json or move it out.')
     const match = /^(\d{8,})_(.+)\.sql$/.exec(name)
@@ -194,7 +213,7 @@ export function collectMigrations (dir = MIGRATIONS_DIR) {
     const id = name.slice(0, -4)
     if (seen.has(id)) throw new Error(`duplicate migration ${id}`)
     seen.add(id)
-    active.push({ id, version: match[1], name, path, sql: readFileSync(path, 'utf8') })
+    active.push({ id, version: match[1], name, path: file, sql: readFileSync(file, 'utf8') })
   }
   active.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return { active, quarantined }

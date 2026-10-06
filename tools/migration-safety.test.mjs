@@ -8,11 +8,12 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
   collectMigrations, assertMigrationSafety, planPending, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
+  normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
 } from './migrate.mjs'
 
@@ -30,7 +31,7 @@ function fixture (files) {
   for (const entry of quarantined) writeFileSync(join(dir, entry.path), entry.sql)
   for (const [name, body] of Object.entries(files)) {
     const path = join(dir, name)
-    mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
+    mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, body)
   }
   return dir
@@ -407,4 +408,39 @@ test('no documentation tells anyone to run the superseded migration', () => {
   const runbook = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)), 'docs', 'DB-MIGRATIONS.md'), 'utf8')
   assert.match(runbook, /never executes|cách ly|quarantined/)
   assert.doesNotMatch(runbook, /npm run db:deploy[^\n]*20261118[^\n]*baseline 2026111[0-7]/)
+})
+
+/* Windows + Git Bash: `readdirSync`/`join` trả '\\' nên code cũ (`lastIndexOf('/')`)
+   coi tệp TOP-LEVEL là tệp trong thư mục con và `db:plan` chết với thông báo
+   "supabase/migrations/C:\\Users\\…\\20250601_auto_pick.sql is not a migration".
+   Bài này khoá lại cách phân loại không phụ thuộc dấu phân cách. */
+test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windows \\ và POSIX /)', () => {
+  const win = { file: 'C:\\Users\\kimto\\repo\\supabase\\migrations\\20250601_auto_pick.sql', dir: 'C:\\Users\\kimto\\repo\\supabase\\migrations' }
+  const posix = { file: '/home/kimto/repo/supabase/migrations/20250601_auto_pick.sql', dir: '/home/kimto/repo/supabase/migrations' }
+  const mixed = { file: 'supabase/migrations\\20250601_auto_pick.sql', dir: 'supabase/migrations/' }
+
+  for (const { file, dir } of [win, posix, mixed]) {
+    const classified = classifyMigrationFile(file, dir)
+    assert.equal(classified.name, '20250601_auto_pick.sql', `tên tệp phải là basename: ${file}`)
+    assert.equal(classified.topLevel, true, `tệp top-level phải được nhận là top-level: ${file}`)
+  }
+
+  /* Tệp trong thư mục con thì vẫn phải bị coi là KHÔNG top-level — nếu không,
+     guard "Supabase CLI chỉ quét top level" sẽ mất tác dụng. */
+  for (const nested of ['supabase\\migrations\\archive\\20261118_x.sql', 'supabase/migrations/archive/20261118_x.sql']) {
+    const classified = classifyMigrationFile(nested, 'supabase/migrations')
+    assert.equal(classified.topLevel, false, `tệp trong thư mục con: ${nested}`)
+    assert.equal(classified.name, '20261118_x.sql')
+  }
+
+  assert.equal(normalizePath('supabase\\migrations\\'), 'supabase/migrations')
+  assert.equal(normalizePath('C:\\repo\\supabase\\migrations'), 'C:/repo/supabase/migrations')
+  assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
+  assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
+
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 39 migration đang hoạt động. */
+  const { active, quarantined } = collectMigrations()
+  assert.equal(active.length, 39)
+  assert.equal(quarantined.length, 1)
+  assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
