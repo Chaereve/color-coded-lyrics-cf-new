@@ -154,6 +154,39 @@ Calendar/vote APIs. The historical quiz tables, answers and `daily_login_rewards
 rows are deliberately kept until the separately approved cleanup phase (see
 `docs/DAILY-QUIZ-RETIREMENT.md`).
 
+### 20261123 — production reconciled to the repo (policy, index, ACLs)
+
+`20261123_reconcile_security_drift.sql` closes the gap that made
+`db:verify-baseline -- --baseline 20261120` return NOT READY on production after
+the PostgreSQL-version noise was separated out (see `tools/schema-drift-report.mjs`):
+the comment policy was weaker than the bundle, `requests_picked_idx` was a
+non-partial `(picked_at DESC)` index, and two ACL surfaces had never been
+cleaned up. It does four things and nothing else:
+
+| Part | Change | Why |
+| --- | --- | --- |
+| A | `alter policy request_comments_authenticated_insert … with check (…deleted_at is null…)` | production only required `auth.uid() = user_id`; the bundle (20261107, schema.sql) requires a live parent inside the same request as well |
+| B | rebuild `requests_picked_idx` as the partial index `(picked_at) WHERE picked_at IS NOT NULL` | every query asks "has this been picked", so the partial index is the cheaper shape; measured 4 ms to rebuild on 5,000 rows |
+| C1 | `revoke all on function public.create_request(text,text,text,text,text,boolean) from public, anon, authenticated` | the 20261103 overload kept the default `EXECUTE` to `PUBLIC`; it is unreachable by arity while the 7-argument version exists, but it is an unnecessary surface. Not dropped, so an old bundle still gets a 42501 and therefore the app's "please refresh" message instead of a PostgREST 404 |
+| C2 | revoke `EXECUTE` from `public, anon` on `admin_expire_request`, `queue_expired_requests`, `requests_video_url_guard` | all three are `SECURITY DEFINER` and were created without a revoke; `queue_expired_requests()` writes rows and has no caller check |
+| D | `revoke insert, update on public.request_comments from anon, authenticated` + `grant insert (request_id, user_id, parent_id, body)` | the 20260920 table-level grant let a client set `deleted_at` at INSERT, which is exactly what the tightened policy must also refuse. **ACLs are not part of any fingerprint**, so no verifier would ever have reported this |
+
+The file never writes data: it only alters a policy, rebuilds an index, changes
+privileges and writes comments. Its preflight refuses unknown shapes (a policy
+text that is neither the old weak form nor the bundle form, an index definition
+that is neither shape, a missing 7-argument `create_request`), and its
+post-conditions re-count rows for `requests`, `request_comments`,
+`notifications`, `daily_login_rewards`, the five quiz tables and the vote ledger
+inside the same transaction.
+
+Rollback is `supabase/rollback/20261123_reconcile_security_drift.sql`. It
+restores the previous policy text and index definition **from the comments the
+migration recorded** (not from a guess), re-grants the legacy overload and the
+table-level comment privileges, and refuses to run unless the reconciled state
+is the live one — so running it twice aborts instead of half-restoring. Reopening
+that policy and those grants reopens the hole: it needs separate approval.
+
+---
 ---
 
 ## 3. The strategy chosen: quarantine (20261118 never runs) + guarded runner + clean fresh-install path
@@ -393,6 +426,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | A migration fails mid-way | Each migration body and its history row run in one transaction; nothing partial is committed. Fix the cause and re-run `db:deploy` only after confirming the original transaction rolled back. |
 | 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It requires the recorded cutover state and exact agreement between live quota config, source awards and neutral ledger; on drift it aborts rather than restoring a stale quota. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables/data, grants/RLS and the Calendar-only API. The neutral ledger then remains an audit snapshot; future Quiz awards return to the source answer table. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
 | 20261122 quiz door must be reopened (coordinated frontend rollback) | After separate approval, run `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`. It restores `EXECUTE` to `authenticated` on the four entry points that had it, keeps the legacy single-shot closed, and aborts if the revoke is not the live state or the Calendar API is missing. It does not re-enable quiz awards or the route, and it touches no quiz row. |
+| 20261123 reconcile caused a regression | After separate approval, run `supabase/rollback/20261123_reconcile_security_drift.sql`. It restores the policy text and index definition recorded in the migration's own comments, re-grants the legacy `create_request` overload and the table-level comment privileges, and aborts unless the reconciled state is live. It reopens a weaker policy and an ACL surface — only use it for a real incident, and prefer fixing forward with a new migration. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |

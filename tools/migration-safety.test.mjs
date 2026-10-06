@@ -183,7 +183,8 @@ test('the default plan never schedules a quarantined migration', () => {
   const fresh = planPending({ active, quarantined, applied: [], baseline: '20261117' })
   assert.deepEqual(fresh.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -193,7 +194,8 @@ test('the default plan never schedules a quarantined migration', () => {
   const after = planPending({ active, quarantined, applied: [...upTo, '20261118_daily_login_no_votes'] })
   assert.deepEqual(after.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
+      '20261123_reconcile_security_drift'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -206,7 +208,7 @@ test('the default plan never schedules a quarantined migration', () => {
   })
   assert.deepEqual(partial.pending.map(({ id }) => id),
     ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
-      '20261122_disable_daily_quiz_runtime'])
+      '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })

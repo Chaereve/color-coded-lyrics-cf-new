@@ -227,6 +227,36 @@ const main = async () => {
       else if (p.found && 'constraint' in p.found && p.found.constraint === null) console.log('      database không có constraint tương ứng')
     }
 
+    /* Trục mà fingerprint KHÔNG hề so: quyền trên bảng/cột. Đây là chỗ một
+       database có thể khác repo rất nhiều mà `db:verify-baseline` vẫn im lặng —
+       ví dụ quyền INSERT mức BẢNG cho client (thay vì theo cột) nghĩa là client
+       tự đặt được `deleted_at` khi tạo comment. */
+    const aclTables = ['requests', 'request_comments', 'profiles', 'votes', 'daily_login_rewards']
+    const tableAcl = []
+    console.log(`\nQUYỀN TRÊN BẢNG (fingerprint không so phần này):`)
+    for (const table of aclTables) {
+      if (!(await client.query('select to_regclass($1) as t', [`public.${table}`])).rows[0].t) continue
+      for (const role of ['anon', 'authenticated']) {
+        const { rows: [r] } = await client.query(
+          `select has_table_privilege($1, $2, 'SELECT') as s, has_table_privilege($1, $2, 'INSERT') as i,
+                  has_table_privilege($1, $2, 'UPDATE') as u, has_table_privilege($1, $2, 'DELETE') as d`,
+          [role, `public.${table}`])
+        tableAcl.push({ table, role, select: r.s, insert: r.i, update: r.u, delete: r.d })
+        console.log(`  public.${table} · ${role}: select=${yn(r.s)} insert=${yn(r.i)} update=${yn(r.u)} delete=${yn(r.d)}`)
+      }
+      const cols = (await client.query(`
+        select grantee, column_name from information_schema.column_privileges
+         where table_schema = 'public' and table_name = $1 and privilege_type = 'INSERT'
+           and grantee in ('anon', 'authenticated') order by grantee, column_name`, [table])).rows
+      for (const grantee of ['anon', 'authenticated']) {
+        const list = cols.filter(c => c.grantee === grantee).map(c => c.column_name)
+        if (list.length) {
+          console.log(`      INSERT theo cột cho ${grantee}: ${list.join(', ')}`)
+          tableAcl.push({ table, role: grantee, insertColumns: list })
+        }
+      }
+    }
+
     const extraCount = Object.values(extras).reduce((n, list) => n + list.length, 0)
     console.log(`\nOBJECTS CHỈ CÓ Ở DATABASE THẬT (baseline không khai): ${extraCount}`)
     for (const f of extras.functions) {
@@ -248,7 +278,8 @@ const main = async () => {
       writeFileSync(jsonOut, JSON.stringify({
         baseline, serverVersion: probe.version, fingerprintPostgresMajor: snapshot.postgresMajor,
         counts: { problems: problems.length, artifacts: artifacts.length, review: review.length },
-        kinds, artifacts, review, reverse, extras, notes, generatedBy: join(REPO, 'tools/schema-drift-report.mjs'),
+        kinds, artifacts, review, reverse, extras, notes, tableAcl,
+        generatedBy: join(REPO, 'tools/schema-drift-report.mjs'),
       }, null, 2))
       console.log(`\nJSON: ${jsonOut}`)
     }
