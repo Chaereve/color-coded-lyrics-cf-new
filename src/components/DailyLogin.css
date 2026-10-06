@@ -97,4 +97,3 @@ button.check-in-day:disabled { cursor: default; }
 
 .check-in-calendar-legend .is-missed { background: var(--txt-3); border-color: var(--txt-3); opacity: .6; }
 
-/* Five-question round: per-answer submission, server verdict, daily vote meter. */

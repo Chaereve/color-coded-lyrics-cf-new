@@ -107,14 +107,41 @@ for (const vp of viewports) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } })
   const page = await context.newPage()
   const errors = []
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+  const noise = []   // tài nguyên ngoài (ảnh/font) không tải được trong runner
+  page.on('console', m => {
+    if (m.type() !== 'error') return
+    /* Runner CI không ra được Internet: "Failed to load resource" cho ảnh ngoài
+       là chuyện của runner, không phải lỗi của app. Vẫn đếm và in ra để người
+       đọc biết đã bỏ qua cái gì. */
+    if (/Failed to load resource|net::ERR_|ERR_INTERNET|ERR_NAME_NOT_RESOLVED/i.test(m.text())) noise.push(m.text())
+    else errors.push(m.text())
+  })
   page.on('pageerror', e => errors.push(String(e)))
 
   await page.goto(`${base}/quiz`, { waitUntil: 'load' })
+  /* Đường dẫn đã đổi TRƯỚC khi app kịp dựng màn nào — bằng chứng của (b). */
+  const replaced = new URL(page.url()).pathname === '/daily-login'
+
+  /* Bundle trong CI không có VITE_SUPABASE_* nên app chạy chế độ demo: khách
+     chưa có phiên thì `/daily-login` dựng lời mời đăng nhập (SignInPanel),
+     không phải màn điểm danh. Đi đúng đường người dùng đi thay vì đoán:
+     bấm nút đăng nhập → cửa sổ Google → chế độ demo trả ngay một phiên. */
+  await page.waitForSelector('.signin-panel-btn, .daily-login-page', { timeout: 20_000 })
+  await page.screenshot({ path: join(outDir, `arrival-${vp.name}.png`) })
+  const guest = await page.locator('.signin-panel-btn').count()
+  if (guest) {
+    check(`${vp.name}: khách chưa đăng nhập thấy lời mời đăng nhập, không trắng màn`, true)
+    await page.locator('.signin-panel-btn').first().click()
+    await page.waitForSelector('.gate-card', { timeout: 10_000 })
+    check(`${vp.name}: bấm nút đăng nhập mở được cửa sổ (không kẹt)`, true)
+    await page.locator('.btn-google').first().click()
+  } else {
+    console.log('  (chế độ demo đã có phiên sẵn — bỏ bước đăng nhập)')
+  }
   await page.waitForSelector('.daily-login-page', { timeout: 20_000 })
   await page.waitForTimeout(600)
 
-  check(`${vp.name}: mở /quiz được replace về /daily-login`, new URL(page.url()).pathname === '/daily-login', page.url())
+  check(`${vp.name}: mở /quiz được replace về /daily-login`, replaced, page.url())
   const text = await page.innerText('body')
   check(`${vp.name}: không còn chữ quiz trên trang`, !/quiz/i.test(text))
   const quizNodes = await page.locator('.music-quiz-page, .daily-quiz, .daily-quiz-start, .daily-quiz-level, .daily-rewards').count()
@@ -131,7 +158,8 @@ for (const vp of viewports) {
     check(`${vp.name}: điểm danh xong nút chuyển trạng thái đã-điểm-danh`,
       (await page.locator('.daily-claim.btn-ok').count()) === 1)
   }
-  check(`${vp.name}: không có lỗi console / exception`, errors.length === 0, errors.slice(0, 3).join(' | '))
+  check(`${vp.name}: không có lỗi console / exception`, errors.length === 0,
+    errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài của runner)` : ''))
   /* Truyền chuỗi để trình duyệt tự tính: lint của repo không có global `document`. */
   const overflow = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
   check(`${vp.name}: không tràn ngang`, overflow <= 2, `${overflow}px`)
