@@ -145,6 +145,9 @@ const S = {
   'err.featureRetiredPreflight': 'This change could not be applied because the database is not in the expected state.',
   'err.featureRetiredState': 'The database did not reach the expected state, so the change was rolled back.',
   'err.featureRetiredRollback': 'The restore could not be applied because the database is not in the expected state.',
+  /* Client cũ (bundle đã cache) gọi một RPC đã bị revoke: KHÔNG hiện text
+     Postgres, KHÔNG để màn hình trắng — mời người dùng nạp lại trang. */
+  'err.featureRetiredClient': 'This feature was retired. Please refresh the page to get the newest version — you will land on the daily check-in calendar.',
   'err.dailyQuizQuestion': 'That question is not part of today’s round. Refresh to reload your questions.',
   'err.dailyQuizOption': 'That answer does not belong to this question. Refresh to reload your questions.',
   'err.dailyResponse': 'The server returned an invalid daily reward status. Refresh to try again.',
@@ -1119,8 +1122,12 @@ const fill = (s, vars) =>
 
 const I18nCtx = createContext(null)
 
+/* Dịch một mã khoá bằng chính từ điển của app, không cần React — provider và
+   bài test cùng đi qua đây, nên câu chữ hiển thị cho người dùng là một nguồn. */
+export const translate = (key, vars) => fill(S[key] ?? key, vars)
+
 export function I18nProvider({ children }) {
-  const t = useCallback((key, vars) => fill(S[key] ?? key, vars), [])
+  const t = useCallback((key, vars) => translate(key, vars), [])
   const value = useMemo(() => ({ t }), [t])
   return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>
 }
@@ -1144,6 +1151,16 @@ export function errMsg(t, e) {
   if (m.startsWith('err.')) return t(m, e?.vars)
   const c = typeof e?.code === 'string' ? e.code : ''
   if (c.startsWith('err.')) return t(c, e?.vars)
+  /* 20261122 revoke năm cửa RPC của quiz khỏi mọi client role. Một bundle cũ
+     còn nằm trong cache (hoặc tab mở từ trước) vẫn gọi chúng và nhận SQLSTATE
+     42501; PostgREST trả về "permission denied for function <tên>". Gặp đúng
+     dạng đó thì mời nạp lại trang — câu này còn vô nghĩa hơn cả err.generic, và
+     cũng không được lộ tên hàm hay text Postgres. Chỉ khớp khi đối tượng bị từ
+     chối là FUNCTION: "permission denied for table/relation/schema" và lỗi RLS
+     vẫn đi đường cũ. */
+  if ((c === '42501' || /insufficient privilege/i.test(m)) && /permission denied for function/i.test(m)) {
+    return t('err.featureRetiredClient')
+  }
   if (!m || /^(position|detail|hint|context):|SQLSTATE|row-level security|violates |permission denied|does not exist/i.test(m)) {
     return t('err.generic')
   }

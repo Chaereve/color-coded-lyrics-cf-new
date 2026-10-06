@@ -1,0 +1,61 @@
+# Kiểm chứng "Daily Quiz đã nghỉ hưu" bằng TRÌNH DUYỆT THẬT + EDGE Cloudflare Pages.
+#
+# Vì sao cần workflow này: sandbox phát triển không có Chromium và không ra được
+# Internet ngoài allowlist, nên `npm run smoke` (jsdom) không trả lời được ba câu
+# hỏi cuối — /quiz có được 301 ở edge, có lỗi console thật không, và bố cục
+# mobile/desktop ra sao. Runner của GitHub thì có Chromium và có mạng.
+#
+# Job này CHỈ ĐỌC: dựng dist/ tại chỗ, mở app bằng Chromium, gọi HTTP tới URL
+# preview của Cloudflare Pages. Không deploy, không migration, không database,
+# không secret nào của production.
+name: Quiz retirement — browser & edge check
+
+on:
+  workflow_dispatch:
+    inputs:
+      edge_url:
+        description: Cloudflare Pages preview URL
+        required: false
+        default: https://arena-2544c5f9-color-coded-l.chaereve.pages.dev
+  push:
+    branches: ['arena/2544c5f9-color-coded-lyrics-cf-new']
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EDGE_URL: ${{ inputs.edge_url || 'https://arena-2544c5f9-color-coded-l.chaereve.pages.dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Playwright chỉ được cài trong job này (không thêm vào package.json):
+      # máy dev không cần tải Chromium chỉ để chạy `npm test`.
+      - name: Cài Playwright + Chromium
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Dựng bundle production
+        run: npm run build
+
+      - name: Kiểm chứng bằng Chromium (desktop + mobile) và edge /quiz
+        run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
+
+      - name: Lưu ảnh chụp + log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiz-retirement-browser
+          path: artifacts/
+          if-no-files-found: warn
