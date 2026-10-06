@@ -17,6 +17,10 @@ on:
         description: Cloudflare Pages preview URL
         required: false
         default: https://arena-2544c5f9-color-coded-l.chaereve.pages.dev
+      live_url:
+        description: 'Tuỳ chọn: URL site thật để chạy smoke chỉ-đọc (vd https://chaereve.pages.dev)'
+        required: false
+        default: ''
   push:
     branches: ['arena/2544c5f9-color-coded-lyrics-cf-new']
 
@@ -31,6 +35,7 @@ jobs:
     timeout-minutes: 25
     env:
       EDGE_URL: ${{ inputs.edge_url || 'https://arena-2544c5f9-color-coded-l.chaereve.pages.dev' }}
+      LIVE_URL: ${{ inputs.live_url || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +58,12 @@ jobs:
 
       - name: Kiểm chứng bằng Chromium (desktop + mobile) và edge /quiz
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
+        # LIVE_URL chỉ dùng khi được truyền tay: mở site thật như một khách,
+        # không bấm gì, không đăng nhập.
+
+      - name: Smoke trên site thật (chỉ đọc)
+        if: inputs.live_url != ''
+        run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
 
       - name: Lưu ảnh chụp + log
         if: always()

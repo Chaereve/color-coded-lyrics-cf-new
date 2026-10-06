@@ -9,6 +9,7 @@
    Chạy tay (cần Chromium của Playwright):
      npm i --no-save playwright && npx playwright install chromium
      node tools/browserSmoke.mjs --edge https://<preview>.pages.dev
+     node tools/browserSmoke.mjs --live https://chaereve.pages.dev   # smoke trên site thật
    Trong CI: .github/workflows/quiz-retirement-browser.yml
 
    Không kết nối Supabase, không deploy, không migration: app chạy ở chế độ demo
@@ -26,6 +27,7 @@ const repo = fileURLToPath(new URL('..', import.meta.url))
 const distDir = arg('dist', join(repo, 'dist'))
 const outDir = arg('out', join(repo, 'artifacts'))
 const edge = arg('edge', '').replace(/\/+$/, '')
+const live = arg('live', '').replace(/\/+$/, '')
 const results = []
 const check = (name, ok, extra = '') => {
   results.push({ name, ok, extra })
@@ -40,6 +42,20 @@ const writeSummary = () => {
     writeFileSync(join(outDir, 'browser-smoke.json'), JSON.stringify(
       { edge: edge || null, total: results.length, failed: results.filter(r => !r.ok).length, results }, null, 2))
   } catch { /* ghi chú không được làm hỏng phép kiểm */ }
+}
+
+/* Bám console/pageerror cho một page. Lỗi tài nguyên ngoài (ảnh, font) của
+   runner không được tính là lỗi của app nhưng vẫn đếm để báo lại. */
+const attachErrorTracking = page => {
+  const errors = []
+  const noise = []
+  page.on('console', m => {
+    if (m.type() !== 'error') return
+    if (/Failed to load resource|net::ERR_|ERR_INTERNET|ERR_NAME_NOT_RESOLVED/i.test(m.text())) noise.push(m.text())
+    else errors.push(m.text())
+  })
+  page.on('pageerror', e => errors.push(String(e)))
+  return { errors, noise }
 }
 
 /* ---------- 1. edge: 301 của Cloudflare Pages ---------- */
@@ -93,6 +109,52 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r))
 const base = arg('base', `http://127.0.0.1:${server.address().port}`)
 
+/* ---------- 2b. site THẬT (tuỳ chọn): chỉ đọc, không bấm gì ----------
+   Mở đúng trang production như một khách chưa đăng nhập: kiểm /quiz có bị đưa
+   về /daily-login không, có còn chữ/phần tử quiz không, trang có dựng lên
+   không (không trắng màn), console có sạch không, có tràn ngang không. Không
+   bấm nút đăng nhập hay bất kỳ nút nào khác nên không tạo phiên, không ghi dữ
+   liệu người dùng; một lượt mở trang thật sẽ ghi đúng một dòng 'visit' vào
+   bảng funnel (hành vi của mọi lượt truy cập, bảng tự dọn sau 30 ngày). */
+let liveBrowser = null
+if (live) {
+  const { chromium } = await import('playwright')
+  liveBrowser = await chromium.launch()
+  const viewports = [
+    { name: 'desktop-1280', width: 1280, height: 800 },
+    { name: 'mobile-390', width: 390, height: 844 },
+  ]
+  for (const vp of viewports) {
+    console.log(`\n── live ${vp.name}: ${live} ──`)
+    try {
+      const context = await liveBrowser.newContext({ viewport: { width: vp.width, height: vp.height } })
+      const page = await context.newPage()
+      const { errors, noise } = attachErrorTracking(page)
+      await page.goto(`${live}/quiz`, { waitUntil: 'load', timeout: 60_000 })
+      await page.waitForSelector('.signin-panel, .daily-login-page, .gate-card', { timeout: 45_000 })
+      await page.waitForTimeout(800)
+
+      const path = new URL(page.url()).pathname
+      check(`live ${vp.name}: /quiz được đưa về /daily-login`, path === '/daily-login', path)
+      const text = await page.innerText('body')
+      check(`live ${vp.name}: không còn chữ quiz trên trang thật`, !/quiz/i.test(text))
+      const quizNodes = await page.locator('.music-quiz-page, .daily-quiz, .daily-quiz-start, .daily-quiz-level, .daily-quiz-start-btn').count()
+      check(`live ${vp.name}: không còn phần tử màn quiz trên trang thật`, quizNodes === 0, `${quizNodes} phần tử`)
+      check(`live ${vp.name}: khách thấy lời mời đăng nhập (không trắng màn)`,
+        (await page.locator('.signin-panel, .daily-login-page').count()) > 0)
+      check(`live ${vp.name}: không có lỗi console / exception`,
+        errors.length === 0, errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài)` : ''))
+      const overflow = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+      check(`live ${vp.name}: không tràn ngang`, overflow <= 2, `${overflow}px`)
+      await page.screenshot({ path: join(outDir, `live-${vp.name}.png`), fullPage: true })
+      await context.close()
+    } catch (e) {
+      check(`live ${vp.name}: chạy hết được kịch bản`, false, String(e).slice(0, 200))
+    }
+  }
+  await liveBrowser.close()
+}
+
 /* ---------- 3. Chromium thật: desktop + mobile ---------- */
 const { chromium } = await import('playwright')
 mkdirSync(outDir, { recursive: true })
@@ -106,17 +168,10 @@ for (const vp of viewports) {
   try {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } })
   const page = await context.newPage()
-  const errors = []
-  const noise = []   // tài nguyên ngoài (ảnh/font) không tải được trong runner
-  page.on('console', m => {
-    if (m.type() !== 'error') return
-    /* Runner CI không ra được Internet: "Failed to load resource" cho ảnh ngoài
-       là chuyện của runner, không phải lỗi của app. Vẫn đếm và in ra để người
-       đọc biết đã bỏ qua cái gì. */
-    if (/Failed to load resource|net::ERR_|ERR_INTERNET|ERR_NAME_NOT_RESOLVED/i.test(m.text())) noise.push(m.text())
-    else errors.push(m.text())
-  })
-  page.on('pageerror', e => errors.push(String(e)))
+  /* Runner CI không ra được Internet với tài nguyên ngoài: "Failed to load
+     resource" cho ảnh/font là chuyện của runner, không phải lỗi của app —
+     helper đếm riêng để người đọc biết đã bỏ qua cái gì. */
+  const { errors, noise } = attachErrorTracking(page)
 
   /* Một lần điều hướng = trình duyệt tải lại trang; `putUrl` của app dùng
      replaceState nên KHÔNG có mục nào thêm vào đây. Đếm trước/sau để phân biệt
