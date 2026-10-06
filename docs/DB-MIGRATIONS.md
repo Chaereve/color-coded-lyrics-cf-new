@@ -165,11 +165,11 @@ cleaned up. It does four things and nothing else:
 
 | Part | Change | Why |
 | --- | --- | --- |
-| A | `alter policy request_comments_authenticated_insert … with check (…deleted_at is null…)` | production only required `auth.uid() = user_id`; the bundle (20261107, schema.sql) requires a live parent inside the same request as well |
+| A | `alter policy request_comments_authenticated_insert … with check (…deleted_at is null…)` | production's live policy required `auth.uid() = user_id` and kept the "parent belongs to the same request" clause, but omitted **both** `deleted_at IS NULL` checks (`shadow preflight`, 2026-10-06). The preflight accepts exactly two known weak starting shapes — that one and the older bare `auth.uid() = user_id` — and aborts on anything else; the target expression is unchanged, so nothing is loosened |
 | B | rebuild `requests_picked_idx` as the partial index `(picked_at) WHERE picked_at IS NOT NULL` | every query asks "has this been picked", so the partial index is the cheaper shape; measured 4 ms to rebuild on 5,000 rows |
 | C1 | `revoke all on function public.create_request(text,text,text,text,text,boolean) from public, anon, authenticated` | the 20261103 overload kept the default `EXECUTE` to `PUBLIC`; it is unreachable by arity while the 7-argument version exists, but it is an unnecessary surface. Not dropped, so an old bundle still gets a 42501 and therefore the app's "please refresh" message instead of a PostgREST 404 |
 | C2 | revoke `EXECUTE` from `public, anon` on `admin_expire_request`, `queue_expired_requests`, `requests_video_url_guard` | all three are `SECURITY DEFINER` and were created without a revoke; `queue_expired_requests()` writes rows and has no caller check |
-| D | `revoke insert, update on public.request_comments from anon, authenticated` + `grant insert (request_id, user_id, parent_id, body)` | the 20260920 table-level grant let a client set `deleted_at` at INSERT, which is exactly what the tightened policy must also refuse. **ACLs are not part of any fingerprint**, so no verifier would ever have reported this |
+| D | `revoke insert, update on public.request_comments from anon, authenticated`, `revoke insert/update (<every column>)` from both client roles, `grant insert (request_id, user_id, parent_id, body)` to `authenticated` | the 20260920 table-level grant allowed a client to set `deleted_at` at INSERT — the other half of the hole part A closes. **ACLs are not part of any fingerprint**, so no verifier reports this axis. Measured on production on 2026-10-06 the ACL was already column-scoped (`insert` at table level = false, `deleted_at` = false), so D is a no-op there; the statement pin the exact bundle ACL instead of trusting that the database happens to be right, and the post-check compares the full ACL (table-level flags plus column lists for both roles) against the bundle state |
 
 The file never writes data: it only alters a policy, rebuilds an index, changes
 privileges and writes comments. Its preflight refuses unknown shapes (a policy
@@ -180,11 +180,16 @@ post-conditions re-count rows for `requests`, `request_comments`,
 inside the same transaction.
 
 Rollback is `supabase/rollback/20261123_reconcile_security_drift.sql`. It
-restores the previous policy text and index definition **from the comments the
-migration recorded** (not from a guess), re-grants the legacy overload and the
-table-level comment privileges, and refuses to run unless the reconciled state
-is the live one — so running it twice aborts instead of half-restoring. Reopening
-that policy and those grants reopens the hole: it needs separate approval.
+restores the previous policy text, the previous `request_comments` ACL (table-level
+flags **and** column lists for both client roles) and the previous index definition
+**from the record the migration wrote into the policy comment** — never from a
+guess, and never wider than that record. On a database whose ACL was already
+column-scoped, the rollback therefore leaves it column-scoped; it does not
+re-grant `insert, update` at table level. It re-grants the legacy `create_request`
+overload because that is something 20261123 genuinely closed, and refuses to run
+unless the reconciled state is live — so running it twice aborts instead of
+half-restoring. Reopening the weaker policy and the legacy overload reopens the
+hole: that needs separate approval.
 
 ---
 ---
@@ -426,7 +431,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | A migration fails mid-way | Each migration body and its history row run in one transaction; nothing partial is committed. Fix the cause and re-run `db:deploy` only after confirming the original transaction rolled back. |
 | 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It requires the recorded cutover state and exact agreement between live quota config, source awards and neutral ledger; on drift it aborts rather than restoring a stale quota. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables/data, grants/RLS and the Calendar-only API. The neutral ledger then remains an audit snapshot; future Quiz awards return to the source answer table. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
 | 20261122 quiz door must be reopened (coordinated frontend rollback) | After separate approval, run `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`. It restores `EXECUTE` to `authenticated` on the four entry points that had it, keeps the legacy single-shot closed, and aborts if the revoke is not the live state or the Calendar API is missing. It does not re-enable quiz awards or the route, and it touches no quiz row. |
-| 20261123 reconcile caused a regression | After separate approval, run `supabase/rollback/20261123_reconcile_security_drift.sql`. It restores the policy text and index definition recorded in the migration's own comments, re-grants the legacy `create_request` overload and the table-level comment privileges, and aborts unless the reconciled state is live. It reopens a weaker policy and an ACL surface — only use it for a real incident, and prefer fixing forward with a new migration. |
+| 20261123 reconcile caused a regression | After separate approval, run `supabase/rollback/20261123_reconcile_security_drift.sql`. It restores the policy text, the `request_comments` ACL and the index definition recorded in the migration's own comment (the ACL never comes back wider than it was), re-grants the legacy `create_request` overload, and aborts unless the reconciled state is live. It reopens a weaker policy and a legacy function surface — only use it for a real incident, and prefer fixing forward with a new migration. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |

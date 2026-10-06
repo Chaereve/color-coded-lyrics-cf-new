@@ -41,13 +41,31 @@ const legacyOverloadSql = () => {
   return src.slice(start, end + 'end $$;'.length) + ';'
 }
 
-/* Dựng đúng ba khác biệt mà drift report đo được trên production. */
-const buildProductionDrift = async pool => {
+/* Dựng đúng những khác biệt mà drift report + shadow preflight đo được trên
+   production (2026-10-06).
+     policyShape:
+       · 'parent-check' (mặc định) — hình dạng THẬT của production: có kiểm
+         parent cùng request nhưng THIẾU cả `deleted_at IS NULL` ở ngoài lẫn
+         `p.deleted_at IS NULL` ở trong;
+       · 'bare' — `auth.uid() = user_id`, bản 20260920 gốc.
+     tableAcl:
+       · true (mặc định) — để lại `insert, update` mức BẢNG như 20260920;
+       · false — ACL hẹp theo cột, đúng như production (mức bảng = f,
+         `deleted_at` = f). */
+const buildProductionDrift = async (pool, { policyShape = 'parent-check', tableAcl = true } = {}) => {
+  const shape = policyShape === 'bare'
+    ? 'auth.uid() = user_id'
+    : `auth.uid() = user_id
+       and (parent_id is null or exists (
+         select 1 from public.request_comments p
+          where p.id = request_comments.parent_id
+            and p.request_id = request_comments.request_id
+       ))`
   await pool.query(`
     drop policy if exists request_comments_authenticated_insert on public.request_comments;
     create policy request_comments_authenticated_insert
       on public.request_comments for insert to authenticated
-      with check (auth.uid() = user_id);
+      with check (${shape});
   `)
   await pool.query(`
     drop index if exists public.requests_picked_idx;
@@ -58,11 +76,14 @@ const buildProductionDrift = async pool => {
      EXECUTE, và anon thừa hưởng qua PUBLIC — đúng như report cho thấy. */
   await pool.query('grant execute on function public.create_request(text,text,text,text,text,boolean) to authenticated')
 
-  /* Quyền mức BẢNG trên request_comments như 20260920 để lại (bundle đã chuyển
-     sang quyền theo cột từ 20261107). Report drift KHÔNG thấy trục này vì ACL
-     không nằm trong fingerprint — đây đúng là lý do phải kiểm bằng tay. */
+  /* Quyền trên request_comments. Report drift KHÔNG thấy trục này vì ACL không
+     nằm trong fingerprint — đây đúng là lý do phải kiểm bằng tay. */
   await pool.query('revoke insert, update on public.request_comments from anon, authenticated')
-  await pool.query('grant insert, update on public.request_comments to authenticated')
+  if (tableAcl) {
+    await pool.query('grant insert, update on public.request_comments to authenticated')
+  } else {
+    await pool.query('grant insert (request_id, user_id, parent_id, body) on public.request_comments to authenticated')
+  }
 
   /* Ba hàm phụ + trigger + index mà migration cũ của repo tạo, bundle không khai
      (dựng bằng bản tối thiểu cùng chữ ký; bản thật nằm trong 20260921/20260922/
@@ -90,6 +111,40 @@ const counts = async pool => {
   for (const name of countTables) if (!(name in out)) out[name] = -1
   return out
 }
+
+/* ACL của request_comments, dựng y hệt cách migration dựng (mức bảng + danh
+   sách cột cho hai client role) — dùng để so với bản ghi trong comment policy. */
+const aclJson = async pool => (await pool.query(`
+  select jsonb_build_object(
+    'authenticated', jsonb_build_object(
+      'insert_table', has_table_privilege('authenticated', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('authenticated', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'authenticated'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'authenticated'), '[]'::jsonb)),
+    'anon', jsonb_build_object(
+      'insert_table', has_table_privilege('anon', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('anon', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'anon'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'anon'), '[]'::jsonb))) as acl`)).rows[0].acl
+
+const policyComment = async pool => (await pool.query(`
+  select obj_description(p.oid, 'pg_policy') as c
+    from pg_policy p join pg_class c on c.oid = p.polrelid
+   where c.relname = 'request_comments' and p.polname = 'request_comments_authenticated_insert'`)).rows[0].c
+
+const recordedAcl = async pool => JSON.parse(/(\{[^\n]*\})/.exec(await policyComment(pool))[1])
 
 const policyText = async pool => (await pool.query(`
   select pg_get_expr(p.polwithcheck, p.polrelid) as expr
@@ -145,7 +200,7 @@ const seedCommentFixtures = async (pool, userId) => {
   return { request, other, live, hidden, elsewhere }
 }
 
-test('dựng lại drift production: verify NOT READY đúng 2 mục, sau 20261123 thì READY', { skip: !url, timeout: 240_000 }, async () => {
+test('dựng lại drift production (policy dạng thật, có parent-check): verify NOT READY đúng 2 mục, sau 20261123 thì READY', { skip: !url, timeout: 240_000 }, async () => {
   await withDatabase(url, async (pool, client) => {
     await installLevel(pool, 'fresh')
     await seedUser(pool)
@@ -384,7 +439,7 @@ test('sau reconcile: overload cũ đóng, ACL đúng ý repo, bản 7 tham số 
   })
 })
 
-test('fail-closed: policy ở hình dạng thứ ba thì abort và không đổi gì', { skip: !url, timeout: 240_000 }, async () => {
+test('fail-closed: policy ở hình dạng CHƯA BIẾT thì abort và không đổi gì', { skip: !url, timeout: 240_000 }, async () => {
   await withDatabase(url, async (pool, client) => {
     await installLevel(pool, 'fresh')
     await seedUser(pool)
@@ -432,6 +487,8 @@ test('rollback: trả đúng trạng thái trước, chạy lần hai thì từ 
     assert.equal((await pool.query(
       'select has_table_privilege($1, $2, $3) as ok', ['authenticated', 'public.request_comments', 'INSERT'])).rows[0].ok, true,
     'rollback trả lại INSERT mức bảng như trước reconcile')
+    assert.deepEqual(await aclJson(pool), await recordedAcl(pool),
+      'ACL sau rollback phải khớp ĐÚNG bản ghi trong comment policy')
     assert.deepEqual(await counts(pool), dataBefore, 'rollback không đụng dữ liệu')
 
     await assert.rejects(() => client.query(ROLLBACK), /err\.reconcileRollback/,
@@ -486,5 +543,51 @@ test('rollback trên database KHÔNG có overload cũ: từ chối bằng RAISE,
     assert.doesNotMatch(err.message, /42883|does not exist/,
       `không được vỡ vì gấp hằng số của ::regprocedure: ${err.message}`)
     assert.deepEqual(await counts(pool), before, 'từ chối thì không đổi gì')
+  })
+})
+
+test('hình dạng yếu gốc (bare) cũng được siết: preflight nhận, verifier READY', { skip: !url, timeout: 240_000 }, async () => {
+  await withDatabase(url, async (pool, client) => {
+    await installLevel(pool, 'fresh')
+    await seedUser(pool)
+    await buildProductionDrift(pool, { policyShape: 'bare', tableAcl: false })
+    await ensureHistory(client)
+    await applyMigration(client, { id: ID, name: `${ID}.sql`, sql: SQL })
+    const after = await verifyBaseline(client, '20261120')
+    assert.deepEqual(after.problems, [], `sau reconcile phải sạch: ${JSON.stringify(after.problems)}`)
+    assert.equal(after.ok, true)
+    assert.match(await policyText(pool), /deleted_at IS NULL/i)
+  })
+})
+
+test('production đo được ACL hẹp: 20261123 ghim đúng 4 cột, rollback KHÔNG nới rộng', { skip: !url, timeout: 240_000 }, async () => {
+  await withDatabase(url, async (pool, client) => {
+    await installLevel(pool, 'fresh')
+    await seedUser(pool)
+    /* Đúng trạng thái shadow preflight trên production: policy dạng parent-check,
+       index DESC, overload cũ mở, ACL ĐÃ hẹp theo cột (mức bảng = f,
+       deleted_at = f). */
+    await buildProductionDrift(pool, { policyShape: 'parent-check', tableAcl: false })
+    await ensureHistory(client)
+    const aclBefore = await aclJson(pool)
+    assert.equal(aclBefore.authenticated.insert_table, false, 'giả lập production: không có INSERT mức bảng')
+    assert.equal(aclBefore.authenticated.insert_cols.includes('deleted_at'), false, 'giả lập production: deleted_at không được cấp')
+
+    await applyMigration(client, { id: ID, name: `${ID}.sql`, sql: SQL })
+    /* Mục D là no-op ở đây — trạng thái sau phải hẹp đúng bằng trước. */
+    const aclAfter = await aclJson(pool)
+    assert.equal(aclAfter.authenticated.insert_table, false)
+    assert.equal(aclAfter.authenticated.insert_cols.includes('deleted_at'), false)
+    assert.deepEqual(aclAfter.authenticated.insert_cols, ['body', 'parent_id', 'request_id', 'user_id'])
+    /* Và bản ghi phải giữ đúng trạng thái hẹp đó, không phải "dạng 20260920". */
+    assert.deepEqual(await recordedAcl(pool), aclBefore, 'bản ghi phải là ACL TRƯỚC reconcile')
+
+    await client.query(ROLLBACK)
+    assert.deepEqual(await aclJson(pool), aclBefore,
+      'rollback phải trả về ĐÚNG trạng thái hẹp — không được grant insert/update mức bảng')
+    assert.equal((await pool.query(
+      'select has_column_privilege($1, $2, $3, $4) as ok',
+      ['authenticated', 'public.request_comments', 'deleted_at', 'INSERT'])).rows[0].ok, false,
+    'rollback không được mở lại deleted_at cho client')
   })
 })

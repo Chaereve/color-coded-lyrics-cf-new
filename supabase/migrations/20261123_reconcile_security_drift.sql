@@ -60,6 +60,8 @@ declare
   v_pol_roles text[];
   v_live text;
   v_fp text;
+  v_strict_fp text;
+  v_weak_fp text[];
   v_earnings bigint;
 begin
   /* --- A. policy phải tồn tại, đúng INSERT/authenticated ------------------ */
@@ -83,15 +85,28 @@ begin
     raise exception 'err.reconcilePreflight: policy phải chỉ áp cho authenticated, đang áp cho %', v_pol_roles;
   end if;
 
-  /* Chỉ nhận đúng hai hình dạng đã biết: biểu thức chặt của repo (đã xong), hoặc
-     dạng yếu `auth.uid() = user_id` mà báo cáo drift đo được. Hình dạng thứ ba
-     nào cũng là trạng thái lạ ⇒ dừng và in nguyên văn ra cho người đọc. */
+  /* Chỉ nhận những hình dạng ĐÃ BIẾT, theo đúng ba literal dưới đây:
+       · đích (biểu thức chặt của repo) — đã xong, phần A chỉ ghi notice;
+       · yếu #1 — `auth.uid() = user_id` (bản 20260920 gốc);
+       · yếu #2 — có kiểm parent cùng request nhưng THIẾU cả `deleted_at IS NULL`
+         ở ngoài lẫn `p.deleted_at IS NULL` ở trong. Đây là hình dạng mà shadow
+         preflight đo được trên production (2026-10-06) — chính là thứ phần A
+         phải siết.
+     Hình dạng nào khác hai dạng yếu trên và khác đích ⇒ dừng, in nguyên văn.
+     Điều kiện bảo mật KHÔNG bị nới: mục tiêu vẫn là literal đích, chỉ có thêm
+     một điểm xuất phát yếu được phép để siết. */
+  v_strict_fp := translate(regexp_replace(
+    '((auth.uid() = user_id) AND (deleted_at IS NULL) AND ((parent_id IS NULL) OR (EXISTS ( SELECT 1 FROM request_comments p WHERE ((p.id = request_comments.parent_id) AND (p.request_id = request_comments.request_id) AND (p.deleted_at IS NULL))))))',
+    '\s+', '', 'g'), '()', '');
+  v_weak_fp := array[
+    translate(regexp_replace('auth.uid() = user_id', '\s+', '', 'g'), '()', ''),
+    translate(regexp_replace(
+      '((auth.uid() = user_id) AND ((parent_id IS NULL) OR (EXISTS ( SELECT 1 FROM request_comments p WHERE ((p.id = request_comments.parent_id) AND (p.request_id = request_comments.request_id))))))',
+      '\s+', '', 'g'), '()', '')
+  ];
   v_fp := translate(regexp_replace(coalesce(v_live, ''), '\s+', '', 'g'), '()', '');
-  if v_fp <> translate(regexp_replace('auth.uid() = user_id', '\s+', '', 'g'), '()', '') and v_fp <> (
-       select translate(regexp_replace(
-         '((auth.uid() = user_id) AND (deleted_at IS NULL) AND ((parent_id IS NULL) OR (EXISTS ( SELECT 1 FROM request_comments p WHERE ((p.id = request_comments.parent_id) AND (p.request_id = request_comments.request_id) AND (p.deleted_at IS NULL))))))',
-       '\s+', '', 'g'), '()', '')) then
-    raise exception 'err.reconcilePreflight: policy có biểu thức KHÁC cả trước lẫn sau — cần người đọc. Đang có: %', v_live;
+  if v_fp <> v_strict_fp and not (v_fp = any (v_weak_fp)) then
+    raise exception 'err.reconcilePreflight: policy có biểu thức KHÁC cả điểm xuất phát đã biết lẫn đích — cần người đọc. Đang có: %', v_live;
   end if;
 
   /* --- B. index phải là một trong hai hình dạng đã biết ------------------- */
@@ -153,6 +168,8 @@ declare
           and p.request_id = request_comments.request_id
           and p.deleted_at is null
      ))';
+  v_record text;
+  v_acl jsonb;
 begin
   select pg_get_expr(p.polwithcheck, p.polrelid) into v_live
     from pg_policy p
@@ -161,11 +178,51 @@ begin
    where n.nspname = 'public' and c.relname = 'request_comments'
      and p.polname = 'request_comments_authenticated_insert';
 
-  /* Ghi nguyên văn trạng thái TRƯỚC vào comment của policy: rollback đọc lại
-     chính chuỗi này (không phải đoán), và người kiểm toán thấy được đã đổi gì. */
+  if translate(regexp_replace(v_live, '\s+', '', 'g'), '()', '') =
+     translate(regexp_replace(
+       '((auth.uid() = user_id) AND (deleted_at IS NULL) AND ((parent_id IS NULL) OR (EXISTS ( SELECT 1 FROM request_comments p WHERE ((p.id = request_comments.parent_id) AND (p.request_id = request_comments.request_id) AND (p.deleted_at IS NULL))))))',
+       '\s+', '', 'g'), '()', '') then
+    raise notice '20261123: policy đã là biểu thức chặt của repo — bỏ qua phần A';
+    return;
+  end if;
+
+  /* Chụp ACL của bảng TRƯỚC khi mục D chạm vào: rollback phải trả lại ĐÚNG
+     trạng thái này, chứ không được "trả về dạng 20260920" (làm vậy sẽ MỞ RỘNG
+     quyền nếu trước reconcile quyền vốn đã hẹp — đúng trường hợp production,
+     nơi shadow preflight ngày 2026-10-06 đo được `insert mức bảng = f` và
+     `deleted_at = f`). */
+  v_acl := jsonb_build_object(
+    'authenticated', jsonb_build_object(
+      'insert_table', has_table_privilege('authenticated', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('authenticated', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'authenticated'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'authenticated'), '[]'::jsonb)),
+    'anon', jsonb_build_object(
+      'insert_table', has_table_privilege('anon', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('anon', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'anon'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'anon'), '[]'::jsonb)));
+
+  /* Ghi trạng thái TRƯỚC vào comment của policy, dạng đọc được bằng máy:
+     dòng JSON cho ACL, rồi tới biểu thức WITH CHECK cũ (có thể nhiều dòng, nên
+     phải đặt CUỐI cùng — rollback lấy mọi thứ sau dấu hai chấm của nó). */
+  v_record := '20261123 ghi lại trước khi siết.' || chr(10)
+    || 'ACL request_comments trước: ' || v_acl::text || chr(10)
+    || 'WITH CHECK cũ: ' || v_live;
   execute format('comment on policy %I on public.request_comments is %L',
-    'request_comments_authenticated_insert',
-    '20261123 ghi lại trước khi siết — biểu thức WITH CHECK cũ: ' || v_live);
+    'request_comments_authenticated_insert', v_record);
 
   execute format('alter policy %I on public.request_comments with check (%s)',
     'request_comments_authenticated_insert', v_strict);
@@ -259,12 +316,29 @@ end $$;
    C3. QUYỀN TRÊN public.request_comments — trạng thái bundle, không phải bảng mở
    ---------------------------------------------------------------------------
    Bundle (20261107) cấp quyền theo CỘT. Bản cũ hơn (20260920) cấp `insert,
-   update` mức BẢNG, và nếu production còn ở trạng thái đó thì client tự đặt
-   được `deleted_at` lúc INSERT. Hai câu dưới là bản sao nguyên văn của
-   20261107_comments_spin_fixes.sql, nên chạy trên database đã đúng là no-op. */
+   update` mức BẢNG, và nếu một database còn ở trạng thái đó thì client tự đặt
+   được `deleted_at` lúc INSERT.
+
+   ĐO ĐƯỢC TRÊN PRODUCTION (shadow preflight, 2026-10-06): `insert mức bảng =
+   f` và `deleted_at = f` — tức production ĐÃ ở trạng thái theo cột, mục D ở đó
+   là no-op. Vì vậy phần này không chỉ copy hai câu của bundle: nó REVOKE mọi
+   quyền INSERT/UPDATE ở cả mức BẢNG lẫn mức CỘT của hai client role rồi cấp
+   lại đúng bốn cột. REVOKE trên quyền không tồn tại là no-op, nên đây là cách
+   "ghim" trạng thái thay vì trông vào việc database tình cờ đã đúng — và cột
+   lạ nào đó được cấp thêm sẽ bị hậu kiểm bắt. */
 do $$
+declare
+  v_cols text;
 begin
+  select string_agg(quote_ident(column_name), ', ' order by column_name) into v_cols
+    from information_schema.columns
+   where table_schema = 'public' and table_name = 'request_comments';
+  if v_cols is null then
+    raise exception 'err.reconcilePreflight: không đọc được danh sách cột của public.request_comments';
+  end if;
   execute 'revoke insert, update on public.request_comments from anon, authenticated';
+  execute format('revoke insert (%s) on public.request_comments from anon, authenticated', v_cols);
+  execute format('revoke update (%s) on public.request_comments from anon, authenticated', v_cols);
   execute 'grant insert (request_id, user_id, parent_id, body) on public.request_comments to authenticated';
 end $$;
 
@@ -276,6 +350,8 @@ declare
   v_live text;
   v_def text;
   v_acl jsonb;
+  v_live_acl jsonb;
+  v_target_acl jsonb;
   v_counts jsonb;
   v_reward_triggers int;
   v_earnings bigint;
@@ -326,20 +402,44 @@ begin
     end if;
   end if;
 
-  /* C3. quyền bảng comment: không mức-bảng cho client role, đúng bốn cột */
-  if has_table_privilege('authenticated', 'public.request_comments', 'INSERT')
-     or has_table_privilege('anon', 'public.request_comments', 'INSERT')
-     or has_table_privilege('authenticated', 'public.request_comments', 'UPDATE') then
-    raise exception 'err.reconcilePostcheck: public.request_comments còn INSERT/UPDATE mức bảng cho client role';
-  end if;
-  if not has_column_privilege('authenticated', 'public.request_comments', 'request_id', 'INSERT')
-     or not has_column_privilege('authenticated', 'public.request_comments', 'body', 'INSERT')
-     or not has_column_privilege('authenticated', 'public.request_comments', 'parent_id', 'INSERT')
-     or not has_column_privilege('authenticated', 'public.request_comments', 'user_id', 'INSERT') then
-    raise exception 'err.reconcilePostcheck: thiếu quyền INSERT theo cột cho authenticated (app sẽ không gửi được comment)';
-  end if;
-  if has_column_privilege('authenticated', 'public.request_comments', 'deleted_at', 'INSERT') then
-    raise exception 'err.reconcilePostcheck: authenticated vẫn đặt được deleted_at khi INSERT — đúng lỗ mà policy phải chặn';
+  /* C3. quyền bảng comment: GHIM đúng trạng thái bundle — không mức bảng, và
+     với authenticated đúng bốn cột (không cột lạ nào), với anon không cột nào.
+     So bằng JSON dựng từ catalog theo cùng cách phần A đã ghi lại trạng thái
+     cũ, nên không thể bỏ sót một cột được cấp thêm. */
+  v_live_acl := jsonb_build_object(
+    'authenticated', jsonb_build_object(
+      'insert_table', has_table_privilege('authenticated', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('authenticated', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'authenticated'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'authenticated'), '[]'::jsonb)),
+    'anon', jsonb_build_object(
+      'insert_table', has_table_privilege('anon', 'public.request_comments', 'INSERT'),
+      'update_table', has_table_privilege('anon', 'public.request_comments', 'UPDATE'),
+      'insert_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'INSERT' and grantee = 'anon'), '[]'::jsonb),
+      'update_cols', coalesce((select jsonb_agg(column_name order by column_name)
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'request_comments'
+          and privilege_type = 'UPDATE' and grantee = 'anon'), '[]'::jsonb)));
+  v_target_acl := jsonb_build_object(
+    'authenticated', jsonb_build_object(
+      'insert_table', false, 'update_table', false,
+      'insert_cols', jsonb_build_array('body', 'parent_id', 'request_id', 'user_id'),
+      'update_cols', jsonb_build_array()),
+    'anon', jsonb_build_object(
+      'insert_table', false, 'update_table', false,
+      'insert_cols', jsonb_build_array(), 'update_cols', jsonb_build_array()));
+  if v_live_acl <> v_target_acl then
+    raise exception 'err.reconcilePostcheck: ACL public.request_comments khác trạng thái bundle. Đang có: % — cần đúng: %',
+      v_live_acl, v_target_acl;
   end if;
 
   /* D. KHÔNG có dòng dữ liệu nào đổi: đếm lại y hệt cách đã chụp ở tiền kiểm
