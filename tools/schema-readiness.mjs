@@ -283,6 +283,70 @@ export function aheadOfBaseline (declared, actual, baseline) {
   return extras
 }
 
+/* ------------------------------- phân loại -------------------------------
+   Hàm thuần, tách khỏi I/O để kiểm được bằng node --test: xem
+   tools/schemaDriftReport.test.mjs. */
+export function classifyDrift (expected, actual, problems) {
+  const artifacts = []
+  const review = []
+  const artifactKeys = new Set()
+
+  /* (1) constraint NOT NULL của PG18: chỉ là cách PG18 ghi lại đúng thuộc tính
+     `attnotnull` mà fingerprint đã có ở từng cột. Nó chỉ được xếp vào nhóm
+     "cơ chế catalog" khi bản thân CỘT trong database đích thật sự not null —
+     nếu cột mất NOT NULL thì đó là drift thật và phải ở lại nhóm review. */
+  for (const [table, spec] of Object.entries(expected.tables)) {
+    for (const want of spec.constraints ?? []) {
+      if (want.type !== 'n') continue
+      const got = actual.tables[table]
+      const matched = got?.constraints?.some(c => c.name === want.name
+        || (c.type === want.type && String(c.columns) === String(want.columns)))
+      if (matched) continue
+      const column = want.columns[0]
+      const live = got?.columns?.[column]
+      const label = `${want.type} on public.${table}(${want.columns.join(', ')})`
+      const detail = `expected ${want.definition}`
+      if (live && live.notNull === true) {
+        artifacts.push({ table, column, constraint: want.name, definition: want.definition })
+      } else {
+        /* Không có NOT NULL trên cột: đây là drift thật, và câu ở đây nói đúng
+           chuyện hơn câu chung của diffSchema — nên đăng ký khoá để vòng lặp
+           dưới không kể lại lần hai. */
+        review.push({
+          kind: live ? 'incompatible-nullability' : 'missing-column',
+          object: `public.${table}.${column}`,
+          detail: live
+            ? `baseline ghi NOT NULL nhưng database không có (lost NOT NULL) — ${want.definition}`
+            : `cột không tồn tại; fingerprint cần constraint ${want.name} (${want.definition})`,
+        })
+      }
+      /* Dù là artifact hay drift thật, problem gốc của constraint này đã được
+         xử lý ở trên. */
+      artifactKeys.add(`${label}|${detail}`)
+    }
+  }
+
+  /* (2) Mọi problems khác của diffSchema: giữ nguyên, không diễn giải lại. */
+  for (const problem of problems) {
+    const key = `${problem.object}|${problem.detail}`
+    if (problem.kind === 'missing-constraint' && artifactKeys.has(key)) continue
+    review.push(problem)
+  }
+
+  /* (3) Chiều ngược lại: database ghi constraint 'n' mà fingerprint không có
+     (fingerprint sinh trên bản PostgreSQL cũ). Không phải lỗi. */
+  const reverse = []
+  for (const [table, spec] of Object.entries(actual.tables)) {
+    for (const got of spec.constraints ?? []) {
+      if (got.type !== 'n') continue
+      const known = expected.tables[table]?.constraints?.some(c => c.name === got.name
+        || (c.type === got.type && String(c.columns) === String(got.columns)))
+      if (!known) reverse.push(`public.${table}(${got.columns.join(', ')}) — ${got.definition}`)
+    }
+  }
+  return { artifacts, review, reverse }
+}
+
 export async function verifyBaseline (client, baseline) {
   if (!/^\d{8}$/.test(String(baseline ?? ''))) throw new Error(`invalid baseline ${baseline}`)
   const snapshot = readSnapshot(baseline)
@@ -298,9 +362,31 @@ export async function verifyBaseline (client, baseline) {
       notes: [], snapshot, postgres: probe.version,
     }
   }
-  const { problems, notes } = diffSchema(snapshot.state, actual)
-  problems.push(...aheadOfBaseline(snapshot.state, actual, baseline))
-  return { ok: problems.length === 0, baseline, problems, notes, snapshot, postgres: probe.version, hasLoginRewards: probe.has_login_rewards }
+  const { problems: raw, notes } = diffSchema(snapshot.state, actual)
+  const ahead = aheadOfBaseline(snapshot.state, actual, baseline)
+
+  /* Một phần của diffSchema là KHÁC BIỆT CƠ CHẾ CATALOG giữa các bản PostgreSQL
+     chứ không phải drift thật: PG18 ghi mỗi NOT NULL thành một dòng
+     pg_constraint(contype='n'), các bản cũ hơn thì không. Nếu tính chúng là
+     problem thì cổng trở nên bất khả dụng với mọi database khác major với máy
+     đã sinh fingerprint (đúng tình trạng production PG17 vs fingerprint PG18:
+     147 dòng missing-constraint che mất 2 drift thật).
+     classifyDrift chỉ hạ cấp những dòng 'n' mà CHÍNH CỘT đó đang `not null`
+     thật; cột đã MẤT NOT NULL vẫn là problem `incompatible-nullability` — nên
+     điều kiện kiểm không hề bị nới. Chiều ngược lại (database ghi 'n' mà
+     fingerprint không có) cũng được ghi chú thay vì báo lỗi. */
+  const { artifacts, review, reverse } = classifyDrift(snapshot.state, actual, [...raw, ...ahead])
+  const allNotes = [...notes]
+  if (artifacts.length) {
+    allNotes.push(`${artifacts.length} NOT NULL constraint(s) exist only as catalog rows on one PostgreSQL ` +
+      `major (fingerprint: PostgreSQL ${snapshot.postgresMajor ?? '?'}) — the columns themselves ARE not null, ` +
+      'so this is not drift. Reported per column in the drift report; not counted as problems.')
+  }
+  for (const item of reverse) allNotes.push(`live database records ${item} — fingerprint captured on an older PostgreSQL major; not drift.`)
+  return {
+    ok: review.length === 0, baseline, problems: review, artifacts, reverse, notes: allNotes,
+    snapshot, postgres: probe.version, hasLoginRewards: probe.has_login_rewards,
+  }
 }
 
 export function formatReport (result) {
@@ -312,6 +398,10 @@ export function formatReport (result) {
   if (result.problems?.length) {
     lines.push(`  ${result.problems.length} problem(s):`)
     for (const p of result.problems) lines.push(`    ✗ [${p.kind}] ${p.object} — ${p.detail}`)
+  }
+  if (result.artifacts?.length) {
+    lines.push(`  (${result.artifacts.length} catalog-encoding difference(s) ignored — PostgreSQL ${result.snapshot?.postgresMajor ?? '?'} ` +
+      'stores NOT NULL as a pg_constraint row, this server does not; the columns are still not null)')
   }
   for (const note of result.notes ?? []) lines.push(`  note: ${note}`)
   return lines.join('\n')

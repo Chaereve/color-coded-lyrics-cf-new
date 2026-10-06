@@ -15,7 +15,7 @@ import {
 import { deploy, plan } from '../../tools/migrate.mjs'
 import {
   verifyBaseline, availableBaselines, SNAPSHOT_DIR, BASELINE_NOTES,
-  diffSchema, LIVE_VOTE_QUOTA_CONFIG_KEYS,
+  diffSchema, classifyDrift, captureSchema, LIVE_VOTE_QUOTA_CONFIG_KEYS,
 } from '../../tools/schema-readiness.mjs'
 
 const url = process.env.MIGRATION_DEPLOY_TEST_DATABASE_URL
@@ -289,3 +289,55 @@ async function historyCount (client) {
   if (!rows[0].n) return 0
   return (await client.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n
 }
+
+test('cổng không chặn oan vì khác bản PostgreSQL, nhưng vẫn chặn NOT NULL bị mất thật',
+  { skip: !url, timeout: 120_000 }, async () => {
+    /* Bối cảnh production (2026-10-06): fingerprint sinh trên PostgreSQL 18, còn
+       server production là bản cũ hơn nên KHÔNG có 147 dòng pg_constraint
+       contype='n'. Trước bản vá này, verifyBaseline tính chúng là problem nên
+       `db:plan -- --baseline 20261120` từ chối chạy và cả hai drift thật (policy
+       yếu, index DESC) bị che mất. Bài này khoá lại cả hai nửa:
+         · database THIẾU dòng 'n' nhưng CỘT vẫn not null ⇒ không phải problem;
+         · cột thật sự MẤT NOT NULL ⇒ vẫn NOT READY, và là `incompatible-nullability`.
+       Không snapshot nào bị sửa; chỉ cách SO SÁNH được sửa. */
+    await withDatabase(url, async (pool, client) => {
+      await installLevel(pool, 'fresh')
+      const snapshot = JSON.parse(readFileSync(`${SNAPSHOT_DIR}/20261120.json`, 'utf8'))
+      const actual = await captureSchema(client)
+
+      /* (a) máy này (PG18) khớp fingerprint: READY. */
+      const live = await verifyBaseline(client, '20261120')
+      assert.equal(live.ok, true, `DB cài mới phải READY: ${JSON.stringify(live.problems.slice(0, 3))}`)
+
+      /* (b) giả lập server PG cũ: bỏ các dòng 'n' khỏi bản chụp, cột giữ nguyên
+         not null = true ⇒ 147 missing-constraint nhưng KHÔNG có mục cần đọc. */
+      const older = structuredClone(actual)
+      let stripped = 0
+      for (const table of Object.values(older.tables)) {
+        const before = table.constraints.length
+        table.constraints = table.constraints.filter(c => c.type !== 'n')
+        stripped += before - table.constraints.length
+      }
+      assert.equal(stripped, 147, 'đúng 147 dòng cơ chế catalog như production báo')
+      const raw = diffSchema(snapshot.state, older).problems
+      assert.equal(raw.filter(p => p.kind === 'missing-constraint').length, 147)
+      const classified = classifyDrift(snapshot.state, older, raw)
+      assert.deepEqual(classified.review, [], 'không được còn mục nào cần người đọc')
+      assert.equal(classified.artifacts.length, 147)
+
+      /* (c) nhưng nếu một cột THẬT SỰ mất NOT NULL thì cổng vẫn phải chặn. */
+      const broken = structuredClone(older)
+      broken.tables.requests.columns.status.notNull = false
+      const brokenRaw = diffSchema(snapshot.state, broken).problems
+      const brokenClassified = classifyDrift(snapshot.state, broken, brokenRaw)
+      assert.ok(brokenClassified.review.some(p => p.kind === 'incompatible-nullability'),
+        'mất NOT NULL thật phải nằm trong nhóm cần người đọc')
+
+      /* (d) và trên database thật: DROP NOT NULL ⇒ verifyBaseline NOT READY. */
+      await pool.query('alter table public.requests alter column status drop not null')
+      const afterDrop = await verifyBaseline(client, '20261120')
+      assert.equal(afterDrop.ok, false, 'mất NOT NULL trên database thật phải làm cổng NOT READY')
+      assert.ok(afterDrop.problems.some(p => p.kind === 'incompatible-nullability'),
+        `phải là incompatible-nullability: ${JSON.stringify(afterDrop.problems.map(p => p.kind))}`)
+    })
+  })

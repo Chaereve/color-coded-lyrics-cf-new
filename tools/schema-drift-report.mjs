@@ -24,7 +24,12 @@
 import { writeFileSync } from 'node:fs'
 import process from 'node:process'
 import pg from 'pg'
-import { captureSchema, diffSchema } from './schema-readiness.mjs'
+import { captureSchema, diffSchema, classifyDrift } from './schema-readiness.mjs'
+
+/* classifyDrift sống ở schema-readiness.mjs để CỔNG (verifyBaseline) và báo cáo này
+   dùng CHUNG một cách phân loại; re-export để tools/schemaDriftReport.test.mjs và
+   người đọc cũ vẫn import được từ đây. */
+export { classifyDrift }
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPO, snapshotPath } from './schema-readiness.mjs'
@@ -38,70 +43,6 @@ const jsonOut = arg('json', '')
 const url = process.env.SUPABASE_DB_URL || arg('db-url', '')
 
 const loadSnapshot = version => JSON.parse(readFileSync(snapshotPath(version), 'utf8'))
-
-/* ------------------------------- phân loại -------------------------------
-   Hàm thuần, tách khỏi I/O để kiểm được bằng node --test: xem
-   tools/schemaDriftReport.test.mjs. */
-export function classifyDrift (expected, actual, problems) {
-  const artifacts = []
-  const review = []
-  const artifactKeys = new Set()
-
-  /* (1) constraint NOT NULL của PG18: chỉ là cách PG18 ghi lại đúng thuộc tính
-     `attnotnull` mà fingerprint đã có ở từng cột. Nó chỉ được xếp vào nhóm
-     "cơ chế catalog" khi bản thân CỘT trong database đích thật sự not null —
-     nếu cột mất NOT NULL thì đó là drift thật và phải ở lại nhóm review. */
-  for (const [table, spec] of Object.entries(expected.tables)) {
-    for (const want of spec.constraints ?? []) {
-      if (want.type !== 'n') continue
-      const got = actual.tables[table]
-      const matched = got?.constraints?.some(c => c.name === want.name
-        || (c.type === want.type && String(c.columns) === String(want.columns)))
-      if (matched) continue
-      const column = want.columns[0]
-      const live = got?.columns?.[column]
-      const label = `${want.type} on public.${table}(${want.columns.join(', ')})`
-      const detail = `expected ${want.definition}`
-      if (live && live.notNull === true) {
-        artifacts.push({ table, column, constraint: want.name, definition: want.definition })
-      } else {
-        /* Không có NOT NULL trên cột: đây là drift thật, và câu ở đây nói đúng
-           chuyện hơn câu chung của diffSchema — nên đăng ký khoá để vòng lặp
-           dưới không kể lại lần hai. */
-        review.push({
-          kind: live ? 'incompatible-nullability' : 'missing-column',
-          object: `public.${table}.${column}`,
-          detail: live
-            ? `baseline ghi NOT NULL nhưng database không có (lost NOT NULL) — ${want.definition}`
-            : `cột không tồn tại; fingerprint cần constraint ${want.name} (${want.definition})`,
-        })
-      }
-      /* Dù là artifact hay drift thật, problem gốc của constraint này đã được
-         xử lý ở trên. */
-      artifactKeys.add(`${label}|${detail}`)
-    }
-  }
-
-  /* (2) Mọi problems khác của diffSchema: giữ nguyên, không diễn giải lại. */
-  for (const problem of problems) {
-    const key = `${problem.object}|${problem.detail}`
-    if (problem.kind === 'missing-constraint' && artifactKeys.has(key)) continue
-    review.push(problem)
-  }
-
-  /* (3) Chiều ngược lại: database ghi constraint 'n' mà fingerprint không có
-     (fingerprint sinh trên bản PostgreSQL cũ). Không phải lỗi. */
-  const reverse = []
-  for (const [table, spec] of Object.entries(actual.tables)) {
-    for (const got of spec.constraints ?? []) {
-      if (got.type !== 'n') continue
-      const known = expected.tables[table]?.constraints?.some(c => c.name === got.name
-        || (c.type === got.type && String(c.columns) === String(got.columns)))
-      if (!known) reverse.push(`public.${table}(${got.columns.join(', ')}) — ${got.definition}`)
-    }
-  }
-  return { artifacts, review, reverse }
-}
 
 /* ------------------------------- giải nghĩa -------------------------------
    diffSchema mô tả mục lệch bằng phía BASELINE ("expected …") vì nó chỉ cần

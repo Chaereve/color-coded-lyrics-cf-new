@@ -179,6 +179,15 @@ post-conditions re-count rows for `requests`, `request_comments`,
 `notifications`, `daily_login_rewards`, the five quiz tables and the vote ledger
 inside the same transaction.
 
+How it is applied: on the production database the runner still refuses
+`--baseline 20261120` when the deploy starts, because the live schema differs from
+the committed fingerprint — that difference is the drift this migration fixes. It
+is therefore applied out-of-band with `psql -X -v ON_ERROR_STOP=1 -f …` (mode E,
+step 2 above), which is safe because the file is self-guarded and transactional.
+Afterwards `db:verify-baseline -- --baseline 20261120` prints READY, and
+`db:deploy -- --baseline 20261120` applies `20261121` and `20261122` and then
+re-runs `20261123` as a no-op, recording its history row.
+
 Rollback is `supabase/rollback/20261123_reconcile_security_drift.sql`. It
 restores the previous policy text, the previous `request_comments` ACL (table-level
 flags **and** column lists for both client roles) and the previous index definition
@@ -368,6 +377,22 @@ Recovery options, in order of preference:
    `npm run db:baseline:snapshot -- --baseline <version>`, review the diff and
    commit it. Never hand-edit a fingerprint to make a deploy pass.
 
+Option 2 is how the 20261123 reconcile migration is applied when the live schema
+still differs from the committed fingerprint (that difference is exactly why the
+runner refuses every `--baseline`): the migration is self-guarded (its own
+fail-closed preflight and post-check, one transaction, no data writes), so it can
+be applied by hand and the recorded verification then passes. Applying it a second
+time — which is what `db:deploy` will do, because the manual run is not in the
+history table — is a no-op that finally records the history row.
+
+**PostgreSQL version differences are not drift.** PostgreSQL 18 records every
+`NOT NULL` as a `pg_constraint` row (`contype = 'n'`); older majors do not. The
+readiness check therefore ignores that difference in **both** directions, but only
+where the column itself is still `not null` — a column that really lost `NOT NULL`
+remains an `incompatible-nullability` problem, and a fingerprint captured on an
+older server does not make a newer CI database fail. The drift report prints the
+ignored rows separately.
+
 ## 5. Production runbook
 
 | Step | Command | Gate |
@@ -463,7 +488,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | Command | What it proves |
 | --- | --- |
 | `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent; and the fresh-install bundle (`schema.sql` + setup chunks) contains no object that only a migration after the newest committed baseline creates. No database needed. |
-| `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. |
+| `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. Differences that are only the PostgreSQL catalog encoding of `NOT NULL` (`contype = 'n'`, present on PostgreSQL 18 and absent on older majors) are reported as notes, in both directions, and only when the column is actually `not null`; `npm run db:verify-baseline` exits non-zero only for real drift. |
 | `npm run test:baseline:db` | On a real database: mode A/B/C/D/E behaviour, every failure class, and that a failed readiness check writes no migration history. |
 | `npm run test:migration:pglite` | `supabase/tests/voteCalendarDecoupling.pglite.mjs`: builds the `20261117`+`20261119`+`20261120` source state inside PGlite (PostgreSQL compiled to WASM, bundled as a dev dependency) and runs the real `20261121` migration and rollback files against it — live-config copy, backfill/equivalence, RLS/ACL, spending order, quiz idempotency, the Calendar-only RPCs, the drift-refusing rollback and every abort class. No server, no credentials, no network; opt-in so the default `npm test` stays fast. |
 | `npm test` | Includes `tools/migration-safety.test.mjs` (12 static/deployment-runner tests) and, when a test Postgres is configured, `supabase/tests/migrationDeploy.test.js`, `supabase/tests/baselineReadiness.test.js`, `supabase/tests/voteCalendarDecoupling.test.js` (real cutover, live quota, RLS, Calendar and rollback checks), and `supabase/tests/schemaChunks.test.js`. PostgreSQL-only tests are reported as skipped unless a disposable test database URL is configured. |

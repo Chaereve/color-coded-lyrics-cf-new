@@ -591,3 +591,42 @@ test('production đo được ACL hẹp: 20261123 ghim đúng 4 cột, rollback 
     'rollback không được mở lại deleted_at cho client')
   })
 })
+
+test('chạy lần hai là no-op và GIỮ NGUYÊN bản ghi — đúng đường mode E (psql trước, db:deploy sau)', { skip: !url, timeout: 240_000 }, async () => {
+  /* Đường thật của production: runner từ chối mọi --baseline khi fingerprint chưa
+     khớp, nên 20261123 phải được áp ngoài runner (psql, mode E bước 2). Sau đó
+     `db:deploy -- --baseline 20261120` sẽ gặp lại chính nó trong danh sách pending;
+     lần chạy thứ hai PHẢI là no-op (phần A/B tự bỏ qua, C/D vốn idempotent) và
+     KHÔNG được xoá bản ghi trong comment — nếu không, rollback sẽ mất đường lùi. */
+  await withDatabase(url, async (pool, client) => {
+    await installLevel(pool, 'fresh')
+    const userId = await seedUser(pool)
+    await buildProductionDrift(pool, { policyShape: 'parent-check', tableAcl: false })
+    await ensureHistory(client)
+
+    await client.query(SQL)  // lần một: như psql -v ON_ERROR_STOP=1 -f
+    const first = {
+      policy: await policyText(pool), index: await indexDef(pool),
+      comment: await policyComment(pool), acl: await aclJson(pool), counts: await counts(pool),
+    }
+    assert.match(first.policy, /deleted_at IS NULL/i)
+    assert.match(first.comment, /WITH CHECK cũ: /)
+
+    await client.query(SQL)  // lần hai: trong db:deploy, sau 20261121 + 20261122
+    assert.equal(await policyText(pool), first.policy, 'policy không đổi ở lần hai')
+    assert.equal(await indexDef(pool), first.index, 'index không đổi ở lần hai')
+    assert.equal(await policyComment(pool), first.comment,
+      'bản ghi trong comment phải còn nguyên (phần A bỏ qua khi policy đã chặt)')
+    assert.deepEqual(await aclJson(pool), first.acl, 'ACL không đổi ở lần hai')
+    assert.deepEqual(await counts(pool), first.counts, 'không đụng dữ liệu ở lần hai')
+
+    /* Và rollback vẫn dùng được bản ghi đó để trả về đúng trạng thái ban đầu. */
+    const weak = await policyComment(pool)
+    await client.query(ROLLBACK)
+    assert.match(weak, /WITH CHECK cũ: /)
+    assert.equal(await policyText(pool), weak.slice(weak.indexOf('WITH CHECK cũ: ') + 'WITH CHECK cũ: '.length),
+      'rollback trả về đúng biểu thức đã ghi')
+    assert.deepEqual(await aclJson(pool), first.acl, 'rollback trả ACL về đúng trạng thái trước')
+    assert.equal(userId.length > 0, true)
+  })
+})
