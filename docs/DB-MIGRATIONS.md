@@ -59,7 +59,7 @@ replaced by:
   change after `INSERT` (`2 → 0`, `2 → 5`, `0 → 2` all raise
   `err.dailyLoginRewardImmutable`).
 
-### 20261121 — vote quota + Calendar decoupling (Draft PR #29)
+### 20261121 — vote quota + Calendar decoupling (supersedes Draft PR #29)
 
 `20261121_vote_calendar_decoupling.sql` is a new, data-dependent cutover. It
 copies the four **live** quota rows, snapshots the existing quiz-answer ledger,
@@ -85,6 +85,19 @@ rolls back neutral objects/data and leaves source functions untouched. The
 runner strips the migration file's outer `BEGIN/COMMIT` because it owns the
 transaction that also writes migration history. A partially present target is
 refused, not overwritten; do not try to clean it up with `DROP/CASCADE`.
+
+The cutover keeps every fingerprint-visible attribute of the function it
+replaces: `daily_free_vote_grant` stays `returns integer language sql stable
+security definer` exactly as recorded in `supabase/baselines/20261120.json`,
+so `db:verify-baseline --baseline 20261120` still reports READY after the
+cutover, and the migration history row is what proves the cutover ran. The
+fail-closed reads live in two internal helpers (`daily_vote_quota_bool`,
+`daily_vote_quota_int`) that raise `err.voteQuotaConfig` on a missing, NULL or
+mistyped neutral config row instead of substituting a default, and are revoked
+from `public`, `anon` and `authenticated`. Changing a replacement function's
+language/volatility/security-definer/return shape against a committed
+fingerprint is what broke the migration guard on Draft PR #29; if a future
+cutover must change those attributes, add a new baseline in the same PR.
 
 `npm run test:migration:pglite` executes this file end to end against PostgreSQL
 compiled to WASM: it proves the strict catalog preflight matches a real server,
