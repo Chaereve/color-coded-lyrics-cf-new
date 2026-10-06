@@ -13,6 +13,7 @@ import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
   collectMigrations, assertMigrationSafety, planPending, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
+  bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
 } from './migrate.mjs'
 
 const REWRITE = 'update public.daily_login_rewards set reward = 0 where reward <> 0;'
@@ -65,6 +66,79 @@ test('a fresh-install setup path has no chunk for the superseded migration', () 
   assert.equal(chunks.filter(name => /no-votes/.test(name)).length, 0)
   assert.ok(chunks.includes('15-preserve-legacy-daily-login-rewards.sql'))
   assert.ok(chunks.includes('16-daily-login-reward-immutable.sql'))
+})
+
+/* The fresh-install bundle is the NEWEST COMMITTED BASELINE, not "whatever the
+   migrations end at". If schema.sql is ever regenerated from a database where a
+   post-baseline migration already ran, it bakes in objects that only that
+   migration creates. The runner would then refuse every fresh install with
+   `err.voteCalendarPreflight: partial/unknown target objects already exist`,
+   and verification could not tell the difference. These tests pin both halves:
+   the current bundle is clean, and a regenerated one fails closed loudly. */
+
+test('the fresh-install bundle stays at the newest committed baseline', () => {
+  const floor = bundleBaseline()
+  assert.equal(floor, '20261120', 'the bundle baseline is the newest committed fingerprint')
+  const known = baselineObjects(floor)
+  assert.ok(known.has('daily_quiz_config') && known.has('daily_free_vote_grant'),
+    'objects the baseline already describes may be replaced by later migrations')
+  const post = postBaselineObjects()
+  // Exactly the objects migration 20261121 introduces; nothing from the baseline.
+  for (const name of ['daily_vote_quota_config', 'daily_vote_quota_earnings', 'daily_vote_earned_on',
+    'daily_vote_quota_bool', 'daily_vote_quota_int', 'daily_login_calendar_payload',
+    'my_daily_login_status', 'claim_daily_login_calendar']) {
+    assert.ok(post.has(name), `${name} must be recognised as a post-baseline object`)
+  }
+  for (const name of known) assert.equal(post.has(name), false,
+    `${name} exists in baseline ${floor} and must never be treated as bundle-forbidden`)
+  // The committed bundle is clean, and the guard agrees.
+  const bundle = [SCHEMA_FILE,
+    ...readdirSync(SETUP_DIR).filter(n => n.endsWith('.sql')).map(n => join(SETUP_DIR, n))]
+  assert.deepEqual(bundleAheadOfBaseline(bundle), [], 'supabase/schema.sql + setup chunks are at the baseline')
+  assert.doesNotThrow(() => assertMigrationSafety())
+})
+
+test('a regenerated schema.sql that contains post-baseline objects fails closed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ccl-bundle-'))
+  const schema = join(dir, 'schema.sql')
+  const setup = join(dir, 'setup')
+  mkdirSync(setup)
+  writeFileSync(join(setup, '16-daily-login-reward-immutable.sql'), 'select 1;\n')
+  try {
+    // What `npm run db:baseline:snapshot`-style regeneration from a cutover
+    // database looks like: the neutral objects are now part of the bundle.
+    writeFileSync(schema, [
+      'create table public.daily_vote_quota_config (key text primary key, value jsonb not null);',
+      'create or replace function public.my_daily_login_status() returns jsonb as $$ select \'{}\'::jsonb $$;',
+    ].join('\n'))
+    assert.throws(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }),
+      error => {
+        assert.match(error.message, /ahead of baseline 20261120/)
+        assert.match(error.message, /public\.daily_vote_quota_config .*20261121_vote_calendar_decoupling/)
+        assert.match(error.message, /public\.my_daily_login_status/)
+        assert.match(error.message, /regenerate it from a pre-cutover database, or supersede the baseline/)
+        assert.match(error.message, /partial\/unknown target objects already exist/)
+        return true
+      })
+
+    // A setup chunk is part of the same bundle and must be caught identically.
+    writeFileSync(schema, 'select 1;\n')
+    writeFileSync(join(setup, '17-vote-calendar-decoupling.sql'),
+      'create table public.daily_vote_quota_earnings (source text not null, user_id uuid not null);')
+    assert.throws(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }),
+      /17-vote-calendar-decoupling\.sql declares public\.daily_vote_quota_earnings/)
+
+    // Documentation is not a declaration: comments and strings never trip it.
+    writeFileSync(schema, [
+      "-- 20261121 adds public.daily_vote_quota_config; it is NOT part of this bundle.",
+      "select 'public.daily_vote_quota_earnings' as note;",
+    ].join('\n'))
+    writeFileSync(join(setup, '17-vote-calendar-decoupling.sql'), 'select 1;\n')
+    assert.doesNotThrow(
+      () => assertMigrationSafety(MIGRATIONS_DIR, { schemaFile: schema, setupDir: setup }))
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('a commented-out rewrite is documentation; a real one is a hard failure', () => {

@@ -14,7 +14,7 @@
  * The connection string comes from SUPABASE_DB_URL (or --db-url). Never commit
  * it, never paste it into chat. */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { verifyBaseline, formatReport, availableBaselines } from './schema-readiness.mjs'
+import { verifyBaseline, formatReport, availableBaselines, snapshotPath } from './schema-readiness.mjs'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -43,8 +43,7 @@ export const DESTRUCTIVE_PATTERNS = [
 ]
 
 /** Removes comments and blanks string literals, so only real code is scanned.
- *  Dollar-quoted bodies are kept (recursively), because dynamic SQL lives there. */
-export function stripSqlNoise (sql) {
+ *  Dollar-quoted bodies are kept (recursively), because dynamic SQL lives there. */export function stripSqlNoise (sql) {
   let out = ''
   let i = 0
   const at = n => sql[i + n]
@@ -87,6 +86,71 @@ export function stripSqlNoise (sql) {
 export function findDestructive (sql) {
   const code = stripSqlNoise(sql)
   return DESTRUCTIVE_PATTERNS.filter(({ re }) => re.test(code))
+}
+
+/* ------------------- fresh-install bundle vs baseline ------------------- */
+
+/** The newest committed fresh-install baseline: what `supabase/schema.sql` and
+ *  the `supabase/setup/*.sql` chunks are allowed to describe. */
+export const bundleBaseline = () =>
+  availableBaselines().filter(name => /^\d{8}$/.test(name)).sort().at(-1)
+
+/** Every table/function name the baseline fingerprint already contains. A later
+ *  migration may legitimately `create or replace` these; it may not introduce
+ *  them. */
+export function baselineObjects (baseline = bundleBaseline()) {
+  const snapshot = JSON.parse(readFileSync(snapshotPath(baseline), 'utf8'))
+  const tables = Object.keys(snapshot.state.tables ?? {})
+  const functions = Object.keys(snapshot.state.functions ?? {})
+    .map(signature => signature.slice(0, signature.indexOf('(')))
+  return new Set([...tables, ...functions])
+}
+
+/** Objects that ONLY migrations after the newest baseline create (name → the
+ *  migration id that introduces it). These must never appear in the
+ *  fresh-install bundle: a fresh install of the bundle is the baseline, and the
+ *  guarded runner refuses to adopt pre-existing target objects, so a bundled
+ *  copy would make every upgrade from that bundle impossible. */
+export function postBaselineObjects (dir = MIGRATIONS_DIR) {
+  const { active } = collectMigrations(dir)
+  const floor = bundleBaseline()
+  const known = baselineObjects(floor)
+  const objects = new Map()
+  const remember = (name, id) => { if (!known.has(name)) objects.set(name, id) }
+  for (const { id, version, sql } of active) {
+    if (version <= floor) continue
+    const code = stripSqlNoise(sql)
+    for (const match of code.matchAll(
+      /create\s+(?:or\s+replace\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)/gi)) {
+      remember(match[1], id)
+    }
+    for (const match of code.matchAll(
+      /create\s+or\s+replace\s+function\s+(?:public\.)?([a-z_][a-z0-9_]*)\s*\(/gi)) {
+      remember(match[1], id)
+    }
+  }
+  return objects
+}
+
+/** A declaration of `name` inside a bundle file. Comments and string literals
+ *  are ignored, so a documented name is not a hit — only real DDL is. */
+const declaresObject = (sql, name) => new RegExp(
+  `create\\s+(?:or\\s+replace\\s+)?(?:table|function|unique\\s+index|index|policy|trigger|type|view)\\s+` +
+  `(?:if\\s+not\\s+exists\\s+)?(?:public\\.)?${name}\\b`, 'i').test(stripSqlNoise(sql))
+
+/** Fails closed when the fresh-install bundle already contains objects that a
+ *  later migration creates — the state a regenerated `schema.sql` produces. */
+export function bundleAheadOfBaseline (files, dir = MIGRATIONS_DIR) {
+  const objects = postBaselineObjects(dir)
+  if (!objects.size) return []
+  const hits = []
+  for (const path of files) {
+    const sql = readFileSync(path, 'utf8')
+    for (const [name, migration] of objects) {
+      if (declaresObject(sql, name)) hits.push({ path, object: `public.${name}`, migration })
+    }
+  }
+  return hits
 }
 
 export function readQuarantine (dir = MIGRATIONS_DIR) {
@@ -136,8 +200,12 @@ export function collectMigrations (dir = MIGRATIONS_DIR) {
   return { active, quarantined }
 }
 
-/** Static guard: the default path must never contain a historical rewrite. */
-export function assertMigrationSafety (dir = MIGRATIONS_DIR) {
+/** Readable file label: repo-relative when possible, absolute otherwise. */
+const displayPath = path => path.startsWith(REPO) ? path.slice(REPO.length) : path
+
+/** Static guard: the default path must never contain a historical rewrite, and
+ *  the fresh-install bundle must stay at the newest committed baseline. */
+export function assertMigrationSafety (dir = MIGRATIONS_DIR, { schemaFile = SCHEMA_FILE, setupDir = SETUP_DIR } = {}) {
   const { active, quarantined } = collectMigrations(dir)
   for (const { version, name, sql } of active) {
     const hits = findDestructive(sql)
@@ -154,9 +222,22 @@ export function assertMigrationSafety (dir = MIGRATIONS_DIR) {
       throw new Error(`quarantine entry ${entry.version} is marked destructive but no longer matches — update ${QUARANTINE_FILE}`)
     }
   }
-  for (const path of [SCHEMA_FILE, ...readdirSync(SETUP_DIR).filter(n => n.endsWith('.sql')).map(n => join(SETUP_DIR, n))]) {
+  const bundleFiles = [schemaFile,
+    ...readdirSync(setupDir).filter(n => n.endsWith('.sql')).map(n => join(setupDir, n))]
+  for (const path of bundleFiles) {
     const hits = findDestructive(readFileSync(path, 'utf8'))
-    if (hits.length) throw new Error(`${path.slice(REPO.length)} contains a forbidden statement [${hits.map(h => h.id).join(', ')}]`)
+    if (hits.length) throw new Error(`${displayPath(path)} contains a forbidden statement [${hits.map(h => h.id).join(', ')}]`)
+  }
+  const ahead = bundleAheadOfBaseline(bundleFiles, dir)
+  if (ahead.length) {
+    const floor = bundleBaseline()
+    const detail = ahead.map(hit =>
+      `${displayPath(hit.path)} declares ${hit.object} (created by ${hit.migration})`).join('; ')
+    throw new Error(`the fresh-install bundle is ahead of baseline ${floor}: ${detail}. ` +
+      `The bundle (supabase/schema.sql + supabase/setup chunks) must stay at baseline ${floor}: ` +
+      'regenerate it from a pre-cutover database, or supersede the baseline in a reviewed PR. ' +
+      'A bundled copy makes every upgrade fail closed, because the guarded runner refuses to ' +
+      'adopt pre-existing target objects (err.voteCalendarPreflight: partial/unknown target objects already exist).')
   }
   return { active, quarantined }
 }
@@ -364,7 +445,8 @@ async function main (argv) {
   if (mode === 'check') {
     const { active, quarantined } = assertMigrationSafety()
     console.log(`OK  ${active.length} active migrations, ${quarantined.length} quarantined, ` +
-      'no destructive statement in the default path (migrations, schema.sql, setup chunks)')
+      'no destructive statement in the default path and no post-baseline object in the fresh-install ' +
+      `bundle (schema.sql + setup chunks stay at baseline ${bundleBaseline()})`)
     return 0
   }
   if (!dbUrl) {

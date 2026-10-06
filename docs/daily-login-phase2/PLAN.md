@@ -259,6 +259,19 @@ Thứ tự trên áp dụng cho **Draft PR #29**. Migration phải là một tra
 
 **Gate E2:** static + runtime tests assert exact RPC names/args, stale-day behavior, `auth.uid()` identity, no `p_expected_user_id`, no quiz/wallet/payout fields, and continued Daily Quiz operation.
 
+### E2b. PR #31 — migration/contract update plan (bắt buộc, chốt trước khi mở PR #31)
+
+PR #30 chốt contract Calendar v1 (field list ở E2). PR #31 **chỉ được mở khi** kế hoạch dưới đây còn đúng; mọi thay đổi so với kế hoạch phải được owner duyệt trước.
+
+1. **Nguyên tắc:** additive-first, versioned. Trong PR #31 không rename, không remove, không đổi kiểu bất kỳ field đã có của v1; không đổi signature `my_daily_login_status()` / `claim_daily_login_calendar(date)` / `my_daily_checkin_month(date)`; không sửa object do `20261121` tạo (chỉ thêm mới).
+2. **Migration:** một file mới `2026xxxx_daily_ritual_*` (tên chốt khi mở PR), additive: bảng rollout/policy/claims/streaks + ledger linkage theo E3; `daily_ritual_rollout.cutover_date` **NULL mặc định, trạng thái `disabled`**; fail-closed theo cùng khuôn 20261121 (1 transaction, preflight catalog/live-config/history, lock, prove-equivalence, history atomicity); không `DROP/CASCADE`.
+3. **Contract v2 (jsonb additive):** giữ nguyên 6 key top-level + 6 key `login` của v1; field mới chỉ được **thêm dưới key mới hoặc key con mới** trong `login` (ví dụ `login.base`, `login.bonus`, `login.total`), cộng `policy`/`receipt` khi payout được bật — danh sách chính xác chốt trong PR #31 và **không** bao gồm bất kỳ field quiz/pool/attempt/votes_awarded/wallet nào. `claimed_days[]`, `streak`, `best_streak`, `total_days`, `first_day` giữ nguyên ngữ nghĩa.
+4. **Nếu buộc phải breaking** (không thể additive): thêm RPC version mới `my_daily_login_status_v2()` / `claim_daily_login_calendar_v2(date)` và **giữ RPC v1 song song** cho tới khi owner approve removal theo PR32/33; UI PR #31 dùng v2 sau rollout gate.
+5. **Rollout gate:** v2/payout chỉ hoạt động khi `daily_ritual_rollout` ở trạng thái `active` với `cutover_date` cố định đã được owner xác nhận; khi `disabled`/`NULL`, hành vi phải **giống hệt PR #30** (claim +0, không grant mới, không đổi streak) — và điều này phải được test.
+6. **Test bắt buộc của PR #31:** (a) contract v1 vẫn pass nguyên bộ test PR #30 (không regression); (b) exactKeys v2 + test subset "client v1 đọc được response v2"; (c) rollout disabled ⇒ zero payout, không ghi claims/grants; (d) double claim/concurrent tab/replay/midnight ICT cho claims+streaks; (e) RLS/grant matrix không mở thêm đường ghi cho browser; (f) không rò quiz/wallet field; (g) DB-gated + PGlite suite cho migration #31 và corrective SQL của nó.
+7. **Rollback PR #31:** corrective SQL fail-closed cùng khuôn PR #30 (drift → abort, restore hành vi v1, **giữ** bảng/dữ liệu mới làm audit); frontend rollback = redeploy build PR #30 vẫn chạy được trên DB đã apply #31 (vì additive + rollout disabled).
+8. **Thứ tự phụ thuộc:** PR #30 merge + migration #30 được duyệt và áp theo gate ⇒ PR #31 mới được mở/áp. PR #31 không được thay đổi bất kỳ điều khoản nào của PR #30 đang chờ duyệt.
+
 ### E3–E5. Deferred — không thuộc PR #29
 
 Các mục Daily Ritual bên dưới trong tài liệu (Card Flip, Fortune Cookie, Plant, new reward schema/grants, streak payout/carry-over, rollout, `/quiz` redirect, question-bank cleanup) là kế hoạch tương lai riêng. Chúng **không** được implement/schema-migrate/include vào PR #29; chỉ mở lại khi có scope/approval riêng.

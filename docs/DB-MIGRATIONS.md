@@ -134,7 +134,18 @@ it against production as part of this PR.
 3. **Clean fresh-install path (Option C).** The superseded 20261118 block is absent from
    `supabase/schema.sql`; setup chunks `01`–`16` land exactly at baseline 20261120.
    The data-dependent 20261121 cutover is a separate guarded-runner step, not a
-   manually pasted setup chunk.
+   manually pasted setup chunk. **This is enforced, not just documented:** `db:check`
+   derives the objects that only migrations *after* the newest committed baseline create
+   (for 20261120 that is `daily_vote_quota_config`, `daily_vote_quota_earnings`,
+   `daily_vote_earned_on`, `daily_vote_quota_bool`, `daily_vote_quota_int`,
+   `daily_login_calendar_payload`, `my_daily_login_status`, `claim_daily_login_calendar`)
+   and fails closed — with the offending file, object and migration named — if a
+   regenerated `schema.sql` or setup chunk declares one of them. Live-DB verification is
+   deliberately *not* used for this: a post-cutover database legitimately contains these
+   objects and must still verify as "READY for baseline 20261120", because the migration
+   history row is what proves the cutover ran. The bundle is the artifact that must stay
+   at the baseline; regenerate it only from a pre-cutover database, or supersede the
+   baseline in a reviewed PR.
 4. **Baseline hardening.** Recording a baseline says "this database already
    contains everything up to migration X". Because this project applied SQL by
    hand, that claim is easy to get wrong and impossible to notice later — so the
@@ -369,7 +380,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 
 | Command | What it proves |
 | --- | --- |
-| `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent. No database needed. |
+| `npm run db:check` | No destructive statement in any active migration, in `schema.sql`, or in a setup chunk; the quarantine manifest is consistent; and the fresh-install bundle (`schema.sql` + setup chunks) contains no object that only a migration after the newest committed baseline creates. No database needed. |
 | `npm run db:verify-baseline` | Read-only schema-readiness report: which baseline this database matches, or every missing/incompatible object. |
 | `npm run test:baseline:db` | On a real database: mode A/B/C/D/E behaviour, every failure class, and that a failed readiness check writes no migration history. |
 | `npm run test:migration:pglite` | `supabase/tests/voteCalendarDecoupling.pglite.mjs`: builds the `20261117`+`20261119`+`20261120` source state inside PGlite (PostgreSQL compiled to WASM, bundled as a dev dependency) and runs the real `20261121` migration and rollback files against it — live-config copy, backfill/equivalence, RLS/ACL, spending order, quiz idempotency, the Calendar-only RPCs, the drift-refusing rollback and every abort class. No server, no credentials, no network; opt-in so the default `npm test` stays fast. |
