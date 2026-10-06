@@ -46,14 +46,11 @@ jobs:
       - name: Smoke trên site thật (chỉ đọc, không đăng nhập)
         run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
 
-      # Kết quả phải đi qua một kênh đọc được bằng API: log và artifact của
-      # GitHub Actions nằm trên results-receiver/blob.core.windows.net, mà phiên
-      # này không ra được hai host đó. Comment trên PR #30 thì đọc được.
-      - name: Đăng kết quả lên PR #30 (để đọc qua API)
+      # Log và artifact của runner nằm trên results-receiver/blob.core.windows.net
+      # — phiên Arena không ra được hai host đó (EOF), nên kết quả đi qua
+      # ANNOTATION của check-run: API đọc được, và hiện đủ từng mục PASS/FAIL.
+      - name: Xuất kết quả qua annotation
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ ! -f artifacts/browser-smoke.json ]; then
             echo "::error::không có artifacts/browser-smoke.json — smoke chết trước mục kiểm đầu tiên"
@@ -62,20 +59,12 @@ jobs:
           node -e '
             const d = require("./artifacts/browser-smoke.json");
             const bad = d.results.filter(r => !r.ok);
-            console.log(`TỔNG: ${d.results.length - bad.length}/${d.results.length} mục đạt`);
-            for (const r of bad) console.log(`::error::${r.name}${r.extra ? " — " + String(r.extra).slice(0, 300) : ""}`);
-          ' || true
-          { echo '<!-- live-smoke-once -->'
-            node tools/browserSmokeReport.mjs --in artifacts/browser-smoke.json --run-url "$RUN_URL" --commit "$GITHUB_SHA"
-            echo
-            echo '<details><summary>JSON đầy đủ</summary>'
-            echo '```json'
-            cat artifacts/browser-smoke.json
-            echo '```'
-            echo '</details>'
-          } > /tmp/comment.md
-          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/30/comments" -F body=@/tmp/comment.md > /dev/null
-          echo "đã đăng kết quả lên PR #30"
+            console.log(`::notice::TỔNG: ${d.results.length - bad.length}/${d.results.length} mục đạt`);
+            for (const r of d.results) {
+              const line = `${r.ok ? "PASS" : "FAIL"} ${r.name}${r.extra ? " — " + String(r.extra) : ""}`.replace(/\r?\n/g, " ");
+              console.log(`::notice::${line.slice(0, 1200)}`);
+            }
+          '
 
       - name: Lưu ảnh chụp + log
         if: always()
