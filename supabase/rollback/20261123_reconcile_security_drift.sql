@@ -51,8 +51,13 @@ begin
     raise exception 'err.reconcileRollback: requests_picked_idx không phải partial index — 20261123 chưa từng chạy. Đang có: %', v_def;
   end if;
 
-  if to_regprocedure('public.create_request(text,text,text,text,text,boolean)') is not null
-     and has_function_privilege('authenticated', 'public.create_request(text,text,text,text,text,boolean)'::regprocedure, 'EXECUTE') then
+  /* `has_function_privilege(role, oid, 'EXECUTE')` — truyền oid từ
+     to_regprocedure() chứ KHÔNG truyền 'literal'::regprocedure: planner gấp hằng
+     số của phép cast đó ngay cả khi vế trước của `and` là false, nên trên database
+     không có overload cũ (cài mới từ bundle) câu lệnh sẽ vỡ bằng 42883 thay vì
+     bỏ qua. oid NULL ⇒ hàm trả NULL ⇒ coalesce về false. */
+  if coalesce(has_function_privilege('authenticated',
+       to_regprocedure('public.create_request(text,text,text,text,text,boolean)'), 'EXECUTE'), false) then
     raise exception 'err.reconcileRollback: overload cũ create_request vẫn còn mở — 20261123 chưa từng chạy';
   end if;
 end $$;
@@ -156,12 +161,18 @@ begin
   end if;
 
   if to_regprocedure('public.create_request(text,text,text,text,text,boolean)') is not null
-     and not has_function_privilege('anon', 'public.create_request(text,text,text,text,text,boolean)'::regprocedure, 'EXECUTE') then
+     and not coalesce(has_function_privilege('anon',
+       to_regprocedure('public.create_request(text,text,text,text,text,boolean)'), 'EXECUTE'), false) then
     raise exception 'err.reconcileRollback: overload cũ chưa được mở lại cho anon như trước';
   end if;
 
   if not has_table_privilege('authenticated', 'public.request_comments', 'INSERT') then
     raise exception 'err.reconcileRollback: quyền INSERT mức bảng trên request_comments chưa được trả lại';
+  end if;
+  /* Trả lại quyền mức bảng nghĩa là client lại tự đặt được deleted_at — nói thẳng
+     trong hậu kiểm để người đọc sau không tưởng đây là trạng thái an toàn. */
+  if not coalesce(has_column_privilege('authenticated', 'public.request_comments', 'deleted_at', 'INSERT'), false) then
+    raise exception 'err.reconcileRollback: deleted_at chưa mở lại cho client — trạng thái trước reconcile chưa được khôi phục đủ';
   end if;
 
   /* Vẫn không được đụng dữ liệu. */

@@ -467,3 +467,24 @@ test('cửa sổ khoá của phần B: dựng lại index trên bảng cỡ th�
     assert.ok(ms < 2000, `dựng index không được kéo dài bất thường: ${ms} ms`)
   })
 })
+
+test('rollback trên database KHÔNG có overload cũ: từ chối bằng RAISE, không vỡ 42883', { skip: !url, timeout: 120_000 }, async () => {
+  /* Bẫy đã gặp thật: `to_regprocedure(...) is not null and has_function_privilege(role,
+     'literal'::regprocedure, ...)` — PostgreSQL gấp hằng số của phép cast NGAY CẢ khi vế
+     trước là false, nên trên database cài mới từ bundle (bundle drop bản 5 tham số) câu
+     lệnh vỡ bằng 42883 "function … does not exist" thay vì bỏ qua. Rollback phải dùng
+     has_function_privilege(role, to_regprocedure(...), 'EXECUTE'). */
+  await withDatabase(url, async (pool, client) => {
+    await installLevel(pool, 'fresh')  // bundle: KHÔNG có create_request 5 tham số
+    assert.equal((await client.query(
+      "select to_regprocedure('public.create_request(text,text,text,text,text,boolean)') as f")).rows[0].f, null)
+    await pool.query(SQL)  // phần C1 chỉ raise notice rồi đi tiếp
+    const before = await counts(pool)
+    const err = await pool.query(ROLLBACK).then(() => null, e => e)
+    assert.ok(err, 'rollback phải từ chối trên DB không có trạng thái do 20261123 ghi lại')
+    assert.match(err.message, /err\.reconcileRollback/, `phải là RAISE có chủ đích: ${err.message}`)
+    assert.doesNotMatch(err.message, /42883|does not exist/,
+      `không được vỡ vì gấp hằng số của ::regprocedure: ${err.message}`)
+    assert.deepEqual(await counts(pool), before, 'từ chối thì không đổi gì')
+  })
+})
