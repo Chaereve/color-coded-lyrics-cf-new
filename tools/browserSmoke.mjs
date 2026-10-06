@@ -40,7 +40,7 @@ const writeSummary = () => {
   try {
     mkdirSync(outDir, { recursive: true })
     writeFileSync(join(outDir, 'browser-smoke.json'), JSON.stringify(
-      { edge: edge || null, total: results.length, failed: results.filter(r => !r.ok).length, results }, null, 2))
+      { edge: edge || null, live: live || null, total: results.length, failed: results.filter(r => !r.ok).length, results }, null, 2))
   } catch { /* ghi chú không được làm hỏng phép kiểm */ }
 }
 

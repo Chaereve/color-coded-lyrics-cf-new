@@ -6,23 +6,27 @@
 # mobile/desktop ra sao. Runner của GitHub thì có Chromium và có mạng.
 #
 # Job này CHỈ ĐỌC: dựng dist/ tại chỗ, mở app bằng Chromium, gọi HTTP tới URL
-# preview của Cloudflare Pages. Không deploy, không migration, không database,
+# đã deploy của Cloudflare Pages. Không deploy, không migration, không database,
 # không secret nào của production.
+#
+# HAI KÊNH ĐỌC KẾT QUẢ (log của runner không tải được từ sandbox):
+#   · annotation của check-run — bước "Xuất kết quả … thành annotation";
+#   · bình luận trên PR — bước cuối (cần nhánh có PR, kể cả PR đã merge).
 name: Quiz retirement — browser & edge check
 
 on:
   workflow_dispatch:
     inputs:
       edge_url:
-        description: Cloudflare Pages preview URL
+        description: 'URL đã deploy để kiểm tra edge (/quiz có 301 không)'
         required: false
-        default: https://arena-2544c5f9-color-coded-l.chaereve.pages.dev
+        default: https://chaereve.pages.dev
       live_url:
         description: 'Tuỳ chọn: URL site thật để chạy smoke chỉ-đọc (vd https://chaereve.pages.dev)'
         required: false
         default: ''
   push:
-    branches: ['arena/2544c5f9-color-coded-lyrics-cf-new']
+    branches: ['arena/2064073f-color-coded-lyrics-cf-new']
 
 permissions:
   contents: read
@@ -34,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      EDGE_URL: ${{ inputs.edge_url || 'https://arena-2544c5f9-color-coded-l.chaereve.pages.dev' }}
+      EDGE_URL: ${{ inputs.edge_url || 'https://chaereve.pages.dev' }}
       LIVE_URL: ${{ inputs.live_url || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -57,13 +61,66 @@ jobs:
         run: npm run build
 
       - name: Kiểm chứng bằng Chromium (desktop + mobile) và edge /quiz
+        if: env.EDGE_URL != ''
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
+
+      # Hai lượt chạy GHI ĐÈ cùng một artifacts/browser-smoke.json, nên kết quả
+      # của lượt edge phải được xuất thành annotation NGAY SAU lượt đó — để tới
+      # lượt live thì con số 5 mục edge vẫn còn dấu vết đọc được.
+      - name: Xuất kết quả lượt edge thành annotation
+        if: always() && env.EDGE_URL != ''
+        run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "edge" --only-total --commit "$GITHUB_SHA"
+
+      # Bằng chứng chạy TRƯỚC live smoke, và là lý do có bước này: live smoke
+      # xanh có thể là XANH GIẢ. Bản deploy mà không có VITE_SUPABASE_* thì app
+      # chạy chế độ demo (`hasSupabase` = false), KHÔNG mở WebSocket nào hết —
+      # mục "không có lỗi console" đạt vì chẳng có gì để CSP chặn, không phải vì
+      # CSP đã đúng. Bước này hỏi thẳng edge hai điều: header CSP đang phục vụ
+      # có `wss://*.supabase.co` chưa, và bundle có thật sự chứa host Supabase
+      # (tức env đã được bơm lúc build) không.
+      - name: Đọc bằng chứng từ edge — CSP header + bundle có Supabase env
+        if: env.LIVE_URL != ''
+        run: |
+          set -euo pipefail
+          echo "── $LIVE_URL ──"
+          curl -sS --max-time 60 -D /tmp/headers.txt -o /tmp/live.html "$LIVE_URL/daily-login"
+          # `|| true` ở cuối: đang đặt `pipefail`, mà grep không thấy gì là thoát 1 —
+          # không có nó thì script chết TRƯỚC khi kịp in ra annotation nói vì sao.
+          CSP=$(tr -d '\r' < /tmp/headers.txt | grep -i '^content-security-policy:' | head -1 | sed 's/^[^:]*: *//' || true)
+          if [ -z "$CSP" ]; then
+            echo "::error title=edge::không thấy header Content-Security-Policy ở $LIVE_URL/daily-login"
+            exit 1
+          fi
+          CONNECT=$(printf '%s\n' "$CSP" | tr ';' '\n' | grep -i 'connect-src' | tr -s ' ' | sed 's/^ *//' || true)
+          if printf '%s' "$CONNECT" | grep -q 'wss://\*\.supabase\.co'; then
+            echo "::notice title=edge CSP::connect-src đang phục vụ đã có wss — $CONNECT"
+          else
+            echo "::error title=edge CSP::connect-src CHƯA có wss://*.supabase.co — bản deploy này chưa nhận _headers mới: $CONNECT"
+            exit 1
+          fi
+          ASSET=$(grep -o '/assets/index-[A-Za-z0-9_-]*\.js' /tmp/live.html | head -1)
+          if [ -z "$ASSET" ]; then
+            echo "::error title=edge bundle::không tìm thấy /assets/index-*.js trong HTML của $LIVE_URL/daily-login"
+            exit 1
+          fi
+          curl -sS --max-time 60 -o /tmp/bundle.js "$LIVE_URL$ASSET"
+          HOSTS=$(grep -o '[a-z0-9]\{8,\}\.supabase\.co' /tmp/bundle.js | sort -u | head -3 | tr '\n' ' ' || true)
+          if [ -n "$HOSTS" ]; then
+            echo "::notice title=edge bundle::$ASSET có Supabase env ($HOSTS) → app THẬT SỰ mở wss realtime, nên mục console của live smoke có nghĩa"
+          else
+            echo "::error title=edge bundle::$ASSET không chứa host *.supabase.co nào → bản deploy chạy chế độ demo, live smoke xanh là XANH GIẢ. Đặt VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY cho environment này rồi deploy lại."
+            exit 1
+          fi
+
+      - name: Smoke trên site thật (chỉ đọc)
+        if: env.LIVE_URL != ''
+        run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
         # LIVE_URL chỉ dùng khi được truyền tay: mở site thật như một khách,
         # không bấm gì, không đăng nhập.
 
-      - name: Smoke trên site thật (chỉ đọc)
-        if: inputs.live_url != ''
-        run: node tools/browserSmoke.mjs --live "$LIVE_URL" --out artifacts
+      - name: Xuất kết quả live smoke thành annotation
+        if: always()
+        run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "live smoke" --commit "$GITHUB_SHA"
 
       - name: Lưu ảnh chụp + log
         if: always()
@@ -75,6 +132,9 @@ jobs:
 
       # Ghi kết quả vào ĐÚNG một bình luận trên PR (tạo lần đầu, sửa lại các lần
       # sau) để người review đọc được từ GitHub, không phải mở log của runner.
+      # `--state all`: lượt chạy SAU KHI merge (kiểm tra production thật) vẫn còn
+      # chỗ để đăng — PR đã merge thì không còn "open", nhưng vẫn là nơi đúng để
+      # gắn bằng chứng của chính nhánh đó.
       - name: Đăng kết quả lên PR
         if: always()
         env:
@@ -84,8 +144,9 @@ jobs:
           node tools/browserSmokeReport.mjs \
             --in artifacts/browser-smoke.json --run-url "$RUN_URL" --commit "$GITHUB_SHA" > /tmp/comment.md
           if [ ! -s /tmp/comment.md ]; then echo 'không có kết quả để đăng'; exit 0; fi
-          PR=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$PR" ]; then echo 'nhánh này không có PR đang mở'; exit 0; fi
+          PR=$(gh pr list --head "$GITHUB_REF_NAME" --state all --json number \
+            --jq 'sort_by(.number) | last | .number // empty')
+          if [ -z "$PR" ]; then echo 'nhánh này chưa có PR nào'; exit 0; fi
           ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq '.[] | select(.body | contains("<!-- quiz-retirement-browser -->")) | .id' | head -1)
           if [ -n "$ID" ]; then
