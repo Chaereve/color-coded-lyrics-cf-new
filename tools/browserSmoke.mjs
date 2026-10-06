@@ -124,6 +124,9 @@ for (const vp of viewports) {
   let navigations = 0
   page.on('framenavigated', () => { navigations += 1 })
   await page.goto(`${base}/quiz`, { waitUntil: 'load' })
+  /* Chờ một nhịp để sự kiện điều hướng của chính lần tải này rơi xuống, rồi mới
+     lấy mốc: từ đây về sau, một sự kiện nữa nghĩa là trang ĐÃ tải lại. */
+  await page.waitForTimeout(200)
   const arrivedAt = new URL(page.url()).pathname
   const navsAtArrival = navigations
 
