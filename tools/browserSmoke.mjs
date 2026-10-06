@@ -118,9 +118,14 @@ for (const vp of viewports) {
   })
   page.on('pageerror', e => errors.push(String(e)))
 
+  /* Một lần điều hướng = trình duyệt tải lại trang; `putUrl` của app dùng
+     replaceState nên KHÔNG có mục nào thêm vào đây. Đếm trước/sau để phân biệt
+     "SPA tự đổi địa chỉ" (đúng) với "edge trả 200 rồi trang tự tải lại" (sai). */
+  let navigations = 0
+  page.on('framenavigated', () => { navigations += 1 })
   await page.goto(`${base}/quiz`, { waitUntil: 'load' })
-  /* Đường dẫn đã đổi TRƯỚC khi app kịp dựng màn nào — bằng chứng của (b). */
-  const replaced = new URL(page.url()).pathname === '/daily-login'
+  const arrivedAt = new URL(page.url()).pathname
+  const navsAtArrival = navigations
 
   /* Bundle trong CI không có VITE_SUPABASE_* nên app chạy chế độ demo: khách
      chưa có phiên thì `/daily-login` dựng lời mời đăng nhập (SignInPanel),
@@ -141,10 +146,18 @@ for (const vp of viewports) {
   await page.waitForSelector('.daily-login-page', { timeout: 20_000 })
   await page.waitForTimeout(600)
 
-  check(`${vp.name}: mở /quiz được replace về /daily-login`, replaced, page.url())
+  /* (b) địa chỉ cũ phải biến mất. Đếm số lần điều hướng CHỈ để làm bằng chứng
+     (0 = replaceState của SPA, >0 = có tải lại trang); mục đạt/hỏng chỉ phụ
+     thuộc vào địa chỉ cuối cùng, để phép kiểm không mạnh hơn yêu cầu. */
+  const atDailyLogin = new URL(page.url()).pathname === '/daily-login'
+  check(`${vp.name}: mở /quiz được replace về /daily-login`, atDailyLogin,
+    `từ ${arrivedAt} → ${new URL(page.url()).pathname}, ${navigations - navsAtArrival} lần điều hướng`)
   const text = await page.innerText('body')
   check(`${vp.name}: không còn chữ quiz trên trang`, !/quiz/i.test(text))
-  const quizNodes = await page.locator('.music-quiz-page, .daily-quiz, .daily-quiz-start, .daily-quiz-level, .daily-rewards').count()
+  /* `.daily-rewards` KHÔNG nằm trong danh sách này: đó là lớp còn lại của màn
+     điểm danh (`<section class="daily-rewards daily-login-page">`), không phải
+     dấu vết của quiz. Chỉ kể tên những lớp chỉ màn quiz mới có. */
+  const quizNodes = await page.locator('.music-quiz-page, .daily-quiz, .daily-quiz-start, .daily-quiz-level, .daily-quiz-start-btn').count()
   check(`${vp.name}: không còn phần tử nào của màn quiz`, quizNodes === 0, `${quizNodes} phần tử`)
   check(`${vp.name}: lịch điểm danh 7 cột`, (await page.locator('.check-in-calendar-grid th').count()) === 7)
   check(`${vp.name}: điều hướng tháng còn đủ hai nút`, (await page.locator('.check-in-nav').count()) === 2)
