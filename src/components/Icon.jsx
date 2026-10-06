@@ -17,7 +17,7 @@
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
 import {
   ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
-  CalendarCheck, CircleAlert, CircleHelp, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Play,
+  CalendarCheck, CircleAlert, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Play,
   Eye, Plus, Receipt, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
   Trophy, User, Volume2, VolumeX, X,
 } from 'lucide-react'
@@ -42,7 +42,6 @@ const SET = {
   board: ListMusic,               /* bảng yêu cầu */
   spin: Disc3,                    /* vòng quay */
   calendar: CalendarCheck,         /* điểm danh hằng ngày */
-  quiz: CircleHelp,                /* quiz âm nhạc */
   cup: Trophy,                    /* xếp hạng */
   flame: Flame,                   /* chuỗi ngày hoạt động (streak) */
   save: Download,                 /* tải card PNG chia sẻ */

@@ -9,10 +9,11 @@ import {
   fetchDailyLoginCalendarStatus,
 } from '../lib/dailyLoginCalendar.js'
 import { spinCountdown } from '../lib/dailySpin.js'
-import './DailyRewards.css'
+import './DailyLogin.css'
 
-/* A Calendar-only screen. It never imports the quiz controller or calls the
-   legacy combined rewards payload; all identity checks stay client-local. */
+/* A Calendar-only screen. It reads exactly one API (the Calendar RPCs) and
+   never calls the legacy combined rewards payload; all identity checks stay
+   client-local. */
 export default function DailyLogin({ userId }) {
   const { t } = useI18n()
   const [status, setStatus] = useState(null)

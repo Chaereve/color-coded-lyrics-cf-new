@@ -1,1 +1,6 @@
+# /quiz đã bị gỡ khỏi sản phẩm. Link cũ, bookmark và tab đang mở từ bundle cũ
+# được đưa thẳng về lịch điểm danh — 301 thật để crawler cũng theo được, và rule
+# này phải đứng TRƯỚC dòng SPA fallback ở cuối file (Cloudflare Pages so từ trên
+# xuống, dòng đầu tiên khớp là dòng được dùng).
+/quiz    /daily-login   301
 /*    /index.html   200

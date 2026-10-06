@@ -183,7 +183,7 @@ test('the default plan never schedules a quarantined migration', () => {
   const fresh = planPending({ active, quarantined, applied: [], baseline: '20261117' })
   assert.deepEqual(fresh.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-      '20261121_vote_calendar_decoupling'])
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -193,7 +193,7 @@ test('the default plan never schedules a quarantined migration', () => {
   const after = planPending({ active, quarantined, applied: [...upTo, '20261118_daily_login_no_votes'] })
   assert.deepEqual(after.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-      '20261121_vote_calendar_decoupling'])
+      '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -205,11 +205,49 @@ test('the default plan never schedules a quarantined migration', () => {
       .concat(['20261119_preserve_legacy_daily_login_rewards']),
   })
   assert.deepEqual(partial.pending.map(({ id }) => id),
-    ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling'])
+    ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
+      '20261122_disable_daily_quiz_runtime'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
   assert.deepEqual(done.pending, [])
+})
+
+test('the quiz-runtime migration is revoke-only: no drop, no update, no new object', () => {
+  const sql = readFileSync(join(MIGRATIONS_DIR, '20261122_disable_daily_quiz_runtime.sql'), 'utf8')
+  const statements = stripSqlNoise(sql)
+  assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m, 'một transaction, append-only')
+  assert.doesNotMatch(statements, /\bdrop\b|\bcascade\b|\bdelete\b|\btruncate\b/i,
+    'không câu lệnh nào xoá dữ liệu hay object')
+  assert.doesNotMatch(statements, /\bupdate\s+public\./i, 'không UPDATE bảng nào')
+  assert.doesNotMatch(statements, /create\s+(or\s+replace\s+)?(table|function|index|view|policy)/i,
+    'không tạo object mới: bundle fresh-install và baseline 20261120 giữ nguyên')
+  assert.match(sql, /to_regclass\('supabase_migrations\.schema_migrations'\) is null[\s\S]*migration history is missing/,
+    'thiếu bảng history là abort')
+  assert.match(sql, /20261121_vote_calendar_decoupling[\s\S]*is not recorded/, 'phải chạy sau cutover 20261121')
+  const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  for (const signature of ['public.start_daily_quiz(uuid,date)', 'public.submit_daily_quiz_answer(uuid,uuid,text,text)',
+    'public.submit_daily_quiz(uuid,uuid,int[])', 'public.my_daily_rewards_status()', 'public.claim_daily_login(uuid,date)']) {
+    assert.match(sql, new RegExp(`'${escapeRegex(signature)}'`), `danh sách revoke phải có ${signature}`)
+  }
+  assert.match(sql, /revoke all on function %s from public, anon, authenticated/,
+    'revoke cả pseudo-role public, không chỉ hai role có tên')
+  assert.match(sql, /has_function_privilege\('authenticated', v_name, 'EXECUTE'\)[\s\S]*quiz entry point is still callable/,
+    'post-condition: cửa quiz phải thật sự đóng sau khi revoke')
+  assert.match(sql, /public\.my_daily_login_status\(\)[\s\S]*public\.cast_vote\(uuid,integer,text,text,text\)/,
+    'post-condition: API còn sống (Calendar + vote) phải giữ grant')
+  assert.match(sql, /v_quiz_counts_after is distinct from v_quiz_counts_before/,
+    'đếm lại số dòng bảng quiz: revoke không được đổi dữ liệu')
+  assert.match(sql, /notify pgrst, 'reload schema';/, 'ACL đổi thì PostgREST phải nạp lại cache')
+
+  const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
+    'supabase', 'rollback', '20261122_disable_daily_quiz_runtime.sql'), 'utf8')
+  assert.doesNotMatch(stripSqlNoise(rollback), /\bdrop\b|\bcascade\b|\bdelete\b|\btruncate\b/i)
+  assert.match(rollback, /grant execute on function %s to authenticated/)
+  assert.match(rollback, /public\.submit_daily_quiz\(uuid,uuid,int\[\]\)[\s\S]*must stay closed/,
+    'cửa đã đóng từ 20261117 (bản nộp một lần) không được mở lại')
+  assert.match(rollback, /has_function_privilege\('authenticated', v_name, 'EXECUTE'\)[\s\S]*the disable is not the live state/,
+    'rollback fail-closed khi disable không còn là trạng thái sống')
 })
 
 test('the vote/Calendar migration is fail-closed, transactional, and keeps Calendar identity server-side', () => {

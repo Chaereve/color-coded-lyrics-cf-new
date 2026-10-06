@@ -13,7 +13,7 @@ import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
-import { validateDailyRewardsStatus, validateQuizAnswer } from './dailyRewards.js'
+
 
 /* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
    đều ra đúng triệu chứng "vào web không thấy dữ liệu, F5 thì được":
@@ -671,70 +671,6 @@ export async function claimAchievements() {
   return data
 }
 
-/* ======================== DAILY LOGIN / MUSIC QUIZ ======================== */
-const dailySetupError = error => isMissingSchemaObject(error) || ['42P01', '42883'].includes(error?.code)
-  ? new Error('err.dailySetup') : error
-
-async function dailyRewardsRpc(name, args) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
-  try {
-    const { data, error } = await supabase.rpc(name, args).abortSignal(controller.signal)
-    if (controller.signal.aborted) throw new Error('err.dailyTimeout')
-    if (error) throw dailySetupError(error)
-    return data
-  } finally { clearTimeout(timeout) }
-}
-
-async function demoRewardsRpc(action, userId, args = {}) {
-  const { demoDailyRewards } = await import('./dailyRewardsDemo.js')
-  // Share the demo spin's wallet lock. In production, Postgres provides the
-  // transactional lock; localStorage is only a convenient offline preview.
-  return withSpinLock('ccl.spin.demo', () => {
-    const current = rd(LS.user, null)
-    if (!current) throw new Error('err.signin')
-    if (current.id !== userId) throw new Error('err.dailyAccountChanged')
-    const key = `ccl.daily.rewards.demo.v1.${userId}`
-    const result = demoDailyRewards({ entries: rd(key, { logins: [], quizzes: [] }),
-      profile: demoProfile(), userId, action, ...args })
-    if (action !== 'status') {
-      try {
-        localStorage.setItem(key, JSON.stringify(result.entries))
-        localStorage.setItem(LS.prof, JSON.stringify(result.profile))
-      } catch { throw new Error('err.dailyStorage') }
-    }
-    return result.data
-  })
-}
-
-export async function fetchDailyRewardsStatus(userId) {
-  const data = hasSupabase ? await dailyRewardsRpc('my_daily_rewards_status')
-    : (await demoRewardsRpc('status', userId)).status
-  return validateDailyRewardsStatus(data, userId)
-}
-
-export async function startDailyQuiz(userId, expectedDay) {
-  const data = hasSupabase ? await dailyRewardsRpc('start_daily_quiz', {
-    p_expected_user_id: userId, p_expected_day: expectedDay,
-  }) : await demoRewardsRpc('start', userId, { expectedDay })
-  validateDailyRewardsStatus(data?.status, userId)
-  return data
-}
-
-/* One answer at a time. The client sends the assigned question id and the
-   stable option id the player picked; the server decides correctness, the vote
-   and the daily cap. Replays return the stored result without paying twice. */
-export async function submitDailyQuizAnswer(userId, attemptId, questionId, optionId) {
-  const answer = validateQuizAnswer(questionId, optionId)
-  const data = hasSupabase ? await dailyRewardsRpc('submit_daily_quiz_answer', {
-    p_expected_user_id: userId, p_attempt_id: attemptId,
-    p_question_id: answer.question_id, p_option_id: answer.option_id,
-  }) : await demoRewardsRpc('answer', userId, { attemptId,
-    questionId: answer.question_id, optionId: answer.option_id })
-  validateDailyRewardsStatus(data?.status, userId)
-  return data
-}
-
 /* ======================== DAILY SPIN ======================== */
 const spinSetupError = error => isMissingSchemaObject(error)
   ? new Error('err.spinSetup') : error
@@ -958,9 +894,11 @@ function demoActivityDays(userId) {
   for (const e of readData(LS.spins, [])) {
     if (e?.user_id === userId && typeof e.day === 'string') days.add(e.day)
   }
-  const rewards = rd(`ccl.daily.rewards.demo.v1.${userId}`, { logins: [], quizzes: [] })
-  for (const entry of [...rewards.logins, ...rewards.quizzes]) {
-    if (ACTIVITY_DAY.test(entry.day)) days.add(entry.day)
+  /* Lịch điểm danh demo là nguồn thật của chế độ demo: chỉ đọc `days` đã ghi,
+     ngày nào không phải ngày lịch thì bỏ. */
+  const calendar = rd(`ccl.daily.login.calendar.demo.v1.${userId}`, { days: [] })
+  for (const day of Array.isArray(calendar.days) ? calendar.days : []) {
+    if (ACTIVITY_DAY.test(day)) days.add(day)
   }
   return [...days]
 }

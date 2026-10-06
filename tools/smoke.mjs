@@ -266,16 +266,17 @@ where = 'khách chưa đăng nhập'
     check('sidebar có mục About me để bấm', false, (q('.side-nav')?.textContent || '').slice(0, 80))
   }
 
-  for (const [label, route] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz']]) {
+  for (const [label, route] of [['Daily login', '/daily-login']]) {
     const item = q(`.side-item[href="${route}"]`)
     check(`menu có mục ${label} riêng`, !!item)
     if (item) {
       await click(item)
       await tick(180)
       check(`${label} của khách có lời mời đăng nhập, không dựng nội dung riêng tư`,
-        !!q('.signin-panel') && !q('.daily-rewards') && !q('.daily-spin'))
+        !!q('.signin-panel') && !q('.daily-login-page') && !q('.daily-spin'))
     }
   }
+  check('menu của khách không còn mục Music quiz', !q('.side-item[href="/quiz"]'))
 
   /* DAILY SPIN của khách: trước đây `{user && <DailySpin/>}` cho ra một trang
      trắng. Nay phải có chữ, lý do và một nút. */
@@ -791,7 +792,7 @@ if (voteBtn) {
 }
 
 /* ---------- 8. các mục còn lại ---------- */
-for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
+for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
   where = name
   window.history.pushState({}, '', path)
   window.dispatchEvent(new window.Event('popstate'))
@@ -805,15 +806,7 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/qu
       && !!q('.check-in-day[aria-current="date"]') && qa('.check-in-stat').length === 4
       && qa('.check-in-nav').length === 2)
     check('Daily login là trang riêng: chỉ có điểm danh',
-      !!q('.daily-claim') && !q('.daily-quiz-start') && !q('.daily-quiz') && !q('.daily-spin'))
-  }
-  if (name === 'Music quiz') {
-    await waitFor(() => !!q('.music-quiz-page'))
-    check('Music quiz là K-pop mức dễ, không dựng lịch điểm danh',
-      q('.daily-quiz-level')?.textContent === 'Easy' && /K-pop/.test(q('.music-quiz-page')?.textContent || '')
-      && /Lyrics hooks/.test(q('.music-quiz-page')?.textContent || '') && !q('.check-in-calendar'))
-    check('Music quiz là trang riêng: không có điểm danh hay vòng quay',
-      !!q('.daily-quiz-start') && !q('.daily-claim') && !q('.daily-spin'))
+      !!q('.daily-claim') && !q('.daily-spin') && !/quiz/i.test(text()))
   }
   if (name === 'Xếp hạng') {
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
@@ -857,7 +850,8 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Music quiz', '/qu
     }
   }
   if (name === 'Daily Spin') {
-    check('Daily Spin chỉ giữ vòng quay, không dồn daily login/quiz vào chung', !q('.daily-rewards'))
+    check('Daily Spin chỉ giữ vòng quay, không dồn daily login vào chung',
+      !q('.daily-login-page') && !q('.check-in-calendar'))
     /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là
        con số. Trước đây mỗi nhãn còn kèm "×9" nên mặt đĩa đọc như bảng dữ liệu. */
     check('đĩa có 16 ô', qa('.spin-sector').length === 16, `${qa('.spin-sector').length} ô`)
@@ -970,6 +964,17 @@ if (q('.nt-btn')) {
   await tick(120)
   check('bấm lần nữa là bảng đóng', !q('#nt-panel'))
 }
+
+/* /quiz đã nghỉ hưu: gõ thẳng địa chỉ cũ phải được đưa về lịch điểm danh và
+   không dựng lại bất kỳ màn quiz nào. */
+where = 'đường dẫn cũ /quiz'
+window.history.pushState({}, '', '/quiz')
+window.dispatchEvent(new window.Event('popstate'))
+await waitFor(() => !!q('.daily-login-page'), 3000)
+await tick(140)
+check('/quiz chuyển hướng về Daily login', window.location.pathname === '/daily-login', window.location.pathname)
+check('/quiz không dựng lại màn quiz và không còn chữ quiz trên trang',
+  !q('.music-quiz-page') && !q('.daily-quiz') && !q('.daily-quiz-start') && !/quiz/i.test(text()))
 
 /* ---------- 9. trang quản trị ---------- */
 where = 'trang quản trị'
@@ -1138,7 +1143,7 @@ const auditDom = (label) => {
     [...new Set(nested)].slice(0, 4).join(' | '))
 }
 
-for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Music quiz', '/quiz'], ['Daily Spin', '/daily-spin'],
+for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'],
   ['Xếp hạng', '/ranking'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
   where = `rà soát DOM · ${label}`
   window.history.pushState({}, '', path)
@@ -1938,14 +1943,20 @@ where = 'bài trả phí'
       !new URLSearchParams(window.location.search).has('profile'), window.location.search)
   }
   for (const [label, route, selector] of [
-    ['Daily login', '/daily-login', '.daily-login-page'], ['Music quiz', '/quiz', '.music-quiz-page'],
+    ['Daily login', '/daily-login', '.daily-login-page'],
   ]) {
     await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
     await click(q(`.side-nav .side-item[href="${route}"]`))
     await waitFor(() => !!q(selector) && !q('.public-profile'), 3000)
     check(`bấm ${label} từ trang cá nhân: chỉ dựng đúng MỘT trang`,
-      !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-rewards').length === 1)
+      !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-login-page').length === 1)
   }
+  /* Địa chỉ /quiz cũ, gõ thẳng từ trang cá nhân: về lịch điểm danh, không mở
+     lại màn quiz và cũng không để trang cá nhân dính lại. */
+  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/quiz', () => !!q('.daily-login-page'))
+  check('mở /quiz từ trang cá nhân: chỉ còn Daily login, không còn chữ quiz',
+    !q('.public-profile') && !q('.music-quiz-page') && !/quiz/i.test(text()))
   /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
   await goto('/', () => items().length > 0)
   check('quay lại bảng: danh sách có hàng và không còn trang nào khác',

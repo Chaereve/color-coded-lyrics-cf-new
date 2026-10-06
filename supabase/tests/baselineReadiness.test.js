@@ -90,13 +90,14 @@ test('mode A — a database equivalent to post-20261117 is verified, and only th
       const result = await deploy(client, { baseline: '20261117' })
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-          '20261121_vote_calendar_decoupling'])
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
       const history = await historyRows(client)
       assert.ok(history.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(history.includes('20261120_daily_login_reward_immutable'))
       assert.ok(history.includes('20261121_vote_calendar_decoupling'))
+      assert.ok(history.includes('20261122_disable_daily_quiz_runtime'))
       assert.equal(history.filter(v => v.startsWith('20261118')).length, 0)
-      assert.equal(history.length, result.recordedBaseline.length + 3, 'history is written only after verification passed')
+      assert.equal(history.length, result.recordedBaseline.length + 4, 'history is written only after verification passed')
       const copiedQuota = await pool.query(`
         select key, value from public.daily_vote_quota_config
          where key = any($1::text[]) order by key`, [liveQuota.map(([key]) => key)])
@@ -189,6 +190,7 @@ test('mode B — a database that never applied 20261112-20261117 bootstraps inst
       assert.ok(applied.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(applied.includes('20261120_daily_login_reward_immutable'))
       assert.ok(applied.includes('20261121_vote_calendar_decoupling'))
+      assert.ok(applied.includes('20261122_disable_daily_quiz_runtime'))
       assert.equal(applied.filter(id => id.startsWith('20261118')).length, 0)
 
       assert.equal((await verifyBaseline(client, '20261120')).ok, true, 'the bootstrap lands in the final state')
@@ -240,7 +242,7 @@ test('mode D — a database where 20261118 ran is detected and still moves forwa
       const result = await deploy(client, { baseline: '20261118' })
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
-          '20261121_vote_calendar_decoupling'])
+          '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime'])
       const checks = await rewardChecks(pool)
       assert.equal(checks.table_checks, 0, '20261119 removed the table-wide CHECK')
       assert.equal(checks.triggers, 1)

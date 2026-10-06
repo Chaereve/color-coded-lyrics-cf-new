@@ -13,8 +13,8 @@ anything.
 | Is there a migration runner in CI? | **No.** `.github/workflows/` contains only `backup-db.yml` (scheduled backup). No workflow applies SQL. |
 | Is the Supabase CLI configured? | **No.** There is no `supabase/config.toml` and no `supabase link`. |
 | How do migrations get applied today? | By hand: paste one file into **Dashboard → SQL Editor → Run**, or `psql -f`. |
-| What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` deliberately stays out of that manual bundle and is applied by the guarded runner only. |
-| Is there a migration history table? | Not in the app schema/setup bundle. The guarded runner creates `supabase_migrations.schema_migrations` after baseline verification and writes each migration row atomically; a pre-existing Supabase CLI history is also recognized. Migration 20261121 refuses to run without that table and its required source-state rows. |
+| What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` and the ACL-only `20261122_disable_daily_quiz_runtime.sql` deliberately stay out of that manual bundle and are applied by the guarded runner only. |
+| Is there a migration history table? | Not in the app schema/setup bundle. The guarded runner creates `supabase_migrations.schema_migrations` after baseline verification and writes each migration row atomically; a pre-existing Supabase CLI history is also recognized. Migration 20261121 refuses to run without that table and its required source-state rows; 20261122 additionally refuses to run until 20261121 is recorded. |
 
 Supabase CLI behaviour, for the day someone adopts it ([CLI reference](https://supabase.com/docs/reference/cli/supabase-migration-repair)):
 
@@ -113,6 +113,47 @@ approval) uses `npm run db:deploy -- --baseline 20261120` to apply this guarded
 migration. Do not paste the cutover into an untracked SQL Editor session or run
 it against production as part of this PR.
 
+### 20261122 — Daily Quiz runtime off (client surface retired, data untouched)
+
+`20261122_disable_daily_quiz_runtime.sql` closes the quiz entry points to every
+client role now that the product no longer shows the Daily Quiz. It is
+**revoke-only**: no `DROP`, no `DELETE`, no `UPDATE`, no function body change and
+no new object. Five client-callable entry points lose `EXECUTE` for `public`,
+`anon` and `authenticated` — `start_daily_quiz(uuid,date)`,
+`submit_daily_quiz_answer(uuid,uuid,text,text)`,
+`submit_daily_quiz(uuid,uuid,int[])`, `my_daily_rewards_status()` and
+`claim_daily_login(uuid,date)` — so an old cached bundle cannot start a round or
+claim the legacy combined payload even though the tables are still there.
+
+The preflight fails closed unless the cutover is the recorded state: 20261121
+must be in `supabase_migrations.schema_migrations`, the five quiz source tables
+must exist as regular tables, the five signatures above must exist, the Calendar
+RPCs (`my_daily_login_status()`, `claim_daily_login_calendar(date)`,
+`my_daily_checkin_month(date)`) must still be callable by `authenticated`, and
+the check-in immutability trigger must be active. Post-conditions run in the same
+transaction: the five entry points are no longer executable by a client role,
+the Calendar and vote APIs kept their grants, and quiz/check-in row counts are
+identical to the snapshot taken before the revoke. Any failure aborts the whole
+migration and writes no history row.
+
+Because the file creates no object, it does not move the fresh-install bundle:
+`schema.sql` and setup `01`–`16` stay at baseline `20261120`, the function
+fingerprint is unchanged (function ACLs are not part of it), and
+`db:verify-baseline --baseline 20261120` still reports READY after the revoke. It
+is intentionally **not** mirrored into `schema.sql` or a setup chunk: a fresh
+install verifies baseline `20261120`, then `npm run db:deploy -- --baseline
+20261120` applies 20261121 and 20261122 in order.
+
+The corrective rollback is `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`.
+After separate approval it restores `EXECUTE` for `authenticated` on the four
+entry points that had it before 20261122 — `submit_daily_quiz(uuid,uuid,int[])`
+was already closed by 20261117 and stays closed — and refuses to run when the
+grants are back, the legacy single-shot is open, or the Calendar API is missing.
+It never touches quiz rows, the check-in reward policy, wallet balances or the
+Calendar/vote APIs. The historical quiz tables, answers and `daily_login_rewards`
+rows are deliberately kept until the separately approved cleanup phase (see
+`docs/DAILY-QUIZ-RETIREMENT.md`).
+
 ---
 
 ## 3. The strategy chosen: quarantine (20261118 never runs) + guarded runner + clean fresh-install path
@@ -189,7 +230,7 @@ SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117     
 
 `db:deploy` re-runs the readiness check inside the same invocation; it is not a
 separate step you can forget. Only when it passes does the runner write the
-baseline rows and apply `20261119` + `20261120` + `20261121`:
+baseline rows and apply `20261119` + `20261120` + `20261121` + `20261122`:
 
 ```
 READY  baseline 20261117
@@ -199,6 +240,7 @@ recorded 34 migration(s) at or below --baseline 20261117 as applied
 apply 20261119  20261119_preserve_legacy_daily_login_rewards.sql
 apply 20261120  20261120_daily_login_reward_immutable.sql
 apply 20261121  20261121_vote_calendar_decoupling.sql
+apply 20261122  20261122_disable_daily_quiz_runtime.sql
 ```
 
 Running the same command again prints `up to date — nothing to apply`.
@@ -350,6 +392,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | --- | --- |
 | A migration fails mid-way | Each migration body and its history row run in one transaction; nothing partial is committed. Fix the cause and re-run `db:deploy` only after confirming the original transaction rolled back. |
 | 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It requires the recorded cutover state and exact agreement between live quota config, source awards and neutral ledger; on drift it aborts rather than restoring a stale quota. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables/data, grants/RLS and the Calendar-only API. The neutral ledger then remains an audit snapshot; future Quiz awards return to the source answer table. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
+| 20261122 quiz door must be reopened (coordinated frontend rollback) | After separate approval, run `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`. It restores `EXECUTE` to `authenticated` on the four entry points that had it, keeps the legacy single-shot closed, and aborts if the revoke is not the live state or the Calendar API is missing. It does not re-enable quiz awards or the route, and it touches no quiz row. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |

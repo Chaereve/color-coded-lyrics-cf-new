@@ -1,6 +1,13 @@
 # Daily Quiz — 5-question / +5 vote plan
 
-Status: **implemented.** Migrations `20261115`–`20261117` and the five-question
+> ⚠️ **Trạng thái hiện tại:** Daily Quiz **đã bị gỡ khỏi giao diện** (không còn
+> route/màn hình/mục menu; `/quiz` chuyển hướng về `/daily-login`) và mọi cửa
+> RPC quiz đã bị revoke khỏi client role bởi migration
+> `20261122_disable_daily_quiz_runtime.sql`. Dữ liệu quiz vẫn nằm nguyên trong
+> database; việc xoá object là giai đoạn riêng, xem
+> `docs/DAILY-QUIZ-RETIREMENT.md`. Phần dưới đây là kế hoạch gốc, giữ làm lịch sử.
+
+Status (lịch sử): **implemented.** Migrations `20261115`–`20261117` and the five-question
 screen are in place, and `20261119` + `20261120` removed the +2 check-in
 reward so the quiz is the only vote source (max 5 votes/day). Together they
 supersede `20261118`: historical check-in rows stay verbatim, new rows must

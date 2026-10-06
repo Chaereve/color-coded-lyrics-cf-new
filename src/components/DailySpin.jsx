@@ -445,7 +445,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   // the wheel is still moving. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
   // Freeze balances only during the animation. Otherwise use the parent's
-  // shared wallet: login/quiz can award votes without refreshing wheel status.
+  // shared wallet: another screen can move votes without refreshing wheel status.
   // Standalone/older clients may still fall back to the wheel's own snapshot.
   const shown = active ? held : {
     credits: credits ?? status?.credits ?? 0,
