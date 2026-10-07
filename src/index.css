@@ -2184,7 +2184,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .stat b { font-size: 15px; }
   .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     display: block; }
-  .mainhead-t { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mainhead-t { font-size: 18px; line-height: 1.25; text-wrap: balance; }
   .votepanel { gap: 14px; }
   .vp-divider { display: none; }
   .vp-acts { margin-left: 0; width: 100%; }
@@ -2236,6 +2236,23 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
      .side-foot (avatar + đăng xuất) xuống dưới mép màn hình. */
   .side-item { min-height: 44px; }
   .side-cta { min-height: 44px; }
+
+  /* --- row actions: Follow/Share buttons (18×18 desktop → 40×40 mobile) --- */
+  .rowact { min-width: 40px; min-height: 40px; padding: 8px; }
+
+  /* --- comments: reply/delete/toggle buttons --- */
+  .comment-reply-btn { min-height: 40px; padding: 6px 10px; }
+  .comment-delete { min-width: 40px; min-height: 40px; padding: 8px; }
+  .comments-toggle { min-height: 40px; }
+
+  /* --- calendar navigation (28×28 desktop → 40×40 mobile) --- */
+  .check-in-nav { min-width: 40px; min-height: 40px; }
+
+  /* --- ranking help button (20×20 desktop → 40×40 mobile) --- */
+  .lb-help { min-width: 40px; min-height: 40px; }
+
+  /* --- icon buttons: admin delete and other icon actions (32-38×40 → 40×40) --- */
+  .icon-btn { min-width: 40px; min-height: 40px; padding: 8px; }
 }
 
 /* Không có hợp đồng cho .pick-nav: bản desktop đã là 44×44 (mũi tên chuyển
@@ -4735,3 +4752,16 @@ img, video, iframe { max-width: 100%; }
 /* Nút đăng nhập ở chân sidebar: cùng dáng với nút New request (một khối chìm
    có ô icon), nhưng đứng cuối nên không cần khoảng đệm dưới. */
 .side-foot .side-signin { margin-bottom: 8px; }
+
+/* =========================================================
+   TOUCH TARGET OVERRIDES — đặt ở cuối để đảm bảo áp dụng
+   ---------------------------------------------------------
+   Các rule .nt-btn và .to-top mặc định nằm ngoài media query
+   và xuất hiện sau trong CSS, nên override các rule trong
+   @media (max-width: 899px) ở trên. Đặt lại ở đây để đảm bảo
+   touch targets đạt 40×40px trên mobile.
+   ========================================================= */
+@media (max-width: 899px) {
+  .nt-btn { width: 40px; height: 40px; }
+  .to-top { width: 40px; height: 40px; }
+}
