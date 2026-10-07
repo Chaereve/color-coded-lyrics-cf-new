@@ -597,29 +597,29 @@ export default function AdminPanel({
   const [exported, flashExported] = useTransient(2000)
   const exportCsv = () => {
     const ok = tab === 'orders'
-      ? downloadText(csvFileName('don-hang'), toCsv(shown, [
+      ? downloadText(csvFileName('orders'), toCsv(shown, [
         { k: 'id', label: 'ID' },
-        { k: 'kind', label: 'Loai' },
-        { k: 'qty', label: 'So vote' },
-        { k: 'amount_vnd', label: 'VND' },
-        { k: 'amount_usd', label: 'USD' },
-        { k: 'status', label: 'Trang thai' },
-        { k: 'created_at', label: 'Tao luc' },
+        { k: 'kind', label: 'Type' },
+        { k: 'qty', label: 'Votes' },
+        { k: 'amount_vnd', label: 'Amount (VND)' },
+        { k: 'amount_usd', label: 'Amount (USD)' },
+        { k: 'status', label: 'Status' },
+        { k: 'created_at', label: 'Created' },
       ]))
       : downloadText(csvFileName(`request-${tab}`), toCsv(shown, [
         { k: 'id', label: 'ID' },
-        { k: 'kind', label: 'Loai bai' },
-        { k: 'artist', label: 'Nghe si' },
-        { k: 'title', label: 'Ten bai' },
-        { k: 'requester', label: 'Nguoi gui' },
-        { k: 'status', label: 'Trang thai' },
-        { k: 'votes', label: 'Vote' },
-        { k: 'is_paid', label: 'Tra phi' },
-        { k: 'progress', label: 'Tien do %', get: (r) => progressOf(r) },
-        { k: 'link', label: 'Link nguon' },
-        { k: 'video_url', label: 'Video' },
-        { k: 'note', label: 'Ghi chu' },
-        { k: 'created_at', label: 'Tao luc' },
+        { k: 'kind', label: 'Type' },
+        { k: 'artist', label: 'Artist' },
+        { k: 'title', label: 'Title' },
+        { k: 'requester', label: 'Requester' },
+        { k: 'status', label: 'Status' },
+        { k: 'votes', label: 'Votes' },
+        { k: 'is_paid', label: 'Paid' },
+        { k: 'progress', label: 'Progress %', get: (r) => progressOf(r) },
+        { k: 'link', label: 'Source Link' },
+        { k: 'video_url', label: 'Video URL' },
+        { k: 'note', label: 'Note' },
+        { k: 'created_at', label: 'Created' },
       ]))
     if (!ok) return
     /* Nhãn nút đổi tại chỗ rồi tự về: file tải xuống không có phản hồi nào

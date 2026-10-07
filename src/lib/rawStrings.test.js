@@ -34,12 +34,6 @@ const ALLOW_FILE = new Map([
 
 /* ---------- miễn trừ theo TỪNG CÂU ---------- */
 const ALLOW_LITERAL = new Map([
-  ['components/AdminPanel.jsx', {
-    why: 'nhãn cột của tệp CSV xuất ra: chủ dự án chốt giữ tiếng Việt (L1, 07/10/2026) — '
-      + 'tệp mở bằng Excel, không phải một màn hình của app',
-    values: ['So vote', 'Trang thai', 'Tao luc', 'Loai bai', 'Nghe si', 'Ten bai',
-      'Nguoi gui', 'Tra phi', 'Link nguon', 'Ghi chu'],
-  }],
 ])
 const ALLOW_LITERAL_LIMIT = 20
 

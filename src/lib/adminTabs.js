@@ -1,5 +1,5 @@
 /* =========================================================
-   NĂM MỤC CỦA TRANG QUẢN TRỊ — và địa chỉ của từng mục
+   BẢY MỤC CỦA TRANG QUẢN TRỊ — và địa chỉ của từng mục
    ---------------------------------------------------------
    Danh sách này nằm ở một chỗ vì có BA nơi cần biết nó: dải số liệu của trang
    (mục nào đang mở), App (địa chỉ `/admin?tab=…`), và phép kiểm địa chỉ lúc
