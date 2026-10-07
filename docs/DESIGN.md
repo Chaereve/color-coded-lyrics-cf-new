@@ -651,7 +651,7 @@ Ghi lại để lần sau không ai "sửa" ngược:
 - [ ] Chuyển động mới không animate `width`/`height`/`top`/`left`/`margin`.
 - [ ] Có đường thoát cho `prefers-reduced-motion` (nhớ `animation-delay`).
 - [ ] Bản hẹp 390px: không có mục nào bị `overflow` cắt mất mà không cuộn tới được.
-- [ ] Chuỗi mới đã vào `src/lib/i18n.jsx` (`src/lib/i18nKeys.test.js` sẽ đỏ nếu thiếu).
+- [ ] Chuỗi mới đã vào `src/lib/strings.js` (từ điển — `src/lib/i18nKeys.test.js` sẽ đỏ nếu thiếu).
 - [ ] Đổi giao diện thì cập nhật `HUONG-DAN.md` (mục "Chuyển động" / "Bố cục trang").
 - [ ] Chuỗi mới không dùng gạch ngang dài, không mở đầu bằng "Quietly…", không nhãn
       phiên bản — xem §6.

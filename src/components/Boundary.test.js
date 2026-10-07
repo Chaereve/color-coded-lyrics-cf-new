@@ -3,7 +3,7 @@
    `Boundary.jsx` là thứ người dùng đọc khi một vùng hỏng: nó KHÔNG được là chỗ
    duy nhất trong app còn chữ tiếng Anh viết cứng, và cũng không được là một
    tấm bảng không có đường bấm tiếp. Ba điều bài này chốt:
-     1. mặc định (không truyền title/body/retry) = câu trong `i18n.jsx`, không
+     1. mặc định (không truyền title/body/retry) = câu trong `strings.js`, không
         phải câu chép tay lệch chữ ("This part…" của bản cũ);
      2. nút thử lại LUÔN có mặt, kể cả khi nơi gọi quên truyền chữ;
      3. nơi gọi truyền chữ riêng thì chữ riêng thắng (App.jsx vẫn truyền).

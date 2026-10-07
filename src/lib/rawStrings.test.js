@@ -7,7 +7,8 @@
    công khai: 18 câu tiếng Anh nằm rải trong JSX, sửa từ điển không đụng tới
    chúng, và ba chỗ cùng nói "Community member" theo ba cách khác nhau.
 
-   Cách chốt: quét mọi literal trong `src/**` (bỏ tệp test và chính từ điển),
+   Cách chốt: quét mọi literal trong `src/**` (bỏ tệp test và chính từ điển —
+   `i18n.jsx` + `strings.js`),
    giữ lại những chuỗi TRÔNG NHƯ CÂU người đọc (bắt đầu bằng chữ hoa, có
    khoảng trắng, có chữ thường, không phải tên class / URL / mã màu / đường dẫn
    SVG), rồi đòi: hoặc câu đó nằm trong từ điển (tức đã qua `t(...)`), hoặc có
@@ -38,14 +39,6 @@ const ALLOW_LITERAL = new Map([
       + 'tệp mở bằng Excel, không phải một màn hình của app',
     values: ['So vote', 'Trang thai', 'Tao luc', 'Loai bai', 'Nghe si', 'Ten bai',
       'Nguoi gui', 'Tra phi', 'Link nguon', 'Ghi chu'],
-  }],
-  ['lib/spinShield.js', {
-    why: 'chữ của widget Turnstile dựng bằng DOM (nhãn cho trình đọc màn hình + lời nhắc). '
-      + 'Tệp này KHÔNG import được i18n.jsx: spinShield.test.js nạp nó bằng node trần, '
-      + 'mà node không đọc được .jsx — cần một đường phi-React tới từ điển, đã ghi thành '
-      + 'đề xuất riêng',
-    values: ['Security verification', 'Complete the security check below to continue.',
-      'Security check required. Complete the challenge to continue.'],
   }],
 ])
 const ALLOW_LITERAL_LIMIT = 20
@@ -88,7 +81,7 @@ const looksLikeSentence = (v) => {
 const FILES = walk(srcDir).filter((f) =>
   ['.js', '.jsx'].includes(extname(f))
   && !/\.test\.js$/.test(f)
-  && !f.endsWith('i18n.jsx')                       // chính từ điển
+  && !f.endsWith('i18n.jsx') && !f.endsWith('strings.js')   // chính từ điển
   && !ALLOW_FILE.has(relative(srcDir, f)))         // tệp đã miễn trừ cả tệp
 
 const scan = () => {
@@ -108,7 +101,7 @@ const scan = () => {
 test('không còn câu nào viết thẳng trong mã (trừ danh sách miễn trừ)', () => {
   assert.ok(FILES.length >= 60, `phải quét được mã nguồn (được ${FILES.length} tệp)`)
   const hits = scan()
-  assert.deepEqual(hits, [], `câu này phải nằm trong từ điển i18n.jsx và đi qua t(...):\n  ${hits.join('\n  ')}`)
+  assert.deepEqual(hits, [], `câu này phải nằm trong từ điển (src/lib/strings.js) và đi qua t(...):\n  ${hits.join('\n  ')}`)
 })
 
 test('danh sách miễn trừ: mục phải còn thật, và không được dài thêm vô tội vạ', () => {

@@ -31,9 +31,11 @@ const walk = (dir) => {
 }
 
 /* ---------- đọc từ điển: cắt khối `const S = { ... }` bằng cân bằng ngoặc ---------- */
-const dictSrc = readFileSync(at('./i18n.jsx'), 'utf8')
+/* Từ điển nằm ở `strings.js` (JS thuần) từ 07/10/2026 — `i18n.jsx` chỉ còn tầng
+   React, và `lib/spinShield.js` cần đọc được chữ mà không nạp .jsx. */
+const dictSrc = readFileSync(at('./strings.js'), 'utf8')
 const start = dictSrc.indexOf('const S = {')
-assert.ok(start >= 0, 'không tìm thấy `const S = {` trong i18n.jsx')
+assert.ok(start >= 0, 'không tìm thấy `const S = {` trong strings.js')
 let end = start, depth = 0
 for (let i = dictSrc.indexOf('{', start); i < dictSrc.length; i++) {
   if (dictSrc[i] === '{') depth++
@@ -69,7 +71,7 @@ test('từ điển không có key khai báo hai lần', () => {
 test('mọi t(\'literal\') đều có bản dịch', () => {
   const miss = []
   for (const f of codeFiles) {
-    if (f.endsWith('i18n.jsx')) continue
+    if (f.endsWith('i18n.jsx') || f.endsWith('strings.js')) continue
     const s = readFileSync(f, 'utf8')
     for (const m of s.matchAll(/\bt\(\s*'([a-zA-Z0-9.]+)'/g)) {
       if (!DICT.has(m[1])) miss.push(`${m[1]} (${f.replace(repo, 'src').replace(/\\/g, '/')})`)
@@ -81,7 +83,7 @@ test('mọi t(\'literal\') đều có bản dịch', () => {
 test('mọi chỗ trống {x} được nơi gọi truyền đủ', () => {
   const bad = []
   for (const f of codeFiles) {
-    if (f.endsWith('i18n.jsx')) continue
+    if (f.endsWith('i18n.jsx') || f.endsWith('strings.js')) continue
     const s = strip(readFileSync(f, 'utf8'))
     /* dem ngoac thay vi regex: `t('k', { n: f(a, { b }) })` co dau `{` long */
     for (const m of s.matchAll(/\bt\(\s*'([a-zA-Z0-9.]+)'\s*,\s*\{/g)) {
@@ -150,7 +152,7 @@ test('không khoá nào nằm chết trong từ điển', () => {
          trong mã nhắc tới chúng — ca 4 phía trên đã giữ đầu kia. */
   const src = []
   for (const f of codeFiles) {
-    if (f.endsWith('i18n.jsx')) continue
+    if (f.endsWith('i18n.jsx') || f.endsWith('strings.js')) continue
     src.push(strip(readFileSync(f, 'utf8')))
   }
   const all = src.join(String.fromCharCode(10))

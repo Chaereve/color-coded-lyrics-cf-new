@@ -16,7 +16,8 @@ const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
 const read = (rel) => readFileSync(at(rel), 'utf-8')
 const mig = read('../migrations/20261110_funnel_events.sql')
 const schema = read('../schema.sql')
-const i18n = read('../../src/lib/i18n.jsx')
+/* Từ điển tách sang src/lib/strings.js (JS thuần) 07/10/2026. */
+const i18n = read('../../src/lib/strings.js')
 
 test('schema.sql chứa NGUYÊN VĂN migration funnel — cài mới và chạy lại là một', () => {
   assert.ok(schema.includes(mig),

@@ -254,7 +254,8 @@ test('trang cá nhân công khai: câu truy vấn phải chọn ĐỦ cột đ�
 
 test('PublicProfile không dựng link từ hàng thiếu tên, và nhãn trạng thái đi qua statusLabel', () => {
   const pp = src['components/PublicProfile.jsx']
-  const i18n = src['lib/i18n.jsx']
+  /* Từ điển nằm ở `strings.js` từ 07/10/2026 (tách khỏi tầng React của i18n). */
+  const i18n = src['lib/strings.js']
   assert.match(pp, /filter\(r => r && \(r\.title \|\| r\.artist\)\)/,
     'hàng không đọc ra tên thì không được dựng link — link rỗng dẫn tới danh sách rỗng')
   assert.match(pp, /PUBLIC_RECENT/, 'giới hạn phải lấy từ lib/db.js, không viết lại con số 8 ở đây')

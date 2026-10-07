@@ -2480,7 +2480,7 @@ realLog('\n── daily login ──')
     (() => {
       const login = rd('../src/components/DailyLogin.jsx')
       const calendar = rd('../src/components/DailyLoginCalendar.jsx')
-      const dict = rd('../src/lib/i18n.jsx')
+      const dict = rd('../src/lib/strings.js')
       return /daily-login-page/.test(login) && /check-in-calendar/.test(calendar)
         && !/\+\d+\s*(bonus )?votes?/i.test(login + calendar)
         && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*(\+|bonus)/.test(dict)
