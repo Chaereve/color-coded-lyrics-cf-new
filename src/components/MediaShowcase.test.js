@@ -50,7 +50,7 @@ test('lỗi: alert + nút thử lại, không nói "chưa có video nào"', asyn
   const html = await render({ videos: [], state: 'error', onRetry: () => {} })
   assert.match(html, /role="alert"/)
   const text = plain(html)
-  assert.ok(text.includes('Could not load this section'), text)
+  assert.ok(text.includes('This section could not load'), text)
   assert.ok(text.includes('Try again'), 'khối lỗi phải có nút bấm tiếp')
   assert.ok(!text.includes(EMPTY_TEXT), 'lỗi mà nói rỗng — câu sai và không có đường sửa')
 })
@@ -66,7 +66,7 @@ test('đã có video: lỗi làm mới KHÔNG xoá nội dung đang xem', async 
   const html = await render({ videos, state: 'error', onRetry: () => {} })
   const text = plain(html)
   assert.ok(text.includes('Song A — Artist'), 'video đang xem bị xoá vì một lần làm mới hỏng')
-  assert.ok(!text.includes('Could not load this section'), 'còn nội dung thì không dựng bảng lỗi đè lên')
+  assert.ok(!text.includes('This section could not load'), 'còn nội dung thì không dựng bảng lỗi đè lên')
 })
 
 test('đã có video + ready: vẫn vẽ sân khấu và dải mục lục như cũ', async () => {

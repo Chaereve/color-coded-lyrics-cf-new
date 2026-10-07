@@ -397,13 +397,10 @@ const S = {
   'board.loadErr': 'Could not load the board',
   'board.loadErrHint': 'The connection dropped on the way. Press the button to try again — it retries on its own too, so there is no need to reload the page.',
   'board.retry': 'Try again',
-  /* Câu lỗi DÙNG CHUNG cho những vùng không phải bảng: dải video, trang cá
-     nhân công khai, bảng xếp hạng. Ba vùng này trước đây rơi vào nhánh rỗng
-     nên nói "chưa có gì" trong khi sự thật là "không tải được" — câu sai,
-     và không có nút nào để bấm. Chữ ở đây nói đúng việc cần làm: thử lại. */
-  'load.err': 'Could not load this section',
-  'load.errHint': 'The connection dropped on the way. Press the button to try again.',
-  'load.retry': 'Try again',
+  /* Khối "không tải được" của dải video / trang cá nhân dùng CHUNG câu với
+     lưới an toàn của Boundary (`err.blockTitle/BlockBody/blockRetry` bên dưới)
+     — hai chỗ nói cùng một chuyện thì phải nói cùng một câu; ba khoá `load.*`
+     gần trùng chữ đã được gộp về đây. */
   'board.filterAria': 'Filter requests',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
@@ -437,6 +434,36 @@ const S = {
   'progress.label': 'Build progress',
   'row.mine': 'You voted {n}',
   'row.confirmDelete': 'Delete this request?',
+
+  /* TRANG CÁ NHÂN CÔNG KHAI (PublicProfile.jsx) — cả trang này trước đây in
+     chữ tiếng Anh viết thẳng trong JSX: `Loading profile…`, `Requests`,
+     `Achievements`, bảy badge… Chúng vô hình với mọi bài kiểm tra (chuỗi vẫn
+     hợp lệ) nhưng là chữ người dùng đọc, và sửa một chỗ thì ba trang khác
+     đứng nguyên. Ba nhãn số liệu trùng chữ với bộ chọn sắp xếp của bảng xếp
+     hạng (rank.sort.*) một cách CÓ Ý: đây là nhãn của hồ sơ, đổi chữ ở đây
+     không được kéo theo bộ chọn sắp xếp. */
+  'public.loading': 'Loading profile…',
+  'public.notFound': 'Profile not found.',
+  'public.back': 'Back to board',
+  'public.member': 'Chaereve community member',
+  'public.share': 'Share profile',
+  'public.copied': 'Link copied',
+  'public.requests': 'Requests',
+  'public.completed': 'Completed',
+  'public.votes': 'Votes received',
+  'public.achievements': 'Achievements',
+  'public.recent': 'Recent requests',
+  /* tên hiển thị khi hồ sơ chưa có tên — avatar lấy chữ đầu của chính câu này */
+  'name.member': 'Community member',
+  /* bảy badge thành tích trên hồ sơ: ngưỡng do số liệu quyết định
+     (requests/completed/votes/chuỗi ngày), ở đây chỉ là chữ */
+  'badge.firstRequest': 'First request',
+  'badge.curator': 'Song Curator',
+  'badge.firstCompletion': 'First completion',
+  'badge.hitMaker': 'Hit Maker',
+  'badge.votes10': '10 votes earned',
+  'badge.streak7': '7-day streak',
+  'badge.streak30': '30-day streak',
 
   /* cum request trung bai */
   'group.requests': '{n} requests',
@@ -911,6 +938,10 @@ const S = {
   'adm.funnelSubtitle': 'Daily totals · aggregated, no names or device identifiers',
   'adm.funnelRefresh': 'Refresh',
   'adm.funnelLoading': 'Loading funnel…',
+  /* nút làm mới danh sách bình luận (tab Bình luận) — trước đây là hai chữ
+     viết thẳng trong JSX, cùng nghĩa nhưng khác nguồn với phần còn lại */
+  'adm.refresh': 'Refresh',
+  'adm.loading': 'Loading…',
   'adm.funnelError': 'Metrics unavailable. Apply migration 20261110_funnel_events.sql, then refresh.',
   'adm.funnel.visit': 'Visits',
   'adm.funnel.request': 'Requests',
@@ -1060,6 +1091,9 @@ const S = {
   'err.blockTitle': 'This section could not load',
   'err.blockBody': 'The rest of the page still works. Try again — if it keeps failing, reload the page.',
   'err.blockRetry': 'Try again',
+  /* mục "chi tiết kỹ thuật" trong tấm bảng đó: câu này thuộc về người dùng
+     (họ mở ra để đọc thông báo lỗi), không phải chữ của trình duyệt */
+  'boundary.why': 'Technical details',
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',

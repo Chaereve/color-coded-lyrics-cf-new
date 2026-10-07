@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import Icon from './Icon'
+import { translate } from '../lib/i18n.jsx'
 
 /* =========================================================
    LƯỚI AN TOÀN CHO MỘT KHỐI CỦA TRANG
@@ -40,6 +41,15 @@ export default class Boundary extends Component {
     this.setState({ err: null })
   }
 
+  /* Chữ mặc định lấy từ TỪ ĐIỂN, không viết thẳng trong JSX: tấm bảng này là
+     thứ người dùng đọc khi một vùng hỏng, mà bản cũ chỉ có chữ tiếng Anh cứng
+     (và lệch chữ với câu App truyền vào: "This part…" ở đây, "This section…"
+     ở từ điển). `translate` là hàm thuần của từ điển — class component không
+     gọi được hook, và cũng không cần: đây là chữ, không phải trạng thái. */
+  txt(key, given) {
+    return given || translate(key)
+  }
+
   render() {
     if (!this.state.err) return this.props.children
     const { label, title, body, retry: retryText } = this.props
@@ -47,15 +57,18 @@ export default class Boundary extends Component {
       <div className="boundary" role="alert">
         <Icon name="warn" size={18} className="boundary-ico" />
         <div className="boundary-tx">
-          <b>{title || 'This part could not load'}</b>
-          <p>{body || 'The rest of the page still works. Try again, or reload the page.'}</p>
+          <b>{this.txt('err.blockTitle', title)}</b>
+          <p>{this.txt('err.blockBody', body)}</p>
           {label && <small>{label}</small>}
         </div>
-        {retryText && (
-          <button type="button" className="btn btn-sm" onClick={this.retry}>{retryText}</button>
-        )}
+        {/* Nút thử lại LUÔN có mặt: tấm bảng nói "vùng này hỏng" mà không có
+            cách dựng lại thì người dùng chỉ còn F5 — và chữ của nút cũng lấy
+            từ từ điển khi nơi gọi không truyền. */}
+        <button type="button" className="btn btn-sm" onClick={this.retry}>
+          {this.txt('err.blockRetry', retryText)}
+        </button>
         <details className="boundary-why">
-          <summary>Technical details</summary>
+          <summary>{this.txt('boundary.why')}</summary>
           <code>{String(this.state.err?.message || this.state.err)}</code>
         </details>
       </div>

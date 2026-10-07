@@ -13,7 +13,8 @@ import { useI18n } from '../lib/i18n.jsx'
 
    Ba khoá chữ vì thế thành tham số, mặc định giữ NGUYÊN câu của bảng
    (mọi chỗ gọi cũ không phải đổi gì): vùng nào muốn câu chung thì truyền
-   `load.err` / `load.errHint`.
+   `err.blockTitle` / `err.blockBody` / `err.blockRetry` — CÙNG câu với lưới an
+   toàn của `Boundary`, vì hai chỗ nói cùng một chuyện.
 
    Một quy tắc bất di bất dịch: đây là `role="alert"` + có NÚT. Chỉ đổi
    câu chữ là không đủ — người dùng phải có đường bấm tiếp.

@@ -700,7 +700,7 @@ export default function AdminPanel({
         {tab === 'comments' ? (
           <div className="adm-bar adm-bar-end">
             <button type="button" className="btn btn-sm" onClick={loadAdminComments} disabled={loadingComments}>
-              {loadingComments ? 'Loading…' : 'Refresh'}
+              {loadingComments ? t('adm.loading') : t('adm.refresh')}
             </button>
           </div>
         ) : tab === 'media' ? (

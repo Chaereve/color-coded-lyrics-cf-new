@@ -254,15 +254,20 @@ test('trang cá nhân công khai: câu truy vấn phải chọn ĐỦ cột đ�
 
 test('PublicProfile không dựng link từ hàng thiếu tên, và nhãn trạng thái đi qua statusLabel', () => {
   const pp = src['components/PublicProfile.jsx']
+  const i18n = src['lib/i18n.jsx']
   assert.match(pp, /filter\(r => r && \(r\.title \|\| r\.artist\)\)/,
     'hàng không đọc ra tên thì không được dựng link — link rỗng dẫn tới danh sách rỗng')
   assert.match(pp, /PUBLIC_RECENT/, 'giới hạn phải lấy từ lib/db.js, không viết lại con số 8 ở đây')
   assert.match(pp, /statusLabel\(r, t\)/, 'nhãn trạng thái phải đúng chữ mà hàng trên bảng dùng')
   assert.match(pp, /role="status"/, 'trạng thái đang tải / không tìm thấy phải cho trình đọc màn hình biết')
   /* "Votes received", không phải "Votes given": RLS của `votes` là read-own nên
-     số phiếu người đó đi bỏ KHÔNG đọc được ở đây — nhãn sai là nói dối. */
-  assert.match(pp, /Votes received/, 'nhãn phải đúng nghĩa con số (tổng phiếu các bài của họ nhận được)')
-  assert.doesNotMatch(pp, /Votes given/)
+     số phiếu người đó đi bỏ KHÔNG đọc được ở đây — nhãn sai là nói dối. Câu này
+     nay nằm trong từ điển (không còn chữ viết thẳng trong PublicProfile.jsx),
+     nên kiểm CẢ HAI đầu: component dùng khoá nào, và từ điển nói gì. */
+  assert.match(pp, /t\('public\.votes'\)/, 'nhãn số phiếu phải lấy từ từ điển qua khoá public.votes')
+  assert.match(i18n, /'public\.votes': 'Votes received'/,
+    'nhãn phải đúng nghĩa con số (tổng phiếu các bài của họ nhận được)')
+  assert.doesNotMatch(i18n, /public\.votes': 'Votes given/)
 })
 
 /* =========================================================

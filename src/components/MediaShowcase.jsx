@@ -121,7 +121,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
               ))}
             </div>
             )
-          : <LoadErr onRetry={onRetry} titleKey="load.err" bodyKey="load.errHint" retryKey="load.retry" />}
+          : <LoadErr onRetry={onRetry} titleKey="err.blockTitle" bodyKey="err.blockBody" retryKey="err.blockRetry" />}
       </section>
     )
   }

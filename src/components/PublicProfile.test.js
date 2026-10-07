@@ -40,7 +40,7 @@ test('trang cá nhân công khai: lỗi có nút thử lại, không tồn tại
   let root
   try {
     const { default: PublicProfile } = await server.ssrLoadModule('/src/components/PublicProfile.jsx')
-    const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+    const { I18nProvider, translate } = await server.ssrLoadModule('/src/lib/i18n.jsx')
     const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
 
     const PROFILE = {
@@ -80,7 +80,7 @@ test('trang cá nhân công khai: lỗi có nút thử lại, không tồn tại
     })
     assert.ok(await waitFor(() => !!document.querySelector('[role="alert"]')), 'lỗi mà không có khối alert')
     assert.ok(!text().includes('Profile not found.'), `lỗi mạng bị báo thành "không tìm thấy": ${text()}`)
-    assert.ok(text().includes('Could not load this section'), text())
+    assert.ok(text().includes('This section could not load'), text())
     assert.ok(button('Try again'), 'khối lỗi không có nút thử lại — đường cụt')
     assert.equal(calls, 1)
 
@@ -98,6 +98,30 @@ test('trang cá nhân công khai: lỗi có nút thử lại, không tồn tại
     await mount({ profile: async () => PROFILE, streak: async () => null })
     assert.ok(await waitFor(() => text().includes('Alice')), text())
     assert.ok(text().includes('Requests'), 'thiếu số bài đã gửi')
+    assert.ok(!document.querySelector('[role="alert"]'))
+
+    /* (5) hồ sơ ĐẦY ĐỦ: mọi nhãn của trang phải là chữ trong từ điển.
+       Trước đây cả trang này viết chữ thẳng trong JSX, nên không có bài kiểm
+       tra nào nhìn thấy chúng; giờ so từng nhãn với `translate(key)` — lệch
+       một chữ là hỏng, còn thiếu bản dịch thì `t()` in khoá trần ra màn hình. */
+    const RICH = {
+      id: 'u1', name: null, avatar_url: null,
+      requests: 6, completed: 5, votes: 12,
+      recent: [{ id: 'r1', title: 'Bài A', artist: 'Ca sĩ B', status: 'queued' }],
+    }
+    await mount({
+      profile: async () => RICH,
+      streak: async () => ({ current: 3, longest: 31, earned: [7, 30] }),
+    })
+    assert.ok(await waitFor(() => text().includes('Bài A')), text())
+    const page = text()
+    for (const key of ['name.member', 'public.member', 'public.back', 'public.share',
+      'public.requests', 'public.completed', 'public.votes', 'public.achievements',
+      'public.recent', 'badge.firstRequest', 'badge.curator', 'badge.firstCompletion',
+      'badge.hitMaker', 'badge.votes10', 'badge.streak7', 'badge.streak30']) {
+      assert.ok(page.includes(translate(key)), `thiếu chữ "${key}" trên trang: ${page.slice(0, 200)}`)
+    }
+    assert.ok(!/\b(public|badge|name)\.[a-zA-Z]/.test(page), 'in khoá trần ra màn hình')
     assert.ok(!document.querySelector('[role="alert"]'))
   } finally {
     if (root) await act(async () => root.unmount())

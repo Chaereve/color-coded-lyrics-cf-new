@@ -68,6 +68,10 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
   const loading = loaded.id !== userId
   const profile = loading ? null : loaded.profile
 
+  /* Một chỗ quyết định tên hiển thị: `<h2>`, chữ cái đầu của avatar và tấm
+     card PNG đều lấy từ đây — trước đây ba chỗ tự bịa cùng một câu. */
+  const name = profile?.name || t('name.member')
+
   /* Thứ tự (mới nhất trước), giới hạn, và luật "không hiện bài chưa duyệt /
      bị từ chối" đều do `fetchPublicProfile` quyết định — ở đây chỉ bỏ những
      hàng không đọc ra được một cái tên, vì một link `?q=` rỗng dẫn tới danh
@@ -83,7 +87,7 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
     if (!profile) return null
     const st = actStats
     return {
-      name: profile.name || 'Community member',
+      name,
       avatarUrl: profile.avatar_url || null,
       subtitle: t('card.subtitle'),
       stats: [
@@ -99,64 +103,64 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
       milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
       footer: t('card.footer'),
     }
-  }, [profile, actStats, t])
+  }, [profile, actStats, t, name])
 
   /* Địa chỉ để CHIA SẺ dựng từ `userId`, không lấy `window.location.href`: khi
      `pushState` bị chặn (iframe sandbox) thì địa chỉ trên thanh vẫn là bảng yêu
      cầu, copy ra sẽ là link sai. */
   const shareUrl = () => absolute(profileUrl(userId))
 
-  if (loading) return <div className="public-profile empty" role="status">Loading profile…</div>
+  if (loading) return <div className="public-profile empty" role="status">{t('public.loading')}</div>
   /* Lỗi mạng KHÁC "người này không tồn tại": một câu là việc phải thử lại,
      một câu là sự thật về hồ sơ. Gộp hai câu làm một là nói sai về người kia. */
   if (loaded.error) {
     return (
       <section className="public-profile" data-reveal>
         <LoadErr onRetry={() => setRetry(n => n + 1)}
-          titleKey="load.err" bodyKey="load.errHint" retryKey="load.retry" />
+          titleKey="err.blockTitle" bodyKey="err.blockBody" retryKey="err.blockRetry" />
       </section>
     )
   }
-  if (!profile) return <div className="public-profile empty" role="status">Profile not found.</div>
+  if (!profile) return <div className="public-profile empty" role="status">{t('public.notFound')}</div>
 
   return <section className="public-profile" data-reveal>
     <a className="profile-back" href="/" onClick={spaLink(back)}>
-      <Icon name="prev" size={14} /> Back to board
+      <Icon name="prev" size={14} /> {t('public.back')}
     </a>
     <div className="public-profile-head">
-      <div className="public-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (profile.name || '?')[0]}</div>
-      <div><h2>{profile.name || 'Community member'}</h2><p>Chaereve community member</p></div>
+      <div className="public-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (name || '?')[0]}</div>
+      <div><h2>{name}</h2><p>{t('public.member')}</p></div>
     </div>
     <div className="profile-share-row">
-      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? 'Link copied' : 'Share profile'}</button>
+      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? t('public.copied') : t('public.share')}</button>
       {card && <ShareCardButton card={card} />}
     </div>
     <div className="public-stats">
-      <div><b>{profile.requests}</b><span>Requests</span></div>
-      <div><b>{profile.completed}</b><span>Completed</span></div>
+      <div><b>{profile.requests}</b><span>{t('public.requests')}</span></div>
+      <div><b>{profile.completed}</b><span>{t('public.completed')}</span></div>
       {/* "Received", không phải "given": con số là tổng phiếu các bài của người
           đó NHẬN được. Phiếu họ đi bỏ cho người khác không đọc được bằng RLS
           của `votes` (chỉ mình + admin) — xem ghi chú ở `fetchPublicProfile`. */}
-      <div><b>{profile.votes}</b><span>Votes received</span></div>
+      <div><b>{profile.votes}</b><span>{t('public.votes')}</span></div>
     </div>
     {/* Cột mốc chuỗi ngày của người này — cộng đồng thấy nhau đã đều đặn mấy
         ngày, cùng tinh thần với bảng xếp hạng và khối Achievements bên dưới. */}
     <StreakStrip stats={actStats} />
     <div className="public-badges">
-      <h3>Achievements</h3>
+      <h3>{t('public.achievements')}</h3>
       <div className="achievement-list">
-        {profile.requests >= 1 && <span><Icon name="compose" size={14} /><b>First request</b></span>}
-        {profile.requests >= 5 && <span><Icon name="star" size={14} /><b>Song Curator</b></span>}
-        {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>First completion</b></span>}
-        {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>Hit Maker</b></span>}
-        {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>10 votes earned</b></span>}
-        {actStats?.longest >= 7 && <span><Icon name="flame" size={14} /><b>7-day streak</b></span>}
-        {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>30-day streak</b></span>}
+        {profile.requests >= 1 && <span><Icon name="compose" size={14} /><b>{t('badge.firstRequest')}</b></span>}
+        {profile.requests >= 5 && <span><Icon name="star" size={14} /><b>{t('badge.curator')}</b></span>}
+        {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>{t('badge.firstCompletion')}</b></span>}
+        {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>{t('badge.hitMaker')}</b></span>}
+        {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>{t('badge.votes10')}</b></span>}
+        {actStats?.longest >= 7 && <span><Icon name="flame" size={14} /><b>{t('badge.streak7')}</b></span>}
+        {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>{t('badge.streak30')}</b></span>}
       </div>
     </div>
     {recent.length > 0 && (
       <div className="public-requests">
-        <h3>Recent requests</h3>
+        <h3>{t('public.recent')}</h3>
         <div className="public-requests-grid">
           {recent.map((r, i) => (
             <div className="public-request" key={r.id || `${r.title}-${r.artist}-${i}`}>

@@ -1794,6 +1794,17 @@ where = 'bài trả phí'
     && new URLSearchParams(window.location.search).get('profile') === uid, window.location.search)
   check('trang cá nhân có ba ô số liệu', qa('.public-stats > div').length === 3,
     `${qa('.public-stats > div').length} ô`)
+  /* Chữ của trang này từng viết thẳng trong JSX (18 câu), nên nhãn hiện ra
+     KHÔNG chứng minh được gì; cái chứng minh được là nhãn đi qua từ điển: thiếu
+     bản dịch thì `t()` in ra khoá trần, và đây là chỗ duy nhất nhìn thấy điều đó
+     trên trình duyệt thật. */
+  const statsLabels = qa('.public-stats > div span').map(el => (el.textContent || '').trim())
+  check('nhãn ba ô số liệu lấy từ từ điển, không phải chuỗi viết thẳng',
+    statsLabels.length === 3 && statsLabels.every(x => x && !/^[a-z]+\.[a-z]/.test(x)),
+    statsLabels.join(' · '))
+  const rawKeys = text().match(/\b(public|badge|name|boundary|turnstile|rank|stat)\.[a-zA-Z][\w.]*/g)
+  check('trang cá nhân không in khoá từ điển ra màn hình',
+    !rawKeys, (rawKeys || []).slice(0, 3).join(' · '))
   /* cột mốc chuỗi ngày là thứ cộng đồng THẤY NHAU (chủ dự án chốt hiện ở cả
      trang công khai) — dải phải có mặt với đủ ba badge sáng/mờ */
   check('trang cá nhân công khai có dải streak ba badge',

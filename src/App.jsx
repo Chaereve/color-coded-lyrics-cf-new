@@ -1902,7 +1902,7 @@ function AppInner() {
     if (!user) return null
     const st = activityView?.stats ?? null
     return {
-      name: user.name || 'Community member',
+      name: user.name || t('name.member'),
       avatarUrl: user.avatar || null,
       subtitle: t('card.subtitle'),
       stats: [
