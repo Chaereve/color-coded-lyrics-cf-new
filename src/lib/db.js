@@ -523,7 +523,16 @@ export async function addComment(requestId, userId, body, parentId = null) {
   if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
   if (!hasSupabase) {
     const key = `ccl.comments.${requestId}`
-    const old = JSON.parse(localStorage.getItem(key) || '[]')
+    /* Dữ liệu trong localStorage là thứ người dùng sửa được (và là thứ có thể
+       hỏng nửa chừng nếu tab bị đóng giữa lúc ghi). Một chuỗi không phải JSON ở
+       đây từng làm cả thao tác gửi bình luận ném ra SyntaxError — trong khi mọi
+       thứ cần cho việc gửi đều đã có. Hỏng thì coi như chưa có bình luận nào và
+       ghi lại từ đầu; KHÔNG im lặng bỏ qua giá trị hợp lệ. */
+    let old = []
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]')
+      if (Array.isArray(parsed)) old = parsed
+    } catch { old = [] }
     if (parentId && !old.some(c => c.id === parentId && c.request_id === requestId && !c.deleted_at)) {
       throw appError('err.commentParent')
     }

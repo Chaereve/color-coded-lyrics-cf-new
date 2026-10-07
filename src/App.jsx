@@ -25,6 +25,7 @@ import ShareBtn from './components/ShareBtn'
 import Comments from './components/Comments'
 import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
+import { nextTicket, stillLatest } from './lib/latestOnly'
 import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
@@ -458,6 +459,10 @@ function AppInner() {
     bonus_requests: 0,
   })
   const balanceVersion = useRef(0)
+  /* Số lượt nạp của BA đường nạp dữ liệu (load / loadBoard / loadPublic): lượt
+     realtime mở sau có thể trả về TRƯỚC lượt đầu, và lượt cũ về sau không được
+     ghi đè số liệu mới (xem lib/latestOnly.js). */
+  const dataSeq = useRef(0)
   const dailyBalanceStamp = useRef({ userId: null, time: 0 })
   const applySpinBalance = useCallback(status => {
     if (status.user_id !== currentUserId.current) return
@@ -1006,6 +1011,7 @@ function AppInner() {
   const load = useCallback(async (u = user) => {
     if (!u) return
     const version = ++balanceVersion.current
+    const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
       fetchActivityDays(u.id), fetchCommentCounts(),
@@ -1014,6 +1020,9 @@ function AppInner() {
     const [r, v, vs, ach, rk, od, , , act, cc] = results
     /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
        để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
+    /* Lượt cũ (đã có lượt nạp mới hơn bắt đầu) thì KHÔNG ghi gì cả: số liệu
+       của nó cũ hơn số liệu đang có trên màn hình. */
+    if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
@@ -1038,6 +1047,7 @@ function AppInner() {
   const loadBoard = useCallback(async (u = user) => {
     if (!u) return
     const version = ++balanceVersion.current
+    const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(),
       /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
@@ -1049,6 +1059,7 @@ function AppInner() {
     ])
     if (u.id !== currentUserId.current) return results
     const [r, v, vs, ach, rk, act, cc, vv] = results
+    if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
     if (v.status === 'fulfilled') setMyVotes(v.value)
@@ -1081,7 +1092,11 @@ function AppInner() {
   /* Tách thành hàm có tên (thay vì thân effect) để nó gọi lại được: nút
      "Thử lại" và hai sự kiện bên dưới cùng dùng một đường nạp này. */
   const loadPublic = useCallback(async () => {
+    const seq = nextTicket(dataSeq)
     const [r, rk, cc, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts(), fetchRecentVotes()])
+    /* Cùng luật với hai đường nạp trên: nút "Thử lại" bấm hai lần thì lượt cũ
+       về sau không được dựng lại bảng bằng dữ liệu cũ hơn. */
+    if (!stillLatest(dataSeq, seq)) return { r, rk, cc }
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') setRows(r.value)
     if (rk.status === 'fulfilled') setRanking(rk.value)

@@ -8,6 +8,7 @@ import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
+import { useTransient } from '../lib/useTransient'
 import LoadErr from './LoadErr'
 import { statusLabel } from '../lib/meta'
 
@@ -42,7 +43,9 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
   /* `attempt` chỉ để THỬ LẠI: tăng lên là effect dưới chạy lại. Không có nó
      thì khối lỗi là đường cụt. */
   const [retry, setRetry] = useState(0)
-  const [shared, setShared] = useState(false)
+  /* `Link copied` tự tắt sau 1,8s — đồng hồ do hook giữ, nên rời trang giữa
+     chừng không để lại một setTimeout sống lâu hơn component. */
+  const [shared, flashShared] = useTransient(1800)
   /* Dấu ngày hoạt động cho dải streak: tải SONG SONG với hồ sơ chứ không nối
      tiếp — thêm một round-trip vào chuỗi sẽ kéo dài màn "Loading profile…".
      null = chưa đọc được nguồn thì dải tự ẩn (xem StreakStrip). */
@@ -132,7 +135,7 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
       <div><h2>{name}</h2><p>{t('public.member')}</p></div>
     </div>
     <div className="profile-share-row">
-      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? t('public.copied') : t('public.share')}</button>
+      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) flashShared() }}>{shared ? t('public.copied') : t('public.share')}</button>
       {card && <ShareCardButton card={card} />}
     </div>
     <div className="public-stats">

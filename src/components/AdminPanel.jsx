@@ -11,6 +11,7 @@ import { safeHttpUrl } from '../lib/safeUrl'
 import { csvFileName, downloadText, toCsv } from '../lib/csv'
 import { useConfirm } from '../lib/confirm.jsx'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
+import { useTransient } from '../lib/useTransient'
 import { here, putUrl } from '../lib/history'
 import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import MediaAdmin from './MediaAdmin'
@@ -591,7 +592,9 @@ export default function AdminPanel({
      và vote. Dùng chung một bảng cột cho mọi mục là mở ra hai chục cột rỗng
      trong file. Xuất ĐÚNG những dòng đang nhìn (đã lọc, đã xếp) — file phải
      khớp với màn hình, không phải với cả database. */
-  const [exported, setExported] = useState(false)
+  /* `Saved` trên nút xuất CSV: cờ tự tắt, đồng hồ do hook giữ và dọn (xem
+     lib/useTransient.js). */
+  const [exported, flashExported] = useTransient(2000)
   const exportCsv = () => {
     const ok = tab === 'orders'
       ? downloadText(csvFileName('don-hang'), toCsv(shown, [
@@ -621,8 +624,7 @@ export default function AdminPanel({
     if (!ok) return
     /* Nhãn nút đổi tại chỗ rồi tự về: file tải xuống không có phản hồi nào
        khác, và người bấm cần biết lần bấm của mình đã ăn. */
-    setExported(true)
-    setTimeout(() => setExported(false), 2000)
+    flashExported()
   }
 
   /* giữ nút ở trạng thái "đang lưu" cho tới khi bảng Admin được tải lại */
