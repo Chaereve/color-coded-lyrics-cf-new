@@ -17,7 +17,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import {
-  withDatabase, installLevel, migrationSql, seedUser, insertHistorical, dayOf,
+  withDatabase, installLevel, migrationSql, seedUser, insertHistorical, dayOf, rewardOf,
 } from './_fixtures.mjs'
 import {
   applyMigration, ensureHistory, readHistory, stripExplicitTransaction,
@@ -181,9 +181,18 @@ test('revoking the quiz door keeps every row, the Calendar and the vote API inta
         'select public.claim_daily_login_calendar($1)::text as r', [status.day])).rows[0].r)
       assert.equal(claimed.replayed, false)
       assert.equal(claimed.status.login.claimed, true)
-      assert.equal((await pool.query(
-        'select reward from public.daily_login_rewards where user_id = $1 and reward_day = current_date',
-        [userId])).rows[0].reward, 0, 'check-in mới vẫn ghi 0, không thưởng vote')
+      /* Hỏi ĐÚNG NGÀY VỪA ĐIỂM DANH, không hỏi `current_date`.
+         `reward_day` là NGÀY VN (mọi đường check-in của app đều tính theo
+         Asia/Ho_Chi_Minh), còn `current_date` của database là NGÀY UTC. Trong
+         khung 17:00–24:00 UTC (00:00–07:00 giờ VN) hai ngày lệch nhau đúng một
+         ngày, nên câu query cũ bốc trúng dòng lịch sử +2 mà fixture vừa seed cho
+         `previousDay` (= hôm qua theo giờ VN = hôm nay theo UTC) và phép kiểm đỏ
+         "2 !== 0" dù code sản phẩm đúng. Nghĩa là `guard` đỏ theo GIỜ TRONG NGÀY:
+         xanh khi chạy trước 17:00 UTC, đỏ sau đó — chạy lại cùng một commit hai
+         lần ra hai kết quả. `rewardOf` là helper sẵn có trong _fixtures.mjs, hỏi
+         theo (user_id, reward_day) nên không còn chỗ nào để lệch múi giờ. */
+      assert.equal(await rewardOf(pool, userId, status.day), 0,
+        'check-in mới vẫn ghi 0, không thưởng vote')
       assert.deepEqual(await counts(pool), { ...before, checkins: before.checkins + 1 },
         'chỉ thêm đúng một dòng check-in hôm nay')
     })

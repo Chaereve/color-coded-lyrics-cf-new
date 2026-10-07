@@ -24,7 +24,7 @@ const rows = data.results.map(r => `| ${r.name} | ${mark(r.ok)}${r.extra ? ` —
 console.log(`<!-- quiz-retirement-browser -->
 ### Kiểm chứng "Daily Quiz đã nghỉ hưu" bằng trình duyệt thật + edge Cloudflare Pages
 
-- Edge: \`${data.edge ?? '(không truyền URL)'}\` · Chromium **desktop 1280×800** và **mobile 390×844**
+- Edge: \`${data.edge ?? '(không truyền URL)'}\`${data.live ? ` · Live (site thật): \`${data.live}\`` : ''} · Chromium **desktop 1280×800** và **mobile 390×844**
 - Kết quả: **${data.results.length - failed.length}/${data.results.length} mục đạt**${commit ? ` — commit \`${commit.slice(0, 7)}\`` : ''}${runUrl ? ` — [log/artifact của run](${runUrl})` : ''}
 - Ảnh chụp màn hình: artifact **\`quiz-retirement-browser\`** của run này (\`artifacts/quiz-retirement-desktop-1280.png\`, \`…-mobile-390.png\`)
 
