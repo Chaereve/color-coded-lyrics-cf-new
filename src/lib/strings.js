@@ -526,6 +526,7 @@ const S = {
   'ach.reward': 'Reward',
   'ach.locked': 'Locked',
   'ach.earned': 'Earned',
+  'ach.scrollRegion': 'Achievements list, use arrow keys to scroll',
   'ach.streak3': 'First rhythm',
   'ach.streak3Desc': 'Stay active for 3 days',
   'ach.streak3Reward': '3-day badge & +1 vote bonus',

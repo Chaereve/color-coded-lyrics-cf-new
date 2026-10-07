@@ -108,7 +108,9 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         const content = <><time dateTime={cell.day}>{cell.number}</time>
           <span className="check-in-day-mark" aria-hidden="true">
             {cell.state === 'checked' ? <Icon name="check" size={14} /> : cell.isToday ? <Icon name="calendar" size={13} /> : cell.state === 'missed' ? '—' : '·'}
-          </span></>
+          </span>
+          <span className="sr-only">{t(`calendar.${cell.state}`)}</span>
+        </>
         return <td key={cell.day} title={label}>{cell.isToday && isCurrent
           ? <button type="button" className={className} data-day={cell.day} aria-current="date"
             aria-label={cell.state === 'checked' ? label : t('calendar.claimDay', { day: cell.label })}

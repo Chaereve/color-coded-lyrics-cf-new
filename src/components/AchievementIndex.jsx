@@ -63,7 +63,7 @@ export default function AchievementIndex({ metrics = {} }) {
                 <Icon name="close" size={15} />
               </button>
             </div>
-            <div className="modal-body ach-modal-body">
+            <div className="modal-body ach-modal-body" tabIndex={0} role="region" aria-label={t('ach.scrollRegion')}>
               <div className="achievement-grid-full">
                 {items.map(a => (
                   <article className={`achievement-card${a.earned ? ' earned' : ''}`} key={a.id}>
