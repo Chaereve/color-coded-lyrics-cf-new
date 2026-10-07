@@ -201,6 +201,7 @@ const S = {
   'err.spinEdgeFp': 'This browser has used its daily spins.',
   'err.spinEdgeIp': 'Too many browsers spun from this network today. Try again tomorrow.',
   'err.voteGate': 'Could not reach the vote service. Try again.',
+  'err.voteOutcomeUnknown': 'Couldn’t confirm whether your vote was recorded. Reload the page and check before trying again.',
   'err.voteFpLimit': 'This browser has used its 3 free votes today. Buy votes or come back tomorrow.',
   'err.voteEdgeFp': 'Too many vote requests from this browser today. Try again tomorrow.',
 
