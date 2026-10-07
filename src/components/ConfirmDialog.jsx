@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useI18n } from '../lib/i18n.jsx'
 import { useModalExit } from '../lib/useModalExit'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import Icon from './Icon'
 
 /* =========================================================
@@ -44,14 +45,13 @@ export default function ConfirmDialog({
     onConfirm?.()
   }
 
-  /* MỞ RA LÀ ĐÃ SẴN SÀNG BẤM: con trỏ rơi vào ô lý do (nếu có) hay nút xác
-     nhận. Không đặt vào nút nào thì người dùng bàn phím phải Tab một lượt mới
-     tới được việc mình vừa gọi ra. */
-  useEffect(() => {
-    if (!open) return
-    const el = reasonLabel ? reasonRef.current : okRef.current
-    el?.focus?.()
-  }, [open, reasonLabel])
+  /* MỞ RA LÀ ĐÃ SẴN SÀNG BẤM, VÀ TAB KHÔNG ĐI RA NGOÀI: con trỏ rơi vào ô lý do
+     (nếu có) hay nút xác nhận; đóng thì trả về nút đã gọi hộp này. Hộp này là
+     lớp phủ chặn cả trang, nên phần còn lại của trang phải ra ngoài tầm với của
+     bàn phím — đúng như `aria-modal` đã hứa (xem lib/useFocusTrap.js). */
+  useFocusTrap(panelRef, open, {
+    initial: () => (reasonLabel ? reasonRef.current : okRef.current),
+  })
 
   /* Esc để đóng, và Enter để xác nhận khi không có ô nhập. Có ô nhập thì Enter
      là xuống dòng — nhưng Ctrl/Cmd + Enter vẫn xác nhận, thói quen của người

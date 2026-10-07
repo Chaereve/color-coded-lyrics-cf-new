@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import GoogleIcon from './GoogleIcon'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import Icon from './Icon'
 import { signInGoogle, FREE_VOTES_PER_DAY, MAX_REQUESTS_PER_HOUR } from '../lib/db'
 import { TURNSTILE_SITE_KEY, loadTurnstile } from '../lib/turnstile'
@@ -38,6 +39,11 @@ export default function LoginGate({ onDemoLogin, onClose }) {
   const capBox = useRef(null)
   const capId = useRef(null)
   const goRef = useRef(null)
+  const panelRef = useRef(null)
+  /* Tab không đi ra sau lớp phủ. Tiêu điểm vào nút Đăng nhập Google — việc duy
+     nhất màn này tồn tại để làm; chưa có token thì nút đó tự khoá và tiêu điểm
+     rơi vào phần tử bấm được kế tiếp (xem lib/useFocusTrap.js). */
+  useFocusTrap(panelRef, true, { initial: () => (goRef.current && !goRef.current.disabled ? goRef.current : null) })
 
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY) return
@@ -98,7 +104,7 @@ export default function LoginGate({ onDemoLogin, onClose }) {
 
   return (
     <div className="gate-scrim" role="presentation" onMouseDown={close}>
-      <div className="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+      <div className="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title" ref={panelRef}>
         {onClose && (
           <button type="button" className="gate-x" onClick={onClose} aria-label={t('gate.close')} title={t('gate.close')}>
             <Icon name="close" size={15} />

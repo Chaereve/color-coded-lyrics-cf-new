@@ -637,7 +637,7 @@ export default function AdminPanel({
       {/* DẢI SỐ LIỆU — VỪA LÀ TỔNG QUAN, VỪA LÀ BỘ CHUYỂN MỤC.
           Ô đang mở được tô bằng đúng màu trạng thái của nó, nên "đang đứng ở
           đâu" và "mục này có bao nhiêu việc" đọc trong cùng một cái liếc. */}
-      <div className="adm-kpis" role="group" aria-label={t('adm.pageAria')}>
+      <div className="adm-kpis" role="group" aria-label={t('adm.kpisAria')}>
         {kpis.map(k => (
           <button key={k.k} type="button" className={`adm-kpi${tab === k.k ? ' on' : ''}`}
             style={{ '--sc': k.tone }} aria-pressed={tab === k.k} onClick={() => goTab(k.k)}>

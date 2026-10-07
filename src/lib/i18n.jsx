@@ -933,7 +933,13 @@ const S = {
   'gate.needSpin': 'Sign in to spin — two free spins a day, and the votes land on your account.',
 
   /* bang dieu hanh */
+  /* Tên cho cả trang quản trị… */
   'adm.pageAria': 'Admin workspace',
+  /* …và tên RIÊNG cho dải số liệu bên trong. Trước đây hai chỗ dùng chung một
+     câu: dải là con của trang, nên trình đọc màn hình vừa nghe tên trang vừa
+     nghe lại y hệt cho nhóm con — hai vùng khác nhau, một cái tên. Dải này vừa
+     là tổng quan vừa là bộ chuyển mục, nên tên nói đúng việc đó. */
+  'adm.kpisAria': 'Sections and their totals',
   'adm.funnelTitle': 'Community funnel · last 7 days',
   'adm.funnelSubtitle': 'Daily totals · aggregated, no names or device identifiers',
   'adm.funnelRefresh': 'Refresh',

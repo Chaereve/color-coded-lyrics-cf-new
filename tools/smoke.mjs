@@ -102,12 +102,16 @@ const { I18nProvider, errMsg, translate } = await server.ssrLoadModule('/src/lib
    của nó, chứ không ném lỗi giữa lượt. */
 const { FRAME_FADE = { top: 0, bottom: 0 } } = await server.ssrLoadModule('/src/lib/previewCap.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
+/* Toaster nằm trong main.jsx chứ không trong App, nên bản smoke trước đây không
+   có nó — nghĩa là kênh phản hồi chính của app (lưu xong, vote xong, lỗi mạng)
+   chưa từng được dựng trong lượt kiểm này. Dựng y như main.jsx. */
+const Toaster = (await server.ssrLoadModule('/src/components/Toaster.jsx')).default
 
 const container = window.document.getElementById('root')
 const root_ = createRoot(container)
 await act(async () => {
   root_.render(createElement(I18nProvider, null,
-    createElement(NotifyProvider, null, createElement(App))))
+    createElement(NotifyProvider, null, createElement(App), createElement(Toaster))))
 })
 
 const q = (sel) => window.document.querySelector(sel)
@@ -192,6 +196,12 @@ const tSplash = Date.now()
 const gone = await waitFor(() => { const s = q('.splash'); return !s || s.classList.contains('hide') }, 6000)
 realLog(`  · màn chờ vào trạng thái ẩn sau ${Date.now() - tSplash} ms: ${gone}`)
 check('màn chờ tự tan (không kẹt)', gone, gone ? '' : `vẫn còn hiện sau ${Date.now() - tSplash} ms`)
+
+/* THÔNG BÁO: vùng `aria-live` phải có mặt từ đầu, TRƯỚC mẩu tin nào. Trình đọc
+   màn hình chỉ đọc thay đổi bên trong một vùng live đã tồn tại — vùng được gắn
+   vào DOM cùng lúc với mẩu tin đầu tiên thì mẩu đó bị coi là nội dung nền. */
+check('vùng live của thông báo có mặt ngay từ đầu (tin đầu tiên sẽ được đọc)',
+  !!q('.toasts-live[aria-live]'), q('.toasts-live')?.getAttribute('aria-live'))
 
 const gate = qa('button').find(b => /Continue with Google/i.test(b.textContent || ''))
 if (gate) await click(gate)
@@ -652,6 +662,30 @@ if (addBtn) {
   }
   check('form request mở ra', !!q('.modal'))
   dump('form request', '.modal .req, .modal')
+  /* NHỐT TIÊU ĐIỂM (xem lib/useFocusTrap.js): đây là lớp phủ chặn cả trang, nên
+     `aria-modal="true"` phải đúng với bàn phím chứ không chỉ với chuột — mở ra
+     là tiêu điểm ở TRONG hộp, và Tab ở phần tử cuối quay về phần tử đầu. */
+  {
+    const dlg = q('.modal')
+    const inside = dlg && dlg.contains(window.document.activeElement)
+    check('mở form: tiêu điểm nằm TRONG hộp thoại', !!inside,
+      window.document.activeElement?.className || window.document.activeElement?.tagName)
+    const f = dlg ? [...dlg.querySelectorAll('button, [href], input, select, textarea')]
+      .filter(el => !el.disabled && el.tabIndex !== -1) : []
+    if (f.length > 1) {
+      f[f.length - 1].focus()
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+      check('Tab ở phần tử cuối quay về phần tử đầu của hộp',
+        window.document.activeElement === f[0],
+        window.document.activeElement?.className || window.document.activeElement?.tagName)
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+      check('Shift+Tab ở phần tử đầu nhảy xuống phần tử cuối của hộp',
+        window.document.activeElement === f[f.length - 1],
+        window.document.activeElement?.className || window.document.activeElement?.tagName)
+    } else {
+      check('hộp thoại có phần tử bấm được để nhốt tiêu điểm', false, `${f.length} phần tử`)
+    }
+  }
   /* FORM BA BƯỚC — mỗi bước là MỘT MÀN, không phải ba cái nhãn trên một cột
      dài: bước chưa tới thì phần thân của nó không được dựng ra. Đây là điều
      kiện để form ngắn lại, nên phải chốt. */
@@ -1013,6 +1047,16 @@ check('trang quản trị nằm trong .main', !!q('.main .adm-page'))
 check('trang quản trị nằm trong .sect', !!q('.sect .adm-page'))
 check('trang quản trị có tiêu đề trang (h1)', !!q('.mainhead-t'))
 check('có dải số liệu chuyển mục', qa('.adm-kpi').length >= 6, `${qa('.adm-kpi').length} ô`)
+/* HAI VÙNG KHÁC NHAU PHẢI CÓ HAI TÊN KHÁC NHAU: dải số liệu là con của trang
+   quản trị, dùng lại đúng câu của trang thì trình đọc màn hình nghe một cái tên
+   hai lần và không biết mình vừa vào vùng nào. */
+{
+  const pageLabel = q('.adm-page')?.getAttribute('aria-label') || ''
+  const kpiLabel = q('.adm-kpis')?.getAttribute('aria-label') || ''
+  check('dải số liệu có tên riêng, không lặp tên trang quản trị',
+    !!pageLabel && !!kpiLabel && pageLabel !== kpiLabel,
+    `trang="${pageLabel}" · dải="${kpiLabel}"`)
+}
 check('có thanh công cụ', !!q('.adm-bar'))
 /* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
    (Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ ở vòng 11.) */

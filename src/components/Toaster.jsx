@@ -84,8 +84,15 @@ export default function Toaster() {
     return () => window.removeEventListener('keydown', h)
   }, [items.length, onClose])
 
-  if (!items.length) return null
-
+  /* VÙNG LIVE PHẢI CÓ TRƯỚC NỘI DUNG.
+     Trình đọc màn hình chỉ đọc những THAY ĐỔI bên trong một vùng `aria-live`
+     đã tồn tại; nội dung được gắn kèm đúng lúc vùng đó vừa vào DOM thì bị coi
+     là nội dung nền — im lặng. Bản trước `return null` khi chưa có mẩu tin nào,
+     nên mẩu ĐẦU TIÊN (và với phần lớn người dùng, mẩu duy nhất) không được đọc
+     lên. Khung ngoài giờ luôn nằm trong DOM: CSS của `.toasts` là `position:
+     fixed` + `pointer-events: none`, rỗng thì không chiếm chỗ và không chặn
+     click, còn `.toasts-live { display: contents }` nên không thêm một tầng hộp
+     nào cho các mẩu tin. */
   return (
     <div className="toasts" role="region" aria-label={t('notif.region')}>
       <div className="toasts-live" aria-live="polite" aria-atomic="false">

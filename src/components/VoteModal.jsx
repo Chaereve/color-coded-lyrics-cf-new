@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { useModalExit } from '../lib/useModalExit'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { isPicked, kindCls } from '../lib/meta'
 import { warmCaptcha, warmFingerprint } from '../lib/spinShield.js'
@@ -27,6 +28,8 @@ export default function VoteModal({
   /* Trần số phiếu chọn được: số phiếu đang có, tối đa 100. Tính ở ĐẦU thân hàm
      vì bộ bắt phím ngay dưới cần nó — để cuối thì effect chạm vào biến chưa tới
      lượt khai báo và cả hộp vote ném lỗi ngay khi mở. */
+  const panelRef = useRef(null)
+  const qtyRef = useRef(null)
   const addMax = Math.max(1, Math.min(MAX, votesLeft))
 
   useEffect(() => {
@@ -63,6 +66,9 @@ export default function VoteModal({
   /* App xoá prop request ngay khi đóng — giữ bản chụp cuối để animation
      đóng còn có nội dung mà mờ đi (adjust state khi prop đổi, ngay trong render) */
   const { mounted, closing } = useModalExit(open)
+  /* Tab không được đi ra sau lớp phủ (xem lib/useFocusTrap.js). Tiêu điểm vào
+     ô nhập số phiếu — việc duy nhất người dùng mở hộp này để làm. */
+  useFocusTrap(panelRef, open, { initial: () => qtyRef.current })
   const [lastReq, setLastReq] = useState(request)
   if (open && request && request !== lastReq) setLastReq(request)
   const req = open ? request : lastReq
@@ -104,7 +110,7 @@ export default function VoteModal({
 
   return (
     <div className={`overlay vote-overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal narrow${out}`} role="dialog" aria-modal="true" aria-label={t('vote.dialogTitle')}>
+      <div className={`modal narrow${out}`} role="dialog" aria-modal="true" aria-label={t('vote.dialogTitle')} ref={panelRef}>
         <div className="modal-head">
           <div className="modal-tabs"><span className="mtab on">{t('vote.dialogTitle')}</span></div>
           <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
@@ -159,6 +165,7 @@ export default function VoteModal({
                     <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}
                       disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
                     <input id="vm-qty" type="number" min="1" max={MAX} value={qty} disabled={busy}
+                      ref={qtyRef}
                       aria-describedby="vm-after"
                       onChange={e => setQty(e.target.value)}
                       onBlur={() => setQty(q => Math.max(1, Math.min(MAX, Math.trunc(Number(q)) || 1)))}
