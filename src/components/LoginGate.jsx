@@ -129,9 +129,9 @@ export default function LoginGate({ onDemoLogin, onClose }) {
         </div>
       </div>
 
-      <div className="gate-credit">
+      <footer role="contentinfo" className="gate-credit">
         {t('foot.copy', { y: new Date().getFullYear() })}
-      </div>
+      </footer>
     </div>
   )
 }
