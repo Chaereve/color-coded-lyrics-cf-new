@@ -28,12 +28,16 @@ Product rules as shipped:
   hard pool reaches `min_hard_pool_to_enable`, default 30).
 - 1 correct answer = 1 bonus vote, wrong = 0, **hard cap 5 votes per user per
   quiz date**, enforced by `unique (user_id, quiz_date, question_id)`.
-- The automatic 3-free-votes/day grant is retired (`free_vote_grant_enabled =
-  false`), so quiz votes cannot stack with it; the switch is kept in
-  `public.daily_quiz_config`.
+- The automatic 3-free-votes/day grant is **live again** (`free_vote_grant_enabled
+  = true`, `free_votes_per_day = 3`, per Vietnamese day) after the reviewed
+  `20261124_restore_daily_free_votes` migration; both copies
+  (`public.daily_quiz_config` and the neutral `public.daily_vote_quota_config`)
+  must carry it, and the bonus wallet stays a separate column — spending order is
+  free → bonus → purchased.
 - **Daily login awards nothing.** The calendar, streak, best streak,
   lifetime count and monthly progress stay; the +2 votes are gone
-  (`20261118`). A check-in + five correct answers = 5 votes, never 7.
+  (`20261118`). A check-in + five correct answers = 5 bonus votes plus the 3 free
+  votes of the day (8 casts available); the check-in itself still awards nothing.
 
 Product rule this plan implements:
 

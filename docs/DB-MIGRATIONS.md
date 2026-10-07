@@ -203,6 +203,73 @@ hole: that needs separate approval.
 ---
 ---
 
+### 20261124 — daily free votes restored (3 per Vietnamese day)
+
+`20261124_restore_daily_free_votes.sql` fixes the reported "Free today 0 / 0".
+The engine for the daily quota already existed and was correct, but the live
+policy still carried the retired value `free_vote_grant_enabled = false`, so
+`daily_free_vote_grant()` returned 0 — and the panel, which renders
+`free_left / free_limit` from `public.my_vote_status()`, showed 0 / 0 while the
+bonus wallet (`profiles.bonus_credits`, a different column) was untouched.
+
+The file is config-only. It writes exactly two keys in both copies that must stay
+equal key for key — `public.daily_vote_quota_config` (what the vote functions
+read) and `public.daily_quiz_config` (the mirror 20261121 copied from, whose
+equality the 20261121 corrective rollback still verifies):
+
+- `free_vote_grant_enabled`: `false` → `true`
+- `free_votes_per_day`: `*` → `3`
+
+`global_daily_vote_cap_enabled` and `global_daily_vote_cap` are **not** changed.
+With the optional global cap on, the grant is
+`least(free_votes_per_day, cap - earned_today)`, so a cap that cannot leave 3 free
+votes after today's largest earning would silently deliver less. The file does not
+guess and does not touch the cap: it refuses to run in that case and leaves the
+policy decision to a reviewed change (one of the abort cases pinned by
+`supabase/tests/dailyFreeVotes.test.js`).
+
+Preflight (all reads; any failure aborts the whole transaction): the
+guarded-runner history exists and records 20261121 + 20261122 + 20261123 but not
+20261124; the neutral readers/writers exist and `daily_free_vote_grant()`,
+`my_vote_status()` and `cast_vote()` really read the neutral config; both copies
+hold all four keys with the expected JSON types and agree key for key; the
+free-vote guarantee holds under an enabled cap. The previous live values are
+recorded in the comment of `public.daily_vote_quota_config` (comments are
+metadata: no fingerprint, no ACL, no API surface), which is what makes the
+corrective rollback exact instead of a guess. The post-check re-reads both
+copies, calls the live formula for a fresh account **and** `my_vote_status()` for
+a real profile (the same call the browser makes), verifies the Daily Login claim
+path still writes no vote and the check-in immutability trigger is active, and
+re-compares every row count and both wallet sums in the same transaction.
+
+Nothing else moves: no wallet, vote row, check-in row, quiz row or neutral ledger
+row is written, and no function/table/index/policy/ACL is created or replaced —
+so `supabase/schema.sql` + `supabase/setup/01`–`16` stay exactly at baseline
+20261120 and `db:verify-baseline -- --baseline 20261120` still prints READY after
+the flip (the four live quota keys are deliberately outside the fingerprint
+comparison, see `LIVE_VOTE_QUOTA_CONFIG_KEYS`).
+
+Apply with the guarded runner, after the cutover chain:
+
+```sh
+SUPABASE_DB_URL='postgresql://…' npm run db:plan   -- --baseline 20261120
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120
+```
+
+Rollback is `supabase/rollback/20261124_restore_daily_free_votes.sql`: it
+restores exactly the recorded values (in production `false` + `3`, i.e. the
+retired grant) in both copies, clears the record so a second rollback aborts, and
+refuses to run when the target state is not live. Do not re-run 20261124 after a
+rollback — its own preflight refuses a recorded version; re-enabling the quota is
+a new forward migration.
+
+Tests: `supabase/tests/dailyFreeVotes.pglite.mjs` (no server needed,
+`npm run test:free-votes:pglite`) and `supabase/tests/dailyFreeVotes.test.js`
+(real PostgreSQL through `MIGRATION_DEPLOY_TEST_DATABASE_URL`, run by the DB
+migration safety workflow).
+
+---
+
 ## 3. The strategy chosen: quarantine (20261118 never runs) + guarded runner + clean fresh-install path
 
 1. **Quarantine (Option B).** The file moved out of the execution path:
@@ -277,7 +344,8 @@ SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117     
 
 `db:deploy` re-runs the readiness check inside the same invocation; it is not a
 separate step you can forget. Only when it passes does the runner write the
-baseline rows and apply `20261119` + `20261120` + `20261121` + `20261122`:
+baseline rows and apply every migration still pending after that baseline —
+today that is `20261119` … `20261124`:
 
 ```
 READY  baseline 20261117
@@ -288,6 +356,8 @@ apply 20261119  20261119_preserve_legacy_daily_login_rewards.sql
 apply 20261120  20261120_daily_login_reward_immutable.sql
 apply 20261121  20261121_vote_calendar_decoupling.sql
 apply 20261122  20261122_disable_daily_quiz_runtime.sql
+apply 20261123  20261123_reconcile_security_drift.sql
+apply 20261124  20261124_restore_daily_free_votes.sql
 ```
 
 `db:plan -- --baseline <version>` prints the same `skip …` lines plus a
@@ -334,7 +404,7 @@ Then verify the result instead of trusting it:
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261120   # must print READY
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records the verified baseline, then applies 20261121
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records the verified baseline, then applies 20261121 … 20261124
 ```
 
 The runner records the verified pre-cutover history and applies the guarded
@@ -346,7 +416,7 @@ migration. This path still never reaches the quarantined 20261118 migration.
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261118   # the incident state
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120 + 20261121
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120, then the cutover chain 20261121 … 20261124
 ```
 
 The report also tells you when a database you assumed was clean is not:
@@ -406,7 +476,7 @@ ignored rows separately.
 | 1 | `npm run backup:db` | backup file exists |
 | 2 | `npm run db:verify-baseline` (no `--baseline`) | identifies the mode |
 | 3 | `npm run db:verify-baseline -- --baseline <mode's version>` | prints `READY` |
-| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then fail-closed `20261121` |
+| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then the fail-closed `20261121` … `20261124` chain |
 | 5 | queries in section 6 | histogram unchanged, 0 reward CHECKs, 1 trigger |
 | 6 | deploy the frontend in the same release | — |
 
@@ -463,6 +533,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | 20261121 vote cutover needs a functional rollback | After separate approval and a compatible app release, run `supabase/rollback/20261121_vote_calendar_decoupling.sql`. It requires the recorded cutover state and exact agreement between live quota config, source awards and neutral ledger; on drift it aborts rather than restoring a stale quota. It restores the source-based vote functions and Quiz answer writer, but keeps neutral tables/data, grants/RLS and the Calendar-only API. The neutral ledger then remains an audit snapshot; future Quiz awards return to the source answer table. It does not DROP/CASCADE or change balances/history. Do not re-run 20261121; a later re-cutover needs a new reviewed migration. |
 | 20261122 quiz door must be reopened (coordinated frontend rollback) | After separate approval, run `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`. It restores `EXECUTE` to `authenticated` on the four entry points that had it, keeps the legacy single-shot closed, and aborts if the revoke is not the live state or the Calendar API is missing. It does not re-enable quiz awards or the route, and it touches no quiz row. |
 | 20261123 reconcile caused a regression | After separate approval, run `supabase/rollback/20261123_reconcile_security_drift.sql`. It restores the policy text, the `request_comments` ACL and the index definition recorded in the migration's own comment (the ACL never comes back wider than it was), re-grants the legacy `create_request` overload, and aborts unless the reconciled state is live. It reopens a weaker policy and a legacy function surface — only use it for a real incident, and prefer fixing forward with a new migration. |
+| 20261124 daily free votes must be retired again | After separate approval, run `supabase/rollback/20261124_restore_daily_free_votes.sql`. It restores exactly the policy recorded in the comment of `public.daily_vote_quota_config` (in production the retired `false` + `3`), in both config copies, and aborts unless the 20261124 state is live. It touches no wallet, vote row, check-in row or ledger row, and it clears the record so it cannot be replayed. Prefer fixing forward with a new migration; do not re-run 20261124. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |

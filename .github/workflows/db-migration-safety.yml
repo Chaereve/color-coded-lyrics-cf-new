@@ -59,6 +59,12 @@ jobs:
       - name: Tests (including the real-PostgreSQL migration and baseline suites)
         run: npm test
 
+      # Cùng file migration, nhưng trên engine thứ hai (PostgreSQL WASM trong
+      # PGlite): suite này không tự skip khi thiếu service, nên nó vẫn kiểm tra
+      # tiền kiểm/hậu kiểm và rollback ngay cả khi Postgres bên trên lỗi.
+      - name: Daily free votes on PGlite (second engine, no service needed)
+        run: npm run test:free-votes:pglite
+
       # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
       # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.
       # Chạy trên chính database throwaway ở trên, không đụng môi trường thật.

@@ -29,7 +29,7 @@ Giao diện tiếp tục dùng tiếng Anh như phần còn lại của app.
   - Máy chủ **tránh câu đã hỏi trong 90 ngày**, tối đa 2 câu/nghệ sĩ, ưu tiên ≥3 nghệ sĩ khác nhau, ≥1 câu profile và ≥1 câu lyrics, tối đa 1 câu đúng/sai và 1 câu `lyrics_keyword`, và không trùng bài/album/sự kiện trong cùng một vòng.
   - Dạng câu lấy cảm hứng từ các bộ K-pop phổ biến trên Sporcle ([danh sách thẻ Kpop Quiz](https://www.sporcle.com/games/tags/kpopquiz)): nhóm nam/nữ, ai là leader, ai là maknae, tên thật của idol, tên fandom, công ty/năm debut, và **điền tiếp tên bài hát**. Chỉ lấy ý tưởng định dạng; **toàn bộ câu hỏi được viết lại**, không copy nội dung của họ.
   - Giao diện: thẻ câu hỏi có nhãn loại, 4 đáp án dạng thẻ (A/B/C/D) **được xáo thứ tự ở client nhưng vẫn mang option id ổn định**, thanh bước 1–5 bấm được, phím **1–4** chọn, **←/→** chuyển câu, **Enter** nộp. **Nộp từng câu**: mỗi câu đúng **+1 bonus**, sai **+0**, trần **+5/ngày**. Câu đã nộp khoá lại và hiện đáp án đúng + giải thích ngay. Sau 5 câu: thẻ điểm, review từng câu và đếm ngược đến lượt mới.
-  - **Vote:** mỗi ngày một người chỉ nhận tối đa **5 vote từ quiz** (1 vote/đáp án đúng). Khoản **3 vote miễn phí tự động mỗi ngày đã tắt** (`free_vote_grant_enabled = false`), nên vote quiz không cộng dồn với nó; nếu cần bật lại, công tắc nằm trong `public.daily_quiz_config` cùng `global_daily_vote_cap_enabled`.
+  - **Vote:** mỗi ngày một người chỉ nhận tối đa **5 vote từ quiz** (1 vote/đáp án đúng). Khoản **3 vote miễn phí tự động mỗi ngày** (theo ngày Việt Nam) đã **bật lại theo quyết định có review** bằng migration `20261124_restore_daily_free_votes` (`free_vote_grant_enabled = true`, `free_votes_per_day = 3` ở **cả hai** bản config phải khớp nhau: `public.daily_vote_quota_config` và `public.daily_quiz_config`); 3 vote này **tách biệt** với ví bonus/purchased chứ không cộng dồn vào đó. Trần chung tuỳ chọn `global_daily_vote_cap_enabled` không bị migration này thay đổi.
 - Ngày mới bắt đầu lúc **00:00 Asia/Ho_Chi_Minh (GMT+7)**. Câu chưa nộp của ngày trước hết hạn. Vòng mới có thể gặp lại câu cũ.
 - Bonus cộng vào `profiles.bonus_credits`, **không** vào vote đã mua; dùng và hết hạn cuối tháng 10 theo luật ví đang có. Ledger nhận thưởng không bị xóa khi ví reset, nên reset ví không cho nhận lại thưởng đã lấy.
 - Tải lại trang giữ nguyên bộ câu hỏi. Lựa chọn đang làm lưu nháp theo tài khoản + ID lượt chơi trên trình duyệt (nếu storage được cho phép); đổi thiết bị vẫn có cùng câu hỏi nhưng phải chọn lại câu trả lời chưa nộp. Kết quả đã nộp lưu trên máy chủ.
@@ -88,7 +88,7 @@ Database mới dùng thêm các file setup `12-daily-quiz-schema.sql`, `13-daily
 | `repeat_cooldown_days` / `freshness_days` | `90` / `30` | Không lặp lại câu / hạn kiểm tra nguồn |
 | `min_quality_score` / `max_source_redirects` | `97` / `3` | Cửa chất lượng và link |
 | `daily_vote_cap` | `5` | Trần vote quiz mỗi ngày |
-| `free_vote_grant_enabled` | `false` | Khoá 3 vote miễn phí tự động |
+| `free_vote_grant_enabled` | `true` (từ 20261124) | 3 vote miễn phí/ngày VN, tách khỏi ví bonus |
 | `global_daily_vote_cap_enabled` / `global_daily_vote_cap` | `false` / `5` | (Tuỳ chọn) trần chung mọi nguồn vote |
 | `legacy_pool_enabled` | `false` | Ngân hàng legacy, luôn không được chọn |
 
@@ -125,7 +125,7 @@ Giá trị thiếu hoặc đọc không được luôn rơi về phía an toàn 
   - Cập nhật trường khác (vd. `created_at`) hoặc ghi lại chính giá trị cũ vẫn được phép — trigger không cản.
 - Vì chỉ chặn **thao tác ghi**, việc restore dữ liệu cũ có `reward = 2` vẫn được chấp nhận và không sinh vote.
 - Client không có đường ghi: RLS bật, không policy ghi, privilege đã revoke; migration **từ chối cài** nếu tồn tại policy INSERT/UPDATE/DELETE. `claim_daily_login` (security definer) là đường duy nhất.
-- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. `free_vote_grant_enabled` vẫn `false`.
+- Điểm danh **không** có điểm/XP/huy hiệu/badge/cột mới thay thế. Điểm danh cũng **không** cộng vote dù công tắc `free_vote_grant_enabled` đang bật (`true`, 3/ngày từ `20261124`): check-in chỉ ghi lịch sử (`reward = 0`).
 - **Không** thu hồi vote đã cấp: không migration nào trừ ví hay xoá ledger vote.
 - Payload RPC: `login.vote_reward = 0` (thay cho `login.reward = 2` cũ); `earned_today` chỉ tính vote của quiz. Frontend **từ chối** payload cũ còn báo `reward = 2`.
 

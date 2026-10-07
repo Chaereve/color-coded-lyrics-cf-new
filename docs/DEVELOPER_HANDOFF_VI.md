@@ -30,8 +30,11 @@ này cũng nằm ở `docs/DEVELOPER_HANDOFF_VI.md`.
 - **Câu hỏi cũ (legacy) không được vào vòng quiz có thưởng.** Câu chưa được kiểm
   chứng nguồn/không đạt chuẩn thì không xuất hiện; khi chưa có câu đủ điều kiện,
   giao diện phải hiển thị trạng thái “chưa có câu” chứ không phải lỗi.
-- Giữ nguyên `free_vote_grant_enabled = false`. Không thêm cột/tiền tệ/điểm/XP/
-  huy hiệu mới.
+- Chính sách vote: **3 vote miễn phí/ngày VN đã bật theo quyết định có review**
+  (`20261124_restore_daily_free_votes`: `free_vote_grant_enabled = true`,
+  `free_votes_per_day = 3`, cả hai bản config khớp nhau), vẫn tách khỏi ví bonus
+  (`profiles.bonus_credits`) và không cộng dồn vào đó. Không thêm cột/tiền tệ/
+  điểm/XP/huy hiệu mới.
 
 ### 2. Điều cấm tuyệt đối
 

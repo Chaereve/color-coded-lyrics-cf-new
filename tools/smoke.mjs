@@ -2175,9 +2175,38 @@ realLog('\n── daily quiz: dữ liệu còn nguyên, giao diện đã gỡ �
     && /v_awarded := case when v_correct and v_votes < v_cap then 1 else 0 end/.test(quizSql))
   check('daily quiz: đường nộp cũ không còn trả thưởng',
     /raise exception 'err\.dailyQuizRetired'/.test(quizSql))
-  check('daily quiz: 3 phiếu miễn phí tự động vẫn tắt (không bật trong PR này)',
+  /* Bản cài tay vẫn là baseline 20261120: seed trong chunk 12/schema.sql KHÔNG đổi
+     (đổi nó là đổi bundle, không phải đổi chính sách). Chính sách SỐNG được bật
+     bằng migration append-only 20261124 — hai điều đó phải cùng đúng. */
+  check('daily quiz: bundle vẫn seed 3 phiếu miễn phí ở trạng thái tắt (baseline 20261120 không đổi)',
     /\('free_vote_grant_enabled',\s+'false'\)/.test(quizSql)
     && /\('global_daily_vote_cap_enabled',\s+'false'\)/.test(quizSql))
+
+  const freeVotes = rd('../supabase/migrations/20261124_restore_daily_free_votes.sql')
+  const freeVotesRollback = rd('../supabase/rollback/20261124_restore_daily_free_votes.sql')
+  const code = (sql) => sql.replace(/--[^\n]*/g, '')
+  const freeVotesCode = code(freeVotes)
+  const freeVotesUpdates = freeVotesCode.match(/update\s+public\.daily_(vote_quota|quiz)_config\b[\s\S]*?;/gi) || []
+  check('free votes: 20261124 bật công tắc + đặt 3/ngày ở CẢ HAI bản config, đúng bốn câu UPDATE',
+    freeVotesUpdates.length === 4
+    && freeVotesUpdates.every(sql => /key = 'free_vote_grant_enabled' and value is distinct from 'true'::jsonb/.test(sql)
+      || /key = 'free_votes_per_day' and value is distinct from '3'::jsonb/.test(sql))
+    && freeVotesUpdates.every(sql => !/global_daily_vote_cap/.test(sql)))
+  check('free votes: 20261124 KHÔNG đụng trần chung, ví, lịch sử vote hay lịch điểm danh',
+    !/set value = [^;]*where key = 'global_daily_vote_cap/.test(freeVotesCode)
+    && !/update\s+public\.(profiles|votes|requests|daily_login_rewards|daily_quiz_answers|daily_vote_quota_earnings)\b/i.test(freeVotesCode)
+    && !/\binsert\s+into\b|\bdelete\s+from\b|\btruncate\b|\bdrop\b/i.test(freeVotesCode))
+  check('free votes: 20261124 không tạo/đổi hàm hay bảng — bundle và fingerprint giữ nguyên baseline 20261120',
+    !/create\s+(or\s+replace\s+)?(table|function|index|policy|trigger|view|type)\b/i.test(freeVotesCode)
+    && !/\balter\s+table\b/i.test(freeVotesCode))
+  check('free votes: 20261124 fail-closed (tiền kiểm/hậu kiểm) và ghi lại chính sách cũ để rollback',
+    /err\.dailyFreeVotesPreflight/.test(freeVotes)
+    && /err\.dailyFreeVotesState/.test(freeVotes)
+    && /previous live policy: /.test(freeVotes)
+    && /notify pgrst, 'reload schema';/.test(freeVotes)
+    && /previous live policy/.test(freeVotesRollback)
+    && /err\.dailyFreeVotesRollback/.test(freeVotesRollback)
+    && /does not record the previous live policy/.test(freeVotesRollback))
 
   /* Giao diện + đường gọi: quiz không còn ở đâu trong mã chạy được. */
   const gone = ['../src/components/DailyRewards.jsx', '../src/components/DailyRewards.test.js',
