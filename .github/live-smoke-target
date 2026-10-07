@@ -18,7 +18,11 @@
 # realtime nào nếu `hasSupabase` = false — mục "không có lỗi console" khi ấy đạt
 # vì chẳng có gì để CSP chặn, tức là XANH GIẢ, không nói được CSP đúng hay sai.
 #
-# Đang smoke: nhánh này, bản preview mới nhất của Cloudflare Pages (URL alias của
-# nhánh, luôn trỏ tới deployment vừa dựng — không dùng URL theo commit vì phải
-# chờ deploy xong mới biết).
-https://arena-2064073f-color-coded-l.chaereve.pages.dev
+# Đang smoke: PRODUCTION. PR #31 đã merge (main = 29bab9c) và Cloudflare Pages đã
+# deploy xong, nên đây là lượt kiểm tra quyết định: đúng bản deploy mà lượt chạy
+# ngày 2026-10-06 trả về 32/34 (hai mục console đỏ vì CSP chặn wss).
+# Preview của nhánh KHÔNG dùng được cho việc này: lượt chạy trước chứng minh bản
+# preview không có VITE_SUPABASE_* (bundle index-C2WECgEb.js không chứa host
+# *.supabase.co nào) nên app ở chế độ demo, không mở WebSocket nào — smoke trên
+# đó xanh mà không nói được gì.
+https://chaereve.pages.dev
