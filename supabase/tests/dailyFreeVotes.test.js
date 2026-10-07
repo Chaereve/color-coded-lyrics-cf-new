@@ -71,15 +71,25 @@ async function postCutoverState (pool, client) {
   }
 }
 
-/** Row counts and both wallet sums: the "only config moved" view. */
-const snapshot = async pool => (await pool.query(`
-  select (select count(*)::int from public.profiles)                    as profiles,
-         (select count(*)::int from public.votes)                       as votes,
-         (select count(*)::int from public.daily_login_rewards)         as checkins,
-         (select count(*)::int from public.daily_vote_quota_earnings)   as ledger,
-         (select count(*)::int from public.daily_quiz_answers)          as quiz_answers,
-         (select coalesce(sum(vote_credits), 0)::int from public.profiles)  as vote_credits,
-         (select coalesce(sum(bonus_credits), 0)::int from public.profiles) as bonus_credits`)).rows[0]
+/** Row counts and both wallet sums: the "only config moved" view.
+ *  `ledger` is null while public.daily_vote_quota_earnings does not exist yet:
+ *  the fresh 20261120 bundle predates 20261121, which is the migration that
+ *  creates it, so the fresh-install case has no ledger to count. */
+const snapshot = async pool => {
+  const row = (await pool.query(`
+    select (select count(*)::int from public.profiles)                    as profiles,
+           (select count(*)::int from public.votes)                       as votes,
+           (select count(*)::int from public.daily_login_rewards)         as checkins,
+           (select count(*)::int from public.daily_quiz_answers)          as quiz_answers,
+           (select coalesce(sum(vote_credits), 0)::int from public.profiles)  as vote_credits,
+           (select coalesce(sum(bonus_credits), 0)::int from public.profiles) as bonus_credits`)).rows[0]
+  const exists = (await pool.query(
+    "select to_regclass('public.daily_vote_quota_earnings') is not null as ok")).rows[0].ok
+  const ledger = exists
+    ? (await pool.query('select count(*)::int as n from public.daily_vote_quota_earnings')).rows[0].n
+    : null
+  return { ...row, ledger }
+}
 
 /** Both config copies, the four quota keys only. */
 const quotaOf = async pool => (await pool.query(`
@@ -215,15 +225,33 @@ test('the 3 free votes are spendable per Vietnamese day, additive to bonus and i
         assert.deepEqual(await walletOf(pool, userId), { vote_credits: 7, bonus_credits: 4 },
           'the daily quota is spent before any wallet')
         assert.equal((await statusOf(client, userId)).free_used, 3)
+        const spent = await statusOf(client, userId)
+        assert.deepEqual({ free_left: spent.free_left, bonus: spent.bonus, purchased: spent.purchased },
+          { free_left: 0, bonus: 4, purchased: 7 }, 'the quota is used up and the bonus wallet is untouched')
         await cast(1)
         assert.deepEqual(await walletOf(pool, userId), { vote_credits: 7, bonus_credits: 3 }, 'then bonus')
+        await cast(3)
+        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 7, bonus_credits: 0 })
         await cast(1)
-        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 6, bonus_credits: 3 }, 'purchased last')
+        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 6, bonus_credits: 0 }, 'purchased last')
 
-        /* Refunding a free vote clears the free rows; it never becomes a credit. */
+        /* Refunds return to the wallet kinds they came from; a free vote was never
+           a wallet balance, so deleting the free rows simply gives that Vietnam day
+           its quota back. */
+        await cast(-8)
+        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 7, bonus_credits: 4 },
+          'the wallet is whole again after the refund')
+        const refunded = await statusOf(client, userId)
+        assert.deepEqual({ free_used: refunded.free_used, free_left: refunded.free_left },
+          { free_used: 0, free_left: 3 }, 'the same Vietnam day gets its 3 free votes back')
+        /* Only free rows exist now, so the second refund can only be a wallet no-op. */
+        await cast(3)
         await cast(-3)
-        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 6, bonus_credits: 3 })
-        assert.equal((await statusOf(client, userId)).free_used, 0, 'the refund removed the free rows only')
+        assert.deepEqual(await walletOf(pool, userId), { vote_credits: 7, bonus_credits: 4 },
+          'deleting free rows moves no wallet balance')
+        const secondRefund = await statusOf(client, userId)
+        assert.deepEqual({ free_used: secondRefund.free_used, free_left: secondRefund.free_left },
+          { free_used: 0, free_left: 3 }, 'free votes are not refunded into a wallet')
       })
     })
 
@@ -295,7 +323,10 @@ test('the guarded runner applies it on the fresh-install path and the 20261120 b
       assert.equal(await grantOf(pool, userId, d), 3, 'after the documented deploy path the daily quota is live')
       const fixed = await statusOf(client, userId)
       assert.deepEqual({ free_used: fixed.free_used, free_limit: fixed.free_limit }, { free_used: 0, free_limit: 3 })
-      assert.deepEqual(await snapshot(pool), before, 'the deploy moved no wallet and wrote no vote')
+      const after = await snapshot(pool)
+      assert.equal(after.ledger, 0, 'the deploy created the earnings ledger, empty')
+      assert.deepEqual({ ...after, ledger: before.ledger }, before,
+        'the deploy moved no wallet and wrote no vote')
 
       /* Config values are deliberately outside the fingerprint comparison
          (LIVE_VOTE_QUOTA_CONFIG_KEYS), so a post-20261124 database is still the
@@ -322,7 +353,8 @@ test('Daily Login still awards nothing while the 3 free votes per day are on',
         'select public.claim_daily_login_calendar($1::date)::text as r', [d])).rows[0].r)
       assert.equal(claim.replayed, false)
       assert.equal(claim.status.login.claimed, true)
-      assert.equal(claim.status.login.vote_reward, 0, 'a check-in pays no votes')
+      assert.equal(Object.keys(claim.status.login).some(key => /reward|vote|credit/i.test(key)), false,
+        'the calendar payload has no vote/credit reward field at all')
       assert.deepEqual(await walletOf(pool, userId), walletBefore, 'a check-in pays no bonus either')
       assert.equal((await statusOf(client, userId)).free_limit, 3, 'a check-in does not change the daily quota')
       assert.equal((await pool.query('select count(*)::int as n from public.daily_vote_quota_earnings')).rows[0].n, 0,
@@ -341,22 +373,22 @@ test('unknown states abort before the switch is flipped', { skip: !url, timeout:
   const cases = [
     ['the two config copies drifted apart', async pool => {
       await pool.query("update public.daily_quiz_config set value = '5'::jsonb where key = 'free_votes_per_day'")
-    }, /err\.dailyFreeVotesPreflight: the two quota config copies differ/],
+    }, /err\.dailyFreeVotesPreflight: the two live quota config copies differ/],
     ['a quota key is missing from one copy', async pool => {
       await pool.query("delete from public.daily_quiz_config where key = 'global_daily_vote_cap'")
-    }, /err\.dailyFreeVotesPreflight: source quota config is incomplete \(daily_quiz_config\)/],
+    }, /err\.dailyFreeVotesPreflight: the source quota config is incomplete \(daily_quiz_config\)/],
     ['the global cap cannot leave 3 free votes for today\'s largest earner', async pool => {
       await setLivePolicy(pool, [false, 3, true, 2])
-    }, /err\.dailyFreeVotesPreflight: global_daily_vote_cap_enabled is on and global_daily_vote_cap \(2\) minus the largest same-day earning \(0\) leaves fewer than 3 free votes/],
+    }, /err\.dailyFreeVotesPreflight: global_daily_vote_cap_enabled is on and global_daily_vote_cap \(2\) minus the largest earning recorded for today \(0\) leaves fewer than 3 free votes/],
     ['today\'s largest earner already ate the cap', async pool => {
       await setLivePolicy(pool, [false, 3, true, 5])
       await pool.query(`insert into public.daily_vote_quota_earnings (source, user_id, vote_day, source_key, amount)
                         values ('daily_quiz', $1, $2, 'probe', 3)`, [randomUUID(), (await dayOf(pool)).d])
-    }, /err\.dailyFreeVotesPreflight: global_daily_vote_cap_enabled is on and global_daily_vote_cap \(5\) minus the largest same-day earning \(3\) leaves fewer than 3 free votes/],
+    }, /err\.dailyFreeVotesPreflight: global_daily_vote_cap_enabled is on and global_daily_vote_cap \(5\) minus the largest earning recorded for today \(3\) leaves fewer than 3 free votes/],
     ['the live grant no longer reads the neutral config', async pool => {
       await pool.query(`create or replace function public.daily_free_vote_grant(p_uid uuid, p_day date)
         returns integer language sql stable security definer set search_path = public as $$ select 0 $$`)
-    }, /err\.dailyFreeVotesPreflight: daily_free_vote_grant does not read the neutral quota config/],
+    }, /err\.dailyFreeVotesPreflight: daily_free_vote_grant\(\) does not evaluate the neutral quota config/],
     ['a cutover row is missing from the history', async pool => {
       await pool.query("delete from supabase_migrations.schema_migrations where version = '20261122_disable_daily_quiz_runtime'")
     }, /err\.dailyFreeVotesPreflight: required migration state missing \(20261122_disable_daily_quiz_runtime\|20261122\)/],
@@ -376,8 +408,9 @@ test('unknown states abort before the switch is flipped', { skip: !url, timeout:
            to it either. */
         const damagedQuota = await quotaOf(pool)
         const damaged = await snapshot(pool)
+        const damagedHistory = await readHistory(client)
         await expectFailure(client, MIGRATION.sql, pattern)
-        assert.equal((await readHistory(client)).includes(MIGRATION_ID), false,
+        assert.deepEqual(await readHistory(client), damagedHistory,
           'a refused migration writes no history row')
         assert.deepEqual(await quotaOf(pool), damagedQuota,
           'a refused migration writes no config value — the file never half-applies')
