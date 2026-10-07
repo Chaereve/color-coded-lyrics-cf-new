@@ -1,11 +1,13 @@
-/* Cổng Edge (Pages Function /api/vote và /api/daily-spin) là đường ưu tiên.
-   Khi cổng không chạy — trang bảo trì HTML, mất mạng trước khi có phản hồi,
-   hoặc 5xx vì thiếu secret — phiếu/lượt quay phải đi thẳng RPC. Từ chối thật
-   (hết vote, captcha, khoá Up next, hạn mức vân tay) KHÔNG được rơi xuống RPC:
-   đó là cách đi vòng Turnstile. Timeout cũng không rơi xuống: request có thể
-   đã ghi phiếu, gọi lại là cộng đôi. */
+/* Edge fallback policy.
+   Spin requests carry a stable request ID, and the database replays a committed
+   spin without awarding it twice, so `gateShouldFallback` remains suitable for
+   that path. Votes do not yet have an operation ID: only `voteGateShouldFallback`
+   may route a vote directly, and only when the response proves the RPC was not
+   reached. Network failures and generic 5xx responses are ambiguous and must
+   never trigger a second, non-idempotent vote call. */
 
 const SETUP = new Set(['err.voteGate', 'err.spinGate', 'err.spinSetup'])
+const VOTE_PRE_RPC_SETUP = new Set(['err.voteGate'])
 
 export function gateErrorKey(payload) {
   if (!payload || typeof payload !== 'object') return ''
@@ -14,7 +16,7 @@ export function gateErrorKey(payload) {
   return ''
 }
 
-/* true = cổng không xử lý được lượt này, gọi thẳng RPC vẫn an toàn. */
+/* Shared by the idempotent Daily Spin path. */
 export function gateShouldFallback({ status = 0, contentType = '', payload = null, network = false } = {}) {
   if (network) return true
   const type = String(contentType || '').toLowerCase()
@@ -25,4 +27,15 @@ export function gateShouldFallback({ status = 0, contentType = '', payload = nul
     return !key || SETUP.has(key)
   }
   return false
+}
+
+/* A vote may fall back only on positive evidence that no vote RPC was run:
+   - a 200 HTML document is the Pages/Vite SPA fallback, not the JSON Worker;
+   - 503 err.voteGate is the Worker setup guard, which runs before the RPC.
+   All network failures and other 5xx responses have an unknown outcome. */
+export function voteGateShouldFallback({ status = 0, contentType = '', payload = null, network = false } = {}) {
+  if (network) return false
+  const type = String(contentType || '').toLowerCase()
+  if (status === 200 && type.includes('text/html')) return true
+  return status === 503 && VOTE_PRE_RPC_SETUP.has(gateErrorKey(payload))
 }

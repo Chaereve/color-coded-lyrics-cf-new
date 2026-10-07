@@ -5,7 +5,7 @@ import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
 import { getSpinDevice, withSpinLock } from './spinDevice'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken } from './spinShield'
 import { TURNSTILE_SITE_KEY } from './turnstile'
-import { gateShouldFallback } from './gateFallback.js'
+import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
 import { vnDayKey } from './season.js'
@@ -1085,23 +1085,36 @@ async function castVoteViaGate(id, delta) {
         turnstile_token: captchaToken, user_token: userToken,
       }),
     })
-  } catch (e) {
-    // Hết giờ: cổng có thể đã ghi phiếu. Không gọi RPC lần hai.
-    if (e?.name === 'AbortError') throw appError('err.voteGate')
-    throw Object.assign(appError('err.voteGate'), { gateDown: true })
+  } catch {
+    // A rejected fetch cannot tell us whether the Worker committed before its
+    // response was lost. Do not repeat a non-idempotent vote through PostgREST.
+    throw appError('err.voteOutcomeUnknown')
   } finally { clearTimeout(timeout) }
 
   const contentType = response.headers.get('content-type') || ''
   let data = null
   try { data = await response.json() } catch { data = null }
-  /* HTML bảo trì / SPA fallback / 503 thiếu secret: phiếu chưa được ghi.
-     gateDown để castVote gọi thẳng RPC thay vì báo "không tới được service". */
-  if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+  /* Only known pre-RPC failures may use the direct path. A timeout, network
+     failure, or generic 5xx can follow a committed database write, so surface
+     an explicit "check before retrying" error instead of issuing another vote. */
+  if (voteGateShouldFallback({ status: response.status, contentType, payload: data })) {
     throw Object.assign(appError('err.voteGate'), { gateDown: true })
   }
-  if (!response.ok) throw gateError(data, 'err.voteGate')
+  if (!response.ok) {
+    const key = typeof data?.error === 'string' ? data.error : data?.message
+    // The D1 shield fails before the RPC. Other 5xx responses may be returned
+    // after an upstream call and therefore have an unknown mutation outcome.
+    if (response.status >= 500
+      && !(response.status === 503 && key === 'err.shieldUnavailable')) {
+      throw appError('err.voteOutcomeUnknown')
+    }
+    throw gateError(data, 'err.voteGate')
+  }
   const r = Array.isArray(data) ? data[0] : data
-  return { myVotes: r?.my_votes ?? 0 }
+  if (!Number.isInteger(r?.my_votes) || r.my_votes < 0) {
+    throw appError('err.voteOutcomeUnknown')
+  }
+  return { myVotes: r.my_votes }
 }
 
 async function castVoteDirect(id, delta) {
@@ -1176,8 +1189,8 @@ export async function castVote(id, delta = 1) {
       trackFunnel('vote', { n: Math.abs(Math.trunc(delta)) })
       return r
     } catch (e) {
-      // Cổng chết (trang bảo trì HTML, thiếu secret, mạng đứt trước phản hồi)
-      // thì phiếu vẫn phải vào. Từ chối thật (hết vote, captcha, đã chốt) thì không.
+      // Fall back only when the gateway explicitly proves it never reached SQL.
+      // Unknown outcomes (network/timeout/5xx) must be checked before retrying.
       if (!e?.gateDown) throw e
     }
   }
