@@ -125,7 +125,7 @@ function RewardsModal({ open, onClose }) {
   )
 }
 
-export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null, votesLog = [] }) {
+export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null, votesLog = [], loading = false }) {
   const { t } = useI18n()
   const [sort, setSort] = useState(SORTS[0])
   const [rewardsOpen, setRewardsOpen] = useState(false)
@@ -157,7 +157,13 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
     period === 'all' ? null : t('rank.votesNote'),
   ].filter(Boolean).join(' · ')
 
-  const isEmpty = !ranked.length
+  /* ĐANG TẢI vs RỖNG THẬT. Bảng này chỉ là một cách NHÌN cùng dữ liệu của
+     bảng request, nên khi bảng còn đang nạp (lần đầu, hoặc sau khi mất mạng
+     rồi được kéo lại) nó từng in thẳng "No data yet." — một câu SAI: dữ liệu
+     đang tới, không phải không có. Chỉ hiện xương khi thật sự chưa có dòng
+     nào để vẽ; đã có số rồi thì mọi lần làm mới đều im lặng. */
+  const showSkeleton = loading && !ranked.length
+  const isEmpty = !showSkeleton && !ranked.length
 
   return (
     <div className="lb" data-reveal>
@@ -204,7 +210,19 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         </div>
       )}
 
-      {!isEmpty && (
+      {showSkeleton && (
+        <div className="sklist" role="status" aria-label={t('board.loading')}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <div className="skrow" key={i} style={{ '--i': i }} aria-hidden="true">
+              <span className="sk sk-l1" />
+              <span className="sk sk-l2" />
+              <span className="sk sk-vote" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isEmpty && !showSkeleton && (
         <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>
           {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
             <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} max={max} sort={sort} period={period} />
@@ -251,7 +269,7 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
 
       <Pager {...pg} onChange={pg.setPage} scrollTo={tableRef} />
 
-      {!isEmpty && <div className={`lb-me${me ? ' has' : ''}`}>
+      {!isEmpty && !showSkeleton && <div className={`lb-me${me ? ' has' : ''}`}>
         {me ? (
           <>
             <span className="lb-me-rk">{me.place}</span>

@@ -24,6 +24,7 @@ import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
 import Comments from './components/Comments'
 import PublicProfile from './components/PublicProfile'
+import LoadErr from './components/LoadErr'
 import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
@@ -220,21 +221,6 @@ function ListSkeleton({ n = 4, label }) {
           <span className="sk sk-vote" />
         </div>
       ))}
-    </div>
-  )
-}
-
-/* Lỗi: nói thẳng là không tải được (không phải "chưa có bài"), và cho nút. */
-function LoadErr({ onRetry }) {
-  const { t } = useI18n()
-  return (
-    <div className="empty load-err" role="alert">
-      <span className="empty-ico" aria-hidden="true"><Icon name="warn" size={18} /></span>
-      <b>{t('board.loadErr')}</b>
-      <small>{t('board.loadErrHint')}</small>
-      <div className="empty-acts">
-        <button type="button" className="btn btn-sm btn-primary" onClick={onRetry}>{t('board.retry')}</button>
-      </div>
     </div>
   )
 }
@@ -511,6 +497,10 @@ function AppInner() {
   }
   const [orders, setOrders] = useState([])
   const [media, setMedia] = useState([])
+  /* Ba trạng thái cho dải video, cùng luật với bảng (`noteBoard`): lỗi khi
+     ĐÃ có dữ liệu cũ thì giữ nguyên dữ liệu cũ và KHÔNG hiện bảng lỗi —
+     nội dung đang xem không được biến mất vì một lần làm mới hỏng. */
+  const [mediaState, setMediaState] = useState('loading')
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
   const [hallVideo, setHallVideo] = useState(null)
 
@@ -963,7 +953,11 @@ function AppInner() {
   }, [user?.id])
 
   const loadMedia = useCallback(async () => {
-    try { setMedia(await fetchMedia()) } catch { /* ignore */ }
+    const note = (ok) => setMediaState(s => (ok || s !== 'ready' ? (ok ? 'ready' : 'error') : s))
+    try {
+      setMedia(await fetchMedia())
+      note(true)
+    } catch { note(false) }
   }, [])
   useEffect(() => { loadMedia() }, [loadMedia])
 
@@ -2024,8 +2018,8 @@ function AppInner() {
               <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} why={t('stat.completedWhy')} />
             </div>
 
-            <MediaShowcase featured={featured} videos={latest}
-              canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} />
+            <MediaShowcase featured={featured} videos={latest} state={mediaState}
+              canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} onRetry={loadMedia} />
 
             {(weeklyHighlights.top || weeklyHighlights.newcomer || weekRecap.completed.length > 0) && (
               <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
@@ -2446,7 +2440,8 @@ function AppInner() {
                 lỗi nạp phải hiện ở đây luôn: không có nó thì người dùng mở
                 /ranking thấy một danh sách trống và không một lời giải. */}
             {boardState === 'error' && <LoadErr onRetry={reloadBoard} />}
-            <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id} votesLog={votesLog} />
+            <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id}
+              votesLog={votesLog} loading={boardState === 'loading'} />
           </>
         )}
 

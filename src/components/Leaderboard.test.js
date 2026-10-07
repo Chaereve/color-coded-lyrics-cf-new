@@ -248,3 +248,29 @@ test('bảng trống: GIỮ cả tab mùa và viên thuốc sắp xếp để c�
   assert.ok(/lb-seg" role/.test(html), 'bảng trống vẫn phải hiện nhóm viên thuốc sắp xếp')
   assert.match(html, /No requests yet this week/)
 })
+
+/* ĐANG TẢI ≠ RỖNG. Bảng xếp hạng là một cách NHÌN cùng dữ liệu của bảng
+   request, nên khi bảng còn đang nạp nó từng in thẳng "No data yet." — một
+   câu nói sai về dữ liệu đang tới. Bài này chốt: có `loading` thì hiện khối
+   xương, không có câu rỗng; và khi ĐÃ có số thì lần làm mới không được dựng
+   xương đè lên số đang xem. */
+test('đang tải: khối xương, không nói "No data yet."', async () => {
+  const html = await render({ rows: [], meId: 'me', loading: true })
+  assert.match(html, /role="status"/, 'thiếu vùng trạng thái cho trình đọc màn hình')
+  assert.match(html, /sklist/, 'thiếu khối xương')
+  assert.ok(!html.includes('No data yet.'), 'đang tải mà đã nói "chưa có dữ liệu"')
+})
+
+test('đang tải nhưng đã có số: giữ nguyên bảng, không dựng xương', async () => {
+  const html = await render({ rows, meId: 'me', loading: true })
+  assert.ok(!html.includes('sklist'), 'có dữ liệu rồi thì không được thay bằng xương')
+  assert.match(html, /lb-rule/)
+  assert.ok(html.includes('lb-me has'), 'hàng của chính người xem vẫn phải còn')
+})
+
+test('tải xong mà rỗng: câu rỗng theo kỳ vẫn hiện như cũ', async () => {
+  const html = await render({ rows: [], meId: 'me', loading: false })
+  assert.ok(!html.includes('sklist'), 'không tải nữa thì không được để lại xương')
+  assert.ok(!html.includes('No data yet.') || /rank\.empty|No data yet/.test(html), 'nhánh rỗng phải có câu')
+  assert.match(html, /lb-periodseg/)
+})

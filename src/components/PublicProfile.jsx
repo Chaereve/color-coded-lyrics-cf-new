@@ -8,6 +8,7 @@ import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
+import LoadErr from './LoadErr'
 import { statusLabel } from '../lib/meta'
 
 /* =========================================================
@@ -25,7 +26,7 @@ import { statusLabel } from '../lib/meta'
        đúng chữ mà hàng trên bảng nói.
    ========================================================= */
 
-export default function PublicProfile({ userId, onBack }) {
+export default function PublicProfile({ userId, onBack, fetchers = null }) {
   const { t } = useI18n()
   const nav = useNav()
   const back = onBack || nav.closeProfile
@@ -33,7 +34,14 @@ export default function PublicProfile({ userId, onBack }) {
      `userId` thì nghĩa là đang tải — kể cả khi chuyển sang xem người khác.
      Bản cũ cần `setLoading(true)` ngay trong effect, mà setState đồng bộ trong
      effect là một lượt render thừa (lint `react(set-state-in-effect)`). */
-  const [loaded, setLoaded] = useState({ id: null, profile: null })
+  /* `loaded` chở cả ba thứ: của AI, hồ sơ (hoặc null), và CÓ LỖI hay không.
+     Trước đây chỉ có hai trạng thái nên mọi lỗi (mất mạng, 5xx, phiên hết
+     hạn) đều rơi vào nhánh "không có hồ sơ" và in "Profile not found." —
+     người dùng kết luận sai về người kia, và không có nút nào để thử lại. */
+  const [loaded, setLoaded] = useState({ id: null, profile: null, error: false })
+  /* `attempt` chỉ để THỬ LẠI: tăng lên là effect dưới chạy lại. Không có nó
+     thì khối lỗi là đường cụt. */
+  const [retry, setRetry] = useState(0)
   const [shared, setShared] = useState(false)
   /* Dấu ngày hoạt động cho dải streak: tải SONG SONG với hồ sơ chứ không nối
      tiếp — thêm một round-trip vào chuỗi sẽ kéo dài màn "Loading profile…".
@@ -47,14 +55,15 @@ export default function PublicProfile({ userId, onBack }) {
 
   useEffect(() => {
     let live = true
-    fetchPublicProfile(userId)
-      .then(profile => { if (live) setLoaded({ id: userId, profile }) })
-      .catch(() => { if (live) setLoaded({ id: userId, profile: null }) })
-    fetchPublicStreak(userId)
+    const api = fetchers || { profile: fetchPublicProfile, streak: fetchPublicStreak }
+    api.profile(userId)
+      .then(profile => { if (live) setLoaded({ id: userId, profile: profile || null, error: false }) })
+      .catch(() => { if (live) setLoaded({ id: userId, profile: null, error: true }) })
+    api.streak(userId)
       .then(stats => { if (live) setAct({ id: userId, stats }) })
       .catch(() => { if (live) setAct({ id: userId, stats: null }) })
     return () => { live = false }
-  }, [userId])
+  }, [userId, fetchers, retry])
 
   const loading = loaded.id !== userId
   const profile = loading ? null : loaded.profile
@@ -98,6 +107,16 @@ export default function PublicProfile({ userId, onBack }) {
   const shareUrl = () => absolute(profileUrl(userId))
 
   if (loading) return <div className="public-profile empty" role="status">Loading profile…</div>
+  /* Lỗi mạng KHÁC "người này không tồn tại": một câu là việc phải thử lại,
+     một câu là sự thật về hồ sơ. Gộp hai câu làm một là nói sai về người kia. */
+  if (loaded.error) {
+    return (
+      <section className="public-profile" data-reveal>
+        <LoadErr onRetry={() => setRetry(n => n + 1)}
+          titleKey="load.err" bodyKey="load.errHint" retryKey="load.retry" />
+      </section>
+    )
+  }
   if (!profile) return <div className="public-profile empty" role="status">Profile not found.</div>
 
   return <section className="public-profile" data-reveal>

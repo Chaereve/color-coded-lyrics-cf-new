@@ -213,6 +213,20 @@ where = 'sidebar'
      lại một thẻ rỗng (bảng xếp hạng cố ý không có dòng phụ). */
   const sub = q('.mainhead-sub')
   check('trang chủ có dòng phụ dưới tiêu đề', !!sub, sub?.textContent)
+
+  /* DẢI VIDEO TRANG CHỦ — ba trạng thái phải nói ba câu khác nhau (audit
+     07/10/2026: lỗi mạng từng hiện thành "chưa có video nào"). Sau khi nạp
+     xong thì phải thấy NỘI DUNG: còn khối xương nghĩa là kẹt ở "đang tải",
+     còn bảng lỗi nghĩa là nhánh lỗi bị chọn nhầm khi dữ liệu đã về. */
+  const mediaLoaded = await waitFor(
+    () => !!q('#home-media .pick-stage') || !!q('#home-media .channel-state'), 5000)
+  const mediaErr = !!q('#home-media [role="alert"]')
+  const mediaSk = !!q('#home-media .sklist')
+  check('dải video trang chủ nạp xong, có nội dung và không kẹt ở khối lỗi/xương',
+    mediaLoaded && !mediaErr && !mediaSk,
+    !mediaLoaded ? 'không thấy #home-media có nội dung sau 5s'
+      : mediaErr ? 'còn [role="alert"] dù dữ liệu đã về'
+        : mediaSk ? 'còn .sklist dù dữ liệu đã về' : '')
 }
 
 /* ---------- 4c. KHÁCH CHƯA ĐĂNG NHẬP (vòng 23) ----------
@@ -814,6 +828,10 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
       !!q('.daily-claim') && !q('.daily-spin') && !/quiz/i.test(text()))
   }
   if (name === 'Xếp hạng') {
+    /* Khối xương của bảng xếp hạng là trạng thái ĐANG TẢI — nó phải tự rời
+       đi khi dữ liệu đã về; nằm lại là bảng nói dối về chính nó. */
+    check('bảng xếp hạng không kẹt ở khối xương sau khi nạp xong',
+      !q('.lb .sklist') && !!q('.lb-periodseg'))
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
     /* Câu luật KHÔNG còn vế "· ties go to …" (vòng 12) — vế đó vừa dài vừa lặp
        lại điều bảng đã nói bằng số. */

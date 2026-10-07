@@ -397,6 +397,13 @@ const S = {
   'board.loadErr': 'Could not load the board',
   'board.loadErrHint': 'The connection dropped on the way. Press the button to try again — it retries on its own too, so there is no need to reload the page.',
   'board.retry': 'Try again',
+  /* Câu lỗi DÙNG CHUNG cho những vùng không phải bảng: dải video, trang cá
+     nhân công khai, bảng xếp hạng. Ba vùng này trước đây rơi vào nhánh rỗng
+     nên nói "chưa có gì" trong khi sự thật là "không tải được" — câu sai,
+     và không có nút nào để bấm. Chữ ở đây nói đúng việc cần làm: thử lại. */
+  'load.err': 'Could not load this section',
+  'load.errHint': 'The connection dropped on the way. Press the button to try again.',
+  'load.retry': 'Try again',
   'board.filterAria': 'Filter requests',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
