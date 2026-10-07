@@ -428,6 +428,9 @@ function AppInner() {
      giá trị không ai đọc. */
   const readyRef = useRef(false)
   const [user, setUser] = useState(null)
+  /* Không coi `user === null` là câu trả lời trước khi getUser() xong:
+     null ban đầu chỉ có nghĩa là auth chưa hydrate, không nhất thiết là guest. */
+  const [authHydrated, setAuthHydrated] = useState(false)
   const [authPrompt, setAuthPrompt] = useState(false)
   const currentUserId = useRef(null)
   // Public browsing uses a stable, non-account identity only for presentational props.
@@ -866,12 +869,13 @@ function AppInner() {
     }
   }, [])
 
-  /* /admin chỉ tồn tại với người có quyền. Gõ tay địa chỉ đó mà không phải
-     admin thì bị đưa về bảng request ngay — địa chỉ không phải là chỗ để dò
-     xem mình có quyền gì, nhưng cũng không được để trang trắng. */
+  /* /admin chỉ tồn tại với người có quyền. `user === null` trong lúc getUser()
+     còn chạy chưa chứng minh người xem là guest: direct-load phải giữ nguyên
+     mục và tab cho tới khi hydration có kết quả. Khi hydration xong, guest,
+     user thường hoặc lỗi auth đều fail closed về bảng request. */
   useEffect(() => {
-    if (section === ADMIN_ONLY && !user?.isAdmin) go('board')
-  }, [section, user?.isAdmin, go])
+    if (authHydrated && section === ADMIN_ONLY && !user?.isAdmin) go('board')
+  }, [authHydrated, section, user?.isAdmin, go])
 
   useEffect(() => {
     if (window.location.hash) {
@@ -921,7 +925,11 @@ function AppInner() {
     getUser()
       .then(u => { if (live) setUser(u) })
       .catch(e => console.warn('[auth] getUser:', e?.message || e))
-      .finally(() => { readyRef.current = true })
+      .finally(() => {
+        if (!live) return
+        readyRef.current = true
+        setAuthHydrated(true)
+      })
     const off = onAuthChange(u => { if (live) setUser(u) })
     return () => { live = false; off() }
   }, [])
