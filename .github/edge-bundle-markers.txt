@@ -1,0 +1,27 @@
+# Dấu vết PHẢI có trong bundle mà edge đang phục vụ (đọc bởi tools/browserSmoke.mjs,
+# chạy trong workflow "Quiz retirement — browser & edge check", và bởi
+# tools/edgeBundleMarkers.test.mjs khi `npm test`).
+# -----------------------------------------------------------------------------
+# Vì sao tệp này tồn tại: trạng thái check `Cloudflare Pages` chỉ nói "deploy đã
+# chạy xong", KHÔNG nói edge đang phục vụ bản nào — CDN vẫn có thể trả bundle cũ.
+# Muốn biết bản mới đã lên thật thì phải tải chính JS mà edge TRẢ VỀ rồi tìm một
+# dấu vết chỉ có trong bản mới. (Đây là bước c của ghi chú merge PR #34, tự động
+# hoá — và phải tự động hoá cho đúng: một dấu vết có thể nằm ở chunk tải muộn,
+# nên lệnh `grep` chỉ tải tệp entry `index-*.js` sẽ trả 0 dù bản deploy đã đúng.)
+#
+# Cách dùng: mỗi lần merge một thay đổi có mặt trong bundle (khoá từ điển mới,
+# câu chữ mới, tên miền mới…), THÊM một dòng vào cuối tệp. ĐỪNG xoá dòng cũ —
+# dấu vết cũ vẫn phải còn trong bundle.
+#
+# Quy tắc một dòng:
+#   · dòng bắt đầu bằng '#' hoặc dòng rỗng → bỏ qua;
+#   · mỗi dòng là một chuỗi con NGUYÊN VĂN phải xuất hiện trong bundle đang phục vụ;
+#   · chuỗi phải TỒN TẠI TRONG SOURCE của repo (khoá trong src/lib/strings.js, câu
+#     chữ, tên miền…) — test sẽ đỏ nếu khai một dấu vết không có trong source, vì
+#     bundle dựng từ chính commit đó thì không thể chứa nó;
+#   · đừng dùng chuỗi quá chung (ví dụ 'quiz'): phải là thứ chỉ bản mới có.
+#
+# Thêm ngày + lý do ngay trên dòng mới để người sau biết vì sao nó ở đây.
+
+# 2026-10-07 · PR #34 (batch E — chữ của widget Turnstile vào từ điển)
+turnstile.region

@@ -16,6 +16,12 @@
 # CHẠY LIVE SMOKE BẰNG CÁCH NÀO: token của sandbox không có `actions:write`, nên
 # `gh workflow run` trả 403 và chỉ còn đường PUSH. URL cần smoke vì thế nằm ở tệp
 # .github/live-smoke-target — ghi URL vào đó rồi push là job mở site thật (chỉ đọc).
+#
+# BẰNG CHỨNG "BẢN MỚI ĐÃ LÊN EDGE": phần `--edge` tải chính `/assets/index-*.js`
+# mà edge trả về rồi tìm các dấu vết khai ở .github/edge-bundle-markers.txt. Trạng
+# thái check `Cloudflare Pages` chỉ nói deploy đã chạy xong, không nói CDN đang trả
+# bản nào — thiếu dấu vết là job ĐỎ (dừng, chờ/deploy lại), không phải flaky. Vì
+# vậy `main` nằm trong danh sách push: mỗi lần merge tự có phép kiểm này.
 name: Quiz retirement — browser & edge check
 
 on:
@@ -37,8 +43,14 @@ on:
     # (Token trong sandbox không có `actions:write` nên `gh workflow run` trả 403;
     #  push là đường còn lại — xem .github/live-smoke-target.)
     branches:
+      # `main` cố ý nằm trong danh sách này. Trước đây sau merge phải dispatch tay
+      # (hoặc dựa vào việc nhớ ra) mới có bằng chứng "edge đã phục vụ bản mới" —
+      # bước c của ghi chú merge PR #34. Nay push vào main là job tự chạy, tự đăng
+      # bằng chứng; đỏ nghĩa là CDN còn bundle cũ → dừng, đừng coi là flaky.
+      - 'main'
       - 'arena/2064073f-color-coded-lyrics-cf-new'
       - 'arena/015dd3b4-color-coded-lyrics-cf-new'
+      - 'arena/f0d1d1ad-color-coded-lyrics-cf-new'
 
 permissions:
   contents: read
@@ -88,7 +100,10 @@ jobs:
       - name: Dựng bundle production
         run: npm run build
 
-      - name: Kiểm chứng bằng Chromium (desktop + mobile) và edge /quiz
+      # Bước này ngoài /quiz + /daily-login còn tải asset edge đang phục vụ và đối
+      # chiếu dấu vết trong .github/edge-bundle-markers.txt: đỏ nghĩa là bản deploy
+      # chưa lên CDN (hoặc đã lên nhưng là bundle cũ) → DỪNG, đừng chạy tiếp bước sau.
+      - name: Kiểm chứng bằng Chromium (desktop + mobile), edge /quiz và bundle đang phục vụ
         if: env.EDGE_URL != ''
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
 

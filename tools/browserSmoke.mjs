@@ -6,6 +6,13 @@
    301 ở edge hay không. Script này làm đúng ba việc đó rồi thoát khác 0 nếu có
    mục hỏng; ảnh chụp được ghi vào --out để gửi kèm khi review.
 
+   Riêng ở chế độ --edge còn một câu hỏi nữa mà KHÔNG trạng thái check nào trả
+   lời được: edge đang phục vụ bản MỚI hay còn bundle cũ? Deploy xong không có
+   nghĩa là CDN đã trả bản mới. Script vì thế tải chính đồ thị JS mà edge trả về
+   (các tệp HTML nhắc tới, rồi lần theo chunk chúng import) và tìm các dấu vết
+   khai ở `.github/edge-bundle-markers.txt` — thiếu dấu vết nào là ĐỎ (dừng,
+   đừng coi là flaky).
+
    Chạy tay (cần Chromium của Playwright):
      npm run build
      npm i --no-save playwright && npx playwright install chromium
@@ -39,6 +46,18 @@ const distDir = arg('dist', join(repo, 'dist'))
 const outDir = arg('out', join(repo, 'artifacts'))
 const edge = arg('edge', '').replace(/\/+$/, '')
 const live = arg('live', '').replace(/\/+$/, '')
+
+/* Dấu vết để chứng minh edge đang phục vụ bản mới. Tệp .github/edge-bundle-markers.txt
+   là nguồn DUY NHẤT — mỗi lần merge thêm một dòng, không hard-code dấu vết ở đây
+   (xem lý do trong tệp đó). Tệp thiếu hoặc rỗng thì phép kiểm bên dưới báo ĐỎ chứ
+   không im lặng bỏ qua: một chốt an toàn biến mất mà không ai biết là kiểu hỏng tệ
+   nhất — đúng lỗi mà tệp này sinh ra để chặn. */
+const readMarkers = () => {
+  try {
+    return readFileSync(join(repo, '.github', 'edge-bundle-markers.txt'), 'utf8')
+      .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+  } catch { return [] }
+}
 const results = []
 const check = (name, ok, extra = '') => {
   results.push({ name, ok, extra })
@@ -118,6 +137,49 @@ if (edge) {
     check('edge: HTML không còn chữ quiz', !/quiz/i.test(html))
     const cache = String(login.headers.get('cache-control') || '')
     check('edge: HTML không bị cache lâu (must-revalidate)', /must-revalidate/i.test(cache), cache || '(thiếu Cache-Control)')
+
+    /* Bằng chứng "edge đang phục vụ BẢN MỚI", không phải chỉ "deploy đã chạy xong".
+       Trạng thái check của Cloudflare Pages nói deploy success — nhưng CDN vẫn có thể
+       trả bundle cũ (cache, deploy lỗi im lặng, hoặc bản deploy chưa nhận commit mới).
+       Cách duy nhất đáng tin: tải chính JS mà edge TRẢ VỀ rồi tìm dấu vết của bản mới
+       trong đó. Đây là phép kiểm bước `c` của ghi chú merge PR #34, tự động hoá.
+
+       PHẢI ĐI THEO CẢ ĐỒ THỊ CHUNK, không chỉ tệp entry: bundle bị Vite cắt thành nhiều
+       chunk, và dấu vết của một bản có thể nằm ở chunk tải muộn. Ví dụ sống: khoá
+       `turnstile.region` nằm trong `dailySpin-*.js`, KHÔNG nằm trong `index-*.js` —
+       nên một phép kiểm chỉ tải entry (`grep` tệp index-*.js) sẽ trả 0 dù edge đã
+       phục vụ đúng bản mới. Bắt đầu từ các tệp HTML nhắc tới, rồi lần theo tham chiếu
+       `./X.js` bên trong chúng, tối đa 40 tệp để không lặp vô hạn. */
+    const entryAssets = [...new Set(html.match(/\/assets\/[A-Za-z0-9_.-]+\.js/g) || [])]
+    check('edge: HTML nhắc asset /assets/*.js (có bundle để đối chiếu)', entryAssets.length > 0,
+      `${entryAssets.length} tệp — ${entryAssets.join(', ')}`)
+    const markers = readMarkers()
+    check('edge: có danh sách dấu vết để đối chiếu (.github/edge-bundle-markers.txt)', markers.length > 0,
+      `${markers.length} dấu vết`)
+    if (entryAssets.length && markers.length) {
+      const seen = new Set()
+      const chunks = []
+      const queue = [...entryAssets]
+      while (queue.length && seen.size < 40) {
+        const path = queue.shift()
+        if (seen.has(path)) continue
+        seen.add(path)
+        let body = ''
+        try { body = await fetch(`${edge}${path}`).then(r => r.text()) } catch { continue }
+        chunks.push(`${path}\n${body}`)
+        for (const ref of body.match(/["'(](?:\.\/|\/assets\/)[A-Za-z0-9_.-]+\.js/g) || []) {
+          const name = ref.slice(ref.lastIndexOf('/') + 1)
+          if (!seen.has(`/assets/${name}`)) queue.push(`/assets/${name}`)
+        }
+      }
+      const haystack = chunks.join('\n')
+      check('edge: tải được đồ thị JS mà edge đang phục vụ', chunks.length > 0, `${seen.size} tệp`)
+      for (const marker of markers) {
+        const found = haystack.includes(marker)
+        check(`edge: bundle đang phục vụ có dấu vết "${marker}" (bản mới đã lên edge)`, found,
+          found ? `thấy trong ${seen.size} tệp JS edge trả về` : `KHÔNG thấy trong ${seen.size} tệp JS edge trả về — CDN có thể còn bundle cũ → dừng, chờ/deploy lại`)
+      }
+    }
   } catch (e) {
     check('edge: gọi được URL preview', false, String(e).slice(0, 160))
   }
