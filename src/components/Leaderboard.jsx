@@ -73,21 +73,67 @@ function PeriodSeg({ period, setPeriod, title }) {
 
 function RewardsModal({ open, onClose }) {
   const { t } = useI18n()
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
   useEffect(() => {
     if (!open) return undefined
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+
+    // Lưu element đang focus trước khi mở modal
+    previousFocusRef.current = document.activeElement
+
+    // Focus vào dialog khi mở
+    requestAnimationFrame(() => {
+      dialogRef.current?.focus()
+    })
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        onClose?.()
+        return
+      }
+
+      // Focus trap: giữ Tab/Shift+Tab bên trong dialog
+      if (e.key === 'Tab') {
+        const focusable = dialogRef.current?.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (!focusable || focusable.length === 0) return
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
+
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      // Trả focus về trigger khi đóng
+      previousFocusRef.current?.focus()
     }
   }, [open, onClose])
+
   if (!open) return null
+
   return (
     <div className="lb-rewards-scrim" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
-      <section className="lb-rewards-modal" role="dialog" aria-modal="true" aria-labelledby="lb-rewards-title">
+      <section ref={dialogRef} className="lb-rewards-modal" role="dialog" aria-modal="true" aria-labelledby="lb-rewards-title" tabIndex={-1}>
         <header className="lb-rewards-head">
           <div>
             <h3 id="lb-rewards-title"><Icon name="cup" size={14} /> {t('rank.rewards.title')}</h3>

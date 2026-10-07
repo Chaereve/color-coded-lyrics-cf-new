@@ -139,6 +139,8 @@ export default function VideoPreviewModal({ video, onClose }) {
   const id = useMemo(() => parseYoutube(url)?.id || null, [url])
 
   const frameRef = useRef(null)
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
   const infoRef = useRef({})      /* gói thông tin mới nhất player gửi về */
   const stateRef = useRef(null)   /* 1 = đang phát, 2 = đang dừng */
   const seenRef = useRef(0)       /* lần cuối nghe được player */
@@ -149,16 +151,57 @@ export default function VideoPreviewModal({ video, onClose }) {
   const [blocked, setBlocked] = useState(false)  /* player báo không nhúng được */
   const videoRef = useRef(null)              /* thẻ <video> của nhánh file */
 
-  /* Esc để đóng + khoá cuộn nền: cùng luật với các hộp thoại khác của app. */
+  /* Esc để đóng + khoá cuộn nền + focus management: cùng luật với các hộp thoại khác của app. */
   useEffect(() => {
     if (!video) return undefined
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+
+    // Lưu element đang focus trước khi mở modal
+    previousFocusRef.current = document.activeElement
+
+    // Focus vào dialog khi mở
+    requestAnimationFrame(() => {
+      dialogRef.current?.focus()
+    })
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        onClose?.()
+        return
+      }
+
+      // Focus trap: giữ Tab/Shift+Tab bên trong dialog
+      if (e.key === 'Tab') {
+        const focusable = dialogRef.current?.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+        if (!focusable || focusable.length === 0) return
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+          }
+        }
+      }
+    }
+
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      // Trả focus về trigger khi đóng
+      previousFocusRef.current?.focus()
     }
   }, [video, onClose])
 
@@ -392,7 +435,7 @@ export default function VideoPreviewModal({ video, onClose }) {
     <div className="video-preview-scrim" role="presentation"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
       <div className="video-preview-stage">
-        <section className="video-preview-player" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
+        <section ref={dialogRef} className="video-preview-player" role="dialog" aria-modal="true" aria-labelledby="video-preview-title" tabIndex={-1}>
           <div className="video-preview-frame">
             {/* Hai vệt mờ tan dần ở mép khung (số đo ở FRAME_FADE): đủ để mép hình
                 hoà vào nền đen, KHÔNG phải băng che — alpha thấp, tan hết trước
@@ -443,20 +486,21 @@ export default function VideoPreviewModal({ video, onClose }) {
             aria-label={t('preview.close')} title={t('preview.close')}>
             <Icon name="close" size={16} />
           </button>
-        </section>
 
-        <div className="video-preview-meta">
-          <div className="video-preview-meta-t">
-            <h2 id="video-preview-title">{video.title}</h2>
-            <span>{t('preview.thirty')}</span>
+          {/* Metadata nằm TRONG dialog để screen reader đọc được khi focus vào dialog */}
+          <div className="video-preview-meta">
+            <div className="video-preview-meta-t">
+              <h2 id="video-preview-title">{video.title}</h2>
+              <span>{t('preview.thirty')}</span>
+            </div>
+            {id && <b className="video-preview-count">{t('preview.counter', { s: secs, total: PREVIEW_SECONDS })}</b>}
+            {url && (
+              <a className="video-preview-open" href={url} target="_blank" rel="noreferrer">
+                <Icon name="ext" size={12} />{t(id ? 'preview.open' : 'preview.openLink')}
+              </a>
+            )}
           </div>
-          {id && <b className="video-preview-count">{t('preview.counter', { s: secs, total: PREVIEW_SECONDS })}</b>}
-          {url && (
-            <a className="video-preview-open" href={url} target="_blank" rel="noreferrer">
-              <Icon name="ext" size={12} />{t(id ? 'preview.open' : 'preview.openLink')}
-            </a>
-          )}
-        </div>
+        </section>
       </div>
     </div>
   )
