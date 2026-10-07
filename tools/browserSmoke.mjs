@@ -7,15 +7,26 @@
    mục hỏng; ảnh chụp được ghi vào --out để gửi kèm khi review.
 
    Chạy tay (cần Chromium của Playwright):
+     npm run build
      npm i --no-save playwright && npx playwright install chromium
+     node tools/browserSmoke.mjs                       # bản dist/ cục bộ, chế độ demo
      node tools/browserSmoke.mjs --edge https://<preview>.pages.dev
      node tools/browserSmoke.mjs --live https://chaereve.pages.dev   # smoke trên site thật
    Trong CI: .github/workflows/quiz-retirement-browser.yml
 
    Không kết nối Supabase, không deploy, không migration: app chạy ở chế độ demo
-   như khi mở tệp dist/ bằng trình duyệt. */
+   như khi mở tệp dist/ bằng trình duyệt.
+
+   HAI CHẾ ĐỘ, ĐỪNG LẪN:
+     · bản dist/ cục bộ (mặc định) — phần lớn phép kiểm nằm ở đây: bốn màn
+       (trang chủ, bảng xếp hạng, về tôi, hồ sơ công khai) × hai khổ màn hình,
+       cộng đường /quiz → /daily-login và lượt điểm danh demo.
+     · --live — chỉ đọc trang production, KHÔNG bấm gì; mỗi lượt mở vẫn ghi một
+       dòng 'visit' vào bảng funnel (hành vi của mọi lượt truy cập).
+   Trước khi mở trình duyệt, script soi dist/assets/*.js: nhúng URL Supabase thật
+   nghĩa là bundle sẽ ghi dữ liệu production → DỪNG, chỉ chạy trên bản demo. */
 import { createServer } from 'node:http'
-import { readFileSync, statSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -43,6 +54,28 @@ const writeSummary = () => {
       { edge: edge || null, live: live || null, total: results.length, failed: results.filter(r => !r.ok).length, results }, null, 2))
   } catch { /* ghi chú không được làm hỏng phép kiểm */ }
 }
+
+/* ---------- 0. AN TOÀN: bản dist phải là bản DEMO ----------
+   Mọi phép kiểm trình duyệt bên dưới chạy trên bản `dist/` cục bộ và chỉ được
+   chạy trên bản demo. Lý do không phải là hình thức: app gọi `trackVisitOnce()`
+   ngay khi mount (App.jsx) và khi bundle CÓ Supabase thật thì mỗi lượt mở trang
+   ghi một dòng 'visit' vào bảng funnel của production. Vì vậy: nhúng URL
+   Supabase thật = DỪNG, không mở trình duyệt vào bản đó.
+
+   Cách nhận biết: build với `VITE_SUPABASE_URL` sẽ nhúng nguyên
+   `https://<project-ref>.supabase.co` vào một tệp trong `dist/assets/`. Chuỗi
+   `supabase.co` trong `dist/_headers` (danh sách CSP) KHÔNG tính — chỉ soi JS. */
+const embeddedSupabase = (() => {
+  let files = []
+  try { files = readdirSync(join(distDir, 'assets')).filter(f => f.endsWith('.js')) } catch { return '(không đọc được dist/assets — đã build chưa?)' }
+  for (const f of files) {
+    if (/https:\/\/[a-z0-9]{15,}\.supabase\.co/i.test(readFileSync(join(distDir, 'assets', f), 'utf8'))) return f
+  }
+  return ''
+})()
+const distIsDemo = !embeddedSupabase
+check('dist là bản DEMO (không nhúng URL Supabase thật, không ghi dữ liệu production)', distIsDemo,
+  `${distDir}${distIsDemo ? '' : ` — thấy trong ${embeddedSupabase}`}`)
 
 /* Bám console/pageerror cho một page. Lỗi tài nguyên ngoài (ảnh, font) của
    runner không được tính là lỗi của app nhưng vẫn đếm để báo lại. */
@@ -156,6 +189,16 @@ if (live) {
 }
 
 /* ---------- 3. Chromium thật: desktop + mobile ---------- */
+if (!distIsDemo) {
+  /* Đã có Supabase thật trong bundle: mở trình duyệt vào đó là ghi dữ liệu
+     production. Dừng ở đây, báo rõ, và trả về mã lỗi. */
+  console.log('\nDỪNG: dist có URL Supabase thật — không mở trình duyệt (bỏ toàn bộ phép kiểm trình duyệt của bản dist)')
+  server.close()
+  writeSummary()
+  const bad = results.filter(r => !r.ok)
+  console.log(`\n──────── ${results.length - bad.length}/${results.length} mục đạt ────────`)
+  process.exit(1)
+}
 const { chromium } = await import('playwright')
 mkdirSync(outDir, { recursive: true })
 const browser = await chromium.launch()
@@ -238,6 +281,78 @@ for (const vp of viewports) {
   const shot = join(outDir, `quiz-retirement-${vp.name}.png`)
   await page.screenshot({ path: shot, fullPage: true })
   console.log(`  ảnh: ${shot}`)
+
+  /* ---------- ba màn còn lại: trang chủ, bảng xếp hạng, về tôi ----------
+     Cùng một phiên demo (đã bấm đăng nhập ở trên) nên `/profile` dựng được
+     trang thật. Mỗi màn kiểm bốn thứ, đúng những thứ đã hỏng hoặc suýt hỏng
+     trong đợt rà này: màn có dựng lên không, có khối "không tải được" lẫn vào
+     chỗ đáng ra là "chưa có gì" không, có tràn ngang không, và console có lỗi
+     MỚI không (đếm trước/sau vì listener bám cả phiên). Một màn hỏng không làm
+     dừng hai màn còn lại: mỗi màn tự bắt lỗi. */
+  const routes = [
+    { slug: 'board', name: 'trang chủ', url: `${base}/`, anchor: '.board, .stats, .requester-link' },
+    { slug: 'ranking', name: 'bảng xếp hạng', url: `${base}/ranking`, anchor: '.lb-tabs' },
+    { slug: 'mine', name: 'về tôi', url: `${base}/profile`, anchor: '.prof-card' },
+  ]
+  for (const r of routes) {
+    try {
+      const errorsBefore = errors.length
+      await page.goto(r.url, { waitUntil: 'load' })
+      /* Demo chưa khôi phục phiên thì `/profile` mở cửa đăng nhập: bấm đúng
+         đường demo rồi chờ tiếp, thay vì đánh hỏng vì một bước đăng nhập. */
+      try { await page.waitForSelector(r.anchor, { timeout: 12_000 }) } catch {
+        if (await page.locator('.signin-panel-btn').count()) {
+          await page.locator('.signin-panel-btn').first().click()
+          await page.waitForSelector('.gate-card', { timeout: 10_000 })
+          await page.locator('.btn-google').first().click()
+          await page.waitForSelector(r.anchor, { timeout: 15_000 })
+        } else throw new Error(`không thấy ${r.anchor}`)
+      }
+      await page.waitForTimeout(400)
+      const anchorCount = await page.locator(r.anchor).count()
+      check(`${vp.name} · ${r.name}: màn dựng lên`, anchorCount > 0, `${anchorCount} × ${r.anchor}`)
+      /* `.load-err` là khối role="alert" của LoadErr — nó chỉ được xuất hiện khi
+         thật sự không tải được, không phải khi danh sách rỗng. */
+      const loadErr = await page.locator('.load-err').count()
+      check(`${vp.name} · ${r.name}: không có khối "không tải được"`, loadErr === 0, `${loadErr} khối`)
+      const ovf = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+      check(`${vp.name} · ${r.name}: không tràn ngang`, ovf <= 2, `${ovf}px`)
+      const fresh = errors.slice(errorsBefore)
+      check(`${vp.name} · ${r.name}: không lỗi console mới`, fresh.length === 0, fresh.slice(0, 2).join(' | '))
+      await page.screenshot({ path: join(outDir, `route-${r.slug}-${vp.name}.png`), fullPage: true })
+    } catch (e) {
+      check(`${vp.name} · ${r.name}: chạy hết được kịch bản`, false, String(e).slice(0, 200))
+    }
+  }
+
+  /* Hồ sơ công khai (`/?profile=<id>`) — mở từ liên kết THẬT trên bảng, không
+     tự đặt id, nên phép kiểm chỉ chạy khi bảng có liên kết người gửi. */
+  try {
+    await page.goto(`${base}/`, { waitUntil: 'load' })
+    await page.waitForSelector('.board, .stats, .requester-link', { timeout: 15_000 })
+    const link = (await page.locator('.requester-link').count())
+      ? await page.locator('.requester-link').first().getAttribute('href') : null
+    if (!link) {
+      console.log(`  (${vp.name}: bảng chưa có liên kết người gửi — bỏ qua hồ sơ công khai)`)
+    } else {
+      const errorsBefore = errors.length
+      await page.goto(new URL(link, base).toString(), { waitUntil: 'load' })
+      try { await page.waitForSelector('.public-profile', { timeout: 12_000 }) } catch { /* báo ở dưới */ }
+      await page.waitForTimeout(400)
+      const count = await page.locator('.public-profile').count()
+      check(`${vp.name} · hồ sơ công khai: màn dựng lên`, count > 0, `${count} × .public-profile`)
+      const loadErr = await page.locator('.load-err').count()
+      check(`${vp.name} · hồ sơ công khai: không có khối "không tải được"`, loadErr === 0, `${loadErr} khối`)
+      const ovf = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+      check(`${vp.name} · hồ sơ công khai: không tràn ngang`, ovf <= 2, `${ovf}px`)
+      const fresh = errors.slice(errorsBefore)
+      check(`${vp.name} · hồ sơ công khai: không lỗi console mới`, fresh.length === 0, fresh.slice(0, 2).join(' | '))
+      await page.screenshot({ path: join(outDir, `route-public-${vp.name}.png`), fullPage: true })
+    }
+  } catch (e) {
+    check(`${vp.name} · hồ sơ công khai: chạy hết được kịch bản`, false, String(e).slice(0, 200))
+  }
+
   await context.close()
   } catch (e) {
     check(`${vp.name}: chạy hết được kịch bản`, false, String(e).slice(0, 200))
