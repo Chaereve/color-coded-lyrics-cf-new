@@ -17,8 +17,3 @@
 # ở chế độ demo: live smoke mở trang như một khách, và khách thì không mở kênh
 # realtime nào nếu `hasSupabase` = false — mục "không có lỗi console" khi ấy đạt
 # vì chẳng có gì để CSP chặn, tức là XANH GIẢ, không nói được CSP đúng hay sai.
-#
-# Đang smoke: nhánh này, bản preview mới nhất của Cloudflare Pages (URL alias của
-# nhánh, luôn trỏ tới deployment vừa dựng — không dùng URL theo commit vì phải
-# chờ deploy xong mới biết).
-https://arena-2064073f-color-coded-l.chaereve.pages.dev
