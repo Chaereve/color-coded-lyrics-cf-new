@@ -329,7 +329,8 @@ export async function fetchPublicProfile(userId) {
     supabase.from('requests')
       .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url')
       .eq('user_id', userId).neq('status', 'pending').neq('status', 'denied')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
   if (pe) throw pe; if (re) throw re; if (!p) return null
   return publicProfileShape(p, rs)
