@@ -966,6 +966,7 @@ const S = {
   'adm.refresh': 'Refresh',
   'adm.loading': 'Loading…',
   'adm.funnelError': 'Metrics unavailable. Apply migration 20261110_funnel_events.sql, then refresh.',
+  'adm.funnelDemo': 'Metrics unavailable in demo mode.',
   'adm.funnel.visit': 'Visits',
   'adm.funnel.request': 'Requests',
   'adm.funnel.vote': 'Votes',

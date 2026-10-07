@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment, fetchFunnelSummary } from '../lib/db'
+import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, FUNNEL_EVENT_KEYS } from '../lib/funnelSummary.js'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
@@ -662,7 +662,9 @@ export default function AdminPanel({
           </button>
         </div>
         {funnelError ? (
-          <p className="adm-funnel-state" role="status">{t('adm.funnelError')}</p>
+          <p className="adm-funnel-state" role="status">
+            {!hasSupabase ? t('adm.funnelDemo') : t('adm.funnelError')}
+          </p>
         ) : funnelLoading && !funnelLoaded ? (
           <p className="adm-funnel-state" role="status">{t('adm.funnelLoading')}</p>
         ) : (

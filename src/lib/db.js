@@ -309,8 +309,17 @@ export async function fetchPublicProfile(userId) {
   if (!userId) return null
   if (!hasSupabase) {
     const rows = demoRows().filter(r => r.user_id === userId)
+    // Nếu không có rows, kiểm tra xem userId có phải là seed ID hợp lệ không
+    if (rows.length === 0) {
+      const validSeedIds = ['demo-user', 'other-1', 'other-2', 'other-4', 'other-5']
+      if (!validSeedIds.includes(userId)) {
+        return null // Not found
+      }
+    }
+    // Lấy tên từ row đầu tiên, hoặc tạo tên mặc định cho seed IDs
+    const name = rows[0]?.requester || (userId === 'demo-user' ? 'Demo User' : `User ${userId}`)
     return publicProfileShape(
-      { id: userId, name: rows[0]?.requester || 'Demo User', avatar_url: null }, rows)
+      { id: userId, name, avatar_url: null }, rows)
   }
   const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
