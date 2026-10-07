@@ -278,7 +278,7 @@ Triggers: `[]`.
 }
 ```
 
-Không chuyển toàn bộ config quiz sang login. `free_vote_grant_enabled`, `free_votes_per_day`, `global_daily_vote_cap_enabled`, `global_daily_vote_cap` cần quyết định policy voting riêng: đề xuất free automatic grant=0, giữ bonus/purchased/spin/achievement không áp quiz cap 5. Không được tự bật +3 free grant vì xoá quiz config.
+Không chuyển toàn bộ config quiz sang login. `free_vote_grant_enabled`, `free_votes_per_day`, `global_daily_vote_cap_enabled`, `global_daily_vote_cap` cần quyết định policy voting riêng: đề xuất free automatic grant=0, giữ bonus/purchased/spin/achievement không áp quiz cap 5. Không được tự bật +3 free grant vì xoá quiz config. **(Cập nhật sau này:** quyết định có review là **bật** 3 vote miễn phí/ngày bằng migration append-only `20261124_restore_daily_free_votes` — xem `docs/DAILY-REWARDS.md`; câu "không được tự bật" vẫn đúng nghĩa: chỉ bật bằng migration có review, không sửa seed/bundle và không đổi `global_daily_vote_cap_*`.**)**
 
 ## Dependency graph và thứ tự cleanup đề xuất
 

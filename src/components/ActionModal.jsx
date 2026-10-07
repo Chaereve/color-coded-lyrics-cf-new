@@ -10,6 +10,7 @@ import { safeHttpUrl } from '../lib/safeUrl'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { sfx } from '../lib/sfx'
 import { useModalExit } from '../lib/useModalExit'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import PaymentMethods from './PaymentMethods'
 import Pager from './Pager'
 import { usePager } from '../lib/usePager'
@@ -931,6 +932,7 @@ export default function ActionModal({
   live,
 }) {
   const { t } = useI18n()
+  const panelRef = useRef(null)
 
   useEffect(() => {
     const h = (e) => e.key === 'Escape' && onClose()
@@ -939,13 +941,17 @@ export default function ActionModal({
   }, [open, onClose])
 
   const { mounted, closing } = useModalExit(open)
+  /* Nhốt tiêu điểm trong hộp: tiêu điểm đầu tiên là tab đang mở (phần tử bấm
+     được đầu tiên trong hộp), đóng thì về nút vừa gọi hộp ra. Hook phải gọi
+     TRƯỚC `return null` — hook sau return có điều kiện là phạm rules-of-hooks. */
+  useFocusTrap(panelRef, open)
   if (!mounted) return null
   const out = closing ? ' out' : ''
   const votable = rows.filter(r => (r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)).length
 
   return (
     <div className={`overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal${out}`} role="dialog" aria-modal="true" aria-labelledby="am-title">
+      <div className={`modal${out}`} role="dialog" aria-modal="true" aria-labelledby="am-title" ref={panelRef}>
         <div className="modal-head">
           {/* Hộp này TRƯỚC ĐÂY không có tên: `role="dialog"` mà không có
               `aria-labelledby`/`aria-label` thì trình đọc màn hình chỉ nói

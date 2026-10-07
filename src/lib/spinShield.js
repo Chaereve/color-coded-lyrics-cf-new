@@ -11,6 +11,10 @@
    đồng thời được xếp hàng để không dùng trùng token one-time.
    ========================================================= */
 import { loadTurnstile, TURNSTILE_SITE_KEY } from './turnstile.js'
+/* Chữ của app, không phải chữ của thư viện Cloudflare: ba câu dưới đây là nhãn
+   và lời nhắc người dùng ĐỌC. `translate` nằm ở `strings.js` (JS thuần) đúng
+   vì tệp này không nạp được `.jsx` — xem ghi chú đầu strings.js. */
+import { translate } from './strings.js'
 
 export const SPIN_GATE_URL = (import.meta.env?.VITE_SPIN_GATE_URL || '').replace(/\/$/, '')
 export const VOTE_GATE_URL = (import.meta.env?.VITE_VOTE_GATE_URL || '').replace(/\/$/, '')
@@ -85,7 +89,7 @@ function ensureCaptchaWidget(ts) {
   host.className = 'ccl-turnstile-host'
   host.dataset.interactive = 'false'
   host.setAttribute('role', 'region')
-  host.setAttribute('aria-label', 'Security verification')
+  host.setAttribute('aria-label', translate('turnstile.region'))
   const label = document.createElement('p')
   label.className = 'ccl-turnstile-label'
   label.setAttribute('role', 'status')
@@ -102,10 +106,8 @@ function ensureCaptchaWidget(ts) {
   const setInteractive = (active) => {
     state.interactive = active
     host.dataset.interactive = active ? 'true' : 'false'
-    label.textContent = active ? 'Complete the security check below to continue.' : ''
-    host.setAttribute('aria-label', active
-      ? 'Security check required. Complete the challenge to continue.'
-      : 'Security verification')
+    label.textContent = active ? translate('turnstile.hint') : ''
+    host.setAttribute('aria-label', translate(active ? 'turnstile.required' : 'turnstile.region'))
   }
   state.setInteractive = setInteractive
   const flush = (value, { isError = false, retryable = true } = {}) => {

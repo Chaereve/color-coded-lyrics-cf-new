@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
 import { ACHIEVEMENTS, evaluateAchievements } from '../lib/achievements.js'
 import { useI18n } from '../lib/i18n.jsx'
+import { useFocusTrap } from '../lib/useFocusTrap'
 
 /* Danh mục luôn hiện cả mốc chưa đạt: người dùng cần thấy mình còn cách
    phần thưởng bao xa, không phải chỉ được xem một bộ sưu tập đã hoàn thành. */
 export default function AchievementIndex({ metrics = {} }) {
   const { t } = useI18n()
   const [showModal, setShowModal] = useState(false)
+  const achRef = useRef(null)
+  /* Danh mục mở ra là một hộp thoại thật (lớp phủ chặn trang): Tab phải ở
+     trong đó, và đóng thì trả tiêu điểm về nút vừa mở. */
+  useFocusTrap(achRef, showModal)
   const items = useMemo(() => evaluateAchievements(metrics), [metrics])
 
   useEffect(() => {
@@ -48,7 +53,7 @@ export default function AchievementIndex({ metrics = {} }) {
 
       {showModal && (
         <div className="overlay achievement-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="modal ach-modal" role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
+          <div className="modal ach-modal" ref={achRef} role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
             <div className="modal-head">
               <h2 id="ach-modal-title" className="prof-h2">
                 <Icon name="cup" size={16} /> {t('ach.popupTitle')}

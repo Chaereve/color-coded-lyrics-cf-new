@@ -102,12 +102,16 @@ const { I18nProvider, errMsg, translate } = await server.ssrLoadModule('/src/lib
    của nó, chứ không ném lỗi giữa lượt. */
 const { FRAME_FADE = { top: 0, bottom: 0 } } = await server.ssrLoadModule('/src/lib/previewCap.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
+/* Toaster nằm trong main.jsx chứ không trong App, nên bản smoke trước đây không
+   có nó — nghĩa là kênh phản hồi chính của app (lưu xong, vote xong, lỗi mạng)
+   chưa từng được dựng trong lượt kiểm này. Dựng y như main.jsx. */
+const Toaster = (await server.ssrLoadModule('/src/components/Toaster.jsx')).default
 
 const container = window.document.getElementById('root')
 const root_ = createRoot(container)
 await act(async () => {
   root_.render(createElement(I18nProvider, null,
-    createElement(NotifyProvider, null, createElement(App))))
+    createElement(NotifyProvider, null, createElement(App), createElement(Toaster))))
 })
 
 const q = (sel) => window.document.querySelector(sel)
@@ -193,6 +197,12 @@ const gone = await waitFor(() => { const s = q('.splash'); return !s || s.classL
 realLog(`  · màn chờ vào trạng thái ẩn sau ${Date.now() - tSplash} ms: ${gone}`)
 check('màn chờ tự tan (không kẹt)', gone, gone ? '' : `vẫn còn hiện sau ${Date.now() - tSplash} ms`)
 
+/* THÔNG BÁO: vùng `aria-live` phải có mặt từ đầu, TRƯỚC mẩu tin nào. Trình đọc
+   màn hình chỉ đọc thay đổi bên trong một vùng live đã tồn tại — vùng được gắn
+   vào DOM cùng lúc với mẩu tin đầu tiên thì mẩu đó bị coi là nội dung nền. */
+check('vùng live của thông báo có mặt ngay từ đầu (tin đầu tiên sẽ được đọc)',
+  !!q('.toasts-live[aria-live]'), q('.toasts-live')?.getAttribute('aria-live'))
+
 const gate = qa('button').find(b => /Continue with Google/i.test(b.textContent || ''))
 if (gate) await click(gate)
 await waitFor(() => qa('.row, .grow').length > 0 || !!q('.empty'), 5000)
@@ -213,6 +223,20 @@ where = 'sidebar'
      lại một thẻ rỗng (bảng xếp hạng cố ý không có dòng phụ). */
   const sub = q('.mainhead-sub')
   check('trang chủ có dòng phụ dưới tiêu đề', !!sub, sub?.textContent)
+
+  /* DẢI VIDEO TRANG CHỦ — ba trạng thái phải nói ba câu khác nhau (audit
+     07/10/2026: lỗi mạng từng hiện thành "chưa có video nào"). Sau khi nạp
+     xong thì phải thấy NỘI DUNG: còn khối xương nghĩa là kẹt ở "đang tải",
+     còn bảng lỗi nghĩa là nhánh lỗi bị chọn nhầm khi dữ liệu đã về. */
+  const mediaLoaded = await waitFor(
+    () => !!q('#home-media .pick-stage') || !!q('#home-media .channel-state'), 5000)
+  const mediaErr = !!q('#home-media [role="alert"]')
+  const mediaSk = !!q('#home-media .sklist')
+  check('dải video trang chủ nạp xong, có nội dung và không kẹt ở khối lỗi/xương',
+    mediaLoaded && !mediaErr && !mediaSk,
+    !mediaLoaded ? 'không thấy #home-media có nội dung sau 5s'
+      : mediaErr ? 'còn [role="alert"] dù dữ liệu đã về'
+        : mediaSk ? 'còn .sklist dù dữ liệu đã về' : '')
 }
 
 /* ---------- 4c. KHÁCH CHƯA ĐĂNG NHẬP (vòng 23) ----------
@@ -638,6 +662,30 @@ if (addBtn) {
   }
   check('form request mở ra', !!q('.modal'))
   dump('form request', '.modal .req, .modal')
+  /* NHỐT TIÊU ĐIỂM (xem lib/useFocusTrap.js): đây là lớp phủ chặn cả trang, nên
+     `aria-modal="true"` phải đúng với bàn phím chứ không chỉ với chuột — mở ra
+     là tiêu điểm ở TRONG hộp, và Tab ở phần tử cuối quay về phần tử đầu. */
+  {
+    const dlg = q('.modal')
+    const inside = dlg && dlg.contains(window.document.activeElement)
+    check('mở form: tiêu điểm nằm TRONG hộp thoại', !!inside,
+      window.document.activeElement?.className || window.document.activeElement?.tagName)
+    const f = dlg ? [...dlg.querySelectorAll('button, [href], input, select, textarea')]
+      .filter(el => !el.disabled && el.tabIndex !== -1) : []
+    if (f.length > 1) {
+      f[f.length - 1].focus()
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+      check('Tab ở phần tử cuối quay về phần tử đầu của hộp',
+        window.document.activeElement === f[0],
+        window.document.activeElement?.className || window.document.activeElement?.tagName)
+      window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+      check('Shift+Tab ở phần tử đầu nhảy xuống phần tử cuối của hộp',
+        window.document.activeElement === f[f.length - 1],
+        window.document.activeElement?.className || window.document.activeElement?.tagName)
+    } else {
+      check('hộp thoại có phần tử bấm được để nhốt tiêu điểm', false, `${f.length} phần tử`)
+    }
+  }
   /* FORM BA BƯỚC — mỗi bước là MỘT MÀN, không phải ba cái nhãn trên một cột
      dài: bước chưa tới thì phần thân của nó không được dựng ra. Đây là điều
      kiện để form ngắn lại, nên phải chốt. */
@@ -814,6 +862,10 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
       !!q('.daily-claim') && !q('.daily-spin') && !/quiz/i.test(text()))
   }
   if (name === 'Xếp hạng') {
+    /* Khối xương của bảng xếp hạng là trạng thái ĐANG TẢI — nó phải tự rời
+       đi khi dữ liệu đã về; nằm lại là bảng nói dối về chính nó. */
+    check('bảng xếp hạng không kẹt ở khối xương sau khi nạp xong',
+      !q('.lb .sklist') && !!q('.lb-periodseg'))
     check('bảng xếp hạng có câu nói rõ luật', !!q('.lb-rule'), q('.lb-rule')?.textContent)
     /* Câu luật KHÔNG còn vế "· ties go to …" (vòng 12) — vế đó vừa dài vừa lặp
        lại điều bảng đã nói bằng số. */
@@ -995,6 +1047,16 @@ check('trang quản trị nằm trong .main', !!q('.main .adm-page'))
 check('trang quản trị nằm trong .sect', !!q('.sect .adm-page'))
 check('trang quản trị có tiêu đề trang (h1)', !!q('.mainhead-t'))
 check('có dải số liệu chuyển mục', qa('.adm-kpi').length >= 6, `${qa('.adm-kpi').length} ô`)
+/* HAI VÙNG KHÁC NHAU PHẢI CÓ HAI TÊN KHÁC NHAU: dải số liệu là con của trang
+   quản trị, dùng lại đúng câu của trang thì trình đọc màn hình nghe một cái tên
+   hai lần và không biết mình vừa vào vùng nào. */
+{
+  const pageLabel = q('.adm-page')?.getAttribute('aria-label') || ''
+  const kpiLabel = q('.adm-kpis')?.getAttribute('aria-label') || ''
+  check('dải số liệu có tên riêng, không lặp tên trang quản trị',
+    !!pageLabel && !!kpiLabel && pageLabel !== kpiLabel,
+    `trang="${pageLabel}" · dải="${kpiLabel}"`)
+}
 check('có thanh công cụ', !!q('.adm-bar'))
 /* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
    (Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ ở vòng 11.) */
@@ -1776,6 +1838,17 @@ where = 'bài trả phí'
     && new URLSearchParams(window.location.search).get('profile') === uid, window.location.search)
   check('trang cá nhân có ba ô số liệu', qa('.public-stats > div').length === 3,
     `${qa('.public-stats > div').length} ô`)
+  /* Chữ của trang này từng viết thẳng trong JSX (18 câu), nên nhãn hiện ra
+     KHÔNG chứng minh được gì; cái chứng minh được là nhãn đi qua từ điển: thiếu
+     bản dịch thì `t()` in ra khoá trần, và đây là chỗ duy nhất nhìn thấy điều đó
+     trên trình duyệt thật. */
+  const statsLabels = qa('.public-stats > div span').map(el => (el.textContent || '').trim())
+  check('nhãn ba ô số liệu lấy từ từ điển, không phải chuỗi viết thẳng',
+    statsLabels.length === 3 && statsLabels.every(x => x && !/^[a-z]+\.[a-z]/.test(x)),
+    statsLabels.join(' · '))
+  const rawKeys = text().match(/\b(public|badge|name|boundary|turnstile|rank|stat)\.[a-zA-Z][\w.]*/g)
+  check('trang cá nhân không in khoá từ điển ra màn hình',
+    !rawKeys, (rawKeys || []).slice(0, 3).join(' · '))
   /* cột mốc chuỗi ngày là thứ cộng đồng THẤY NHAU (chủ dự án chốt hiện ở cả
      trang công khai) — dải phải có mặt với đủ ba badge sáng/mờ */
   check('trang cá nhân công khai có dải streak ba badge',
@@ -2175,9 +2248,38 @@ realLog('\n── daily quiz: dữ liệu còn nguyên, giao diện đã gỡ �
     && /v_awarded := case when v_correct and v_votes < v_cap then 1 else 0 end/.test(quizSql))
   check('daily quiz: đường nộp cũ không còn trả thưởng',
     /raise exception 'err\.dailyQuizRetired'/.test(quizSql))
-  check('daily quiz: 3 phiếu miễn phí tự động vẫn tắt (không bật trong PR này)',
+  /* Bản cài tay vẫn là baseline 20261120: seed trong chunk 12/schema.sql KHÔNG đổi
+     (đổi nó là đổi bundle, không phải đổi chính sách). Chính sách SỐNG được bật
+     bằng migration append-only 20261124 — hai điều đó phải cùng đúng. */
+  check('daily quiz: bundle vẫn seed 3 phiếu miễn phí ở trạng thái tắt (baseline 20261120 không đổi)',
     /\('free_vote_grant_enabled',\s+'false'\)/.test(quizSql)
     && /\('global_daily_vote_cap_enabled',\s+'false'\)/.test(quizSql))
+
+  const freeVotes = rd('../supabase/migrations/20261124_restore_daily_free_votes.sql')
+  const freeVotesRollback = rd('../supabase/rollback/20261124_restore_daily_free_votes.sql')
+  const code = (sql) => sql.replace(/--[^\n]*/g, '')
+  const freeVotesCode = code(freeVotes)
+  const freeVotesUpdates = freeVotesCode.match(/update\s+public\.daily_(vote_quota|quiz)_config\b[\s\S]*?;/gi) || []
+  check('free votes: 20261124 bật công tắc + đặt 3/ngày ở CẢ HAI bản config, đúng bốn câu UPDATE',
+    freeVotesUpdates.length === 4
+    && freeVotesUpdates.every(sql => /key = 'free_vote_grant_enabled' and value is distinct from 'true'::jsonb/.test(sql)
+      || /key = 'free_votes_per_day' and value is distinct from '3'::jsonb/.test(sql))
+    && freeVotesUpdates.every(sql => !/global_daily_vote_cap/.test(sql)))
+  check('free votes: 20261124 KHÔNG đụng trần chung, ví, lịch sử vote hay lịch điểm danh',
+    !/set value = [^;]*where key = 'global_daily_vote_cap/.test(freeVotesCode)
+    && !/update\s+public\.(profiles|votes|requests|daily_login_rewards|daily_quiz_answers|daily_vote_quota_earnings)\b/i.test(freeVotesCode)
+    && !/\binsert\s+into\b|\bdelete\s+from\b|\btruncate\b|\bdrop\b/i.test(freeVotesCode))
+  check('free votes: 20261124 không tạo/đổi hàm hay bảng — bundle và fingerprint giữ nguyên baseline 20261120',
+    !/create\s+(or\s+replace\s+)?(table|function|index|policy|trigger|view|type)\b/i.test(freeVotesCode)
+    && !/\balter\s+table\b/i.test(freeVotesCode))
+  check('free votes: 20261124 fail-closed (tiền kiểm/hậu kiểm) và ghi lại chính sách cũ để rollback',
+    /err\.dailyFreeVotesPreflight/.test(freeVotes)
+    && /err\.dailyFreeVotesState/.test(freeVotes)
+    && /previous live policy: /.test(freeVotes)
+    && /notify pgrst, 'reload schema';/.test(freeVotes)
+    && /previous live policy/.test(freeVotesRollback)
+    && /err\.dailyFreeVotesRollback/.test(freeVotesRollback)
+    && /does not record the previous live policy/.test(freeVotesRollback))
 
   /* Giao diện + đường gọi: quiz không còn ở đâu trong mã chạy được. */
   const gone = ['../src/components/DailyRewards.jsx', '../src/components/DailyRewards.test.js',
@@ -2378,7 +2480,7 @@ realLog('\n── daily login ──')
     (() => {
       const login = rd('../src/components/DailyLogin.jsx')
       const calendar = rd('../src/components/DailyLoginCalendar.jsx')
-      const dict = rd('../src/lib/i18n.jsx')
+      const dict = rd('../src/lib/strings.js')
       return /daily-login-page/.test(login) && /check-in-calendar/.test(calendar)
         && !/\+\d+\s*(bonus )?votes?/i.test(login + calendar)
         && !/'daily\.(loginSubtitle|loginDesc|loginDone|claimSuccess|alreadyClaimed|loginTitle)':[^']*(\+|bonus)/.test(dict)

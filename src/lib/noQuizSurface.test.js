@@ -49,7 +49,7 @@ test('không tệp giao diện nào còn nhắc tới màn quiz, ngoài đúng m
   const offenders = []
   for (const file of src) {
     const rel = file.replace(repo, '').replace(/\\/g, '/')
-    if (rel.endsWith('/i18n.jsx') || /\.test\.js$/.test(file)) continue
+    if (rel.endsWith('/i18n.jsx') || rel.endsWith('/strings.js') || /\.test\.js$/.test(file)) continue
     const code = stripped(file)
     const hits = code.match(/quiz/i) || []
     if (!hits.length) continue
@@ -64,7 +64,7 @@ test('không tệp giao diện nào còn nhắc tới màn quiz, ngoài đúng m
 })
 
 test('từ điển chỉ giữ sáu mã lỗi cũ của SQL, không còn câu chữ quiz nào khác', () => {
-  const dict = read('src/lib/i18n.jsx').split('\n')
+  const dict = read('src/lib/strings.js').split('\n')
   const quizLines = dict.filter(line => /quiz|question|answer/i.test(line))
   const keys = quizLines.map(line => line.match(/^\s*'([A-Za-z0-9_.]+)'\s*:/)?.[1]).filter(Boolean)
   assert.deepEqual([...keys].sort(), [...LEGACY_ERROR_CODES].sort(),

@@ -89,7 +89,9 @@ test('lỗi trả về là key i18n kèm số qua DETAIL, không phải câu ti�
   assert.doesNotMatch(vote, /raise exception 'Not enough votes/)
   assert.doesNotMatch(vote, /raise exception 'Up to 3 requests per hour/)
   // và mọi key đó phải có trong từ điển, nếu không người dùng nhìn thấy 'err.x'
-  const i18n = readFileSync(new URL('./i18n.jsx', import.meta.url), 'utf8')
+  /* Từ điển tách sang `strings.js` (JS thuần) 07/10/2026 — i18n.jsx giờ chỉ là
+     tầng React, còn lib/spinShield.js cần đọc chữ mà không nạp .jsx. */
+  const i18n = readFileSync(new URL('./strings.js', import.meta.url), 'utf8')
   for (const key of ['err.rateLimit', 'err.notEnoughVotes', 'err.voteGate', 'err.voteFpLimit',
     'err.deleteVoted', 'err.paidPending', 'err.priceChanged', 'err.voteEdgeFp']) {
     assert.ok(i18n.includes(`'${key}':`), `thiếu key ${key} trong i18n`)

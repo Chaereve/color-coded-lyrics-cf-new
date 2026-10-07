@@ -8,6 +8,8 @@ import { copyText } from '../lib/clipboard'
 import { absolute, profileUrl, boardSearchUrl } from '../lib/history'
 import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
+import { useTransient } from '../lib/useTransient'
+import LoadErr from './LoadErr'
 import { statusLabel } from '../lib/meta'
 
 /* =========================================================
@@ -25,7 +27,7 @@ import { statusLabel } from '../lib/meta'
        đúng chữ mà hàng trên bảng nói.
    ========================================================= */
 
-export default function PublicProfile({ userId, onBack }) {
+export default function PublicProfile({ userId, onBack, fetchers = null }) {
   const { t } = useI18n()
   const nav = useNav()
   const back = onBack || nav.closeProfile
@@ -33,8 +35,17 @@ export default function PublicProfile({ userId, onBack }) {
      `userId` thì nghĩa là đang tải — kể cả khi chuyển sang xem người khác.
      Bản cũ cần `setLoading(true)` ngay trong effect, mà setState đồng bộ trong
      effect là một lượt render thừa (lint `react(set-state-in-effect)`). */
-  const [loaded, setLoaded] = useState({ id: null, profile: null })
-  const [shared, setShared] = useState(false)
+  /* `loaded` chở cả ba thứ: của AI, hồ sơ (hoặc null), và CÓ LỖI hay không.
+     Trước đây chỉ có hai trạng thái nên mọi lỗi (mất mạng, 5xx, phiên hết
+     hạn) đều rơi vào nhánh "không có hồ sơ" và in "Profile not found." —
+     người dùng kết luận sai về người kia, và không có nút nào để thử lại. */
+  const [loaded, setLoaded] = useState({ id: null, profile: null, error: false })
+  /* `attempt` chỉ để THỬ LẠI: tăng lên là effect dưới chạy lại. Không có nó
+     thì khối lỗi là đường cụt. */
+  const [retry, setRetry] = useState(0)
+  /* `Link copied` tự tắt sau 1,8s — đồng hồ do hook giữ, nên rời trang giữa
+     chừng không để lại một setTimeout sống lâu hơn component. */
+  const [shared, flashShared] = useTransient(1800)
   /* Dấu ngày hoạt động cho dải streak: tải SONG SONG với hồ sơ chứ không nối
      tiếp — thêm một round-trip vào chuỗi sẽ kéo dài màn "Loading profile…".
      null = chưa đọc được nguồn thì dải tự ẩn (xem StreakStrip). */
@@ -47,17 +58,22 @@ export default function PublicProfile({ userId, onBack }) {
 
   useEffect(() => {
     let live = true
-    fetchPublicProfile(userId)
-      .then(profile => { if (live) setLoaded({ id: userId, profile }) })
-      .catch(() => { if (live) setLoaded({ id: userId, profile: null }) })
-    fetchPublicStreak(userId)
+    const api = fetchers || { profile: fetchPublicProfile, streak: fetchPublicStreak }
+    api.profile(userId)
+      .then(profile => { if (live) setLoaded({ id: userId, profile: profile || null, error: false }) })
+      .catch(() => { if (live) setLoaded({ id: userId, profile: null, error: true }) })
+    api.streak(userId)
       .then(stats => { if (live) setAct({ id: userId, stats }) })
       .catch(() => { if (live) setAct({ id: userId, stats: null }) })
     return () => { live = false }
-  }, [userId])
+  }, [userId, fetchers, retry])
 
   const loading = loaded.id !== userId
   const profile = loading ? null : loaded.profile
+
+  /* Một chỗ quyết định tên hiển thị: `<h2>`, chữ cái đầu của avatar và tấm
+     card PNG đều lấy từ đây — trước đây ba chỗ tự bịa cùng một câu. */
+  const name = profile?.name || t('name.member')
 
   /* Thứ tự (mới nhất trước), giới hạn, và luật "không hiện bài chưa duyệt /
      bị từ chối" đều do `fetchPublicProfile` quyết định — ở đây chỉ bỏ những
@@ -74,7 +90,7 @@ export default function PublicProfile({ userId, onBack }) {
     if (!profile) return null
     const st = actStats
     return {
-      name: profile.name || 'Community member',
+      name,
       avatarUrl: profile.avatar_url || null,
       subtitle: t('card.subtitle'),
       stats: [
@@ -90,54 +106,64 @@ export default function PublicProfile({ userId, onBack }) {
       milestones: st ? STREAK_MILESTONES.map((m) => ({ n: m, got: st.earned.includes(m) })) : null,
       footer: t('card.footer'),
     }
-  }, [profile, actStats, t])
+  }, [profile, actStats, t, name])
 
   /* Địa chỉ để CHIA SẺ dựng từ `userId`, không lấy `window.location.href`: khi
      `pushState` bị chặn (iframe sandbox) thì địa chỉ trên thanh vẫn là bảng yêu
      cầu, copy ra sẽ là link sai. */
   const shareUrl = () => absolute(profileUrl(userId))
 
-  if (loading) return <div className="public-profile empty" role="status">Loading profile…</div>
-  if (!profile) return <div className="public-profile empty" role="status">Profile not found.</div>
+  if (loading) return <div className="public-profile empty" role="status">{t('public.loading')}</div>
+  /* Lỗi mạng KHÁC "người này không tồn tại": một câu là việc phải thử lại,
+     một câu là sự thật về hồ sơ. Gộp hai câu làm một là nói sai về người kia. */
+  if (loaded.error) {
+    return (
+      <section className="public-profile" data-reveal>
+        <LoadErr onRetry={() => setRetry(n => n + 1)}
+          titleKey="err.blockTitle" bodyKey="err.blockBody" retryKey="err.blockRetry" />
+      </section>
+    )
+  }
+  if (!profile) return <div className="public-profile empty" role="status">{t('public.notFound')}</div>
 
   return <section className="public-profile" data-reveal>
     <a className="profile-back" href="/" onClick={spaLink(back)}>
-      <Icon name="prev" size={14} /> Back to board
+      <Icon name="prev" size={14} /> {t('public.back')}
     </a>
     <div className="public-profile-head">
-      <div className="public-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (profile.name || '?')[0]}</div>
-      <div><h2>{profile.name || 'Community member'}</h2><p>Chaereve community member</p></div>
+      <div className="public-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (name || '?')[0]}</div>
+      <div><h2>{name}</h2><p>{t('public.member')}</p></div>
     </div>
     <div className="profile-share-row">
-      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) { setShared(true); setTimeout(() => setShared(false), 1800) } }}>{shared ? 'Link copied' : 'Share profile'}</button>
+      <button className="profile-share" onClick={async () => { const ok = await copyText(shareUrl()); if (ok) flashShared() }}>{shared ? t('public.copied') : t('public.share')}</button>
       {card && <ShareCardButton card={card} />}
     </div>
     <div className="public-stats">
-      <div><b>{profile.requests}</b><span>Requests</span></div>
-      <div><b>{profile.completed}</b><span>Completed</span></div>
+      <div><b>{profile.requests}</b><span>{t('public.requests')}</span></div>
+      <div><b>{profile.completed}</b><span>{t('public.completed')}</span></div>
       {/* "Received", không phải "given": con số là tổng phiếu các bài của người
           đó NHẬN được. Phiếu họ đi bỏ cho người khác không đọc được bằng RLS
           của `votes` (chỉ mình + admin) — xem ghi chú ở `fetchPublicProfile`. */}
-      <div><b>{profile.votes}</b><span>Votes received</span></div>
+      <div><b>{profile.votes}</b><span>{t('public.votes')}</span></div>
     </div>
     {/* Cột mốc chuỗi ngày của người này — cộng đồng thấy nhau đã đều đặn mấy
         ngày, cùng tinh thần với bảng xếp hạng và khối Achievements bên dưới. */}
     <StreakStrip stats={actStats} />
     <div className="public-badges">
-      <h3>Achievements</h3>
+      <h3>{t('public.achievements')}</h3>
       <div className="achievement-list">
-        {profile.requests >= 1 && <span><Icon name="compose" size={14} /><b>First request</b></span>}
-        {profile.requests >= 5 && <span><Icon name="star" size={14} /><b>Song Curator</b></span>}
-        {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>First completion</b></span>}
-        {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>Hit Maker</b></span>}
-        {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>10 votes earned</b></span>}
-        {actStats?.longest >= 7 && <span><Icon name="flame" size={14} /><b>7-day streak</b></span>}
-        {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>30-day streak</b></span>}
+        {profile.requests >= 1 && <span><Icon name="compose" size={14} /><b>{t('badge.firstRequest')}</b></span>}
+        {profile.requests >= 5 && <span><Icon name="star" size={14} /><b>{t('badge.curator')}</b></span>}
+        {profile.completed >= 1 && <span><Icon name="check" size={14} /><b>{t('badge.firstCompletion')}</b></span>}
+        {profile.completed >= 5 && <span><Icon name="cup" size={14} /><b>{t('badge.hitMaker')}</b></span>}
+        {profile.votes >= 10 && <span><Icon name="cup" size={14} /><b>{t('badge.votes10')}</b></span>}
+        {actStats?.longest >= 7 && <span><Icon name="flame" size={14} /><b>{t('badge.streak7')}</b></span>}
+        {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>{t('badge.streak30')}</b></span>}
       </div>
     </div>
     {recent.length > 0 && (
       <div className="public-requests">
-        <h3>Recent requests</h3>
+        <h3>{t('public.recent')}</h3>
         <div className="public-requests-grid">
           {recent.map((r, i) => (
             <div className="public-request" key={r.id || `${r.title}-${r.artist}-${i}`}>

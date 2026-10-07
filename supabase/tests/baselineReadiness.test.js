@@ -91,25 +91,30 @@ test('mode A — a database equivalent to post-20261117 is verified, and only th
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
           '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-          '20261123_reconcile_security_drift'])
+          '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
       const history = await historyRows(client)
       assert.ok(history.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(history.includes('20261120_daily_login_reward_immutable'))
       assert.ok(history.includes('20261121_vote_calendar_decoupling'))
       assert.ok(history.includes('20261122_disable_daily_quiz_runtime'))
       assert.equal(history.filter(v => v.startsWith('20261118')).length, 0)
-      assert.equal(history.length, result.recordedBaseline.length + 5, 'history is written only after verification passed')
+      assert.equal(history.length, result.recordedBaseline.length + 6, 'history is written only after verification passed')
       const copiedQuota = await pool.query(`
         select key, value from public.daily_vote_quota_config
          where key = any($1::text[]) order by key`, [liveQuota.map(([key]) => key)])
+      /* The live policy is copied verbatim (the cap pair and the switch are NOT
+         the repository seeds), and only then does 20261124 apply the reviewed
+         product policy to the two free-vote keys. The cap pair keeps the live
+         values, which is what proves this is not a repo-seed restore. */
       assert.deepEqual(copiedQuota.rows.map(row => [row.key, row.value]), [
         ['free_vote_grant_enabled', true],
-        ['free_votes_per_day', 2],
+        ['free_votes_per_day', 3],
         ['global_daily_vote_cap', 4],
         ['global_daily_vote_cap_enabled', true],
       ], 'production quota values are copied, not replaced by snapshot/repo defaults')
       assert.equal((await pool.query(
-        'select public.daily_free_vote_grant($1, $2)::int as n', [legacy, d])).rows[0].n, 2)
+        'select public.daily_free_vote_grant($1, $2)::int as n', [legacy, d])).rows[0].n, 3,
+      '20261124 leaves the daily grant at the 3 free votes per Vietnamese day the product requires')
 
       assert.equal(await rewardOf(pool, legacy, y), 2, 'a recorded amount survives the deployment')
       assert.equal(await rewardOf(pool, legacy, d), 2)
@@ -245,7 +250,7 @@ test('mode D — a database where 20261118 ran is detected and still moves forwa
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
           '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-          '20261123_reconcile_security_drift'])
+          '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
       const checks = await rewardChecks(pool)
       assert.equal(checks.table_checks, 0, '20261119 removed the table-wide CHECK')
       assert.equal(checks.triggers, 1)
@@ -356,7 +361,8 @@ test('--baseline vẫn là SÀN khi history đã có một phần: bản ≤ bas
       const result = await plan(client, { baseline: '20261120' })
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-          '20261123_reconcile_security_drift'], 'chỉ các bản SAU baseline được xếp vào pending')
+          '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'],
+        'chỉ các bản SAU baseline được xếp vào pending')
       assert.ok(result.pending.every(({ version }) => version > '20261120'))
       assert.ok(result.toRecord.every(({ version }) => version <= '20261120'), 'toRecord chỉ gồm bản ≤ baseline')
       assert.equal(result.toRecord.length, 35, '35 bản ≤ 20261120 chưa có trong history (20261118 đã quarantine)')

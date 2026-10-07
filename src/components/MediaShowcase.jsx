@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
+import LoadErr from './LoadErr'
 import { thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
 
@@ -70,7 +71,7 @@ const Chev = ({ dir }) => (
 
 const ytLink = (v) => v.url || (v.id ? `https://youtu.be/${v.id}` : null)
 
-export default function MediaShowcase({ featured = null, videos = [], canEdit, onAdd, limit = 20 }) {
+export default function MediaShowcase({ featured = null, videos = [], canEdit, onAdd, limit = 20, state = 'ready', onRetry }) {
   const { t } = useI18n()
 
   /* Một danh sách duy nhất cho cả sân khấu lẫn dải mục lục: video nổi
@@ -99,6 +100,31 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
     try { strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' }) }
     catch { strip.scrollLeft = Math.max(0, left) }
   }, [at, n])
+
+  /* Chưa có dòng nào để vẽ: ba khả năng, ba câu trả lời KHÁC NHAU.
+     Bản cũ gộp cả ba vào nhánh rỗng, nên mất mạng là dải video nói "chưa có
+     video nào" — người xem kết luận sai về kênh, và không có gì để bấm tiếp.
+     `state` do App truyền xuống (`loading | ready | error`), cùng luật với
+     bảng: chỉ hiện khối lỗi khi THẬT SỰ chưa có gì để xem. */
+  if (!n && (state === 'loading' || state === 'error')) {
+    return (
+      <section className="pick" id="home-media" data-reveal>
+        {state === 'loading'
+          ? (
+            <div className="sklist" role="status" aria-label={t('board.loading')}>
+              {Array.from({ length: 3 }, (_, i) => (
+                <div className="skrow" key={i} style={{ '--i': i }} aria-hidden="true">
+                  <span className="sk sk-l1" />
+                  <span className="sk sk-l2" />
+                  <span className="sk sk-vote" />
+                </div>
+              ))}
+            </div>
+            )
+          : <LoadErr onRetry={onRetry} titleKey="err.blockTitle" bodyKey="err.blockBody" retryKey="err.blockRetry" />}
+      </section>
+    )
+  }
 
   if (!n) {
     return (

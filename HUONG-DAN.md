@@ -81,7 +81,7 @@ nhiều lần, nên không có chuyện trừ được một nửa rồi lỗi.
 
 Mục **Daily Spin** trong sidebar có đường dẫn riêng **`/daily-spin`**. Khối *Your votes*
 ngoài bảng yêu cầu cũng có nút đi tới vòng quay. Giao diện giữ tiếng Anh như phần còn lại
-của app; chữ nằm trong nhóm `spin.*` / `err.spin*` của `src/lib/i18n.jsx`.
+của app; chữ nằm trong nhóm `spin.*` / `err.spin*` của `src/lib/strings.js`.
 
 ### Giao diện gọn
 
@@ -572,7 +572,7 @@ hoặc bị từ chối (`denied`) thì hàng tự rời Up next. Admin chốt/g
 Khối **Up next** trên trang Bảng yêu cầu **luôn hiện** (kể cả khi chưa chốt request nào) để
 mốc giờ chốt tiếp theo không bao giờ biến mất. Mốc giờ lấy theo thứ tự ưu tiên:
 `settings.pick.next_pick_at` → `last_pick_at + interval_days` → cùng lắm hiện chữ
-"every N days" (`now.everyDays` trong `src/lib/i18n.jsx`). Quá mốc mà chưa có lượt chốt mới,
+"every N days" (`now.everyDays` trong `src/lib/strings.js`). Quá mốc mà chưa có lượt chốt mới,
 chip đổi màu nhấn và hiện thêm **một chấm tĩnh** "any moment…" — đổi màu, KHÔNG nhấp nháy:
 một chỗ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh sách mỗi 1,6 giây, trong khi
 "quá mốc" đọc được bằng màu và con số là đủ. App tự hỏi lại
@@ -1078,7 +1078,7 @@ migration đều an toàn để chạy lại khi chưa biết trạng thái DB. 
 | `migrations/20261105_desktop_review_media.sql` | một lần: `admin_review` nhận thêm `p_video_url` — Từ chối request vẫn kèm được link video có sẵn để người gửi đối chiếu; bắt đầu bằng `drop function if exists` rồi tạo lại nên chạy lại vẫn an toàn |
 
 **`P0001` là mã chung của PostgreSQL cho `RAISE EXCEPTION`, không tự nó chứng minh schema thiếu.** Xem toàn bộ thông báo lỗi trước khi chọn migration. Các hàm SQL
-`raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/i18n.jsx`
+`raise exception 'err.xxx'` bằng **key**, app dịch ra câu chữ trong `src/lib/strings.js`
 (nhóm `err.*`). Schema cũ raise câu tiếng Việt không dấu nên người dùng đọc được cả dòng
 `Vui long...`; mà chạy schema mới với app cũ (hay ngược lại) thì màn hình chỉ có `P0001`.
 Hãy xác định đúng migration/RPC chưa cập nhật thay vì chạy lại `schema.sql`. Muốn đổi câu lỗi thì sửa trong từ điển, đừng sửa trong SQL —
@@ -1979,7 +1979,7 @@ push({ tone: 'ok', title: 'Đã xong', body: 'Nội dung phụ, xuống dòng đ
 
 Ba việc được thông báo riêng (đúng yêu cầu của chủ kênh):
 
-| Khi | Mẩu tin (key trong `i18n.jsx`) |
+| Khi | Mẩu tin (key trong `strings.js`) |
 |---|---|
 | Gửi request **miễn phí** thành công | `notif.reqTitle` "Request sent" + `notif.reqBody` "{song} is waiting for review." |
 | Tạo **Paid Request** | `notif.paidTitle` + số tiền, kèm nút `notif.payNow` mở thẳng tab Mua vote |
@@ -1998,12 +1998,15 @@ mà modal đang dùng.
 
 ## Tự sửa chữ trên web
 
-**Toàn bộ câu chữ nằm trong một file duy nhất: `src/lib/i18n.jsx`.** Không phải đi lục
-từng file component.
+**Toàn bộ câu chữ nằm trong một file duy nhất: `src/lib/strings.js`** (object `S`) — không
+phải đi lục từng file component. Từ 07/10/2026 từ điển tách khỏi tầng React:
+`src/lib/i18n.jsx` chỉ còn `I18nProvider`, `useI18n`, `errMsg` và re-export `translate`,
+để `lib/spinShield.js` (widget Turnstile dựng bằng DOM) đọc được từ điển — test của nó nạp
+mô-đun bằng node trần, không qua Vite/JSX.
 
 ### Cách làm
 
-1. Mở `src/lib/i18n.jsx`.
+1. Mở `src/lib/strings.js`.
 2. Bấm `Ctrl + F`, gõ đúng đoạn chữ bạn thấy trên web, ví dụ `New request`.
 3. Bạn sẽ thấy một dòng như thế này:
 
@@ -2329,7 +2332,7 @@ như nhiều nhà đăng ký khác.
 
 ## Liên hệ hỗ trợ
 
-Câu liên hệ là MỘT key duy nhất — `support.line` trong `src/lib/i18n.jsx` — và nó tự ghép với
+Câu liên hệ là MỘT key duy nhất — `support.line` trong `src/lib/strings.js` — và nó tự ghép với
 link `t.me/<handle>`:
 
 > Contact for help or refund: Telegram t.me/ssochuz
@@ -2415,11 +2418,11 @@ DB mới và DB có dữ liệu.
 ## Chữ trên giao diện — một thứ tiếng
 
 App chỉ dùng **tiếng Anh**. Khối đổi ngôn ngữ (nút `VI | EN`, `localStorage` khoá `ccl.lang`)
-đã bỏ hẳn, cùng với toàn bộ chuỗi tiếng Việt trong `src/lib/i18n.jsx`. Lý do: khách vào trang
+đã bỏ hẳn, cùng với toàn bộ chuỗi tiếng Việt trong `src/lib/strings.js`. Lý do: khách vào trang
 nhìn thấy hai nút ngôn ngữ nhưng thực chất chỉ có một nội dung, còn chủ kênh thì phải sửa chữ
 hai lần cho mỗi câu.
 
-Toàn bộ chữ vẫn nằm trong **một file duy nhất** — `src/lib/i18n.jsx`, object `S`:
+Toàn bộ chữ vẫn nằm trong **một file duy nhất** — `src/lib/strings.js`, object `S`:
 
 ```js
 const S = {
@@ -2445,7 +2448,7 @@ const S = {
 ### Nếu sau này muốn thêm tiếng Việt nữa
 
 Đừng làm nếu thật sự cần. Khi cần thì: đặt lại `DICT = { en: {...}, vi: {...} }` trong
-`i18n.jsx`, cho `t()` rơi về `en` khi thiếu khoá, và thêm một nút chọn ngôn ngữ ở khối
+`strings.js`, cho `t()` rơi về `en` khi thiếu khoá, và thêm một nút chọn ngôn ngữ ở khối
 *Cài đặt* của sidebar — lúc đó `vnd()`/`compact()` cũng phải nhận tham số ngôn ngữ trở lại.
 Hai hàm định dạng này và `timeAgo()` đang được gọi kiểu `vnd(x)`, `compact(n)`.
 
@@ -2506,7 +2509,8 @@ src/
   index.css                   toàn bộ style + bộ easing chuyển động
   lib/db.js                   Supabase + auth + cấu hình giá + media + fallback demo
   lib/meta.js                 map màu cho loại & trạng thái, định dạng tiền/thời gian
-  lib/i18n.jsx                TOÀN BỘ câu chữ trên web (một từ điển tiếng Anh)
+  lib/strings.js              TOÀN BỘ câu chữ trên web (một từ điển tiếng Anh)
+  lib/i18n.jsx                tầng React của chữ: I18nProvider, useI18n, errMsg
   lib/avatar.js               thu nhỏ + nén ảnh đại diện ngay trên trình duyệt
   lib/sfx.js                  âm thanh tổng hợp bằng Web Audio, không dùng file
   lib/payment.js              thông tin STK/PayPal + sinh mã QR

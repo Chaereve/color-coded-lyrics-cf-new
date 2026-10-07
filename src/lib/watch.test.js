@@ -437,7 +437,7 @@ test('pickLadder: mỗi hạng tự mang theo sàn thời gian của nó', () =>
 test('câu chữ của sàn thời gian có thật trong từ điển', () => {
   /* i18nKeys.test.js chỉ soi được `t('literal')`; etaKey trả khoá qua BIẾN nên
      thiếu một khoá là UI in ra nguyên "standing.etaWeeks" mà test kia im lặng. */
-  const dict = readFileSync(new URL('./i18n.jsx', import.meta.url), 'utf8')
+  const dict = readFileSync(new URL('./strings.js', import.meta.url), 'utf8')
   for (const k of ['standing.etaDays', 'standing.etaWeeks', 'standing.etaMonths']) {
     assert.ok(dict.includes(`'${k}':`), `thiếu ${k}`)
   }

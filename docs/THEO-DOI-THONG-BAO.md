@@ -156,7 +156,7 @@ create trigger requests_selfwatch_tri after insert on public.requests
   for each row execute function public.requests_selfwatch();
 ```
 
-`err.watchLimit` **phải** có trong `src/lib/i18n.jsx` — quy ước của repo (mục 1.4 của
+`err.watchLimit` **phải** có trong `src/lib/strings.js` — quy ước của repo (mục 1.4 của
 `docs/RA-SOAT-2026-09-08.md`): mọi key `raise` trong SQL phải có mặt trong từ điển,
 key này đã thêm sẵn từ prototype.
 

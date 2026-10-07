@@ -59,7 +59,7 @@ Giao diện hiện tại của ứng dụng hiển thị bằng **tiếng Anh**,
 | 18 | Nếu thấy dòng chữ tiếng Anh **“This feature was retired. Please refresh the page to get the newest version — you will land on the daily check-in calendar.”** | Đây là câu app hiện khi một tab/bản cũ còn gọi cửa quiz đã đóng. Nghĩa: *“Tính năng này đã kết thúc. Vui lòng làm mới trang để dùng phiên bản mới nhất — bạn sẽ được đưa về lịch điểm danh hàng ngày.”* Bấm **F5** là hết; **không** được thấy chữ `permission denied`, `42501` hay tên hàm Postgres nào | |
 
 > **Vì sao bước 18 là tiếng Anh:** giao diện của app chỉ có **một** thứ tiếng
-> (tiếng Anh — ghi rõ ở đầu `src/lib/i18n.jsx`), không có bản tiếng Việt để
+> (tiếng Anh — ghi rõ ở đầu `src/lib/strings.js`), không có bản tiếng Việt để
 > chuyển sang. Câu tiếng Việt ở trên là để bạn đối chiếu ý nghĩa, không phải
 > chữ sẽ hiện trên web.
 

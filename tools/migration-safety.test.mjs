@@ -185,7 +185,7 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(fresh.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -196,7 +196,7 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(after.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -209,7 +209,8 @@ test('the default plan never schedules a quarantined migration', () => {
   })
   assert.deepEqual(partial.pending.map(({ id }) => id),
     ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
-      '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift'])
+      '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift',
+      '20261124_restore_daily_free_votes'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -345,6 +346,57 @@ test('the vote/Calendar migration is fail-closed, transactional, and keeps Calen
   }
 })
 
+test('the daily free-vote policy flip is config-only, fail-closed, and reversible from the recorded policy', () => {
+  /* stripSqlNoise blanks string literals, which would hide the key/value pairs
+     this file is made of. Use a comment-only strip: neither file contains `--`
+     inside a string literal, so the key names and predicates stay readable
+     while comments (documentation) cannot satisfy an assertion. */
+  const code = sql => sql.replace(/--[^\n]*/g, '')
+
+  const sql = readFileSync(join(MIGRATIONS_DIR, '20261124_restore_daily_free_votes.sql'), 'utf8')
+  const raw = code(sql)
+  assert.match(sql, /^begin;[\s\S]*^commit;\s*$/m)
+  // No DDL and no DML at all: the fresh-install bundle and the committed 20261120
+  // fingerprint must stay exactly where they are, and no row but config moves.
+  assert.doesNotMatch(raw, /\bdrop\b|\bcascade\b|\btruncate\b|\bdelete\b/i)
+  assert.doesNotMatch(raw, /\binsert\s+into\b/i)
+  assert.doesNotMatch(raw, /create\s+(or\s+replace\s+)?(table|function|index|policy|trigger|view|type)\b/i)
+  assert.doesNotMatch(raw, /alter\s+table/i)
+  // Exactly four UPDATE statements: two keys in each of the two config copies,
+  // and the optional global cap pair is never assigned by this file.
+  assert.equal((raw.match(/update\s+public\.(?:daily_vote_quota_config|daily_quiz_config)\b/gi) || []).length, 4)
+  assert.equal((raw.match(/where key = 'free_vote_grant_enabled' and value is distinct from 'true'::jsonb/g) || []).length, 2,
+    'the enable switch is flipped in both copies without touching an already-target row')
+  assert.equal((raw.match(/where key = 'free_votes_per_day' and value is distinct from '3'::jsonb/g) || []).length, 2)
+  assert.equal((raw.match(/update[^;]*?set value[^;]*?where key = 'global_daily_vote_cap/gs) || []).length, 0,
+    'the cap pair is only read (snapshot/compare), never written')
+  assert.equal((raw.match(/update\s+public\.(?:profiles|votes|requests|daily_login_rewards|daily_quiz_answers|daily_vote_quota_earnings)\b/gi) || []).length, 0)
+  // Fail-closed on both ends, and the previous policy is recorded for the rollback.
+  assert.match(raw, /raise exception 'err\.dailyFreeVotesPreflight/)
+  assert.match(raw, /raise exception 'err\.dailyFreeVotesState/)
+  assert.match(raw, /current_setting\('ccl\.dailyfree\.counts'\)/, 'row counts and wallet sums are re-compared in the same transaction')
+  assert.match(raw, /previous live policy: /)
+  assert.match(raw, /public\.my_vote_status\(\)/, 'the post-check calls the function the panel reads')
+  assert.match(raw, /notify pgrst, 'reload schema';/)
+
+  const rollback = readFileSync(join(fileURLToPath(new URL('..', import.meta.url)),
+    'supabase', 'rollback', '20261124_restore_daily_free_votes.sql'), 'utf8')
+  const rollbackRaw = code(rollback)
+  assert.doesNotMatch(rollbackRaw, /\bdrop\b|\bcascade\b|\btruncate\b|\bdelete\b/i)
+  assert.doesNotMatch(rollbackRaw, /\binsert\s+into\b/i)
+  assert.doesNotMatch(rollbackRaw, /create\s+(or\s+replace\s+)?(table|function|index|policy|trigger|view|type)\b/i)
+  assert.equal((rollbackRaw.match(/update\s+public\.(?:profiles|votes|requests|daily_login_rewards)\b/gi) || []).length, 0)
+  assert.match(rollbackRaw, /previous live policy/,
+    'the rollback restores the values the migration recorded, never a guessed policy')
+  assert.match(rollbackRaw, /does not record the previous live policy/,
+    'a missing record is an abort, not a default')
+  assert.match(rollbackRaw, /err\.dailyFreeVotesRollback: the live policy is not the state 20261124 installed/)
+  // Both files belong to the post-baseline path only: nothing is mirrored into the
+  // fresh-install bundle, which must stay at baseline 20261120.
+  assert.equal(bundleAheadOfBaseline([SCHEMA_FILE,
+    ...readdirSync(SETUP_DIR).filter(n => n.endsWith('.sql')).map(n => join(SETUP_DIR, n))]).length, 0)
+})
+
 test('the runner refuses to guess a baseline for a populated database', () => {
   const { active, quarantined } = collectMigrations()
   assert.throws(() => planPending({ active, quarantined, applied: [] }), /refusing to guess/)
@@ -438,9 +490,9 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
   assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
 
-  /* Và trên chính máy này: quét thật vẫn phải ra đúng 39 migration đang hoạt động. */
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 40 migration đang hoạt động. */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 39)
+  assert.equal(active.length, 40)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -454,13 +506,14 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
   const planned = planPending({ active, quarantined, applied: [], baseline: '20261120' })
   assert.deepEqual(planned.pending.map(({ id }) => id),
     ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '3 migration(s) would be applied:')
+  assert.equal(lines[0], '4 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
     'apply 20261123  20261123_reconcile_security_drift.sql',
+    'apply 20261124  20261124_restore_daily_free_votes.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
