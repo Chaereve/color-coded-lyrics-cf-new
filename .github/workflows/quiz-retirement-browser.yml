@@ -12,6 +12,10 @@
 # HAI KÊNH ĐỌC KẾT QUẢ (log của runner không tải được từ sandbox):
 #   · annotation của check-run — bước "Xuất kết quả … thành annotation";
 #   · bình luận trên PR — bước cuối (cần nhánh có PR, kể cả PR đã merge).
+#
+# CHẠY LIVE SMOKE BẰNG CÁCH NÀO: token của sandbox không có `actions:write`, nên
+# `gh workflow run` trả 403 và chỉ còn đường PUSH. URL cần smoke vì thế nằm ở tệp
+# .github/live-smoke-target — ghi URL vào đó rồi push là job mở site thật (chỉ đọc).
 name: Quiz retirement — browser & edge check
 
 on:
@@ -42,6 +46,22 @@ jobs:
       LIVE_URL: ${{ inputs.live_url || '' }}
     steps:
       - uses: actions/checkout@v4
+
+      # Token của sandbox không có `actions:write` nên `gh workflow run` trả 403:
+      # PUSH là cách duy nhất còn lại để chạy job này, mà push thì không truyền
+      # được input. Vì vậy URL cần smoke đọc từ tệp .github/live-smoke-target
+      # (xem ghi chú trong tệp đó). Input của workflow_dispatch vẫn được ưu tiên.
+      - name: Đọc URL live smoke từ .github/live-smoke-target
+        run: |
+          TARGET=$(grep -v '^[[:space:]]*#' .github/live-smoke-target 2>/dev/null | grep -m1 -v '^[[:space:]]*$' | tr -d ' \r' || true)
+          if [ -n "$LIVE_URL" ]; then
+            echo "live_url truyền qua dispatch: $LIVE_URL (ưu tiên hơn tệp)"
+          elif [ -n "$TARGET" ]; then
+            echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
+            echo "live smoke sẽ mở $TARGET (đọc từ .github/live-smoke-target)"
+          else
+            echo "không có URL live smoke: chỉ chạy edge + Chromium cục bộ"
+          fi
 
       - uses: actions/setup-node@v4
         with:

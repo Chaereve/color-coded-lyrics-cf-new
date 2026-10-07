@@ -1,0 +1,24 @@
+# URL mà live smoke (tools/browserSmoke.mjs --live) sẽ mở, CHỈ ĐỌC.
+# -----------------------------------------------------------------------------
+# Vì sao mục tiêu nằm ở TỆP NÀY thay vì ở input của workflow_dispatch: token của
+# sandbox không có quyền `actions:write`, nên `gh workflow run` trả HTTP 403 và
+# cách duy nhất còn lại để chạy job này là PUSH. (Phiên trước phải dùng tới hai
+# commit `ci(temp)` hard-code URL rồi gỡ — cùng một việc, nhưng không để lại cơ
+# chế nào dùng tiếp được.)
+#
+# Cách dùng: dòng ĐẦU TIÊN không bắt đầu bằng `#` và không rỗng là URL cần smoke.
+#   · ghi URL + push          → job chạy live smoke trên URL đó;
+#   · để nguyên toàn comment  → các lượt push chỉ chạy phần edge + Chromium cục bộ.
+# `workflow_dispatch` vẫn thắng: input `live_url` (khi truyền) được ưu tiên hơn
+# tệp này, nên người có quyền dispatch không phải sửa tệp.
+#
+# URL phải là bản deploy THẬT đã có VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.
+# Job tự kiểm tra điều đó ở bước "Đọc bằng chứng từ edge" và làm ĐỎ run nếu bundle
+# ở chế độ demo: live smoke mở trang như một khách, và khách thì không mở kênh
+# realtime nào nếu `hasSupabase` = false — mục "không có lỗi console" khi ấy đạt
+# vì chẳng có gì để CSP chặn, tức là XANH GIẢ, không nói được CSP đúng hay sai.
+#
+# Đang smoke: nhánh này, bản preview mới nhất của Cloudflare Pages (URL alias của
+# nhánh, luôn trỏ tới deployment vừa dựng — không dùng URL theo commit vì phải
+# chờ deploy xong mới biết).
+https://arena-2064073f-color-coded-l.chaereve.pages.dev
