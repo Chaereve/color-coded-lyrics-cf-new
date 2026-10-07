@@ -30,7 +30,15 @@ on:
         required: false
         default: ''
   push:
-    branches: ['arena/2064073f-color-coded-lyrics-cf-new']
+    # Danh sách này là các nhánh ĐANG LÀM VIỆC, không phải tính năng: job này là
+    # chỗ DUY NHẤT có Chromium (1280px + 390px, lỗi console thật) và có mạng ra
+    # edge — sandbox phát triển không có cả hai. Ghim cứng một nhánh cũ nghĩa là
+    # PR mới không có mục nào trong số đó. Thêm nhánh, không thay nhánh cũ.
+    # (Token trong sandbox không có `actions:write` nên `gh workflow run` trả 403;
+    #  push là đường còn lại — xem .github/live-smoke-target.)
+    branches:
+      - 'arena/2064073f-color-coded-lyrics-cf-new'
+      - 'arena/015dd3b4-color-coded-lyrics-cf-new'
 
 permissions:
   contents: read
