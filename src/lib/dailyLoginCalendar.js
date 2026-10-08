@@ -1,7 +1,7 @@
 import { hasSupabase, supabase } from './supabaseClient.js'
 import { isCalendarDay, isCalendarMonth, monthOf, monthLength, checkInStats } from './checkInCalendar.js'
 import { nextSpinReset, spinDay } from './dailySpin.js'
-import { LOGIN_REWARD_SOURCES, checkInGrantsFor, applyCap, LOGIN_REWARD_CAP } from './loginRewards.js'
+import { LOGIN_REWARD_SOURCES, checkInGrantsFor, applyCap, LOGIN_REWARD_CAP, LOGIN_MILESTONE30_BONUS } from './loginRewards.js'
 
 export const DAILY_LOGIN_CALENDAR_SYNC_KEY = 'ccl.daily.login.calendar.changed.v1'
 const DEMO_KEY = userId => `ccl.daily.login.calendar.demo.v1.${userId}`
@@ -25,8 +25,9 @@ const readDemoState = userId => {
     return {
       days: Array.isArray(parsed?.days) ? parsed.days.filter(isCalendarDay).sort() : [],
       milestone30Granted: parsed?.milestone30Granted === true,
+      milestone30Day: isCalendarDay(parsed?.milestone30Day) ? parsed.milestone30Day : null,
     }
-  } catch { return { days: [], milestone30Granted: false } }
+  } catch { return { days: [], milestone30Granted: false, milestone30Day: null } }
 }
 const readDemo = userId => readDemoState(userId).days
 const writeDemoState = (userId, state) => {
@@ -43,6 +44,11 @@ function makeRewardStatus(userId, state, now = Date.now()) {
   const breakdown = claimedToday
     ? applyCap(checkInGrantsFor(stats.streak))
     : []
+  // The 30-day reward belongs to the day it was granted, exactly like the SQL
+  // ledger: once-only for the lifetime, +20 on that day's breakdown.
+  if (claimedToday && state.milestone30Granted && state.milestone30Day === day) {
+    breakdown.push({ source: 'login_milestone30', amount: LOGIN_MILESTONE30_BONUS })
+  }
   const capUsed = breakdown.reduce((sum, grant) => sum + grant.amount, 0)
   return {
     user_id: userId,
@@ -225,9 +231,13 @@ export async function claimDailyLoginCalendar(userId, expectedDay) {
       // same rule as the SQL claim (partial grants retry on later check-ins).
       const requested = checkInGrantsFor(stats.streak).reduce((sum, g) => sum + g.amount, 0)
       const paid = applyCap(checkInGrantsFor(stats.streak)).reduce((sum, g) => sum + g.amount, 0)
-      const milestone30Granted = stats.streak >= 30 && !state.milestone30Granted && paid >= requested
-        ? true : state.milestone30Granted
-      writeDemoState(userId, { days, milestone30Granted })
+      const milestone30JustNow = stats.streak >= 30 && !state.milestone30Granted && paid >= requested
+      const milestone30Granted = milestone30JustNow || state.milestone30Granted
+      writeDemoState(userId, {
+        days,
+        milestone30Granted,
+        milestone30Day: milestone30JustNow ? before.day : state.milestone30Day,
+      })
     }
     result = { replayed, status: makeStatus(userId, readDemo(userId)), rewards: makeRewardStatus(userId, readDemoState(userId)) }
   }
