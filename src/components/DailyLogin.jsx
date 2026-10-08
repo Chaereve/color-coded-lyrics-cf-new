@@ -17,20 +17,20 @@ import './DailyLogin.css'
    /daily-login — LỊCH ĐIỂM DANH + THƯỞNG CHECK-IN (B1)
    ---------------------------------------------------------
    Hai cột trên desktop (lịch 60% | thẻ thưởng 40%), một cột trên
-   mobile — đúng mockup đã duyệt, giữ nguyên design language (token
-   --surface/--line/--a của app, không thêm màu mới).
+   mobile. Ngôn ngữ thị giác giữ nguyên palette brand (token --a/
+   --done/--paid/--denied, Be Vietnam Pro, JetBrains Mono) — chỉ thêm
+   gradient accent, kính mờ và elevation, không thêm màu ngoài hệ.
 
    Thẻ phải là CUÔN CỦA SỐ THẬT: mọi con số đến từ RPC
    `my_login_reward_status` (20261127) hoặc từ kết quả claim. RPC chưa
    có (database chưa chạy migration) hoặc bị owner tắt
-   (login_rewards_enabled = false) → thẻ TỰ ẨN, trang lịch vẫn nguyên
-   — nâng cấp không được phá tính năng đang chạy.
+   (login_rewards_enabled = false) → thẻ TỰ ẨN, trang lịch vẫn nguyên.
    ========================================================= */
 
 const prefersReducedMotion = () =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-/* Đếm số mượt 0 → target trong ~500ms; reduced-motion hoặc SSR thì nhảy thẳng. */
+/* Đếm số mượt 0 → target trong ~600ms; reduced-motion hoặc SSR thì nhảy thẳng. */
 function useCountUp(target, enabled = true) {
   const [value, setValue] = useState(target)
   const fromRef = useRef(target)
@@ -45,7 +45,7 @@ function useCountUp(target, enabled = true) {
     const started = performance.now()
     let raf
     const tick = now => {
-      const t = Math.min(1, (now - started) / 500)
+      const t = Math.min(1, (now - started) / 600)
       const eased = 1 - (1 - t) ** 3
       setValue(Math.round(from + (to - from) * eased))
       if (t < 1) raf = requestAnimationFrame(tick)
@@ -59,8 +59,20 @@ function useCountUp(target, enabled = true) {
 
 const pct = (part, whole) => (whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0)
 
-/* Thẻ thưởng: tổng hôm nay (counter), breakdown theo nguồn, tiến độ chu kỳ
-   7 ngày, hai mốc 7/30 và đồng hồ cap 30 vote/ngày. */
+/* Mức cap quyết định MÀU thanh (xanh → vàng → đỏ), tất cả đều token sẵn có. */
+const capLevel = (used, cap) => {
+  const ratio = cap > 0 ? used / cap : 0
+  return ratio >= 0.85 ? 'high' : ratio >= 0.6 ? 'mid' : 'low'
+}
+
+/* Confetti NHẸ: 12 mảnh, vị trí/trễ suy ra từ chỉ số (dự đoán được, không
+   nhảy loạn giữa các lần render). ChỉNHỈ xuất hiện khi `.is-fete`. */
+const CONFETTI = Array.from({ length: 12 }, (_, i) => ({
+  dx: `${((i % 2 ? -1 : 1) * (10 + (i * 29) % 90))}px`,
+  delay: `${(i % 6) * 90}ms`,
+  drift: `${(i % 2 ? -1 : 1) * (14 + (i * 13) % 30)}px`,
+}))
+
 function RewardCard({ rewards, claimed, fete }) {
   const { t } = useI18n()
   const total = useCountUp(rewards.today_total)
@@ -72,45 +84,97 @@ function RewardCard({ rewards, claimed, fete }) {
   const nextTotal = nextGrants.reduce((sum, g) => sum + g.amount, 0)
   const cycle = rewards.cycle_day
   const m7Done = claimed && rewards.breakdown.some(s => s.source === 'login_milestone7')
-  const m30Progress = rewards.milestone30_granted ? 30 : Math.min(rewards.streak, 30)
+  const m30Done = rewards.milestone30_granted
+  const m30Progress = m30Done ? 30 : Math.min(rewards.streak, 30)
+
+  /* HIỆU ỨNG UNLOCK: chip vừa chuyển Locked → Done được một nhịp nảy + quét
+     sáng (so sánh trạng thái TRƯỚC đó qua ref, không đụng reduced-motion). */
+  const prev7 = useRef(null)
+  const prev30 = useRef(null)
+  const [unlock, setUnlock] = useState('')
+  useEffect(() => {
+    if (prev7.current === false && m7Done) setUnlock('m7')
+    else if (prev30.current === false && m30Done) setUnlock('m30')
+    prev7.current = m7Done
+    prev30.current = m30Done
+  }, [m7Done, m30Done])
+  useEffect(() => {
+    if (!unlock) return undefined
+    const id = setTimeout(() => setUnlock(''), 1400)
+    return () => clearTimeout(id)
+  }, [unlock])
 
   return (
     <article className={`login-rewards${fete ? ' is-fete' : ''}`} aria-labelledby="login-rewards-title">
-      <span className="login-rewards-pulse" aria-hidden="true">{Array.from({ length: 5 }, (_, i) => <i key={i} />)}</span>
       <h3 id="login-rewards-title"><Icon name="flame" size={15} />{t('daily.rewardsTitle')}</h3>
-      <div className="login-rewards-total" aria-label={t('daily.counterLabel')}>
-        <b className="login-rewards-counter">{t(total === 1 ? 'daily.rewardOne' : 'daily.rewardMany', { n: total })}</b>
-        <span>{t('daily.rewardsToday')}</span>
+
+      {/* HERO — số streak lớn là nhân vật chính của thẻ */}
+      <div className="login-rewards-hero">
+        <span className="login-rewards-flame" aria-hidden="true"><Icon name="flame" size={22} /></span>
+        <div className="login-rewards-hero-streak">
+          <b className="login-rewards-streak-num">{rewards.streak}</b>
+          <span className="login-rewards-streak-label">{t('daily.streakLabel')}</span>
+        </div>
+        <div className="login-rewards-earn">
+          <b className="login-rewards-counter">{t(total === 1 ? 'daily.rewardOne' : 'daily.rewardMany', { n: total })}</b>
+          <span>{t('daily.rewardsToday')}</span>
+        </div>
       </div>
+
+      {/* FX — chỉ khi vừa nhận thưởng: số vote bay lên + confetti rơi nhẹ */}
+      {fete && (
+        <div className="login-rewards-fx" aria-hidden="true">
+          {rewards.breakdown.slice(0, 3).map((slice, i) => (
+            <b key={`${slice.source}-${i}`} className="fx-vote"
+              style={{ '--fx-x': `${18 + i * 26}%`, '--fx-delay': `${i * 160}ms` }}>
+              {t(slice.amount === 1 ? 'daily.rewardOne' : 'daily.rewardMany', { n: slice.amount })}
+            </b>
+          ))}
+          {CONFETTI.map((piece, i) => (
+            <i key={i} className="fx-confetti"
+              style={{ left: `${8 + i * 7.6}%`, '--fx-dx': piece.dx, '--fx-drift': piece.drift, '--fx-delay': piece.delay }} />
+          ))}
+        </div>
+      )}
+
       <p className="login-rewards-live" role="status" aria-live="polite">
         {claimed || !nextTotal
           ? null
           : t(nextTotal === 1 ? 'daily.nextCheckinOne' : 'daily.nextCheckin', { n: nextTotal })}
       </p>
+
+      {/* CHU KỲ 7 NGÀY — progress dạng segmented, ô cuối là ô mốc */}
       <div className="login-rewards-cycle">
         <div className="login-rewards-cycle-head">
           <span>{cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}</span>
           <b>{t('daily.streakLabel')} {rewards.streak}</b>
         </div>
-        <div className="login-rewards-cycle-bar" role="img"
-          aria-label={cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}>
+        <div className={`login-rewards-cycle-bar${cycle === LOGIN_CYCLE_DAYS ? ' is-complete' : ''}`}
+          role="img" aria-label={cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}>
           {Array.from({ length: LOGIN_CYCLE_DAYS }, (_, i) => (
-            <i key={i} className={i < cycle ? 'is-on' : ''} />
+            <i key={i} className={`${i < cycle ? 'is-on' : ''}${i === LOGIN_CYCLE_DAYS - 1 ? ' is-goal' : ''}`} />
           ))}
         </div>
       </div>
+
+      {/* MỐC 7/30 — chips có progress nội tại + nhịp unlock khi vừa đạt */}
       <ul className="login-rewards-milestones">
-        <li className={m7Done ? 'is-done' : ''}>
-          <span className="login-rewards-milestone-bar"><i style={{ width: `${pct(cycle, LOGIN_CYCLE_DAYS)}%` }} /></span>
+        <li className={`${m7Done ? 'is-done' : ''}${unlock === 'm7' ? ' just-unlocked' : ''}`}>
+          <span className="login-rewards-milestone-bar" aria-hidden="true">
+            <i style={{ width: `${pct(cycle, LOGIN_CYCLE_DAYS)}%` }} />
+          </span>
           <span className="login-rewards-milestone-copy">{t('daily.milestone7')}</span>
           <em>{m7Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}</em>
         </li>
-        <li className={rewards.milestone30_granted ? 'is-done' : ''}>
-          <span className="login-rewards-milestone-bar"><i style={{ width: `${pct(m30Progress, 30)}%` }} /></span>
+        <li className={`${m30Done ? 'is-done' : ''}${unlock === 'm30' ? ' just-unlocked' : ''}`}>
+          <span className="login-rewards-milestone-bar" aria-hidden="true">
+            <i style={{ width: `${pct(m30Progress, 30)}%` }} />
+          </span>
           <span className="login-rewards-milestone-copy">{t('daily.milestone30')}</span>
-          <em>{rewards.milestone30_granted ? t('daily.milestoneDone') : t('daily.milestoneLocked')}</em>
+          <em>{m30Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}</em>
         </li>
       </ul>
+
       {rewards.breakdown.length > 0 && (
         <div className="login-rewards-breakdown">
           <p className="login-rewards-breakdown-title">{t('daily.breakdown')}</p>
@@ -124,7 +188,10 @@ function RewardCard({ rewards, claimed, fete }) {
           </ul>
         </div>
       )}
+
+      {/* CAP — thanh mảnh, màu đi theo mức dùng (xanh → vàng → đỏ) */}
       <div className="login-rewards-cap" role="progressbar"
+        data-level={capLevel(rewards.cap_used, rewards.cap)}
         aria-valuenow={rewards.cap_used} aria-valuemin={0} aria-valuemax={rewards.cap}
         aria-label={t('daily.capUsage', { used: rewards.cap_used, cap: rewards.cap })}>
         <div className="login-rewards-cap-head">
@@ -136,10 +203,6 @@ function RewardCard({ rewards, claimed, fete }) {
     </article>
   )
 }
-
-/* Named export for the SSR render test — production code always imports the
-   default (the page) and never needs this. */
-export { RewardCard }
 
 export default function DailyLogin({ userId }) {
   const { t } = useI18n()
@@ -246,7 +309,7 @@ export default function DailyLogin({ userId }) {
 
   useEffect(() => {
     if (!fete) return undefined
-    const id = setTimeout(() => setFete(false), 1600)
+    const id = setTimeout(() => setFete(false), 1900)
     return () => clearTimeout(id)
   }, [fete])
 
@@ -300,3 +363,7 @@ export default function DailyLogin({ userId }) {
     </footer>
   </section>
 }
+
+/* Named export for the SSR render test — production code always imports the
+   default (the page) and never needs this. */
+export { RewardCard }
