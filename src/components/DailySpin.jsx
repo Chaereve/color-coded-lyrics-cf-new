@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import { warmCaptcha } from '../lib/spinShield.js'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds, formatChance,
-  spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE,
+  spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinLabels, spinTicks, spinTier,
   dragTicks, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
 } from '../lib/dailySpin'
 import {
@@ -16,7 +16,6 @@ import './DailySpin.css'
 
 const C = 200            // disc centre in viewBox units
 const FACE = 186         // sector radius, inside the bezel band
-const LABEL = 120        // radius of the prize numbers
 const round = n => Math.round(n * 100) / 100
 const point = (angle, radius) => {
   const rad = angle * Math.PI / 180
@@ -67,8 +66,7 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
    logo trong trục. */
 const HUB = 26             // bán kính trục
 
-function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, wrapRef, discRef, drag }) {
-  const top = Math.max(...sectors.map(s => s.reward))
+function Wheel({ sectors, labels, rotation, duration, spinning, wind, won, label, pointerRef, wrapRef, discRef, drag }) {
   /* KÉO ĐĨA — thao tác quen tay nhất của một bánh xe thưởng.
      Ba quyết định, và lý do của từng cái:
 
@@ -86,7 +84,7 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, 
   const canDrag = drag.enabled
   return (
     <div ref={wrapRef}
-      className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${won === null ? '' : ' has-won'}${canDrag ? ' can-drag' : ''}`}
+      className={`spin-wheel-wrap${spinning ? ' is-spinning' : ''}${wind ? ' is-wind' : ''}${won === null ? '' : ' has-won'}${canDrag ? ' can-drag' : ''}`}
       role="img" aria-label={label}
       onPointerDown={canDrag ? drag.down : undefined}
       onPointerMove={canDrag ? drag.move : undefined}
@@ -107,35 +105,38 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, 
             className={`spin-sector ${s.tier}${won === i ? ' is-won' : ''}`}
             d={sectorAt(s.from, s.span)} />
         ))}
-        {sectors.map((s, i) => {
-          /* MỖI Ô MỘT NHÃN, in dọc theo bán kính ở tâm ô. Nhãn chỉ là con số
-             thưởng ("+1", "+2"…): xác suất của ô đã hiện ra bằng CHÍNH ĐỘ RỘNG
-             CUNG của lát và bằng tỉ lệ trong chú giải, nên mặt đĩa không cần
-             in thêm con số phần trăm nào. Riêng +20 — cung 3,6° nhỏ hơn cả
-             chữ — được một huy hiệu vàng nằm ngang đè đúng tâm ô; nhãn của ô
-             KẼ ngay bên huy hiệu bị kéo vào trong (bán kính nhỏ hơn) để chữ
-             không lách dưới tấm huy hiệu. */
-          const nearJackpot = s.reward !== top
-            && Math.abs(((s.angle - 180 + 540) % 360) - 180) < 25
-          const [x, y] = point(s.angle, nearJackpot ? 92 : LABEL)
-          // Turn the lower half upright so no prize number hangs upside down.
-          const flip = s.angle > 90 && s.angle < 270 ? 180 : 0
-          const lit = won !== null && sectors[won].reward === s.reward
-          if (s.reward === top) {
-            return <g key={i} transform={`translate(${x} ${y})`} className={lit ? 'is-won' : undefined}>
-              <rect className="spin-wheel-jackpot-plate" x="-27" y="-15" width="54" height="30" rx="10" />
-              <text className="spin-wheel-number jackpot" x="0" y="0"
-                textAnchor="middle" dominantBaseline="central">
-                <tspan className="spin-wheel-plus">+</tspan>{s.reward}
-              </text>
-            </g>
-          }
-          return <text key={i} className={`spin-wheel-number ${s.tier}${lit ? ' is-won' : ''}`}
-            x={x} y={y} transform={`rotate(${s.angle + flip} ${x} ${y})`}
-            textAnchor="middle" dominantBaseline="central">
-            <tspan className="spin-wheel-plus">+</tspan>{s.reward}
-          </text>
-        })}
+        {(() => {
+          /* NHÃN THEO `spinLabels()` (tính ở cha từ cùng rewards/weights) —
+             bán kính/cỡ chữ tự tính theo độ rộng cung, chữ xoay dọc theo bán
+             kính (flip nửa dưới), luôn nằm trong vành an toàn và không đè
+             nhãn kề (test hình học chốt trong dailySpin.test.js). DUY NHẤT
+             +20 — cung 3,6° nhỏ hơn cả chữ — là một badge hồng nhỏ đặt trên
+             đúng lát nó, đẩy ra r=144 để tách bán kính khỏi chữ "+10". */
+          const top = Math.max(...sectors.map(s => s.reward))
+          return labels.map((L, i) => {
+            const [x, y] = point(L.angle, L.r)
+            const lit = won !== null && sectors[won].reward === L.reward
+            if (L.reward === top) {
+              return <g key={i} className={lit ? 'is-won' : undefined}
+                transform={`translate(${x} ${y})`}>
+                <rect className="spin-jack-pill" x={-L.w / 2} y={-L.h / 2}
+                  width={L.w} height={L.h} rx={L.h / 2} />
+                <text className="spin-wheel-number jackpot" x="0" y="0"
+                  textAnchor="middle" dominantBaseline="central">
+                  <tspan className="spin-wheel-plus">+</tspan>{L.reward}
+                </text>
+              </g>
+            }
+            // Turn the lower half upright so no prize number hangs upside down.
+            const flip = L.angle > 90 && L.angle < 270 ? 180 : 0
+            return <text key={i} className={`spin-wheel-number ${L.tier}${lit ? ' is-won' : ''}`}
+              x={x} y={y} transform={`rotate(${L.angle + flip} ${x} ${y})`}
+              fontSize={L.size}
+              textAnchor="middle" dominantBaseline="central">
+              <tspan className="spin-wheel-plus">+</tspan>{L.reward}
+            </text>
+          })
+        })()}
         {won !== null && <path className="spin-wheel-marker" d={sectorAt(sectors[won].from, sectors[won].span)} />}
         <circle cx={C} cy={C} r={HUB} className="spin-wheel-hub" />
       </svg>
@@ -164,7 +165,7 @@ function Pips({ remaining, limit }) {
   </span>
 }
 
-export default function DailySpin({ userId, credits, purchased, bonus, onBalance, onVote }) {
+export default function DailySpin({ userId, onBalance, onVote }) {
   const { t } = useI18n()
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -177,9 +178,9 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   const [rotation, setRotation] = useState(0)
   // Con so duoc giu yen khi dia quay dang chay (giao dich da xong nhung khong
   // spoils ket qua). Giu ca ba gia tri: tong, vote da mua, bonus.
-  const [held, setHeld] = useState({ credits, purchased, bonus })
   const [activeRequest, setActiveRequest] = useState(null)
   const [duration, setDuration] = useState(0)
+  const [wind, setWind] = useState(false)
   const [clock, setClock] = useState(() => performance.now())
   const [deadline, setDeadline] = useState(null)
   const busy = useRef(false)
@@ -300,7 +301,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
     busy.current = true
     ++readVersion.current // a stale status read must not overwrite the committed result
     setLoading(false); setPhase('requesting'); setError(''); setResult(null)
-    setHeld({ credits, purchased, bonus }); setActiveRequest(null)
+    setActiveRequest(null)
     sfx.spinGo()
     let requestId
     try {
@@ -314,17 +315,29 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
       if (!mounted.current) { onBalance(data.status); return }
       applyStatus(data.status)
       setPending(!!readPendingSpin(userId))
-      const ms = reducedMotion() || data.replayed ? 0 : 4500
-      setDuration(ms)
       /* `rewards` là bảng ô do MÁY CHỦ trả về. Bản deploy cũ (hoặc một hàm SQL
          chưa cập nhật) có thể trả payload thiếu khoá này — đọc thẳng là
          TypeError giữa lúc quay, người dùng mất lượt mà không thấy gì. Thiếu
-         thì rơi về đúng 16 ô mặc định. */
+         thì rơi về đúng 7 ô mặc định. */
       const rewards = data.status?.rewards?.length ? data.status.rewards : SPIN_REWARDS
-      /* Chỉ số server trả về thuộc BẢNG RÚT; bản vẽ gom ô cùng thưởng thành
-         dải nên phải quy đổi sang ô trên bản vẽ, kẻo kim dừng ở ô khác với ô
-         được tô sáng. */
+      /* Chỉ số server trả về thuộc BẢNG RÚT; bản vẽ giữ nguyên thứ tự rút nên
+         ánh xạ là đồng nhất — đây vẫn là phép kiểm biên chống dữ liệu rác. */
       const winIndex = spinSectorIndex(data.spin.segment, rewards)
+      const ms = reducedMotion() || data.replayed ? 0 : 4500
+      /* ANTICIPATION: một nhịp giật lùi ngắn trước khi phóng — đĩa "co người"
+         −14° trong 260ms rồi mới phóng sang góc đích theo nhịp 4,5s. Nhịp lùi
+         dùng cong ease-in riêng (class is-wind); reduced-motion và replay bỏ
+         hẳn để kết quả ra tức thì. */
+      if (ms) {
+        setWind(true)
+        setDuration(260)
+        setRotation(angle.current - 14)
+        setPhase('spinning')
+        await new Promise(resolve => setTimeout(resolve, 260))
+        if (!mounted.current) return
+        setWind(false)
+      }
+      setDuration(ms)
       const next = spinRotation(angle.current, spinSectors(rewards)[winIndex].angle)
       const travel = next - angle.current
       angle.current = next
@@ -355,6 +368,7 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
         'err.spinEdgeFp', 'err.spinEdgeIp', 'err.spinCaptcha', 'err.spinFingerprint',
       ].includes(e?.message)) clearPendingSpin(userId, requestId)
       busy.current = false
+      setWind(false)
       stopTicks.current?.(); stopTicks.current = null
       stopPointer()
       if (!mounted.current) return
@@ -370,8 +384,8 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
      một bảng lệch độ dài, thì bản vẽ tự rơi về các cung BẰNG NHAU — hình dạng
      luôn khớp đúng dữ liệu nó hiển thị, không mượn odds của bảng khác. */
   const weights = status?.weights?.length === rewards.length ? status.weights : null
-  const odds = useMemo(() => rewardOdds(rewards, weights || undefined), [rewards, weights])
   const sectors = useMemo(() => spinSectors(rewards, weights || undefined), [rewards, weights])
+  const labels = useMemo(() => spinLabels(rewards, weights || undefined), [rewards, weights])
   const remaining = status?.remaining ?? 0
   const limit = status?.limit || DAILY_SPIN_LIMIT
   const active = phase !== 'idle'
@@ -462,14 +476,6 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   // The transaction is already committed, but do not spoil the result while
   // the wheel is still moving. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
-  // Freeze balances only during the animation. Otherwise use the parent's
-  // shared wallet: another screen can move votes without refreshing wheel status.
-  // Standalone/older clients may still fall back to the wheel's own snapshot.
-  const shown = active ? held : {
-    credits: credits ?? status?.credits ?? 0,
-    purchased: purchased ?? status?.purchased ?? 0,
-    bonus: bonus ?? status?.bonus ?? 0,
-  }
   const won = result ? spinSectorIndex(result.segment, rewards) : null
   const buttonLabel = phase === 'requesting' ? 'spin.requesting'
     : phase === 'spinning' ? 'spin.spinning'
@@ -500,38 +506,10 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
 
       <div className="spin-stage">
         <div className="spin-dial">
-          <Wheel sectors={sectors} rotation={rotation} duration={duration} spinning={phase === 'spinning'}
+          <Wheel sectors={sectors} labels={labels} rotation={rotation} duration={duration} spinning={phase === 'spinning'} wind={wind}
             pointerRef={pointerRef} wrapRef={wrapRef} discRef={discRef}
             drag={{ enabled: canDrag, down: dragDown, move: dragMove, up: dragUp }}
-            won={won} label={t('spin.wheelLabel', {
-              n: rewards.length,
-              odds: odds.map(o => `+${o.reward} ${formatChance(o.chance)}%`).join(', '),
-            })} />
-
-          {/* Reward colours AND their real chance, straight from the weights. */}
-          <ul className="spin-legend" aria-label={t('spin.legendAria')}>
-            {odds.map(o => (
-              <li key={o.reward} className={o.tier}>
-                <i aria-hidden="true" />
-                <b>+{o.reward}</b>
-                <small>{formatChance(o.chance)}%</small>
-              </li>
-            ))}
-          </ul>
-
-          <div className="spin-cta" aria-busy={active || loading}>
-            <button type="button" className="btn btn-primary spin-button" onClick={spin}
-              disabled={active || loading || !status || (!remaining && !pending)}>
-              {t(buttonLabel)}
-            </button>
-
-            <div className={`spin-result${result ? ' won' : ''}`} role="status" aria-live="polite" aria-atomic="true">
-              {result
-                ? <><strong key={result.reward} className="spin-won-num">{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
-                  <small>{t('spin.wonNote')}</small></>
-                : null}
-            </div>
-          </div>
+            won={won} label={t('spin.wheelLabel', { n: rewards.length })} />
 
           {pending && !active && <p className="spin-pending">{t('spin.pending')}</p>}
           {error && <div className="spin-error" role="alert">
@@ -550,29 +528,29 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
           </div>}
         </div>
 
+        {/* CỘT PHỤ đúng bốn thứ theo brief: lượt còn lại · nút Spin · kết quả
+            mới nhất · lịch sử ngắn. Bảng odds/% KHÔNG được quay lại đây, ví
+            purchased/bonus sống ở màn hình ví chứ không phải trên vòng quay. */}
         <aside className="spin-panel">
-          <div className="spin-metrics">
-            <div className="spin-metric spin-remaining">
-              <span>{t('spin.available')}</span>
-              <b>{status ? remaining : '–'}<small> / {limit}</small></b>
-              <Pips remaining={status ? remaining : 0} limit={limit} />
-            </div>
-            <div className="spin-metric spin-purchased">
-              <span>{t('vote.purchased')}</span>
-              <b>{shown.purchased}<small>{t('spin.votes')}</small></b>
-            </div>
-            <div className="spin-metric spin-bonus">
-              <span>{t('vote.bonus')}</span>
-              <b>{shown.bonus}<small>{t('spin.votes')}</small></b>
-            </div>
+          <div className="spin-remaining">
+            <span>{t('spin.available')}</span>
+            <b>{status ? remaining : '–'}<small> / {limit}</small></b>
+            <Pips remaining={status ? remaining : 0} limit={limit} />
           </div>
 
-          {/* Hai dòng, không phải ba: mốc reset đã nằm ở chip đếm ngược trên
-              đầu khối — nói lại lần nữa là chỗ dư thừa dễ thấy nhất của trang. */}
-          <ul className="spin-rules" aria-label={t('spin.rules')}>
-            <li>{t('spin.ruleLimit', { n: limit })}</li>
-            <li>{t('spin.ruleCredit')}</li>
-          </ul>
+          <div className="spin-cta" aria-busy={active || loading}>
+            <button type="button" className="btn btn-primary spin-button" onClick={spin}
+              disabled={active || loading || !status || (!remaining && !pending)}>
+              {t(buttonLabel)}
+            </button>
+
+            <div className={`spin-result${result ? ' won' : ''}`} role="status" aria-live="polite" aria-atomic="true">
+              {result
+                ? <><strong key={result.reward} className="spin-won-num">{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
+                  <small>{t('spin.wonNote')}</small></>
+                : null}
+            </div>
+          </div>
 
           <div className="spin-history">
             <div className="spin-history-head">

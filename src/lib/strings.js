@@ -91,7 +91,6 @@ const S = {
 
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
-  'spin.legendAria': 'The seven prize tiers on the wheel',
   /* Daily Login. It is a check-in calendar only: it tracks presence and streak
      and never awards votes. No other daily screen exists. */
   'daily.loginHeading': 'Your check-in calendar',
@@ -161,6 +160,7 @@ const S = {
   'mystery.openNow': 'Open the box',
   'mystery.opening': 'Opening…',
   'mystery.nothing': 'Empty this time — come back tomorrow',
+  'mystery.again': 'One box a day — the next unlocks after your next check-in.',
   'mystery.votesOne': '+1 vote',
   'mystery.votesMany': '+{n} votes',
   'mystery.paidRequest': '+1 free paid request',
@@ -203,7 +203,7 @@ const S = {
 
   'spin.playLabel': 'Daily bonus wheel',
   'spin.available': 'Spins left today',
-  'spin.wheelLabel': 'Wheel with {n} sectors: {odds}. Brighter sectors are rarer.',
+  'spin.wheelLabel': 'Wheel with {n} sectors. Brighter sectors are rarer.',
   'spin.action': 'Spin',
   'spin.loading': 'Loading…',
   /* Widget Turnstile được dựng bằng DOM trong `lib/spinShield.js`. Trước đây
@@ -223,9 +223,8 @@ const S = {
   'spin.deviceResetHint': 'Clears the saved browser token, then reloads. Your spins already used today stay used.',
   'spin.wonOne': '+1 bonus vote',
   'spin.won': '+{n} bonus votes',
-  'spin.wonNote': 'Added to your vote credits.',
+  'spin.wonNote': 'Added to your bonus votes today.',
   'spin.resetIn': 'Next reset',
-  'spin.votes': 'votes',
   'spin.useVotes': 'Use votes',
   'spin.rewardOne': '+1 vote',
   'spin.reward': '+{n} votes',
@@ -233,10 +232,7 @@ const S = {
   'spin.historyEmpty': 'No spins yet.',
   'spin.todayTotal': 'Today: +{n} bonus votes',
   'spin.addedAt': '{time} · GMT+7',
-  'spin.rules': 'Spin rules',
-  'spin.ruleLimit': '{n} spins daily, for one account per browser.',
   'spin.ruleReset': 'Resets at 00:00 (GMT+7).',
-  'spin.ruleCredit': 'Bonus votes from the wheel reset at the end of October each year.',
   'err.spinSetup': 'Daily Spin isn’t available yet.',
   'err.spinDevice': 'Could not verify this browser. Please contact support.',
   'err.spinStorage': 'Enable cookies and local storage to spin.',

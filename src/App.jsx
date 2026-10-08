@@ -2454,8 +2454,7 @@ function AppInner() {
         {section === 'spin' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-              <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
-                purchased={voteStatus.purchased} bonus={voteStatus.bonus}
+              <DailySpin key={user.id} userId={user.id}
                 onBalance={applySpinBalance} onVote={() => openModal('vote')} />
             </Suspense>
           ) : (

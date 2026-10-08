@@ -2,6 +2,11 @@
    request. Bánh xe PHẲNG, năm lớp (vành · 7 lát theo trọng số · số · trục ·
    con trỏ), đúng một điểm nhấn màu ở ô giải cao nhất, một con trỏ gõ theo nhịp
    thật, và MỘT dấu khi trúng thưởng (mọi lát tối đi + viền trắng quanh lát).
+   BẢNG MÀU ĐĨA (bảy mức sáng→đậm theo độ hiếm — thang màu phẳng, không phải
+   CSS gradient): #FCB0F3 #DC94EF #BC77EC #9D5BE8 #7D3EE4 #5D22E1 #3D05DD.
+   Chữ trên lát đạt tương phản: nền sáng (t1–t3) mực #2B0A50 (≥6:1), nền vừa
+   (t4 #9D5BE8) mực #1D0540 (≈5.6:1), nền đậm (t5–t7) chữ trắng (≥4.9:1).
+   #3D05DD là accent duy nhất của khu spin: lát +20, badge, nút Spin, focus.
 
    Đã bỏ so với bản trước: 48 vạch chia độ, đường tóc giữa lát và vành, mũi chỉ
    trên trục, chấm ở trục, cung ăn mừng ngoài vành, và cả bảng 12 sắc độ trộn từ
@@ -18,26 +23,18 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-md);
   overflow: hidden;
-  /* Bảy tông của bánh xe — MỘT tông cho MỘT ô, tất cả là token:
-       --w-1  +1 vote   30%  (ô phổ thông, nền, tối nhất)
-       --w-2  +2 votes  25%      --w-5  +8 votes   8%
-       --w-3  +3 votes  20%      --w-6  +10 votes  4%
-       --w-4  +5 votes  12%      --w-7  +20 votes  1% — ô giải, chỉ một ô mang nó
-     Sáng dần theo độ hiếm, nên mắt đọc được "ô nào đáng hơn" trước cả khi đọc
-     số — và độ RỘNG CUNG của mỗi lát đã nói đúng xác suất của nó. */
-  /* BẢY TÔNG = BẢY MÀU THẬT, không phải bảy sắc độ xám. Mỗi tầng lấy một màu
-     đã có nghĩa trong app, đi từ chìm tới rực theo độ hiếm:
-       +1   nền trung tính                    +8   lavender --a-2
-       +2/3  xanh tím --queued pha dần        +10  hổ phách --progress
-       +5   hổ phách --progress pha nhạt      +20  vàng --paid (chữ mực đậm)
-     Vẫn 100% phẳng: color-mix cho ra một MÀU ĐẶC, không gradient. */
-  --w-1: var(--surface-3);
-  --w-2: color-mix(in oklab, var(--queued) 34%, var(--surface-3));
-  --w-3: color-mix(in oklab, var(--queued) 66%, var(--surface-3));
-  --w-4: color-mix(in oklab, var(--progress) 46%, var(--surface-3));
-  --w-5: var(--a-2);
-  --w-6: var(--progress);
-  --w-7: var(--paid);
+  /* BẢY TÔNG = bảng đã duyệt cho khu spin, sáng→đậm theo độ hiếm. Mỗi tông
+     là MỘT màu phẳng (không gradient); lát kề phân biệt thêm bằng nét nền
+     2px (xem .spin-sector). Mực chữ tương ứng ghi ở .spin-wheel-number. */
+  --w-1: #FCB0F3;
+  --w-2: #DC94EF;
+  --w-3: #BC77EC;
+  --w-4: #9D5BE8;
+  --w-5: #7D3EE4;
+  --w-6: #5D22E1;
+  --w-7: #3D05DD;
+  --s-ink-dark: #2B0A50;   /* mực trên ba lát sáng */
+  --s-ink-mid:  #1D0540;   /* mực trên lát t4 */
 }
 
 /* ---- head ---- */
@@ -77,7 +74,7 @@
 
 /* ---- bánh xe (năm lớp — xem chú thích đầu DailySpin.jsx) ---- */
 .spin-wheel-wrap {
-  position: relative; width: min(100%, 360px); aspect-ratio: 1;
+  position: relative; width: min(100%, 420px); aspect-ratio: 1;
   border-radius: 50%;
   /* Bóng đổ TRUNG TÍNH: đĩa nổi khỏi thẻ bằng độ sâu, không bằng quầng sáng
      màu nhấn. Quầng sáng màu là dấu hiệu "giao diện do AI vẽ" rõ nhất.
@@ -102,6 +99,9 @@
   transition: transform 4500ms cubic-bezier(.12, .72, .12, 1);
 }
 .is-spinning .spin-wheel-disc { will-change: transform; }
+/* ANTICIPATION: nhịp giật lùi −14° trước khi phóng — cong ease-in để đọc ra
+   "co người", rồi JS chuyển sang nhịp chính decel như cũ. */
+.is-wind .spin-wheel-disc { transition-timing-function: cubic-bezier(.55, 0, .8, .45); }
 /* Vành: một dải phẳng + một đường tóc ngoài — "khung máy" của đĩa. */
 .spin-wheel-rim { fill: none; stroke: var(--surface-3); stroke-width: 9; }
 .spin-wheel-edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
@@ -110,7 +110,7 @@
    bánh xe thưởng thật chia ô. Nét này thay cho hai thứ đã bị gỡ: 16 nan hoa
    (nói lại điều nét viền đã nói) và mẹo tô xen kẽ hai tông (.weave — làm mặt
    đĩa lốm đốm như lỗi tô màu). Viền nằm TRONG lát nên không làm đĩa to ra. */
-.spin-sector { fill: var(--wc, var(--w-1)); stroke: var(--surface); stroke-width: 1.4;
+.spin-sector { fill: var(--wc, var(--w-1)); stroke: var(--surface); stroke-width: 2;
   stroke-linejoin: round; transition: opacity .35s var(--e-soft); }
 .spin-sector.t1 { --wc: var(--w-1); }
 .spin-sector.t2 { --wc: var(--w-2); }
@@ -124,45 +124,26 @@
   fill: var(--txt); opacity: .94; transition: opacity .35s var(--e-soft);
 }
 .spin-wheel-plus { font-size: 15px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
-/* Các ô SÁNG (lavender, hổ phách): chữ trắng chỉ được ~2:1, nên số trên hai
-   lát hiếm này đổi sang MỰC ĐẬM — cùng cặp màu đã dùng cho ô vàng. */
-.spin-wheel-number.t5, .spin-wheel-number.t6 { fill: #1a1206; }
-.spin-wheel-number.t5 .spin-wheel-plus, .spin-wheel-number.t6 .spin-wheel-plus {
-  fill: rgba(26, 18, 6, .6);
+/* MỰC CHỮ THEO NỀN: ba lát sáng dùng mực tối (--s-ink-dark), lát t4 dùng mực
+   --s-ink-mid, ba lát đậm nhất dùng trắng. Cặp màu chọn theo contrast (ghi ở
+   đầu file), không theo thẩm mỹ riêng của một ô. */
+.spin-wheel-number.t1, .spin-wheel-number.t2, .spin-wheel-number.t3 { fill: var(--s-ink-dark); }
+.spin-wheel-number.t1 .spin-wheel-plus, .spin-wheel-number.t2 .spin-wheel-plus,
+.spin-wheel-number.t3 .spin-wheel-plus { fill: color-mix(in oklab, var(--s-ink-dark) 72%, transparent); }
+.spin-wheel-number.t4 { fill: var(--s-ink-mid); }
+.spin-wheel-number.t5, .spin-wheel-number.t6, .spin-wheel-number.t7 { fill: #fff; }
+.spin-wheel-number.t5 .spin-wheel-plus, .spin-wheel-number.t6 .spin-wheel-plus,
+.spin-wheel-number.t7 .spin-wheel-plus { fill: rgba(255, 255, 255, .78); }
+/* Ô +20 (3,6° — nhỏ hơn cả chữ): badge hồng nhỏ nằm trên đúng lát nó ở
+   bán kính 144, tách bán kính khỏi chữ +10; mực #3D05DD trên nền #FCB0F3
+   cho ≈8:1. KHÔNG đè lên nhãn nào khác (test hình học chốt khoảng cách). */
+.spin-jack-pill {
+  fill: #FCB0F3; stroke: #fff; stroke-width: 1.6;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4));
 }
-/* Ô giải cao nhất: nền VÀNG ĐẶC nên chữ phải là MỰC ĐẬM — trắng trên vàng chỉ
-   được ~2,5:1, đọc không ra. Mực đậm #1a1206 cho ~13:1, và đây cũng đúng cặp
-   màu đã dùng cho huy hiệu số tin chưa đọc. */
-.spin-wheel-number.jackpot { fill: #1a1206; font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
-.spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(26, 18, 6, .7); }
-/* Huy hiệu của ô +20: lát vàng 3,6° nhỏ hơn cả chữ, nên chữ nằm trong MỘT tấm
-   vàng bo góc đè đúng tâm ô — cùng màu vàng với lát, nằm ngang cho đọc được. */
-.spin-wheel-jackpot-plate {
-  fill: var(--paid); stroke: var(--surface); stroke-width: 1.5;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45));
-}
+.spin-wheel-number.jackpot { fill: #3D05DD; font-size: 12px; font-weight: 700; letter-spacing: 0; }
+.spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(61, 5, 221, .74); }
 
-/* ---- CHÚ GIẢI BẢY DẢI ------------------------------------------------------
-   Đĩa nói "ô nào đáng hơn" bằng MÀU và bằng ĐỘ RỘNG CUNG; chú giải nói lại
-   bằng CHỮ, kèm tỉ lệ thật lấy từ chính bảng trọng số. Ô màu của chú giải dùng
-   đúng biến --wc của lát trên đĩa, nên hai chỗ không thể lệch màu nhau. Đây là
-   dữ liệu, không phải ghi chú. */
-.spin-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 8px;
-  margin: 0; padding: 0; list-style: none; }
-.spin-legend li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 7px;
-  border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface-2);
-  font-size: 11.5px; color: var(--txt-3); }
-.spin-legend i { width: 10px; height: 10px; flex: none; border-radius: 3px;
-  background: var(--wc); border: 1px solid rgba(255, 255, 255, .14); }
-.spin-legend li.t1 { --wc: var(--w-1); }
-.spin-legend li.t2 { --wc: var(--w-2); }
-.spin-legend li.t3 { --wc: var(--w-3); }
-.spin-legend li.t4 { --wc: var(--w-4); }
-.spin-legend li.t5 { --wc: var(--w-5); }
-.spin-legend li.t6 { --wc: var(--w-6); }
-.spin-legend li.t7 { --wc: var(--w-7); }
-.spin-legend b { font-family: var(--mono); font-size: 12px; color: var(--txt); }
-.spin-legend small { font: 400 10px var(--mono); color: var(--txt-3); }
 /* Trục: MỘT đĩa phẳng nhỏ. Không mũi chỉ, không chấm — con trỏ ở vành đã trả
    lời "kim đang chỉ đâu", thêm hai chi tiết nữa là nói lại lần thứ ba. */
 .spin-wheel-hub { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.5; }
@@ -195,7 +176,7 @@
 .spin-burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
 .spin-burst i {
   position: absolute; left: -2.5px; top: -2.5px; width: 5px; height: 5px;
-  border-radius: 50%; background: var(--a-2);
+  border-radius: 50%; background: var(--w-3);
   animation: spinBurst .7s var(--e-out) both;
 }
 @keyframes spinBurst {
@@ -209,8 +190,10 @@
 }
 
 /* ---- call to action ---- */
-.spin-cta { width: min(100%, 360px); display: grid; gap: 10px; }
-.daily-spin .spin-button { width: 100%; min-height: 44px; font-size: 13.5px; }
+.spin-cta { width: 100%; display: grid; gap: 10px; }
+.daily-spin .spin-button { width: 100%; min-height: 46px; font-size: 13.5px; background: var(--w-7); border-color: var(--w-7); }
+.daily-spin .spin-button:focus-visible { outline: 2px solid var(--w-7); outline-offset: 2px; }
+.daily-spin .spin-button:hover:not(:disabled) { background: color-mix(in oklab, var(--w-7) 86%, #fff); border-color: color-mix(in oklab, var(--w-7) 86%, #fff); }
 /* Global button sheen must not reintroduce a gradient on hover. */
 .daily-spin .btn-primary, .daily-spin .btn-primary:hover:not(:disabled) { box-shadow: none; }
 .daily-spin .btn-primary::after { content: none; background: none; animation: none; }
@@ -218,12 +201,14 @@
   opacity: 1; background: var(--surface-3); border-color: var(--line-2);
   color: var(--txt-2); cursor: not-allowed; transform: none;
 }
-/* Reserved height: a win never pushes the button around. */
+/* Reserved height: a win never pushes the button around. Chưa có kết quả thì
+   ẩn hẳn — không để một ô viền rỗng giữa nút Spin và lịch sử. */
 .spin-result {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   min-height: 54px; padding: 7px 12px; text-align: center;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
+.spin-result:empty { display: none; }
 .spin-result.won { border-color: var(--a); background: var(--a-soft); }
 .spin-result strong { font: 600 16px/1.25 var(--mono); color: var(--txt); }
 /* Số vừa trúng vào bằng dịch chuyển + mờ dần (không đổi cỡ chữ — đổi cỡ là
@@ -236,11 +221,11 @@
 }
 .spin-result small { font-size: 11px; color: var(--txt-2); }
 .spin-pending {
-  width: min(100%, 360px); margin: 0; text-align: center;
+  width: 100%; max-width: 420px; margin: 0; text-align: center;
   font-size: 11.5px; line-height: 1.6; color: var(--txt-2);
 }
 .spin-error {
-  width: min(100%, 360px); display: grid; justify-items: center; gap: 9px;
+  width: 100%; max-width: 420px; display: grid; justify-items: center; gap: 9px;
   padding: 11px 13px; border: 1px solid var(--line); border-left: 2px solid var(--denied);
   border-radius: var(--r-md); background: var(--surface-2);
 }
@@ -249,38 +234,22 @@
   font-size: 11.5px; line-height: 1.6; color: #efa29d;
 }
 
-/* ---- status card beside the wheel ---- */
+/* ---- status card beside the wheel -----------------------------------------
+   CỘT PHỤ đúng bốn thứ: lượt còn lại · nút Spin · kết quả mới nhất · lịch sử.
+   Bảng odds/% KHÔNG được quay lại đây (brief 2026-10 chốt). */
 .spin-panel {
-  min-width: 0; overflow: hidden;
+  display: grid; gap: 14px; align-content: start; min-width: 0; overflow: hidden;
+  padding: 16px;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
-/* THỨ BẬC, không phải ba ô bằng nhau: "còn mấy lượt" là con số của hành động
-   (quay hay không), hai số dư dưới chỉ để tham chiếu. Ba ô cùng cỡ bắt mắt đọc
-   cả ba mới biết ô nào quan trọng — đó là lỗi bố cục, không phải khiếu thẩm mỹ. */
-.spin-metrics { display: grid; grid-template-columns: 1fr 1fr; }
-.spin-metric { display: grid; align-content: start; gap: 6px; padding: 13px 16px; }
-.spin-remaining { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
-.spin-purchased { border-right: 1px solid var(--line); }
-.spin-metric > span:first-child { font-size: 11px; color: var(--txt-2); }
-.spin-metric b { display: flex; align-items: baseline; gap: 6px; font: 600 22px/1.1 var(--mono); color: var(--txt); }
-.spin-remaining b { font-size: 30px; }
-.spin-metric b small { font: 400 12px var(--font); color: var(--txt-2); }
-.spin-purchased b { color: var(--paid); }
-.spin-bonus b { color: var(--a-2); }
-/* The same two slots drawn as a bar: today is open, or it is not. */
+.spin-remaining { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.spin-remaining > span:first-child { font-size: 11px; color: var(--txt-2); }
+.spin-remaining b { display: flex; align-items: baseline; gap: 6px; font: 600 30px/1.1 var(--mono); color: var(--txt); }
+.spin-remaining b small { font: 400 12px var(--font); color: var(--txt-2); }
+/* The two spare slots drawn as a bar: today is open, or it is not. */
 .spin-pips { display: flex; gap: 4px; margin-top: 3px; }
 .spin-pips i { flex: 1; height: 3px; border-radius: var(--r-pill); background: var(--line-2); }
-.spin-pips i.on { background: var(--a-2); }
-
-.spin-rules {
-  display: grid; gap: 7px; margin: 0; padding: 12px 14px; list-style: none;
-  border-top: 1px solid var(--line); color: var(--txt-2); font-size: 11.5px; line-height: 1.5;
-}
-.spin-rules li { display: flex; gap: 9px; }
-.spin-rules li::before {
-  content: ''; flex: none; width: 5px; height: 5px; margin-top: 5px;
-  border-radius: 50%; background: var(--line-2);
-}
+.spin-pips i.on { background: #BC77EC; }
 
 /* ---- today's rewards live in the status card, next to the balance ---- */
 .spin-history { border-top: 1px solid var(--line); padding: 12px 14px; }
@@ -329,12 +298,10 @@
   .spin-head { padding: 12px 16px; }
   .spin-stage { padding: 20px 16px 22px; }
   .spin-wheel-wrap { width: min(100%, 320px); }
-  .spin-cta, .spin-pending, .spin-error { width: min(100%, 320px); }
+  .spin-pending, .spin-error { max-width: 320px; }
   .daily-spin .spin-button { min-height: 46px; font-size: 14px; }
 }
 @media (max-width: 400px) {
-  .spin-metrics { grid-template-columns: 1fr; }
-  .spin-purchased, .spin-bonus { border-left: 0; border-top: 1px solid var(--line); }
   .spin-reset { width: 100%; justify-content: space-between; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -347,7 +314,6 @@
 .daily-spin { box-shadow: 0 18px 45px rgba(0,0,0,.18); }
 .spin-wheel-wrap { filter: drop-shadow(0 18px 20px rgba(0,0,0,.18)); }
 .spin-wheel-number { paint-order: stroke; stroke: rgba(8,10,14,.22); stroke-width: .7px; }
-.spin-legend li { min-width: 48px; justify-content: center; }
 @media (max-width: 720px) {
   .spin-head { align-items: flex-start; }
   .spin-head-text { flex: 1 1 180px; }
@@ -355,7 +321,9 @@
   .spin-stage { gap: 18px; }
   .spin-wheel-wrap { width: min(88vw, 340px); }
   .spin-dial { gap: 11px; }
-  .spin-legend { gap: 5px; }
-  .spin-legend li { padding: 5px 8px; }
   .spin-panel { width: 100%; }
+}
+/* Số trên lát nhỏ: bỏ stroke viền chữ ở cỡ 12px — nét ăn mất chữ. */
+@media (max-width: 720px) {
+  .spin-wheel-number { stroke-width: .4px; }
 }

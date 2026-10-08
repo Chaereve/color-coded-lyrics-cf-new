@@ -127,6 +127,38 @@ export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
   return segment
 }
 
+/* ---- NHÃN TRÊN ĐĨA — vị trí TÍNH TOÁN, không tọa độ cứng -------------------
+   Mỗi ô MỘT nhãn, xoay dọc theo bán kính ở tâm ô. Bán kính neo và cỡ chữ co
+   theo ĐỘ RỘNG CỦA Ô (span): lát rộng nhất (+1, 108°) chứa chữ 17px thoải mái,
+   lát +10 (14,4°) hạ còn 13px, còn +20 (3,6° — nhỏ hơn cả chữ) là MỘT badge
+   hồng 34×18px đặt trên đúng lát nó, đẩy ra bán kính 150 — mép trong của badge
+   cách mép ngoài chữ "+10" ≥ 6px nên không đè lên nhãn nào.
+
+   Mỗi nhãn trả về `w` = bề rộng THEO PHƯƠNG TIẾP TUYẾN (px) và `h` = bề dài
+   THEO BÁNH KÍNH (px) — JSX vẽ đúng khối lượng đó, test đo đúng khối lượng đó,
+   nên hai bên không thể lệch nhau. An toàn hình học (test chốt):
+     · radial:  [r − h/2, r + h/2] ⊂ [52, 162]  — không sát trục, không tràn vành;
+     · cặp nhãn bất kỳ không chồng nhau ĐỒNG THỜI theo góc và theo bán kính
+       (chồng một trong hai chiều thì chưa đủ để đè nhau). */
+const LABEL_TEXT_RATIO = 0.62   // bề rộng ký tự mono ~0.62em
+const LABEL_THICK_RATIO = 1.18  // bề cao dòng ~1.18em
+const LABEL_MIN_R = 52
+const LABEL_MAX_R = 162
+
+export function spinLabels(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
+  return spinSectors(rewards, weights).map(s => {
+    const isJackpot = s.span < 8
+    const size = s.span >= 30 ? 17 : s.span >= 18 ? 15 : s.span >= 8 ? 13 : 12
+    const r = isJackpot ? 150 : s.span >= 20 ? 132 : 122
+    const chars = String(s.reward).length + 1            // "+20" → 3 ký tự
+    const w = isJackpot ? 34 : Math.ceil(size * LABEL_THICK_RATIO)
+    const h = isJackpot ? 18 : Math.ceil(chars * size * LABEL_TEXT_RATIO)
+    return { reward: s.reward, tier: s.tier, angle: s.angle, span: s.span, r, size, w, h }
+  })
+}
+
+export { LABEL_MIN_R, LABEL_MAX_R }
+
 export function spinTiers(rewards = SPIN_REWARDS) {
   return Object.fromEntries([...new Set(rewards)].map(reward => [reward, spinTier(reward, rewards)]))
 }

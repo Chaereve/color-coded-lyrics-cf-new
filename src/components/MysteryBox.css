@@ -1,99 +1,185 @@
 /* =========================================================
-   MYSTERY BOX — card 300×300, cùng chất liệu kính với thẻ thưởng
+   MYSTERY BOX — THẺ TRỌNG TÂM CÓ CHIỀU SÂU (B2 polish 2026-10)
+   NĂM TRẠNG THÁI: locked → available → opening (charge→shake)
+   → reveal → already. Palette đồng bộ khu spin: thân hộp ramp
+   tím #7D3EE4→#3D05DD, nắp/nơ hồng #FCB0F3. Mọi nhịp chuyển đều
+   là transform/opacity trên sân khấu cao độ CỐ ĐỊNH — không CLS.
    ========================================================= */
 .mystery-card {
   position: relative; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  width: 100%; max-width: 300px; margin: 0 auto;
-  padding: 16px;
-  border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  width: 100%; max-width: 320px; margin: 0 auto; padding: 18px 18px 16px;
+  border: 1px solid color-mix(in oklab, #9D5BE8 32%, var(--line-2));
   border-radius: var(--r-xl);
   background:
-    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--a) 14%, transparent), transparent 60%),
-    color-mix(in oklab, var(--surface-2) 88%, transparent);
+    radial-gradient(130% 95% at 50% -8%, color-mix(in oklab, #BC77EC 15%, transparent), transparent 62%),
+    color-mix(in oklab, var(--surface-2) 90%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045);
+  box-shadow: 0 18px 44px rgb(0 0 0 / .3), inset 0 1px 0 rgb(255 255 255 / .05);
   text-align: center;
 }
 .mystery-title { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; color: var(--txt-2); }
 
-/* Hộp quà: nắp + ruy băng + dấu ? — thuần CSS, không ảnh */
-.mystery-box-stage { display: grid; place-items: center; width: 100%; }
+/* ---- SÂN KHẤU: cao độ cố định, mọi nhịp là transform ---- */
+.mystery-stage { position: relative; display: grid; place-items: center; width: 132px; height: 138px; }
+.mystery-glow {
+  position: absolute; width: 126px; height: 126px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, #BC77EC 32%, transparent), transparent);
+  transition: opacity .45s var(--e-soft), transform .45s var(--e-soft);
+}
 .mystery-box {
-  position: relative; display: grid; place-items: center;
-  width: 92px; height: 84px; margin-top: 18px;
-  border-radius: 10px;
-  background: linear-gradient(160deg, color-mix(in oklab, var(--a) 34%, var(--surface-3)), var(--surface-3));
-  box-shadow: 0 10px 26px color-mix(in oklab, var(--a) 26%, transparent), inset 0 1px 0 rgb(255 255 255 / .08);
-  transition: transform .3s var(--e-out), box-shadow .3s var(--e-out);
+  position: relative; width: 96px; height: 78px; border-radius: 9px;
+  background: linear-gradient(165deg, #7D3EE4 12%, #3D05DD 88%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .14), 0 16px 34px rgb(0 0 0 / .38);
+  transition: transform .35s var(--e-out);
 }
 .mystery-lid {
-  position: absolute; top: -12px; left: -5px; right: -5px; height: 20px;
-  border-radius: 7px;
-  background: linear-gradient(150deg, var(--a), var(--a-dim));
-  box-shadow: 0 4px 14px var(--a-glow);
-  transform-origin: 12% 100%;
+  position: absolute; top: -13px; left: -7px; width: 110px; height: 22px; border-radius: 7px;
+  background: linear-gradient(150deg, #FCB0F3, #BC77EC);
+  box-shadow: 0 5px 16px rgb(220 148 239 / .4), inset 0 1px 0 rgb(255 255 255 / .35);
+  transform-origin: 10% 100%;
 }
-.mystery-ribbon {
-  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
-  width: 12px; height: 14px; border-radius: 50% 50% 50% 0;
-  background: var(--a-2);
+.mystery-bow {
+  position: absolute; top: -25px; left: 50%; transform: translateX(-50%);
+  width: 18px; height: 16px; border-radius: 50% 50% 50% 0;
+  background: #FCB0F3; box-shadow: 0 0 12px rgb(252 176 243 / .55);
 }
-.mystery-q { font-family: var(--display); font-size: 34px; font-weight: 700; color: var(--a-2); text-shadow: 0 2px 14px var(--a-glow); }
+.mystery-q {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--display); font-size: 38px; font-weight: 700;
+  color: #FCB0F3; text-shadow: 0 2px 16px rgb(0 0 0 / .45);
+}
+.mystery-padlock { filter: drop-shadow(0 2px 6px rgb(0 0 0 / .4)); }
+.mystery-padlock rect { fill: #FCB0F3; stroke: #3D05DD; stroke-width: 1.5; }
+.mystery-padlock path { stroke: #FCB0F3; }
+.mystery-shadow {
+  position: absolute; bottom: -2px; width: 84px; height: 12px; border-radius: 50%;
+  background: rgb(0 0 0 / .5); filter: blur(7px);
+  transition: transform .35s var(--e-out), opacity .35s var(--e-soft);
+}
 
-/* Khoá: chưa check-in — hộp xám, không hiệu ứng */
-.mystery-card.is-locked .mystery-box { filter: saturate(.25) brightness(.75); box-shadow: none; }
-.mystery-card.is-locked .mystery-q { color: var(--txt-3); text-shadow: none; }
+/* ---- TIA SÁNG (chỉ hiện ở nhịp reveal) ---- */
+.mystery-rays { position: absolute; inset: 0; pointer-events: none; }
+.mystery-rays i {
+  position: absolute; left: 50%; top: 50%; width: 4px; height: 44px; margin: -22px 0 0 -2px;
+  background: linear-gradient(180deg, #FCB0F3, transparent);
+  border-radius: 2px; opacity: 0;
+  transform: rotate(var(--ray, 0deg)) translateY(-34px) scaleY(0);
+  transform-origin: 50% 100%;
+}
+.is-reveal .mystery-rays i { animation: mystery-ray .75s var(--e-out) .08s forwards; }
+@keyframes mystery-ray {
+  0% { opacity: 0; transform: rotate(var(--ray, 0deg)) translateY(-34px) scaleY(0); }
+  35% { opacity: .95; }
+  100% { opacity: 0; transform: rotate(var(--ray, 0deg)) translateY(-56px) scaleY(1.1); }
+}
 
-/* Sẵn sàng: hộp nhấp nhô nhẹ mời gọi */
-.mystery-card:not(.is-locked):not(.is-opened):not(.is-opening) .mystery-box { animation: mystery-invite 2.8s ease-in-out infinite; }
-@keyframes mystery-invite {
+/* ---- TRẠNG THÁI 1: LOCKED — chưa check-in: khoá xám, không nhịp ---- */
+.mystery-card.is-locked { border-color: color-mix(in oklab, var(--line-2) 80%, transparent); }
+.mystery-card.is-locked .mystery-glow { opacity: 0; transform: scale(.7); }
+.mystery-card.is-locked .mystery-box { filter: saturate(.22) brightness(.62); box-shadow: inset 0 1px 0 rgb(255 255 255 / .07), 0 10px 22px rgb(0 0 0 / .3); }
+.mystery-card.is-locked .mystery-lid { filter: saturate(.22) brightness(.62); box-shadow: none; }
+.mystery-card.is-locked .mystery-bow { filter: saturate(.22) brightness(.62); box-shadow: none; }
+
+/* ---- TRẠNG THÁI 2: AVAILABLE — hộp "thở" mời gọi ---- */
+.mystery-card:not(.is-locked):not(.is-opened):not(.is-charging):not(.is-shaking) .mystery-box {
+  animation: mystery-breathe 2.8s ease-in-out infinite;
+}
+.mystery-card:not(.is-locked):not(.is-opened):not(.is-charging):not(.is-shaking) .mystery-glow {
+  animation: mystery-glow 2.8s ease-in-out infinite;
+}
+@keyframes mystery-breathe {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+@keyframes mystery-glow {
+  0%, 100% { opacity: .55; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
 
-/* Đang mở: lắc + nắp văng */
-.mystery-card.is-opening .mystery-box { animation: mystery-shake .36s ease-in-out 2; }
-.mystery-card.is-opening .mystery-lid { animation: mystery-lid-pop .72s var(--e-out) forwards; }
+/* ---- TRẠNG THÁI 3a: CHARGING — "co người", sáng thắt lại ---- */
+.mystery-card.is-charging .mystery-box { transform: scale(.94); }
+.mystery-card.is-charging .mystery-glow { opacity: .95; transform: scale(.78); }
+.mystery-card.is-charging .mystery-shadow { transform: scale(.9); }
+
+/* ---- TRẠNG THÁI 3b: SHAKING — rung, nơ nảy ---- */
+.mystery-card.is-shaking .mystery-box { animation: mystery-shake .65s ease-in-out; }
+.mystery-card.is-shaking .mystery-bow { animation: mystery-bow .3s ease-in-out 2; }
 @keyframes mystery-shake {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-7deg); }
-  75% { transform: rotate(7deg); }
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  18% { transform: rotate(-6deg) translateX(-3px); }
+  38% { transform: rotate(6deg) translateX(3px); }
+  58% { transform: rotate(-5deg) translateX(-2px); }
+  78% { transform: rotate(4deg) translateX(2px); }
 }
-@keyframes mystery-lid-pop {
-  40% { transform: translateY(-26px) rotate(-14deg); }
-  100% { transform: translateY(-16px) rotate(-22deg); }
+@keyframes mystery-bow {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
 }
 
-/* Đã mở: nắp nghiêng hẳn, hộp dịu xuống */
-.mystery-card.is-opened .mystery-lid { transform: translateY(-16px) rotate(-22deg); }
-.mystery-card.is-opened .mystery-q { opacity: .35; }
+/* ---- TRẠNG THÁI 4: REVEAL — nắp bay, dấu ? tan, tia bung ---- */
+.mystery-card.is-reveal .mystery-glow { opacity: 1; transform: scale(1.22); transition-duration: .5s; }
+.mystery-card.is-reveal .mystery-q { animation: mystery-q-out .5s var(--e-out) forwards; }
+@keyframes mystery-q-out {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.3) translateY(-12px); }
+}
+/* Nắp KHÔNG bay khỏi sân khấu (đè tiêu đề ở khung nhỏ): chỉ hé — nhảy một
+   nhịp rồi tựa nghiêng trên miệng hộp, đủ đọc "đã mở". */
+.is-reveal .mystery-lid, .is-opened .mystery-lid { transform: translateY(-8px) rotate(-8deg); }
+.is-reveal .mystery-lid { animation: mystery-lid-hop .55s var(--e-out); }
+@keyframes mystery-lid-hop {
+  0%, 100% { }
+  45% { transform: translateY(-26px) rotate(-19deg); }
+}
+.mystery-card.is-reveal .mystery-box { transform: scale(1.04); }
+.mystery-card.is-reveal .mystery-shadow { opacity: .6; transform: scale(1.05); }
+
+/* ---- TRẠNG THÁI 5: ALREADY — hộp dịu xuống, không còn CTA ---- */
 .mystery-card.is-opened .mystery-box {
-  background: linear-gradient(160deg, color-mix(in oklab, var(--done) 22%, var(--surface-3)), var(--surface-3));
-  box-shadow: 0 10px 26px color-mix(in oklab, var(--done) 20%, transparent);
+  filter: saturate(.68) brightness(.86);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .1), 0 10px 24px rgb(0 0 0 / .3);
 }
+.mystery-card.is-opened .mystery-glow { opacity: 0; transform: scale(.72); }
+.mystery-card.is-opened .mystery-shadow { opacity: .5; }
 
+/* ---- PHẦN THƯỞNG: pop to, rõ; "Nothing" cũng có nhịp riêng ---- */
 .mystery-copy { margin: 0; font-size: 12px; line-height: 1.6; color: var(--txt-2); max-width: 240px; }
-.mystery-open { min-height: 42px; width: 100%; }
-.mystery-prize {
-  margin: 0; font-family: var(--mono); font-size: 17px; font-weight: 700;
-  color: var(--done); font-variant-numeric: tabular-nums;
-  animation: mystery-reveal .45s var(--e-out);
+.mystery-openlabel { margin: 0; font-size: 12px; font-weight: 600; color: #DC94EF; }
+.mystery-open {
+  min-height: 46px; width: 100%;
+  background: #3D05DD; border-color: #3D05DD;
 }
-@keyframes mystery-reveal {
+.mystery-open:focus-visible { outline: 2px solid #3D05DD; outline-offset: 2px; }
+.mystery-open:hover:not(:disabled) { background: color-mix(in oklab, #3D05DD 86%, #fff); border-color: color-mix(in oklab, #3D05DD 86%, #fff); }
+.mystery-prize {
+  margin: 0; font-family: var(--mono); font-size: 18px; font-weight: 700;
+  font-variant-numeric: tabular-nums; line-height: 1.35;
+  animation: mystery-pop .5s var(--e-out);
+}
+.mystery-prize.votes { color: #FCB0F3; text-shadow: 0 0 18px rgb(252 176 243 / .35); }
+.mystery-prize.paid_request { color: #DC94EF; text-shadow: 0 0 18px rgb(220 148 239 / .35); }
+.mystery-prize.nothing { color: var(--txt); }
+@keyframes mystery-pop {
   0% { transform: scale(.6); opacity: 0; }
-  70% { transform: scale(1.12); }
+  70% { transform: scale(1.1); }
   100% { transform: scale(1); opacity: 1; }
 }
+.mystery-again { margin: 0; font-size: 11px; line-height: 1.55; color: var(--txt-3); }
 .mystery-error { margin: 0; font-size: 11px; color: var(--denied); }
 
+/* ---- REDUCED MOTION: bỏ/giảm mọi nhịp, trạng thái vẫn đầy đủ ---- */
 @media (prefers-reduced-motion: reduce) {
-  .mystery-card:not(.is-locked):not(.is-opened):not(.is-opening) .mystery-box { animation: none; }
-  .mystery-card.is-opening .mystery-box { animation: none; }
-  .mystery-card.is-opening .mystery-lid { animation: none; transform: translateY(-16px) rotate(-22deg); }
+  .mystery-card .mystery-box, .mystery-card .mystery-glow, .mystery-card .mystery-shadow {
+    animation: none; transition: none;
+  }
+  .mystery-card.is-charging .mystery-box, .mystery-card.is-shaking .mystery-box { animation: none; transform: none; }
+  .mystery-card.is-shaking .mystery-bow { animation: none; }
+  .is-reveal .mystery-lid, .is-opened .mystery-lid { transition: none; }
+  .mystery-card.is-reveal .mystery-q { animation: none; opacity: 0; }
+  .mystery-rays i { animation: none !important; opacity: 0 !important; }
   .mystery-prize { animation: none; }
-  .mystery-box, .mystery-lid { transition: none; }
 }
 
 /* =========================================================

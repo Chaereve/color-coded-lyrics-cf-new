@@ -5,7 +5,7 @@ import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_WEIGHTS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
   dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
-  spinRotation, spinCountdown, sectorAtPointer,
+  spinRotation, spinCountdown, sectorAtPointer, spinLabels,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
@@ -402,4 +402,33 @@ test('dragTicks đếm vạch theo cả hai chiều, không kêu khi chưa qua v
   assert.equal(S, 360 / 7, 'một vạch = một ô của bản vẽ 7 ô')
   assert.ok(DRAG_MIN_DEG > S && DRAG_MIN_DEG < 90, 'ngưỡng kéo phải lớn hơn một ô và nhỏ hơn một phần tư vòng')
   assert.ok(DRAG_TICK_GAP_MS >= 30 && DRAG_TICK_GAP_MS <= 80, 'nhịp tách nằm trong khoảng tai nghe ra nhịp')
+})
+
+test('nhãn đĩa: nằm trong vành an toàn, không chồng nhãn kề theo cả hai chiều', () => {
+  const labels = spinLabels()
+  assert.equal(labels.length, 7)
+  for (const L of labels) {
+    assert.ok(L.r - L.h / 2 >= 52 && L.r + L.h / 2 <= 162,
+      `+${L.reward}: radial [${L.r - L.h / 2}, ${L.r + L.h / 2}] phải nằm trong [52, 162]`)
+    assert.ok(L.w > 0 && L.h > 0 && L.size >= 12, `+${L.reward}: khối lượng chữ dương`)
+  }
+  /* Cặp nhãn bất kỳ: KHÔNG được vừa chồng góc vừa chồng bán kính — đủ một
+     khoảng cách dương là không thể đè nhau trên mặt đĩa. */
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      const A = labels[i], B = labels[j]
+      let d = Math.abs(A.angle - B.angle)
+      if (d > 180) d = 360 - d
+      const angGap = d - A.w / (2 * Math.PI * A.r) * 360 / 2 - B.w / (2 * Math.PI * B.r) * 360 / 2
+      const radGap = Math.max(A.r - A.h / 2, B.r - B.h / 2) - Math.min(A.r + A.h / 2, B.r + B.h / 2)
+      assert.ok(angGap > 0 || radGap > 0,
+        `+${A.reward} và +${B.reward} chồng nhau: gap góc ${angGap.toFixed(1)}°, gap bán kính ${radGap.toFixed(1)}px`)
+    }
+  }
+  /* +10 (chữ radial hẹp nhất có chữ) và +20 (badge) phải tách nhau ít nhất
+     một khoảng dương ở MỘT chiều — đây là cặp dễ va nhất của đĩa. */
+  const ten = labels.find(L => L.reward === 10)
+  const twenty = labels.find(L => L.reward === 20)
+  assert.ok(ten && twenty && Math.abs(twenty.r - ten.r) >= (ten.h + twenty.h) / 2 - 20,
+    'badge +20 tách bán kính khỏi chữ +10')
 })
