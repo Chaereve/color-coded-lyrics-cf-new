@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import { warmCaptcha } from '../lib/spinShield.js'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE, rewardOdds, formatChance,
   spinCountdown, spinRotation, spinSectorIndex, spinSectors, spinTicks, spinTier,
   dragTicks, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
 } from '../lib/dailySpin'
@@ -22,13 +22,15 @@ const point = (angle, radius) => {
   const rad = angle * Math.PI / 180
   return [round(C + radius * Math.sin(rad)), round(C - radius * Math.cos(rad))]
 }
-/* Lát vẽ theo TÂM Ô, không theo chỉ số: bản vẽ đã xoay cả vòng để dải giải cao
-   nhất nằm ở 6 giờ (xem spinSectors), nên chỉ số ô không còn suy ra góc được. */
-const sectorAt = (centre, count, radius = FACE) => {
-  const half = 180 / count
-  const [sx, sy] = point(centre - half, radius)
-  const [ex, ey] = point(centre + half, radius)
-  return `M${C} ${C} L${sx} ${sy} A${radius} ${radius} 0 0 1 ${ex} ${ey} Z`
+/* Lát vẽ theo CUNG RIÊNG (from → span), không theo chỉ số đều: các ô có trọng
+   số 30..1 nên độ rộng cung = xác suất thật của ô đó (xem spinSectors). Bản vẽ
+   đã xoay cả vòng để ô giải cao nhất nằm ở 6 giờ, nên chỉ số ô không còn suy
+   ra góc được. Cung lớn hơn nửa vòng (không xảy ra với trọng số hiện tại, nhưng
+   hàm phải đúng chung) cần cờ large-arc của SVG. */
+const sectorAt = (from, span, radius = FACE) => {
+  const [sx, sy] = point(from, radius)
+  const [ex, ey] = point(from + span, radius)
+  return `M${C} ${C} L${sx} ${sy} A${radius} ${radius} 0 ${span > 180 ? 1 : 0} 1 ${ex} ${ey} Z`
 }
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
@@ -44,12 +46,14 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
    dấu thừa. Bản này giữ đúng những gì làm nên một cái bánh xe:
 
      1. vành: một dải phẳng + một đường tóc ngoài (không quầng sáng);
-     2. 16 lát: HAI tông phẳng xen kẽ (--w-1 / --w-2) để mắt đếm được lát, và
-        DUY NHẤT lát giải cao nhất tô bằng --a — một điểm nhấn, đúng chỗ. Hai
-        tông xen kẽ đã tự kẻ ranh giới từng lát, nên KHÔNG cần nan hoa: một
-        đường kẻ từ trục ra vành chỉ làm cái bánh xe trông như nan hoa xe đạp;
-     3. số thưởng: chữ mono màu chữ thường; riêng ô giải cao nhất chữ trắng,
-        lớn hơn một bậc;
+     2. 7 lát: mỗi lát một mức thưởng, độ rộng cung = xác suất thật (30%..1%),
+        màu đi theo một THANG sáng dần theo độ hiếm (--w-1..--w-7); DUY NHẤT ô
+        giải cao nhất tô vàng đặc — một điểm nhấn, đúng chỗ. Ranh giới từng lát
+        do một nét mảnh màu nền kẻ ra, không cần nan hoa;
+     3. số thưởng: chữ mono màu chữ thường đặt dọc theo bán kính; riêng các ô
+        sáng (t5/t6) chữ mực đậm cho đủ tương phản, và ô giải cao nhất (+20,
+        cung 3,6° quá nhỏ để chứa chữ) được một HUY HIỆU vàng nằm ngang đè đúng
+        chỗ ô đó — dễ đọc, không chen vào số của ô bên cạnh;
      4. trục: MỘT đĩa phẳng nhỏ (bỏ mũi chỉ và chấm — con trỏ ở vành đã trả lời
         "kim đang chỉ đâu");
      5. con trỏ: một mũi ở 12 giờ, GÕ theo đúng nhịp vạch mà tiếng tách đang
@@ -64,7 +68,7 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
 const HUB = 26             // bán kính trục
 
 function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, wrapRef, discRef, drag }) {
-  const count = sectors.length
+  const top = Math.max(...sectors.map(s => s.reward))
   /* KÉO ĐĨA — thao tác quen tay nhất của một bánh xe thưởng.
      Ba quyết định, và lý do của từng cái:
 
@@ -93,37 +97,43 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, 
         <circle cx={C} cy={C} r="195" className="spin-wheel-rim" />
         <circle cx={C} cy={C} r="199.5" className="spin-wheel-edge" />
         {sectors.map((s, i) => (
-          /* Màu = MỨC THƯỞNG, và nay là MỘT THANG đi lên: ô +1 là nền chìm, +2
-             pha nhạt, +3 đậm hơn, +5 đúng màu nhấn. Trước đây ô lẻ trong mỗi
-             dải còn được tô nhạt hơn (`.weave`) để "đếm được từng ô" — nhưng
-             chính nó làm mặt đĩa lốm đốm hai tông xen kẽ nhau, đọc ra như lỗi
-             tô màu. Ranh giới giữa các ô nay do MỘT nét mảnh màu nền vẽ ra
-             (xem .spin-sector trong DailySpin.css): đúng cách một bánh xe
-             thưởng thật được chia ô — nhìn là biết có 16 ô, mà không thêm một
-             lớp trang trí nào. */
+          /* Màu = MỨC THƯỞNG, là MỘT THANG đi lên: +1 nền chìm, rồi sáng dần
+             theo độ hiếm tới +8 lavender, +10 hổ phách, +20 vàng đặc. Độ RỘNG
+             CUNG của mỗi lát nói đúng xác suất của nó — lát +1 chiếm gần một
+             phần ba vòng, lát +20 là một vải mỏng vàng. Ranh giới giữa các ô
+             do MỘT nét mảnh màu nền vẽ ra (xem .spin-sector trong
+             DailySpin.css): đúng cách một bánh xe thưởng thật được chia ô. */
           <path key={i}
             className={`spin-sector ${s.tier}${won === i ? ' is-won' : ''}`}
-            d={sectorAt(s.angle, count)} />
+            d={sectorAt(s.from, s.span)} />
         ))}
         {sectors.map((s, i) => {
-          /* MỘT nhãn cho MỘT dải, in ở ô giữa dải. Nhãn chỉ là con số thưởng
-             ("+1", "+2"…): số ô của dải đã hiện ra bằng CHÍNH ĐỘ DÀI CUNG của
-             dải — dải +1 chiếm hơn nửa vòng, dải +5 đúng một ô. Bản trước in
-             thêm "×9" ngay dưới số, nên mặt đĩa đọc như một bảng dữ liệu chứ
-             không phải một bánh xe; tỉ lệ chính xác vẫn còn nguyên trong nhãn
-             đọc được của cả đĩa (spin.wheelLabel). */
-          if (!s.label) return null
+          /* MỖI Ô MỘT NHÃN, in dọc theo bán kính ở tâm ô. Nhãn chỉ là con số
+             thưởng ("+1", "+2"…): xác suất của ô đã hiện ra bằng CHÍNH ĐỘ RỘNG
+             CUNG của lát và bằng tỉ lệ trong chú giải, nên mặt đĩa không cần
+             in thêm con số phần trăm nào. Riêng +20 — cung 3,6° nhỏ hơn cả
+             chữ — được một huy hiệu vàng nằm ngang đè đúng tâm ô: không xoay,
+             không chen vào số của ô bên cạnh, và là điểm nhấn duy nhất đĩa. */
           const [x, y] = point(s.angle, LABEL)
           // Turn the lower half upright so no prize number hangs upside down.
           const flip = s.angle > 90 && s.angle < 270 ? 180 : 0
           const lit = won !== null && sectors[won].reward === s.reward
-          return <text key={i} className={`spin-wheel-number${s.tier === 't4' ? ' jackpot' : ''}${lit ? ' is-won' : ''}`}
+          if (s.reward === top) {
+            return <g key={i} transform={`translate(${x} ${y})`} className={lit ? 'is-won' : undefined}>
+              <rect className="spin-wheel-jackpot-plate" x="-27" y="-15" width="54" height="30" rx="10" />
+              <text className="spin-wheel-number jackpot" x="0" y="0"
+                textAnchor="middle" dominantBaseline="central">
+                <tspan className="spin-wheel-plus">+</tspan>{s.reward}
+              </text>
+            </g>
+          }
+          return <text key={i} className={`spin-wheel-number ${s.tier}${lit ? ' is-won' : ''}`}
             x={x} y={y} transform={`rotate(${s.angle + flip} ${x} ${y})`}
             textAnchor="middle" dominantBaseline="central">
             <tspan className="spin-wheel-plus">+</tspan>{s.reward}
           </text>
         })}
-        {won !== null && <path className="spin-wheel-marker" d={sectorAt(sectors[won].angle, count)} />}
+        {won !== null && <path className="spin-wheel-marker" d={sectorAt(sectors[won].from, sectors[won].span)} />}
         <circle cx={C} cy={C} r={HUB} className="spin-wheel-hub" />
       </svg>
       <span className="spin-wheel-pointer" aria-hidden="true">
@@ -353,7 +363,12 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
   }
 
   const rewards = status?.rewards || SPIN_REWARDS
-  const sectors = useMemo(() => spinSectors(rewards), [rewards])
+  /* Trọng số đi kèm rewards (payload v2). Payload cũ thiếu `weights`, hoặc trả
+     một bảng lệch độ dài, thì bản vẽ tự rơi về các cung BẰNG NHAU — hình dạng
+     luôn khớp đúng dữ liệu nó hiển thị, không mượn odds của bảng khác. */
+  const weights = status?.weights?.length === rewards.length ? status.weights : null
+  const odds = useMemo(() => rewardOdds(rewards, weights || undefined), [rewards, weights])
+  const sectors = useMemo(() => spinSectors(rewards, weights || undefined), [rewards, weights])
   const remaining = status?.remaining ?? 0
   const limit = status?.limit || DAILY_SPIN_LIMIT
   const active = phase !== 'idle'
@@ -487,15 +502,16 @@ export default function DailySpin({ userId, credits, purchased, bonus, onBalance
             drag={{ enabled: canDrag, down: dragDown, move: dragMove, up: dragUp }}
             won={won} label={t('spin.wheelLabel', {
               n: rewards.length,
-              odds: rewardOdds(rewards).map(o => `${o.count}× +${o.reward}`).join(', '),
+              odds: odds.map(o => `+${o.reward} ${formatChance(o.chance)}%`).join(', '),
             })} />
 
-          {/* Keep reward colours, without probability/count labels. */}
+          {/* Reward colours AND their real chance, straight from the weights. */}
           <ul className="spin-legend" aria-label={t('spin.legendAria')}>
-            {rewardOdds(rewards).map(o => (
+            {odds.map(o => (
               <li key={o.reward} className={o.tier}>
                 <i aria-hidden="true" />
                 <b>+{o.reward}</b>
+                <small>{formatChance(o.chance)}%</small>
               </li>
             ))}
           </ul>

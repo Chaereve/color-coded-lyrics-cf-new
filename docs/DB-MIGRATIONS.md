@@ -657,3 +657,21 @@ Rollback: `supabase/rollback/20261129_mystery_box.sql` — từ chối chạy kh
 grant `mystery_box` trong 48 giờ gần nhất (không claw-back), xoá RPC + bảng +
 flag và thu hẹp CHECK về bộ key B1. Test: `npm run test:mystery:pglite`;
 manifest `tools/migration-safety.test.mjs` đã cập nhật lên 45 migration active.
+
+## 20261201 — B3: Daily Spin v2 (7 ô trọng số, cùng hạn mức 2 lượt/ngày)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. Không đụng bảng nào: chỉ `create or replace` hàm + nới đúng một CHECK.
+
+| File | Vai trò |
+| --- | --- |
+| `20261201_spin_v2.sql` | `daily_spin_prizes()` → `[1,2,3,5,8,10,20]`, hàm mới `daily_spin_weights()` → `[30,25,20,12,8,4,1]` (tổng 100); nới CHECK `reward in (1,2,3,5)` → `(1,2,3,5,8,10,20)` (hàng cũ 1..5 vẫn hợp lệ); `spin_daily` (6 tham số, giữ nguyên cổng Edge / advisory lock / hạn mức device-account-fp / luật không-lặp): rút qua **hai byte + lấy mẫu loại bỏ** `raw < 65536 − (65536 % tổng)` → `r = raw % tổng` đi dải tích luỹ 30/55/75/87/95/99/100 — vì `256 % 7 <> 0`, một byte không còn đủ để đều; hai lượt gần nhất trùng giải thì dải mang giải đó bị rút lại (phân phối còn lại đúng bằng có điều kiện), fallback 8 lượt = đều trên ô hợp lệ; `daily_spin_payload` thêm key `weights` cho bản vẽ. |
+| `supabase/rollback/20261201_spin_v2.sql` | Từ chối chạy khi còn lượt quay trong 48 giờ; trả prizes về bảng 16 ô, drop `daily_spin_weights`, khôi phục `spin_daily` (20261111) + `payload` (20261107); CHECK reward thu về bộ cũ **chỉ khi** ledger chưa có giải 8/10/20, nếu có thì giữ nới (notice) để không từ chối lịch sử thật. |
+
+Không đổi: hạn mức 2/device + 2/account + 2/fingerprint, khiên IP, ràng buộc
+`segment 0..15` (hàng 16 ô cũ giữ nguyên ý nghĩa, bản mới chỉ rút 0..6), ví
+nhận thưởng `bonus_credits` (reset 31/10). Bundle cũ không gọi `weights` vẫn
+chạy đúng — nó bỏ qua key lạ. Test: `npm run test:spinv2:pglite` (7 kịch bản:
+chain, phân phối 300 lượt, không-lặp, hạn mức + replay, hàng legacy, bảng trọng
+số lệch bị từ chối, chạy lại an toàn); manifest
+`tools/migration-safety.test.mjs` đã cập nhật lên **46 migration active**.

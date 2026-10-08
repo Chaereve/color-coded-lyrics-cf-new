@@ -1,6 +1,6 @@
 /* Render the actual JSX with Vite's SSR loader, without running browser effects
    or connecting to Supabase. Guard the requested layout against regressions:
-   head / stage (wheel + action | status card) / footer, 16 honest sectors. */
+   head / stage (wheel + action | status card) / footer, 7 honest sectors. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -39,9 +39,9 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.match(head, /Next reset/)
     assert.match(head, /--:--:--/)
     /* Đầu trang CHỈ có tiêu đề + nhãn demo + đồng hồ đếm ngược (vòng 12):
-       dòng "mỗi lượt thắng trung bình 1,75 vote" đã bị gỡ, và test này chốt
-       đúng việc đó — dựng lại nó là hỏng ở đây. */
-    assert.doesNotMatch(head, /1\.75|bonus votes on average/)
+       dòng trung bình Reward đã bị gỡ, và test này chốt đúng việc đó — dựng
+       lại nó là hỏng ở đây. */
+    assert.doesNotMatch(head, /3\.24|bonus votes on average/)
 
     // 2. stage: the wheel and the button that spins it stay in one column
     const dial = html.match(/<div class="spin-dial">([\s\S]*?)<aside class="spin-panel">/)?.[1]
@@ -53,33 +53,32 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
        hiện ra bằng chính các ô có thưởng trên đĩa. */
     assert.doesNotMatch(dial, /spin-hint|Every sector wins/)
 
-    /* 16 lát vẫn BẰNG NHAU (22,5° mỗi lát — xác suất không đổi), nhưng màu nay
-       đi theo MỨC THƯỞNG: 9 lát +1 cùng một tông, 4 lát +2 tông khác… nhờ vậy
-       mỗi mức thưởng là MỘT VÙNG đọc được. Cách tô xen kẽ theo chẵn/lẻ trước
-       đây khiến hai ô cùng thưởng nằm cạnh nhau vẫn khác màu. */
-    assert.equal((html.match(/class="spin-sector [^"]*"/g) || []).length, 16)
-    assert.equal((html.match(/class="spin-sector t1(?: |")/g) || []).length, 9, '9 lát +1')
-    assert.equal((html.match(/class="spin-sector t2(?: |")/g) || []).length, 4, '4 lát +2')
-    assert.equal((html.match(/class="spin-sector t3(?: |")/g) || []).length, 2, '2 lát +3')
-    assert.equal((html.match(/class="spin-sector t4(?: |")/g) || []).length, 1, 'đúng MỘT lát giải cao nhất')
+    /* 7 lát, MỖI LÁT MỘT MỨC THƯỞNG, độ rộng cung = trọng số đã duyệt
+       (30%..1% — xác suất không đổi giữa bản vẽ và phép rút của server). Màu
+       đi theo một thang sáng dần theo độ hiếm: t1..t7, đúng một lát mỗi tông. */
+    assert.equal((html.match(/class="spin-sector [^"]*"/g) || []).length, 7)
+    for (const tier of ['t1', 't2', 't3', 't4', 't5', 't6', 't7']) {
+      assert.equal((html.match(new RegExp(`class="spin-sector ${tier}(?: |")`, 'g')) || []).length, 1,
+        `đúng MỘT lát ${tier}`)
+    }
     assert.equal((html.match(/class="spin-sector [^"]*weave/g) || []).length, 0,
       'không còn mẹo tô xen kẽ: ranh giới ô do nét viền vẽ ra')
-    /* LỖI "TRÙNG LẶP SỐ VOTE": mỗi ô từng in một số, nên chín ô +1 in ra chín số
-       1 giống hệt nhau rải quanh đĩa. Nay mỗi mức thưởng in ĐÚNG MỘT lần, ở ô
-       giữa dải — và CHỈ con số thưởng ("+1"), không kèm "×9": số ô của dải đã
-       hiện ra bằng độ dài cung của chính dải đó. */
+    /* Mỗi ô in ĐÚNG MỘT nhãn; ô +20 — cung 3,6° nhỏ hơn cả chữ — là huy hiệu
+       vàng nằm ngang đè đúng tâm ô. Bảy nhãn, không nhãn nào lặp lại. */
     const labels = [...html.matchAll(/class="spin-wheel-number[^"]*"[^>]*>([\s\S]*?)<\/text>/g)]
       .map(m => m[1].replace(/<[^>]*>/g, '').trim())
-    assert.deepEqual(labels, ['+1', '+2', '+3', '+5'], 'bốn nhãn, một nhãn cho một dải')
+    assert.deepEqual(labels, ['+1', '+2', '+3', '+5', '+8', '+10', '+20'], 'bảy nhãn, một nhãn cho một ô')
     assert.equal(new Set(labels).size, labels.length, 'không nhãn nào lặp lại')
     assert.equal((html.match(/class="spin-wheel-number jackpot"/g) || []).length, 1)
-    /* Không nan hoa: hai tông xen kẽ đã tự kẻ ranh giới lát, nên 16 đường kẻ
-       từ trục ra vành chỉ làm bánh xe trông như nan hoa xe đạp. */
+    assert.equal((html.match(/class="spin-wheel-jackpot-plate"/g) || []).length, 1,
+      'ô giải cao nhất có đúng một huy hiệu vàng')
+    /* Không nan hoa: nét viền lát đã tự kẻ ranh giới, đường kẻ từ trục ra vành
+       chỉ làm bánh xe trông như nan hoa xe đạp. */
     assert.equal((html.match(/class="spin-wheel-spoke"/g) || []).length, 0, 'không còn nan hoa')
     /* Bánh xe chỉ còn NĂM lớp: vành + đường tóc ngoài, lát, số, trục, con trỏ.
        Vành chia độ 48 vạch, mũi chỉ trên trục, chấm trục, đường tóc trong lòng
-       đĩa và cung ăn mừng ngoài vành đều đã bị gỡ — chúng nói lại điều hai
-       tông lát và con trỏ đã nói. */
+       đĩa và cung ăn mừng ngoài vành đều đã bị gỡ — chúng nói lại điều lát và
+       con trỏ đã nói. */
     assert.equal((html.match(/class="spin-wheel-tick/g) || []).length, 0, 'không còn vành chia độ')
     assert.equal((html.match(/class="spin-wheel-hub-mark"/g) || []).length, 0, 'không còn mũi chỉ trên trục')
     assert.equal((html.match(/class="spin-wheel-seam"/g) || []).length, 0, 'không còn đường tóc trong đĩa')
@@ -87,7 +86,8 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.equal((html.match(/class="spin-wheel-hub"/g) || []).length, 1, 'trục là MỘT đĩa phẳng')
     /* Chưa có kết quả thì không được có dấu hiệu ăn mừng nào */
     assert.doesNotMatch(html, /spin-burst|spin-wheel-win-arc|spin-won-num/)
-    assert.match(html, /aria-label="Wheel with 16 equal sectors: 9× \+1, 4× \+2, 2× \+3, 1× \+5 votes/)
+    assert.match(html,
+      /aria-label="Wheel with 7 sectors: \+1 30%, \+2 25%, \+3 20%, \+5 12%, \+8 8%, \+10 4%, \+20 1%\. Brighter sectors are rarer\."/)
     // Nothing is highlighted before a result exists.
     assert.doesNotMatch(html, /has-won|is-won|spin-wheel-marker/)
 
@@ -115,9 +115,12 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     assert.doesNotMatch(rules, /GMT/, 'reset chỉ được nói một lần, ở chip đếm ngược')
     assert.doesNotMatch(rules, /hardware|fingerprint|cookie|browser ID/i)
 
-    // 4. today's rewards sit in the status card (the odds table is gone from the
-    //    UI on purpose); the spend link stands next to its heading
+    // 4. today's rewards sit in the status card; the odds now live in the
+    //    legend pills (swatch + reward + real chance from the weights) and the
+    //    spend link stands next to its heading
     assert.doesNotMatch(html, /spin-odds|spin-chip|<footer class="spin-account"/)
+    assert.match(dial, /\+20<\/b><small>1%<\/small>/, 'chú giải nói đúng tỉ lệ của bảng trọng số')
+    assert.match(dial, /\+1<\/b><small>30%<\/small>/)
     assert.match(panel, /<div class="spin-history">/)
     assert.match(panel, /Today’s rewards/)
     assert.match(panel, /No spins yet\./)
@@ -137,32 +140,36 @@ test('Daily Spin uses flat site colours and opts out of the shared background', 
   ])
   assert.doesNotMatch(pageCss, /(?:linear|radial|conic)-gradient\s*\(/)
   assert.match(pageCss, /\.daily-spin\s*\{[^}]*background:\s*var\(--surface\)/)
-  /* Ba tông, tất cả là token: hai tông nền xen kẽ + ĐÚNG MỘT tông nhấn cho ô
-     giải cao nhất. Bảng 12 sắc độ cũ (4 bậc × 3 sắc) đã bị gỡ — nếu nó quay
-     lại, bài này phải đỏ. */
+  /* Bảy tông, tất cả là token — MỘT tông cho MỘT ô, sáng dần theo độ hiếm:
+       +1 nền · +2/+3 xanh tím pha dần · +5 hổ phách pha · +8 lavender
+       +10 hổ phách đặc · +20 vàng đặc (chữ mực đậm cho đủ tương phản). */
   assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-1:\s*var\(--surface-3\)/)
-  /* Bốn tầng là bốn MÀU, không phải bốn sắc độ xám: +2 xanh tím, +3 hổ phách,
-     +5 vàng đặc (chữ mực đậm cho đủ tương phản trên nền vàng). */
   assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--queued\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-3:\s*color-mix\(in oklab, var\(--progress\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*var\(--paid\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-3:\s*color-mix\(in oklab, var\(--queued\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*color-mix\(in oklab, var\(--progress\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-5:\s*var\(--a-2\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-6:\s*var\(--progress\)/)
+  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-7:\s*var\(--paid\)/)
   /* Tông lát đi theo MỨC THƯỞNG: mỗi lớp tier trỏ về một token, nên đổi bảng
      thưởng là đổi luôn bảng màu — không phải sửa tay từng lát. */
   assert.match(pageCss, /\.spin-sector\s*\{[^}]*fill:\s*var\(--wc/)
   assert.match(pageCss, /\.spin-sector\.t1\s*\{[^}]*--wc:\s*var\(--w-1\)/)
-  assert.match(pageCss, /\.spin-sector\.t4\s*\{[^}]*--wc:\s*var\(--w-4\)/)
+  assert.match(pageCss, /\.spin-sector\.t7\s*\{[^}]*--wc:\s*var\(--w-7\)/)
   /* Ranh giới giữa các ô: nét mảnh màu nền thẻ, nằm trong lát. */
   assert.match(pageCss, /\.spin-sector\s*\{[^}]*stroke:\s*var\(--surface\)/)
   assert.doesNotMatch(pageCss, /\.spin-sector\.(?:alt|base)/, 'tông xen kẽ theo chẵn/lẻ đã bị gỡ')
-  /* Nhãn dải CHỈ là con số thưởng — không còn dòng "×9" dưới số. */
+  /* Nhãn ô CHỈ là con số thưởng; tỉ lệ đã nằm trong chú giải. */
   assert.doesNotMatch(pageCss, /\.spin-wheel-times\s*\{/)
-  assert.doesNotMatch(pageCss, /--w-t\d/, 'bảng 4 bậc thưởng đã bị gỡ')
   assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
-  // Số thưởng đọc bằng màu chữ của trang; chỉ ô giải cao nhất mới đi chữ trắng.
+  // Số thưởng đọc bằng màu chữ của trang; các lát SÁNG (t5/t6) và ô vàng đổi
+  // sang mực đậm — trắng trên nền sáng chỉ được ~2:1.
   assert.match(pageCss, /\.spin-wheel-number\s*\{[^}]*fill:\s*var\(--txt\)/)
+  assert.match(pageCss, /\.spin-wheel-number\.t5[^{]*\{[^}]*fill:\s*#1a1206/)
+  assert.match(pageCss, /\.spin-wheel-number\.t6[^{]*\{[^}]*fill:\s*#1a1206/)
   assert.match(pageCss, /\.spin-wheel-number\.jackpot\s*\{[^}]*fill:\s*#1a1206/,
     'chữ trên ô vàng phải là mực đậm (trắng trên vàng chỉ ~2,5:1)')
-  assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
+  assert.match(pageCss, /\.spin-wheel-jackpot-plate\s*\{[^}]*fill:\s*var\(--paid\)/,
+    'huy hiệu +20 cùng màu vàng với lát của nó')
   // Không quầng sáng màu nhấn: đĩa nổi bằng bóng đổ trung tính.
   assert.doesNotMatch(pageCss, /box-shadow[^;]*var\(--a-glow\)/, 'bỏ quầng sáng màu')
   // Con trỏ gõ theo nhịp THẬT do JS đặt (drivePointer), không rung đều vô hạn.

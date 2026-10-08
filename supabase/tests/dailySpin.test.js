@@ -22,6 +22,8 @@ const bonusReset = readFileSync(new URL('../migrations/20261031_bonus_reset.sql'
 const voteStatusSplit = readFileSync(new URL('../migrations/20261101_vote_status_split.sql', import.meta.url), 'utf8')
 // Fingerprint/IP quota enforced IN Postgres (source of truth), not just the Edge.
 const fpQuotaV4 = readFileSync(new URL('../migrations/20261102_spin_fp_quota.sql', import.meta.url), 'utf8')
+// Spin v2: seven weighted sectors (2026-10 plan) — the last word on prizes.
+const spinV2 = readFileSync(new URL('../migrations/20261201_spin_v2.sql', import.meta.url), 'utf8')
 
 test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url, timeout: 90_000 }, async t => {
   const admin = new pg.Client({ connectionString: url })
@@ -64,6 +66,9 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
     await pool.query(voteStatusSplit)
     await pool.query(fpQuotaV4)
     await pool.query(schema)
+    // v2 runs AFTER the whole recorded chain — exactly how the deploy tool
+    // applies it on an existing project.
+    await pool.query(spinV2)
 
     const newUser = async (credits = 0) => {
       const id = randomUUID()
@@ -127,6 +132,8 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       assert.equal(second.status.purchased, 10)
       assert.equal(second.status.bonus, first.spin.reward + second.spin.reward)
       assert.equal(second.status.purchased + second.status.bonus, second.status.credits)
+      // v2 payload carries the weight table next to the rewards
+      assert.deepEqual(second.status.weights, [30, 25, 20, 12, 8, 4, 1])
       assert.equal(second.status.remaining, 0)
       assert.equal(second.status.history.length, 2)
       await assert.rejects(spin(uid, token), /err.spinDeviceLimit/)
@@ -134,21 +141,24 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
       await pool.query(prizesV2) // order matters: base file first, prizes after
       await pool.query(edgeV3)
       await pool.query(schema) // fresh-install file is also safe to rerun
+      await pool.query(spinV2) // schema rerun reverts the prize functions: v2 last
       assert.equal(await countFor(uid), 2)
       assert.equal(await balance(uid), second.status.credits)
       assert.equal((await status(uid, token)).remaining, 0)
     })
 
-    await t.test('16 equal sectors: odds match the wheel the browser draws', async () => {
-      const { SPIN_REWARDS, rewardOdds, spinAverage } = await import('../../src/lib/dailySpin.js')
+    await t.test('7 weighted sectors: odds match the wheel the browser draws', async () => {
+      const { SPIN_REWARDS, SPIN_WEIGHTS, rewardOdds, spinAverage } = await import('../../src/lib/dailySpin.js')
       const rows = (await pool.query('select public.daily_spin_prizes() as v')).rows[0].v
+      const weights = (await pool.query('select public.daily_spin_weights() as v')).rows[0].v
       assert.deepEqual(rows, [...SPIN_REWARDS])
-      assert.equal(rows.length, 16)
-      assert.equal(256 % rows.length, 0, 'one random byte must stay unbiased')
-      assert.deepEqual(rewardOdds(rows).map(p => [p.reward, p.chance]),
-        [[1, 56.25], [2, 25], [3, 12.5], [5, 6.25]])
-      assert.equal(spinAverage(rows), 1.75)
-      // The ledger accepts the widened sector range, and only that range.
+      assert.deepEqual(weights, [...SPIN_WEIGHTS])
+      assert.equal(weights.reduce((a, b) => a + b, 0), 100, 'weights are whole percentages of the wheel')
+      assert.deepEqual(rewardOdds(rows, weights).map(p => [p.reward, p.chance]),
+        [[1, 30], [2, 25], [3, 20], [5, 12], [8, 8], [10, 4], [20, 1]])
+      assert.equal(spinAverage(rows, weights), 3.24)
+      // The ledger keeps its widened historical range, and only that range:
+      // v2 draws land inside 0..6, rows from the 16-sector wheel keep 7..15.
       const uid = await newUser(), token = await register(uid)
       const hash = await hashOf(token)
       const put = segment => pool.query(`insert into public.daily_spins
@@ -163,7 +173,7 @@ test('Daily Spin — real PostgreSQL transactions and permissions', { skip: !url
         const player = await newUser()
         const device = await register(player)
         const result = await spin(player, device)
-        assert.ok(result.spin.segment >= 0 && result.spin.segment < 16)
+        assert.ok(result.spin.segment >= 0 && result.spin.segment < 7)
         assert.equal(result.spin.reward, rows[result.spin.segment])
         assert.equal(await balance(player), result.spin.reward)
         seen.add(result.spin.reward)

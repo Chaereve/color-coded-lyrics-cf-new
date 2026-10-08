@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  DAILY_SPIN_LIMIT, SPIN_REWARDS, spinDay, nextSpinReset, rewardOdds, spinTier,
+  DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_WEIGHTS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
   dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
   spinRotation, spinCountdown, sectorAtPointer,
@@ -15,48 +15,66 @@ const draw = (entries, overrides = {}) => drawDemoSpin({
   ...input, entries, requestId: crypto.randomUUID(), random: () => 0, ...overrides,
 })
 
-test('16 equal sectors: 56.25 / 25 / 12.5 / 6.25%, average 3.5 votes per day', () => {
-  assert.equal(SPIN_REWARDS.length, 16)
-  // Equal slices + a uniform server draw: what the player sees IS the real odds.
-  assert.deepEqual(rewardOdds().map(p => [p.reward, p.count, p.chance]),
-    [[1, 9, 56.25], [2, 4, 25], [3, 2, 12.5], [5, 1, 6.25]])
-  assert.deepEqual(rewardOdds().map(p => formatChance(p.chance)), ['56.25', '25', '12.5', '6.25'])
-  assert.equal(spinAverage(), 1.75)
-  assert.equal(spinAverage() * DAILY_SPIN_LIMIT, 3.5)
-  // 256 % 16 === 0: one cryptographic byte still needs no rejection sampling.
-  assert.equal(256 % SPIN_REWARDS.length, 0)
-  // No blank sector, and the single jackpot sits opposite the pointer.
+/* RNG deterministic cho test phân phối: mulberry32 — cùng seed luôn ra cùng
+   chuỗi, nên biên của mỗi assertion là một con số kiểm được, không phải "hi vo". */
+const mulberry32 = seed => () => {
+  seed |= 0; seed = seed + 0x6D2B79F5 | 0
+  let t = Math.imul(seed ^ seed >>> 15, 1 | seed)
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t
+  return ((t ^ t >>> 14) >>> 0) / 4294967296
+}
+
+test('7 weighted sectors: 30/25/20/12/8/4/1%, average 3.24 votes per spin', () => {
+  assert.equal(SPIN_REWARDS.length, 7)
+  assert.equal(SPIN_WEIGHTS.length, SPIN_REWARDS.length)
+  // Weights are the approved odds in percent and must form a complete wheel.
+  assert.deepEqual([...SPIN_WEIGHTS], [30, 25, 20, 12, 8, 4, 1])
+  assert.equal(SPIN_WEIGHTS.reduce((a, b) => a + b, 0), 100)
+  assert.ok(SPIN_WEIGHTS.every(w => w > 0))
+  // The draw walks cumulative bands, so the displayed arc (weight × 3.6°) IS
+  // the real chance — the client never needs rejection sampling, the server
+  // does that with two bytes (see 20261201_spin_v2.sql).
+  assert.deepEqual(rewardOdds().map(p => [p.reward, p.weight, p.chance]),
+    [[1, 30, 30], [2, 25, 25], [3, 20, 20], [5, 12, 12], [8, 8, 8], [10, 4, 4], [20, 1, 1]])
+  assert.deepEqual(rewardOdds().map(p => formatChance(p.chance)), ['30', '25', '20', '12', '8', '4', '1'])
+  assert.equal(spinAverage(), 3.24)
+  assert.equal(spinAverage() * DAILY_SPIN_LIMIT, 6.48)
+  // No blank sector; ascending, unique values; the single jackpot on top.
   assert.ok(SPIN_REWARDS.every(r => r >= 1))
-  assert.equal(SPIN_REWARDS.filter(r => r === 5).length, 1)
-  assert.equal(SPIN_REWARDS[8], 5)
-  // Two equal neighbours are the minimum with 9 low prizes in 16 slices.
-  const pairs = SPIN_REWARDS.filter((r, i) => r === SPIN_REWARDS[(i + 1) % 16]).length
-  assert.equal(pairs, 2)
+  for (let i = 1; i < SPIN_REWARDS.length; i++) assert.ok(SPIN_REWARDS[i] > SPIN_REWARDS[i - 1])
+  assert.equal(SPIN_REWARDS[SPIN_REWARDS.length - 1], 20)
+  // A legacy 16-sector payload still renders honestly: equal arcs, equal odds.
+  const legacy = [1, 2, 1, 3, 1, 1, 2, 1, 5, 1, 2, 1, 3, 1, 2, 1]
+  assert.deepEqual(rewardOdds(legacy).map(p => p.chance), Array(16).fill(6.25))
 })
 
 test('prize tiers rank with the reward, so the wheel can tone each slice', () => {
-  assert.deepEqual(spinTiers(), { 1: 't1', 2: 't2', 3: 't3', 5: 't4' })
-  assert.equal(spinTier(5), 't4')
-  // A retuned prize list must still map lowest -> highest onto t1 -> t4.
+  assert.deepEqual(spinTiers(), { 1: 't1', 2: 't2', 3: 't3', 5: 't4', 8: 't5', 10: 't6', 20: 't7' })
+  assert.equal(spinTier(20), 't7')
+  // A retuned prize list must still map lowest -> highest onto t1 -> t7.
   assert.deepEqual([...new Set([2, 7, 7, 20].map(r => spinTier(r, [2, 7, 20])))], ['t1', 't2', 't3'])
   assert.equal(spinTier(99, [1, 2]), 't1') // unknown value never crashes the render
 })
 
-test('SQL reward order and fresh schema stay in sync with BOTH migrations', () => {
+test('SQL reward table, weight table and the shared lib stay in sync', () => {
   const read = f => readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8')
   const base = read('20260907_daily_spin.sql')
   const prizes = read('20260908_daily_spin_prizes.sql')
   const edge = read('20260909_daily_spin_edge.sql')
+  const v2 = read('20261201_spin_v2.sql')
   const schema = readFileSync(new URL('../../supabase/schema.sql', import.meta.url), 'utf8')
-  // The newest array wins: `create or replace` runs in file order.
-  const arrays = [...prizes.matchAll(/select array\[([\d,\s]+)\]/g)].map(m => m[1].split(',').map(Number))
-  assert.equal(arrays.length, 1)
-  assert.deepEqual(arrays[0], SPIN_REWARDS)
-  assert.match(prizes, /segment between 0 and 15/)
-  assert.match(prizes, /256 % v_sectors <> 0/)
-  // A fresh install must end up with the migrated project's behaviour, not with
-  // the exact bytes of every file: the 2026-10-31 bonus split later changed ONE
-  // line inside these three blocks (wheel rewards go to bonus_credits now), and
+  // The newest tables win: `create or replace` runs in migration order, and v2
+  // is the last word on both the prizes and the weights.
+  const arrays = [...v2.matchAll(/select array\[([\d,\s]+)\]/g)].map(m => m[1].split(',').map(Number))
+  assert.deepEqual(arrays, [[...SPIN_REWARDS], [...SPIN_WEIGHTS]])
+  // The wheel refuses mismatched tables instead of paying by the wrong odds.
+  assert.match(v2, /coalesce\(array_length\(v_weights, 1\), 0\) <> v_sectors/)
+  assert.match(v2, /65536 % v_total/, 'rút qua lấy mẫu loại bỏ hai byte — 256 % 7 <> 0')
+  assert.match(v2, /reward in \(1, 2, 3, 5, 8, 10, 20\)/, 'CHECK reward của ledger phải nới theo bảng thưởng')
+  assert.match(v2, /Run AFTER 20261111_shared_ip_spin\.sql/)
+  // A fresh install ends up with the migrated project's behaviour, not with the
+  // exact bytes of every file: the 2026-10-31 bonus split later changed ONE line
+  // inside these three blocks (wheel rewards go to bonus_credits now), and
   // schema.sql carries the corrected line. Compare the executable text with
   // comments stripped and that one known edit applied to both sides.
   const body = sql => sql
@@ -70,6 +88,12 @@ test('SQL reward order and fresh schema stay in sync with BOTH migrations', () =
   assert.ok(inSchema.indexOf(body(base)) < inSchema.indexOf(body(prizes)), 'prize migration must run after the base one')
   assert.ok(inSchema.indexOf(body(prizes)) < inSchema.indexOf(body(edge)), 'edge migration must run after the prize one')
   assert.match(edge, /p_fp_hash text default null, p_ip_hash text default null/)
+  // The 16-sector array stays the schema.sql DEFAULT on purpose (it predates
+  // the committed baseline); v2 runs after the baseline, so its objects — and
+  // only they — must stay OUT of the fresh bundle (tools/migrate.mjs --check).
+  assert.match(prizes, /segment between 0 and 15/)
+  assert.ok(!schema.includes('daily_spin_weights'), 'baseline bundle must not contain post-baseline objects')
+  assert.ok(!schema.includes('65536 % v_total'))
 })
 
 test('fp quota migration is appended verbatim to the fresh schema', () => {
@@ -100,11 +124,10 @@ test('reset is exactly midnight Vietnam, including month/year boundaries', () =>
 /* LỖI THẬT (vòng 13): "quay ra ko đúng phần thưởng".
    Kim dừng ở 12 giờ, nên phép kiểm đúng không phải "đĩa quay bao nhiêu độ" mà là
    "SAU KHI QUAY, Ô NẰM DƯỚI KIM CÓ ĐÚNG PHẦN THƯỞNG MÀ MÁY CHỦ TRẢ VỀ KHÔNG".
-   Bản trước quy góc từ CHỈ SỐ ô trong bảng rút, mà bản vẽ đã gom ô cùng thưởng
-   thành dải và dịch cả vòng — nên đĩa dừng lệch sang ô khác. Test dưới đây đi
-   hết 16 ô, và với mỗi ô kiểm bằng CHÍNH bản vẽ (sectors), không bằng công thức
-   hình học tự chế. */
-test('đĩa dừng đúng ô trúng: hết 16 ô, mỗi lần kim chỉ vào đúng phần thưởng', () => {
+   Bản vẽ v2 giữ thứ tự rút nhưng các cung KHÔNG đều (trọng số 30..1), nên phép
+   kiểm ngược phải là phép dò cung. Test đi hết 7 ô, và với mỗi ô kiểm bằng
+   CHÍNH bản vẽ (sectors), không bằng công thức hình học tự chế. */
+test('đĩa dừng đúng ô trúng: hết 7 ô, mỗi lần kim chỉ vào đúng phần thưởng', () => {
   const sectors = spinSectors()
   let rotation = 0
   for (let pass = 0; pass < 3; pass++) {
@@ -124,58 +147,61 @@ test('đĩa dừng đúng ô trúng: hết 16 ô, mỗi lần kim chỉ vào đ�
   for (const bad of [NaN, Infinity, null, undefined, '90']) assert.throws(() => spinRotation(0, bad))
 })
 
-test('bản vẽ gom ô cùng thưởng thành dải và in số MỘT lần cho mỗi dải', () => {
+test('mỗi ô là một dải với độ rộng cung đúng bằng trọng số', () => {
   const sectors = spinSectors()
-  const step = 360 / SPIN_REWARDS.length
-  assert.equal(sectors.length, 16, 'vẫn đủ 16 ô, mỗi ô 22,5° — xác suất không đổi')
-  /* MỖI GIÁ TRỊ LÀ MỘT DẢI LIỀN: đi hết vòng, giá trị cũ không quay lại sau khi
-     đã đổi sang giá trị khác. Đây là thứ khiến "+1 ×9" đọc được thành một
-     vùng, thay vì chín số 1 rải rác (lỗi "trùng lặp số vote"). */
-  const bands = sectors.filter((s, i, all) => i === 0 || all[i - 1].reward !== s.reward)
-  assert.deepEqual(bands.map(s => s.reward), [1, 2, 3, 5], 'bốn dải, tăng dần, không cắt khúc')
-  const seen = new Map()
-  for (const s of sectors) seen.set(s.reward, (seen.get(s.reward) || 0) + 1)
-  assert.deepEqual([...seen], [[1, 9], [2, 4], [3, 2], [5, 1]], 'đúng bảng thưởng')
-  for (const s of sectors) assert.equal(s.count, seen.get(s.reward), 'số ô của dải')
-  // Tâm ô nằm trên lưới 22,5° (kim dừng ở tâm ô — xem spinRotation)
-  assert.equal(new Set(sectors.map(s => s.angle)).size, 16, 'không hai ô nào trùng tâm')
-  for (const s of sectors) {
-    assert.equal(s.angle % step, 0, `tâm ô lệch lưới: ${s.angle}`)
-    assert.ok(s.angle >= 0 && s.angle < 360)
+  assert.equal(sectors.length, 7, 'đúng 7 ô — xác suất nằm ở độ rộng cung')
+  for (let i = 0; i < sectors.length; i++) {
+    assert.equal(sectors[i].reward, SPIN_REWARDS[i], 'thứ tự vẽ = thứ tự rút')
+    assert.equal(sectors[i].span, 360 * SPIN_WEIGHTS[i] / 100, `cung ô ${i} đúng trọng số`)
+    assert.ok(sectors[i].span > 0 && sectors[i].span <= 180)
+    assert.ok(sectors[i].angle >= 0 && sectors[i].angle < 360)
   }
-  // Giải cao nhất vẫn ở 6 giờ, như bản 16 ô trước
-  assert.equal(sectors.find(s => s.reward === 5).angle, 180)
-  // ĐÚNG BỐN nhãn: một nhãn cho một dải, đặt ở ô giữa dải
-  const labels = sectors.filter(s => s.label)
-  assert.deepEqual(labels.map(s => [s.reward, s.count]), [[1, 9], [2, 4], [3, 2], [5, 1]])
-  for (const label of labels) {
-    const band = sectors.filter(s => s.reward === label.reward)
-    assert.equal(label, band[Math.floor((band.length - 1) / 2)], 'nhãn ở ô giữa dải')
+  const spanSum = sectors.reduce((s, x) => s + x.span, 0)
+  assert.ok(Math.abs(spanSum - 360) < 1e-9, 'các cung lấp đầy vòng tròn')
+  assert.equal(new Set(sectors.map(s => s.angle)).size, 7, 'không hai ô nào trùng tâm')
+  /* Các cung NỐI LIỀN theo thứ tự mảng: from của ô sau = from + span của ô
+     trước (với sai số dấu phẩy động cho phép). */
+  for (let i = 0; i < sectors.length; i++) {
+    const next = sectors[(i + 1) % sectors.length]
+    const delta = ((next.from - sectors[i].from - sectors[i].span) % 360 + 360) % 360
+    assert.ok(delta < 1e-9 || delta > 360 - 1e-9, `cung ${i} nối liền cung ${i + 1}`)
   }
-  assert.equal(sectors.filter(s => s.label).length, new Set(SPIN_REWARDS).size,
-    'số nhãn = số mức thưởng, không phải số ô')
+  // Giải cao nhất vẫn ở 6 giờ, đối diện con trỏ — như hai bản trước
+  assert.equal(sectors.find(s => s.reward === 20).angle, 180)
+  // Bảng payload thiếu/khớp trọng số: khớp thì dùng, lệch thì rơi về cung đều.
+  const legacy = [1, 2, 1, 3]
+  const uniform = spinSectors(legacy, undefined)
+  assert.equal(uniform.length, 4, 'mỗi mức thưởng vẫn một ô')
+  for (const s of uniform) assert.equal(s.span, 90)
+  assert.equal(spinSectors(legacy, [10, 10, 10]).length, 4, 'trọng số lệch độ dài bị bỏ, không crash')
+  /* PHÂN PHỐI THẬT theo trọng số: rút mô phỏng phải gần bảng đã duyệt. */
+  const random = mulberry32(20261009)
+  const counts = new Map(SPIN_REWARDS.map(r => [r, 0]))
+  for (let i = 0; i < 7000; i++) {
+    const reward = SPIN_REWARDS[drawSegment({ random })]
+    counts.set(reward, counts.get(reward) + 1)
+  }
+  // mỗi giải đúng trọng số ±2 điểm phần trăm (sd của 7000 rút ≈ 0.5 điểm)
+  for (let i = 0; i < SPIN_REWARDS.length; i++) {
+    const share = counts.get(SPIN_REWARDS[i]) / 7000
+    assert.ok(Math.abs(share - SPIN_WEIGHTS[i] / 100) < 0.02,
+      `+${SPIN_REWARDS[i]} phải ra ~${SPIN_WEIGHTS[i]}%: ${(share * 100).toFixed(2)}%`)
+  }
 })
 
-test('ô server rút được quy đổi đúng sang ô trên bản vẽ', () => {
+test('ô server rút được chính là ô trên bản vẽ', () => {
   const sectors = spinSectors()
-  const picked = []
   for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
     const i = spinSectorIndex(segment)
-    assert.equal(sectors[i].reward, SPIN_REWARDS[segment], `ô ${segment} trỏ sai dải`)
-    picked.push(i)
+    assert.equal(i, segment, 'thứ tự vẽ = thứ tự rút, ánh xạ là đồng nhất')
+    assert.equal(sectors[i].reward, SPIN_REWARDS[segment])
   }
-  /* Mười sáu ô rút trỏ về mười sáu ô vẽ, và ô thứ mấy trong nhóm thì rơi đúng
-     ô thứ mấy của dải — nếu không, hai lượt khác nhau sẽ cùng tô sáng một ô. */
-  assert.equal(new Set(picked).size, 16)
-  const plus1 = sectors.map((s, i) => [s, i]).filter(([s]) => s.reward === 1).map(([, i]) => i)
-  assert.deepEqual(plus1, [0, 1, 2, 3, 4, 5, 6, 7, 8])
   for (const bad of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) {
     assert.throws(() => spinSectorIndex(bad), 'chỉ số ngoài bảng phải bị chặn')
   }
-  /* Bảng thưởng do máy chủ trả về cũng quy đổi được: một mức thưởng duy nhất
-     thì cả vòng là MỘT dải, nên chỉ còn đúng MỘT nhãn. */
+  /* Bảng thưởng do máy chủ trả về cũng kiểm được: độ dài khác bảng mặc định
+     thì vẫn quy đổi được — ánh xạ không phụ thuộc độ dài bảng. */
   const custom = [2, 2, 2, 2]
-  assert.equal(spinSectors(custom).filter(s => s.label).length, 1)
   assert.equal(spinSectorIndex(3, custom), 3)
 })
 
@@ -253,8 +279,8 @@ test('unauthenticated demo spins are rejected too', () => {
 
 test('unconfirmed / mismatched server results cannot be presented as a win', () => {
   const response = {
-    spin: { request_id: 'request', segment: 8, reward: 5 },
-    status: { user_id: 'account', rewards: [...SPIN_REWARDS], remaining: 1, credits: 10 },
+    spin: { request_id: 'request', segment: 3, reward: 5 },
+    status: { user_id: 'account', rewards: [...SPIN_REWARDS], weights: [...SPIN_WEIGHTS], remaining: 1, credits: 10 },
   }
   assert.equal(validateSpinResult(response, 'account', 'request'), response)
   assert.throws(() => validateSpinResult(response, 'another-account', 'request'), /err.spinResponse/)
@@ -262,13 +288,18 @@ test('unconfirmed / mismatched server results cannot be presented as a win', () 
   for (const bad of [null, {}, { ...response, spin: { ...response.spin, reward: 1000 } },
     { ...response, spin: { ...response.spin, segment: SPIN_REWARDS.length } },
     { ...response, status: { ...response.status, remaining: 3 } },
+    // bảng trọng số gửi kèm phải khớp độ dài và là số nguyên không âm
+    { ...response, status: { ...response.status, weights: [30, 25, 20] } },
+    { ...response, status: { ...response.status, weights: [...SPIN_WEIGHTS.slice(0, -1), -1] } },
     // moc gio gui len ma doc khong ra ngay thi dung lay: NaN se in len o dem nguoc
     { ...response, status: { ...response.status, server_now: 'không phải ngày' } },
     { ...response, status: { ...response.status, reset_at: '' } }]) {
     assert.throws(() => validateSpinResult(bad, 'account', 'request'), /err.spinResponse/)
   }
-  // ...nhung backend cu KHONG gui moc gio van phai duoc chap nhan
-  assert.equal(validateSpinResult(response, 'account', 'request'), response)
+  // ...nhung backend cu KHONG gui weights / moc gio van phai duoc chap nhan
+  const legacy = { ...response, status: { ...response.status, weights: undefined } }
+  delete legacy.status.weights
+  assert.equal(validateSpinResult(legacy, 'account', 'request'), legacy)
 })
 
 test('đồng hồ đếm ngược không bao giờ in NaN', () => {
@@ -284,16 +315,26 @@ test('không lặp cùng một giải quá hai lần liên tiếp', () => {
   assert.equal(streakBlocked([1, 2]), null, 'hai lượt KHÁC nhau thì lượt sau tự do')
   assert.equal(streakBlocked([3, 3]), 3)
 
-  // đang chặn +1 thì không lần rút nào được rơi vào một trong 9 ô mang số 1
-  for (let i = 0; i < 500; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [1, 1] })], 1)
-  // chặn ở ô hiếm nhất (+5, đúng một ô) cũng phải tránh
-  for (let i = 0; i < 200; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [5, 5] })], 5)
-  // chưa đủ hai lượt trùng thì rút đều như cũ: mọi ô đều có thể ra
+  // đang chặn +1 (dải to nhất, 30%) thì không lần rút nào được rơi vào ô đó
+  const random = mulberry32(19)
+  for (let i = 0; i < 500; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [1, 1], random })], 1)
+  // chặn ở ô hiếm nhất (+20, 1%) cũng phải tránh — kể cả khi fallback hiếm gặp
+  for (let i = 0; i < 500; i++) assert.notEqual(SPIN_REWARDS[drawSegment({ recent: [20, 20], random })], 20)
+  // chưa đủ hai lượt trùng thì rút như cũ: CẢ BẢY ô đều có thể ra
   const seen = new Set()
-  for (let i = 0; i < 400; i++) seen.add(drawSegment({ recent: [2, 1] }))
+  for (let i = 0; i < 400; i++) seen.add(drawSegment({ recent: [2, 1], random }))
   assert.equal(seen.size, SPIN_REWARDS.length, 'không được hẹp tập ô khi luật không bật')
   // bảng thưởng một ô (mọi ô đều là số bị chặn) vẫn phải trả về một ô hợp lệ
   assert.equal(drawSegment({ rewards: [7], recent: [7, 7] }), 0)
+  // trọng số khi bị chặn: phân phối còn lại đúng theo trọng số có điều kiện
+  const blockedOnes = new Map(SPIN_REWARDS.slice(1).map(r => [r, 0]))
+  for (let i = 0; i < 7000; i++) {
+    const reward = SPIN_REWARDS[drawSegment({ recent: [1, 1], random })]
+    blockedOnes.set(reward, blockedOnes.get(reward) + 1)
+  }
+  // +2 chiếm 25/70 của phần còn lại (≈ 35,7%) — biên ±5 điểm phần trăm
+  assert.ok(Math.abs(blockedOnes.get(2) / 7000 - 25 / 70) < 0.05,
+    `+2 phải chiếm ~35,7%: ${blockedOnes.get(2) / 7000}`)
 })
 
 test('bản demo theo đúng luật đó', () => {
@@ -308,6 +349,8 @@ test('bản demo theo đúng luật đó', () => {
   const otherDevice = [{ ...base, device_token: 'device-b', reward: 1 },
     { ...base, device_token: 'device-b', reward: 1, created_at: '2026-09-07T10:00:00Z' }]
   assert.equal(draw(otherDevice, { random: () => 0 }).entry.reward, 1)
+  // demo status trả bảng thưởng + trọng số cho bản vẽ (payload v2)
+  assert.deepEqual(demoSpinStatus({ ...input, entries: [], credits: 0 }).weights, [...SPIN_WEIGHTS])
 })
 
 test('SQL thật giữ đúng luật, và schema.sql khớp với migration', () => {
@@ -319,6 +362,13 @@ test('SQL thật giữ đúng luật, và schema.sql khớp với migration', ()
       `${rel}: tập ô hẹp lại không chia hết 256 nên phải lấy mẫu loại bỏ`)
     assert.match(sql, /v_prizes\[i\] <> v_block/, `${rel}: phải loại đúng số thưởng đang bị chặn`)
   }
+  // Bản v2 giữ nguyên luật bằng HÌNH THỨC MỚI: chặn = bỏ một dải khỏi phép rút
+  // trọng số; fallback vẫn lấy mẫu loại bỏ với 256 % n.
+  const v2 = readFileSync(new URL('../../supabase/migrations/20261201_spin_v2.sql', import.meta.url), 'utf8')
+  assert.match(v2, /v_recent\[1\] = v_recent\[2\]/, 'v2: thiếu so sánh hai lượt gần nhất')
+  assert.match(v2, /where device_hash = v_hash/, 'v2: chuỗi tính theo thiết bị')
+  assert.match(v2, /v_prizes\[i\] is distinct from v_block/, 'v2: phải loại đúng số thưởng đang bị chặn')
+  assert.match(v2, /256 % array_length\(v_allowed, 1\)/, 'v2: fallback vẫn lấy mẫu loại bỏ')
 })
 
 /* ---------- KÉO ĐĨA: đếm vạch để tiếng tách bám đúng tay ---------- */
@@ -349,7 +399,7 @@ test('dragTicks đếm vạch theo cả hai chiều, không kêu khi chưa qua v
 
   /* Ba hằng số dùng chung giữa JSX và CSS — đổi một chỗ mà quên chỗ kia là
      tiếng tách lệch khỏi vạch vẽ trên đĩa. */
-  assert.equal(S, 360 / 16, 'một vạch = một ô của bản vẽ 16 ô')
+  assert.equal(S, 360 / 7, 'một vạch = một ô của bản vẽ 7 ô')
   assert.ok(DRAG_MIN_DEG > S && DRAG_MIN_DEG < 90, 'ngưỡng kéo phải lớn hơn một ô và nhỏ hơn một phần tư vòng')
   assert.ok(DRAG_TICK_GAP_MS >= 30 && DRAG_TICK_GAP_MS <= 80, 'nhịp tách nằm trong khoảng tai nghe ra nhịp')
 })

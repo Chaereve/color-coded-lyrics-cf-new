@@ -91,7 +91,7 @@ const S = {
 
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
-  'spin.legendAria': 'The four prize tiers on the wheel',
+  'spin.legendAria': 'The seven prize tiers on the wheel',
   /* Daily Login. It is a check-in calendar only: it tracks presence and streak
      and never awards votes. No other daily screen exists. */
   'daily.loginHeading': 'Your check-in calendar',
@@ -203,7 +203,7 @@ const S = {
 
   'spin.playLabel': 'Daily bonus wheel',
   'spin.available': 'Spins left today',
-  'spin.wheelLabel': 'Wheel with {n} equal sectors: {odds} votes. Brighter sectors are rarer.',
+  'spin.wheelLabel': 'Wheel with {n} sectors: {odds}. Brighter sectors are rarer.',
   'spin.action': 'Spin',
   'spin.loading': 'Loading…',
   /* Widget Turnstile được dựng bằng DOM trong `lib/spinShield.js`. Trước đây
