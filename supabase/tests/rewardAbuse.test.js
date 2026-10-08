@@ -386,10 +386,15 @@ async function waitForCreateRequestLocks (anchor, expected) {
   const deadline = Date.now() + 10_000
   let waiting = 0
   while (Date.now() < deadline) {
+    /* The anchor stays in the leader transaction to hold the profile lock.
+       Clear PostgreSQL's transaction-scoped stats snapshot so each poll sees
+       newly blocked sessions; queued tuple waiters can also retain `begin` as
+       their last query text, so identify them by the lock wait itself. */
+    await anchor.query('select pg_stat_clear_snapshot()')
     waiting = (await anchor.query(`
       select count(*)::int as n from pg_stat_activity
        where datname = current_database() and pid <> pg_backend_pid()
-         and wait_event_type = 'Lock' and position('create_request' in query) > 0`)).rows[0].n
+         and wait_event_type = 'Lock'`)).rows[0].n
     if (waiting >= expected) return waiting
     await new Promise(resolve => setTimeout(resolve, 20))
   }
@@ -451,7 +456,10 @@ test('real PostgreSQL race 2/4: four simultaneous free requests from an empty qu
         await beginRequestCall(anchor, userId, freeRequestCall, ['Burst', 'Simultaneous'])
         leaderOpen = true
         pendingCalls.push(...clients.map(client =>
-          beginRequestCall(client, userId, freeRequestCall, ['Burst', 'Simultaneous'])))
+          beginRequestCall(client, userId, freeRequestCall, ['Burst', 'Simultaneous']).then(
+            async result => { await client.query('commit'); return result },
+            async error => { await client.query('rollback').catch(() => {}); throw error },
+          )))
         await waitForCreateRequestLocks(anchor, clients.length)
         await anchor.query('commit')
         leaderOpen = false
@@ -462,10 +470,6 @@ test('real PostgreSQL race 2/4: four simultaneous free requests from an empty qu
         assert.equal(successes.length, 2, 'only the second and third free requests are admitted')
         assert.equal(rejected.length, 1)
         assert.match(rejected[0].reason?.message ?? '', /err\.rateLimit/)
-        for (let index = 0; index < outcomes.length; index++) {
-          if (outcomes[index].status === 'fulfilled') await clients[index].query('commit')
-          else await clients[index].query('rollback')
-        }
         const count = (await pool.query(`select count(*)::int as n from public.requests
           where user_id = $1 and is_paid = false`, [userId])).rows[0].n
         assert.equal(count, 3, 'four simultaneous calls from zero produce exactly three free requests')
