@@ -8,63 +8,27 @@
 .daily-rewards-reset b { font-family: var(--mono); color: var(--txt); font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 9px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); }
 .daily-demo { margin: 12px 20px 0; font-size: 11px; color: var(--txt-2); }
 .daily-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; align-items: start; }
-.daily-cols .daily-missions { padding: 0; }
-.daily-side { min-width: 0; }
+.daily-main, .daily-side { min-width: 0; }
 @media (min-width: 880px) {
   .daily-login-page.has-side .daily-cols { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
   /* Thẻ thưởng bám theo khi cuộn — nội dung cột lịch thường cao hơn nó */
   .daily-login-page.has-side .daily-side { position: sticky; top: 78px; }
 }
+.daily-claim { margin-top: 4px; }
 .daily-loading { padding: 0 20px 15px; color: var(--txt-2); font-size: 12px; }
-.daily-notice { margin: 0; padding: 0 20px; color: var(--done); font-size: 12px; line-height: 1.7; }
-.daily-notice:not(:empty) { padding-bottom: 16px; }
 .daily-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 16px 20px 0; padding: 12px; border: 1px solid var(--denied); border-radius: var(--r-md); font-size: 12px; color: var(--denied); }
 .daily-error span { flex: 1 1 200px; overflow-wrap: anywhere; }
 .daily-error .btn { min-height: 40px; }
-.daily-rewards-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); background: var(--surface-2); padding: 12px 20px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
-
-/* =========================================================
-   THẺ KÍNH (glassmorphism nhẹ) — lịch + thẻ thưởng cùng một chất liệu:
-   nền bán trong suốt, blur hậu cảnh, viền sáng trên, đổ bóng mềm.
-   Chỉ dùng token có sẵn: --a làm accent, không thêm màu mới.
-   ========================================================= */
-.daily-missions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; }
-.daily-mission {
-  position: relative;
-  padding: 18px;
-  border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent);
-  border-radius: var(--r-xl);
-  background:
-    linear-gradient(165deg, color-mix(in oklab, var(--a) 7%, transparent), transparent 44%),
-    color-mix(in oklab, var(--surface-2) 88%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045);
-  display: flex; flex-direction: column; align-items: flex-start;
-}
-.daily-mission.is-complete { border-color: color-mix(in oklab, var(--done) 35%, var(--line)); }
-.daily-mission-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; }
-.daily-mission-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: var(--r-lg); color: var(--a-2); background: color-mix(in oklab, var(--a) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--a) 26%, transparent); }
-.daily-mission h3 { margin: 0; font-size: 14px; font-weight: 650; }
-.daily-mission p { margin: 10px 0 16px; font-size: 12px; color: var(--txt-2); line-height: 1.7; }
-.daily-mission .btn { margin-top: auto; min-height: 42px; white-space: normal; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.daily-rewards-foot { display: block; text-align: center; border-top: 1px solid var(--line); background: var(--surface-2); padding: 12px 20px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
 
 /* ---- Thống kê tháng ---- */
 .check-in-calendar-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.check-in-calendar-nav { display: inline-flex; align-items: center; gap: 6px; }
 .check-in-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); color: var(--txt-2); cursor: pointer; }
 .check-in-nav:hover:not(:disabled) { border-color: var(--a); color: var(--a-2); }
 .check-in-nav:disabled { opacity: .35; cursor: default; }
 .check-in-nav:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 .check-in-calendar-head > span { color: var(--txt-2); font-size: 11px; }
-.check-in-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
-.check-in-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: color-mix(in oklab, var(--surface) 70%, transparent); }
-.check-in-stat b { display: inline-flex; align-items: center; gap: 4px; font-size: 15px; font-variant-numeric: tabular-nums; }
-.check-in-stat i { font-style: normal; font-size: 10px; color: var(--txt-2); }
-.check-in-stat.is-main b { color: var(--a-2); }
-.check-in-progress { position: relative; height: 8px; margin: 0 0 18px; border-radius: var(--r-pill); background: var(--surface-3); box-shadow: inset 0 1px 2px rgb(0 0 0 / .35); }
-.check-in-progress i { display: block; height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--a), var(--a-2) 70%, var(--done)); transition: width .4s var(--e-out); }
-.check-in-progress b { position: absolute; top: -4px; transform: translateX(-50%); display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line-2); color: var(--txt-3); font: 600 8px/1 var(--font); }
-.check-in-progress b.is-reached { border-color: var(--done); color: var(--done); background: color-mix(in oklab, var(--done) 14%, var(--surface)); box-shadow: 0 0 8px color-mix(in oklab, var(--done) 30%, transparent); }
 
 /* ---- Lưới ngày ---- */
 .check-in-calendar { width: 100%; margin: 0 0 18px; }
@@ -120,15 +84,16 @@ button.check-in-day:disabled { cursor: default; }
 .check-in-calendar-legend .is-checked { background: var(--done); border-color: var(--done); }
 .check-in-calendar-legend .is-today { background: var(--a-soft); border-color: var(--a); }
 .check-in-calendar-legend .is-missed { background: var(--txt-3); border-color: var(--txt-3); opacity: .6; }
-.check-in-calendar .check-in-calendar-note { margin: 10px 0 0; font-size: 11px; color: var(--txt-2); line-height: 1.7; }
+.check-in-calendar-extra { margin-left: auto; color: var(--txt-2); }
+.check-in-calendar-extra b { font-family: var(--mono); font-weight: 600; color: var(--txt); font-variant-numeric: tabular-nums; }
 .check-in-calendar .check-in-calendar-unavailable { margin: 10px 0 0; padding: 10px; border: 1px dashed var(--line-2); border-radius: var(--r-md); font-size: 11px; line-height: 1.7; color: var(--txt-2); }
 @media (max-width: 620px) {
   .check-in-day { height: 52px; gap: 4px; border-radius: 8px; }
   .check-in-day time { font-size: 12px; }
   .check-in-calendar-head > span { font-size: 10px; }
   .check-in-calendar-legend { gap: 8px 14px; }
-  .check-in-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .check-in-calendar-month { min-width: 108px; font-size: 13px; }
+  .daily-claim { width: 100%; }
 }
 
 /* =========================================================
@@ -199,7 +164,6 @@ button.check-in-day:disabled { cursor: default; }
 /* CHU KỲ 7 NGÀY — segmented bar, ô cuối là ô mốc */
 .login-rewards-cycle { display: flex; flex-direction: column; gap: 7px; }
 .login-rewards-cycle-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--txt-2); }
-.login-rewards-cycle-head b { font-family: var(--mono); color: var(--txt); font-variant-numeric: tabular-nums; }
 .login-rewards-cycle-bar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .login-rewards-cycle-bar i { height: 9px; border-radius: 4px; background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--line-2) 55%, transparent); transition: background .45s var(--e-out), box-shadow .45s var(--e-out); }
 .login-rewards-cycle-bar i.is-on { background: linear-gradient(90deg, var(--a), var(--a-2)); box-shadow: 0 2px 9px color-mix(in oklab, var(--a) 32%, transparent); }
@@ -265,6 +229,6 @@ button.check-in-day:disabled { cursor: default; }
   .login-rewards-cycle-bar.is-complete i { animation: none; }
   .login-rewards-milestones li.just-unlocked { animation: none; }
   .login-rewards-milestones li.just-unlocked::after { animation: none; opacity: 0; }
-  .check-in-progress i, .login-rewards-milestone-bar i, .login-rewards-cap-bar i,
+  .login-rewards-milestone-bar i, .login-rewards-cap-bar i,
   .login-rewards-counter, .login-rewards-streak-num, .login-rewards-cycle-bar i { transition: none; }
 }

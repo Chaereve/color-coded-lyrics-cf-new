@@ -147,7 +147,6 @@ function RewardCard({ rewards, claimed, fete }) {
       <div className="login-rewards-cycle">
         <div className="login-rewards-cycle-head">
           <span>{cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}</span>
-          <b>{t('daily.streakLabel')} {rewards.streak}</b>
         </div>
         <div className={`login-rewards-cycle-bar${cycle === LOGIN_CYCLE_DAYS ? ' is-complete' : ''}`}
           role="img" aria-label={cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}>
@@ -334,33 +333,20 @@ export default function DailyLogin({ userId }) {
     </div>}
     <div className="daily-cols">
       <div className="daily-main">
-        <div className="daily-missions">
-          <article className={`daily-mission${status?.login.claimed ? ' is-complete' : ''}`}>
-            <div className="daily-mission-heading">
-              <span className="daily-mission-icon"><Icon name="calendar" size={21} /></span>
-              <h3>{t('daily.loginTitle')}</h3>
-            </div>
-            <p>{t(status?.login.claimed ? 'daily.loginDone' : 'daily.loginDesc')}</p>
-            {status && <DailyLoginCalendar status={status} disabled={disabled} onClaim={claim} loadMonth={loadMonth} />}
-            <button type="button" className={`btn${status?.login.claimed ? ' btn-ok' : ' btn-primary'} daily-claim`}
-              disabled={disabled || status?.login.claimed} onClick={claim}>
-              {status?.login.claimed && <Icon name="check" size={15} />}
-              {t(action ? 'daily.claiming' : status?.login.claimed ? 'daily.claimed' : 'daily.claim')}
-            </button>
-          </article>
-        </div>
+        {status && <DailyLoginCalendar status={status} disabled={disabled} onClaim={claim} loadMonth={loadMonth} />}
+        <button type="button" className={`btn${status?.login.claimed ? ' btn-ok' : ' btn-primary'} daily-claim`}
+          disabled={disabled || status?.login.claimed} onClick={claim}>
+          {status?.login.claimed && <Icon name="check" size={15} />}
+          {t(action ? 'daily.claiming' : status?.login.claimed ? 'daily.claimed' : 'daily.claim')}
+        </button>
       </div>
       {showRewards && <aside className="daily-side" aria-label={t('daily.rewardsCardLabel')}>
         <RewardCard rewards={rewards} claimed={!!status?.login.claimed} fete={fete} />
       </aside>}
     </div>
     {loading && <p className="daily-loading" role="status">{t('daily.loading')}</p>}
-    <p className="daily-notice" role="status" aria-live="polite">{notice}</p>
-    <footer className="daily-rewards-foot">
-      <span>{!status ? t('daily.resetRule')
-        : t(status.login.claimed ? 'daily.checkedInToday' : 'daily.notCheckedIn')}</span>
-      <span>{t('daily.loginRewardRule')}</span>
-    </footer>
+    <p className="daily-notice sr-only" role="status" aria-live="polite">{notice}</p>
+    <footer className="daily-rewards-foot">{t('daily.loginRewardRule')}</footer>
   </section>
 }
 
