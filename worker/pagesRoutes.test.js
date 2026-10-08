@@ -15,10 +15,11 @@ import worker, { healthResponse, spinRoute, voteRoute } from './index.js'
 import { onRequest as health } from '../functions/api/daily-spin/health.js'
 import { onRequest as spin } from '../functions/api/daily-spin/spin.js'
 import { onRequest as vote } from '../functions/api/vote/cast.js'
+import { onRequest as mystery } from '../functions/api/mystery/open.js'
 import { onRequest as archive } from '../functions/archive.js'
 
 const SITE = 'https://chaereve.pages.dev'
-const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast']
+const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast', '/api/mystery/open']
 const FUNCTION_ROUTES = [...API_ROUTES, '/archive']
 const hex64 = c => c.repeat(64)
 const post = (path, body) => new Request(SITE + path, {
@@ -51,11 +52,11 @@ test('functions/ chỉ chứa đúng 3 API route và archive SSR — file lạ s
     .filter(f => String(f).endsWith('.js'))
     .map(f => String(f).replace(/\\/g, '/'))
     .sort()
-  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/vote/cast.js', 'archive.js'])
+  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/mystery/open.js', 'api/vote/cast.js', 'archive.js'])
 })
 
 test('mọi route Pages đều export đúng onRequest (sai tên là Pages bỏ qua file)', () => {
-  for (const fn of [health, spin, vote, archive]) assert.equal(typeof fn, 'function')
+  for (const fn of [health, spin, vote, mystery, archive]) assert.equal(typeof fn, 'function')
 })
 
 test('health thiếu binding vẫn 200 JSON { ok, shield:false, gate:false } — không phải HTML', async () => {

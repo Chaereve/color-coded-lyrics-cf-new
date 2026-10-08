@@ -70,6 +70,10 @@ jobs:
       - name: Reward ledger & login rewards on PGlite (B1 chain)
         run: npm run test:ledger:pglite
 
+      # Mystery box B2 (20261129) trên cùng chuỗi migration đã có ở trên.
+      - name: Mystery box on PGlite (B2 chain)
+        run: npm run test:mystery:pglite
+
       # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
       # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.
       # Chạy trên chính database throwaway ở trên, không đụng môi trường thật.

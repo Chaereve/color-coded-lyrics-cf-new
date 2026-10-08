@@ -19,6 +19,7 @@
     "test:migration:pglite": "node --test supabase/tests/voteCalendarDecoupling.pglite.mjs",
     "test:free-votes:pglite": "node --test supabase/tests/dailyFreeVotes.pglite.mjs",
     "test:ledger:pglite": "node --test supabase/tests/rewardLedger.pglite.mjs",
+    "test:mystery:pglite": "node --test supabase/tests/mysteryBox.pglite.mjs",
     "test:baseline:db": "node --test supabase/tests/baselineReadiness.test.js",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:verify": "bash scripts/verify-backup.sh",

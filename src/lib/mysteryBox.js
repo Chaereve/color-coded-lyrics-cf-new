@@ -1,0 +1,223 @@
+import { hasSupabase, supabase } from './supabaseClient.js'
+import { spinDay, nextSpinReset } from './dailySpin.js'
+import { SPIN_GATE_URL } from './spinShield.js'
+import { gateShouldFallback } from './gateFallback.js'
+
+/* =========================================================
+   MYSTERY BOX — thuần logic + I/O mỏng (20261129)
+   ---------------------------------------------------------
+   Một hộp mỗi ngày, mở SAU khi điểm danh cùng ngày Việt Nam.
+   Bảng Prize (đồng bộ 1:1 với migration 20261129 — nguồn sự thật là DB):
+     result 0  nothing        55%
+     result 1  +1 vote       20%
+     result 2  +3 votes      12%
+     result 3  +5 votes       7%
+     result 4  +10 votes      3%
+     result 5  +1 free paid request   2%  (ngoài cap — không phải vote)
+     result 6  +5 votes       1%
+   Phần thưởng vote đi qua cap 30 vote thưởng/ngày giống login/spin.
+   Production luôn đọc số thật từ RPC `my_mystery_status` /
+   `open_mystery_box` — bảng này chỉ phục vụ demo mode và UI hiển thị.
+   ========================================================= */
+
+export const MYSTERY_PRIZES = Object.freeze([
+  { result: 0, kind: 'nothing', votes: 0, weight: 550 },
+  { result: 1, kind: 'votes', votes: 1, weight: 200 },
+  { result: 2, kind: 'votes', votes: 3, weight: 120 },
+  { result: 3, kind: 'votes', votes: 5, weight: 70 },
+  { result: 4, kind: 'votes', votes: 10, weight: 30 },
+  { result: 5, kind: 'paid_request', votes: 0, weight: 20 },
+  { result: 6, kind: 'votes', votes: 5, weight: 10 },
+])
+
+export const MYSTERY_KINDS = Object.freeze(['nothing', 'votes', 'paid_request'])
+export const MYSTERY_SYNC_KEY = 'ccl.mystery.changed.v1'
+const DEMO_KEY = userId => `ccl.mystery.demo.v1.${userId}`
+const RPC_SETUP_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
+
+const STATUS_KEYS = ['user_id', 'day', 'enabled', 'checked_in', 'opened',
+  'result', 'reward_votes', 'reward_kind']
+
+const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
+const isDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+const natural = value => Number.isInteger(value) && value >= 0
+
+/* Validate: hợp đồng key chính xác — thừa key cũng là lỗi (payload lạ phải
+   dừng lại thay vì bị hiểu sai). Null = migration chưa chạy / lỗi RPC: card
+   tự ẩn, trang lịch không chết. */
+export function validateMysteryStatus(status, expectedUserId) {
+  if (!exactKeys(status, STATUS_KEYS)) throw new Error('err.mysteryResponse')
+  if (status.user_id !== expectedUserId) throw new Error('err.mysteryAccount')
+  if (!isDay(status.day) || typeof status.enabled !== 'boolean'
+    || typeof status.checked_in !== 'boolean' || typeof status.opened !== 'boolean'
+    || !natural(status.reward_votes)
+    || (status.opened ? !(Number.isInteger(status.result)
+        && status.result >= 0 && status.result <= 6
+        && MYSTERY_KINDS.includes(status.reward_kind))
+      : !(status.result === null && status.reward_votes === 0 && status.reward_kind === null))) {
+    throw new Error('err.mysteryResponse')
+  }
+  const prize = MYSTERY_PRIZES[status.result]
+  if (status.opened && (!prize || prize.kind !== status.reward_kind
+      || (status.reward_kind === 'votes' && status.reward_votes > prize.votes))) {
+    throw new Error('err.mysteryResponse')
+  }
+  return status
+}
+
+/* ---------------- demo mode (preview only) ---------------- */
+
+const readDemo = userId => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEMO_KEY(userId)) || 'null')
+    if (!parsed || typeof parsed !== 'object') return null
+    return {
+      day: isDay(parsed.day) ? parsed.day : null,
+      result: Number.isInteger(parsed.result) && parsed.result >= 0 && parsed.result <= 6 ? parsed.result : null,
+      votes: natural(parsed.votes) ? parsed.votes : 0,
+    }
+  } catch { return null }
+}
+
+const writeDemo = (userId, state) => {
+  try { localStorage.setItem(DEMO_KEY(userId), JSON.stringify(state)) } catch { /* demo only */ }
+}
+
+/* Roll deterministic theo (userId, day) — preview ổn định qua mỗi lần render;
+   hash phân bổ đều nên trọng số vẫn đúng. */
+export function demoRoll(userId, day) {
+  const text = `${userId}|${day}`
+  let hash = 2166136261
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return ((hash >>> 0) % 1000)
+}
+
+export function demoResultFor(userId, day) {
+  const roll = demoRoll(userId, day)
+  let acc = 0
+  for (const prize of MYSTERY_PRIZES) {
+    acc += prize.weight
+    if (roll < acc) return prize
+  }
+  return MYSTERY_PRIZES[0]
+}
+
+function makeDemoStatus(userId, now = Date.now()) {
+  const day = spinDay(now)
+  const saved = readDemo(userId)
+  const opened = !!saved && saved.day === day && saved.result !== null
+  const prize = opened ? MYSTERY_PRIZES[saved.result] : null
+  return {
+    user_id: userId,
+    day,
+    enabled: true,
+    checked_in: false, // caller ghi đè bằng trạng thái lịch thật
+    opened,
+    result: opened ? saved.result : null,
+    reward_votes: opened ? saved.votes : 0,
+    reward_kind: opened ? prize.kind : null,
+  }
+}
+
+/* ---------------- I/O ---------------- */
+
+async function assertCurrentAccount(expectedUserId) {
+  const { data, error } = await supabase.auth.getUser()
+  if (error) throw error
+  if (!data?.user || data.user.id !== expectedUserId) throw new Error('err.mysteryAccount')
+}
+
+async function mysteryRpc(name, args) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20_000)
+  try {
+    const response = await supabase.rpc(name, args).abortSignal(controller.signal)
+    if (controller.signal.aborted) throw new Error('err.mysteryGate')
+    if (response.error) {
+      if (RPC_SETUP_CODES.has(response.error.code)) throw new Error('err.mysterySetup')
+      throw response.error
+    }
+    return response.data
+  } finally { clearTimeout(timeout) }
+}
+
+/* NULL = không mở được trạng thái (RPC chưa có, flag tắt, lỗi mạng) — card
+   tự ẩn, giống cách thẻ thưởng tự ẩn của B1. */
+export async function fetchMysteryStatus(userId) {
+  if (!userId) return null
+  if (!hasSupabase) return makeDemoStatus(userId)
+  try {
+    await assertCurrentAccount(userId)
+    const payload = await mysteryRpc('my_mystery_status')
+    return payload ? validateMysteryStatus(payload, userId) : null
+  } catch {
+    return null
+  }
+}
+
+/* Mở hộp. Qua Edge gate khi có URL (giống Daily Spin — open là idempotent nên
+   fallback khi gate sập là an toàn: DB replay kết quả cũ, không rút lại). */
+export async function openMysteryBox(userId, expectedDay) {
+  if (!userId) throw new Error('err.signin')
+  if (!isDay(expectedDay)) throw new Error('err.dailyDayChanged')
+
+  if (!hasSupabase) {
+    const current = makeDemoStatus(userId)
+    if (current.day !== expectedDay) throw new Error('err.dailyDayChanged')
+    if (!current.opened) {
+      const prize = demoResultFor(userId, expectedDay)
+      writeDemo(userId, { day: expectedDay, result: prize.result, votes: prize.votes })
+    }
+    const after = makeDemoStatus(userId)
+    return { replayed: current.opened, mystery: after }
+  }
+
+  await assertCurrentAccount(userId)
+  const { data: session } = await supabase.auth.getSession()
+  const userToken = session?.session?.access_token
+  if (!userToken) throw new Error('err.signin')
+
+  let data = null
+  if (SPIN_GATE_URL) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20_000)
+    let response
+    try {
+      response = await fetch(`${SPIN_GATE_URL}/mystery/open`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expected_day: expectedDay, user_token: userToken }),
+      })
+    } catch (e) {
+      if (e?.name === 'AbortError') throw new Error('err.mysteryGate')
+      throw Object.assign(new Error('err.mysteryGate'), { gateDown: true })
+    } finally { clearTimeout(timeout) }
+    const contentType = response.headers.get('content-type') || ''
+    try { data = await response.json() } catch { data = null }
+    if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+      data = await mysteryRpc('open_mystery_box', { p_expected_day: expectedDay })
+    } else if (!response.ok) {
+      const key = data?.error
+        || (typeof data?.message === 'string' && data.message.startsWith('err.') ? data.message : '')
+      throw new Error(key || 'err.mysteryGate')
+    }
+  } else {
+    data = await mysteryRpc('open_mystery_box', { p_expected_day: expectedDay })
+  }
+
+  if (!data || typeof data.replayed !== 'boolean') throw new Error('err.mysteryResponse')
+  data.mystery = validateMysteryStatus(data.mystery, userId)
+  return data
+}
+
+export function announceMysteryChanged() {
+  try { localStorage.setItem(MYSTERY_SYNC_KEY, String(Date.now())) } catch { /* no storage */ }
+}
+
+/* Helper cho UI: reset_at của ngày mystery (khớp giờ reset Việt Nam). */
+export { nextSpinReset as mysteryResetAt, spinDay as mysteryDay }

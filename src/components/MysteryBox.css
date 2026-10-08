@@ -1,0 +1,97 @@
+/* =========================================================
+   MYSTERY BOX — card 300×300, cùng chất liệu kính với thẻ thưởng
+   ========================================================= */
+.mystery-card {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 100%; max-width: 300px; margin: 0 auto;
+  padding: 16px;
+  border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--a) 14%, transparent), transparent 60%),
+    color-mix(in oklab, var(--surface-2) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045);
+  text-align: center;
+}
+.mystery-title { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; color: var(--txt-2); }
+
+/* Hộp quà: nắp + ruy băng + dấu ? — thuần CSS, không ảnh */
+.mystery-box-stage { display: grid; place-items: center; width: 100%; }
+.mystery-box {
+  position: relative; display: grid; place-items: center;
+  width: 92px; height: 84px; margin-top: 18px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, color-mix(in oklab, var(--a) 34%, var(--surface-3)), var(--surface-3));
+  box-shadow: 0 10px 26px color-mix(in oklab, var(--a) 26%, transparent), inset 0 1px 0 rgb(255 255 255 / .08);
+  transition: transform .3s var(--e-out), box-shadow .3s var(--e-out);
+}
+.mystery-lid {
+  position: absolute; top: -12px; left: -5px; right: -5px; height: 20px;
+  border-radius: 7px;
+  background: linear-gradient(150deg, var(--a), var(--a-dim));
+  box-shadow: 0 4px 14px var(--a-glow);
+  transform-origin: 12% 100%;
+}
+.mystery-ribbon {
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  width: 12px; height: 14px; border-radius: 50% 50% 50% 0;
+  background: var(--a-2);
+}
+.mystery-q { font-family: var(--display); font-size: 34px; font-weight: 700; color: var(--a-2); text-shadow: 0 2px 14px var(--a-glow); }
+
+/* Khoá: chưa check-in — hộp xám, không hiệu ứng */
+.mystery-card.is-locked .mystery-box { filter: saturate(.25) brightness(.75); box-shadow: none; }
+.mystery-card.is-locked .mystery-q { color: var(--txt-3); text-shadow: none; }
+
+/* Sẵn sàng: hộp nhấp nhô nhẹ mời gọi */
+.mystery-card:not(.is-locked):not(.is-opened):not(.is-opening) .mystery-box { animation: mystery-invite 2.8s ease-in-out infinite; }
+@keyframes mystery-invite {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Đang mở: lắc + nắp văng */
+.mystery-card.is-opening .mystery-box { animation: mystery-shake .36s ease-in-out 2; }
+.mystery-card.is-opening .mystery-lid { animation: mystery-lid-pop .72s var(--e-out) forwards; }
+@keyframes mystery-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-7deg); }
+  75% { transform: rotate(7deg); }
+}
+@keyframes mystery-lid-pop {
+  40% { transform: translateY(-26px) rotate(-14deg); }
+  100% { transform: translateY(-16px) rotate(-22deg); }
+}
+
+/* Đã mở: nắp nghiêng hẳn, hộp dịu xuống */
+.mystery-card.is-opened .mystery-lid { transform: translateY(-16px) rotate(-22deg); }
+.mystery-card.is-opened .mystery-q { opacity: .35; }
+.mystery-card.is-opened .mystery-box {
+  background: linear-gradient(160deg, color-mix(in oklab, var(--done) 22%, var(--surface-3)), var(--surface-3));
+  box-shadow: 0 10px 26px color-mix(in oklab, var(--done) 20%, transparent);
+}
+
+.mystery-copy { margin: 0; font-size: 12px; line-height: 1.6; color: var(--txt-2); max-width: 240px; }
+.mystery-open { min-height: 42px; width: 100%; }
+.mystery-prize {
+  margin: 0; font-family: var(--mono); font-size: 17px; font-weight: 700;
+  color: var(--done); font-variant-numeric: tabular-nums;
+  animation: mystery-reveal .45s var(--e-out);
+}
+@keyframes mystery-reveal {
+  0% { transform: scale(.6); opacity: 0; }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.mystery-error { margin: 0; font-size: 11px; color: var(--denied); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mystery-card:not(.is-locked):not(.is-opened):not(.is-opening) .mystery-box { animation: none; }
+  .mystery-card.is-opening .mystery-box { animation: none; }
+  .mystery-card.is-opening .mystery-lid { animation: none; transform: translateY(-16px) rotate(-22deg); }
+  .mystery-prize { animation: none; }
+  .mystery-box, .mystery-lid { transition: none; }
+}

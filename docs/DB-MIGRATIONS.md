@@ -642,3 +642,18 @@ thưởng đã cấp không bao giờ bị rollback thu hồi. Rollback: `supaba
 — 20261126 chỉ xoá được khi sổ cái còn trống; 20261128 từ chối nếu đã có người
 giả mốc Đặc biệt. Test: `npm run test:ledger:pglite`; các manifest test của
 runner (`tools/migration-safety.test.mjs`) đã cập nhật lên 44 migration active.
+
+## 20261129 — B2: Mystery Box (một hộp mỗi ngày, mở sau check-in)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. Cờ `reward_config.mystery_box_enabled` (CHECK của `reward_config` được
+nới tại chỗ — không đụng giá trị đã tinh chỉnh):
+
+| File | Vai trò |
+| --- | --- |
+| `20261129_mystery_box.sql` | Bảng `mystery_opens` (PK `user_id, day` — một hộp/ngày), RPC `my_mystery_status` (exact-key) và `open_mystery_box(p_expected_day, p_gate_token)`: khoá theo check-in cùng ngày VN, rút thưởng 55/20/12/7/3/2/1 (nothing / +1 / +3 / +5 / +10 vote / +1 free paid request / +5 vote — "credits" cũ quy về vote), phần vote qua `grant_reward_event` (cùng cap 30/ngày), giải 2% cộng `bonus_requests` NGOÀI cap, replay trả kết quả đã commit. |
+
+Rollback: `supabase/rollback/20261129_mystery_box.sql` — từ chối chạy khi còn
+grant `mystery_box` trong 48 giờ gần nhất (không claw-back), xoá RPC + bảng +
+flag và thu hẹp CHECK về bộ key B1. Test: `npm run test:mystery:pglite`;
+manifest `tools/migration-safety.test.mjs` đã cập nhật lên 45 migration active.

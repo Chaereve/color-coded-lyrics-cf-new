@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import DailyLoginCalendar from './DailyLoginCalendar'
+import MysteryBox from './MysteryBox'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { hasSupabase } from '../lib/supabaseClient.js'
 import {
@@ -9,6 +10,7 @@ import {
   DAILY_LOGIN_CALENDAR_SYNC_KEY, fetchDailyLoginCalendarMonth,
   fetchDailyLoginCalendarStatus,
 } from '../lib/dailyLoginCalendar.js'
+import { fetchMysteryStatus } from '../lib/mysteryBox.js'
 import { LOGIN_CYCLE_DAYS, nextCheckInGrants } from '../lib/loginRewards.js'
 import { spinCountdown } from '../lib/dailySpin.js'
 import './DailyLogin.css'
@@ -207,6 +209,7 @@ export default function DailyLogin({ userId }) {
   const { t } = useI18n()
   const [status, setStatus] = useState(null)
   const [rewards, setRewards] = useState(null)
+  const [mystery, setMystery] = useState(null)
   const [loading, setLoading] = useState(true)
   const [action, setAction] = useState(false)
   const [error, setError] = useState('')
@@ -233,13 +236,15 @@ export default function DailyLogin({ userId }) {
     try {
       // Lịch là tính năng chính — fetch song song với thẻ thưởng nhưng KHÔNG
       // để lỗi thẻ thưởng làm trang lịch chết (fetchLoginRewardStatus tự nuốt).
-      const [next, reward] = await Promise.all([
+      const [next, reward, box] = await Promise.all([
         fetchDailyLoginCalendarStatus(userId),
         fetchLoginRewardStatus(userId),
+        fetchMysteryStatus(userId),
       ])
       if (!mounted.current || version !== readVersion.current || busy.current) return
       applyStatus(next)
       setRewards(reward)
+      setMystery(box)
       setError('')
     } catch (e) {
       if (mounted.current && version === readVersion.current) setError(errMsg(t, e))
@@ -289,6 +294,7 @@ export default function DailyLogin({ userId }) {
       if (!mounted.current) return
       applyStatus(result.status)
       if (result.rewards) setRewards(result.rewards)
+      setMystery(box => (box ? { ...box, checked_in: true } : box))
       setNotice(t(result.replayed ? 'daily.alreadyClaimed' : 'daily.claimSuccess'))
       // Chỉ ăn mừng khi ngày đó THẬT SỰ được nhận thưởng (không phải replay).
       if (!result.replayed && result.rewards?.breakdown?.length) setFete(true)
@@ -339,6 +345,8 @@ export default function DailyLogin({ userId }) {
       </div>
       {showRewards && <aside className="daily-side" aria-label={t('daily.rewardsCardLabel')}>
         <RewardCard rewards={rewards} claimed={!!status?.login.claimed} fete={fete} />
+        <MysteryBox userId={userId} mystery={mystery} checkedIn={!!status?.login.claimed}
+          onOpened={next => (next ? setMystery(next) : load())} />
       </aside>}
     </div>
     {loading && <p className="daily-loading" role="status">{t('daily.loading')}</p>}

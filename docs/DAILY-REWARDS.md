@@ -8,6 +8,35 @@
 > không còn là hướng dẫn vận hành. Xem `docs/DAILY-QUIZ-RETIREMENT.md` để biết
 > cái gì còn, cái gì mất, và danh sách object cho giai đoạn dọn dẹp sau.
 
+## 2026-10 B2: Mystery Box — một hộp mỗi ngày, mở sau check-in
+
+> Đã duyệt (2026-10). Đơn vị duy nhất là **vote** ("credits" cũ quy về vote).
+> Chạy `supabase/migrations/20261129_mystery_box.sql` (một transaction,
+> rerunnable) sau B1; cờ tắt/mở: `reward_config.mystery_box_enabled`.
+
+Luật:
+- **Khoá theo check-in**: phải điểm danh CÙNG ngày (VN) rồi hộp mới mở —
+  chưa điểm danh RPC trả `err.mysteryLocked`, card hiện trạng khoá.
+- **Một hộp/ngày/tài khoản**: PK `(user_id, day)` trên `mystery_opens`;
+  mở lại/trong tab khác/retry → replay trả đúng kết quả đã commit, không rút lại.
+- **Bảng thưởng** (rút đều 0..999):
+  | Kết quả | Trọng số | Thưởng |
+  | --- | --- | --- |
+  | Trống | 55% | — |
+  | +1 vote | 20% | qua cap |
+  | +3 votes | 12% | qua cap |
+  | +5 votes | 7% | qua cap |
+  | +10 votes | 3% | qua cap |
+  | +1 free paid request | 2% | NGOÀI cap (`bonus_requests`) |
+  | +5 votes | 1% | qua cap |
+- Phần thưởng vote đi qua `grant_reward_event` — **cùng cap 30 vote thưởng/ngày**
+  với login/spin/vote-back/achievement; hộp vẫn tính đã mở nếu prize bị cap cắt
+  hết (ledger giữ `meta.requested`).
+- Không có cổng Turnstile riêng: RPC yêu cầu `p_gate_token` qua `edge_gate_ok`
+  (chỉ Edge function cầm `EDGE_GATE_TOKEN` mới gọi được khi cổng được vũ khí hoá).
+- Migration chưa chạy / cờ tắt → `my_mystery_status` lỗi/tắt → **card tự ẩn**,
+  trang lịch không ảnh hưởng.
+
 ## 2026-10 kế hoạch thưởng (B1): điểm danh trả vote lại, có cap 30/ngày
 
 > Quyết định của chủ dự án (đã duyệt, 2026-10): điểm danh **trả vote trở lại**
