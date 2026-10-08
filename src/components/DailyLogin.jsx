@@ -317,10 +317,7 @@ export default function DailyLogin({ userId }) {
   const showRewards = !!rewards?.enabled
   return <section className={`daily-rewards daily-login-page${showRewards ? ' has-side' : ''}`} aria-labelledby={titleId} aria-busy={loading || action}>
     <header className="daily-rewards-head">
-      <div>
-        <h2 id={titleId}>{t('daily.loginHeading')}</h2>
-        <p>{t('daily.loginSubtitle')}</p>
-      </div>
+      <h2 id={titleId} className="sr-only">{t('daily.loginHeading')}</h2>
       <div className="daily-rewards-reset" title={t('daily.resetRule')}>
         <span>{t('daily.nextReset')}</span>
         <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
@@ -346,7 +343,6 @@ export default function DailyLogin({ userId }) {
     </div>
     {loading && <p className="daily-loading" role="status">{t('daily.loading')}</p>}
     <p className="daily-notice sr-only" role="status" aria-live="polite">{notice}</p>
-    <footer className="daily-rewards-foot">{t('daily.loginRewardRule')}</footer>
   </section>
 }
 

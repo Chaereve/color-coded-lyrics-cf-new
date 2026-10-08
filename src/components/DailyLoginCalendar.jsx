@@ -94,15 +94,10 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         </td>
       })}</tr>)}</tbody>
     </table>
-    <div className="check-in-calendar-legend" aria-label={t('calendar.legend')}>
-      <span><i className="is-checked" />{t('calendar.checked')}</span>
-      <span><i className="is-today" />{t('calendar.today')}</span>
-      {view?.available && <span><i className="is-missed" />{t('calendar.missed')}</span>}
-      <span className="check-in-calendar-extra">
-        {t('calendar.best')} <b>{typeof stats.best_streak === 'number' ? stats.best_streak : '—'}</b>
-        {' · '}
-        {t('calendar.lifetime')} <b>{typeof stats.total_days === 'number' ? stats.total_days : '—'}</b>
-      </span>
+    <div className="check-in-calendar-extra">
+      {t('calendar.best')} <b>{typeof stats.best_streak === 'number' ? stats.best_streak : '—'}</b>
+      {' · '}
+      {t('calendar.lifetime')} <b>{typeof stats.total_days === 'number' ? stats.total_days : '—'}</b>
     </div>
     {!view?.available && <p className="check-in-calendar-unavailable" role="status">
       {t(cache[month] === undefined ? 'calendar.historyUnavailable' : 'calendar.historyFailed')}

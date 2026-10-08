@@ -54,8 +54,10 @@ test('the check-in page keeps its frame and hides the reward card until data exi
     assert.match(html, /Check in today/)
     // Before the RPC answers the card is hidden — no flash, no fake zeros.
     assert.doesNotMatch(html, /login-rewards/)
-    // The approved rule line, and never the word "credits".
-    assert.match(html, /Rewards: \+2 a day/)
+    // Decluttered frame: no repeated heading, no caption subtitle, no rule
+    // footer — and never the word "credits".
+    assert.doesNotMatch(html, /keeps your streak alive/)
+    assert.doesNotMatch(html, /Rewards: \+2 a day/)
     assert.doesNotMatch(html, /[Cc]redits/)
     // Legacy copy must be gone: check-ins DO pay votes now.
     assert.doesNotMatch(html, /never award/)

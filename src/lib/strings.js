@@ -94,10 +94,10 @@ const S = {
   /* Daily Login. It is a check-in calendar only: it tracks presence and streak
      and never awards votes. No other daily screen exists. */
   'daily.loginHeading': 'Your check-in calendar',
-  'daily.loginSubtitle': 'One check-in a day keeps your streak alive',
   'calendar.caption': '{month} check-in calendar',
   'calendar.monthSummaryOne': '1 check-in this month',
   'calendar.monthSummary': '{n} check-ins this month',
+  'calendar.upcoming': 'Upcoming',
   'calendar.checked': 'Checked in',
   'calendar.today': 'Today',
   'calendar.missed': 'Not checked in',
@@ -108,7 +108,6 @@ const S = {
   'calendar.best': 'Best streak',
   'calendar.lifetime': 'Lifetime',
   'calendar.historyFailed': 'Check-in history could not be loaded. Today’s check-in still works.',
-  'calendar.legend': 'Calendar status legend',
   'calendar.historyUnavailable': 'Past check-ins are not available yet. Today’s check-in still works; the site owner needs to apply the calendar database update.',
   'calendar.mon': 'Mon', 'calendar.monLong': 'Monday',
   'calendar.tue': 'Tue', 'calendar.tueLong': 'Tuesday',
@@ -127,7 +126,6 @@ const S = {
   'daily.alreadyClaimed': 'You are already checked in for today.',
   'daily.loading': 'Loading today’s rewards…',
   'daily.refresh': 'Refresh status',
-  'daily.loginRewardRule': 'Rewards: +2 a day · +10 every 7-day streak · +20 once at 30 days — inside a daily cap of 30 reward votes.',
   /* Reward card (B1) — every amount is VOTES; the word "credits" never appears. */
   'daily.rewardsTitle': 'Check-in rewards',
   'daily.rewardsCardLabel': 'Check-in rewards summary',

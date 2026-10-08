@@ -1,7 +1,7 @@
 .daily-rewards { margin-bottom: 22px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 12px 32px rgb(0 0 0 / .22); }
 .daily-login-page { max-width: 720px; }
 .daily-login-page.has-side { max-width: 960px; }
-.daily-rewards-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in oklab, var(--a) 5%, transparent), transparent); }
+.daily-rewards-head { display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in oklab, var(--a) 5%, transparent), transparent); }
 .daily-rewards-head h2 { font-size: 16px; font-weight: 650; margin: 0 0 5px; }
 .daily-rewards-head p { font-size: 12px; color: var(--txt-2); margin: 0; }
 .daily-rewards-reset { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--txt-2); }
@@ -19,7 +19,6 @@
 .daily-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 16px 20px 0; padding: 12px; border: 1px solid var(--denied); border-radius: var(--r-md); font-size: 12px; color: var(--denied); }
 .daily-error span { flex: 1 1 200px; overflow-wrap: anywhere; }
 .daily-error .btn { min-height: 40px; }
-.daily-rewards-foot { display: block; text-align: center; border-top: 1px solid var(--line); background: var(--surface-2); padding: 12px 20px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
 
 /* ---- Thống kê tháng ---- */
 .check-in-calendar-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -78,20 +77,13 @@ button.check-in-day { cursor: pointer; }
 button.check-in-day:not(:disabled):hover { border-color: var(--a-2); background: color-mix(in oklab, var(--a) 20%, var(--surface)); }
 button.check-in-day:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 button.check-in-day:disabled { cursor: default; }
-.check-in-calendar-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 12px; font-size: 10px; color: var(--txt-2); }
-.check-in-calendar-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.check-in-calendar-legend i { width: 8px; height: 8px; border: 1px solid var(--line-2); border-radius: 2px; }
-.check-in-calendar-legend .is-checked { background: var(--done); border-color: var(--done); }
-.check-in-calendar-legend .is-today { background: var(--a-soft); border-color: var(--a); }
-.check-in-calendar-legend .is-missed { background: var(--txt-3); border-color: var(--txt-3); opacity: .6; }
-.check-in-calendar-extra { margin-left: auto; color: var(--txt-2); }
+.check-in-calendar-extra { display: flex; justify-content: flex-end; align-items: baseline; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--txt-2); }
 .check-in-calendar-extra b { font-family: var(--mono); font-weight: 600; color: var(--txt); font-variant-numeric: tabular-nums; }
 .check-in-calendar .check-in-calendar-unavailable { margin: 10px 0 0; padding: 10px; border: 1px dashed var(--line-2); border-radius: var(--r-md); font-size: 11px; line-height: 1.7; color: var(--txt-2); }
 @media (max-width: 620px) {
   .check-in-day { height: 52px; gap: 4px; border-radius: 8px; }
   .check-in-day time { font-size: 12px; }
   .check-in-calendar-head > span { font-size: 10px; }
-  .check-in-calendar-legend { gap: 8px 14px; }
   .check-in-calendar-month { min-width: 108px; font-size: 13px; }
   .daily-claim { width: 100%; }
 }
