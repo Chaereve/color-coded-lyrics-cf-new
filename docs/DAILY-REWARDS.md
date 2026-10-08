@@ -8,6 +8,52 @@
 > không còn là hướng dẫn vận hành. Xem `docs/DAILY-QUIZ-RETIREMENT.md` để biết
 > cái gì còn, cái gì mất, và danh sách object cho giai đoạn dọn dẹp sau.
 
+## 2026-10 kế hoạch thưởng (B1): điểm danh trả vote lại, có cap 30/ngày
+
+> Quyết định của chủ dự án (đã duyệt, 2026-10): điểm danh **trả vote trở lại**
+> theo đúng spec dưới đây. Các mục "Điểm danh KHÔNG thưởng gì cả" bên dưới là
+> **lịch sử chính sách** (20261118–20261124) — vẫn đúng cho dữ liệu đã ghi, nhưng
+> không còn là luật hiện hành sau khi chạy ba migration B1.
+
+Chạy **đúng thứ tự**, mỗi file một lượt trong SQL Editor hoặc qua guarded runner
+(`npm run db:plan` → duyệt → `db:deploy`); mỗi file là một transaction, chạy lại
+an toàn, chưa chạy thì tính năng mới tự ẩn (UI không vỡ):
+
+1. `supabase/migrations/20261126_reward_ledger.sql` — sổ cái `reward_events`
+   (append-only, idempotent theo `UNIQUE (source, user_id, day, ref)`), bảng
+   config/flag `reward_config`, bảng mốc một-lần `reward_milestone_once`, và
+   hàm cấp thưởng duy nhất `grant_reward_event` (tự scale theo cap).
+2. `supabase/migrations/20261127_login_streak_rewards.sql` — `claim_daily_login_calendar`
+   trả thưởng: **+2 mỗi ngày; ngày thứ 7 của chu kỳ nhận +5 CỘNG THÊM lên +2;
+   trọn chu kỳ 7 ngày +10 (lặp lại ở 7/14/21/…); 30 ngày liên tiếp +20 MỘT LẦN
+   (ngày 30 nhận 2 + 20 = 22)**. Bỏ lỡ một ngày → streak về 0, chu kỳ đếm lại.
+   Cột `daily_login_rewards.reward` vẫn giữ nguyên bất biến (dòng mới = 0) —
+   thưởng ghi hoàn toàn vào `reward_events` và ví bonus.
+3. `supabase/migrations/20261128_achievements_v2.sql` — danh mục thành tựu
+   **đúng 20 mục active trong 5 nhóm**: Request 1/5/10/25/50 → +1/2/3/5/10 vote;
+   Vote 1/10/50/100/250 → +1/2/3/5/10 vote; Paid 1/3/5/10 → 1/2/3/4 free paid
+   request; Streak 7/30/100 → +5/10/20 vote; Đặc biệt (pick/vote-back/mystery
+   lần đầu) → +2/3/5 vote. 25 mục cũ bị **deactivate** (không xoá — huy hiệu đã
+   nhận giữ nguyên trong `achievement_rewards`).
+
+**Cap 30 vote thưởng/ngày/người** áp cho TỔNG vote thưởng từ: điểm danh, spin,
+mystery, vote-back, achievement. NĂNGOÀI cap: vote mua, quota free 3/ngày,
+thưởng mùa do admin chốt, free paid request. Grant bị cap cắt giữ `meta.requested`
+trong sổ cái; thưởng thành tựu bị cắt sẽ **tự bù** ở lần claim sau (slice
+`ach:<id>#<n>` / `once#<n>`), còn thưởng theo-ngày thì dừng ở mức headroom của
+ngày đó.
+
+Feature flags trong `reward_config` (chỉnh bằng SQL, không có đường client):
+`login_rewards_enabled` (tắt = về hành vi lịch-only cũ), `daily_reward_cap`,
+`login_daily_votes`, `login_day7_extra`, `login_milestone7_bonus`,
+`login_milestone30_bonus`. Rollback code: ba file tương ứng trong
+`supabase/rollback/` (đều có preflight, không chạy lại được hai lần, không bao
+giờ thu hồi thưởng đã cấp).
+
+Kiểm chứng: `npm run test:ledger:pglite` (PGlite — chain thật 9 kịch bản, gồm
+đúc lệch cap và tự-bù), suite cũ vẫn xanh; test DB thật cần URL vẫn giữ nguyên
+cơ chế skip.
+
 Daily login là **cách duy nhất** còn lại trong nhóm này, bên cạnh vòng quay:
 
 - **Daily login** → `/daily-login`

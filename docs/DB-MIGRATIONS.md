@@ -622,3 +622,23 @@ export DAILY_SPIN_TEST_DATABASE_URL=$MIGRATION_DEPLOY_TEST_DATABASE_URL
 export COMMENTS_TEST_DATABASE_URL=$MIGRATION_DEPLOY_TEST_DATABASE_URL
 npm test
 ```
+
+---
+
+## 20261126 → 20261128 — B1: reward ledger, login rewards, achievements v2
+
+Ba file append-only, một transaction mỗi file, rerunnable, KHÔNG thuộc
+fresh-install bundle (bundle dừng ở baseline 20261120 như 20261121+):
+
+| File | Vai trò |
+| --- | --- |
+| `20261126_reward_ledger.sql` | Sổ cái `reward_events` + `reward_config` + `reward_milestone_once` + hàm cấp duy nhất `grant_reward_event` (cap 30/ngày, scale-down, idempotent). Chưa có đường client nào gọi trực tiếp. |
+| `20261127_login_streak_rewards.sql` | `claim_daily_login_calendar` trả thưởng (+2; ngày 7 chu kỳ +5 cộng thêm; mốc 7 ngày +10; mốc 30 ngày +20 một lần) và RPC mới `my_login_reward_status` (exact-key, thêm RPC chứ không đổi payload lịch — bundle cũ không vỡ). |
+| `20261128_achievements_v2.sql` | Catalog 42 → **20 active** (25 deactivate, không xoá), nới CHECK `source` thêm `pick/vote_back/mystery`, `claim_achievements` trả vote qua ledger + cap với tự-bù slice. |
+
+Quy tắc an toàn được giữ vững: **không** đụng cột `daily_login_rewards.reward`
+(trigger 20261120 vẫn là chốt cuối), **không** UPDATE/DELETE dữ liệu lịch sử,
+thưởng đã cấp không bao giờ bị rollback thu hồi. Rollback: `supabase/rollback/2026112{6,7,8}_*.sql`
+— 20261126 chỉ xoá được khi sổ cái còn trống; 20261128 từ chối nếu đã có người
+giả mốc Đặc biệt. Test: `npm run test:ledger:pglite`; các manifest test của
+runner (`tools/migration-safety.test.mjs`) đã cập nhật lên 44 migration active.

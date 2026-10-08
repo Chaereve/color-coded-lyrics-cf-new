@@ -587,7 +587,7 @@ export async function fetchMyAchievementRequests(userId) {
   if (!hasSupabase) return demoRows().filter(row => row.user_id === userId)
   return fetchAllPages((from, size) => {
     const q = supabase.from('requests')
-      .select('id,user_id,artist,title,status,is_paid,payment_status')
+      .select('id,user_id,artist,title,status,is_paid,payment_status,picked_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })

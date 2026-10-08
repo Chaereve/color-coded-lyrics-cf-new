@@ -27,8 +27,15 @@ test('achievement preview matches eligible distinct works and settled paid order
     requests: 3,
     completed: 1,
     paidRequests: 1,
+    picked: false,
     rank: 2,
   })
+})
+
+test('picked reports whether any request entered Up next', () => {
+  const base = { user_id: 'u', artist: 'A', title: 'B', status: 'queued', is_paid: false }
+  assert.equal(achievementRequestMetrics([{ id: 'r', ...base }], [], [], 'u').picked, false)
+  assert.equal(achievementRequestMetrics([{ id: 'r', ...base, picked_at: '2026-10-08T03:00:00Z' }], [], [], 'u').picked, true)
 })
 
 test('paid progress is zero until a matching settled paid_request order exists', () => {

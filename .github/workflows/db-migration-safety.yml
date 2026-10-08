@@ -65,6 +65,11 @@ jobs:
       - name: Daily free votes on PGlite (second engine, no service needed)
         run: npm run test:free-votes:pglite
 
+      # Chuỗi thưởng B1 (ledger + cap + check-in + achievements v2) trên cùng
+      # engine thứ hai: không cần service, không tự skip khi thiếu URL.
+      - name: Reward ledger & login rewards on PGlite (B1 chain)
+        run: npm run test:ledger:pglite
+
       # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
       # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.
       # Chạy trên chính database throwaway ở trên, không đụng môi trường thật.

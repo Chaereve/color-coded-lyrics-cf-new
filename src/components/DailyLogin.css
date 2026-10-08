@@ -97,3 +97,87 @@ button.check-in-day:disabled { cursor: default; }
 
 .check-in-calendar-legend .is-missed { background: var(--txt-3); border-color: var(--txt-3); opacity: .6; }
 
+
+/* =========================================================
+   B1 — LỊCH 2 CỘT + THẺ THƯỞNG CHECK-IN
+   ---------------------------------------------------------
+   Chỉ dùng lại token có sẵn của app (--surface/--line/--a/--done),
+   không thêm màu mới. Mobile xếp chồng (1 cột), desktop ≥ 880px
+   chia 3:2 đúng mockup (lịch 60% | thẻ 40%). prefers-reduced-motion
+   tắt hết animation ăn mừng.
+   ========================================================= */
+.daily-login-page { max-width: 720px; }
+.daily-login-page.has-side { max-width: 960px; }
+.daily-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; align-items: start; }
+.daily-cols .daily-missions { padding: 0; }
+.daily-side { min-width: 0; }
+
+.login-rewards { position: relative; overflow: hidden; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); display: flex; flex-direction: column; gap: 12px; }
+.login-rewards h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 650; color: var(--txt); }
+.login-rewards h3 svg { color: var(--a-2); }
+
+.login-rewards-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.login-rewards-counter { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--a-2); font-variant-numeric: tabular-nums; }
+.login-rewards-total > span { font-size: 11px; color: var(--txt-2); }
+.login-rewards-live { margin: 0; min-height: 1em; font-size: 11px; color: var(--done); }
+
+.login-rewards-cycle { display: flex; flex-direction: column; gap: 6px; }
+.login-rewards-cycle-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--txt-2); }
+.login-rewards-cycle-head b { font-family: var(--mono); color: var(--txt); font-variant-numeric: tabular-nums; }
+.login-rewards-cycle-bar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.login-rewards-cycle-bar i { height: 6px; border-radius: var(--r-pill); background: var(--line-2); }
+.login-rewards-cycle-bar i.is-on { background: linear-gradient(90deg, var(--a), var(--done)); }
+
+.login-rewards-milestones { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.login-rewards-milestones li { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.login-rewards-milestones em { font-style: normal; font-size: 10px; color: var(--txt-3); }
+.login-rewards-milestones li.is-done { border-color: color-mix(in oklab, var(--done) 35%, var(--line)); }
+.login-rewards-milestones li.is-done em { color: var(--done); }
+.login-rewards-milestone-bar { display: block; height: 6px; border-radius: var(--r-pill); background: var(--line-2); overflow: hidden; }
+.login-rewards-milestone-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--a), var(--done)); transition: width .4s ease; }
+.login-rewards-milestone-copy { font-size: 11px; color: var(--txt-2); line-height: 1.5; }
+
+.login-rewards-breakdown-title { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--txt-2); }
+.login-rewards-breakdown ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.login-rewards-breakdown li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.login-rewards-breakdown li span { color: var(--txt-2); overflow-wrap: anywhere; }
+.login-rewards-breakdown li b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--txt); }
+
+.login-rewards-cap { display: flex; flex-direction: column; gap: 5px; }
+.login-rewards-cap-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--txt-2); }
+.login-rewards-cap-head b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.login-rewards-cap-bar { height: 6px; border-radius: var(--r-pill); background: var(--line-2); }
+.login-rewards-cap-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--a), var(--done)); transition: width .4s ease; }
+
+/* Ăn mừng: nhịp pulse quanh thẻ + 5 hạt bay từ tâm lên — CÙNG một sự thật
+   ("đã nhận thưởng") chỉ nói bằng chuyển động, không thêm chữ. */
+.login-rewards.is-fete { animation: reward-fete-glow 1.6s ease; }
+.login-rewards-pulse { position: absolute; inset: 0; pointer-events: none; }
+.login-rewards.is-fete .login-rewards-pulse i {
+  position: absolute; left: 50%; top: 42%; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--a-2); opacity: 0; animation: reward-fete-spark 1.2s ease-out forwards;
+}
+.login-rewards.is-fete .login-rewards-pulse i:nth-child(1) { --dx: -70px; --dy: -46px; animation-delay: .05s; }
+.login-rewards.is-fete .login-rewards-pulse i:nth-child(2) { --dx: -24px; --dy: -84px; animation-delay: .15s; }
+.login-rewards.is-fete .login-rewards-pulse i:nth-child(3) { --dx: 30px; --dy: -60px; animation-delay: .1s; }
+.login-rewards.is-fete .login-rewards-pulse i:nth-child(4) { --dx: 72px; --dy: -30px; animation-delay: .2s; }
+.login-rewards.is-fete .login-rewards-pulse i:nth-child(5) { --dx: 6px; --dy: -100px; animation-delay: .28s; }
+@keyframes reward-fete-glow {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--a) 45%, transparent); }
+  60% { box-shadow: 0 0 0 9px color-mix(in oklab, var(--a) 18%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes reward-fete-spark {
+  0% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+
+@media (min-width: 880px) {
+  .daily-login-page.has-side .daily-cols { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-rewards.is-fete { animation: none; }
+  .login-rewards.is-fete .login-rewards-pulse i { animation: none; opacity: 0; }
+  .login-rewards-milestone-bar i, .login-rewards-cap-bar i, .login-rewards-counter { transition: none; }
+}
