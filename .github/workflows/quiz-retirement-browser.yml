@@ -51,6 +51,8 @@ on:
       - 'arena/2064073f-color-coded-lyrics-cf-new'
       - 'arena/015dd3b4-color-coded-lyrics-cf-new'
       - 'arena/f0d1d1ad-color-coded-lyrics-cf-new'
+      # 2026-10-08 · phiên production smoke sau merge — live smoke mở https://chaereve.pages.dev (chỉ đọc) theo .github/live-smoke-target
+      - 'arena/c7f9fc9b-color-coded-lyrics-cf-new'
 
 permissions:
   contents: read
