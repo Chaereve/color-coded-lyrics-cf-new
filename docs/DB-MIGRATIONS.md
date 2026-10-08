@@ -270,6 +270,44 @@ migration safety workflow).
 
 ---
 
+### 20261125 — reward eligibility and quota-race hardening (Batch 1)
+
+`20261125_reward_eligibility_and_quota_races.sql` is an append-only forward
+migration. It does not change an RPC signature, response JSON shape, achievement
+catalog, or the `(user_id, achievement_id)` reward idempotency key, and it never
+removes an existing achievement or credit.
+
+- `claim_achievements()` counts only `queued` / `in_progress` / `completed`
+  requests and counts one normalized artist/title per user. A paid achievement
+  additionally needs `is_paid`, `payment_status = 'paid'`, and an `orders` row for
+  that request/user with `kind = 'paid_request'` and `status = 'paid'`. In this
+  schema, admin settlement is stored as `paid` (not a `completed` order status).
+- `create_request()` locks the user's profile before reading either quota,
+  re-checks the existing free-hour or awaiting-paid-order limit, then inserts in
+  the same transaction. It does not introduce a quota ledger or backfill.
+- `requester_ranking`, the season settlement helper, client demo/season ranking,
+  and achievement preview use the same accepted states and distinct-work rule.
+  The achievement preview uses a paginated, user-scoped request query rather
+  than the public board's 800-row window, and the order fetch paginates beyond
+  the former 200-row cap before it calculates paid progress.
+- The migration creates an `orders(request_id)` btree only if catalog inspection
+  finds no usable index with that leading key. The reviewed bundle has
+  `orders_status_idx(status, created_at DESC)` and no request-id index.
+
+Tests: `supabase/tests/rewardAbuse.test.js` runs the migration and behavioral
+fixtures in PGlite as part of `npm test`. PGlite serializes work on one connection,
+so it is not a true race proof; four opt-in multi-session PostgreSQL race cases
+cover the free-quota boundary, a four-call free burst, the awaiting-paid-order
+cap, and single bonus-credit redemption. They require
+`REWARD_ABUSE_RUN_CONCURRENCY_TEST=1` and a disposable
+`REWARD_ABUSE_TEST_DATABASE_URL` (the fixture creates and drops its own database).
+
+This migration source has **not** been applied. Before any persistent test/staging
+or production application, review `npm run db:plan -- --baseline 20261120` and get
+separate approval. Do not deploy the app as part of this migration step.
+
+---
+
 ## 3. The strategy chosen: quarantine (20261118 never runs) + guarded runner + clean fresh-install path
 
 1. **Quarantine (Option B).** The file moved out of the execution path:
@@ -345,7 +383,7 @@ SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261117     
 `db:deploy` re-runs the readiness check inside the same invocation; it is not a
 separate step you can forget. Only when it passes does the runner write the
 baseline rows and apply every migration still pending after that baseline —
-today that is `20261119` … `20261124`:
+today that is `20261119` … `20261125`:
 
 ```
 READY  baseline 20261117
@@ -358,6 +396,7 @@ apply 20261121  20261121_vote_calendar_decoupling.sql
 apply 20261122  20261122_disable_daily_quiz_runtime.sql
 apply 20261123  20261123_reconcile_security_drift.sql
 apply 20261124  20261124_restore_daily_free_votes.sql
+apply 20261125  20261125_reward_eligibility_and_quota_races.sql
 ```
 
 `db:plan -- --baseline <version>` prints the same `skip …` lines plus a
@@ -404,7 +443,7 @@ Then verify the result instead of trusting it:
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261120   # must print READY
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records the verified baseline, then applies 20261121 … 20261124
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261120            # records the verified baseline, then applies 20261121 … 20261125
 ```
 
 The runner records the verified pre-cutover history and applies the guarded
@@ -416,7 +455,7 @@ migration. This path still never reaches the quarantined 20261118 migration.
 
 ```sh
 SUPABASE_DB_URL='postgresql://…' npm run db:verify-baseline -- --baseline 20261118   # the incident state
-SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120, then the cutover chain 20261121 … 20261124
+SUPABASE_DB_URL='postgresql://…' npm run db:deploy -- --baseline 20261118             # applies 20261119 + 20261120, then the cutover chain 20261121 … 20261125
 ```
 
 The report also tells you when a database you assumed was clean is not:
@@ -476,7 +515,7 @@ ignored rows separately.
 | 1 | `npm run backup:db` | backup file exists |
 | 2 | `npm run db:verify-baseline` (no `--baseline`) | identifies the mode |
 | 3 | `npm run db:verify-baseline -- --baseline <mode's version>` | prints `READY` |
-| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then the fail-closed `20261121` … `20261124` chain |
+| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then the fail-closed `20261121` … `20261125` chain |
 | 5 | queries in section 6 | histogram unchanged, 0 reward CHECKs, 1 trigger |
 | 6 | deploy the frontend in the same release | — |
 

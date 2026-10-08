@@ -22,15 +22,12 @@
    thì sau một lần sửa, bảng và khối Up next kể hai câu chuyện khác nhau. */
 import { inChain } from './meta.js'
 import { votesByRequest } from './season.js'
+import { requestWorkKey } from './requestEligibility.js'
 
 const ts = (v) => +new Date(v) || 0
 
-/* Chuẩn hoá một trường thành chuỗi so sánh được — kể cả khi nó không phải
-   chuỗi (số, null) hay cả dòng request là null. */
-const txt = (v) => (v == null ? '' : String(v)).trim().toLowerCase()
-
 /* Khoá gom cụm: cùng nghệ sĩ + cùng tên bài là một cụm. */
-export const groupKey = (r) => `${txt(r?.artist)}\n${txt(r?.title)}`
+export const groupKey = requestWorkKey
 
 /* Chỉ giữ lại những dòng THẬT SỰ là object.
    Một phần tử null/rác trong mảng rows (payload realtime méo, một lần ghi

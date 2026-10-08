@@ -1,3 +1,5 @@
+import { isRewardEligibleRequest, requestWorkKey } from './requestEligibility.js'
+
 /* =========================================================
    LUẬT XẾP HẠNG — một chỗ, một câu trả lời
    ---------------------------------------------------------
@@ -98,38 +100,52 @@ const tieBreak = (a, b, primary) => {
 /* =========================================================
    GOM SỐ TỪ DỮ LIỆU DEMO — phải ra CÙNG HÌNH DẠNG với view thật
    ---------------------------------------------------------
-   View `requester_ranking` bên Postgres gom theo `user_id` và lấy `max(name)`.
-   Bản demo trước đây gom theo `user_id::requester`, nên cùng một người mà đổi
-   tên hiển thị là thành HAI người trên bảng: hai dòng đều được tô "bạn", và
-   ô "hạng của bạn" chỉ đọc được một trong hai — cùng một lỗi identity mà phần
-   còn lại của app đã vá (xem `inChain`, gom cụm theo bài).
-   Hàm này gom lại đúng như view: một `user_id` = một dòng. Tên của dòng là
-   tên được dùng nhiều nhất (bằng số thì lấy tên lớn hơn theo thứ tự chữ, giống
-   `max()`), và bài bị từ chối không được tính vào hạng.
+   Một `user_id` là một dòng, pending/denied không đủ điều kiện, và mỗi bài
+   chuẩn hoá theo artist + title chỉ đóng góp một lần. Phiếu của các request
+   trùng vẫn cộng dồn; completed là đúng khi ít nhất một request trong cụm đã
+   hoàn tất. Tên theo max(name), khớp requester_ranking.
    ========================================================= */
 export function rankDemo(rows) {
   const byUser = new Map()
   for (const r of rows || []) {
-    if (!r || r.status === 'denied') continue
+    if (!isRewardEligibleRequest(r)) continue
     const id = r.user_id ?? 'demo-user'
     let g = byUser.get(id)
-    if (!g) byUser.set(id, g = { user_id: id, names: new Map(), total: 0, completed: 0, total_votes: 0 })
+    if (!g) byUser.set(id, g = { user_id: id, name: '', works: new Map() })
     const nm = String(r.requester ?? '').trim() || 'demo-user'
-    g.names.set(nm, (g.names.get(nm) || 0) + 1)
-    g.total++
-    if (r.status === 'completed') g.completed++
-    g.total_votes += n(r.votes)
+    if (nm > g.name) g.name = nm
+    const workKey = requestWorkKey(r)
+    let work = g.works.get(workKey)
+    if (!work) g.works.set(workKey, work = { completed: false, total_votes: 0 })
+    work.completed ||= r.status === 'completed'
+    work.total_votes += n(r.votes)
   }
   return [...byUser.values()].map((g) => {
-    let name = '', best = -1
-    for (const [nm, count] of g.names) {
-      if (count > best || (count === best && nm > name)) { name = nm; best = count }
-    }
+    const works = [...g.works.values()]
     return {
-      user_id: g.user_id, key: g.user_id, name,
-      avatar_url: null, total: g.total, completed: g.completed, total_votes: g.total_votes,
+      user_id: g.user_id, key: g.user_id, name: g.name,
+      avatar_url: null,
+      total: works.length,
+      completed: works.filter(work => work.completed).length,
+      total_votes: works.reduce((sum, work) => sum + work.total_votes, 0),
     }
   })
+}
+
+/* Rank used by claim_achievements() for top-10/podium badges. This intentionally
+   matches that RPC's existing order (unique work count, votes, user_id), not the
+   leaderboard tab's selectable presentation order. */
+export function achievementRank (rows, userId) {
+  if (userId == null) return 0
+  const list = (rows || []).filter(row => row?.user_id != null).slice().sort((a, b) => {
+    const score = n(b.total) - n(a.total) || n(b.total_votes) - n(a.total_votes)
+    if (score) return score
+    const aId = String(a.user_id)
+    const bId = String(b.user_id)
+    return aId < bId ? -1 : aId > bId ? 1 : 0
+  })
+  const index = list.findIndex(row => String(row.user_id) === String(userId))
+  return index < 0 ? 0 : index + 1
 }
 
 /* Xếp hạng + gắn số thứ tự và tỉ lệ so với người dẫn đầu (để vẽ vạch tỉ lệ).

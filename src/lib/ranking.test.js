@@ -9,7 +9,7 @@
    Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RANK_SORTS, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
+import { achievementRank, RANK_SORTS, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
 
 const P = (name, total, completed, total_votes) => ({ name, total, completed, total_votes })
 
@@ -64,29 +64,33 @@ test('dữ liệu méo không làm sập bảng và không tạo thứ tự ng�
 
 test('gom số demo: một user_id là MỘT dòng, dù đổi tên hiển thị', () => {
   const rows = [
-    { user_id: 'demo-user', requester: 'ttokyeoni', status: 'completed', votes: 5 },
-    { user_id: 'demo-user', requester: 'ttokyeoni', status: 'queued', votes: 2 },
-    { user_id: 'demo-user', requester: 'lyricscsc', status: 'in_progress', votes: 3 },
-    { user_id: 'other-1', requester: 'minji', status: 'queued', votes: 9 },
+    { user_id: 'demo-user', requester: 'ttokyeoni', artist: 'A', title: 'One', status: 'completed', votes: 5 },
+    { user_id: 'demo-user', requester: 'ttokyeoni', artist: 'B', title: 'Two', status: 'queued', votes: 2 },
+    { user_id: 'demo-user', requester: 'lyricscsc', artist: 'C', title: 'Three', status: 'in_progress', votes: 3 },
+    { user_id: 'other-1', requester: 'minji', artist: 'D', title: 'Four', status: 'queued', votes: 9 },
   ]
   const out = rankDemo(rows)
   assert.equal(out.length, 2, 'hai người thật, không phải bốn dòng theo tên')
   const me = out.find(p => p.user_id === 'demo-user')
   assert.deepEqual({ total: me.total, completed: me.completed, total_votes: me.total_votes },
     { total: 3, completed: 1, total_votes: 10 })
-  assert.equal(me.name, 'ttokyeoni', 'tên dùng nhiều nhất thắng (2 lần so với 1)')
+  assert.equal(me.name, 'ttokyeoni', 'max(name) khớp với view requester_ranking')
   assert.equal(me.key, 'demo-user', 'khoá dòng là user_id — trùng với cách chọn hàng "bạn"')
 })
 
-test('bài bị từ chối không vào hạng, và dòng méo không làm sập bảng', () => {
+test('pending/denied bị loại, request trùng chỉ đóng góp một work và dòng méo vẫn an toàn', () => {
   const rows = [
-    { user_id: 'u', requester: 'a', status: 'denied', votes: 100 },
-    { user_id: 'u', requester: 'a', status: 'completed', votes: 1 },
+    { user_id: 'u', requester: 'a', artist: 'Singer', title: 'Song', status: 'denied', votes: 100 },
+    { user_id: 'u', requester: 'a', artist: ' singer ', title: ' SONG ', status: 'completed', votes: 1 },
+    { user_id: 'u', requester: 'a', artist: 'SINGER', title: 'song', status: 'queued', votes: 2 },
+    { user_id: 'u', requester: 'a', artist: 'Other', title: 'Pending', status: 'pending', votes: 900 },
     null,
     { user_id: 'v', requester: '  ', status: 'queued', votes: null },
   ]
   const out = rankDemo(rows)
-  assert.equal(out.find(p => p.user_id === 'u').total, 1, 'bài denied bị bỏ qua')
+  const u = out.find(p => p.user_id === 'u')
+  assert.deepEqual({ total: u.total, completed: u.completed, total_votes: u.total_votes },
+    { total: 1, completed: 1, total_votes: 3 }, 'trùng gộp theo artist/title, pending/denied không cộng')
   assert.equal(out.find(p => p.user_id === 'v').name, 'demo-user', 'tên trống có tên thay thế')
   assert.equal(out.find(p => p.user_id === 'v').total_votes, 0, 'votes null thành 0, không thành NaN')
 })
@@ -124,6 +128,21 @@ test('bảng chỉ xếp theo BA con số có thật trong dữ liệu trả v�
   /* Mặc định là bài đã xong, không phải số bài gửi. */
   assert.equal(RANK_SORTS[0].k, 'completed')
   assert.equal(rankRows([P('x', 9, 0, 90)])[0].place, 1)
+})
+
+test('hạng thành tích khớp claim_achievements: work count, votes, rồi user_id', () => {
+  const ranking = [
+    { user_id: 'u-z', total: 2, total_votes: 100 },
+    { user_id: 'u-b', total: 2, total_votes: 10 },
+    { user_id: 'u-a', total: 2, total_votes: 10 },
+    { user_id: 'u-c', total: 1, total_votes: 1000 },
+  ]
+  assert.equal(achievementRank(ranking, 'u-z'), 1, 'nhiều phiếu phá hoà sau work count')
+  assert.equal(achievementRank(ranking, 'u-a'), 2, 'bằng work/votes thì user_id tăng dần thắng')
+  assert.equal(achievementRank(ranking, 'u-b'), 3)
+  assert.equal(achievementRank(ranking, 'u-c'), 4, 'nhiều phiếu không vượt work count')
+  assert.equal(achievementRank(ranking, 'missing'), 0)
+  assert.equal(achievementRank(ranking, null), 0)
 })
 
 test('mỗi cách xếp có màu riêng và khoá chính nằm trong dữ liệu nhận về', () => {

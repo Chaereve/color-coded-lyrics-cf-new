@@ -8,6 +8,7 @@ import { TURNSTILE_SITE_KEY } from './turnstile'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
+import { fetchAllPages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
 import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
@@ -578,6 +579,23 @@ export async function fetchRequests() {
   throw error
 }
 
+/* Achievement progress is lifetime-scoped and must not use the public board's
+   800-row display window. Fetch only the signed-in user's compact request fields
+   and paginate them so paid/duplicate progress remains complete. */
+export async function fetchMyAchievementRequests(userId) {
+  if (!userId) return []
+  if (!hasSupabase) return demoRows().filter(row => row.user_id === userId)
+  return fetchAllPages((from, size) => {
+    const q = supabase.from('requests')
+      .select('id,user_id,artist,title,status,is_paid,payment_status')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + size - 1)
+    return readQuery(() => q)
+  }, 200)
+}
+
 /* Tra ve Map: request_id -> so lan minh da vote cho request do */
 export async function fetchMyVotes(uid) {
   const tally = (ids) => {
@@ -967,11 +985,14 @@ export async function fetchMedia() {
 
 export async function fetchOrders(user) {
   if (!hasSupabase) return readData(LS.orders, [])
-  let q = supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200)
-  if (!user.isAdmin) q = q.eq('user_id', user.id)
-  const { data, error } = await q
-  if (error) throw error
-  return data
+  return fetchAllPages((from, size) => {
+    let q = supabase.from('orders').select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, from + size - 1)
+    if (!user.isAdmin) q = q.eq('user_id', user.id)
+    return readQuery(() => q)
+  }, 200)
 }
 
 /* Lỗi có mã để lớp giao diện tự dịch sang ngôn ngữ đang chọn */
