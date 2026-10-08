@@ -17,3 +17,5 @@
 # ở chế độ demo: live smoke mở trang như một khách, và khách thì không mở kênh
 # realtime nào nếu `hasSupabase` = false — mục "không có lỗi console" khi ấy đạt
 # vì chẳng có gì để CSP chặn, tức là XANH GIẢ, không nói được CSP đúng hay sai.
+# Đích đã được bật theo yêu cầu production smoke sau merge; workflow chỉ đọc site.
+https://chaereve.pages.dev
