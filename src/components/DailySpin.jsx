@@ -112,9 +112,12 @@ function Wheel({ sectors, rotation, duration, spinning, won, label, pointerRef, 
              thưởng ("+1", "+2"…): xác suất của ô đã hiện ra bằng CHÍNH ĐỘ RỘNG
              CUNG của lát và bằng tỉ lệ trong chú giải, nên mặt đĩa không cần
              in thêm con số phần trăm nào. Riêng +20 — cung 3,6° nhỏ hơn cả
-             chữ — được một huy hiệu vàng nằm ngang đè đúng tâm ô: không xoay,
-             không chen vào số của ô bên cạnh, và là điểm nhấn duy nhất đĩa. */
-          const [x, y] = point(s.angle, LABEL)
+             chữ — được một huy hiệu vàng nằm ngang đè đúng tâm ô; nhãn của ô
+             KẼ ngay bên huy hiệu bị kéo vào trong (bán kính nhỏ hơn) để chữ
+             không lách dưới tấm huy hiệu. */
+          const nearJackpot = s.reward !== top
+            && Math.abs(((s.angle - 180 + 540) % 360) - 180) < 25
+          const [x, y] = point(s.angle, nearJackpot ? 92 : LABEL)
           // Turn the lower half upright so no prize number hangs upside down.
           const flip = s.angle > 90 && s.angle < 270 ? 180 : 0
           const lit = won !== null && sectors[won].reward === s.reward
