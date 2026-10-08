@@ -48,6 +48,8 @@
    Tuần bắt đầu THỨ HAI (lịch Việt Nam), không phải Chủ nhật.
    ========================================================= */
 
+import { isRewardEligibleRequest, requestWorkKey } from './requestEligibility.js'
+
 export const TZ = 'Asia/Ho_Chi_Minh'
 
 /* Ba góc nhìn thời gian. `all` là bảng cũ — toàn bộ thời gian, không cửa sổ.
@@ -144,17 +146,15 @@ export function votesByRequest(votesLog, start, end) {
 /* =========================================================
    GOM SỐ THEO MÙA — ra CÙNG HÌNH DẠNG với `requester_ranking`
    ---------------------------------------------------------
-   Một request "thuộc mùa" khi nó GỬI trong mùa, HOẶC XONG trong mùa, HOẶC
-   NHẬN ÍT NHẤT MỘT VOTE trong mùa (chủ dự án chốt 26/09: vote là hoạt động
-   của cộng đồng trong mùa, bài cũ được vote nhiều tuần này phải hiện trong
-   "This week"). Một `user_id` là một dòng: { total, completed, total_votes }
-   với cả ba con số cắt theo cửa sổ:
-   · `total`     — số request THUỘC MÙA (bị từ chối không tính, cùng luật
-     view); request chỉ thuộc mùa vì được vote vẫn đếm — nó là bài của họ
-     trong mùa, không in 0 cạnh cột vote dương;
-   · `completed` — bài XONG trong mùa (theo mốc `doneAt` ở trên);
-   · `total_votes` — số vote NHẬN TRONG MÙA của các request đó (không phải
-     cộng dồn — "lifetime totals" là luật cũ, đã thay).
+   Một request thuộc mùa khi nó GỬI trong mùa, HOẶC XONG trong mùa, HOẶC
+   NHẬN ÍT NHẤT MỘT VOTE trong mùa (chủ dự án chốt 26/09: bài cũ được vote
+   tuần này phải hiện trong "This week"). Chỉ status queued/in_progress/
+   completed đủ điều kiện; pending/denied không góp số. Một user/song chuẩn hoá
+   là một work trong dòng { total, completed, total_votes }:
+   · `total`     — số work THUỘC MÙA; một bài được gửi trùng chỉ đếm một lần;
+   · `completed` — số work có ít nhất một request XONG trong mùa (mốc `doneAt`);
+   · `total_votes` — số vote NHẬN TRONG MÙA của các request đủ điều kiện trong
+     cụm đó (không phải cộng dồn — "lifetime totals" là luật cũ, đã thay).
    Tên + avatar lấy từ bảng xếp hạng tổng (`ranking`) khi có — đó là tên hiển
    thị và ảnh đã được chốt ở view thật; hàng demo không có trong đó thì lùi
    về `requester` trên chính hàng request, giống `rankDemo`.
@@ -168,7 +168,7 @@ export function seasonRows(rows, ranking, period, now = Date.now(), votesLog = [
   const votes = votesByRequest(votesLog, win.start, win.end)
   const byUser = new Map()
   for (const r of rows || []) {
-    if (!r || r.status === 'denied') continue
+    if (!isRewardEligibleRequest(r)) continue
     const sent = sentAt(r)
     const done = r.status === 'completed' ? doneAt(r) : NaN
     const sentIn = Number.isFinite(sent) && sent >= win.start && sent < win.end
@@ -177,12 +177,14 @@ export function seasonRows(rows, ranking, period, now = Date.now(), votesLog = [
     if (!sentIn && !doneIn && !got) continue
     const id = r.user_id ?? 'anon'
     let g = byUser.get(id)
-    if (!g) byUser.set(id, g = { user_id: id, names: new Map(), total: 0, completed: 0, total_votes: 0 })
+    if (!g) byUser.set(id, g = { user_id: id, names: new Map(), works: new Map() })
     const nm = String(r.requester ?? '').trim()
     if (nm) g.names.set(nm, (g.names.get(nm) || 0) + 1)
-    g.total++
-    if (doneIn) g.completed++
-    g.total_votes += got
+    const key = requestWorkKey(r)
+    let work = g.works.get(key)
+    if (!work) g.works.set(key, work = { completed: false, total_votes: 0 })
+    work.completed ||= doneIn
+    work.total_votes += got
   }
   const known = new Map((ranking || []).map((p) => [p?.user_id, p]))
   return [...byUser.values()].map((g) => {
@@ -196,10 +198,13 @@ export function seasonRows(rows, ranking, period, now = Date.now(), votesLog = [
         if (count > best || (count === best && nm > name)) { name = nm; best = count }
       }
     }
+    const works = [...g.works.values()]
     return {
       user_id: g.user_id, key: g.user_id, name: name || 'anon',
       avatar_url: prof?.avatar_url ?? null,
-      total: g.total, completed: g.completed, total_votes: g.total_votes,
+      total: works.length,
+      completed: works.filter(work => work.completed).length,
+      total_votes: works.reduce((sum, work) => sum + work.total_votes, 0),
     }
   })
 }

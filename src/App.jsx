@@ -11,6 +11,7 @@ import AchievementIndex from './components/AchievementIndex'
 import VideoPreviewModal from './components/VideoPreviewModal'
 import { streakStats, STREAK_MILESTONES, unionActivityDays } from './lib/streak.js'
 import { vnDayKey } from './lib/season.js'
+import { achievementRequestMetrics } from './lib/achievementMetrics.js'
 import { drawRecapCard } from './lib/shareCard.js'
 import { weekRecap as buildWeekRecap, recapStats } from './lib/weekRecap.js'
 import VoteModal from './components/VoteModal'
@@ -61,7 +62,7 @@ import { safeHttpUrl } from './lib/safeUrl'
 import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
-  fetchRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
+  fetchRequests, fetchMyAchievementRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
   fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
@@ -504,6 +505,7 @@ function AppInner() {
     setVisitStamp(null)
   }
   const [orders, setOrders] = useState([])
+  const [achievementRequests, setAchievementRequests] = useState({ userId: null, rows: [] })
   const [media, setMedia] = useState([])
   /* Ba trạng thái cho dải video, cùng luật với bảng (`noteBoard`): lỗi khi
      ĐÃ có dữ liệu cũ thì giữ nguyên dữ liệu cũ và KHÔNG hiện bảng lỗi —
@@ -1022,10 +1024,10 @@ function AppInner() {
     const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
-      fetchActivityDays(u.id), fetchCommentCounts(),
+      fetchActivityDays(u.id), fetchCommentCounts(), fetchMyAchievementRequests(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, od, , , act, cc] = results
+    const [r, v, vs, ach, rk, od, , , act, cc, achievementReqs] = results
     /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
        để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
     /* Lượt cũ (đã có lượt nạp mới hơn bắt đầu) thì KHÔNG ghi gì cả: số liệu
@@ -1045,6 +1047,7 @@ function AppInner() {
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (od.status === 'fulfilled') setOrders(od.value)
+    if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
@@ -1063,10 +1066,10 @@ function AppInner() {
       fetchActivityDays(u.id), fetchCommentCounts(),
       /* "vote nhận trong mùa" — tải cùng nhịp bảng để số phiếu trên Leaderboard
          tuần/tháng và thẻ This week không trễ sau một lần vote. */
-      fetchRecentVotes(),
+      fetchRecentVotes(), fetchMyAchievementRequests(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, act, cc, vv] = results
+    const [r, v, vs, ach, rk, act, cc, vv, achievementReqs] = results
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
@@ -1080,6 +1083,7 @@ function AppInner() {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
     }
     if (rk.status === 'fulfilled') setRanking(rk.value)
+    if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
     if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     /* lỗi fetch phiếu thì giữ danh sách cũ — xoá đi thành ra số vote trong
@@ -1904,19 +1908,13 @@ function AppInner() {
     if (!Array.isArray(days)) return null
     return { days, stats: streakStats(days) }
   }, [myActivity, visitStamp, user?.id])
-  const myAchievementMetrics = useMemo(() => {
-    /* Keep the preview aligned with claim_achievements(): denied requests do
-       not count server-side, and rewards are not inferred from a client amount. */
-    const eligible = mineRows.filter(r => r.status !== 'denied')
-    return {
-      longestStreak: activityView?.stats.longest ?? 0,
-      requests: eligible.length,
-      paidRequests: eligible.filter(r => r.is_paid).length,
-      completed: eligible.filter(r => r.status === 'completed').length,
-      rank: fullRanking.findIndex(p => p.user_id === user?.id) + 1,
-      votesCast: myTotalVotesCast,
-    }
-  }, [activityView, mineRows, fullRanking, user?.id, myTotalVotesCast])
+  const myAchievementMetrics = useMemo(() => ({
+    longestStreak: activityView?.stats.longest ?? 0,
+    ...achievementRequestMetrics(
+      achievementRequests.userId === user?.id ? achievementRequests.rows : [],
+      orders, fullRanking, user?.id),
+    votesCast: myTotalVotesCast,
+  }), [activityView, achievementRequests, orders, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều

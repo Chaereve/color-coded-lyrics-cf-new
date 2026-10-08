@@ -58,6 +58,7 @@ test('cửa sổ THÁNG: mùng 1 tới mùng 1 tháng sau, và tháng 12 gối n
 const vn = (day) => new Date(`${day}T12:00:00+07:00`).toISOString()
 const R = (id, over) => ({
   id, user_id: 'u-' + id.split('-')[0], requester: id.split('-')[0],
+  artist: 'artist-' + id, title: 'song-' + id,
   status: 'completed', votes: 0, created_at: vn('2025-09-22'), ...over,
 })
 
@@ -103,6 +104,22 @@ test('gom theo mùa: một user một dòng, total = request THUỘC MÙA, phi�
   assert.equal(byId['u-bob'].completed, 0, 'gửi tuần này, xong tuần sau -> chưa "xong" tuần này')
   assert.equal(byId['u-bob'].total_votes, 1)
   assert.equal(byId['u-bob'].key, 'u-bob', 'khoá dòng là user_id, không phải tên')
+})
+
+test('mùa chỉ đếm status đủ điều kiện và gom request trùng theo user/song', () => {
+  const rows = [
+    R('dupe-a', { artist: 'Singer', title: 'Song', status: 'queued', votes: 700 }),
+    R('dupe-b', { artist: ' singer ', title: ' SONG ', status: 'completed',
+      created_at: vn('2025-09-23'), updated_at: vn('2025-09-24'), votes: 800 }),
+    R('pending-1', { status: 'pending', votes: 10000 }),
+    R('denied-1', { status: 'denied', votes: 10000 }),
+  ]
+  const votesLog = [voteAt('dupe-a', '2025-09-23'), voteAt('dupe-b', '2025-09-23'),
+    voteAt('pending-1', '2025-09-23')]
+  const week = seasonRows(rows, [], 'week', NOW, votesLog)
+  assert.deepEqual(week.map(row => row.user_id), ['u-dupe'])
+  assert.deepEqual({ total: week[0].total, completed: week[0].completed, total_votes: week[0].total_votes },
+    { total: 1, completed: 1, total_votes: 2 })
 })
 
 test('bài GỬI ngoài mùa nhưng XONG trong mùa vẫn được đếm là xong trong mùa', () => {

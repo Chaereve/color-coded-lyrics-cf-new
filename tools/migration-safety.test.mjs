@@ -185,7 +185,8 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(fresh.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
+      '20261125_reward_eligibility_and_quota_races'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -196,7 +197,8 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(after.pending.map(({ id }) => id),
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
+      '20261125_reward_eligibility_and_quota_races'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -210,7 +212,7 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(partial.pending.map(({ id }) => id),
     ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
       '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift',
-      '20261124_restore_daily_free_votes'])
+      '20261124_restore_daily_free_votes', '20261125_reward_eligibility_and_quota_races'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -490,9 +492,9 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
   assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
 
-  /* Và trên chính máy này: quét thật vẫn phải ra đúng 40 migration đang hoạt động. */
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 41 migration đang hoạt động. */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 40)
+  assert.equal(active.length, 41)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -501,19 +503,21 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
   /* Lỗi đã gặp trên database production (mode E): `db:plan -- --baseline 20261120`
      in "skip 36 migration(s) …" rồi hết, vì nhánh plan trả về trước vòng lặp in.
      Người vận hành tưởng không có gì để chạy. Bài này khoá lại hợp đồng: danh
-     sách pending phải được in ra, và phải đúng ba bản > 20261120. */
+     sách pending phải được in ra, và phải liệt kê đủ các bản > 20261120. */
   const { active, quarantined } = collectMigrations()
   const planned = planPending({ active, quarantined, applied: [], baseline: '20261120' })
   assert.deepEqual(planned.pending.map(({ id }) => id),
     ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
-      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes'])
+      '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
+      '20261125_reward_eligibility_and_quota_races'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '4 migration(s) would be applied:')
+  assert.equal(lines[0], '5 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
     'apply 20261123  20261123_reconcile_security_drift.sql',
     'apply 20261124  20261124_restore_daily_free_votes.sql',
+    'apply 20261125  20261125_reward_eligibility_and_quota_races.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

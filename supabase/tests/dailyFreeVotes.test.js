@@ -317,6 +317,7 @@ test('the guarded runner applies it on the fresh-install path and the 20261120 b
       assert.deepEqual(result.pending.map(({ id }) => id), [
         '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
         '20261123_reconcile_security_drift', MIGRATION_ID,
+        '20261125_reward_eligibility_and_quota_races',
       ])
       assert.ok((await readHistory(client)).includes(MIGRATION_ID))
 

@@ -112,9 +112,9 @@ const vn = (day) => new Date(`${day}T12:00:00+07:00`).toISOString()
 /* Tuần đang xét: 22/09 (thứ Hai) – 28/09 (Chủ nhật), giờ VN. */
 const seasonAll = [
   /* alice: 1 bài xong trong tuần (gửi + xong 22–23/09), 1 bài xong tuần trước */
-  { id: 'a1', user_id: 'alice', requester: 'alice', status: 'completed', votes: 5,
+  { id: 'a1', user_id: 'alice', requester: 'alice', artist: 'Artist A', title: 'Song A', status: 'completed', votes: 5,
     created_at: vn('2025-09-22'), updated_at: vn('2025-09-23') },
-  { id: 'a2', user_id: 'alice', requester: 'alice', status: 'completed', votes: 9,
+  { id: 'a2', user_id: 'alice', requester: 'alice', artist: 'Artist B', title: 'Song B', status: 'completed', votes: 9,
     created_at: vn('2025-09-15'), updated_at: vn('2025-09-16') },
   /* bob: gửi thứ Sáu 26/09, chưa xong -> có mặt với total 1, completed 0 */
   { id: 'b1', user_id: 'bob', requester: 'bob', status: 'in_progress', votes: 3,
