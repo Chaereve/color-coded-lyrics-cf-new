@@ -37,6 +37,7 @@ const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
+const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
 import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
@@ -74,7 +75,7 @@ import {
    không phải hộp thoại: nó là nơi làm việc thật (soát bài, duyệt, sửa mốc tiến
    độ, xử lý đơn) nên phải vào được bằng link, F5 không mất chỗ đang đứng, và
    mở được ở tab trình duyệt thứ hai bên cạnh trang công khai. */
-const SECTIONS = ['board', 'login', 'spin', 'ranking', 'mine']
+const SECTIONS = ['board', 'login', 'mystery', 'spin', 'ranking', 'mine']
 const ADMIN_ONLY = 'admin'
 
 /* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
@@ -103,7 +104,7 @@ const NAV_SUB = {
   spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 
-const ROUTES = { board: '/', login: '/daily-login', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', mystery: '/mystery-box', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 
 /* Đường dẫn của tính năng đã nghỉ hưu. `/quiz` từng là màn quiz âm nhạc và đã
    bị gỡ khỏi sản phẩm; ai còn bookmark/link cũ (hoặc tab mở từ bundle cũ) được
@@ -2434,6 +2435,19 @@ function AppInner() {
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needDailyLogin')} onSignIn={() => setAuthPrompt(true)} />
+          )
+        )}
+
+        {/* Mystery Box là MỘT TRANG RIÊNG (duyệt 2026-10): cùng chuỗi thưởng
+            hằng ngày nhưng tách bạch UI/route với /daily-login — lịch không ôm
+            thêm card nào nữa. Cổng sign-in y như mục Daily Login. */}
+        {section === 'mystery' && !onProfile && (
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
+              <MysteryBoxPage key={`mystery-${user.id}`} userId={user.id} onDailyLogin={() => navTo('login')} />
+            </Suspense>
+          ) : (
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needMystery')} onSignIn={() => setAuthPrompt(true)} />
           )
         )}
 

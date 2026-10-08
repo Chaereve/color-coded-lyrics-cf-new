@@ -59,6 +59,9 @@ test('the check-in page keeps its frame and hides the reward card until data exi
     assert.doesNotMatch(html, /keeps your streak alive/)
     assert.doesNotMatch(html, /Rewards: \+2 a day/)
     assert.doesNotMatch(html, /[Cc]redits/)
+    // MYSTERY BOX LIVES ON ITS OWN PAGE (/mystery-box) — the check-in screen
+    // must never embed it again (owner decision, 2026-10).
+    assert.doesNotMatch(html, /[Mm]ystery/)
     // Legacy copy must be gone: check-ins DO pay votes now.
     assert.doesNotMatch(html, /never award/)
   })

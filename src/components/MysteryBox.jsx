@@ -17,7 +17,7 @@ import './MysteryBox.css'
    tắt hết. Chỉ hiển thị "votes" — không đơn vị nào khác.
    ========================================================= */
 
-export default function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
+export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
   const { t } = useI18n()
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState('')
@@ -102,3 +102,5 @@ export default function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
     </section>
   )
 }
+
+export default MysteryBox

@@ -27,6 +27,13 @@
     <changefreq>daily</changefreq>
     <priority>0.5</priority>
   </url>
+  <!-- Hộp quà bí ẩn hằng ngày: trang riêng, cần đăng nhập. -->
+  <url>
+    <loc>https://chaereve.pages.dev/mystery-box</loc>
+    <lastmod>2026-10-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>
 
   <!-- Vòng quay thưởng: nội dung tĩnh, chỉ số dư là của riêng người dùng. -->
   <url>

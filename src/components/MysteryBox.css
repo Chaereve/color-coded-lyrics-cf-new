@@ -95,3 +95,40 @@
   .mystery-prize { animation: none; }
   .mystery-box, .mystery-lid { transition: none; }
 }
+
+/* =========================================================
+   /mystery-box — TRANG RIÊNG: head (h2 + pill reset) + 2 cột
+   (card 300×300 trái | bảng giải + luật phải), mobile 1 cột
+   ========================================================= */
+.mystery-page { max-width: 860px; margin: 0 auto; }
+.mystery-page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border: 1px solid var(--line-2); border-radius: var(--r-xl); background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / .22); margin-bottom: 14px; }
+.mystery-page-heading h2 { margin: 0 0 5px; font-size: 16px; font-weight: 650; }
+.mystery-page-sub { margin: 0; font-size: 12px; color: var(--txt-2); }
+.mystery-page-reset { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--txt-2); }
+.mystery-page-reset b { font-family: var(--mono); color: var(--txt); font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 9px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); }
+
+.mystery-page-loading { margin: 0 20px; color: var(--txt-2); font-size: 12px; }
+.mystery-page-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 0 20px 14px; padding: 12px; border: 1px solid var(--denied); border-radius: var(--r-md); font-size: 12px; color: var(--denied); }
+.mystery-page-error span { flex: 1 1 200px; overflow-wrap: anywhere; }
+.mystery-page-error .btn { min-height: 40px; }
+.mystery-page-unavailable { margin: 0 20px; padding: 14px; border: 1px dashed var(--line-2); border-radius: var(--r-md); font-size: 12px; line-height: 1.7; color: var(--txt-2); }
+
+.mystery-page-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 20px; align-items: start; }
+.mystery-page-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent); border-radius: var(--r-xl); background: linear-gradient(165deg, color-mix(in oklab, var(--a) 7%, transparent), transparent 44%), color-mix(in oklab, var(--surface-2) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045); }
+.mystery-gate-link { width: 100%; max-width: 300px; min-height: 42px; }
+.mystery-side { min-width: 0; padding: 16px; border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent); border-radius: var(--r-xl); background: color-mix(in oklab, var(--surface-2) 88%, transparent); box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045); }
+.mystery-side-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--txt-2); }
+.mystery-odds { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none; }
+.mystery-odds li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px dashed color-mix(in oklab, var(--line-2) 60%, transparent); font-size: 12px; }
+.mystery-odds li:last-child { border-bottom: 0; }
+.mystery-odds li span { color: var(--txt); }
+.mystery-odds li b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--txt-2); font-weight: 600; }
+.mystery-rules { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.mystery-rules li { position: relative; padding-left: 14px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
+.mystery-rules li::before { content: ""; position: absolute; left: 0; top: .55em; width: 6px; height: 6px; border-radius: 50%; background: var(--a-2); }
+@media (min-width: 880px) {
+  .mystery-page-grid { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+}
+@media (max-width: 620px) {
+  .mystery-page-head, .mystery-page-grid { padding-inline: 14px; }
+}
