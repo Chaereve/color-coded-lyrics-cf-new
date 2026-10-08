@@ -106,6 +106,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -uo pipefail
+          set +e   # runner mặc định có -e: tắt nó để tự bắt mã thoát của db:deploy
           npm run db:deploy -- --baseline 20261124 2>&1 | tee /tmp/deploy.txt
           RC=$?
           if [ "$RC" -ne 0 ]; then
@@ -139,10 +140,13 @@ jobs:
       - name: npm test sau deploy (Postgres ảo — không đụng production)
         run: |
           set -uo pipefail
+          set +e   # runner mặc định có -e: tắt nó để tự bắt mã thoát và vẫn ghi tóm tắt kể cả khi test đỏ
           npm test 2>&1 | tee /tmp/npm-test.txt
           RC=$?
           echo "--- tóm tắt TAP (npm test exit=$RC) ---" | tee /tmp/npm-test-summary.txt
           grep -E '^# (tests|suites|pass|fail|cancelled|skipped|todo|duration_ms)' /tmp/npm-test.txt | tee -a /tmp/npm-test-summary.txt || true
+          echo "--- các test fail (nếu có) ---" | tee -a /tmp/npm-test-summary.txt
+          grep -E '^not ok' /tmp/npm-test.txt | head -20 | tee -a /tmp/npm-test-summary.txt || true
           if [ "$RC" -ne 0 ]; then
             echo "FAIL: npm test kết thúc với mã $RC — xem /tmp/npm-test.txt" | tee -a /tmp/npm-test-summary.txt
             exit 1
@@ -167,6 +171,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -uo pipefail
+          set +e   # runner mặc định có -e: tắt nó để tự bắt mã thoát của docker/psql
           docker run --rm --network host \
             -e SUPABASE_DB_URL \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
@@ -199,6 +204,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -uo pipefail
+          set +e   # runner mặc định có -e: tắt nó để tự bắt mã thoát của docker/psql
           docker run --rm --network host \
             -e SUPABASE_DB_URL \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
