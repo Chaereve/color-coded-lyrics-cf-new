@@ -145,7 +145,6 @@ const S = {
   'daily.rewardsTitle': 'Check-in rewards',
   'daily.rewardsCardLabel': 'Check-in rewards summary',
   'daily.rewardsToday': 'Earned today',
-  'daily.counterLabel': 'Reward votes earned today',
   'daily.rewardOne': '+1 vote',
   'daily.rewardMany': '+{n} votes',
   'daily.breakdown': 'Today’s reward breakdown',
