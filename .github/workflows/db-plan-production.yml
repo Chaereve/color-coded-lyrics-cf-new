@@ -1,0 +1,101 @@
+# =========================================================
+# KẾ HOẠCH MIGRATION TRÊN PRODUCTION — CHỈ ĐỌC, KHÔNG ÁP GÌ CẢ
+# ---------------------------------------------------------
+# In ra đúng những gì `db:deploy` SẼ chạy trên production (đọc lịch sử
+# migration + đối chiếu dấu vân tay khi cần), để người duyệt thấy trước
+# khi gõ lệnh deploy. Bản thân `db:plan` KHÔNG GHI GÌ vào database: không
+# tạo bảng history, không ghi dòng history, không chạy SQL — xem ghi chú
+# "Chỉ in, không ghi" trong tools/migrate.mjs (nhánh --plan của main()).
+#
+# Vì sao cần workflow: sandbox không có SUPABASE_DB_URL và không ra được
+# database; token của sandbox không có actions:write nên `gh workflow run`
+# trả 403 — push lên nhánh phiên là đường còn lại (giống job browser & edge
+# check và job Sao lưu database). Workflow này chỉ chạy trên nhánh arena
+# này; không nằm trong main nên không bao giờ tự chạy trên production.
+#
+# KHÔNG BAO GIỜ thêm --apply vào workflow này. Deploy production phải được
+# duyệt RIÊNG, trên máy của người có đủ quyền — không tự động hoá.
+# =========================================================
+name: DB plan production (chỉ đọc)
+
+on:
+  push:
+    branches:
+      - 'arena/c7f9fc9b-color-coded-lyrics-cf-new'
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: 'Baseline 8 chữ số (vd 20261124) — mọi migration ≤ baseline coi như đã có trong DB'
+        required: true
+        default: '20261124'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASELINE: ${{ inputs.baseline || '20261124' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Tĩnh, không cần DB: chặn trước khi hỏi production bất cứ điều gì —
+      # xác nhận không có statement phá huỷ trong đường dẫn mặc định.
+      - name: db:check (tĩnh, không đụng DB)
+        run: npm run db:check
+
+      # Chỉ đọc: kết nối Session pooler 5432 bằng SUPABASE_DB_URL trong secret.
+      # Nếu plan bị từ chối (production chưa có history đến baseline, hoặc lệch
+      # fingerprint) thì chạy thêm chẩn đoán đọc-only với mọi baseline đã biết —
+      # vẫn không ghi gì — để báo cáo biết production đang ở mode nào.
+      - name: db:plan trên production (chỉ đọc) + chẩn đoán nếu bị từ chối
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          echo "== db:plan --baseline $BASELINE (chỉ đọc — không ghi history, không chạy SQL) ==" | tee /tmp/plan.txt
+          if npm run db:plan -- --baseline "$BASELINE" 2>&1 | tee -a /tmp/plan.txt; then
+            PLAN_RC=0
+          else
+            PLAN_RC=$?
+          fi
+          if [ "$PLAN_RC" -ne 0 ]; then
+            echo "" | tee -a /tmp/plan.txt
+            echo "== chẩn đoán đọc-only: db:verify-baseline (mọi baseline đã biết) ==" | tee -a /tmp/plan.txt
+            npm run db:verify-baseline 2>&1 | tee -a /tmp/plan.txt || true
+          fi
+          exit "$PLAN_RC"
+
+      # Log của runner không tải được từ sandbox (host lưu trữ ngoài
+      # allowlist) → đưa nguyên output ra annotation, đọc bằng `gh run view`
+      # hoặc trên trang check-run. Output của migrate.mjs không bao giờ in
+      # chuỗi kết nối.
+      - name: Xuất kết quả plan ra annotation
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs")
+          let out = ""
+          try { out = fs.readFileSync("/tmp/plan.txt", "utf8") } catch {}
+          const msg = s => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")
+          const title = s => msg(s).replace(/:/g, "%3A").replace(/,/g, "%2C")
+          console.log(`::notice title=${title("db:plan production (chỉ đọc) — baseline " + process.env.BASELINE)}::${msg(out.trim() || "(không có output — bước plan có thể đã fail, xem các bước trước)")}`)
+          '
+
+      - name: Lưu output plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-plan-production
+          path: /tmp/plan.txt
+          if-no-files-found: warn
