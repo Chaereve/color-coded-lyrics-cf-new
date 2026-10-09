@@ -30,9 +30,12 @@ test('Daily Spin renders head, 3×3 grid hero with center Spin button — no odd
       createElement(DailySpin, { userId: 'test-user', onBalance() {}, onVote() {} })))
 
     /* KHÔNG wheel tròn, KHÔNG reel ngang — hai UI đó bị cấm cho Spin
-       (grid-only). Không dùng img/svg sector/canvas. */
-    assert.doesNotMatch(html, /<img\b|<canvas\b|<svg\b|spin-wheel|spin-sector|reel-track|reel-item/)
+       (grid-only). Không img/canvas; SVG cho phép CHỈ là icon trang trí của
+       ô giải (spin-cell-ico) — không sector/label-theo-góc. */
+    assert.doesNotMatch(html, /<img\b|<canvas\b|spin-wheel|spin-sector|reel-track|reel-item/)
     assert.doesNotMatch(html, /<image\b|logo-\d|spin-intro|spin-eyebrow/)
+    assert.equal((html.match(/<svg class="spin-cell-ico"/g) || []).length, 7,
+      'đúng 7 icon ô giải — mỗi mức một hình riêng')
 
     // 1. head: title, demo badge and the reset countdown chip (not buried below)
     const head = html.match(/<header class="spin-head">([\s\S]*?)<\/header>/)?.[1]
@@ -120,8 +123,11 @@ test('Daily Spin uses the approved palette on the grid and opts out of the share
   assert.match(pageCss, /\.daily-spin \.spin-button:focus-visible\s*\{[^}]*outline:\s*2px solid/)
   assert.match(pageCss, /\.daily-spin \.spin-button:disabled\s*\{[^}]*cursor:\s*not-allowed/)
   /* Kích thước ô qua CSS var + clamp() — không tràn mobile. */
-  assert.match(pageCss, /--cell:\s*clamp\(/)
-  assert.match(pageCss, /grid-template-columns:\s*repeat\(3,\s*var\(--cell\)\)/)
+  /* Lưới TRÀN ĐỀU (vòng 4): 3 cột minmax(0,1fr) + ô aspect-ratio 1 — đổ đầy
+     cột ở mọi viewport. Vẫn cấm % trong track sizing (cyclic, vòng 3). */
+  assert.match(pageCss, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/)
+  assert.match(pageCss, /\.spin-cell\s*\{[^}]*aspect-ratio:\s*1/)
+  assert.match(pageCss, /\.spin-grid\s*\{[^}]*width:\s*min\(100%,\s*500px\)/)
   /* Reduced motion: tắt nhô/zoom, giữ viền + glow tĩnh (trạng thái vẫn đọc được). */
   assert.match(pageCss, /prefers-reduced-motion[\s\S]*\.spin-cell[\s\S]*transition:\s*none/)
   /* Vẫn tắt nền động dùng chung của trang spin. */
@@ -188,13 +194,13 @@ test('spin(): server-decides-first, tối thiểu 3 vòng, dừng đúng ô trú
   assert.match(jsx, /disabled=\{active \|\| loading \|\| !status \|\| \(!remaining && !pending\)\}/)
 })
 
-test('grid mobile: 3 ô + 2 gap khít bề rộng khung — không tràn ngang 320px', async () => {
+test('grid mobile: lưới tràn đều co theo viewport — không tràn ngang 320px', async () => {
   const pageCss = await readFile(new URL('./DailySpin.css', import.meta.url), 'utf8')
-  /* (100vw − padding trang 16px − 2 gap 16px) / 3 → 3 ô + 2 gap khít khung.
-     KHÔNG quay lại 100%: % trong track sizing của grid item là cyclic —
-     Chrome resolve sai, panel đè hàng cuối ở 320px (bug đã chụp). */
-  assert.match(pageCss, /--cell:\s*clamp\(62px,\s*calc\(\(100vw - 32px\) \/ 3\),\s*104px\)/,
-    '3 × cell + 2 × 8px gap = đúng bề rộng khung — không bao giờ tràn')
+  /* Cột minmax(0,1fr) co theo bề rộng cột chứa, ô vuông aspect-ratio → lưới
+     luôn khít khung ở 320/375/390/414. KHÔNG quay lại % trong track sizing
+     (cyclic — Chrome resolve sai, panel đè lưới, bug đã chụp vòng 3). */
+  assert.match(pageCss, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/)
+  assert.match(pageCss, /\.spin-cell\s*\{[^}]*aspect-ratio:\s*1/)
   assert.doesNotMatch(pageCss, /grid-template-columns:[^\n]*100%/,
     'không % cyclic trong track sizing')
   assert.match(pageCss, /@media \(max-width: 880px\)[\s\S]*grid-template-columns:\s*1fr/,

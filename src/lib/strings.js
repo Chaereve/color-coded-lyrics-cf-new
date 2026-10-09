@@ -19,7 +19,7 @@ const S = {
   /* dieu huong sidebar / mobile */
   'nav.board': 'Requests',
   'nav.login': 'Daily login',
-  'nav.mystery': 'Mystery Box',
+  'nav.mystery': 'Daily Box',
   'nav.spin': 'Daily Spin',
   'nav.ranking': 'Leaderboard',
   'nav.mine': 'About me',
@@ -153,11 +153,11 @@ const S = {
   'daily.capTitle': 'Daily reward cap',
   'daily.capUsage': '{used} of {cap} reward votes today',
 
-  'mystery.cardLabel': 'Daily mystery box',
-  'mystery.title': 'Mystery box',
+  'mystery.cardLabel': 'Daily box',
+  'mystery.title': 'Daily box',
   'mystery.locked': 'Check in to unlock today’s box.',
   'mystery.ready': 'What’s inside today?',
-  'mystery.openNow': 'Open mystery box',
+  'mystery.openNow': 'Open daily box',
   'mystery.todayOpen': 'Available today — 1 box',
   'mystery.todayDone': 'Opened today — next after your next check-in',
   'mystery.opening': 'Opening…',
