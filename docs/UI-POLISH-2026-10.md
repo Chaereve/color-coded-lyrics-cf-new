@@ -157,44 +157,6 @@ Sau khi duyệt: B4 (vote-back) → B5 (captcha) theo kế hoạch cũ.
   nhịp** · 29 reveal +5 · 30 reveal "Nothing this time." · 31 already ·
   32/33 mobile · 34 /daily-login sạch (card? false, chỉ link nav).
 
-# Vòng 4 (feedback 2026-10-09): Spin grid TRÀN ĐỀU + icon riêng · MYSTERY → DAILY BOX (nắp mở, reel trên hộp)
-
-## Daily Spin v5 — grid tràn đều, ô đa dạng, hiệu ứng ấn tượng
-- Lưới TRÀN ĐỀU: `repeat(3, minmax(0,1fr))` + ô `aspect-ratio:1`, khung
-  `min(100%,500px)` — đổ đầy cột ở mọi viewport (desktop ô ~155px, mobile
-  320 ô ~90px). Vẫn cấm % trong track sizing (cyclic, vòng 3).
-- Ô ĐA DẠNG: mỗi mức MỘT icon SVG riêng (+1 cỏ may · +2 sao · +3 sét ·
-  +5 kim cương · +8 hoa nổ · +10 cúp · +20 vương miện nhấp thở) + gradient
-  ĐỔI TÔN VÀ GÓC theo tier (t1 sáng → t7 đậm nhất, viền hồng).
-- Hiệu ứng: sheen sweep so-le idle (delay theo `--i` theo index ô, không
-  random) · vệt chạy có ĐUÔI SAO CHỔI (`is-trail` — ô vừa rời sáng mờ dần) ·
-  ô trúng NỔ VÒNG (`is-won::before` burst) · nút SPIN sheen khi hover.
-  Mọi nhịp transform/opacity; reduced-motion tắt sạch, highlight kết quả
-  vẫn viền + glow tĩnh. Logic/flow/backend KHÔNG đổi (cấm wheel/reel giữ
-  nguyên — icon là trang trí ô, không phải sector).
-
-## Mystery Box → DAILY BOX (route + keys i18n giữ nguyên, chỉ đổi tên hiển thị)
-- Đổi tên hiển thị: sidebar "Daily Box" · trang "Daily box" · nút
-  "Open daily box" (`nav.mystery`, `mystery.cardLabel/title/openNow`).
-- Hộp quà sinh động: thân ruy-băng ĐÔI (dọc + ngang), nơ trên NẮP (element
-  tách khỏi thân — mở được), sparkles ×3 nhấp nháy so-le, glow thở, hộp lắc
-  lư bob+sway; locked xám không nhịp.
-- Nhịp mở MỚI (~4,7s, kết quả server vẫn quyết từ t0 — RPC song song):
-  charge 450ms → **NẮP BẬT MỞ 560ms** (phase `lid`: bật nhích rồi ngửa
-  -26deg sang phải, `mystery-lid-open`) → **REEL TRỒI LÊN nằm PHÍA TRÊN hộp**
-  (`mystery-reel-slot` + `mystery-reel-rise`, reel 3,6s dừng đúng ô server
-  trả dưới marker) → chớp + reveal; nắp GIỮ MỞ cả reveal lẫn already-opened.
-- Sửa lỗi giữa vòng: reel render TRÙNG (bản cũ dưới chip chưa xoá khi dời
-  reel lên slot) — xoá render cũ, chỉ còn MỘT reel trong slot phía trên.
-
-## Kiểm chứng vòng 4
-- npm test **806/761 pass/0 fail** · lint **35w (0 mới)/0e** · build ✓ ·
-  PGlite mystery **7/7** · mapping/odds/RPC KHÔNG đổi.
-- Ảnh vòng 4 (shot set IX): workspace `b2-screenshots-v4/` +
-  `manifest.json` (23 cảnh, prefix `dailybox-*`) — spin 01–08 · box
-  09–21 (thêm **11b nắp đang mở**) · daily-login 22 sạch (sidebar "Daily
-  Box" → /mystery-box, 0 thẻ nhúng trong trang).
-
 # Vòng 3 (MASTER PROMPT 2026-10-09): Spin = SQUARE GRID 3×3 · Mystery giữ reel · mapping paid tách 2 mức
 
 Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHAU vĩnh viễn:

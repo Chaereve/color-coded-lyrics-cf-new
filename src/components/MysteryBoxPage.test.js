@@ -41,7 +41,7 @@ test('the standalone page renders its own shell and waits for data server-side',
     const html = renderToStaticMarkup(createElement(I18nProvider, null,
       createElement(MysteryBoxPage, { userId: 'test-user', onDailyLogin() {} })))
     // Own heading + reset chip; nothing from the check-in page leaks in here.
-    assert.match(html, /Daily box/)
+    assert.match(html, /Daily mystery box/)
     assert.match(html, /Next reset/)
     assert.doesNotMatch(html, /Your check-in calendar|Check-in rewards/)
     // Data arrives client-side only: server shows the loading state, never a
@@ -74,8 +74,8 @@ test('the card: locked points to check-in, ready offers the box, opened shows th
     // READY: the only state with an open button; no prize line yet.
     const ready = render(card({ checked_in: true }), true)
     assert.match(ready, /What’s inside today\?/)
-    assert.match(ready, /mystery-open[^>]*>Open daily box</)
-    assert.match(ready, /mystery-card[^"]*"[^>]*aria-label="Daily box"/)
+    assert.match(ready, /mystery-open[^>]*>Open mystery box</)
+    assert.match(ready, /mystery-card[^"]*"[^>]*aria-label="Daily mystery box"/)
     assert.doesNotMatch(ready, /mystery-padlock/)
 
     // OPENED (+5 votes): the committed result — DUY NHẤT outcome +5 của bảng.
@@ -129,15 +129,10 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
   assert.match(jsx, /setWinTile\(\{ kind: 's5', label: `\+\$\{amount\}` \}\)/)
   assert.doesNotMatch(jsx, /Math\.random\(\)|weightedPick|pickPrize/,
     'client không được tự chọn phần thưởng')
-  // Timeline chặt (vòng 4): charge 450ms → NẮP MỞ 560ms → reel 3600ms → reveal.
+  // Timeline chặt: charge 450ms → reel 3600ms → reveal.
   assert.match(jsx, /setPhase\('charging'\)/)
-  assert.match(jsx, /setPhase\('lid'\)/)
-  assert.match(jsx, /await wait\(MYSTERY_LID_MS\)/)
-  assert.match(jsx, /const MYSTERY_LID_MS = 560/)
   assert.match(jsx, /setPhase\('reeling'\)/)
   assert.match(jsx, /const MYSTERY_REEL_MS = 3600/)
-  /* Reel nằm PHÍA TRÊN hộp (vòng 4): slot bọc reel render TRƯỚC stage. */
-  assert.match(jsx, /mystery-reel-slot[\s\S]*?<CaseOpeningReel/)
   assert.match(jsx, /setReveal\(true\)/)
   // Reel = component DÙNG CHUNG của mystery (không đụng Daily Spin);
   // hằng số hợp đồng sống ở lib để test node trần dùng chung một nguồn.
@@ -158,8 +153,7 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(css, /\.mystery-flash \{ animation: none !important/)
   // Keyframes động chỉ đụng transform/opacity — không gây reflow.
-  for (const kf of ['mystery-breathe', 'mystery-pop', 'mystery-flash', 'mystery-lid-hop', 'mystery-q-out',
-    'mystery-lid-open', 'mystery-sparkle', 'mystery-reel-rise']) {
+  for (const kf of ['mystery-breathe', 'mystery-pop', 'mystery-flash', 'mystery-lid-hop', 'mystery-q-out']) {
     const block = css.match(new RegExp(`@keyframes ${kf} \\{([\\s\\S]*?)\\n\\}`))?.[1]
     assert.ok(block, `keyframes ${kf} tồn tại`)
     assert.doesNotMatch(block, /(^|[^-])\b(width|height|top|left|margin|padding)\b\s*:/,

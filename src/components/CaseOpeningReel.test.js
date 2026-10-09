@@ -35,7 +35,7 @@ test('reel renders viewport + pointer + tiles; the winning tile is marked, not g
     const CaseOpeningReel = mod.default
     const html = renderToStaticMarkup(createElement(CaseOpeningReel, {
       items: ITEMS, spinning: false, targetIndex: 3, duration: 3600,
-      label: 'Daily box', settled: true,
+      label: 'Daily mystery box', settled: true,
     }))
     assert.match(html, /class="reel-viewport"/)
     assert.match(html, /class="reel-pointer"/, 'kim giữa là một marker riêng')

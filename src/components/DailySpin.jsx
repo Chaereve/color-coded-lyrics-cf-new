@@ -59,42 +59,6 @@ function Pips({ remaining, limit }) {
   </span>
 }
 
-/* Icon RIÊNG cho từng mức giải (vòng 4 — các ô đa dạng hơn): mỗi mức một
-   hình nhận diện riêng, vẽ fill đơn giản trên lưới 24. Ô đã aria-hidden nên
-   icon thuần trang trí; không phải wheel/sector gì cả (cấm wheel giữ nguyên). */
-const ICON_PATHS = {
-  1: (  // cỏ bốn lá — khởi đầu may mắn
-    <><circle cx="8.4" cy="8.4" r="3.8" /><circle cx="15.6" cy="8.4" r="3.8" />
-      <circle cx="12" cy="13.8" r="4.2" /><path d="M10.9 14.6c-.8 2.9-2.6 4.9-5.2 6.2 3.1-.3 5.5-1.4 7-3.3z" /></>
-  ),
-  2: (  // ngôi sao
-    <path d="M12 2.4l2.9 6 6.6.9-4.8 4.5 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.3l6.6-.9z" />
-  ),
-  3: (  // tia sét
-    <path d="M13.4 2 4.6 13.6h5.9L9.1 22l8.9-12.4h-6.1z" />
-  ),
-  5: (  // kim cương
-    <path d="M6.2 8.6 12 2.2l5.8 6.4L12 21.8z" />
-  ),
-  8: (  // hoa nổ bốn cánh
-    <><circle cx="12" cy="5.6" r="3.3" /><circle cx="12" cy="18.4" r="3.3" />
-      <circle cx="5.6" cy="12" r="3.3" /><circle cx="18.4" cy="12" r="3.3" />
-      <circle cx="12" cy="12" r="3" /></>
-  ),
-  10: ( // cúp vô địch
-    <path d="M7 3.2h10v2.6h3.6v2.6a5.1 5.1 0 0 1-4.5 5.1 5.7 5.7 0 0 1-2.1 2v2h3v3.3H7v-3.3h3v-2a5.7 5.7 0 0 1-2.1-2 5.1 5.1 0 0 1-4.5-5.1V5.8H7zm-1.7 5.2v.9c0 1.2.8 2.3 2 2.8a10 10 0 0 1-.2-3.7zm13.4 0h-1.8a10 10 0 0 1-.2 3.7c1.2-.5 2-1.6 2-2.8z" />
-  ),
-  20: ( // vương miện — giải nhất
-    <><path d="M2.9 8.7 8.1 11.7 12 4.5l3.9 7.2 5.2-3L19.2 19H4.8z" />
-      <rect x="4.8" y="20.1" width="14.4" height="1.9" rx=".95" /></>
-  ),
-}
-const CellIcon = ({ reward }) => (
-  <svg className="spin-cell-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    {ICON_PATHS[reward]}
-  </svg>
-)
-
 export default function DailySpin({ userId, onBalance, onVote }) {
   const { t } = useI18n()
   const [status, setStatus] = useState(null)
@@ -106,7 +70,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   const [result, setResult] = useState(null)
   const [pending, setPending] = useState(() => !!readPendingSpin(userId))
   const [activeCell, setActiveCell] = useState(-1)  // ô đang sáng (vệt chạy/ô trúng)
-  const [trailCell, setTrailCell] = useState(-1)    // ô VỪA rời — đuôi sao chổi mờ dần
   // Con số được giữ yên khi grid đang chạy (giao dịch đã xong nhưng không spoil).
   const [activeRequest, setActiveRequest] = useState(null)
   const [clock, setClock] = useState(() => performance.now())
@@ -125,7 +88,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
 
   /* Dừng NHỊP CHẠY một cách an toàn (lỗi/unmount): xoá lịch chạy, không giữ
      ô nào sáng — nút do caller bật lại. */
-  const stopRun = () => { clearSpinTimers(); planRef.current = null; if (mounted.current) { setActiveCell(-1); setTrailCell(-1) } }
+  const stopRun = () => { clearSpinTimers(); planRef.current = null; if (mounted.current) setActiveCell(-1) }
 
   useEffect(() => () => { mounted.current = false; clearSpinTimers() }, [])
 
@@ -199,7 +162,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
     const spin = spinResultRef.current
     busy.current = false
     setPhase('idle')
-    setTrailCell(-1)
     if (spin) {
       setResult(spin)
       const top = Math.max(...rewardsRef.current)
@@ -226,7 +188,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
       const last = i === total - 1
       later(() => {
         if (!mounted.current) return
-        setTrailCell(cell)          // ô vừa rời thành đuôi vệt sáng
         cell = nextCell(cell)
         setActiveCell(cell)
         if (last) later(settle, 140)
@@ -238,7 +199,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
      (planRef) VÀ (b) đã đủ ≥ MIN_LOOPS vòng — khi đó chuyển sang decel. */
   const fastLoop = cell => {
     if (!mounted.current) return
-    setTrailCell(cell)            // đuôi sao chổi: ô vừa rời sáng mờ dần
     cell = nextCell(cell)
     stepsRef.current += 1
     setActiveCell(cell)
@@ -374,8 +334,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
               }
               const c = cells[idx]
               return <GridCell key={c.index} cell={c}
-                active={activeCell === c.index} won={wonCell === c.index}
-                trail={trailCell === c.index} />
+                active={activeCell === c.index} won={wonCell === c.index} />
             })}
           </div>
 
@@ -447,16 +406,15 @@ export default function DailySpin({ userId, onBalance, onVote }) {
 /* Ô viền: giải thì "+N", accent thì gem hình thoi — phân biệt bằng HÌNH THỨC
    chứ không chỉ màu. Active (vệt chạy) = viền + glow + scale; won (ô trúng
    sau khi dừng) giữ nguyên hiệu ứng đó tới khi lượt tiếp theo. */
-function GridCell({ cell, active, won, trail }) {
+function GridCell({ cell, active, won }) {
   return (
     <span
-      className={`spin-cell ${cell.tier}${active ? ' is-active' : ''}${won ? ' is-won' : ''}${trail ? ' is-trail' : ''}`}
+      className={`spin-cell ${cell.tier}${active ? ' is-active' : ''}${won ? ' is-won' : ''}`}
       aria-hidden="true"
-      style={{ '--i': cell.index }}  // lệch pha sheen idle theo ô — không random
     >
       {cell.reward === null
         ? <i className="spin-cell-gem" />
-        : <><CellIcon reward={cell.reward} /><b className="spin-cell-num">+{cell.reward}</b></>}
+        : <b className="spin-cell-num">+{cell.reward}</b>}
     </span>
   )
 }

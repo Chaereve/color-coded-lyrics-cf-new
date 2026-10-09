@@ -12,16 +12,14 @@ import './MysteryBox.css'
    NĂM TRẠNG THÁI: locked → available → opening (charge → reel) → reveal
    → already. Route/gate/luật 1 lần-ngày-sau-check-in GIỮ NGUYÊN.
 
-   NHỊP MỞ (~4,7s, khoá nút NGAY khi bấm — feedback 2026-10-09 vòng 4):
+   NHỊP MỞ (~4,1s, khoá nút NGAY khi bấm):
      t0      charge 450ms — hộp co người, sáng thắt; RPC openMysteryBox chạy
              SONG SONG ngay từ t0: kết quả do SERVER quyết TRƯỚC khi reel dừng
-     ~450ms  NẮP HỘP BẬT MỞ (phase 'lid', 560ms): nắp ngửa lên xoay sang phải
-     ~1,0s   CASE REEL (CaseOpeningReel — chỉ Daily Box dùng) TRỒI LÊN nằm
-             PHÍA TRÊN hộp, chạy 3,6s qua kim giữa và dừng đúng ô kết quả
-             server trả (ô tại REEL_TARGET_INDEX được GHI ĐÈ bằng kết quả
-             thật — client không chọn, không Math.random)
-     dừng    chớp sáng + prize pop; "Nothing" vẫn có chớp + pop + copy riêng;
-             nắp ở trạng thái MỞ luôn cả reveal lẫn already-opened
+     ~450ms  CASE REEL (CaseOpeningReel — chỉ Mystery dùng) chạy 3,6s qua kim
+             giữa và dừng đúng ô kết quả server trả (ô tại REEL_TARGET_INDEX
+             được GHI ĐÈ bằng kết quả thật — client không chọn, không
+             Math.random)
+     dừng    chớp sáng + prize pop; "Nothing" vẫn có chớp + pop + copy riêng
 
    Reduced-motion: bỏ charge + reel, fade thẳng tới kết quả đầy đủ.
    ========================================================= */
@@ -42,7 +40,6 @@ const RESULT_TILE = {
   free_paid_request: { kind: 's5', label: '' },  // label theo result bên dưới
 }
 const VOTES_TILE = { 1: 's1', 3: 's2', 5: 's3', 10: 's4' }
-const MYSTERY_LID_MS = 560   // nắp bật mở trước khi reel trồi lên trên hộp
 const MYSTERY_REEL_MS = 3600
 
 const Padlock = () => (
@@ -56,7 +53,7 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 
 export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
   const { t } = useI18n()
-  const [phase, setPhase] = useState('idle')   // idle | charging | lid | reeling
+  const [phase, setPhase] = useState('idle')   // idle | charging | reeling
   const [reveal, setReveal] = useState(false)
   const [error, setError] = useState('')
   const [winTile, setWinTile] = useState(null) // ô kết quả server (kind+label)
@@ -130,10 +127,6 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
         } else {
           setWinTile(RESULT_TILE[kind] || RESULT_TILE.nothing)
         }
-        // Nắp bật mở TRƯỚC khi reel trồi lên phía trên hộp (vòng 4). RPC đã
-        // xong từ khúc Promise.all — kết quả vẫn do server quyết từ t0.
-        setPhase('lid')
-        await wait(MYSTERY_LID_MS)
         setPhase('reeling')
       }
     } catch (e) {
@@ -166,30 +159,13 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
     >
       <p className="mystery-title">{t('mystery.title')}</p>
 
-      {/* REEL nằm PHÍA TRÊN hộp (vòng 4): chỉ dựng SAU khi server trả kết
-          quả, trồi lên từ hộp bằng animation — không layout shift bất ngờ. */}
-      {phase === 'reeling' && (
-        <div className="mystery-reel-slot" aria-hidden="true">
-          <CaseOpeningReel items={items} spinning targetIndex={REEL_TARGET_INDEX}
-            duration={MYSTERY_REEL_MS} onSettled={finish}
-            label={t('mystery.cardLabel')} />
-        </div>
-      )}
-
       <div className="mystery-stage" aria-hidden="true">
-        <span className="mystery-sparkle sp1" />
-        <span className="mystery-sparkle sp2" />
-        <span className="mystery-sparkle sp3" />
         <span className="mystery-glow" />
         <span className="mystery-flash" />
-        <div className="mystery-boxwrap">
-          <span className="mystery-lid">
-            <span className="mystery-bow" />
-          </span>
-          <div className="mystery-box">
-            <span className="mystery-ribbon-h" />
-            <span className="mystery-q">{checkedIn ? '?' : <Padlock />}</span>
-          </div>
+        <div className="mystery-box">
+          <span className="mystery-lid" />
+          <span className="mystery-bow" />
+          <span className="mystery-q">{checkedIn ? '?' : <Padlock />}</span>
         </div>
         <span className="mystery-shadow" />
       </div>
@@ -198,6 +174,12 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
       <p className={`mystery-statuschip${opened ? ' done' : ''}`}>
         {opened ? t('mystery.todayDone') : t('mystery.todayOpen')}
       </p>
+
+      {phase === 'reeling' && (
+        <CaseOpeningReel items={items} spinning targetIndex={REEL_TARGET_INDEX}
+          duration={MYSTERY_REEL_MS} onSettled={finish}
+          label={t('mystery.cardLabel')} />
+      )}
 
       {/* MỘT vùng trạng thái, aria-live: charge/reel/reveal đều được đọc ra
           tại đây; reveal nhận focus (tabIndex -1) để người màn hình đọc không
