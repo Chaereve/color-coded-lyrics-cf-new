@@ -34,17 +34,17 @@
    2/2/5/7. Ô vuông aspect-ratio 1 — tràn đều mọi viewport, mobile 320 vẫn
    đọc rõ. */
 .spin-board {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(5px, 1.1vw, 8px);
-  width: min(100%, 720px); margin: 0 auto; padding: 2px;
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  width: min(100%, 660px); margin: 0 auto; padding: 2px;
 }
 
 .spin-tile {
   --c: #9D5BE8;
   aspect-ratio: 1; position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; border-radius: clamp(10px, 1.8vw, 15px);
-  background: linear-gradient(160deg, color-mix(in oklab, var(--c) 22%, #141821), #0f1219);
-  border: 1px solid color-mix(in oklab, var(--c) 45%, transparent);
+  gap: 3px; border-radius: clamp(10px, 1.6vw, 14px);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--c) 30%, #141821), #10141d);
+  border: 1px solid color-mix(in oklab, var(--c) 55%, transparent);
   transition: transform .12s var(--e-out), box-shadow .12s var(--e-out),
     background .12s var(--e-out), opacity .5s var(--e-soft);
 }
@@ -53,15 +53,16 @@
 .spin-tile.r2 { --c: #DC94EF; }
 .spin-tile.r3 { --c: #FCB0F3; }
 .spin-tile .spin-cell-ico {
-  width: clamp(15px, 2.6vw, 22px); height: auto; color: var(--c);
+  width: clamp(13px, 2vw, 18px); height: auto; color: var(--c); opacity: .95;
   filter: drop-shadow(0 2px 5px rgb(0 0 0 / .5));
 }
 .spin-tile b {
-  font: 800 clamp(16px, 4.6vw, 30px)/1 var(--mono); font-variant-numeric: tabular-nums;
+  font: 800 clamp(13px, 2.2vw, 20px)/1 var(--mono); font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
   color: #fff; filter: drop-shadow(0 2px 6px rgb(0 0 0 / .55));
 }
 .spin-tile small {
-  font-size: clamp(8px, 1.3vw, 10.5px); font-weight: 700; line-height: 1.1;
+  font-size: clamp(8px, 1.1vw, 10px); font-weight: 700; line-height: 1.1;
   color: color-mix(in oklab, var(--c) 72%, #fff);
 }
 /* Ô giải nhất (+20): sheen quét chéo định kỳ — nổi mà không tách bảng. */

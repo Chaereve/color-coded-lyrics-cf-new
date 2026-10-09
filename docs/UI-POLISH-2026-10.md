@@ -308,3 +308,20 @@ bộ và đã revert — mọi điểm giống v4 ở đây xuất phát từ m�
 - Ảnh vòng 5: workspace `b2-screenshots-v5/` + `manifest.json` — xem
   manifest để biết route/viewport/state/seed từng cảnh; mọi cảnh
   server-decided: kết quả đến từ RPC/demo-seed, client chỉ diễn tả.
+
+## Vòng 5.1 (feedback ngay sau duyệt lần đầu): số ô spin nhỏ gọn + hộp 3D mở nắp đúng khối
+
+- **Spin board**: số ô giảm 30–35% (clamp 16/4.6vw/30px → 13/2.2vw/20px),
+  icon nhỏ theo, board 720→660px, gap cố định 6px — bốn quadrant quanh
+  lõi cân, số không còn tràn chiếm ô.
+- **Nắp hộp**: góc mở 112° → 84° (nắp ngả ra SAU gần như nằm, không dựng
+  thành tấm lớn che reel — lỗi khối khi mở); glow sàn nhỏ lại + mờ 0.75
+  (bỏ "ô sáng vuông" giữa nắp); ruột hạ sáng tường trong; "?" ẩn ngay
+  từ pha mở (trước chỉ ẩn sau opened).
+- **Locked**: hộp chỉ giảm nhẹ saturate .55/brightness .78 — hết "mảng
+  tối dẹt", vẫn đọc rõ khối quà có khoá.
+- **Kết quả**: ô đích viền trắng + glow mạnh hơn, các ô khác mờ .3 → .45
+  (đủ thấy "—" của Better luck next time.); rbar chữ kết quả 15→17px +
+  icon phát sáng theo rarity — phần thưởng luôn có chỗ đọc rõ.
+- Gates giữ xanh: test 761/0 · lint 33w/0e · build ✓. Ảnh chụp lại trọn
+  bộ 24 cảnh b2-screenshots-v5 (manifest.json cập nhật theo).

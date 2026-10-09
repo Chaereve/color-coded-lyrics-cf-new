@@ -44,11 +44,12 @@
 .reel-item.none small { color: var(--txt-3); }
 
 /* Dừng: ô đích nổi lên, còn lại mờ đi */
-.reel.is-settled .reel-item:not(.is-win) { opacity: .3; }
+.reel.is-settled .reel-item:not(.is-win) { opacity: .45; }
 .reel.is-settled .reel-item.is-win {
-  transform: scale(1.1);
+  transform: scale(1.16);
   background: linear-gradient(180deg, color-mix(in oklab, var(--c) 55%, #181c27), #0f1219);
-  box-shadow: inset 0 0 30px color-mix(in oklab, var(--c) 70%, transparent);
+  box-shadow: 0 0 0 2px #fff, 0 0 34px color-mix(in oklab, var(--c) 80%, transparent),
+    inset 0 0 30px color-mix(in oklab, var(--c) 70%, transparent);
 }
 
 /* KIM giữa: vạch sáng + 2 đầu mũi tên (nảy theo ô qua WAPI từ JSX) */

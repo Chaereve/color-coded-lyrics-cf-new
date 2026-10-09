@@ -128,7 +128,7 @@
   transition: transform 1s cubic-bezier(.3, 1.4, .5, 1);
 }
 .box-stage.is-reeling .lid, .box-stage.is-reveal .lid, .box-stage.is-opened .lid {
-  transform: rotateX(112deg);
+  transform: rotateX(84deg);
 }
 .f { position: absolute; display: block; backface-visibility: hidden; }
 .fr, .bk, .lf, .rt, .in { inset: 0; }
@@ -137,17 +137,17 @@
 .rt { transform: rotateY(90deg) translateZ(var(--d)); background: linear-gradient(#7D3EE4, #4b1cc4); }
 .lf { transform: rotateY(-90deg) translateZ(var(--d)); background: #4b1cc4; }
 /* Ruột hộp: hắt sáng ấm hồng từ trong ra khi mở */
-.in { background: linear-gradient(0deg, #ffd7f5, #BC77EC 35%, #1b1550); }
+.in { background: linear-gradient(0deg, #ffc9ee, #a855e0 30%, #171040 78%); }
 .ib { transform: translateZ(-78px); }
 .il { transform: rotateY(90deg) translateZ(-78px); }
 .ir { transform: rotateY(-90deg) translateZ(-78px); }
 .gl {
-  left: 8px; top: -17px; width: 144px; height: 144px;
-  transform: rotateX(90deg) translateZ(-48px);
-  background: radial-gradient(circle, #fff, #FCB0F3 40%, #DC94EF);
+  left: 20px; top: -6px; width: 120px; height: 120px;
+  transform: rotateX(90deg) translateZ(-56px);
+  background: radial-gradient(circle, #fff, #FCB0F3 42%, transparent 72%);
   opacity: 0; transition: opacity .5s var(--e-soft) .3s;
 }
-.box-stage.is-reeling .gl, .box-stage.is-reveal .gl, .box-stage.is-opened .gl { opacity: 1; }
+.box-stage.is-reeling .gl, .box-stage.is-reveal .gl, .box-stage.is-opened .gl { opacity: .75; }
 /* Nắp trên/dưới */
 .lt, .lu { left: 0; top: -69px; width: 168px; height: 168px; }
 .lt { transform: rotateX(90deg) translateZ(15px); background: linear-gradient(#DC94EF, #9D5BE8); }
@@ -195,7 +195,7 @@
 
 /* LOCKED: hộp xám, hết nhịp */
 .box-stage.is-locked .cube, .box-stage.is-locked .lid {
-  filter: saturate(.25) brightness(.6);
+  filter: saturate(.55) brightness(.78);
 }
 .box-stage.is-locked .box3d { animation: none; }
 
@@ -215,10 +215,10 @@
 .box-bar.r2 { --c: #DC94EF; }
 .box-bar.r3 { --c: #FCB0F3; }
 .box-bar:focus { outline: none; }
-.box-bar-icon { display: grid; place-items: center; color: var(--c); }
+.box-bar-icon { display: grid; place-items: center; color: var(--c); filter: drop-shadow(0 0 10px color-mix(in oklab, var(--c) 55%, transparent)); }
 .box-bar-icon .box-glyph { width: 32px; height: 32px; }
 .box-bar-text { display: grid; gap: 2px; min-width: 0; text-align: left; }
-.box-bar-pn { font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: var(--txt); line-height: 1.3; }
+.box-bar-pn { font-size: 17px; font-weight: 800; letter-spacing: -.01em; color: var(--txt); line-height: 1.3; }
 .box-bar-sub { font-size: 11.5px; font-weight: 600; color: var(--txt-2); font-variant-numeric: tabular-nums; }
 .box-prize { display: inline-block; animation: box-pop .55s cubic-bezier(.2, 1.6, .4, 1) both; }
 .box-prize.nothing { color: var(--txt); }
@@ -236,7 +236,7 @@
   }
   .box-stage.is-reeling .box-reel, .box-stage.is-reveal .box-rays { opacity: 1; transform: none; }
   .box-stage.is-reeling .box-beam { animation: none; opacity: .5; }
-  .box-stage.is-reeling .lid { transform: rotateX(112deg); }
+  .box-stage.is-reeling .lid { transform: rotateX(84deg); }
 }
 
 /* =========================================================

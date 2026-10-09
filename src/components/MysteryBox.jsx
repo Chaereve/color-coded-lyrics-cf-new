@@ -251,7 +251,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
               <i className="f in ib" /><i className="f in il" /><i className="f in ir" />
               <i className="f gl" />
               <i className="f fr s" /><i className="f bk" /><i className="f lf" /><i className="f rt s" />
-              {opened ? null : <span className="box-face-mark">{checkedIn ? '?' : <Padlock />}</span>}
+              {opened || working ? null : <span className="box-face-mark">{checkedIn ? '?' : <Padlock />}</span>}
             </span>
             <span className="lid">
               <i className="f lu" /><i className="f fr s" /><i className="f bk" />
