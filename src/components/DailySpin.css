@@ -53,10 +53,12 @@
    đúng chiều kim đồng hồ theo index spec. Ô viền là nút vuông bo góc, nút
    QUAY là button thật trong ô giữa. */
 .spin-grid {
-  /* Ô co theo chiều rộng khung: 3 ô + 2 gap = đúng 100% (không tràn ngang);
-     chặn trên 104px (ô quá to làm nút giữa lọt thỏm), sàn 62px để mobile
-     320 vẫn đọc rõ "+10". */
-  --cell: clamp(62px, calc((100% - 16px) / 3), 104px);
+  /* Ô co theo viewport: (100vw − padding trang 16px − gap 8px×2) / 3 = khít
+     bề rộng, KHÔNG tràn ngang; chặn trên 104px, sàn 62px để mobile 320 vẫn
+     đọc rõ "+10". KHÔNG dùng 100% ở đây: % trong track sizing của một grid
+     item là phụ thuộc vòng (cyclic) — Chrome resolve sai làm grid cao không
+     đủ chứa ô, panel đè lên hàng cuối (bug mobile 320 đã chụp). */
+  --cell: clamp(62px, calc((100vw - 32px) / 3), 104px);
   --gap: 8px;
   display: grid;
   grid-template-columns: repeat(3, var(--cell));

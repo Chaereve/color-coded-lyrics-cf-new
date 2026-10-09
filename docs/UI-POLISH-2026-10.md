@@ -204,7 +204,17 @@ Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHA
 - npm test 805 tests / 760 pass / 45 skip / **0 fail** (thêm: grid map/render
   tests, CaseOpeningReel tests, mapping v2 lib + PGlite setseed, migration
   46→47) · lint **35 warnings (0 mới) / 0 error** · build ✓.
-- Ảnh vòng 3: `b1-screenshots/` 36–55 — spin: 36 idle desktop · 37 đang chạy
+- Ảnh vòng 3 (shot set VIII, re-chụp sau fix cyclic %): workspace
+  `b2-screenshots-v3/` + `manifest.json` (22 cảnh, mỗi cảnh ghi
+  route/viewport/state/seed) — spin: 01 idle desktop · 02 đang chạy
+  (vệt sáng kim đồng hồ, nút SPIN vững giữa) · 03 result +20 · 04 result +1 ·
+  05 hết lượt (0/2, nút khoá) · 06 mobile 320 (grid khít, không tràn) ·
+  07–08 mobile 390 đang chạy/kết quả — mystery: 09 locked (CTA →
+  /daily-login) · 10 ready (glow) · 11 opening (charge) · 12 reel giữa nhịp
+  (marker giữa, item không lòi) · 13–18 reveal đủ 7 outcome (+1/+5/+10 votes,
+  **+1/+2 free paid request** tách bạch, nothing) · 19 already (mở live) ·
+  20–21 mobile 390 ready/revealed — daily-login: 22 sạch mystery (0 thẻ
+  nhúng, sidebar entry riêng). Ảnh vòng trước
   (vệt sáng quanh viền, nút SPIN vững giữa) · 38 result +1 · 39 result +20
   (ô trúng glow + result pop + history tier) · 40 hết lượt (0/2, nút khoá) ·
   41 mobile 320 (không tràn ngang) · 42 mobile 390 đang chạy — mystery:

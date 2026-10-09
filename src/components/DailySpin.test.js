@@ -188,10 +188,15 @@ test('spin(): server-decides-first, tối thiểu 3 vòng, dừng đúng ô trú
   assert.match(jsx, /disabled=\{active \|\| loading \|\| !status \|\| \(!remaining && !pending\)\}/)
 })
 
-test('grid mobile: 3 ô + 2 gap đúng 100% bề rộng khung — không tràn ngang 320px', async () => {
+test('grid mobile: 3 ô + 2 gap khít bề rộng khung — không tràn ngang 320px', async () => {
   const pageCss = await readFile(new URL('./DailySpin.css', import.meta.url), 'utf8')
-  assert.match(pageCss, /--cell:\s*clamp\(62px,\s*calc\(\(100% - 16px\) \/ 3\),\s*104px\)/,
-    '3 × cell + 2 × 8px gap = đúng 100% — không bao giờ tràn')
+  /* (100vw − padding trang 16px − 2 gap 16px) / 3 → 3 ô + 2 gap khít khung.
+     KHÔNG quay lại 100%: % trong track sizing của grid item là cyclic —
+     Chrome resolve sai, panel đè hàng cuối ở 320px (bug đã chụp). */
+  assert.match(pageCss, /--cell:\s*clamp\(62px,\s*calc\(\(100vw - 32px\) \/ 3\),\s*104px\)/,
+    '3 × cell + 2 × 8px gap = đúng bề rộng khung — không bao giờ tràn')
+  assert.doesNotMatch(pageCss, /grid-template-columns:[^\n]*100%/,
+    'không % cyclic trong track sizing')
   assert.match(pageCss, /@media \(max-width: 880px\)[\s\S]*grid-template-columns:\s*1fr/,
     'panel rơi xuống dưới lưới trên mobile')
 })

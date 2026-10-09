@@ -318,7 +318,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
           {/* TRỌNG TÂM: LƯỚI 3×3. Tám ô viền aria-hidden (trạng thái được đọc
               qua vùng live ở panel); ô giữa là NÚT QUAY thật, keyboard trực
               tiếp. Vệt sáng chỉ nằm trên ô viền — không đè nút. */}
-          <div className="spin-grid" role="img" aria-label={t('spin.gridLabel')}
+          <div className="spin-grid" role="group" aria-label={t('spin.gridLabel')}
             data-state={spinning ? 'spinning' : active ? 'busy' : 'idle'}>
             {SPIN_GRID_RENDER_ORDER.map(idx => {
               if (idx === null) {   // ô giữa — nút QUAY thật
