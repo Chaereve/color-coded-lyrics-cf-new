@@ -674,4 +674,26 @@ nhận thưởng `bonus_credits` (reset 31/10). Bundle cũ không gọi `weights
 chạy đúng — nó bỏ qua key lạ. Test: `npm run test:spinv2:pglite` (7 kịch bản:
 chain, phân phối 300 lượt, không-lặp, hạn mức + replay, hàng legacy, bảng trọng
 số lệch bị từ chối, chạy lại an toàn); manifest
-`tools/migration-safety.test.mjs` đã cập nhật lên **46 migration active**.
+`tools/migration-safety.test.mjs` đã cập nhật lên **46 migration active**
+(bản 20261202 dưới đây nâng số này lên **47**).
+
+## 20261202 — B2 fix: Mystery prize table v2 (một +5 duy nhất, paid tách 2 mức)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. **Chỉ viết file, CHƯA apply production** (quyết định của owner,
+2026-10-09). Sửa ĐÚNG một lỗi mapping của bảng 20261129: outcome 1% trước đây
+là "+5 votes" — trùng với outcome 7%, làm bảng hiển thị hai giải +5.
+
+| File | Vai trò |
+| --- | --- |
+| `20261202_mystery_paid_v2.sql` | Nới CHECK `mystery_opens_reward_kind_check` thêm `'free_paid_request'` (giữ `'paid_request'` cho row cũ); `open_mystery_box`: dải 970–989 → result 5 = **+1 free paid request**, dải 990–999 → result 6 = **+2 free paid requests** — cộng `bonus_requests` đúng theo amount của từng nhánh, NGOÀI cap 30/ngày, không ghi reward_event như vote. Trọng số giữ nguyên 55/20/12/7/3/2/1. |
+| `supabase/rollback/20261202_mystery_paid_v2.sql` | Từ chối chạy khi còn row result 6 kind `free_paid_request` (+2 không có tương đương trong bảng cũ — rollback sẽ biến paid +2 thành +5 votes sai nghĩa); row result 5 `free_paid_request` đổi ngược về `paid_request`; khôi phục hàm + CHECK + comment 20261129. |
+
+Không đổi: cổng check-in, PK một hộp/ngày, replay, `grant_reward_event`/cap,
+`mystery_status` (payload key giữ nguyên — client suy amount từ `result`),
+RLS, cờ `mystery_box_enabled`. Client (`src/lib/mysteryBox.js`) đọc CẢ hai
+chính tả kind nên deploy client trước hay sau migration đều không vỡ. Test:
+`supabase/tests/mysteryBox.pglite.mjs` (chain qua 20261202; phân phối 600 hộp;
+mapping setseed: +1/+2 cộng đúng amount, không ledger, replay không cộng lặp;
+cap; flag; identity/RLS) + `src/lib/mysteryBox.test.js` (bảng v2 + validator
+chấp nhận row legacy).

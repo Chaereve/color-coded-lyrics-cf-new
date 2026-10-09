@@ -143,7 +143,10 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
                     {prize.kind === 'nothing' && t('mystery.nothing')}
                     {prize.kind === 'votes' && (prize.votes === 1
                       ? t('mystery.votesOne') : t('mystery.votesMany', { n: prize.votes }))}
-                    {prize.kind === 'paid_request' && t('mystery.paidRequest')}
+                    {/* Hai mức paid khác nhau RÕ số lượng: result 5 = +1,
+                        result 6 = +2 — không gộp, không nhãn mơ hồ. */}
+                    {prize.kind === 'free_paid_request'
+                      && t(prize.requests === 2 ? 'mystery.paidRequestTwo' : 'mystery.paidRequestOne')}
                   </span>
                   <b>{formatPct(prize.weight)}</b>
                 </li>

@@ -119,6 +119,7 @@
 /* ---- REELING: hộp lùi nhẹ xuống vai, dải thưởng là trung tâm ---- */
 .mystery-card.is-reeling .mystery-box { transform: scale(.86) translateY(6px); filter: brightness(.9); }
 .mystery-card.is-reeling .mystery-glow { opacity: .6; transform: scale(.9); }
+.mystery-card.is-reeling .mystery-reel-slot { margin-top: 2px; }
 
 /* ---- REVEAL: chớp sáng, nắp hé, dấu ? tan ---- */
 .mystery-card.is-reveal .mystery-glow { opacity: 1; transform: scale(1.22); transition-duration: .5s; }
@@ -145,41 +146,20 @@
 .mystery-card.is-opened .mystery-glow { opacity: 0; transform: scale(.72); }
 .mystery-card.is-opened .mystery-shadow { opacity: .5; }
 
-/* ---- REEL: dải thưởng trượt ngang qua vạch giữa ----
-   Khung cao độ cố định 116px; hai mép mờ dần (mask); dải chuyển bằng
-   MỘT transition transform do JS gán — không keyframes, không layout. */
-.mystery-reel {
-  position: relative; width: 100%; height: 116px; overflow: hidden;
-  border: 1px solid color-mix(in oklab, #9D5BE8 30%, var(--line-2));
-  border-radius: var(--r-md); background: color-mix(in oklab, var(--surface-3) 72%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+/* ---- CHIP TRẠNG THÁI HÔM NAY: còn/đã mở — không tiết lộ outcome ---- */
+.mystery-statuschip {
+  margin: 0; display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 11px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in oklab, #9D5BE8 38%, var(--line-2));
+  background: color-mix(in oklab, #5D22E1 12%, transparent);
+  font-size: 10.5px; font-weight: 600; color: #DC94EF;
 }
-.mystery-marker {
-  position: absolute; left: 50%; top: 6px; bottom: 6px; width: 2px; z-index: 2;
-  transform: translateX(-1px); border-radius: 1px;
-  background: linear-gradient(180deg, transparent, #FCB0F3 22%, #FCB0F3 78%, transparent);
-  box-shadow: 0 0 12px rgb(252 176 243 / .8);
+.mystery-statuschip::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: #FCB0F3; box-shadow: 0 0 8px rgb(252 176 243 / .8);
 }
-.mystery-marker::after {
-  content: ''; position: absolute; left: 50%; top: -4px; width: 10px; height: 10px;
-  transform: translateX(-50%) rotate(45deg); border-radius: 2px;
-  background: #FCB0F3; box-shadow: 0 0 10px rgb(252 176 243 / .9);
-}
-.mystery-strip { display: flex; gap: 10px; padding: 10px 0; will-change: transform; }
-.mystery-tile {
-  flex: none; display: grid; place-items: center; width: 96px; height: 96px;
-  border-radius: 12px; border: 1px solid var(--line-2);
-  background: var(--surface-2);
-  font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--txt-2);
-}
-.mystery-tile.x { color: var(--txt-3); font-weight: 400; }
-.mystery-tile.v1 { color: #FCB0F3; border-color: color-mix(in oklab, #FCB0F3 45%, var(--line-2)); }
-.mystery-tile.v3 { color: #DC94EF; border-color: color-mix(in oklab, #DC94EF 45%, var(--line-2)); }
-.mystery-tile.v5 { color: #BC77EC; border-color: color-mix(in oklab, #BC77EC 50%, var(--line-2)); }
-.mystery-tile.v10 { color: #9D5BE8; border-color: color-mix(in oklab, #9D5BE8 55%, var(--line-2)); }
-.mystery-tile.paid { color: #DC94EF; border-color: color-mix(in oklab, #7D3EE4 55%, var(--line-2)); }
-.mystery-tile.is-land { background: color-mix(in oklab, #BC77EC 14%, var(--surface-2)); }
+.mystery-statuschip.done { color: var(--txt-2); border-color: var(--line-2); background: var(--surface-2); }
+.mystery-statuschip.done::before { background: var(--txt-3); box-shadow: none; }
 
 /* ---- OUTCOME / COPY: gọn ---- */
 .mystery-copy { margin: 0; font-size: 12px; line-height: 1.55; color: var(--txt-2); }
@@ -195,7 +175,7 @@
   animation: mystery-pop .5s var(--e-out);
 }
 .mystery-prize.votes { color: #FCB0F3; text-shadow: 0 0 18px rgb(252 176 243 / .35); }
-.mystery-prize.paid_request { color: #DC94EF; text-shadow: 0 0 18px rgb(220 148 239 / .35); }
+.mystery-prize.paid_request, .mystery-prize.free_paid_request { color: #DC94EF; text-shadow: 0 0 18px rgb(220 148 239 / .35); }
 .mystery-prize.nothing { color: var(--txt); }
 @keyframes mystery-pop {
   0% { transform: scale(.6); opacity: 0; }

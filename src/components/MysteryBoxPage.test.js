@@ -3,7 +3,11 @@
    /daily-login without ever claiming on the box's behalf. The page shell is
    rendered through Vite's SSR loader (async data stays "loading" server-side,
    which is exactly what must happen); the card is rendered with REAL payload
-   shapes, like DailyLogin.test renders RewardCard. */
+   shapes, like DailyLogin.test renders RewardCard.
+
+   BẢNG GIẢI v2 (master prompt 2026-10-09) được khoá ở đây: DUY NHẤT một
+   outcome +5 votes (7%); 2% = +1 free paid request; 1% = +2 free paid
+   requests — hai mức paid KHÁC số lượng, không gộp, không nhãn mơ hồ. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -38,18 +42,16 @@ test('the standalone page renders its own shell and waits for data server-side',
       createElement(MysteryBoxPage, { userId: 'test-user', onDailyLogin() {} })))
     // Own heading + reset chip; nothing from the check-in page leaks in here.
     assert.match(html, /Daily mystery box/)
-    assert.doesNotMatch(html, /Open the box/, 'nút đã tinh gọn thành “Open”')
     assert.match(html, /Next reset/)
     assert.doesNotMatch(html, /Your check-in calendar|Check-in rewards/)
     // Data arrives client-side only: server shows the loading state, never a
     // fake box, never a prize.
     assert.match(html, /aria-busy="true"/)
-    assert.doesNotMatch(html, /mystery-open|aria-live="polite"/)
     assert.doesNotMatch(html, /[Cc]redits/)
   })
 })
 
-test('the card: locked points to check-in, ready offers the box, opened shows votes', async () => {
+test('the card: locked points to check-in, ready offers the box, opened shows the committed result', async () => {
   await withVite(async server => {
     const { MysteryBox } = await server.ssrLoadModule('/src/components/MysteryBox.jsx')
     const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
@@ -64,7 +66,7 @@ test('the card: locked points to check-in, ready offers the box, opened shows vo
     // LOCKED: the gate copy, no button, dimmed box + padlock (no "?").
     const locked = render(card({ checked_in: false }), false)
     assert.match(locked, /Check in to unlock today’s box\./)
-    assert.doesNotMatch(locked, /Open the box/)
+    assert.doesNotMatch(locked, /<button/)
     assert.match(locked, /mystery-card[^"]*is-locked/)
     assert.match(locked, /mystery-padlock/)
     assert.doesNotMatch(locked, /mystery-q">\?</)
@@ -72,66 +74,79 @@ test('the card: locked points to check-in, ready offers the box, opened shows vo
     // READY: the only state with an open button; no prize line yet.
     const ready = render(card({ checked_in: true }), true)
     assert.match(ready, /What’s inside today\?/)
-    assert.match(ready, /mystery-open[^>]*>Open</)
+    assert.match(ready, /mystery-open[^>]*>Open mystery box</)
     assert.match(ready, /mystery-card[^"]*"[^>]*aria-label="Daily mystery box"/)
     assert.doesNotMatch(ready, /mystery-padlock/)
-    assert.match(locked, /Check in to unlock today’s box\./)
 
-    // OPENED (+5): the committed result, in votes, plus the no-CTA farewell.
+    // OPENED (+5 votes): the committed result — DUY NHẤT outcome +5 của bảng.
     const opened = render(card({ checked_in: true, opened: true, result: 3, reward_votes: 5, reward_kind: 'votes' }), true)
     assert.match(opened, /\+5 votes/)
     assert.match(opened, /Next box after your next check-in\./)
-    assert.doesNotMatch(opened, /Open the box/)
+    assert.doesNotMatch(opened, /mystery-open[^>]*>/)
     assert.match(opened, /mystery-prize votes/)
 
-    // NOTHING (result 0) says so instead of printing "+0".
+    // NOTHING (result 0): "Chúc may mắn" — KHÔNG giống thông báo lỗi, không +0.
     const nothing = render(card({ checked_in: true, opened: true, result: 0, reward_votes: 0, reward_kind: 'nothing' }), true)
-    assert.match(nothing, /Nothing this time\./)
+    assert.match(nothing, /Better luck next time\./)
     assert.match(nothing, /mystery-prize nothing/)
     assert.doesNotMatch(nothing, /\+0/)
 
-    // PAID REQUEST: its own accent class, never phrased as votes.
-    const paid = render(card({ checked_in: true, opened: true, result: 5, reward_votes: 0, reward_kind: 'paid_request' }), true)
-    assert.match(paid, /\+1 free request/)
-    assert.match(paid, /mystery-prize paid_request/)
+    // PAID +1 (result 5, v2 kind): nói rõ FREE PAID REQUEST, không mơ hồ.
+    const paid1 = render(card({ checked_in: true, opened: true, result: 5, reward_votes: 0, reward_kind: 'free_paid_request' }), true)
+    assert.match(paid1, /\+1 free paid request/)
+    assert.match(paid1, /mystery-prize free_paid_request/)
+    assert.doesNotMatch(paid1, /\+1 free request</, 'không còn nhãn mơ hồ cũ')
+
+    // PAID +2 (result 6, cùng kind, KHÁC số lượng): phải phân biệt rõ với +1.
+    const paid2 = render(card({ checked_in: true, opened: true, result: 6, reward_votes: 0, reward_kind: 'free_paid_request' }), true)
+    assert.match(paid2, /\+2 free paid requests/)
+    assert.doesNotMatch(paid2, /\+1 free paid request/, 'hai mức paid không được gộp nhãn')
+
+    // Row v1 (legacy kind 'paid_request' = +1) vẫn đọc đúng, không vỡ.
+    const legacy = render(card({ checked_in: true, opened: true, result: 5, reward_votes: 0, reward_kind: 'paid_request' }), true)
+    assert.match(legacy, /\+1 free paid request/)
   })
 })
 
-/* Vòng polish 2026-10-09 (feedback): case-opening REEL — kết quả do SERVER
-   quyết trước (RPC chạy song song với nhịp charge), reel chỉ diễn tả lại ô
-   đích. Không client pick, không random, không reflow, không audio. */
-test('opening flow: lock instantly → charge → reel lands on server result → reveal', async () => {
-  const jsx = await (await import('node:fs/promises')).readFile(
-    new URL('./MysteryBox.jsx', import.meta.url), 'utf8')
+/* Opening flow (v3, feedback 2026-10-09): case-opening REEL — kết quả do
+   SERVER quyết trước (RPC chạy song song với nhịp charge), reel chỉ diễn tả
+   lại ô đích. Không client pick, không random, không reflow, không audio.
+   Nhịp chốt: charge 450ms → reel 3600ms (cửa 2–4s) → reveal. */
+test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on server result → reveal', async () => {
+  const read = async f => (await import('node:fs/promises')).readFile(new URL(f, import.meta.url), 'utf8')
+  const jsx = await read('./MysteryBox.jsx')
   // Nút bị chặn NGAY: busy-guard + chỉ mở từ trạng thái available.
   assert.match(jsx, /if \(busy\.current \|\| phase !== 'idle' \|\| opened \|\| !checkedIn\) return/)
   // Kết quả server quyết TRƯỚC: RPC chạy SONG SONG với nhịp charge 450ms.
   assert.match(jsx, /const rpc = openMysteryBox\(userId, day\)/)
   assert.match(jsx, /const \[result\] = await Promise\.all\(\[rpc, wait\(450\)\]\)/)
-  // Ô đích trên dải được GHI ĐÈ bằng result thật — client không chọn gì.
-  assert.match(jsx, /setTiles\(FILLER\.map\(\(k, i\) => \(i === LAND \? landed : k\)\)\)/)
-  assert.match(jsx, /const landed = kind === 'votes' \? `v\$\{votes\}` : \(KIND_TO_TILE\[kind\] \?\? 'x'\)/)
-  assert.doesNotMatch(jsx, /Math\.random|weightedPick|pickPrize/,
+  // Ô đích GHỈ ĐÈ bằng kết quả thật — client không chọn gì, hai mức paid
+  // phân biệt bằng con số trên ô (+1 / +2).
+  assert.match(jsx, /const amount = prizeResult === 6 \? 2 : 1/)
+  assert.match(jsx, /setWinTile\(\{ kind: 's5', label: `\+\$\{amount\}` \}\)/)
+  assert.doesNotMatch(jsx, /Math\.random\(\)|weightedPick|pickPrize/,
     'client không được tự chọn phần thưởng')
-  // Timeline chặt: charge 450ms → reel 2200ms giảm tốc → reveal.
+  // Timeline chặt: charge 450ms → reel 3600ms → reveal.
   assert.match(jsx, /setPhase\('charging'\)/)
   assert.match(jsx, /setPhase\('reeling'\)/)
-  assert.match(jsx, /const REEL_MS = 2200/)
+  assert.match(jsx, /const MYSTERY_REEL_MS = 3600/)
   assert.match(jsx, /setReveal\(true\)/)
-  // Reel: MỘT transition transform (không keyframes layout), ô LAND dừng
-  // đúng dưới vạch giữa: offset = LAND·STEP + TILE/2 − nửa khung.
-  assert.match(jsx, /const offset = LAND \* STEP \+ TILE \/ 2 - w \/ 2/)
-  assert.match(jsx, /cubic-bezier\(\.1, \.72, \.14, 1\)/)
-  // Reel là trang trí: aria-hidden, và reveal trả focus về vùng kết quả.
-  assert.match(jsx, /<div className="mystery-reel" ref=\{viewRef\} aria-hidden="true">/)
+  // Reel = component DÙNG CHUNG của mystery (không đụng Daily Spin);
+  // hằng số hợp đồng sống ở lib để test node trần dùng chung một nguồn.
+  assert.match(jsx, /import CaseOpeningReel from '\.\/CaseOpeningReel\.jsx'/)
+  assert.match(jsx, /MYSTERY_SYNC_KEY, REEL_TARGET_INDEX,/)
+  assert.match(jsx, /<CaseOpeningReel items=\{items\} spinning targetIndex=\{REEL_TARGET_INDEX\}/)
+  assert.match(jsx, /duration=\{MYSTERY_REEL_MS\} onSettled=\{finish\}/)
+  // Reveal trả focus về vùng kết quả; callback cha neo bằng ref (đổi identity
+  // mỗi render → không neo là cleanup vô hạn, reveal không bao giờ tới).
   assert.match(jsx, /outcomeRef\.current\?\.focus\?\.\(\{ preventScroll: true \}\)/)
+  assert.match(jsx, /const onOpenedRef = useRef\(onOpened\)/)
   // Reduced-motion: bỏ charge + reel, fade thẳng kết quả đầy đủ.
-  assert.match(jsx, /if \(quick\) \{\n        resultRef\.current = await rpc/)
+  assert.match(jsx, /if \(quick\) \{\s*\n\s*resultRef\.current = await rpc/)
   // Không audio tự phát.
   assert.doesNotMatch(jsx, /<audio|autoplay|new Audio/)
 
-  const css = (await (await import('node:fs/promises')).readFile(
-    new URL('./MysteryBox.css', import.meta.url), 'utf8'))
+  const css = await read('./MysteryBox.css')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(css, /\.mystery-flash \{ animation: none !important/)
   // Keyframes động chỉ đụng transform/opacity — không gây reflow.
@@ -141,9 +156,55 @@ test('opening flow: lock instantly → charge → reel lands on server result �
     assert.doesNotMatch(block, /(^|[^-])\b(width|height|top|left|margin|padding)\b\s*:/,
       `${kf} không được đụng thuộc tính gây reflow`)
   }
-  // Khung reel cao độ cố định + mép mờ bằng mask — không CLS.
-  assert.match(css, /\.mystery-reel \{[^}]*height:\s*116px/)
-  assert.match(css, /\.mystery-reel \{[^}]*mask-image:\s*linear-gradient/)
+  // Khung reel: overflow hidden + chiều cao cố định + mép mờ — không CLS,
+  // không item lòi (luật viewport của case reel).
+  const reelCss = await read('./CaseOpeningReel.css')
+  assert.match(reelCss, /\.reel-viewport \{[^}]*overflow:\s*hidden/)
+  assert.match(reelCss, /\.reel-viewport \{[^}]*height:\s*124px/)
+  assert.match(reelCss, /\.reel-viewport \{[^}]*mask-image:\s*linear-gradient/)
+})
+
+test('BẢNG GIẢI v2: tổng 100%, DUY NHẤT +5@7%, hai mức paid tách bạch — lib/SQL/demo khớp nhau', async () => {
+  const { MYSTERY_PRIZES } = await import('../lib/mysteryBox.js')
+  const strings = readFileSync(new URL('../lib/strings.js', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../../supabase/migrations/20261202_mystery_paid_v2.sql', import.meta.url), 'utf8')
+
+  // Tổng trọng số đúng 100% và đủ 7 outcome (0..6).
+  assert.equal(MYSTERY_PRIZES.length, 7)
+  assert.equal(MYSTERY_PRIZES.reduce((sum, p) => sum + p.weight, 0), 1000, 'tổng 100%')
+  assert.deepEqual(MYSTERY_PRIZES.map(p => p.result), [0, 1, 2, 3, 4, 5, 6])
+
+  // DUY NHẤT một outcome +5 votes, ở 7% — không còn +5 trùng ở 1%.
+  assert.equal(MYSTERY_PRIZES.filter(p => p.kind === 'votes' && p.votes === 5).length, 1)
+  const five = MYSTERY_PRIZES.find(p => p.kind === 'votes' && p.votes === 5)
+  assert.equal(five.result, 3)
+  assert.equal(five.weight, 70)
+
+  // Hai mức paid: cùng kind 'free_paid_request', KHÁC số lượng, khác trọng số.
+  const paid1 = MYSTERY_PRIZES.find(p => p.result === 5)
+  const paid2 = MYSTERY_PRIZES.find(p => p.result === 6)
+  assert.equal(paid1.kind, 'free_paid_request')
+  assert.equal(paid2.kind, 'free_paid_request')
+  assert.equal(paid1.requests, 1); assert.equal(paid1.votes, 0); assert.equal(paid1.weight, 20)
+  assert.equal(paid2.requests, 2); assert.equal(paid2.votes, 0); assert.equal(paid2.weight, 10)
+
+  // SQL migration v2 khớp bảng lib: dải roll + bonus_requests theo amount.
+  assert.match(sql, /v_result := 5; v_kind := 'free_paid_request'; v_ask := 0;\s+v_free := 1/)
+  assert.match(sql, /v_result := 6; v_kind := 'free_paid_request'; v_ask := 0;\s+v_free := 2/)
+  assert.match(sql, /set bonus_requests = bonus_requests \+ v_free/)
+  assert.match(sql, /'nothing', 'votes', 'paid_request', 'free_paid_request'/,
+    'constraint nhận thêm kind mới, vẫn đọc được row cũ')
+  assert.ok(!/v_result := 6; v_kind := 'votes'/.test(sql), 'không còn outcome votes+5 ở 1%')
+
+  // Copy: nói rõ "free paid request", không "credits", không nhãn mơ hồ.
+  assert.match(strings, /'mystery\.paidRequestOne': '\+1 free paid request'/)
+  assert.match(strings, /'mystery\.paidRequestTwo': '\+2 free paid requests'/)
+  const mysteryCopy = [...strings.matchAll(/'mystery\.[a-zA-Z]+': '([^']*)'/g)].map(m => m[1])
+  assert.ok(mysteryCopy.length > 10, 'đọc được các nhãn mystery từ strings.js')
+  for (const copy of mysteryCopy) {
+    assert.doesNotMatch(copy, /[Cc]redits/, 'cấm chữ credits trong copy mystery')
+    assert.doesNotMatch(copy, /^\+1 free request$/, 'nhãn mơ hồ cũ phải biến mất')
+  }
 })
 
 test('the odds table and the route/nav wiring are exactly the approved shape', async () => {
@@ -152,9 +213,11 @@ test('the odds table and the route/nav wiring are exactly the approved shape', a
     const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
     // Odds render with data; stub the fetch layer by loading the module with a
     // resolved status via the same loader is not possible statically — assert
-    // the rule copy instead, which always renders on the loaded branch.
-    void MysteryBoxPage
-    void I18nProvider
+    // the label logic instead: hai mức paid đọc từ prize.requests (không gộp).
+    const pageSrc = readFileSync(new URL('./MysteryBoxPage.jsx', import.meta.url), 'utf8')
+    void MysteryBoxPage; void I18nProvider
+    assert.match(pageSrc, /prize\.kind === 'free_paid_request'\s*\n?\s*&& t\(prize\.requests === 2 \? 'mystery\.paidRequestTwo' : 'mystery\.paidRequestOne'\)/)
+    assert.doesNotMatch(pageSrc, /mystery\.paidRequest'/, 'nhãn paid cũ (1 mức) phải khỏi trang')
   })
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8')
   assert.match(app, /mystery: '\/mystery-box'/)

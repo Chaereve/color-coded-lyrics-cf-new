@@ -3,9 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_WEIGHTS, spinDay, nextSpinReset, rewardOdds, spinTier,
-  spinTiers, spinSectors, spinSectorIndex, spinTicks, spinAverage, formatChance,
-  dragTicks, DRAG_SECTOR_DEG, DRAG_MIN_DEG, DRAG_TICK_GAP_MS,
-  spinRotation, spinCountdown, sectorAtPointer, spinLabels,
+  spinSectorIndex, spinAverage, formatChance, spinCountdown,
+  SPIN_GRID_CELLS, SPIN_GRID_RENDER_ORDER, spinCellForReward,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
@@ -48,8 +47,7 @@ test('7 weighted sectors: 30/25/20/12/8/4/1%, average 3.24 votes per spin', () =
   assert.deepEqual(rewardOdds(legacy).map(p => p.chance), Array(16).fill(6.25))
 })
 
-test('prize tiers rank with the reward, so the wheel can tone each slice', () => {
-  assert.deepEqual(spinTiers(), { 1: 't1', 2: 't2', 3: 't3', 5: 't4', 8: 't5', 10: 't6', 20: 't7' })
+test('prize tiers rank with the reward, so the grid can tone each cell', () => {
   assert.equal(spinTier(20), 't7')
   // A retuned prize list must still map lowest -> highest onto t1 -> t7.
   assert.deepEqual([...new Set([2, 7, 7, 20].map(r => spinTier(r, [2, 7, 20])))], ['t1', 't2', 't3'])
@@ -121,80 +119,15 @@ test('reset is exactly midnight Vietnam, including month/year boundaries', () =>
   }
 })
 
-/* LỖI THẬT (vòng 13): "quay ra ko đúng phần thưởng".
-   Kim dừng ở 12 giờ, nên phép kiểm đúng không phải "đĩa quay bao nhiêu độ" mà là
-   "SAU KHI QUAY, Ô NẰM DƯỚI KIM CÓ ĐÚNG PHẦN THƯỞNG MÀ MÁY CHỦ TRẢ VỀ KHÔNG".
-   Bản vẽ v2 giữ thứ tự rút nhưng các cung KHÔNG đều (trọng số 30..1), nên phép
-   kiểm ngược phải là phép dò cung. Test đi hết 7 ô, và với mỗi ô kiểm bằng
-   CHÍNH bản vẽ (sectors), không bằng công thức hình học tự chế. */
-test('đĩa dừng đúng ô trúng: hết 7 ô, mỗi lần kim chỉ vào đúng phần thưởng', () => {
-  const sectors = spinSectors()
-  let rotation = 0
-  for (let pass = 0; pass < 3; pass++) {
-    for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
-      const winIndex = spinSectorIndex(segment)
-      const next = spinRotation(rotation, sectors[winIndex].angle)
-      assert.ok(next - rotation >= 1800, 'ít nhất 5 vòng mỗi lượt')
-      rotation = next
-      const under = sectorAtPointer(rotation, sectors)
-      assert.ok(under, `kim không nằm trên ô nào (lượt ${segment})`)
-      assert.equal(under.reward, SPIN_REWARDS[segment],
-        `lượt ${segment}: kim chỉ +${under.reward}, đáng ra +${SPIN_REWARDS[segment]}`)
-      /* Và ô được TÔ SÁNG cũng phải là ô đó — mắt nhìn đĩa, không đọc số. */
-      assert.equal(sectors[winIndex].reward, under.reward, 'ô sáng và ô dưới kim phải là một')
-    }
-  }
-  for (const bad of [NaN, Infinity, null, undefined, '90']) assert.throws(() => spinRotation(0, bad))
-})
-
-test('mỗi ô là một dải với độ rộng cung đúng bằng trọng số', () => {
-  const sectors = spinSectors()
-  assert.equal(sectors.length, 7, 'đúng 7 ô — xác suất nằm ở độ rộng cung')
-  for (let i = 0; i < sectors.length; i++) {
-    assert.equal(sectors[i].reward, SPIN_REWARDS[i], 'thứ tự vẽ = thứ tự rút')
-    assert.equal(sectors[i].span, 360 * SPIN_WEIGHTS[i] / 100, `cung ô ${i} đúng trọng số`)
-    assert.ok(sectors[i].span > 0 && sectors[i].span <= 180)
-    assert.ok(sectors[i].angle >= 0 && sectors[i].angle < 360)
-  }
-  const spanSum = sectors.reduce((s, x) => s + x.span, 0)
-  assert.ok(Math.abs(spanSum - 360) < 1e-9, 'các cung lấp đầy vòng tròn')
-  assert.equal(new Set(sectors.map(s => s.angle)).size, 7, 'không hai ô nào trùng tâm')
-  /* Các cung NỐI LIỀN theo thứ tự mảng: from của ô sau = from + span của ô
-     trước (với sai số dấu phẩy động cho phép). */
-  for (let i = 0; i < sectors.length; i++) {
-    const next = sectors[(i + 1) % sectors.length]
-    const delta = ((next.from - sectors[i].from - sectors[i].span) % 360 + 360) % 360
-    assert.ok(delta < 1e-9 || delta > 360 - 1e-9, `cung ${i} nối liền cung ${i + 1}`)
-  }
-  // Giải cao nhất vẫn ở 6 giờ, đối diện con trỏ — như hai bản trước
-  assert.equal(sectors.find(s => s.reward === 20).angle, 180)
-  // Bảng payload thiếu/khớp trọng số: khớp thì dùng, lệch thì rơi về cung đều.
-  const legacy = [1, 2, 1, 3]
-  const uniform = spinSectors(legacy, undefined)
-  assert.equal(uniform.length, 4, 'mỗi mức thưởng vẫn một ô')
-  for (const s of uniform) assert.equal(s.span, 90)
-  assert.equal(spinSectors(legacy, [10, 10, 10]).length, 4, 'trọng số lệch độ dài bị bỏ, không crash')
-  /* PHÂN PHỐI THẬT theo trọng số: rút mô phỏng phải gần bảng đã duyệt. */
-  const random = mulberry32(20261009)
-  const counts = new Map(SPIN_REWARDS.map(r => [r, 0]))
-  for (let i = 0; i < 7000; i++) {
-    const reward = SPIN_REWARDS[drawSegment({ random })]
-    counts.set(reward, counts.get(reward) + 1)
-  }
-  // mỗi giải đúng trọng số ±2 điểm phần trăm (sd của 7000 rút ≈ 0.5 điểm)
-  for (let i = 0; i < SPIN_REWARDS.length; i++) {
-    const share = counts.get(SPIN_REWARDS[i]) / 7000
-    assert.ok(Math.abs(share - SPIN_WEIGHTS[i] / 100) < 0.02,
-      `+${SPIN_REWARDS[i]} phải ra ~${SPIN_WEIGHTS[i]}%: ${(share * 100).toFixed(2)}%`)
-  }
-})
-
-test('ô server rút được chính là ô trên bản vẽ', () => {
-  const sectors = spinSectors()
+/* LƯỚI 3×3 (spec 2026-10-09): kết quả server (segment → mức giải) phải dừng
+   đúng MỘT ô trên lưới; ô accent KHÔNG bao giờ là ô dừng. Kiểm bằng CHÍNH
+   bảng ô của lib, không bằng công thức hình học tự chế. */
+test('ô server rút được chính là ô trên lưới — accent không thể trúng', () => {
   for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
-    const i = spinSectorIndex(segment)
-    assert.equal(i, segment, 'thứ tự vẽ = thứ tự rút, ánh xạ là đồng nhất')
-    assert.equal(sectors[i].reward, SPIN_REWARDS[segment])
+    const reward = SPIN_REWARDS[spinSectorIndex(segment)]
+    const cell = SPIN_GRID_CELLS[spinCellForReward(reward)]
+    assert.equal(cell.reward, reward, `segment ${segment} → ô +${reward}`)
+    assert.notEqual(cell.type, 'accent', 'ô dừng không bao giờ là accent')
   }
   for (const bad of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) {
     assert.throws(() => spinSectorIndex(bad), 'chỉ số ngoài bảng phải bị chặn')
@@ -203,28 +136,45 @@ test('ô server rút được chính là ô trên bản vẽ', () => {
      thì vẫn quy đổi được — ánh xạ không phụ thuộc độ dài bảng. */
   const custom = [2, 2, 2, 2]
   assert.equal(spinSectorIndex(3, custom), 3)
+  /* Mức lạ (không thuộc bảng) phải ném lỗi — không được lặng lẽ dừng accent. */
+  assert.throws(() => spinCellForReward(99))
 })
 
-test('tick track follows the CSS easing: dense at the start, sparse at the stop', () => {
-  const duration = 4500
-  const ticks = spinTicks(5 * 360 + 90, SPIN_REWARDS.length, duration)
-  assert.ok(ticks.length > 20, 'a five-turn spin needs a real tick track')
-  // Ordered, inside the animation, and never faster than the anti-buzz gap.
-  let prev = -1
-  for (const { at, gain } of ticks) {
-    assert.ok(at > prev, 'ticks must be strictly ordered')
-    assert.ok(at >= 0 && at <= duration / 1000)
-    assert.ok(gain > 0 && gain <= 1)
-    if (prev >= 0) assert.ok(at - prev >= 0.049)
-    prev = at
+test('bản đồ lưới: 7 giải + 1 accent, mỗi mức một ô, thứ tự render đúng vị trí', () => {
+  assert.equal(SPIN_GRID_CELLS.length, 8)
+  const accents = SPIN_GRID_CELLS.filter(c => c.reward === null)
+  assert.equal(accents.length, 1, 'đúng MỘT ô accent')
+  assert.equal(accents[0].type, 'accent')
+  const rewards = SPIN_GRID_CELLS.map(c => c.reward).filter(r => r !== null).sort((a, b) => a - b)
+  assert.deepEqual(rewards, [...SPIN_REWARDS], '7 ô giải = đúng 7 mức server, không nhân đôi')
+  for (const reward of SPIN_REWARDS) {
+    assert.equal(SPIN_GRID_CELLS.filter(c => c.reward === reward).length, 1,
+      `mức ${reward} phải có đúng một ô`)
   }
-  // The deceleration is audible: the last gaps are far wider than the first.
-  const gap = i => ticks[i + 1].at - ticks[i].at
-  assert.ok(gap(ticks.length - 2) > gap(0) * 3)
-  // Quieter while it races, louder as it settles.
-  assert.ok(ticks[ticks.length - 1].gain > ticks[0].gain)
-  // Degenerate inputs stay silent instead of throwing during a spin.
-  for (const args of [[0], [720, 16, 0], [-360], [720, 0]]) assert.deepEqual(spinTicks(...args), [])
+  /* VỊ TRÍ HÌNH HỌC theo index spec (row-major, nút giữa ở slot 4):
+     0 TL · 1 TM · 2 TR · 3 MR · 4 BR(accent) · 5 BM · 6 BL · 7 ML. */
+  const pos = {}
+  SPIN_GRID_RENDER_ORDER.forEach((cellIndex, slot) => { pos[cellIndex] = [Math.floor(slot / 3), slot % 3] })
+  assert.deepEqual(pos[0], [0, 0]); assert.deepEqual(pos[1], [0, 1]); assert.deepEqual(pos[2], [0, 2])
+  assert.deepEqual(pos[3], [1, 2]); assert.deepEqual(pos[4], [2, 2]); assert.deepEqual(pos[5], [2, 1])
+  assert.deepEqual(pos[6], [2, 0]); assert.deepEqual(pos[7], [1, 0])
+  assert.equal(SPIN_GRID_RENDER_ORDER.length, 9, '9 slot — sentinel null là nút QUAY ở giữa')
+  assert.equal(SPIN_GRID_RENDER_ORDER[4], null, 'slot giữa (1,1) là nút, không phải ô giải')
+})
+
+/* PHÂN PHỐI THẬT theo trọng số: rút mô phỏng phải gần bảng đã duyệt. */
+test('rút theo trọng số 30/25/20/12/8/4/1: 7000 lượt mô phỏng khớp bảng ±2%', () => {
+  const random = mulberry32(20261009)
+  const counts = new Map(SPIN_REWARDS.map(r => [r, 0]))
+  for (let i = 0; i < 7000; i++) {
+    const reward = SPIN_REWARDS[drawSegment({ random })]
+    counts.set(reward, counts.get(reward) + 1)
+  }
+  for (let i = 0; i < SPIN_REWARDS.length; i++) {
+    const share = counts.get(SPIN_REWARDS[i]) / 7000
+    assert.ok(Math.abs(share - SPIN_WEIGHTS[i] / 100) < 0.02,
+      `+${SPIN_REWARDS[i]} phải ra ~${SPIN_WEIGHTS[i]}%: ${(share * 100).toFixed(2)}%`)
+  }
 })
 
 test('countdown never displays negative time', () => {
@@ -369,77 +319,4 @@ test('SQL thật giữ đúng luật, và schema.sql khớp với migration', ()
   assert.match(v2, /where device_hash = v_hash/, 'v2: chuỗi tính theo thiết bị')
   assert.match(v2, /v_prizes\[i\] is distinct from v_block/, 'v2: phải loại đúng số thưởng đang bị chặn')
   assert.match(v2, /256 % array_length\(v_allowed, 1\)/, 'v2: fallback vẫn lấy mẫu loại bỏ')
-})
-
-/* ---------- KÉO ĐĨA: đếm vạch để tiếng tách bám đúng tay ---------- */
-
-test('dragTicks đếm vạch theo cả hai chiều, không kêu khi chưa qua vạch nào', () => {
-  const S = DRAG_SECTOR_DEG
-  assert.equal(dragTicks(0, 5).count, 0, 'chưa qua vạch nào thì không có tiếng')
-  assert.equal(dragTicks(0, S).count, 1)
-  assert.equal(dragTicks(0, S * 2.9).count, 2)
-  assert.equal(dragTicks(S, S * 2.9).count, 1, 'đếm từ vạch đã qua, không đếm lại từ đầu')
-  assert.equal(dragTicks(S * 2.9, S).count, -1, 'kéo ngược trả về số âm')
-  assert.equal(dragTicks(-S * 2 + 3, -S * 0.5).count, 1, 'góc âm đếm y như góc dương')
-  /* Đúng MỘT ca lệch được phép: bắt đầu ngay TRÊN một vạch thì vạch đó tính
-     là đã đi qua (đang rời khỏi nó). Kéo tay không bao giờ đứng yên đúng
-     trên vạch, nên đây là quy ước chứ không phải sai số tích luỹ. */
-  assert.equal(dragTicks(-S * 2, -S * 0.5).count, 2, 'vạch xuất phát tính là đã rời')
-  assert.equal(dragTicks(10, 10).count, 0)
-
-  /* Sàn/trần của độ mạnh: kéo chậm vẫn phải nghe ra, kéo mạnh không chói thêm. */
-  assert.ok(dragTicks(0, S, { ms: 400 }).gain >= .45)
-  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain <= 1)
-  assert.ok(dragTicks(0, S * 6, { ms: 16 }).gain > dragTicks(0, S, { ms: 400 }).gain,
-    'kéo nhanh phải rõ hơn kéo chậm')
-
-  /* Đầu vào rác không được làm sập vòng quay: NaN/0 độ chia. */
-  for (const args of [[NaN, 30], [0, NaN], [0, 30, { sectorDeg: 0 }]])
-    assert.equal(dragTicks(...args).count, 0)
-
-  /* Ba hằng số dùng chung giữa JSX và CSS — đổi một chỗ mà quên chỗ kia là
-     tiếng tách lệch khỏi vạch vẽ trên đĩa. */
-  assert.equal(S, 360 / 7, 'một vạch = một ô của bản vẽ 7 ô')
-  assert.ok(DRAG_MIN_DEG > S && DRAG_MIN_DEG < 90, 'ngưỡng kéo phải lớn hơn một ô và nhỏ hơn một phần tư vòng')
-  assert.ok(DRAG_TICK_GAP_MS >= 30 && DRAG_TICK_GAP_MS <= 80, 'nhịp tách nằm trong khoảng tai nghe ra nhịp')
-})
-
-test('nhãn đĩa: nằm trong vành an toàn, không chồng nhãn kề theo cả hai chiều', () => {
-  const labels = spinLabels()
-  assert.equal(labels.length, 7)
-  for (const L of labels) {
-    assert.ok(L.r - L.h / 2 >= 52 && L.r + L.h / 2 <= 162,
-      `+${L.reward}: radial [${L.r - L.h / 2}, ${L.r + L.h / 2}] phải nằm trong [52, 162]`)
-    assert.ok(L.w > 0 && L.h > 0 && L.size >= 12, `+${L.reward}: khối lượng chữ dương`)
-  }
-  /* Cặp nhãn bất kỳ: KHÔNG được vừa chồng góc vừa chồng bán kính — đủ một
-     khoảng cách dương là không thể đè nhau trên mặt đĩa. */
-  for (let i = 0; i < labels.length; i++) {
-    for (let j = i + 1; j < labels.length; j++) {
-      const A = labels[i], B = labels[j]
-      let d = Math.abs(A.angle - B.angle)
-      if (d > 180) d = 360 - d
-      const angGap = d - A.w / (2 * Math.PI * A.r) * 360 / 2 - B.w / (2 * Math.PI * B.r) * 360 / 2
-      const radGap = Math.max(A.r - A.h / 2, B.r - B.h / 2) - Math.min(A.r + A.h / 2, B.r + B.h / 2)
-      assert.ok(angGap > 0 || radGap > 0,
-        `+${A.reward} và +${B.reward} chồng nhau: gap góc ${angGap.toFixed(1)}°, gap bán kính ${radGap.toFixed(1)}px`)
-    }
-  }
-  /* BÀI HỌC 2026-10-09: CSS từng đè fontSize attribute → mọi nhãn render
-     24px và +10 tràn ~5° khỏi lát 14,4°. Chốt luôn theo bề dày tangential
-     THỰC của chữ (em box ≈ 1,45×cỡ chữ, đo trên JetBrains Mono): góc chữ
-     chiếm phải ≤ 85% độ rộng lát. Badge +20 bỏ qua — nó là marker chủ đích,
-     đã tách bán kính khỏi mọi nhãn khác. */
-  for (const L of labels) {
-    if (L.reward === 20) continue
-    const half = Math.atan(L.size * 1.45 / 2 / L.r) * 180 / Math.PI
-    assert.ok(2 * half <= 0.85 * L.span,
-      `+${L.reward}: chữ ${L.size}px chiếm ${(2 * half).toFixed(1)}° > 85% lát ${L.span.toFixed(1)}°`)
-  }
-  /* +10 (chữ radial hẹp nhất có chữ) và +20 (badge) phải tách nhau ít nhất
-     một khoảng dương ở MỘT chiều — đây là cặp dễ va nhất của đĩa. */
-  const ten = labels.find(L => L.reward === 10)
-  const twenty = labels.find(L => L.reward === 20)
-  assert.ok(ten && twenty && Math.abs(twenty.r - ten.r) >= (ten.h + twenty.h) / 2 - 20,
-    'badge +20 tách bán kính khỏi chữ +10')
 })

@@ -156,3 +156,61 @@ Sau khi duyệt: B4 (vote-back) → B5 (captcha) theo kế hoạch cũ.
   ruy-băng + khoá) · 27 available · 28 opening (charge) · **35 reel giữa
   nhịp** · 29 reveal +5 · 30 reveal "Nothing this time." · 31 already ·
   32/33 mobile · 34 /daily-login sạch (card? false, chỉ link nav).
+
+# Vòng 3 (MASTER PROMPT 2026-10-09): Spin = SQUARE GRID 3×3 · Mystery giữ reel · mapping paid tách 2 mức
+
+Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHAU vĩnh viễn:
+
+## Daily Spin — square grid spinner (cấm wheel, cấm reel ngang)
+- **Layout 3×3**: 8 ô quanh viền + ô giữa là NÚT QUAY THẬT (button, keyboard
+  trực tiếp, hover/active/focus-visible, disable khi loading/spinning/hết lượt,
+  không bị vệt sáng đè).
+- **Thứ tự 8 ô theo chiều kim đồng hồ** (index spec = thứ tự vệt chạy):
+  `0 TL +1 · 1 TM +2 · 2 TR +3 · 3 MR +5 · 4 BR ACCENT · 5 BM +8 · 6 BL +10 ·
+  7 ML +20`. DOM render qua `SPIN_GRID_RENDER_ORDER = [0,1,2,7,null,3,6,5,4]`
+  (sentinel `null` = nút giữa) — index spec khớp vị trí hình học.
+- **7 giải + 1 accent**: accent là gem hình thoi + nền dashed hoạ tiết — KHÔNG
+  thuộc bảng odds, KHÔNG bao giờ là ô dừng; mỗi mức giải map ĐÚNG MỘT ô
+  (`spinCellForReward`, mức lạ → `err.spinResponse`).
+- **Nhịp**: bấm QUAY → khoá nút NGAY → vòng nhanh 70ms/bước ≥ 3 vòng trong lúc
+  chờ server → server trả `segment` → decel 2,2s (delay mỗi bước ease-out chuẩn
+  hoá) → dừng ĐÚNG ô giải → ô giữ active + result pop; lỗi → dừng an toàn, bật
+  lại nút, i18n. rAF/timer đều cleanup khi unmount/lỗi. Reduced-motion/replay:
+  bỏ vòng chạy, hiện đúng kết quả tức thì.
+- Odds 30/25/20/12/8/4/1 KHÔNG đổi; KHÔNG % / bảng odds trên UI; backend
+  (RPC, quota, no-repeat, gate) giữ nguyên 100%.
+- Mobile: `--cell: clamp(62px, (100% − 16px)/3, 104px)` — 3 ô + 2 gap đúng
+  100% bề rộng, không tràn 320px; số không lòi ô (cell.num clamp 15–19px).
+
+## Mystery Box — giữ case-opening reel ngang, duration 3,6s (cửa 2–4s)
+- Component đổi tên `RewardReel` → `CaseOpeningReel` (+ subcomponents
+  `CaseReel*`) và là TÀI SẢN RIÊNG của Mystery — file jsx chỉ export
+  component; hằng số hợp đồng (`REEL_TARGET_INDEX`…) chuyển sang
+  `src/lib/mysteryBox.js`.
+- Nhịp mở ~4,1s: charge 450ms (RPC song song — server quyết trước) → reel
+  3600ms dừng chính xác ô đích dưới marker → chớp + pop + reveal.
+- Ô đích paid: **hai mức phân biệt bằng con số** `+1` / `+2` (kind
+  `free_paid_request`); reveal: "+1/+2 free paid request(s)"; nothing:
+  "Better luck next time." (không giống lỗi).
+
+## Mapping v2 (migration 20261202_mystery_paid_v2.sql — chỉ viết file, chưa apply)
+- 55 nothing · 20 +1 · 12 +3 · **7 +5 (DUY NHẤT outcome +5)** · 3 +10 ·
+  2 **+1 free paid request** · 1 **+2 free paid requests** — tổng 100%.
+- Paid: `bonus_requests += amount` đúng nhánh, ngoài cap 30, không reward_event,
+  không cộng vote; replay không cộng lặp; row legacy `paid_request` vẫn đọc được
+  (validator chấp nhận cả hai chính tả, từ chối paid mà mang vote).
+
+## Kiểm chứng vòng 3
+- npm test 805 tests / 760 pass / 45 skip / **0 fail** (thêm: grid map/render
+  tests, CaseOpeningReel tests, mapping v2 lib + PGlite setseed, migration
+  46→47) · lint **35 warnings (0 mới) / 0 error** · build ✓.
+- Ảnh vòng 3: `b1-screenshots/` 36–55 — spin: 36 idle desktop · 37 đang chạy
+  (vệt sáng quanh viền, nút SPIN vững giữa) · 38 result +1 · 39 result +20
+  (ô trúng glow + result pop + history tier) · 40 hết lượt (0/2, nút khoá) ·
+  41 mobile 320 (không tràn ngang) · 42 mobile 390 đang chạy — mystery:
+  43 locked (CTA → /daily-login) · 44 ready (glow) · 45 reel giữa nhịp
+  (marker giữa, item không lòi) · 46 reveal **+1 free paid request** · 47
+  reveal +5 votes · 48 reveal +1 vote · 49 reveal "Better luck next time." ·
+  50 reveal **+2 free paid requests** · 51 reveal +10 votes · 52 already
+  opened (chip "Opened today") · 53 mobile ready · 54 mobile revealed —
+  55 /daily-login sạch (không hộp quà, chỉ entry nav riêng).

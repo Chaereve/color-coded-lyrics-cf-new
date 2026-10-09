@@ -13,13 +13,18 @@ const status = (over = {}) => ({
   opened: true, result: 1, reward_votes: 1, reward_kind: 'votes', ...over,
 })
 
-test('the prize table is the approved 55/20/12/7/3/2/1 with kinds and votes', () => {
-  assert.deepEqual(MYSTERY_PRIZES.map(p => [p.result, p.kind, p.votes, p.weight]), [
-    [0, 'nothing', 0, 550], [1, 'votes', 1, 200], [2, 'votes', 3, 120], [3, 'votes', 5, 70],
-    [4, 'votes', 10, 30], [5, 'paid_request', 0, 20], [6, 'votes', 5, 10],
+test('the prize table is the approved v2 55/20/12/7/3/2/1 — ONE +5, paid amounts split', () => {
+  assert.deepEqual(MYSTERY_PRIZES.map(p => [p.result, p.kind, p.votes, p.requests, p.weight]), [
+    [0, 'nothing', 0, 0, 550], [1, 'votes', 1, 0, 200], [2, 'votes', 3, 0, 120],
+    [3, 'votes', 5, 0, 70], [4, 'votes', 10, 0, 30],
+    [5, 'free_paid_request', 0, 1, 20], [6, 'free_paid_request', 0, 2, 10],
   ])
   assert.equal(MYSTERY_PRIZES.reduce((sum, p) => sum + p.weight, 0), 1000)
-  assert.deepEqual(MYSTERY_KINDS, ['nothing', 'votes', 'paid_request'])
+  assert.deepEqual(MYSTERY_KINDS, ['nothing', 'votes', 'paid_request', 'free_paid_request'])
+  /* DUY NHẤT một outcome +5 votes (7%); 1% là +2 free paid requests — sửa lỗi
+     "hai outcome cùng +5" của bảng cũ. */
+  assert.equal(MYSTERY_PRIZES.filter(p => p.kind === 'votes' && p.votes === 5).length, 1)
+  assert.equal(MYSTERY_PRIZES.find(p => p.result === 6).requests, 2)
 })
 
 test('validateMysteryStatus holds the exact key contract', () => {
@@ -36,6 +41,14 @@ test('validateMysteryStatus holds the exact key contract', () => {
   assert.equal(validate({ result: 2, reward_votes: 2 }).reward_votes, 2)
   assert.throws(() => validate({ result: 5, reward_kind: 'votes' }), /err\.mysteryResponse/)
   assert.throws(() => validate({ result: 7 }), /err\.mysteryResponse/)
+  /* BẢNG v2: result 5/6 là free paid request; mọi kind khác là giao thức lỗi. */
+  assert.equal(validate({ result: 5, reward_votes: 0, reward_kind: 'free_paid_request' }).result, 5)
+  assert.equal(validate({ result: 6, reward_votes: 0, reward_kind: 'free_paid_request' }).result, 6)
+  assert.throws(() => validate({ result: 6, reward_kind: 'free_paid_request', reward_votes: 3 }),
+    /err\.mysteryResponse/, 'paid KHÔNG được mang vote')
+  /* Row v1 (trước 20261202) vẫn đọc được: 5 = 'paid_request' (+1), 6 = '+5 votes'. */
+  assert.equal(validate({ result: 5, reward_votes: 0, reward_kind: 'paid_request' }).result, 5)
+  assert.equal(validate({ result: 6, reward_votes: 5, reward_kind: 'votes' }).result, 6)
   // Wrong owner or a non-day value never validates.
   assert.throws(() => validateMysteryStatus(status(), 'u2'), /err\.mysteryAccount/)
   assert.throws(() => validate({ day: 'tomorrow' }), /err\.mysteryResponse/)

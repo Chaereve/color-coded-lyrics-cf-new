@@ -20,17 +20,53 @@ import { gateShouldFallback } from './gateFallback.js'
    `open_mystery_box` — bảng này chỉ phục vụ demo mode và UI hiển thị.
    ========================================================= */
 
+/* BẢNG GIẢI CUỐI CÙNG (master prompt 2026-10-09) — 7 outcome, tổng 100%:
+   55 nothing · 20 +1 vote · 12 +3 votes · 7 +5 votes · 3 +10 votes ·
+   2 +1 free paid request · 1 +2 free paid requests.
+   DUY NHẤT một outcome +5 votes (7%); 1% là +2 free paid requests — sửa lỗi
+   mapping cũ ("hai outcome cùng +5"). `requests` = số free paid request
+   (paid prizes KHÔNG cộng vote, KHÔNG vào cap 30). */
 export const MYSTERY_PRIZES = Object.freeze([
-  { result: 0, kind: 'nothing', votes: 0, weight: 550 },
-  { result: 1, kind: 'votes', votes: 1, weight: 200 },
-  { result: 2, kind: 'votes', votes: 3, weight: 120 },
-  { result: 3, kind: 'votes', votes: 5, weight: 70 },
-  { result: 4, kind: 'votes', votes: 10, weight: 30 },
-  { result: 5, kind: 'paid_request', votes: 0, weight: 20 },
-  { result: 6, kind: 'votes', votes: 5, weight: 10 },
+  { result: 0, kind: 'nothing', votes: 0, requests: 0, weight: 550 },
+  { result: 1, kind: 'votes', votes: 1, requests: 0, weight: 200 },
+  { result: 2, kind: 'votes', votes: 3, requests: 0, weight: 120 },
+  { result: 3, kind: 'votes', votes: 5, requests: 0, weight: 70 },
+  { result: 4, kind: 'votes', votes: 10, requests: 0, weight: 30 },
+  { result: 5, kind: 'free_paid_request', votes: 0, requests: 1, weight: 20 },
+  { result: 6, kind: 'free_paid_request', votes: 0, requests: 2, weight: 10 },
 ])
 
-export const MYSTERY_KINDS = Object.freeze(['nothing', 'votes', 'paid_request'])
+/* Tổng trọng số phải đúng 1000 — bảng giải là hợp đồng, sai là lỗi dữ liệu. */
+if (MYSTERY_PRIZES.reduce((sum, p) => sum + p.weight, 0) !== 1000) {
+  throw new Error('mystery prize weights must sum to 1000')
+}
+
+/* Row v1 (trước migration 20261202): 2% là 'paid_request' (+1), 1% là +5
+   votes. Người đọc chấp nhận CẢ hai chính tảkind để row cũ không vỡ. */
+/* ---- Case reel (mystery-only) — hằng số hình học/hợp đồng thời gian ----
+   Sống ở lib (không phải file .jsx) để cả component lẫn test nạp bằng node
+   trần dùng chung một nguồn; file .jsx chỉ xuất component (fast-refresh). */
+export const REEL_ITEM_WIDTH = 96
+export const REEL_GAP = 10
+export const REEL_STEP = REEL_ITEM_WIDTH + REEL_GAP
+export const REEL_SETTLE_MS = 180          // reduced-motion / replay slide
+/* Ô ĐÍCH trên dải trang trí — vị trí cố định, cha ghi đè nội dung ô này bằng
+   kết quả server. Dải cần ≥ 22 ô để lúc dừng, nửa trái viewport không trống. */
+export const REEL_TARGET_INDEX = 21
+
+export const MYSTERY_KINDS = Object.freeze(['nothing', 'votes', 'paid_request', 'free_paid_request'])
+const LEGACY_PRIZES = Object.freeze({
+  5: { kind: 'paid_request', votes: 0 },
+  6: { kind: 'votes', votes: 5 },
+})
+
+/* Số free paid request của một row ĐÃ MỞ: v2 đọc từ bảng; row v1 (kind
+   'paid_request') luôn là +1. Row votes/nothing → 0. */
+export const mysteryRequests = prize => {
+  if (!prize) return 0
+  if (prize.kind === 'paid_request') return 1
+  return prize.requests || 0
+}
 export const MYSTERY_SYNC_KEY = 'ccl.mystery.changed.v1'
 const DEMO_KEY = userId => `ccl.mystery.demo.v1.${userId}`
 const RPC_SETUP_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
@@ -59,8 +95,13 @@ export function validateMysteryStatus(status, expectedUserId) {
     throw new Error('err.mysteryResponse')
   }
   const prize = MYSTERY_PRIZES[status.result]
-  if (status.opened && (!prize || prize.kind !== status.reward_kind
-      || (status.reward_kind === 'votes' && status.reward_votes > prize.votes))) {
+  const legacy = LEGACY_PRIZES[status.result]
+  /* Paid/nothing KHÔNG được mang vote (reward_votes phải 0) — kẻo một payload
+     lạ biến giải paid thành "paid + vote" mà không ai để ý. */
+  const matches = table => table && table.kind === status.reward_kind
+    && (status.reward_kind !== 'votes' || status.reward_votes <= table.votes)
+    && (status.reward_kind === 'votes' || Number(status.reward_votes) === 0)
+  if (status.opened && (!matches(prize) && !matches(legacy))) {
     throw new Error('err.mysteryResponse')
   }
   return status

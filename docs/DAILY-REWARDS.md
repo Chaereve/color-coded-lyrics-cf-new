@@ -19,7 +19,10 @@ Luật:
   chưa điểm danh RPC trả `err.mysteryLocked`, card hiện trạng khoá.
 - **Một hộp/ngày/tài khoản**: PK `(user_id, day)` trên `mystery_opens`;
   mở lại/trong tab khác/retry → replay trả đúng kết quả đã commit, không rút lại.
-- **Bảng thưởng** (rút đều 0..999):
+- **Bảng thưởng** (rút đều 0..999; bản v2 chốt 2026-10-09 — DUY NHẤT một
+  outcome +5 votes ở 7%, 1% là +2 free paid requests, sửa lỗi bảng cũ có
+  hai outcome +5; migration `20261202_mystery_paid_v2.sql` chỉ viết file,
+  CHƯA apply production — row cũ kind `paid_request` vẫn đọc được):
   | Kết quả | Trọng số | Thưởng |
   | --- | --- | --- |
   | Trống | 55% | — |
@@ -28,7 +31,7 @@ Luật:
   | +5 votes | 7% | qua cap |
   | +10 votes | 3% | qua cap |
   | +1 free paid request | 2% | NGOÀI cap (`bonus_requests`) |
-  | +5 votes | 1% | qua cap |
+  | +2 free paid requests | 1% | NGOÀI cap (`bonus_requests`) |
 - Phần thưởng vote đi qua `grant_reward_event` — **cùng cap 30 vote thưởng/ngày**
   với login/spin/vote-back/achievement; hộp vẫn tính đã mở nếu prize bị cap cắt
   hết (ledger giữ `meta.requested`).

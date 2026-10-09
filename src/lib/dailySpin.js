@@ -27,7 +27,6 @@ export const SPIN_TIME_ZONE = 'Asia/Ho_Chi_Minh'
 const DAY = 86_400_000
 const VN_OFFSET = 7 * 3_600_000
 const TIERS = ['t1', 't2', 't3', 't4', 't5', 't6', 't7']
-const mod360 = n => ((n % 360) + 360) % 360
 
 /* Trọng số của một bảng thưởng: dùng bảng đã duyệt nếu khớp độ dài, ngược lại
    rơi về ĐỀU NHAU. Bản deploy cũ (hoặc một payload thiếu `weights`) phải vẽ
@@ -99,27 +98,9 @@ export function spinTier(reward, rewards = SPIN_REWARDS) {
 
    Trả về { reward, weight, tier, from, span, angle } với `from`/`span` là cung
    hiển thị (độ) và `angle` là tâm ô, 0° = 12 giờ. Mỗi ô tự nó là một nhãn. */
-export function spinSectors(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
-  const w = weightsOf(rewards, weights)
-  const total = w.reduce((sum, x) => sum + x, 0)
-  const deg = u => u * 360 / total
-  let acc = 0
-  const starts = w.map(weight => { const s = acc; acc += weight; return s })
-  /* Tâm ô giải cao nhất (dải cuối — bảng tăng dần) rơi vào 180°. */
-  const shift = 180 - deg(starts[rewards.length - 1] + w[rewards.length - 1] / 2)
-  return rewards.map((reward, i) => ({
-    reward,
-    weight: w[i],
-    tier: spinTier(reward, rewards),
-    from: mod360(deg(starts[i]) + shift),
-    span: deg(w[i]),
-    angle: mod360(deg(starts[i] + w[i] / 2) + shift),  // tâm ô, độ, 0° = 12 giờ
-  }))
-}
-
-/* Ô TRÚNG theo thứ tự VẼ: server trả về chỉ số ô trong bảng rút và bản vẽ giữ
-   nguyên thứ tự đó (xem spinSectors), nên đây là phép kiểm tra biên — chỉ số
-   phải nằm trong bảng, sai là dữ liệu rác từ server (err.spinResponse). */
+/* Ô TRÚNG theo CHỈ SỐ BẢNG RÚT: server rút segment 0..6 và client PHẢI dùng
+   đúng chỉ số đó để tra mức giải — không chọn lại, không random client.
+   Sai biên (segment rác) là dữ liệu hỏng từ server (err.spinResponse). */
 export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
   if (!Number.isInteger(segment) || segment < 0 || segment >= rewards.length) {
     throw new Error('err.spinResponse')
@@ -127,43 +108,40 @@ export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
   return segment
 }
 
-/* ---- NHÃN TRÊN ĐĨA — vị trí TÍNH TOÁN, không tọa độ cứng -------------------
-   Mỗi ô MỘT nhãn, xoay dọc theo bán kính ở tâm ô. Bán kính neo và cỡ chữ co
-   theo ĐỘ RỘNG CỦA Ô (span): lát rộng nhất (+1, 108°) chứa chữ 17px thoải mái,
-   lát +10 (14,4°) hạ còn 12px, còn +20 (3,6° — nhỏ hơn cả chữ) là MỘT badge
-   hồng 34×18px đặt trên đúng lát nó, đẩy ra bán kính 150 — mép trong của badge
-   cách mép ngoài chữ "+10" ≥ 6px nên không đè lên nhãn nào.
 
-   Mỗi nhãn trả về `w` = bề rộng THEO PHƯƠNG TIẾP TUYẾN (px) và `h` = bề dài
-   THEO BÁNH KÍNH (px) — JSX vẽ đúng khối lượng đó, test đo đúng khối lượng đó,
-   nên hai bên không thể lệch nhau. An toàn hình học (test chốt):
-     · radial:  [r − h/2, r + h/2] ⊂ [52, 162]  — không sát trục, không tràn vành;
-     · cặp nhãn bất kỳ không chồng nhau ĐỒNG THỜI theo góc và theo bán kính
-       (chồng một trong hai chiều thì chưa đủ để đè nhau). */
-const LABEL_TEXT_RATIO = 0.62   // bề rộng ký tự mono ~0.62em
-const LABEL_THICK_RATIO = 1.18  // bề cao dòng ~1.18em
-const LABEL_MIN_R = 52
-const LABEL_MAX_R = 162
+/* =========================================================
+   SQUARE GRID SPINNER — bản đồ 8 ô viền (spec chốt 2026-10-09)
+   ---------------------------------------------------------
+   KHÔNG wheel tròn, KHÔNG reel ngang cho Spin: lưới 3×3, 8 ô quanh viền chạy
+   vệt sáng theo CHIỀU KIM ĐỒNG HỒ, ô giữa là nút QUAY. Bảy giải thật + MỘT ô
+   accent (điểm nhấn thị giác — KHÔNG thuộc bảng rút, KHÔNG bao giờ là ô
+   dừng). `reward: null` = accent.
+   ========================================================= */
+export const SPIN_GRID_CELLS = [
+  { index: 0, reward: 1 },                       // top-left
+  { index: 1, reward: 2 },                       // top-middle
+  { index: 2, reward: 3 },                       // top-right
+  { index: 3, reward: 5 },                       // middle-right
+  { index: 4, reward: null, type: 'accent' },    // bottom-right — không phải giải
+  { index: 5, reward: 8 },                       // bottom-middle
+  { index: 6, reward: 10 },                      // bottom-left
+  { index: 7, reward: 20 },                      // middle-left
+]
 
-export function spinLabels(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
-  return spinSectors(rewards, weights).map(s => {
-    const isJackpot = s.span < 8
-    const size = s.span >= 30 ? 17 : s.span >= 18 ? 15 : s.span >= 16 ? 13 : 12
-    const r = isJackpot ? 150 : s.span >= 20 ? 132 : 126
-    const chars = String(s.reward).length + 1            // "+20" → 3 ký tự
-    const w = isJackpot ? 34 : Math.ceil(size * LABEL_THICK_RATIO)
-    const h = isJackpot ? 18 : Math.ceil(chars * size * LABEL_TEXT_RATIO)
-    return { reward: s.reward, tier: s.tier, angle: s.angle, span: s.span, r, size, w, h }
-  })
+/* Thứ tự RENDER theo dòng của CSS grid — 9 slot row-major, sentinel `null`
+   là ô GIỮA (nút QUAY, không phải ô giải):
+   [0 1 2 / 7 NÚT 3 / 6 5 4] để index spec khớp vị trí hình học. */
+export const SPIN_GRID_RENDER_ORDER = [0, 1, 2, 7, null, 3, 6, 5, 4]
+
+/* Mức giải server trả → ô grid DUY NHẤT chứa mức đó. Accent không thể là kết
+   quả (không phải giá trị giải nào); mức lạ từ server là dữ liệu hỏng. */
+export function spinCellForReward(reward, rewards = SPIN_REWARDS) {
+  const value = rewards[spinSectorIndex(rewards.indexOf(reward), rewards)]
+  const cell = SPIN_GRID_CELLS.find(c => c.reward === value)
+  if (!cell) throw new Error('err.spinResponse')
+  return cell.index
 }
 
-export { LABEL_MIN_R, LABEL_MAX_R }
-
-export function spinTiers(rewards = SPIN_REWARDS) {
-  return Object.fromEntries([...new Set(rewards)].map(reward => [reward, spinTier(reward, rewards)]))
-}
-
-/* Giá trị kỳ vọng MỖI LƯỢT theo trọng số: Σ(trọng số × thưởng) / tổng. */
 export function spinAverage(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
   const w = weightsOf(rewards, weights)
   const total = w.reduce((sum, x) => sum + x, 0)
@@ -173,96 +151,6 @@ export function spinAverage(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
 /* 30 / 25 / 20 / 12 / 8 / 4 / 1 — never 33.333333333333336 in the odds list. */
 export function formatChance(chance) {
   return String(Math.round(chance * 100) / 100)
-}
-
-/* GÓC DỪNG CỦA ĐĨA — tính theo GÓC CỦA Ô TRÚNG TRÊN BẢN VẼ, không theo chỉ số.
-   ------------------------------------------------------------------
-   Hợp đồng (giữ từ bản 16 ô sau lỗi "quay ra ko đúng phần thưởng"): truyền vào
-   GÓC TÂM của ô trúng trên bản vẽ (`sectors[spinSectorIndex(segment)].angle`),
-   và đĩa quay sao cho tâm ô đó dừng ở 0° (12 giờ). Số vòng quay tối thiểu 5
-   vòng giữ nguyên. */
-export function spinRotation(current, angle) {
-  if (!Number.isFinite(angle)) throw new Error('err.spinResponse')
-  const mod = n => ((n % 360) + 360) % 360
-  return current + 5 * 360 + mod(-angle - mod(current))
-}
-
-/* ĐĨA DỪNG Ở Ô NÀO? — phép kiểm ngược của `spinRotation`, dùng cho test và cho
-   bất cứ ai cần biết "kim đang chỉ vào ô nào sau khi quay R độ". Các ô có cung
-   KHÔNG ĐỀU nhau (trọng số 30..1), nên tìm ô chứa góc kim trong [from, from +
-   span) thay vì làm tròn ra lưới đều như bản cũ. */
-export function sectorAtPointer(rotation, sectors) {
-  const at = mod360(-rotation)
-  return sectors.find(s => mod360(at - s.from) < s.span + 1e-9) ?? null
-}
-
-/* ---- tiếng "tách" khi mép ô chạy qua kim ----------------------------------
-   Đĩa quay theo cubic-bezier(.12,.72,.12,1) đúng như CSS, nên lịch phát tiếng
-   phải bám vào chính đường cong đó: dồn dập lúc đầu, thưa dần khi sắp dừng.
-   Hàm thuần, không đụng Web Audio, để test chạy được ngoài trình duyệt. Nhịp
-   đếm theo Ô (một vòng = SPIN_REWARDS.length mép ô); các cung không đều nên
-   tiếng chỉ xấp xỉ mép ô — đủ cho tai, và lịch của nó vẫn là đường cong thật. */
-const EASE = { x1: .12, y1: .72, x2: .12, y2: 1 }
-const bez = (a, b, t) => { const u = 1 - t; return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t }
-
-/** Thời điểm (giây) mỗi mép ô đi qua kim, kèm "độ mạnh" 0..1 theo tốc độ.
-    Bỏ bớt tiếng cách nhau dưới `minGap` để lúc quay nhanh không thành tiếng ù. */
-export function spinTicks(totalDeg, count = SPIN_REWARDS.length, durationMs = 4500,
-  { minGap = 0.05, maxTicks = 140 } = {}) {
-  if (!(durationMs > 0) || !(totalDeg > 0) || !(count > 0)) return []
-  const crossings = totalDeg / (360 / count)
-  const samples = 2000
-  const ticks = []
-  let next = 1, prevY = 0, prevX = 0
-  for (let i = 1; i <= samples && next <= crossings; i++) {
-    const t = i / samples
-    const x = bez(EASE.x1, EASE.x2, t)      // phần thời gian đã trôi, 0..1
-    const y = bez(EASE.y1, EASE.y2, t)      // phần góc đã quay, 0..1
-    // tốc độ tức thời, chuẩn hoá theo tốc độ trung bình → dùng làm âm lượng
-    const speed = (y - prevY) / Math.max(1e-9, x - prevX)
-    while (next <= y * crossings && next <= crossings) {
-      const at = Math.round(x * durationMs) / 1000
-      if (!ticks.length || at - ticks[ticks.length - 1].at >= minGap) {
-        ticks.push({ at, gain: Math.min(1, Math.max(.3, 1 / (1 + speed * .5))) })
-      }
-      next++
-    }
-    prevY = y; prevX = x
-  }
-  return ticks.length > maxTicks ? ticks.slice(ticks.length - maxTicks) : ticks
-}
-
-/* =========================================================
-   KÉO ĐĨA BẰNG TAY — đếm vạch để tiếng tách bám đúng tay
-   ---------------------------------------------------------
-   Khi máy tự quay, `spinTicks` tính trước CẢ đường cong rồi xếp lịch một lần:
-   biết trước đĩa đi bao nhiêu độ, trong bao lâu, nên biết trước từng mốc vạch
-   đi qua kim. Kéo bằng tay thì ngược lại — mỗi lần con trỏ nhích, ta chỉ biết
-   "vừa đi thêm bao nhiêu độ". Vì vậy phải hỏi TỪNG NHỊP: từ góc này sang góc
-   kia thì mấy vạch đã đi qua, và tiếng đó to nhỏ ra sao.
-
-   Hàm thuần để đếm vạch kiểm được ngoài trình duyệt (không cần Web Audio).
-
-   `trunc` chứ không phải `floor`: kéo ngược chiều kim đồng hồ phải kêu y như
-   kéo xuôi. Với `floor`, một góc âm nhỏ (-10°) bị tính thành -1 vạch ngay khi
-   vừa chạm tay vào đĩa — tiếng tách kêu trước cả khi đĩa kịp nhúc nhích.
-
-   `gain` theo TỐC ĐỘ kéo (độ/giây): kéo chậm thì tiếng nhẹ, kéo mạnh thì tiếng
-   rõ. Sàn 0,45 vì tiếng tách quá nhỏ thì coi như không có; trần 1 vì trên
-   ngưỡng đó tai không phân biệt thêm được gì, chỉ có nguy cơ chói. */
-
-export const DRAG_SECTOR_DEG = 360 / 7    // một vạch ≈ một ô trên bản vẽ (360/7 ≈ 51,43°)
-export const DRAG_MIN_DEG = 55            // kéo dưới ngưỡng này coi như chạm hụt
-export const DRAG_TICK_GAP_MS = 45        // nhanh hơn nữa là tiếng ù, không phải nhịp
-
-export function dragTicks(fromDeg, toDeg, { sectorDeg = DRAG_SECTOR_DEG, ms = 0 } = {}) {
-  if (!(sectorDeg > 0) || !Number.isFinite(fromDeg) || !Number.isFinite(toDeg)) {
-    return { count: 0, gain: .6 }
-  }
-  const count = Math.trunc(toDeg / sectorDeg) - Math.trunc(fromDeg / sectorDeg)
-  const speed = ms > 0 ? Math.abs(toDeg - fromDeg) / (ms / 1000) : 0
-  const gain = Math.min(1, Math.max(.45, .45 + speed / 900))
-  return { count, gain }
 }
 
 export function spinCountdown(ms) {
