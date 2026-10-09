@@ -425,6 +425,17 @@ test('nhãn đĩa: nằm trong vành an toàn, không chồng nhãn kề theo c�
         `+${A.reward} và +${B.reward} chồng nhau: gap góc ${angGap.toFixed(1)}°, gap bán kính ${radGap.toFixed(1)}px`)
     }
   }
+  /* BÀI HỌC 2026-10-09: CSS từng đè fontSize attribute → mọi nhãn render
+     24px và +10 tràn ~5° khỏi lát 14,4°. Chốt luôn theo bề dày tangential
+     THỰC của chữ (em box ≈ 1,45×cỡ chữ, đo trên JetBrains Mono): góc chữ
+     chiếm phải ≤ 85% độ rộng lát. Badge +20 bỏ qua — nó là marker chủ đích,
+     đã tách bán kính khỏi mọi nhãn khác. */
+  for (const L of labels) {
+    if (L.reward === 20) continue
+    const half = Math.atan(L.size * 1.45 / 2 / L.r) * 180 / Math.PI
+    assert.ok(2 * half <= 0.85 * L.span,
+      `+${L.reward}: chữ ${L.size}px chiếm ${(2 * half).toFixed(1)}° > 85% lát ${L.span.toFixed(1)}°`)
+  }
   /* +10 (chữ radial hẹp nhất có chữ) và +20 (badge) phải tách nhau ít nhất
      một khoảng dương ở MỘT chiều — đây là cặp dễ va nhất của đĩa. */
   const ten = labels.find(L => L.reward === 10)

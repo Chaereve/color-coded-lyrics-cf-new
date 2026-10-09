@@ -111,7 +111,7 @@ function Wheel({ sectors, labels, rotation, duration, spinning, wind, won, label
              kính (flip nửa dưới), luôn nằm trong vành an toàn và không đè
              nhãn kề (test hình học chốt trong dailySpin.test.js). DUY NHẤT
              +20 — cung 3,6° nhỏ hơn cả chữ — là một badge hồng nhỏ đặt trên
-             đúng lát nó, đẩy ra r=144 để tách bán kính khỏi chữ "+10". */
+             đúng lát nó, đẩy ra r=150 để tách bán kính khỏi chữ "+10". */
           const top = Math.max(...sectors.map(s => s.reward))
           return labels.map((L, i) => {
             const [x, y] = point(L.angle, L.r)
@@ -122,7 +122,7 @@ function Wheel({ sectors, labels, rotation, duration, spinning, wind, won, label
                 <rect className="spin-jack-pill" x={-L.w / 2} y={-L.h / 2}
                   width={L.w} height={L.h} rx={L.h / 2} />
                 <text className="spin-wheel-number jackpot" x="0" y="0"
-                  textAnchor="middle" dominantBaseline="central">
+                  fontSize={L.size} textAnchor="middle" dominantBaseline="central">
                   <tspan className="spin-wheel-plus">+</tspan>{L.reward}
                 </text>
               </g>

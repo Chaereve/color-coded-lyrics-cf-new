@@ -130,7 +130,7 @@ export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
 /* ---- NHÃN TRÊN ĐĨA — vị trí TÍNH TOÁN, không tọa độ cứng -------------------
    Mỗi ô MỘT nhãn, xoay dọc theo bán kính ở tâm ô. Bán kính neo và cỡ chữ co
    theo ĐỘ RỘNG CỦA Ô (span): lát rộng nhất (+1, 108°) chứa chữ 17px thoải mái,
-   lát +10 (14,4°) hạ còn 13px, còn +20 (3,6° — nhỏ hơn cả chữ) là MỘT badge
+   lát +10 (14,4°) hạ còn 12px, còn +20 (3,6° — nhỏ hơn cả chữ) là MỘT badge
    hồng 34×18px đặt trên đúng lát nó, đẩy ra bán kính 150 — mép trong của badge
    cách mép ngoài chữ "+10" ≥ 6px nên không đè lên nhãn nào.
 
@@ -148,8 +148,8 @@ const LABEL_MAX_R = 162
 export function spinLabels(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
   return spinSectors(rewards, weights).map(s => {
     const isJackpot = s.span < 8
-    const size = s.span >= 30 ? 17 : s.span >= 18 ? 15 : s.span >= 8 ? 13 : 12
-    const r = isJackpot ? 150 : s.span >= 20 ? 132 : 122
+    const size = s.span >= 30 ? 17 : s.span >= 18 ? 15 : s.span >= 16 ? 13 : 12
+    const r = isJackpot ? 150 : s.span >= 20 ? 132 : 126
     const chars = String(s.reward).length + 1            // "+20" → 3 ký tự
     const w = isJackpot ? 34 : Math.ceil(size * LABEL_THICK_RATIO)
     const h = isJackpot ? 18 : Math.ceil(chars * size * LABEL_TEXT_RATIO)

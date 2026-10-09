@@ -106,3 +106,53 @@ openMysteryBox. Backend giữ nguyên 100%.
   chữ "Mystery Box" duy nhất trong ảnh là link điều hướng đã duyệt).
 
 Sau khi duyệt: B4 (vote-back) → B5 (captcha) theo kế hoạch cũ.
+
+
+---
+
+# Vòng 2 (feedback 2026-10-09): sửa "lòi số" + case-opening reel + chữ gọn
+
+## Spin — tìm ra và sửa GỐC RỄ lỗi số tràn lát
+
+- **Nguyên nhân thật** (đo bằng getBBox trên trình duyệt): CSS
+  `.spin-wheel-number { font-size: 24px }` ĐÈ lên attribute `fontSize` của
+  SVG — mọi nhãn render 24px dù `spinLabels()` tính 17/15/13/12; nhãn +10
+  ở 24px tràn ~5° khỏi lát 14,4°.
+- Sửa: bỏ font-size khỏi CSS (JSX truyền `fontSize={L.size}` từ
+  `spinLabels()`); `spin-wheel-plus` đổi sang `em` (0.72em). +10 hạ 13→12px,
+  bán kính nhãn thường 122→126px (cân biên ~5px mỗi bên).
+- Test MỚI chốt bài học: bề dày tangential thực của chữ (em ≈ 1,45×cỡ chữ)
+  phải ≤ 85% độ rộng lát, với mọi nhãn trừ badge +20 (marker chủ đích,
+  tách bán kính riêng).
+- Kiểm chứng probe (1360px & 390px): mọi nhãn r∈[112..152] ⊂ vành an toàn,
+  +10 chiếm 9,7° / lát 14,4° (67%), không nhãn nào tràn lát lẫn vành.
+
+## Mystery Box — case-opening REEL đúng nghĩa + chữ tinh gọn
+
+- Thùng quà vẽ lại: thân ramp #7D3EE4→#3D05DD + RUY BĂNG dọc hồng chạy
+  suốt thân, nắp hồng hai lớp + NƠ HAI QUẮN (vector thuần CSS), ổ khoá ở
+  locked. Bỏ kiểu "hộp vuông + dấu ?".
+- **Nhịp mở mới (~2,7s)**: charge 450ms (co người, sáng thắt; RPC
+  openMysteryBox chạy SONG SONG) → **REEL ngang 2,2s**: dải 24 ô trượt qua
+  vạch giữa hồng phát sáng, giảm tốc cubic-bezier(.1,.72,.14,1) và DỪNG
+  ĐÚNG ô kết quả server trả (ô đích được GHI ĐÈ vào dải — client không
+  chọn, không random; dải filler là chuỗi cố định, aria-hidden) → chớp
+  sáng + prize pop.
+- Reveal giờ tới ĐÚNG hẹn sau khi sửa bug thật: `onOpened` là arrow inline
+  của page (đổi identity mỗi giây vì đồng hồ tick) làm effect reel cleanup
+  vô hạn — neo `onOpened` vào ref, `finish` ổn định ([]).
+- Focus: vùng outcome `tabIndex={-1}` và nhận focus sau reveal (không rơi
+  giữa animation). Reel thuần transform trên khung 116px cố định + mask
+  hai mép — 0 CLS.
+- Reduced-motion: bỏ charge + reel, fade thẳng kết quả (đã test).
+- **Chữ tinh gọn**: "Check in to unlock today's box." · "What's inside
+  today?" · nút "Open" · "Nothing this time." · "Next box after your next
+  check-in." · "+1 free request" · bảng "Prizes".
+
+## Kiểm chứng vòng 2
+
+- npm test 804/759 pass/0 fail · lint 35 warnings (0 mới, 0 error) · build ✓
+- Ảnh: 21–25 spin (chữ nằm trọn trong lát ở cả mobile) · 26 locked (thùng
+  ruy-băng + khoá) · 27 available · 28 opening (charge) · **35 reel giữa
+  nhịp** · 29 reveal +5 · 30 reveal "Nothing this time." · 31 already ·
+  32/33 mobile · 34 /daily-login sạch (card? false, chỉ link nav).

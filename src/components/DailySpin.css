@@ -119,11 +119,14 @@
 .spin-sector.t5 { --wc: var(--w-5); }
 .spin-sector.t6 { --wc: var(--w-6); }
 .spin-sector.t7 { --wc: var(--w-7); }
+/* CỠ CHỮ KHÔNG ĐƯỢC ĐẶT Ở ĐÂY: CSS đè lên attribute fontSize của SVG (lỗi
+   "lòi số" 2026-10-09 — mọi nhãn render 24px dù JS tính 17/15/13/12). Cỡ chữ
+   do spinLabels() tính theo độ rộng từng lát và truyền vào JSX. */
 .spin-wheel-number {
-  font-family: var(--mono); font-size: 24px; font-weight: 600; letter-spacing: -.4px;
+  font-family: var(--mono); font-weight: 600; letter-spacing: -.02em;
   fill: var(--txt); opacity: .94; transition: opacity .35s var(--e-soft);
 }
-.spin-wheel-plus { font-size: 15px; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
+.spin-wheel-plus { font-size: .72em; font-weight: 400; fill: color-mix(in oklab, var(--txt) 62%, transparent); }
 /* MỰC CHỮ THEO NỀN: ba lát sáng dùng mực tối (--s-ink-dark), lát t4 dùng mực
    --s-ink-mid, ba lát đậm nhất dùng trắng. Cặp màu chọn theo contrast (ghi ở
    đầu file), không theo thẩm mỹ riêng của một ô. */
@@ -141,7 +144,7 @@
   fill: #FCB0F3; stroke: #fff; stroke-width: 1.6;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4));
 }
-.spin-wheel-number.jackpot { fill: #3D05DD; font-size: 12px; font-weight: 700; letter-spacing: 0; }
+.spin-wheel-number.jackpot { fill: #3D05DD; font-weight: 700; letter-spacing: 0; }
 .spin-wheel-number.jackpot .spin-wheel-plus { fill: rgba(61, 5, 221, .74); }
 
 /* Trục: MỘT đĩa phẳng nhỏ. Không mũi chỉ, không chấm — con trỏ ở vành đã trả
