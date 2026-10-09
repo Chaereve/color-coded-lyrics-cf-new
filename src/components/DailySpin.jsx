@@ -11,6 +11,7 @@ import {
   announceSpinChange, withSpinLock, resetSpinDevice,
 } from '../lib/spinDevice'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
+import Icon from './Icon.jsx'
 import { sfx } from '../lib/sfx'
 import './DailySpin.css'
 
@@ -47,37 +48,12 @@ const rarityOfTier = tier => (tier <= 3 ? 0 : tier <= 5 ? 1 : tier === 6 ? 2 : 3
 const rarityOfReward = (reward, rewards) => rarityOfTier(Number(spinTier(reward, rewards).slice(1)))
 const RARITY_KEYS = ['rar.common', 'rar.rare', 'rar.epic', 'rar.legendary']
 
-/* Icon riêng từng mức (đa dạng ô) — SVG fill-currentColor trên lưới 24. */
-const ICON_PATHS = {
-  1: (  // cỏ bốn lá
-    <><circle cx="8.4" cy="8.4" r="3.8" /><circle cx="15.6" cy="8.4" r="3.8" />
-      <circle cx="12" cy="13.8" r="4.2" /><path d="M10.9 14.6c-.8 2.9-2.6 4.9-5.2 6.2 3.1-.3 5.5-1.4 7-3.3z" /></>
-  ),
-  2: (<path d="M12 2.4l2.9 6 6.6.9-4.8 4.5 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.3l6.6-.9z" />),
-  3: (<path d="M13.4 2 4.6 13.6h5.9L9.1 22l8.9-12.4h-6.1z" />),
-  5: (<path d="M6.2 8.6 12 2.2l5.8 6.4L12 21.8z" />),
-  8: (  // hoa nổ
-    <><circle cx="12" cy="5.6" r="3.3" /><circle cx="12" cy="18.4" r="3.3" />
-      <circle cx="5.6" cy="12" r="3.3" /><circle cx="18.4" cy="12" r="3.3" />
-      <circle cx="12" cy="12" r="3" /></>
-  ),
-  10: ( // cúp
-    <path d="M7 3.2h10v2.6h3.6v2.6a5.1 5.1 0 0 1-4.5 5.1 5.7 5.7 0 0 1-2.1 2v2h3v3.3H7v-3.3h3v-2a5.7 5.7 0 0 1-2.1-2 5.1 5.1 0 0 1-4.5-5.1V5.8H7zm-1.7 5.2v.9c0 1.2.8 2.3 2 2.8a10 10 0 0 1-.2-3.7zm13.4 0h-1.8a10 10 0 0 1-.2 3.7c1.2-.5 2-1.6 2-2.8z" />
-  ),
-  20: ( // vương miện
-    <><path d="M2.9 8.7 8.1 11.7 12 4.5l3.9 7.2 5.2-3L19.2 19H4.8z" />
-      <rect x="4.8" y="20.1" width="14.4" height="1.9" rx=".95" /></>
-  ),
-}
+/* Icon từng mức BỘ CỦA TRANG (Icon.jsx — Lucide, nét stroke khớp toàn site):
+   thăng hạng theo giá trị — sao → nốt nhạc → lửa → play → đĩa quay → cúp →
+   vương miện (jackpot +20 duy nhất). */
+const REWARD_ICON = { 1: 'star', 2: 'note', 3: 'flame', 5: 'play', 8: 'spin', 10: 'cup', 20: 'crown' }
 const CellIcon = ({ reward }) => (
-  <svg className="spin-cell-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    {ICON_PATHS[reward]}
-  </svg>
-)
-const GiftIcon = () => (
-  <svg className="spin-now-gift" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M20 7h-2.2a3.2 3.2 0 0 0 .2-1.1A2.9 2.9 0 0 0 15.1 3c-1.2 0-2.3.6-3.1 1.6A4.2 4.2 0 0 0 8.9 3 2.9 2.9 0 0 0 6 5.9c0 .4.1.8.2 1.1H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7.6h2V12h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zM8.9 5a1 1 0 0 1 1 1v1H8.1a1.1 1.1 0 0 1-1.1-1.1A.9.9 0 0 1 7.9 5zm6.2 2h-1.8V6a1 1 0 0 1 1-1 1 1 0 0 1 1.1 1.1c0 .5-.1.9-.3.9zM5 13v6.2A1.8 1.8 0 0 0 6.8 21H11v-8zm8 8h4.2a1.8 1.8 0 0 0 1.8-1.8V13h-6z" />
-  </svg>
+  <Icon name={REWARD_ICON[reward] || 'star'} size={19} className="spin-cell-ico" />
 )
 
 export default function DailySpin({ userId, onBalance, onVote }) {
@@ -289,12 +265,9 @@ export default function DailySpin({ userId, onBalance, onVote }) {
       <header className="spin-head">
         <div className="spin-head-text">
           <h2>{t('spin.playLabel')}</h2>
-          {/* Nhãn demo ở lại (nó nói dữ liệu này là dữ liệu mẫu, một điều người
-              dùng PHẢI biết); khi không có nhãn thì cả dòng phụ không được
-              dựng — không để lại một thẻ rỗng. */}
-          {!hasSupabase && (
-            <p><span className="spin-demo" role="note">{t('spin.demo')}</span></p>
-          )}
+          {/* Nhãn demo ở lại (nói dữ liệu này là dữ liệu mẫu — điều người dùng
+              PHẢI biết), đặt CẠNH tiêu đề cho gọn; không demo → không thẻ rỗng. */}
+          {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
         </div>
         <div className="spin-reset" title={t('spin.ruleReset')}>
           <span>{t('spin.resetIn')}</span>
@@ -325,7 +298,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
           <div aria-live="polite">
             <div className="spin-core-k">{t('spin.todaySpin')}</div>
             <div className={`spin-now${result ? ' pop' : ''}`} key={active ? onSlot : 'r'}>
-              {nowReward === null ? <GiftIcon /> : <b className={`r${nowRarity}`}>+{nowReward}</b>}
+              {nowReward === null ? <Icon name="gift" size={38} className="spin-now-gift" /> : <b className={`r${nowRarity}`}>+{nowReward}</b>}
             </div>
             <div className="spin-pn" key={`pn-${active ? onSlot : result ? result.reward : 'idle'}`}>
               {result ? t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })
@@ -383,11 +356,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
               <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
             </li>)}
           </ul> : <p>{t('spin.historyEmpty')}</p>}
-          {history.length > 0 && (
-            <p className="spin-total">{t('spin.todayTotal', {
-              n: history.reduce((sum, item) => sum + item.reward, 0),
-            })}</p>
-          )}
         </div>
       </aside>
     </section>

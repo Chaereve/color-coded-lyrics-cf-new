@@ -38,7 +38,8 @@ test('Daily Spin renders head, 7×5 ring board with core Spin button — no odds
     // 1. head: title and the reset countdown chip (not buried below)
     const head = html.match(/<header class="spin-head">([\s\S]*?)<\/header>/)?.[1]
     assert.ok(head, 'the section needs a head band')
-    assert.match(head, /Daily bonus spin/)
+    assert.match(head, /Daily spin/)
+    assert.match(head, /Demo · local data/, 'nhãn demo nằm cạnh tiêu đề')
     assert.match(head, /Next reset/)
     assert.match(head, /--:--:--/)
 
@@ -65,7 +66,7 @@ test('Daily Spin renders head, 7×5 ring board with core Spin button — no odds
     assert.ok(core, 'lõi chữ nhật phải tồn tại')
     assert.match(core, /aria-live="polite"/, 'một vùng live duy nhất đọc trạng thái + kết quả')
     assert.match(core, /<button type="button" class="spin-cta"/, 'nút QUAY thật')
-    assert.match(core, /Two free spins a day/)
+    assert.match(core, /Win bonus votes/)
     const boardOpen = html.indexOf('class="spin-board')
     const coreOpen = html.indexOf('class="spin-core"')
     const boardClose = html.indexOf('</section>')
@@ -140,12 +141,14 @@ test('ring: 20 ô = bảng lib, hình học kim đồng hồ, icon đủ mọi m
      trong JSX có thể trượt khỏi hợp đồng. */
   assert.match(jsx, /SPIN_RING\.map\(\(reward, slot\)/)
   assert.match(jsx, /spinRingSlot\(slot\)/)
-  /* Mọi mức server có thể trả ĐỀU có icon (CellIcon tra ICON_PATHS). */
-  const iconBlock = jsx.match(/const ICON_PATHS = \{([\s\S]*?)\n\}/)?.[1] || ''
+  /* Icon ô = BỘ CỦA TRANG (Icon.jsx): map đủ 7 mức, thăng hạng theo giá trị. */
+  const mapBlock = jsx.match(/const REWARD_ICON = \{([^}]*)\}/)?.[1] || ''
+  const map = Object.fromEntries([...mapBlock.matchAll(/(\d+):\s*'(\w+)'/g)].map(m => [m[1], m[2]]))
   for (const reward of SPIN_REWARDS) {
-    assert.ok(new RegExp(`^\\s*${reward}:`, 'm').test(iconBlock),
-      `ICON_PATHS thiếu icon cho mức +${reward}`)
+    assert.ok(map[reward], `REWARD_ICON thiếu icon cho mức +${reward}`)
   }
+  assert.equal(map[20], 'crown', 'jackpot +20 mang vương miện')
+  assert.match(jsx, /<Icon name=\{REWARD_ICON\[reward\]/, 'ô render icon QUA bộ dùng chung của trang')
   /* Đuôi comet = 2 ô PHÍA SAU đèn chính theo chiều chạy: (on+19)%20, (on+18)%20. */
   assert.match(jsx, /\(onSlot \+ 19\) % 20 === slot \? ' t1' : ''/)
   assert.match(jsx, /\(onSlot \+ 18\) % 20 === slot \? ' t2' : ''/)

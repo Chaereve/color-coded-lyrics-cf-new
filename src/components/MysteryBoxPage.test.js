@@ -65,7 +65,7 @@ test('the card: locked points to check-in, ready offers the box, opened shows th
 
     // LOCKED: gate copy, hộp mờ có khoá; hộp vẫn là <button> nhưng DISABLED.
     const locked = render(card({ checked_in: false }), false)
-    assert.match(locked, /Check in to unlock today’s box\./)
+    assert.match(locked, /Check in to unlock/)
     assert.match(locked, /<button[^>]*disabled/)
     assert.match(locked, /box-stage[^"]*is-locked/)
     assert.match(locked, /mystery-padlock/)
@@ -73,9 +73,9 @@ test('the card: locked points to check-in, ready offers the box, opened shows th
 
     // READY: chính HỘP là nút mở (vòng 5); chưa có dòng giải.
     const ready = render(card({ checked_in: true }), true)
-    assert.match(ready, /Your daily box is ready/)
+    assert.match(ready, /Daily box is ready/)
     assert.match(ready, /aria-label="Open daily box"/)
-    assert.match(ready, /Tap the box to open today’s gift/)
+    assert.match(ready, /Tap to open/)
     assert.doesNotMatch(ready, /mystery-padlock/)
 
     // OPENED (+5 votes): the committed result — DUY NHẤT outcome +5 của bảng.

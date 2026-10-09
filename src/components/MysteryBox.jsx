@@ -6,6 +6,7 @@ import {
 } from '../lib/mysteryBox.js'
 import { confettiBurst } from '../lib/confetti.js'
 import CaseOpeningReel from './CaseOpeningReel.jsx'
+import Icon from './Icon.jsx'
 import './MysteryBox.css'
 
 /* =========================================================
@@ -61,12 +62,6 @@ const STARS = [
   [84, 22, .2], [92, 58, 1.5], [11, 42, 2.2], [27, 6, 1.9], [49, 90, .6],
   [66, 10, 1.2], [81, 46, 2.0], [95, 84, .8],
 ]
-
-const GiftGlyph = () => (
-  <svg className="box-glyph" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M20 7h-2.2a3.2 3.2 0 0 0 .2-1.1A2.9 2.9 0 0 0 15.1 3c-1.2 0-2.3.6-3.1 1.6A4.2 4.2 0 0 0 8.9 3 2.9 2.9 0 0 0 6 5.9c0 .4.1.8.2 1.1H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7.6h2V12h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zM8.9 5a1 1 0 0 1 1 1v1H8.1a1.1 1.1 0 0 1-1.1-1.1A.9.9 0 0 1 7.9 5zm6.2 2h-1.8V6a1 1 0 0 1 1-1 1 1 0 0 1 1.1 1.1c0 .5-.1.9-.3.9zM5 13v6.2A1.8 1.8 0 0 0 6.8 21H11v-8zm8 8h4.2a1.8 1.8 0 0 0 1.8-1.8V13h-6z" />
-  </svg>
-)
 
 const Padlock = () => (
   <svg className="mystery-padlock" viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
@@ -265,7 +260,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
       {/* THANH KẾT QUẢ: MỘT vùng live — locked/ready/mở/résultat + countdown. */}
       <div className={`box-bar ${rarity}`} role="status" aria-live="polite" aria-atomic="true"
         tabIndex={-1} ref={outcomeRef}>
-        <span className="box-bar-icon">{opened ? <GiftGlyph /> : <GiftGlyph />}</span>
+        <span className="box-bar-icon"><Icon name="gift" size={30} className="box-glyph" /></span>
         <span className="box-bar-text">
           <b className="box-bar-pn">
             {error

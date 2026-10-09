@@ -325,3 +325,21 @@ bộ và đã revert — mọi điểm giống v4 ở đây xuất phát từ m�
   icon phát sáng theo rarity — phần thưởng luôn có chỗ đọc rõ.
 - Gates giữ xanh: test 761/0 · lint 33w/0e · build ✓. Ảnh chụp lại trọn
   bộ 24 cảnh b2-screenshots-v5 (manifest.json cập nhật theo).
+
+## Vòng 5.2 (feedback tiếp): dọn dòng thừa, icon đồng bộ bộ trang, chữ tinh gọn
+
+- **Spin strip**: BỎ dòng "Today: +N bonus votes" (spin-total) — lịch + pips
+  đã đủ; key `spin.todayTotal` xoá khỏi từ điển.
+- **Head spin gọn**: nhãn demo đặt CẠNH tiêu đề "Daily spin" (bỏ dòng p
+  riêng); tiêu đề "Daily bonus spin" → "Daily spin"; dòng phụ lõi
+  "Two free spins a day" → "Win bonus votes".
+- **Icon đồng bộ BỘ TRANG** (Icon.jsx / Lucide, nét stroke khớp toàn site):
+  7 mức spin map REWARD_ICON thăng hạng theo giá trị (star → note → flame →
+  play → spin(disc) → cup → crown cho +20); icon lõi + rbar hộp dùng chung
+  `gift`. Bỏ 2 SVG fill tự chế (ICON_PATHS, GiftGlyph). Icon.test mở rộng
+  quét cả bảng REWARD_ICON (crown dùng đúng chỗ, không tên chết).
+- **Chữ gọn cả 2 trang**: locked "Check in to unlock" · tap "Tap to open" ·
+  readyBar "Daily box is ready" · todayDone "Next box after your next
+  check-in" · pending/deviceResetHint rút gọn.
+- Gates: test 761/0 · lint 33w/0e · build ✓; ảnh b2-screenshots-v5 chụp lại
+  đủ 24 cảnh (manifest ghi v5.2).
