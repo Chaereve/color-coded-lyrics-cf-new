@@ -117,8 +117,12 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
         if (kind === 'votes') {
           setWinTile({ kind: VOTES_TILE[votes] || 's1', label: `+${votes}` })
         } else if (kind === 'free_paid_request' || kind === 'paid_request') {
-          // Hai mức paid phân biệt bằng con số trên ô: +1 hay +2.
-          const amount = prizeResult === 6 ? 2 : 1
+          // Hai mức paid phân biệt bằng con số trên ô: +1 hay +2. Số đọc từ
+          // reward_amount SERVER trả (master prompt); payload cũ thiếu trường
+          // thì derive theo result — không bao giờ tự chế số khác.
+          const amount = Number.isInteger(result?.mystery?.reward_amount)
+            ? result.mystery.reward_amount
+            : (prizeResult === 6 ? 2 : 1)
           setWinTile({ kind: 's5', label: `+${amount}` })
         } else {
           setWinTile(RESULT_TILE[kind] || RESULT_TILE.nothing)
@@ -187,7 +191,9 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened }) {
               {kind === 'nothing' && t('mystery.nothing')}
               {kind === 'votes' && (votes === 1 ? t('mystery.votesOne') : t('mystery.votesMany', { n: votes }))}
               {(kind === 'paid_request' || kind === 'free_paid_request')
-                && t(prize === 6 ? 'mystery.paidRequestTwo' : 'mystery.paidRequestOne')}
+                && t((Number.isInteger(mystery.reward_amount) && mystery.reward_amount > 0
+                  ? mystery.reward_amount
+                  : (prize === 6 ? 2 : 1)) === 2 ? 'mystery.paidRequestTwo' : 'mystery.paidRequestOne')}
             </p>
             <p className="mystery-again">{t('mystery.again')}</p>
           </>

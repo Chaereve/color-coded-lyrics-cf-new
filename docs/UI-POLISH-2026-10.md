@@ -201,9 +201,17 @@ Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHA
   (validator chấp nhận cả hai chính tả, từ chối paid mà mang vote).
 
 ## Kiểm chứng vòng 3
-- npm test 805 tests / 760 pass / 45 skip / **0 fail** (thêm: grid map/render
+- npm test 806 tests / 761 pass / 45 skip / **0 fail** (thêm: grid map/render
   tests, CaseOpeningReel tests, mapping v2 lib + PGlite setseed, migration
-  46→47) · lint **35 warnings (0 mới) / 0 error** · build ✓.
+  46→47, payload-v2 `reward_amount` strict) · lint **35 warnings (0 mới) /
+  0 error** · build ✓ · PGlite 7/7 · probe DOM 320/375/414: grid 8 ô,
+  panel không đè, không tràn ngang.
+- Mapping v2 chốt THEO ĐÚNG master prompt: cột vật lý
+  `mystery_opens.reward_amount` (1|2 cho paid, số vote đã trả cho votes, 0
+  cho nothing) + payload `mystery_status` 9 khoá; client validate NGHIÊM
+  amount khi payload v2 (sai số lượng = lỗi giao thức, không render) và chấp
+  nhận payload 8 khoá pre-migration — deploy client trước/sau migration đều
+  không vỡ; UI in +1/+2 từ `reward_amount` của server.
 - Ảnh vòng 3 (shot set VIII, re-chụp sau fix cyclic %): workspace
   `b2-screenshots-v3/` + `manifest.json` (22 cảnh, mỗi cảnh ghi
   route/viewport/state/seed) — spin: 01 idle desktop · 02 đang chạy

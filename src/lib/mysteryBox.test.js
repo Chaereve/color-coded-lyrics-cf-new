@@ -54,6 +54,25 @@ test('validateMysteryStatus holds the exact key contract', () => {
   assert.throws(() => validate({ day: 'tomorrow' }), /err\.mysteryResponse/)
 })
 
+test('payload v2 (sau 20261202): reward_amount strict — sai số lượng là lỗi', () => {
+  const v2 = over => validateMysteryStatus({
+    user_id: 'u1', day: '2026-10-08', enabled: true, checked_in: true, opened: true,
+    result: 1, reward_votes: 1, reward_amount: 1, reward_kind: 'votes', ...over,
+  }, 'u1')
+  /* Đúng bảng: votes → amount = số vote đã trả; FPR → đúng 1|2; nothing → 0. */
+  assert.equal(v2({ result: 3, reward_votes: 5, reward_amount: 5, reward_kind: 'votes' }).reward_amount, 5)
+  assert.equal(v2({ result: 4, reward_votes: 4, reward_amount: 4, reward_kind: 'votes' }).reward_amount, 4)
+  assert.equal(v2({ result: 5, reward_votes: 0, reward_amount: 1, reward_kind: 'free_paid_request' }).reward_amount, 1)
+  assert.equal(v2({ result: 6, reward_votes: 0, reward_amount: 2, reward_kind: 'free_paid_request' }).reward_amount, 2)
+  assert.equal(v2({ result: 0, reward_votes: 0, reward_amount: 0, reward_kind: 'nothing' }).result, 0)
+  /* Khoe sai số lượng (label sẽ in sai +1/+2) → chặn render, không đoán lại. */
+  assert.throws(() => v2({ result: 6, reward_votes: 0, reward_amount: 1, reward_kind: 'free_paid_request' }), /err\.mysteryResponse/)
+  assert.throws(() => v2({ result: 5, reward_votes: 0, reward_amount: 2, reward_kind: 'free_paid_request' }), /err\.mysteryResponse/)
+  assert.throws(() => v2({ result: 2, reward_votes: 2, reward_amount: 3, reward_kind: 'votes' }), /err\.mysteryResponse/)
+  /* Chưa mở mà mang amount khác 0 là giao thức lỗi. */
+  assert.throws(() => v2({ opened: false, result: null, reward_votes: 0, reward_amount: 1, reward_kind: null }), /err\.mysteryResponse/)
+})
+
 test('the demo roll is deterministic per (user, day) and lands on real prizes', () => {
   assert.equal(demoRoll('demo-user', '2026-10-08'), demoRoll('demo-user', '2026-10-08'))
   assert.notEqual(demoRoll('demo-user', '2026-10-08'), demoRoll('demo-user', '2026-10-09'))

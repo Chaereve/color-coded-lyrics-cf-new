@@ -686,13 +686,16 @@ là "+5 votes" — trùng với outcome 7%, làm bảng hiển thị hai giải 
 
 | File | Vai trò |
 | --- | --- |
-| `20261202_mystery_paid_v2.sql` | Nới CHECK `mystery_opens_reward_kind_check` thêm `'free_paid_request'` (giữ `'paid_request'` cho row cũ); `open_mystery_box`: dải 970–989 → result 5 = **+1 free paid request**, dải 990–999 → result 6 = **+2 free paid requests** — cộng `bonus_requests` đúng theo amount của từng nhánh, NGOÀI cap 30/ngày, không ghi reward_event như vote. Trọng số giữ nguyên 55/20/12/7/3/2/1. |
+| `20261202_mystery_paid_v2.sql` | Nới CHECK `mystery_opens_reward_kind_check` thêm `'free_paid_request'` (giữ `'paid_request'` cho row cũ); **thêm cột `reward_amount smallint NOT NULL DEFAULT 0` + CHECK `>= 0`** (backfill: votes → số vote đã trả, `paid_request` cũ → 1, FPR result 6 → 2, nothing → 0); `open_mystery_box`: dải 970–989 → result 5 = **+1 free paid request**, dải 990–999 → result 6 = **+2 free paid requests** — cộng `bonus_requests` đúng theo amount của từng nhánh, NGOÀI cap 30/ngày, không ghi reward_event như vote, INSERT ghi `reward_amount` literal 1\|2; `mystery_status`/`my_mystery_status` trả thêm khoá `reward_amount` (payload 9 khoá). Trọng số giữ nguyên 55/20/12/7/3/2/1. |
 | `supabase/rollback/20261202_mystery_paid_v2.sql` | Từ chối chạy khi còn row result 6 kind `free_paid_request` (+2 không có tương đương trong bảng cũ — rollback sẽ biến paid +2 thành +5 votes sai nghĩa); row result 5 `free_paid_request` đổi ngược về `paid_request`; khôi phục hàm + CHECK + comment 20261129. |
 
 Không đổi: cổng check-in, PK một hộp/ngày, replay, `grant_reward_event`/cap,
-`mystery_status` (payload key giữ nguyên — client suy amount từ `result`),
 RLS, cờ `mystery_box_enabled`. Client (`src/lib/mysteryBox.js`) đọc CẢ hai
-chính tả kind nên deploy client trước hay sau migration đều không vỡ. Test:
+chính tả kind VÀ CẢ hai shape payload (8 khoá pre-migration, 9 khoá có
+`reward_amount` sau migration — kiểm NGHIÊM amount khi có: sai số lượng là
+lỗi giao thức, không render) nên deploy client trước hay sau migration đều
+không vỡ; UI hiển thị +1/+2 từ `reward_amount` của server, chỉ fallback
+derive theo `result` khi payload cũ thiếu trường. Test:
 `supabase/tests/mysteryBox.pglite.mjs` (chain qua 20261202; phân phối 600 hộp;
 mapping setseed: +1/+2 cộng đúng amount, không ledger, replay không cộng lặp;
 cap; flag; identity/RLS) + `src/lib/mysteryBox.test.js` (bảng v2 + validator

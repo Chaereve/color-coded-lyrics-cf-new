@@ -134,7 +134,7 @@ const denyAs = async (db, userId, probe) => {
 }
 
 const STATUS_KEYS = ['user_id', 'day', 'enabled', 'checked_in', 'opened',
-  'result', 'reward_votes', 'reward_kind']
+  'result', 'reward_votes', 'reward_amount', 'reward_kind']
 /* result -> [kind, max votes, free paid requests] — the approved v2 prize
    table (20261202): the 1% prize is +2 free paid requests, NOT a second +5. */
 const PRIZES = {
@@ -159,10 +159,12 @@ test('the box only opens after check-in, one per day, replay never re-rolls', as
   assert.match(await denyAs(db, user, () =>
     db.query('select public.open_mystery_box($1::date, null::text)', [today])), /err\.mysteryLocked/)
   const locked = await statusAs(db, user)
-  assert.deepEqual(Object.keys(locked).sort(), [...STATUS_KEYS].sort())
+  assert.deepEqual(Object.keys(locked).sort(), [...STATUS_KEYS].sort(),
+    'payload status phải đủ 9 khoá (20261202 thêm reward_amount)')
   assert.equal(locked.checked_in, false)
   assert.equal(locked.opened, false)
   assert.equal(locked.result, null)
+  assert.equal(Number(locked.reward_amount), 0)
 
   await checkIn(db, user, today)
   const unlocked = await statusAs(db, user)
@@ -244,24 +246,34 @@ test('mapping v2: +1/+2 free paid requests pay EXACTLY their amount — no votes
     const bonus = Number(rows[0].bonus_requests)
     const ledger = await ledgerOf(user)
 
+    const amountCol = async () => {
+      const { rows } = await db.query('select reward_amount from public.mystery_opens where user_id = $1', [user])
+      return Number(rows[0].reward_amount)
+    }
     if (opened.mystery.result === 5) {
       assert.equal(bonus, 1, '+1 free paid request: bonus_requests tăng đúng 1')
+      assert.equal(Number(opened.mystery.reward_amount), 1, 'payload amount = 1')
+      assert.equal(await amountCol(), 1, 'cột reward_amount = 1')
       assert.equal(ledger.n, 0, 'paid prize KHÔNG ghi reward_event như vote')
       assert.equal(await votesOf(user), before.votes, 'paid prize KHÔNG cộng vote')
       found[5] = { user, bonus }
     } else if (opened.mystery.result === 6) {
       assert.equal(bonus, 2, '+2 free paid requests: bonus_requests tăng đúng 2')
+      assert.equal(Number(opened.mystery.reward_amount), 2, 'payload amount = 2')
+      assert.equal(await amountCol(), 2, 'cột reward_amount = 2')
       assert.equal(ledger.n, 0)
       assert.equal(await votesOf(user), before.votes)
       found[6] = { user, bonus }
     } else if (opened.mystery.result === 0) {
       assert.equal(bonus, 0, 'nothing: không side effect nào ngoài record claim')
+      assert.equal(Number(opened.mystery.reward_amount), 0)
       assert.equal(ledger.n, 0)
       assert.equal(await votesOf(user), before.votes)
       found[0] = { user, bonus }
     } else if (opened.mystery.result === 3) {
       assert.equal(bonus, 0)
       assert.equal(ledger.total, 5, 'DUY NHẤT result 3 trả +5 votes qua ledger')
+      assert.equal(Number(opened.mystery.reward_amount), 5, 'payload amount votes = số vote đã trả')
       found[3] = { user, bonus }
     }
   }

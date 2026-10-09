@@ -122,7 +122,10 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
   assert.match(jsx, /const \[result\] = await Promise\.all\(\[rpc, wait\(450\)\]\)/)
   // Ô đích GHỈ ĐÈ bằng kết quả thật — client không chọn gì, hai mức paid
   // phân biệt bằng con số trên ô (+1 / +2).
-  assert.match(jsx, /const amount = prizeResult === 6 \? 2 : 1/)
+  /* Số trên ô paid đọc từ reward_amount SERVER trả; payload cũ thiếu trường
+     thì mới derive theo result — không tự chế số. */
+  assert.match(jsx, /Number\.isInteger\(result\?\.mystery\?\.reward_amount\)/)
+  assert.match(jsx, /prizeResult === 6 \? 2 : 1/)
   assert.match(jsx, /setWinTile\(\{ kind: 's5', label: `\+\$\{amount\}` \}\)/)
   assert.doesNotMatch(jsx, /Math\.random\(\)|weightedPick|pickPrize/,
     'client không được tự chọn phần thưởng')

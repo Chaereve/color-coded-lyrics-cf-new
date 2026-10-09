@@ -16,8 +16,12 @@
 --   * new rows use reward_kind = 'free_paid_request' (both paid prizes).
 --     Legacy rows keep 'paid_request'; every reader accepts BOTH spellings,
 --     so this migration may be applied at any time after 20261129.
---   * the paid amount is paid LITERALLY in each branch (1 vs 2) and derived
---     app-side from `result` — the status payload key contract is unchanged.
+--   * the paid amount is paid LITERALLY in each branch (1 vs 2) AND recorded
+--     in a real column: mystery_opens.reward_amount (1 for the 2% prize, 2
+--     for the 1% one, the granted votes for vote prizes, 0 for nothing) —
+--     per the master prompt data contract "reward_amount = 1|2". The status
+--     payload grows one key (reward_amount); readers accept BOTH payloads
+--     (8-key pre-migration, 9-key after) so this stays deploy-order safe.
 --
 -- Untouched: the gate (check-in first), one-box-per-day PK, replay semantics,
 -- grant_reward_event / cap / idempotency, reward_config flag, RLS.
@@ -34,6 +38,24 @@ alter table public.mystery_opens
 
 comment on table public.mystery_opens is
   'One mystery box per account per Vietnam day (PK user_id, day). result is the 0..6 prize index (v2 table: 5 = +1 free paid request, 6 = +2 free paid requests), reward_votes the votes actually credited after the daily cap (0 for nothing/free-paid-request prizes or a fully clipped prize).';
+
+-- 1b. The paid-amount column per the master prompt data contract
+--     ("reward_amount = 1|2"). Backfill keeps every reader exact:
+--       votes               -> the granted (post-cap) vote count
+--       paid_request (v1)   -> 1   (the only amount that kind ever had)
+--       free_paid_request   -> 1 for result 5, 2 for result 6
+--       nothing             -> 0
+alter table public.mystery_opens add column if not exists reward_amount smallint not null default 0;
+
+update public.mystery_opens o set reward_amount =
+  case when o.reward_kind in ('paid_request', 'free_paid_request')
+       then case when o.result = 6 then 2 else 1 end
+       else coalesce(o.reward_votes, 0) end
+where o.reward_amount = 0;
+
+alter table public.mystery_opens drop constraint if exists mystery_opens_reward_amount_check;
+alter table public.mystery_opens
+  add constraint mystery_opens_reward_amount_check check (reward_amount >= 0);
 
 -- 2. The open RPC — same caller contract, new 1% prize and kind spelling.
 create or replace function public.open_mystery_box(p_expected_day date, p_gate_token text)
@@ -110,8 +132,10 @@ begin
      where id = v_uid;
   end if;
 
-  insert into public.mystery_opens (user_id, day, result, reward_votes, reward_kind)
-    values (v_uid, v_day, v_result, v_paid, v_kind);
+  insert into public.mystery_opens
+    (user_id, day, result, reward_votes, reward_amount, reward_kind)
+    values (v_uid, v_day, v_result, v_paid,
+            case when v_kind = 'votes' then v_paid else v_free end, v_kind);
 
   return jsonb_build_object('replayed', false,
     'mystery', public.mystery_status(v_uid, v_day));
@@ -121,6 +145,43 @@ grant execute on function public.open_mystery_box(date,text) to authenticated;
 
 comment on function public.open_mystery_box(date,text) is
   'Opens today''s mystery box (prize table v2, approved 2026-10-09): gate = checked in the same Vietnam day, one box per day (PK), vote prizes paid through grant_reward_event under the shared 30/day cap, the 2% prize grants +1 and the 1% prize +2 free paid requests outside the cap. Replays return the committed result without rolling again.';
+
+-- 3. Status RPCs — same keys as 20261129 PLUS reward_amount (the master
+--    prompt data contract). Key order mirrors the client STATUS_KEYS_V2.
+create or replace function public.mystery_status(p_uid uuid, p_day date)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'user_id', p_uid,
+    'day', p_day,
+    'enabled', public.reward_config_bool('mystery_box_enabled'),
+    'checked_in', exists (
+      select 1 from public.daily_login_rewards r
+       where r.user_id = p_uid and r.reward_day = p_day),
+    'opened', (m.user_id is not null),
+    'result', m.result,
+    'reward_votes', coalesce(m.reward_votes, 0),
+    'reward_amount', coalesce(m.reward_amount, 0),
+    'reward_kind', m.reward_kind
+  )
+  from (select 1) one
+  left join (select * from public.mystery_opens
+              where user_id = p_uid and day = p_day) m on true
+$$;
+revoke all on function public.mystery_status(uuid,date) from public, anon, authenticated;
+
+create or replace function public.my_mystery_status()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null or not exists (select 1 from public.profiles where id = v_uid) then
+    raise exception 'err.signin';
+  end if;
+  return public.mystery_status(v_uid,
+    (clock_timestamp() at time zone 'Asia/Ho_Chi_Minh')::date);
+end $$;
+revoke all on function public.my_mystery_status() from public, anon, authenticated;
+grant execute on function public.my_mystery_status() to authenticated;
 
 notify pgrst, 'reload schema';
 commit;

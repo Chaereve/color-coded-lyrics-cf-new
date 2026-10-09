@@ -71,8 +71,12 @@ export const MYSTERY_SYNC_KEY = 'ccl.mystery.changed.v1'
 const DEMO_KEY = userId => `ccl.mystery.demo.v1.${userId}`
 const RPC_SETUP_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
 
-const STATUS_KEYS = ['user_id', 'day', 'enabled', 'checked_in', 'opened',
-  'result', 'reward_votes', 'reward_kind']
+/* Hợp đồng payload: 8 khoá = RPC 20261129 (prod CHƯA migrate 20261202);
+   9 khoá = sau migration (thêm reward_amount theo master prompt). validate
+   chấp nhận CẢ hai để card không biến mất khi deploy client trước migration. */
+const STATUS_KEYS = Object.freeze(['user_id', 'day', 'enabled', 'checked_in', 'opened',
+  'result', 'reward_votes', 'reward_kind'])
+const STATUS_KEYS_V2 = Object.freeze([...STATUS_KEYS, 'reward_amount'])
 
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
@@ -83,11 +87,14 @@ const natural = value => Number.isInteger(value) && value >= 0
    dừng lại thay vì bị hiểu sai). Null = migration chưa chạy / lỗi RPC: card
    tự ẩn, trang lịch không chết. */
 export function validateMysteryStatus(status, expectedUserId) {
-  if (!exactKeys(status, STATUS_KEYS)) throw new Error('err.mysteryResponse')
+  const v2 = exactKeys(status, STATUS_KEYS_V2)
+  if (!v2 && !exactKeys(status, STATUS_KEYS)) throw new Error('err.mysteryResponse')
   if (status.user_id !== expectedUserId) throw new Error('err.mysteryAccount')
   if (!isDay(status.day) || typeof status.enabled !== 'boolean'
     || typeof status.checked_in !== 'boolean' || typeof status.opened !== 'boolean'
     || !natural(status.reward_votes)
+    || (v2 && (!natural(status.reward_amount)
+      || (status.opened ? false : status.reward_amount !== 0)))
     || (status.opened ? !(Number.isInteger(status.result)
         && status.result >= 0 && status.result <= 6
         && MYSTERY_KINDS.includes(status.reward_kind))
@@ -97,11 +104,17 @@ export function validateMysteryStatus(status, expectedUserId) {
   const prize = MYSTERY_PRIZES[status.result]
   const legacy = LEGACY_PRIZES[status.result]
   /* Paid/nothing KHÔNG được mang vote (reward_votes phải 0) — kẻo một payload
-     lạ biến giải paid thành "paid + vote" mà không ai để ý. */
+     lạ biến giải paid thành "paid + vote" mà không ai để ý. Payload v2: kiểm
+     thêm reward_amount ĐÚNG NGHIÊM (votes = số vote đã trả; FPR = 1|2 theo
+     result; nothing = 0) — dữ liệu khoe sai số lượng là dừng, không render. */
   const matches = table => table && table.kind === status.reward_kind
     && (status.reward_kind !== 'votes' || status.reward_votes <= table.votes)
     && (status.reward_kind === 'votes' || Number(status.reward_votes) === 0)
-  if (status.opened && (!matches(prize) && !matches(legacy))) {
+  const amountMatches = !v2 || (status.reward_kind === 'votes'
+    ? status.reward_amount === status.reward_votes
+    : status.reward_kind === 'nothing' ? status.reward_amount === 0
+    : status.reward_amount === (status.result === 6 ? 2 : 1))
+  if (status.opened && ((!matches(prize) && !matches(legacy)) || !amountMatches)) {
     throw new Error('err.mysteryResponse')
   }
   return status
@@ -160,6 +173,7 @@ function makeDemoStatus(userId, now = Date.now()) {
     opened,
     result: opened ? saved.result : null,
     reward_votes: opened ? saved.votes : 0,
+    reward_amount: opened ? (prize.kind === 'votes' ? prize.votes : prize.requests) : 0,
     reward_kind: opened ? prize.kind : null,
   }
 }
