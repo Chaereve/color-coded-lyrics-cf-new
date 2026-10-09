@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchDailySpinStatus, performDailySpin, hasSupabase } from '../lib/db'
 import { warmCaptcha } from '../lib/spinShield.js'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_TIME_ZONE,
-  SPIN_GRID_CELLS, SPIN_GRID_RENDER_ORDER,
-  spinCellForReward, spinCountdown, spinSectorIndex, spinTier,
+  SPIN_RING, spinRingSlot, spinRingTarget, spinCountdown, spinSectorIndex, spinTier,
 } from '../lib/dailySpin'
+import { confettiBurst } from '../lib/confetti.js'
 import {
   SPIN_SYNC_KEY, readPendingSpin, getPendingSpin, clearPendingSpin,
   announceSpinChange, withSpinLock, resetSpinDevice,
@@ -20,44 +20,65 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
 }).format(new Date(iso))
 
 /* =========================================================
-   DAILY SPIN — SQUARE GRID SPINNER (spec chốt 2026-10-09)
+   DAILY SPIN — BOARD 7×5 (vòng 5, theo BẢN MẪU của chủ sở hữu)
    ---------------------------------------------------------
-   LƯỚI 3×3: 8 ô quanh viền (7 giải thật + 1 ô accent KHÔNG phải giải) và
-   ô giữa là NÚT QUAY thật. KHÔNG wheel tròn, KHÔNG reel ngang — reel ngang
-   là UI của Mystery Box.
+   20 ô vuông BAO QUANH một lõi chữ nhật (CSS grid 7×5, lõi chiếm
+   grid-area 2/2/5/7). Bấm SPIN:
+     1. PREPARE — khoá nút ngay, xoá win cũ, aria-live báo "Good luck…",
+        gọi performDailySpin (flow hiện tại giữ nguyên: idempotency, quota,
+        no-repeat, edge gate/Turnstile, cap, server draw).
+     2. RING RUN — đèn chạy VÒNG QUANH 20 ô theo chiều kim đồng hồ, đuôi
+        comet 3 ô (.on/.t1/.t2), ≥ 3 vòng, ease-out quint (nhanh → chậm dần).
+        Con số giữa lõi đổi theo ô đèn đang chạy.
+     3. LAND — dừng ĐÚNG ô chứa mức giải SERVER trả (spinRingTarget chọn ô
+        tất định phía trước; client KHÔNG random, KHÔNG chọn thưởng). Ô trúng
+        nổ (.win pulse), cả board mờ đi trừ ô trúng, confetti bung một nhịp.
+     4. RESULT — lõi hiện "+N bonus votes" + độ hiếm; còn lượt thì nút bật
+        lại, hết lượt thì nút thành đếm ngược tới reset.
+     5. ERROR — dừng an toàn, bật lại nút, lỗi i18n; không tạo thưởng/lượt.
 
-   Thứ tự 8 ô theo CHIỀU KIM ĐỒNG HỒ (index = thứ tự vệt sáng chạy):
-     0 top-left +1    1 top-mid +2     2 top-right +3   3 mid-right +5
-     4 bottom-right ACCENT (giữa các lần chạy chỉ là điểm nhấn thị giác)
-     5 bottom-mid +8  6 bottom-left +10                 7 mid-left +20
-   Accent KHÔNG trong bảng giải, KHÔNG bao giờ là ô dừng; mỗi mức giải map
-   ĐÚNG MỘT ô (find theo reward — duy nhất vì 7 giải khác nhau).
-
-   NHỊP: bấm QUAY → khoá nút NGAY → vòng nhanh ≥3 vòng kim đồng hồ (70ms/
-   bước) chạy trong lúc chờ server → server trả kết quả → giảm tốc 2,2s và
-   DỪNG ĐÚNG ô giải đó (client KHÔNG chọn: không Math.random; ô đích đến từ
-   `segment` của server qua spinSectorIndex) → ô trúng giữ active + result
-   pop. Lỗi: dừng an toàn, bật lại nút, không tạo giải/lượt mới.
-   Reduced-motion/replay: bỏ vòng chạy, ô trúng sáng tức thì — không mất
-   kết quả.
-
-   Backend GIỮ NGUYÊN 100%: performDailySpin, request-id idempotency, quota
-   2 lượt/ngày, no-repeat, edge gate/Turnstile, cap — chỉ đổi cách PRESENT.
+   20 ô lặp lại 7 mức giải THEO TRỌNG SỐ (1×5 · 2×4 · 3×4 · 5×2 · 8×2 ·
+   10×2 · 20×1) — ô nào trúng vẫn do server quyết, board chỉ là bàn diễn.
+   Reduced-motion: chạy nhanh đều (18ms/bước), vẫn dừng đúng ô + đủ kết quả.
    ========================================================= */
 
-const FAST_STEP_MS = 70      // nhịp vòng nhanh
-const MIN_LOOPS = 3          // tối thiểu 3 vòng trước khi giảm tốc
-const MIN_STEPS = MIN_LOOPS * 8
-const DECEL_MS = 2200        // tổng thời gian giảm tốc
+const RING_RUN_STEPS = 60   // tối thiểu 3 vòng trước khi đáp
+const rarityOfTier = tier => (tier <= 3 ? 0 : tier <= 5 ? 1 : tier === 6 ? 2 : 3)
+const rarityOfReward = (reward, rewards) => rarityOfTier(Number(spinTier(reward, rewards).slice(1)))
+const RARITY_KEYS = ['rar.common', 'rar.rare', 'rar.epic', 'rar.legendary']
 
-/* Vệt sáng chạy THEO CHIỀU KIM ĐỒNG HỒ = theo đúng thứ tự index spec. */
-const nextCell = i => (i + 1) % 8
-
-function Pips({ remaining, limit }) {
-  return <span className="spin-pips" aria-hidden="true">
-    {Array.from({ length: limit }, (_, i) => <i key={i} className={i < remaining ? 'on' : ''} />)}
-  </span>
+/* Icon riêng từng mức (đa dạng ô) — SVG fill-currentColor trên lưới 24. */
+const ICON_PATHS = {
+  1: (  // cỏ bốn lá
+    <><circle cx="8.4" cy="8.4" r="3.8" /><circle cx="15.6" cy="8.4" r="3.8" />
+      <circle cx="12" cy="13.8" r="4.2" /><path d="M10.9 14.6c-.8 2.9-2.6 4.9-5.2 6.2 3.1-.3 5.5-1.4 7-3.3z" /></>
+  ),
+  2: (<path d="M12 2.4l2.9 6 6.6.9-4.8 4.5 1.2 6.5-5.9-3.2-5.9 3.2 1.2-6.5L2.5 9.3l6.6-.9z" />),
+  3: (<path d="M13.4 2 4.6 13.6h5.9L9.1 22l8.9-12.4h-6.1z" />),
+  5: (<path d="M6.2 8.6 12 2.2l5.8 6.4L12 21.8z" />),
+  8: (  // hoa nổ
+    <><circle cx="12" cy="5.6" r="3.3" /><circle cx="12" cy="18.4" r="3.3" />
+      <circle cx="5.6" cy="12" r="3.3" /><circle cx="18.4" cy="12" r="3.3" />
+      <circle cx="12" cy="12" r="3" /></>
+  ),
+  10: ( // cúp
+    <path d="M7 3.2h10v2.6h3.6v2.6a5.1 5.1 0 0 1-4.5 5.1 5.7 5.7 0 0 1-2.1 2v2h3v3.3H7v-3.3h3v-2a5.7 5.7 0 0 1-2.1-2 5.1 5.1 0 0 1-4.5-5.1V5.8H7zm-1.7 5.2v.9c0 1.2.8 2.3 2 2.8a10 10 0 0 1-.2-3.7zm13.4 0h-1.8a10 10 0 0 1-.2 3.7c1.2-.5 2-1.6 2-2.8z" />
+  ),
+  20: ( // vương miện
+    <><path d="M2.9 8.7 8.1 11.7 12 4.5l3.9 7.2 5.2-3L19.2 19H4.8z" />
+      <rect x="4.8" y="20.1" width="14.4" height="1.9" rx=".95" /></>
+  ),
 }
+const CellIcon = ({ reward }) => (
+  <svg className="spin-cell-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    {ICON_PATHS[reward]}
+  </svg>
+)
+const GiftIcon = () => (
+  <svg className="spin-now-gift" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M20 7h-2.2a3.2 3.2 0 0 0 .2-1.1A2.9 2.9 0 0 0 15.1 3c-1.2 0-2.3.6-3.1 1.6A4.2 4.2 0 0 0 8.9 3 2.9 2.9 0 0 0 6 5.9c0 .4.1.8.2 1.1H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h7V7.6h2V12h7a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zM8.9 5a1 1 0 0 1 1 1v1H8.1a1.1 1.1 0 0 1-1.1-1.1A.9.9 0 0 1 7.9 5zm6.2 2h-1.8V6a1 1 0 0 1 1-1 1 1 0 0 1 1.1 1.1c0 .5-.1.9-.3.9zM5 13v6.2A1.8 1.8 0 0 0 6.8 21H11v-8zm8 8h4.2a1.8 1.8 0 0 0 1.8-1.8V13h-6z" />
+  </svg>
+)
 
 export default function DailySpin({ userId, onBalance, onVote }) {
   const { t } = useI18n()
@@ -69,26 +90,22 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   const [phase, setPhase] = useState('idle')        // idle | requesting | spinning
   const [result, setResult] = useState(null)
   const [pending, setPending] = useState(() => !!readPendingSpin(userId))
-  const [activeCell, setActiveCell] = useState(-1)  // ô đang sáng (vệt chạy/ô trúng)
-  // Con số được giữ yên khi grid đang chạy (giao dịch đã xong nhưng không spoil).
+  const [onSlot, setOnSlot] = useState(-1)          // ô đèn đang chạy
+  const [winSlot, setWinSlot] = useState(-1)        // ô trúng (giữ sáng sau khi dừng)
+  const [dimBoard, setDimBoard] = useState(false)   // sau khi trúng: mờ ô còn lại
+  // Con số được giữ yên khi đèn đang chạy (giao dịch đã xong nhưng không spoil).
   const [activeRequest, setActiveRequest] = useState(null)
   const [clock, setClock] = useState(() => performance.now())
   const [deadline, setDeadline] = useState(null)
   const busy = useRef(false)
   const mounted = useRef(false)
   const readVersion = useRef(0)
-  const spinTimers = useRef([])     // mọi timeout của nhịp chạy — cleanup khi unmount/lỗi
+  const spinTimers = useRef([])
   const spinResultRef = useRef(null)
-  const planRef = useRef(null)      // { winCell } — có SAU khi server trả
-  const stepsRef = useRef(0)
+  const ringPos = useRef(0)                         // slot đèn đứng hiện tại
   const rewardsRef = useRef(SPIN_REWARDS)
 
   const clearSpinTimers = () => { spinTimers.current.forEach(clearTimeout); spinTimers.current = [] }
-  const later = (fn, ms) => spinTimers.current.push(setTimeout(fn, ms))
-
-  /* Dừng NHỊP CHẠY một cách an toàn (lỗi/unmount): xoá lịch chạy, không giữ
-     ô nào sáng — nút do caller bật lại. */
-  const stopRun = () => { clearSpinTimers(); planRef.current = null; if (mounted.current) setActiveCell(-1) }
 
   useEffect(() => () => { mounted.current = false; clearSpinTimers() }, [])
 
@@ -155,60 +172,44 @@ export default function DailySpin({ userId, onBalance, onVote }) {
     return () => clearTimeout(id)
   }, [deadline, load]) // server midnight, also refreshed on focus / every minute
 
-  /* Grid dừng: lộ kết quả, trả nút, đồng bộ các tab khác. Gọi bởi bước cuối
-     của lịch decel (hoặc tức thì ở reduced-motion/replay). */
+  /* Đèn đáp: ô trúng nổ, board mờ đi, confetti, trả nút, đồng bộ tab khác. */
   const settle = useCallback(() => {
     if (!mounted.current) return
     const spin = spinResultRef.current
     busy.current = false
     setPhase('idle')
     if (spin) {
+      const win = ringPos.current
+      setWinSlot(win)
+      setDimBoard(true)
       setResult(spin)
+      const tile = document.querySelector(`.spin-tile[data-slot="${win}"]`)
+      if (tile && !reducedMotion()) {
+        const r = tile.getBoundingClientRect()
+        const top = Math.max(...rewardsRef.current)
+        confettiBurst(r.left + r.width / 2, r.top + r.height / 2, spin.reward >= top ? 170 : 90)
+      }
       const top = Math.max(...rewardsRef.current)
       sfx.spinWin(spin.reward >= top)
     }
     load()
   }, [load])
 
-  /* Lịch decel: từ ô hiện tại chạy TIẾP theo chiều kim đồng hồ đủ bước để
-     dừng ĐÚNG ô trúng (ô trúng luôn là ô giải — accent không bao giờ là đích
-     vì accent không phải giá trị giải nào). Delay mỗi bước tỉ lệ trọng số
-     ease-out, chuẩn hoá đúng tổng DECEL_MS; bước cuối gọi settle. */
-  const runDecel = (from, winIndex) => {
-    let steps = (winIndex - from + 8) % 8
-    if (steps === 0) steps = 8                    // luôn đi tiếp ít nhất một ô
-    const total = steps + 2 * 8                   // thêm 2 vòng cho đỡ tụt đột ngột
-    const raw = Array.from({ length: total }, (_, i) => 1 + 3.1 * (i / total) ** 2.4)
-    const sum = raw.reduce((a, b) => a + b, 0)
-    let acc = 0
-    let cell = from
-    raw.forEach((w, i) => {
-      acc += w
-      const at = Math.round((DECEL_MS * acc) / sum)
-      const last = i === total - 1
-      later(() => {
-        if (!mounted.current) return
-        cell = nextCell(cell)
-        setActiveCell(cell)
-        if (last) later(settle, 140)
-      }, at)
-    })
-  }
-
-  /* Vòng nhanh: chạy ĐỀU theo kim đồng hồ cho tới khi (a) server đã trả
-     (planRef) VÀ (b) đã đủ ≥ MIN_LOOPS vòng — khi đó chuyển sang decel. */
-  const fastLoop = cell => {
-    if (!mounted.current) return
-    cell = nextCell(cell)
-    stepsRef.current += 1
-    setActiveCell(cell)
-    const plan = planRef.current
-    if (plan && stepsRef.current >= MIN_STEPS) {
-      setPhase('spinning')
-      runDecel(cell, plan.winCell)
-      return
+  /* Đèn chạy vòng: ≥ 3 vòng (60 bước) + đủ bước tới ô đích tất định, mỗi bước
+     chậm dần theo ease-out quint (nhanh lúc đầu, đáp êm). */
+  const runRing = (targetSteps, done) => {
+    const n = RING_RUN_STEPS + targetSteps
+    const delayFor = i => (reducedMotion() ? 18 : 34 + 290 * (i / n) ** 5)
+    let i = 0
+    const step = () => {
+      if (!mounted.current) return
+      i += 1
+      ringPos.current = (ringPos.current + 1) % SPIN_RING.length
+      setOnSlot(ringPos.current)
+      if (i < n) spinTimers.current.push(setTimeout(step, delayFor(i)))
+      else spinTimers.current.push(setTimeout(done, 240))  // một nhịp thấy ô đọng
     }
-    later(() => fastLoop(cell), FAST_STEP_MS)
+    spinTimers.current.push(setTimeout(step, delayFor(0)))
   }
 
   const spin = async () => {
@@ -217,10 +218,8 @@ export default function DailySpin({ userId, onBalance, onVote }) {
     ++readVersion.current // a stale status read must not overwrite the committed result
     setLoading(false); setPhase('requesting'); setError(''); setResult(null)
     setActiveRequest(null)
+    setWinSlot(-1); setDimBoard(false)
     sfx.spinGo()
-    planRef.current = null
-    stepsRef.current = 0
-    later(() => fastLoop(7), FAST_STEP_MS)
     let requestId
     try {
       requestId = await withSpinLock(`ccl.spin.pending.${userId}`, () => getPendingSpin(userId))
@@ -233,25 +232,25 @@ export default function DailySpin({ userId, onBalance, onVote }) {
       if (!mounted.current) { onBalance(data.status); return }
       applyStatus(data.status)
       setPending(!!readPendingSpin(userId))
-      /* `rewards` là bảng ô do MÁY CHỦ trả về. Bản deploy cũ (hoặc một hàm SQL
-         chưa cập nhật) có thể trả payload thiếu khoá này — đọc thẳng là
-         TypeError giữa lúc quay, người dùng mất lượt mà không thấy gì. Thiếu
-         thì rơi về đúng 7 ô mặc định. */
+      /* `rewards` là bảng mức do MÁY CHỦ trả về; thiếu (deploy cũ) thì rơi về
+         đúng 7 mức mặc định thay vì vỡ giữa lúc quay. */
       const rewards = data.status?.rewards?.length ? data.status.rewards : SPIN_REWARDS
       rewardsRef.current = rewards
-      /* Ô trúng DO SERVER quyết: segment → mức giải → ô grid DUY NHẤT chứa
-         mức đó. Server trả xong mới lập kế hoạch decel — client không chọn. */
+      /* Ô đáp DO SERVER quyết: segment → mức giải → ô tất định phía trước trên
+         vòng. Client không chọn thưởng, không Math.random. */
       const winIndex = spinSectorIndex(data.spin.segment, rewards)
-      const winCell = spinCellForReward(rewards[winIndex], rewards)
+      const targetSteps = spinRingTarget(rewards[winIndex], ringPos.current)
       spinResultRef.current = data.spin
-      if (reducedMotion() || data.replayed) {
-        // Reduced-motion/replay: bỏ vòng chạy — ô trúng sáng tức thì, đủ kết quả.
-        clearSpinTimers()
-        setPhase('spinning')
-        setActiveCell(winCell)
-        later(settle, 60)
+      setPhase('spinning')
+      if (data.replayed) {
+        // Giao dịch cũ đã commitment — không diễn lại màn quay: đặt đèn thẳng
+        // vào ô chứa mức giải đó (tất định) rồi hiện kết quả ngay.
+        const steps = spinRingTarget(rewards[winIndex], ringPos.current)
+        ringPos.current = (ringPos.current + steps) % SPIN_RING.length
+        setOnSlot(ringPos.current)
+        settle()
       } else {
-        planRef.current = { winCell }   // fastLoop tự chuyển sang decel khi đủ vòng
+        runRing(targetSteps, settle)
       }
     } catch (e) {
       // Known SQL rejections rolled back, so there is nothing to recover. Keep
@@ -264,7 +263,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
       ].includes(e?.message)) clearPendingSpin(userId, requestId)
       busy.current = false
       spinResultRef.current = null
-      stopRun()
+      clearSpinTimers()
       if (!mounted.current) return
       setPhase('idle'); setError(errMsg(t, e)); setPending(!!readPendingSpin(userId))
       setDeviceBroken(['err.spinDevice', 'err.spinStorage'].includes(e?.message))
@@ -277,23 +276,13 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   const remaining = status?.remaining ?? 0
   const limit = status?.limit || DAILY_SPIN_LIMIT
   const active = phase !== 'idle'
-  const spinning = phase === 'spinning'
-
-  /* Mỗi ô: mức giải (tier màu) + nhãn "+N". Ô accent có gem riêng. */
-  const cells = useMemo(() => SPIN_GRID_CELLS.map(c => ({
-    ...c,
-    tier: c.reward === null ? 'accent' : spinTier(c.reward, rewards),
-  })), [rewards])
-  const wonCell = result
-    ? SPIN_GRID_CELLS.find(c => c.reward === result.reward)?.index ?? -1
-    : -1
 
   // The transaction is already committed, but do not spoil the result while
-  // the grid is still running. Leaving the page never loses the real credit.
+  // the ring is still running. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
-  /* Nhãn nút giữa là QUAY/SPIN CỐ ĐỊNH (spec 2026-10-09): nhãn không nhảy
-     chữ khi requesting/spinning — trạng thái được vùng live ở panel đọc ra
-     ("Spinning…"/kết quả), nút chỉ đổi DISABLE. */
+  const spent = !!status && !remaining && !pending
+  const nowReward = active ? SPIN_RING[onSlot] : (result ? result.reward : null)
+  const nowRarity = nowReward === null ? -1 : rarityOfReward(nowReward, rewards)
 
   return (
     <section className="daily-spin" aria-label={t('spin.playLabel')}>
@@ -313,108 +302,94 @@ export default function DailySpin({ userId, onBalance, onVote }) {
         </div>
       </header>
 
-      <div className="spin-stage">
-        <div className="spin-dial">
-          {/* TRỌNG TÂM: LƯỚI 3×3. Tám ô viền aria-hidden (trạng thái được đọc
-              qua vùng live ở panel); ô giữa là NÚT QUAY thật, keyboard trực
-              tiếp. Vệt sáng chỉ nằm trên ô viền — không đè nút. */}
-          <div className="spin-grid" role="group" aria-label={t('spin.gridLabel')}
-            data-state={spinning ? 'spinning' : active ? 'busy' : 'idle'}>
-            {SPIN_GRID_RENDER_ORDER.map(idx => {
-              if (idx === null) {   // ô giữa — nút QUAY thật
-                return (
-                  <div className="spin-grid-center" key="center">
-                    <button type="button" className="btn btn-primary spin-button" onClick={spin}
-                      disabled={active || loading || !status || (!remaining && !pending)}
-                      aria-label={t('spin.action')}>
-                      {t('spin.action')}
-                    </button>
-                  </div>
-                )
-              }
-              const c = cells[idx]
-              return <GridCell key={c.index} cell={c}
-                active={activeCell === c.index} won={wonCell === c.index} />
-            })}
-          </div>
+      {/* BOARD 7×5: 20 ô vuông quanh lõi chữ nhật — đèn chạy vòng quanh. */}
+      <div className={`spin-board${dimBoard ? ' dim' : ''}`}>
+        {SPIN_RING.map((reward, slot) => {
+          const [row, col] = spinRingSlot(slot)
+          const rarity = rarityOfReward(reward, rewards)
+          return (
+            <span key={slot} data-slot={slot} aria-hidden="true"
+              style={{ gridArea: `${row} / ${col}` }}
+              className={`spin-tile r${rarity}${onSlot === slot ? ' on' : ''}`
+                + `${(onSlot + 19) % 20 === slot ? ' t1' : ''}${(onSlot + 18) % 20 === slot ? ' t2' : ''}`
+                + `${winSlot === slot ? ' win' : ''}`}>
+              <CellIcon reward={reward} />
+              <b>+{reward}</b>
+              <small>{t('spin.reward', { n: reward }).replace(/^\+\d+\s*/, '')}</small>
+            </span>
+          )
+        })}
 
-          {pending && !active && <p className="spin-pending">{t('spin.pending')}</p>}
-          {error && <div className="spin-error" role="alert">
-            <p>{error}</p>
-            <button type="button" className="btn btn-sm" disabled={loading || active}
-              onClick={() => { setLoading(true); setError(''); load() }}>{t('spin.refresh')}</button>
-            {/* Token trình duyệt hỏng thì "Try again" không bao giờ thoát được:
-                cho người dùng tự cấp lại thay vì bắt liên hệ hỗ trợ. */}
-            {deviceBroken && (
-              <button type="button" className="btn btn-sm" title={t('spin.deviceResetHint')}
-                disabled={active}
-                onClick={() => { resetSpinDevice(); window.location.reload() }}>
-                {t('spin.deviceReset')}
-              </button>
-            )}
-          </div>}
-        </div>
-
-        {/* CỘT PHỤ đúng bốn thứ: lượt còn lại · kết quả mới nhất (nút QUAY đã
-            nằm giữa lưới) · lịch sử ngắn. Bảng odds/% KHÔNG được quay lại đây. */}
-        <aside className="spin-panel">
-          <div className="spin-remaining">
-            <span>{t('spin.available')}</span>
-            <b>{status ? remaining : '–'}<small> / {limit}</small></b>
-            <Pips remaining={status ? remaining : 0} limit={limit} />
-          </div>
-
-          {/* VÙNG LIVE DUY NHẤT: đọc cả trạng thái đang quay lẫn kết quả. */}
-          <div className={`spin-result${result ? ' won' : ''}`} role="status" aria-live="polite" aria-atomic="true">
-            {result
-              ? <><strong key={result.reward} className="spin-won-num">{t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })}</strong>
-                <small>{t('spin.wonNote')}</small></>
-              : active ? <span className="spin-live">{t('spin.spinning')}</span>
-              : null}
-          </div>
-
-          <div className="spin-history">
-            <div className="spin-history-head">
-              <h3>{t('spin.history')}</h3>
-              <button type="button" className="spin-vote-link" onClick={onVote}>
-                {t('spin.useVotes')} <span aria-hidden="true">→</span>
-              </button>
+        {/* LÕI: trạng thái + nút SPIN — vùng live duy nhất đọc toàn bộ nhịp. */}
+        <div className="spin-core">
+          <div aria-live="polite">
+            <div className="spin-core-k">{t('spin.todaySpin')}</div>
+            <div className={`spin-now${result ? ' pop' : ''}`} key={active ? onSlot : 'r'}>
+              {nowReward === null ? <GiftIcon /> : <b className={`r${nowRarity}`}>+{nowReward}</b>}
             </div>
-            {history.length ? <ul>
-              {/* Mỗi dòng mang HẠNG của phần thưởng (cùng tông với ô trên
-                  lưới): nhìn lịch sử là thấy ngay hôm nay có trúng giải cao
-                  nhất hay không, không phải đọc từng con số. */}
-              {history.map(item => <li key={item.request_id} className={spinTier(item.reward, rewards)}>
-                <b>{t(item.reward === 1 ? 'spin.rewardOne' : 'spin.reward', { n: item.reward })}</b>
-                <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
-              </li>)}
-            </ul> : <p>{t('spin.historyEmpty')}</p>}
-            {/* Tổng của chính danh sách bên trên — con số duy nhất trên trang
-                cộng từ dữ liệu thật, và là câu trả lời cho "hôm nay được gì". */}
-            {history.length > 0 && (
-              <p className="spin-total">{t('spin.todayTotal', {
-                n: history.reduce((sum, item) => sum + item.reward, 0),
-              })}</p>
-            )}
+            <div className="spin-pn" key={`pn-${active ? onSlot : result ? result.reward : 'idle'}`}>
+              {result ? t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })
+                : active ? t('spin.goodLuck') : t('spin.ready')}
+            </div>
+            <div className={`spin-rar${nowRarity >= 0 ? ` r${nowRarity}` : ''}`}>
+              {nowReward === null ? '' : t(RARITY_KEYS[nowRarity])}
+            </div>
+            <button type="button" className="spin-cta" onClick={spin}
+              disabled={active || loading || !status || (!remaining && !pending)}>
+              {active ? t('spin.spinning')
+                : loading ? t('spin.loading')
+                : spent ? t('spin.nextIn', { time: spinCountdown(deadline - clock) })
+                : t('spin.action')}
+            </button>
           </div>
-        </aside>
+        </div>
       </div>
-    </section>
-  )
-}
 
-/* Ô viền: giải thì "+N", accent thì gem hình thoi — phân biệt bằng HÌNH THỨC
-   chứ không chỉ màu. Active (vệt chạy) = viền + glow + scale; won (ô trúng
-   sau khi dừng) giữ nguyên hiệu ứng đó tới khi lượt tiếp theo. */
-function GridCell({ cell, active, won }) {
-  return (
-    <span
-      className={`spin-cell ${cell.tier}${active ? ' is-active' : ''}${won ? ' is-won' : ''}`}
-      aria-hidden="true"
-    >
-      {cell.reward === null
-        ? <i className="spin-cell-gem" />
-        : <b className="spin-cell-num">+{cell.reward}</b>}
-    </span>
+      {pending && !active && <p className="spin-pending">{t('spin.pending')}</p>}
+      {error && <div className="spin-error" role="alert">
+        <p>{error}</p>
+        <button type="button" className="btn btn-sm" disabled={loading || active}
+          onClick={() => { setLoading(true); setError(''); load() }}>{t('spin.refresh')}</button>
+        {/* Token trình duyệt hỏng thì "Try again" không bao giờ thoát được:
+            cho người dùng tự cấp lại thay vì bắt liên hệ hỗ trợ. */}
+        {deviceBroken && (
+          <button type="button" className="btn btn-sm" title={t('spin.deviceResetHint')}
+            disabled={active}
+            onClick={() => { resetSpinDevice(); window.location.reload() }}>
+            {t('spin.deviceReset')}
+          </button>
+        )}
+      </div>}
+
+      {/* Dải dưới gọn: lượt còn lại · hôm nay được gì · link dùng votes. */}
+      <aside className="spin-strip">
+        <div className="spin-remaining">
+          <span>{t('spin.available')}</span>
+          <b>{status ? remaining : '–'}<small> / {limit}</small></b>
+          <span className="spin-pips" aria-hidden="true">
+            {Array.from({ length: limit }, (_, i) => <i key={i} className={i < remaining ? 'on' : ''} />)}
+          </span>
+        </div>
+        <div className="spin-history">
+          <div className="spin-history-head">
+            <h3>{t('spin.history')}</h3>
+            <button type="button" className="spin-vote-link" onClick={onVote}>
+              {t('spin.useVotes')} <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          {history.length ? <ul>
+            {history.map(item => <li key={item.request_id} className={`r${rarityOfReward(item.reward, rewards)}`}>
+              <b>{t(item.reward === 1 ? 'spin.rewardOne' : 'spin.reward', { n: item.reward })}</b>
+              <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
+            </li>)}
+          </ul> : <p>{t('spin.historyEmpty')}</p>}
+          {history.length > 0 && (
+            <p className="spin-total">{t('spin.todayTotal', {
+              n: history.reduce((sum, item) => sum + item.reward, 0),
+            })}</p>
+          )}
+        </div>
+      </aside>
+    </section>
   )
 }

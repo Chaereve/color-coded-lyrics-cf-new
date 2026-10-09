@@ -35,7 +35,7 @@ test('reel renders viewport + pointer + tiles; the winning tile is marked, not g
     const CaseOpeningReel = mod.default
     const html = renderToStaticMarkup(createElement(CaseOpeningReel, {
       items: ITEMS, spinning: false, targetIndex: 3, duration: 3600,
-      label: 'Daily mystery box', settled: true,
+      label: 'Daily box', settled: true,
     }))
     assert.match(html, /class="reel-viewport"/)
     assert.match(html, /class="reel-pointer"/, 'kim giữa là một marker riêng')
@@ -51,14 +51,19 @@ test('reel renders viewport + pointer + tiles; the winning tile is marked, not g
 
 test('reel contract: duration default 3.6s, transform-only transition, exact target landing', async () => {
   const jsx = await readFile(new URL('./CaseOpeningReel.jsx', import.meta.url), 'utf8')
-  const { REEL_TARGET_INDEX } = await import('../lib/mysteryBox.js')
-  void REEL_TARGET_INDEX
+  const { REEL_TARGET_INDEX, REEL_ITEM_COUNT } = await import('../lib/mysteryBox.js')
   const css = await readFile(new URL('./CaseOpeningReel.css', import.meta.url), 'utf8')
 
   /* Hợp đồng thời gian: duration do MYSTERY truyền (3600); settle gọi sau khi
      transition kết thúc (+ đệm), qua ref — callback cha đổi identity mỗi
      render, không neo là cleanup vô hạn và reveal không bao giờ tới. */
-  assert.equal(REEL_TARGET_INDEX, 21)
+  /* Vòng 5 (bản mẫu): 44 ô, đích ở 34 — nửa trái viewport kín khi dừng. */
+  assert.equal(REEL_TARGET_INDEX, 34)
+  assert.equal(REEL_ITEM_COUNT, 44)
+  assert.ok(REEL_TARGET_INDEX < REEL_ITEM_COUNT - 4, 'đích phải còn ô bên phải')
+  /* `hold`: chờ reel TRỒI LÊN phía trên hộp xong mới trượt (vòng 5). */
+  assert.match(jsx, /hold = 0/)
+  assert.match(jsx, /holdMs \+ ms \+ 140/)
   assert.match(jsx, /duration = 3600/)
   assert.match(jsx, /setTimeout\(\(\) => onSettledRef\.current\?\.\(\), [^)]+\)/)
   assert.match(jsx, /const onSettledRef = useRef\(onSettled\)/)
@@ -67,9 +72,11 @@ test('reel contract: duration default 3.6s, transform-only transition, exact tar
      (getBoundingClientRect) + gap thật (getComputedStyle) — không hằng số cứng
      lệch giữa các theme. Nhảy transform: transition none → reflow → rAF kép →
      transition transform. */
+  /* Đo geometry PHẢI sau hold (2 rAF trong timeout hold) — đo sớm hơn là đo
+     trên reel đang rise scale(.3), target lệch (bug đã chụp). */
   assert.match(jsx, /getBoundingClientRect\(\)/)
   assert.match(jsx, /columnGap/)
-  assert.match(jsx, /style\.transition = 'none'/)
+  assert.match(jsx, /const start = setTimeout\(\(\) => \{[\s\S]*?requestAnimationFrame\(\(\) => requestAnimationFrame/)
   assert.match(jsx, /requestAnimationFrame\(\(\) => requestAnimationFrame/)
   assert.match(jsx, /cubic-bezier\(/, 'một đường cong giảm tốc duy nhất')
   assert.match(jsx, /translate3d/, 'chuyển động bằng transform (GPU, không reflow)')
@@ -78,7 +85,7 @@ test('reel contract: duration default 3.6s, transform-only transition, exact tar
      chết, không leak. */
   /* Cleanup: cả rAF lẫn timeout settle bị huỷ khi unmount — không gọi
      callback vào component chết, không leak. */
-  assert.match(jsx, /return \(\) => \{ cancelAnimationFrame\(raf\); clearTimeout\(timer\) \}/)
+  assert.match(jsx, /return \(\) => \{[\s\S]*?cancelAnimationFrame\(raf\);[\s\S]*?\}/)
 
   /* CSS: viewport khóa khung (overflow hidden + chiều cao cố định), item bề
      rộng cố định qua CSS var, marker giữa KHÔNG che text chính. */
@@ -87,6 +94,9 @@ test('reel contract: duration default 3.6s, transform-only transition, exact tar
   assert.match(css, /\.reel-pointer \{[^}]*left:\s*50%/)
   /* Tile thắng nổi bật bằng glow hồng — vạch hiệu ứng không chỉ dựa màu cũng
      có: nền tile đổi (is-win có background riêng). */
-  assert.match(css, /\.reel-item\.is-win \{[^}]*background:/)
+  /* Tile thắng nổi bật SAU KHI DỪNG (is-settled): nền đổi + scale. */
+  assert.match(css, /\.reel\.is-settled \.reel-item\.is-win \{[^}]*background:/)
+  /* Kim 2 đầu mũi tên — marker giữa không che text chính. */
+  assert.match(css, /\.reel-pointer::before/)
   assert.match(css, /prefers-reduced-motion/)
 })

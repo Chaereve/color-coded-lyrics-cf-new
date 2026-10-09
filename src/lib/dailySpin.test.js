@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   DAILY_SPIN_LIMIT, SPIN_REWARDS, SPIN_WEIGHTS, spinDay, nextSpinReset, rewardOdds, spinTier,
   spinSectorIndex, spinAverage, formatChance, spinCountdown,
-  SPIN_GRID_CELLS, SPIN_GRID_RENDER_ORDER, spinCellForReward,
+  SPIN_RING, spinRingSlot, spinRingTarget,
   demoSpinStatus, drawDemoSpin, validateSpinResult, drawSegment, streakBlocked,
 } from './dailySpin.js'
 
@@ -119,15 +119,19 @@ test('reset is exactly midnight Vietnam, including month/year boundaries', () =>
   }
 })
 
-/* LƯỚI 3×3 (spec 2026-10-09): kết quả server (segment → mức giải) phải dừng
-   đúng MỘT ô trên lưới; ô accent KHÔNG bao giờ là ô dừng. Kiểm bằng CHÍNH
-   bảng ô của lib, không bằng công thức hình học tự chế. */
-test('ô server rút được chính là ô trên lưới — accent không thể trúng', () => {
+/* VÀNH 20 Ô QUANH LÕI (vòng 5, bản mẫu): kết quả server (segment → mức giải)
+   phải dừng đúng MỘT ô trên vành, từ MỌI vị trí xuất phát. Kiểm bằng CHÍNH
+   bảng của lib, không bằng công thức hình học tự chế. */
+test('ô server rút được chính là ô trên vành — spinRingTarget tất định từ mọi điểm', () => {
   for (let segment = 0; segment < SPIN_REWARDS.length; segment++) {
     const reward = SPIN_REWARDS[spinSectorIndex(segment)]
-    const cell = SPIN_GRID_CELLS[spinCellForReward(reward)]
-    assert.equal(cell.reward, reward, `segment ${segment} → ô +${reward}`)
-    assert.notEqual(cell.type, 'accent', 'ô dừng không bao giờ là accent')
+    for (let from = 0; from < 20; from++) {
+      const steps = spinRingTarget(reward, from)
+      assert.ok(Number.isInteger(steps) && steps >= 1 && steps <= 20,
+        `bước quay 1..20 (reward ${reward}, from ${from})`)
+      assert.equal(SPIN_RING[(from + steps) % 20], reward,
+        `segment ${segment} từ ${from} → đúng ô +${reward}`)
+    }
   }
   for (const bad of [-1, SPIN_REWARDS.length, 1.5, null, undefined]) {
     assert.throws(() => spinSectorIndex(bad), 'chỉ số ngoài bảng phải bị chặn')
@@ -136,30 +140,46 @@ test('ô server rút được chính là ô trên lưới — accent không th�
      thì vẫn quy đổi được — ánh xạ không phụ thuộc độ dài bảng. */
   const custom = [2, 2, 2, 2]
   assert.equal(spinSectorIndex(3, custom), 3)
-  /* Mức lạ (không thuộc bảng) phải ném lỗi — không được lặng lẽ dừng accent. */
-  assert.throws(() => spinCellForReward(99))
+  /* Cùng điểm xuất phát + cùng kết quả → CÙNG số bước (tái lập được). */
+  assert.equal(spinRingTarget(10, 7), spinRingTarget(10, 7))
+  /* Mức lạ (không thuộc bảng) phải ném lỗi — không lặng lẽ dừng chỗ khác. */
+  assert.throws(() => spinRingTarget(99, 0))
 })
 
-test('bản đồ lưới: 7 giải + 1 accent, mỗi mức một ô, thứ tự render đúng vị trí', () => {
-  assert.equal(SPIN_GRID_CELLS.length, 8)
-  const accents = SPIN_GRID_CELLS.filter(c => c.reward === null)
-  assert.equal(accents.length, 1, 'đúng MỘT ô accent')
-  assert.equal(accents[0].type, 'accent')
-  const rewards = SPIN_GRID_CELLS.map(c => c.reward).filter(r => r !== null).sort((a, b) => a - b)
-  assert.deepEqual(rewards, [...SPIN_REWARDS], '7 ô giải = đúng 7 mức server, không nhân đôi')
+test('bản đồ vành: 20 ô quanh lõi 7×5, đủ 7 mức, jackpot 1 ô, không 2 ô kề nhau cùng mức', () => {
+  assert.equal(SPIN_RING.length, 20)
+  assert.equal(new Set(SPIN_RING.map((v, i) => `${i}:${v}`)).size, 20)
+  /* Đủ 7 mức server; jackpot +20 đúng MỘT ô; tần suất nghiêng về mức nhỏ —
+     hiển thị gợi trọng số đã duyệt mà không tiết lộ tỉ lệ. */
   for (const reward of SPIN_REWARDS) {
-    assert.equal(SPIN_GRID_CELLS.filter(c => c.reward === reward).length, 1,
-      `mức ${reward} phải có đúng một ô`)
+    assert.ok(SPIN_RING.includes(reward), `mức ${reward} phải xuất hiện trên vành`)
   }
-  /* VỊ TRÍ HÌNH HỌC theo index spec (row-major, nút giữa ở slot 4):
-     0 TL · 1 TM · 2 TR · 3 MR · 4 BR(accent) · 5 BM · 6 BL · 7 ML. */
-  const pos = {}
-  SPIN_GRID_RENDER_ORDER.forEach((cellIndex, slot) => { pos[cellIndex] = [Math.floor(slot / 3), slot % 3] })
-  assert.deepEqual(pos[0], [0, 0]); assert.deepEqual(pos[1], [0, 1]); assert.deepEqual(pos[2], [0, 2])
-  assert.deepEqual(pos[3], [1, 2]); assert.deepEqual(pos[4], [2, 2]); assert.deepEqual(pos[5], [2, 1])
-  assert.deepEqual(pos[6], [2, 0]); assert.deepEqual(pos[7], [1, 0])
-  assert.equal(SPIN_GRID_RENDER_ORDER.length, 9, '9 slot — sentinel null là nút QUAY ở giữa')
-  assert.equal(SPIN_GRID_RENDER_ORDER[4], null, 'slot giữa (1,1) là nút, không phải ô giải')
+  assert.equal(SPIN_RING.filter(v => v === 20).length, 1, '+20 đúng một ô')
+  const counts = {}
+  for (const v of SPIN_RING) counts[v] = (counts[v] || 0) + 1
+  assert.deepEqual(counts, { 1: 5, 2: 4, 3: 4, 5: 2, 8: 2, 10: 2, 20: 1 })
+  /* HÌNH HỌC: spinRingSlot trả [row, col] 1-based trên grid 7×5, đôi một
+     khác nhau, CHỈ nằm trên vành (không đâm vào lõi 2/2/5/7). */
+  const seen = new Set()
+  for (let slot = 0; slot < 20; slot++) {
+    const [row, col] = spinRingSlot(slot)
+    assert.ok(row >= 1 && row <= 5 && col >= 1 && col <= 7, `ô ${slot} trong grid`)
+    const inCore = row >= 2 && row <= 4 && col >= 2 && col <= 6
+    assert.ok(!inCore, `ô ${slot} không được đè lên lõi`)
+    const key = `${row},${col}`
+    assert.ok(!seen.has(key), `hai ô không được trùng toạ độ (${key})`)
+    seen.add(key)
+    assert.equal(SPIN_RING.length, 20)
+  }
+  /* Ô 0 mở đầu góc trên-trái, chạy kim đồng hồ: hàng trên → phải → dưới (R→L) → trái. */
+  assert.deepEqual(spinRingSlot(0), [1, 1])
+  assert.deepEqual(spinRingSlot(6), [1, 7])
+  assert.deepEqual(spinRingSlot(7), [2, 7])
+  assert.deepEqual(spinRingSlot(10), [5, 7])
+  assert.deepEqual(spinRingSlot(16), [5, 1])
+  assert.deepEqual(spinRingSlot(19), [2, 1])
+  assert.throws(() => spinRingSlot(20))
+  assert.throws(() => spinRingSlot(-1))
 })
 
 /* PHÂN PHỐI THẬT theo trọng số: rút mô phỏng phải gần bảng đã duyệt. */

@@ -1,96 +1,69 @@
 /* =========================================================
-   CASE OPENING REEL — dải case-opening của Mystery Box (B2).
-   Daily Spin dùng square grid riêng (DailySpin.css) — hai UI KHÁC NHAU.
-   Palette chốt: #FCB0F3 #DC94EF #BC77EC #9D5BE8 #7D3EE4 #5D22E1 #3D05DD.
-   Mọi chuyển động là transform trên track — không layout shift.
+   CASE OPENING REEL — dải NGANG của Daily Box (vòng 5, theo bản mẫu)
+   Viewport mask 2 mép; item 96px viền-dưới rarity; kim dọc giữa 2 đầu
+   mũi tên (nảy theo ô qua WAAPI từ JSX); dừng thì ô đích sáng, còn lại mờ.
+   Mọi nhịp transform/opacity.
    ========================================================= */
 .reel { position: relative; }
 
-/* VIEWPORT: overflow:hidden BẮT BUỘC — không item/text nào lòi ra ngoài. */
 .reel-viewport {
   --reel-item-width: 96px;
-  position: relative; overflow: hidden;
-  height: 124px;
-  border: 1px solid color-mix(in oklab, #9D5BE8 34%, var(--line-2));
-  border-radius: var(--r-md);
-  background:
-    radial-gradient(120% 140% at 50% 0%, color-mix(in oklab, #5D22E1 16%, transparent), transparent 58%),
-    color-mix(in oklab, var(--surface-3) 78%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / .05), inset 0 14px 26px rgb(0 0 0 / .3);
-  /* Hai mép mờ dần: item đi vào/ra khỏi khung một cách êm, không "đâm" thẳng
-     vào viền — và text nửa ngoài không đọc được thì cũng không tràn thị giác. */
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  position: relative; overflow: hidden; border-radius: 12px; height: 160px;
+  background: color-mix(in oklab, #0a0c10 55%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
 }
-
-/* TRACK: flex + max-content + will-change (spec bắt buộc). */
 .reel-track {
-  display: flex; width: max-content; height: 100%;
-  align-items: center; column-gap: 10px; padding: 0 10px;
-  will-change: transform;
+  display: flex; column-gap: 10px; padding: 12px 0;
+  width: max-content; will-change: transform;
 }
 
-/* ITEM: kích thước nội bộ CỐ ĐỊNH (flex-basis var), clamp chữ có kiểm soát. */
+/* Item: ô case rarity — viền-dưới 4px đúng màu tier như bản mẫu */
 .reel-item {
-  flex: 0 0 var(--reel-item-width, 96px);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; height: 100px; padding: 0 8px;
-  border-radius: 12px; border: 1px solid var(--line-2);
-  background: var(--surface-2);
-  overflow: hidden;
+  --c: #9D5BE8;
+  flex: 0 0 var(--reel-item-width); height: 136px;
+  border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--c) 20%, #181c27), #0f1219);
+  border: 1px solid color-mix(in oklab, var(--c) 50%, transparent);
+  border-bottom: 4px solid var(--c);
+  transition: transform .4s var(--e-out), opacity .5s var(--e-soft);
 }
-.reel-item b {
-  font: 700 17px/1.2 var(--mono); font-variant-numeric: tabular-nums;
-  color: var(--txt-2); max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.reel-item.none { --c: var(--line-2); }
+.reel-item.s1 { --c: #5D22E1; }
+.reel-item.s2 { --c: #9D5BE8; }
+.reel-item.s3 { --c: #BC77EC; }
+.reel-item.s4 { --c: #DC94EF; }
+.reel-item.s5 { --c: #FCB0F3; }
+.reel-item b { font: 800 30px/1 var(--mono); color: #fff; font-variant-numeric: tabular-nums; }
+.reel-item.none b { color: var(--txt-3); font-size: 24px; }
+.reel-item small {
+  font-size: 12px; font-weight: 700; text-align: center; padding: 0 4px; line-height: 1.25;
+  color: color-mix(in oklab, var(--c) 72%, #fff);
 }
-.reel-item small { font-size: 10px; line-height: 1.2; color: var(--txt-3); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reel-item.none small { color: var(--txt-3); }
 
-/* Thang màu theo mức thưởng — cùng thang t1→t7 đã chốt cho khu thưởng. */
-.reel-item.s1 b { color: #FCB0F3; } .reel-item.s1 { border-color: color-mix(in oklab, #FCB0F3 46%, var(--line-2)); }
-.reel-item.s2 b { color: #DC94EF; } .reel-item.s2 { border-color: color-mix(in oklab, #DC94EF 42%, var(--line-2)); }
-.reel-item.s3 b { color: #BC77EC; } .reel-item.s3 { border-color: color-mix(in oklab, #BC77EC 46%, var(--line-2)); }
-.reel-item.s4 b { color: #9D5BE8; } .reel-item.s4 { border-color: color-mix(in oklab, #9D5BE8 50%, var(--line-2)); }
-.reel-item.s5 b { color: #7D3EE4; } .reel-item.s5 { border-color: color-mix(in oklab, #7D3EE4 52%, var(--line-2)); }
-.reel-item.s6 b { color: #5D22E1; } .reel-item.s6 { border-color: color-mix(in oklab, #5D22E1 55%, var(--line-2)); }
-.reel-item.s7 { border-color: #3D05DD; background: color-mix(in oklab, #3D05DD 20%, var(--surface-2)); }
-.reel-item.s7 b { color: #FCB0F3; }
-.reel-item.none { border-color: var(--line-2); }
-.reel-item.none b { color: var(--txt-3); font-weight: 400; }
-.reel-item.paid b { color: #DC94EF; } .reel-item.paid { border-color: color-mix(in oklab, #7D3EE4 55%, var(--line-2)); }
-
-/* Ô TRÚNG sau khi dừng: vền sáng + nền nhấn — đúng MỘT dấu duy nhất. */
-.reel-item.is-win {
-  border-color: #FCB0F3;
-  background: linear-gradient(180deg, color-mix(in oklab, #7D3EE4 34%, var(--surface-2)), color-mix(in oklab, #3D05DD 30%, var(--surface-2)));
-  box-shadow: 0 0 0 1px color-mix(in oklab, #FCB0F3 65%, transparent), 0 0 22px rgb(252 176 243 / .28);
+/* Dừng: ô đích nổi lên, còn lại mờ đi */
+.reel.is-settled .reel-item:not(.is-win) { opacity: .3; }
+.reel.is-settled .reel-item.is-win {
+  transform: scale(1.1);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--c) 55%, #181c27), #0f1219);
+  box-shadow: inset 0 0 30px color-mix(in oklab, var(--c) 70%, transparent);
 }
-.reel-item.is-win b { color: #FCB0F3; }
-.reel-item.is-win small { color: #DC94EF; }
 
-/* POINTER: neo giữa viewport, z-index cao nhất, KHÔNG che text item
-   (chỉ một vạch mảnh + đầu kim nhỏ). */
+/* KIM giữa: vạch sáng + 2 đầu mũi tên (nảy theo ô qua WAPI từ JSX) */
 .reel-pointer {
-  position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; z-index: 5;
-  transform: translateX(-1px);
-  background: linear-gradient(180deg, transparent, #FCB0F3 20%, #FCB0F3 80%, transparent);
-  box-shadow: 0 0 12px rgb(252 176 243 / .75);
-  pointer-events: none;
+  position: absolute; left: 50%; top: -9px; bottom: -9px; width: 2px;
+  margin-left: -1px; z-index: 2; pointer-events: none;
+  background: #FCB0F3; box-shadow: 0 0 16px rgb(252 176 243 / .85);
 }
-.reel-pointer::after {
-  content: ''; position: absolute; left: 50%; top: 5px;
-  width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
-  border-radius: 2px; background: #FCB0F3;
-  box-shadow: 0 0 10px rgb(252 176 243 / .9);
+.reel-pointer::before, .reel-pointer::after {
+  content: ''; position: absolute; left: -8px; border: 8px solid transparent;
 }
+.reel-pointer::before { top: 0; border-top-color: #FCB0F3; border-bottom: 0; }
+.reel-pointer::after { bottom: 0; border-bottom-color: #FCB0F3; border-top: 0; }
 
-/* Item kế bên ô trúng mờ nhẹ khi đã dừng — mắt khoá vào ô trúng. */
-.reel.is-settled .reel-item:not(.is-win) { opacity: .55; transition: opacity .3s var(--e-soft); }
-
-@media (max-width: 720px) {
-  .reel-viewport { height: 112px; }
-  .reel-item { flex-basis: var(--reel-item-width, 96px); height: 92px; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .reel-pointer { box-shadow: none; }
+  .reel-item { transition: none; }
+  .reel.is-settled .reel-item.is-win { transform: none; }
 }

@@ -1247,7 +1247,7 @@ function AppInner() {
       if (prev[id] === n) return prev
       return { ...prev, [id]: n }
     })
-  }, [])
+  }, [setCommentCounts]) // setter ổn định — khai báo tường minh cho compiler
 
   useEffect(() => {
     if (!rows || rows.length === 0) return
@@ -1865,10 +1865,12 @@ function AppInner() {
     setUser(null); setAdmin(null); setModal(false); setMenu(false)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
-  const openModal = (t) => {
+  /* useCallback: phím tắt 'n' phụ thuộc openModal — identity ổn định giữa
+     các render (chỉ đổi khi user đổi) để effect keyboard không tái đăng ký vô ích. */
+  const openModal = useCallback((t) => {
     if (!user && (t === 'request' || t === 'buy' || t === 'vote')) { setAuthPrompt(true); return }
     setModalTab(t); setModal(true)
-  }
+  }, [user])
 
   useEffect(() => {
     const h = (e) => {
@@ -1891,7 +1893,7 @@ function AppInner() {
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [modal, admin, voteFor, menu, section, go])
+  }, [modal, admin, voteFor, menu, section, go, openModal])
 
   /* ---------------- render ---------------- */
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới

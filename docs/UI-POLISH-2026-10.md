@@ -232,3 +232,79 @@ Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHA
   50 reveal **+2 free paid requests** · 51 reveal +10 votes · 52 already
   opened (chip "Opened today") · 53 mobile ready · 54 mobile revealed —
   55 /daily-login sạch (không hộp quà, chỉ entry nav riêng).
+
+# Vòng 5 (2026-10-09): LÀM THEO BẢN MẪU CHỦ SỞ HỮU — spin RING 7×5 · Daily Box 3D mở nắp + reel TRÊN hộp
+
+Chủ sở hữu gửi TRỰC TIẾP một bản mẫu HTML hoàn chỉnh (kèm brief) cho cả hai
+trang: giữ nguyên cấu trúc + hiệu ứng của mẫu, chỉ thay dữ liệu thật, font/màu
+theo site (nền #0a0c10, một màu nhấn). Kết quả VẪN do server quyết tuyệt đối —
+animation chỉ "đáp" vào kết quả RPC trả về. Tên "Mystery Box" đổi thành
+**"Daily Box"** (yêu cầu ghi ngay trong brief của mẫu). Vòng 4 bị từ chối toàn
+bộ và đã revert — mọi điểm giống v4 ở đây xuất phát từ mẫu, không phải code v4.
+
+## Daily Spin — RING 7×5: 20 ô vuông quanh lõi chữ nhật, đèn chạy kim đồng hồ
+
+- **Hình học**: grid 7 cột × 5 hàng; lõi chữ nhật chiếm 2/2/5/7 (quét conic
+  5s + nền radial); 20 ô vuông (aspect-ratio 1) xếp vành kim đồng hồ:
+  hàng trên 0–6 L→R · cột phải 7–9 · hàng dưới 10–16 R→L · cột trái 17–19.
+  `SPIN_RING` (lib) = 20 mức lặp 7 mức giải theo hướng trọng số đã duyệt
+  (1×5 · 2×4 · 3×4 · 5×2 · 8×2 · 10×2 · 20×1, jackpot đúng 1 ô); ô 0 của
+  mẫu trùng toạ độ ô hàng trên (bug hình học trong chính mẫu) — đã sửa
+  thành `[21−slot, 1]` cho cột trái, 20 toạ độ đôi một khác nhau.
+- **Icon ô**: 7 SVG nội tuyến riêng từng mức (1 cỏ bốn lá · 2 sao · 3 tia ·
+  5 ngọc · 8 hoa ·10 cúp · 20 vương miện) — ô phân biệt bằng icon + số,
+  không chỉ màu.
+- **Đèn chạy**: comet 3 ô (`.on` scale 1.12 + `.t1`/`.t2` hai ô phía sau) —
+  `60 + steps` bước, delay `34 + 290·(i/n)^5` (ease-out quint của mẫu),
+  reduced-motion 18ms đều; dừng CHÍNH XÁC ô chứa mức server trả
+  (`spinRingTarget` chọn ô tất định gần nhất phía trước, từ MỌI vị trí).
+- **Đáp**: ô trúng pulse (`spin-win`) + board mờ `.dim` + confetti canvas
+  (brand pink/purple, reduced→14 hạt) + `navigator.vibrate(8)` mỗi tick +
+  lõi hiện số đang chạy (`clamp(34px,10vw,58px)`).
+- **Palette** r0 #5D22E1 · r1 #9D5BE8 · r2 #DC94EF · r3 #FCB0F3 (+20 có
+  sheen riêng); CTA #3D05DD beat 1.8s, disabled grayscale. Vẫn KHÔNG %
+  / odds / bảng xác suất anywhere; cột phụ gọn thành strip: lượt còn
+  (pips) · history viền rarity · "Use votes".
+
+## Daily Box (trước là Mystery Box) — hộp quà 3D, mở NẮP, reel nằm TRÊN hộp
+
+- **Sân khấu**: 460px, 18 sao nhấp nháy (TẤT ĐỊNH, không Math.random),
+  hint mờ dần khi mở; chính HỘP là nút mở (keyboard + aria-label riêng
+  từng trạng thái; locked = disabled + padlock + hộp xám).
+- **Hộp 3D thuần CSS**: perspective 1000, float 3.2s; thân 4 mặt tím brand
+  + ruột hắt hồng khi mở + glow sàn; NẮP TÁCH BIỆT với BẢN LỀ CẠNH SAU
+  (transform-origin z âm) — mở = rotateX(112°) 1s overshoot; ruy-băng dọc
+  2 mặt + ngang nắp + nơ 2 vòng (gold của mẫu đổi thành hồng brand).
+- **Nhịp mở (~7s, vẫn 1 RPC duy nhất)**: t0 RPC chạy SONG SONG với lắc
+  800ms (rotate ±6°, vibrate [30,40,30]) → mở nắp + beam conic hồng →
+  reel TRỒI LÊN từ hộp nằm PHÍA TRÊN (translateY 200→0, overshoot .95s)
+  → trượt giảm tốc 4.6s cubic-bezier(.08,.6,.12,1) → dừng đúng ô kết quả
+  dưới kim 2 đầu mũi tên (kim nảy theo từng ô qua WAAPI/transform) → ô
+  đích sáng, còn lại mờ, rays xoay theo độ hiếm + confetti + rbar pop.
+- **44 ô tất định**: đích ghi đè bằng kết quả server tại index 34, phần
+  còn lại là chu kỳ FILLER/TAIL cố định — zero random client. Kim + số
+  ô paid đọc từ `reward_amount` server trả; deux mức +1/+2 vẫn tách bạch.
+  Hai bẫy ổn định đã sửa khi chụp: (1) `items` phải `useMemo` + reel chỉ
+  khởi động MỘT lần (identity mảng mới giữa nhịp làm track snap lại);
+  (2) geometry (item width/gap/viewport) PHẢI đo sau hold — đo sớm là đo
+  trên reel đang rise scale(.3), target lệch vài nghìn px; reel giữ qua
+  reveal (settled) thay vì unmount để ô đích sáng dưới kim.
+- **rbar**: một vùng live duy nhất (locked/ready/opening/result + đếm
+  ngược hộp kế `Next box in hh:mm:ss` theo mốc server), viền đổi màu
+  rarity; focus được trả về đây sau reveal.
+- Labels giữ nguyên luật vòng 3: "votes", "+1/+2 free paid requests"
+  (bao dài chữ đầy đủ), "Better luck next time."; bảng odds bên phải
+  trang giữ nguyên mapping không đổi.
+
+## Kiểm chứng vòng 5
+
+- npm test **761/0** (0 fail, baseline warning 35 không đổi) · lint
+  0 error · build ✓ · PGlite mystery **7/7** + spinV2 **7/7**.
+- Test cập nhật theo kiến trúc mới: dailySpin (vành 20 ô, spinRingTarget
+  tất định từ mọi điểm, hình học không đè lõi), DailySpin SSR (board 20
+  ô = bảng lib, icon đủ mức, comet t1/t2, no-odds), CaseOpeningReel
+  (44/34, hold, settle +620ms, cleanup rAF+timeout), MysteryBoxPage
+  (nắp lật/reel-trên/rays, labels paid 1–2, aria hộp là nút).
+- Ảnh vòng 5: workspace `b2-screenshots-v5/` + `manifest.json` — xem
+  manifest để biết route/viewport/state/seed từng cảnh; mọi cảnh
+  server-decided: kết quả đến từ RPC/demo-seed, client chỉ diễn tả.

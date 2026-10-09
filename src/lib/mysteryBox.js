@@ -52,7 +52,10 @@ export const REEL_STEP = REEL_ITEM_WIDTH + REEL_GAP
 export const REEL_SETTLE_MS = 180          // reduced-motion / replay slide
 /* Ô ĐÍCH trên dải trang trí — vị trí cố định, cha ghi đè nội dung ô này bằng
    kết quả server. Dải cần ≥ 22 ô để lúc dừng, nửa trái viewport không trống. */
-export const REEL_TARGET_INDEX = 21
+/* Vòng 5 (bản mẫu): dải 44 ô, ô đích ở giữa sâu (34) để nửa trái viewport
+   luôn kín ô khi dừng — reel TRỒI LÊN nằm phía trên hộp quà. */
+export const REEL_TARGET_INDEX = 34
+export const REEL_ITEM_COUNT = 44
 
 export const MYSTERY_KINDS = Object.freeze(['nothing', 'votes', 'paid_request', 'free_paid_request'])
 const LEGACY_PRIZES = Object.freeze({

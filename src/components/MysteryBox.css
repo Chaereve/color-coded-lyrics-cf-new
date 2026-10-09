@@ -1,205 +1,247 @@
 /* =========================================================
-   MYSTERY BOX — CASE-OPENING v2 (feedback 2026-10-09)
-   locked → available → opening(charge→reel) → reveal → already
-   Hộp quà: thùng ruy-băng (thân tím đậm #7D3EE4→#3D05DD, nắp + nơ
-   hồng #FCB0F3), thuần CSS. Dải reel trượt ngang qua vạch giữa rồi
-   dừng đúng Ô KẾT QUẢ server đã trả — chỉ diễn xuất, không chọn thưởng.
-   Mọi nhịp đều transform/opacity trên khung cao độ cố định — không CLS.
+   DAILY BOX — sân khấu hộp quà 3D + reel trồi lên (vòng 5, bản mẫu chủ sở hữu)
+   locked → available → opening (shake → MỞ NẮP → reel TRÊN hộp) → reveal → already
+   Hộp quà thuần CSS 3D (perspective + preserve-3d): thân ruy-băng dọc, NẮP
+   TÁCH BIỆT bản lề ở CẠNH SAU (transform-origin z âm) — mở = rotateX(112°).
+   Tia sáng (beam) bung từ hộp khi mở; rays xoay theo độ hiếm khi có kết quả;
+   starfield 18 điểm nhấp nháy (tất định). Màu brand: gold của bản mẫu đổi
+   thành hồng #FCB0F3. Mọi keyframes transform/opacity.
    ========================================================= */
-.mystery-card {
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; gap: 13px;
-  width: 100%; max-width: 320px; margin: 0 auto; padding: 18px 16px 16px;
-  border: 1px solid color-mix(in oklab, #9D5BE8 32%, var(--line-2));
-  border-radius: var(--r-xl);
+
+.box-wrap { width: 100%; max-width: 340px; margin: 0 auto; display: grid; gap: 10px; }
+
+/* ---- SÂN KHẤU ---- */
+.box-stage {
+  position: relative; height: 460px; overflow: hidden;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in oklab, #9D5BE8 30%, var(--line-2));
   background:
-    radial-gradient(130% 95% at 50% -8%, color-mix(in oklab, #BC77EC 15%, transparent), transparent 62%),
-    color-mix(in oklab, var(--surface-2) 90%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 18px 44px rgb(0 0 0 / .3), inset 0 1px 0 rgb(255 255 255 / .05);
-  text-align: center;
+    radial-gradient(380px 260px at 50% 100%, color-mix(in oklab, #9D5BE8 22%, transparent), transparent 70%),
+    var(--surface-2);
 }
-.mystery-title { margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: var(--txt-2); }
+.box-star {
+  position: absolute; width: 3px; height: 3px; border-radius: 50%;
+  background: #fff; animation: box-tw 2.6s ease-in-out infinite;
+}
+@keyframes box-tw {
+  0%, 100% { opacity: .1; transform: scale(.6); }
+  50%      { opacity: 1; transform: scale(1.7); }
+}
+.box-stage.is-locked .box-star { animation: none; opacity: .12; }
 
-/* ---- SÂN KHẤU HỘP: cao độ cố định ---- */
-.mystery-stage { position: relative; display: grid; place-items: center; width: 148px; height: 140px; }
-.mystery-glow {
-  position: absolute; width: 132px; height: 132px; border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in oklab, #BC77EC 34%, transparent), transparent);
-  transition: opacity .4s var(--e-soft), transform .4s var(--e-soft);
+.box-hint {
+  position: absolute; top: 22px; left: 0; right: 0; z-index: 1;
+  margin: 0; text-align: center; padding: 0 18px;
+  font-size: 12px; font-weight: 600; color: var(--txt-2);
+  transition: opacity .3s var(--e-soft);
 }
-.mystery-flash {
-  position: absolute; inset: -6px; border-radius: 50%; opacity: 0; pointer-events: none;
-  background: radial-gradient(closest-side, rgb(252 176 243 / .5), transparent 70%);
+.box-stage.is-shaking .box-hint, .box-stage.is-reeling .box-hint, .box-stage.is-reveal .box-hint,
+.box-stage.is-opened .box-hint { opacity: 0; }
+
+/* RAYS: quạt sáng xoay chậm sau reel khi có kết quả — màu theo độ hiếm */
+.box-rays {
+  --c: #9D5BE8;
+  position: absolute; left: 50%; top: 132px; width: 560px; height: 560px; margin: -280px;
+  border-radius: 50%; opacity: 0; transition: opacity .8s var(--e-soft);
+  animation: box-rot 14s linear infinite;
+  background: repeating-conic-gradient(color-mix(in oklab, var(--c) 38%, transparent) 0 7deg, transparent 7deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000, transparent 66%);
+  mask: radial-gradient(circle, #000, transparent 66%);
+  pointer-events: none;
 }
-.is-reveal .mystery-flash { animation: mystery-flash .65s var(--e-out); }
-@keyframes mystery-flash {
-  0% { opacity: 0; transform: scale(.45); }
-  30% { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.5); }
+.box-rays.r1 { --c: #9D5BE8; }
+.box-rays.r2 { --c: #DC94EF; }
+.box-rays.r3 { --c: #FCB0F3; }
+.box-rays.r0 { --c: #5D22E1; }
+.box-stage.is-reveal .box-rays, .box-stage.is-opened .box-rays { opacity: 1; }
+@keyframes box-rot {
+  to { transform: rotate(1turn); }
 }
 
-/* ---- THÙNG QUÀ: thân + ruy băng dọc + nắp + nơ hai quắn ---- */
-.mystery-box {
-  position: relative; width: 104px; height: 84px; border-radius: 12px;
-  background: linear-gradient(180deg, #7D3EE4 6%, #5D22E1 58%, #3D05DD 100%);
-  box-shadow:
-    inset 0 2px 0 rgb(255 255 255 / .16), inset 0 -10px 18px rgb(0 0 0 / .35),
-    0 16px 34px rgb(0 0 0 / .4);
-  transition: transform .35s var(--e-out);
+/* ---- REEL NẰM TRÊN HỘP: trồi lên overshoot (transform/opacity) ---- */
+.box-reel {
+  position: absolute; z-index: 3; left: 0; right: 0; top: 20px;
+  opacity: 0; transform: translateY(200px) scale(.3); transform-origin: 50% 100%;
+  transition: transform .95s cubic-bezier(.2, 1.15, .3, 1), opacity .35s var(--e-soft);
+  pointer-events: none;
 }
-.mystery-box::before {
-  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 16px;
-  transform: translateX(-50%); border-radius: 2px; opacity: .9;
-  background: linear-gradient(90deg, #DC94EF, #FCB0F3 45%, #DC94EF);
+.box-reel.up { opacity: 1; transform: none; }
+
+/* ---- HỘP QUÀ 3D: chính hộp là NÚT MỞ ---- */
+.box3d {
+  all: unset; box-sizing: border-box;
+  position: absolute; z-index: 1; left: 50%; bottom: 40px;
+  width: 160px; height: 200px; margin-left: -80px;
+  perspective: 1000px; cursor: pointer;
+  animation: box-float 3.2s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
 }
-.mystery-lid {
-  position: absolute; top: -15px; left: 50%; width: 124px; height: 26px;
-  transform: translateX(-50%); border-radius: 8px;
-  background: linear-gradient(180deg, #FCB0F3, #DC94EF);
-  box-shadow: 0 5px 14px rgb(0 0 0 / .35), inset 0 2px 0 rgb(255 255 255 / .4);
-  transform-origin: 50% 100%;
+.box3d:focus-visible { outline: 2px solid #FCB0F3; outline-offset: 14px; border-radius: 16px; }
+.box3d:disabled { cursor: default; }
+@keyframes box-float { 50% { transform: translateY(-8px); } }
+
+.box-stage.is-shaking .box3d { animation: box-shake .8s ease; }
+@keyframes box-shake {
+  10%, 50%, 90% { transform: rotate(-6deg) scale(1.05); }
+  30%, 70%      { transform: rotate(6deg) scale(1.05); }
+  100%          { transform: none; }
 }
-.mystery-bow {
-  position: absolute; top: -33px; left: 50%; width: 12px; height: 12px;
-  transform: translateX(-50%); border-radius: 3px;
-  background: #FCB0F3; box-shadow: 0 0 14px rgb(252 176 243 / .55); z-index: 1;
+
+.box-shadow {
+  position: absolute; display: block; left: 50%; bottom: -18px;
+  width: 230px; height: 40px; margin-left: -115px; border-radius: 50%;
+  background: radial-gradient(rgb(0 0 0 / .65), transparent 70%);
 }
-.mystery-bow::before, .mystery-bow::after {
-  content: ''; position: absolute; top: -4px; width: 20px; height: 15px;
-  border: 3px solid #FCB0F3; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+
+/* BEAM: quạt sáng hất lên từ hộp khi mở — hồng brand */
+.box-beam {
+  position: absolute; display: block; left: 50%; bottom: 112px;
+  width: 520px; height: 520px; margin-left: -260px;
+  opacity: 0; transform: scale(.4); transform-origin: 50% 100%;
+  transition: transform 1s var(--e-out), opacity .6s var(--e-soft);
+  pointer-events: none;
+  background: conic-gradient(from -42deg at 50% 100%,
+    transparent 0, rgb(252 176 243 / .47) 3%, transparent 6%,
+    rgb(252 176 243 / .33) 9%, transparent 12%, rgb(252 176 243 / .47) 15%,
+    transparent 18%, rgb(252 176 243 / .33) 21%, transparent 24%);
 }
-.mystery-bow::before { right: 8px; transform: rotate(-24deg); }
-.mystery-bow::after { left: 8px; transform: rotate(24deg); }
-.mystery-q {
+.box-stage.is-reeling .box-beam, .box-stage.is-reveal .box-beam, .box-stage.is-opened .box-beam {
+  opacity: 1; transform: none; animation: box-pulse 2s ease-in-out infinite alternate;
+}
+@keyframes box-pulse { to { opacity: .5; } }
+
+/* CUBE 3D — mở nắp: nghiêng nhẹ + nắp lật ngửa 112° quanh bản lề sau */
+.cube {
+  position: absolute; inset: 0; display: block;
+  transform-style: preserve-3d;
+  transform: rotateX(-22deg) rotateY(-28deg);
+  transition: transform 1s var(--e-out);
+}
+.box-stage.is-reeling .cube, .box-stage.is-reveal .cube, .box-stage.is-opened .cube {
+  transform: rotateX(-30deg) rotateY(-18deg);
+}
+.bd, .lid { position: absolute; display: block; transform-style: preserve-3d; }
+.bd { left: 0; top: 90px; width: 160px; height: 110px; --d: 80px; }
+.lid {
+  left: -4px; top: 60px; width: 168px; height: 30px; --d: 84px;
+  transform-origin: 50% 100% -84px;   /* bản lề CẠNH SAU */
+  transition: transform 1s cubic-bezier(.3, 1.4, .5, 1);
+}
+.box-stage.is-reeling .lid, .box-stage.is-reveal .lid, .box-stage.is-opened .lid {
+  transform: rotateX(112deg);
+}
+.f { position: absolute; display: block; backface-visibility: hidden; }
+.fr, .bk, .lf, .rt, .in { inset: 0; }
+.fr { transform: translateZ(var(--d)); background: linear-gradient(#9D5BE8, #5D22E1); }
+.bk { transform: rotateY(180deg) translateZ(var(--d)); background: #5D22E1; }
+.rt { transform: rotateY(90deg) translateZ(var(--d)); background: linear-gradient(#7D3EE4, #4b1cc4); }
+.lf { transform: rotateY(-90deg) translateZ(var(--d)); background: #4b1cc4; }
+/* Ruột hộp: hắt sáng ấm hồng từ trong ra khi mở */
+.in { background: linear-gradient(0deg, #ffd7f5, #BC77EC 35%, #1b1550); }
+.ib { transform: translateZ(-78px); }
+.il { transform: rotateY(90deg) translateZ(-78px); }
+.ir { transform: rotateY(-90deg) translateZ(-78px); }
+.gl {
+  left: 8px; top: -17px; width: 144px; height: 144px;
+  transform: rotateX(90deg) translateZ(-48px);
+  background: radial-gradient(circle, #fff, #FCB0F3 40%, #DC94EF);
+  opacity: 0; transition: opacity .5s var(--e-soft) .3s;
+}
+.box-stage.is-reeling .gl, .box-stage.is-reveal .gl, .box-stage.is-opened .gl { opacity: 1; }
+/* Nắp trên/dưới */
+.lt, .lu { left: 0; top: -69px; width: 168px; height: 168px; }
+.lt { transform: rotateX(90deg) translateZ(15px); background: linear-gradient(#DC94EF, #9D5BE8); }
+.lu { transform: rotateX(-90deg) translateZ(15px); background: linear-gradient(rgb(252 176 243 / .67), #2b2275 55%); }
+
+/* Ruy-băng: dọc mặt trước + phải, ngang trên nắp — hồng hai tông */
+.s::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 26px;
+  margin-left: -13px;
+  background: linear-gradient(90deg, #d867d8, #FCB0F3 50%, #d867d8);
+}
+.lt::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 26px;
+  margin-top: -13px;
+  background: linear-gradient(90deg, #d867d8, #FCB0F3 50%, #d867d8);
+}
+
+/* NƠ trên nắp */
+.bow {
+  position: absolute; display: block; left: 50%; top: -30px;
+  width: 84px; height: 34px; margin-left: -42px;
+}
+.bow::before, .bow::after {
+  content: ''; position: absolute; top: 0; width: 38px; height: 32px;
+  border: 8px solid #FCB0F3; border-radius: 50%;
+}
+.bow::before { left: 0; transform: rotate(-24deg); }
+.bow::after { right: 0; transform: rotate(24deg); }
+.bow u {
+  position: absolute; left: 50%; top: 10px; width: 18px; height: 18px;
+  margin-left: -9px; border-radius: 50%; background: #FCB0F3;
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / .25);
+}
+
+/* Ký hiệu trên mặt trước: khoá (chưa check-in) */
+.box-face-mark {
   position: absolute; inset: 0; display: grid; place-items: center;
-  font-family: var(--display); font-size: 36px; font-weight: 700;
-  color: #FCB0F3; text-shadow: 0 2px 16px rgb(0 0 0 / .5);
+  transform: translateZ(81px);
+  font-family: var(--display); font-size: 40px; font-weight: 700;
+  color: #FCB0F3; text-shadow: 0 2px 14px rgb(0 0 0 / .5);
 }
 .mystery-padlock { filter: drop-shadow(0 2px 6px rgb(0 0 0 / .4)); }
 .mystery-padlock rect { fill: #FCB0F3; stroke: #3D05DD; stroke-width: 1.5; }
 .mystery-padlock path { stroke: #FCB0F3; }
-.mystery-shadow {
-  position: absolute; bottom: -3px; width: 92px; height: 12px; border-radius: 50%;
-  background: rgb(0 0 0 / .5); filter: blur(7px);
-  transition: transform .35s var(--e-out), opacity .35s var(--e-soft);
+
+/* LOCKED: hộp xám, hết nhịp */
+.box-stage.is-locked .cube, .box-stage.is-locked .lid {
+  filter: saturate(.25) brightness(.6);
+}
+.box-stage.is-locked .box3d { animation: none; }
+
+/* ALREADY: hộp dịu xuống */
+.box-stage.is-opened .cube { filter: saturate(.8) brightness(.88); }
+
+/* ---- THANH KẾT QUẢ (rbar): MỘT vùng live — viền theo độ hiếm ---- */
+.box-bar {
+  --c: var(--line-2);
+  display: flex; align-items: center; gap: 13px;
+  padding: 12px 15px; min-height: 64px;
+  background: var(--surface-2);
+  border: 1px solid color-mix(in oklab, var(--c) 70%, transparent);
+  border-radius: var(--r-lg); transition: border-color .4s var(--e-soft);
+}
+.box-bar.r1 { --c: #9D5BE8; }
+.box-bar.r2 { --c: #DC94EF; }
+.box-bar.r3 { --c: #FCB0F3; }
+.box-bar:focus { outline: none; }
+.box-bar-icon { display: grid; place-items: center; color: var(--c); }
+.box-bar-icon .box-glyph { width: 32px; height: 32px; }
+.box-bar-text { display: grid; gap: 2px; min-width: 0; text-align: left; }
+.box-bar-pn { font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: var(--txt); line-height: 1.3; }
+.box-bar-sub { font-size: 11.5px; font-weight: 600; color: var(--txt-2); font-variant-numeric: tabular-nums; }
+.box-prize { display: inline-block; animation: box-pop .55s cubic-bezier(.2, 1.6, .4, 1) both; }
+.box-prize.nothing { color: var(--txt); }
+.box-prize.votes { color: #FCB0F3; }
+.box-prize.paid_request, .box-prize.free_paid_request { color: #DC94EF; }
+@keyframes box-pop {
+  0%   { transform: scale(.2) rotate(-25deg); }
+  100% { transform: none; }
 }
 
-/* ---- LOCKED: khoá xám, không nhịp ---- */
-.mystery-card.is-locked { border-color: color-mix(in oklab, var(--line-2) 80%, transparent); }
-.mystery-card.is-locked .mystery-glow { opacity: 0; transform: scale(.7); }
-.mystery-card.is-locked .mystery-box { filter: saturate(.22) brightness(.62); box-shadow: inset 0 2px 0 rgb(255 255 255 / .07), 0 10px 22px rgb(0 0 0 / .3); }
-.mystery-card.is-locked .mystery-box::before { opacity: .25; }
-.mystery-card.is-locked .mystery-lid { filter: saturate(.22) brightness(.62); box-shadow: none; }
-.mystery-card.is-locked .mystery-bow { filter: saturate(.22) brightness(.62); box-shadow: none; }
-.mystery-card.is-locked .mystery-bow::before, .mystery-card.is-locked .mystery-bow::after { border-color: #DC94EF; }
-
-/* ---- AVAILABLE: hộp "thở" mời gọi ---- */
-.mystery-card:not(.is-locked):not(.is-opened):not(.is-charging):not(.is-reeling) .mystery-box {
-  animation: mystery-breathe 2.8s ease-in-out infinite;
-}
-.mystery-card:not(.is-locked):not(.is-opened):not(.is-charging):not(.is-reeling) .mystery-glow {
-  animation: mystery-glow 2.8s ease-in-out infinite;
-}
-@keyframes mystery-breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@keyframes mystery-glow {
-  0%, 100% { opacity: .55; transform: scale(.94); }
-  50% { opacity: 1; transform: scale(1.05); }
-}
-
-/* ---- CHARGING: co người, sáng thắt lại (~450ms, RPC chạy song song) ---- */
-.mystery-card.is-charging .mystery-box { transform: scale(.92); }
-.mystery-card.is-charging .mystery-glow { opacity: .95; transform: scale(.76); }
-.mystery-card.is-charging .mystery-shadow { transform: scale(.88); }
-
-/* ---- REELING: hộp lùi nhẹ xuống vai, dải thưởng là trung tâm ---- */
-.mystery-card.is-reeling .mystery-box { transform: scale(.86) translateY(6px); filter: brightness(.9); }
-.mystery-card.is-reeling .mystery-glow { opacity: .6; transform: scale(.9); }
-.mystery-card.is-reeling .mystery-reel-slot { margin-top: 2px; }
-
-/* ---- REVEAL: chớp sáng, nắp hé, dấu ? tan ---- */
-.mystery-card.is-reveal .mystery-glow { opacity: 1; transform: scale(1.22); transition-duration: .5s; }
-.mystery-card.is-reveal .mystery-q { animation: mystery-q-out .5s var(--e-out) forwards; }
-@keyframes mystery-q-out {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.3) translateY(-12px); }
-}
-.is-reveal .mystery-lid, .is-opened .mystery-lid { transform: translateX(-50%) translateY(-9px) rotate(-9deg); }
-.is-reveal .mystery-lid { animation: mystery-lid-hop .55s var(--e-out); }
-@keyframes mystery-lid-hop {
-  0%, 100% { transform: translateX(-50%) translateY(-9px) rotate(-9deg); }
-  45% { transform: translateX(-50%) translateY(-24px) rotate(-18deg); }
-}
-.mystery-card.is-reveal .mystery-box { transform: scale(1.04); }
-.mystery-card.is-reveal .mystery-shadow { opacity: .6; transform: scale(1.05); }
-
-/* ---- ALREADY: hộp dịu xuống, không còn CTA ---- */
-.mystery-card.is-opened .mystery-box {
-  filter: saturate(.68) brightness(.86);
-  box-shadow: inset 0 2px 0 rgb(255 255 255 / .1), 0 10px 24px rgb(0 0 0 / .3);
-}
-.mystery-card.is-opened .mystery-box::before { opacity: .5; }
-.mystery-card.is-opened .mystery-glow { opacity: 0; transform: scale(.72); }
-.mystery-card.is-opened .mystery-shadow { opacity: .5; }
-
-/* ---- CHIP TRẠNG THÁI HÔM NAY: còn/đã mở — không tiết lộ outcome ---- */
-.mystery-statuschip {
-  margin: 0; display: inline-flex; align-items: center; gap: 7px;
-  padding: 4px 11px; border-radius: var(--r-pill);
-  border: 1px solid color-mix(in oklab, #9D5BE8 38%, var(--line-2));
-  background: color-mix(in oklab, #5D22E1 12%, transparent);
-  font-size: 10.5px; font-weight: 600; color: #DC94EF;
-}
-.mystery-statuschip::before {
-  content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: #FCB0F3; box-shadow: 0 0 8px rgb(252 176 243 / .8);
-}
-.mystery-statuschip.done { color: var(--txt-2); border-color: var(--line-2); background: var(--surface-2); }
-.mystery-statuschip.done::before { background: var(--txt-3); box-shadow: none; }
-
-/* ---- OUTCOME / COPY: gọn ---- */
-.mystery-copy { margin: 0; font-size: 12px; line-height: 1.55; color: var(--txt-2); }
-.mystery-openlabel { margin: 0; font-size: 12px; font-weight: 600; color: #DC94EF; }
-.mystery-open { min-height: 44px; width: 100%; background: #3D05DD; border-color: #3D05DD; }
-.mystery-open:focus-visible { outline: 2px solid #3D05DD; outline-offset: 2px; }
-.mystery-open:hover:not(:disabled) { background: color-mix(in oklab, #3D05DD 86%, #fff); border-color: color-mix(in oklab, #3D05DD 86%, #fff); }
-.mystery-outcome { display: grid; gap: 9px; justify-items: stretch; min-height: 76px; align-content: center; width: 100%; }
-.mystery-outcome:focus { outline: none; }
-.mystery-prize {
-  margin: 0; font-family: var(--mono); font-size: 18px; font-weight: 700;
-  font-variant-numeric: tabular-nums; line-height: 1.3;
-  animation: mystery-pop .5s var(--e-out);
-}
-.mystery-prize.votes { color: #FCB0F3; text-shadow: 0 0 18px rgb(252 176 243 / .35); }
-.mystery-prize.paid_request, .mystery-prize.free_paid_request { color: #DC94EF; text-shadow: 0 0 18px rgb(220 148 239 / .35); }
-.mystery-prize.nothing { color: var(--txt); }
-@keyframes mystery-pop {
-  0% { transform: scale(.6); opacity: 0; }
-  70% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
-}
-.mystery-again { margin: 0; font-size: 11px; line-height: 1.5; color: var(--txt-3); }
-.mystery-error { margin: 0; font-size: 11px; color: var(--denied); }
-
-/* ---- REDUCED MOTION: mọi nhịp tắt, trạng thái vẫn đầy đủ ---- */
+/* ---- reduced motion: bỏ lắc/rise dài, kết quả vẫn đầy đủ ---- */
 @media (prefers-reduced-motion: reduce) {
-  .mystery-card .mystery-box, .mystery-card .mystery-glow, .mystery-card .mystery-shadow {
-    animation: none; transition: none;
+  .box3d, .box-star, .box-rays, .box-beam, .box-reel, .cube, .lid, .box-prize {
+    animation: none; transition-duration: .01ms;
   }
-  .mystery-card.is-charging .mystery-box, .mystery-card.is-reeling .mystery-box { animation: none; transform: none; }
-  .is-reveal .mystery-lid, .is-opened .mystery-lid { transition: none; animation: none; }
-  .mystery-card.is-reveal .mystery-q { animation: none; opacity: 0; }
-  .mystery-flash { animation: none !important; opacity: 0 !important; }
-  .mystery-prize { animation: none; }
+  .box-stage.is-reeling .box-reel, .box-stage.is-reveal .box-rays { opacity: 1; transform: none; }
+  .box-stage.is-reeling .box-beam { animation: none; opacity: .5; }
+  .box-stage.is-reeling .lid { transform: rotateX(112deg); }
 }
 
 /* =========================================================
    /mystery-box — TRANG RIÊNG: head (h2 + pill reset) + 2 cột
-   (card 300×300 trái | bảng giải + luật phải), mobile 1 cột
+   (Daily Box trái | bảng giải + luật phải), mobile 1 cột
    ========================================================= */
 .mystery-page { max-width: 860px; margin: 0 auto; }
 .mystery-page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border: 1px solid var(--line-2); border-radius: var(--r-xl); background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / .22); margin-bottom: 14px; }
@@ -216,7 +258,7 @@
 
 .mystery-page-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 20px; align-items: start; }
 .mystery-page-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent); border-radius: var(--r-xl); background: linear-gradient(165deg, color-mix(in oklab, var(--a) 7%, transparent), transparent 44%), color-mix(in oklab, var(--surface-2) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045); }
-.mystery-gate-link { width: 100%; max-width: 300px; min-height: 42px; }
+.mystery-gate-link { width: 100%; max-width: 340px; min-height: 42px; }
 .mystery-side { min-width: 0; padding: 16px; border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent); border-radius: var(--r-xl); background: color-mix(in oklab, var(--surface-2) 88%, transparent); box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045); }
 .mystery-side-title { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--txt-2); }
 .mystery-odds { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none; }
@@ -232,4 +274,5 @@
 }
 @media (max-width: 620px) {
   .mystery-page-head, .mystery-page-grid { padding-inline: 14px; }
+  .box-stage { height: 430px; }
 }

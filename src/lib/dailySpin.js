@@ -117,29 +117,51 @@ export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
    accent (điểm nhấn thị giác — KHÔNG thuộc bảng rút, KHÔNG bao giờ là ô
    dừng). `reward: null` = accent.
    ========================================================= */
-export const SPIN_GRID_CELLS = [
-  { index: 0, reward: 1 },                       // top-left
-  { index: 1, reward: 2 },                       // top-middle
-  { index: 2, reward: 3 },                       // top-right
-  { index: 3, reward: 5 },                       // middle-right
-  { index: 4, reward: null, type: 'accent' },    // bottom-right — không phải giải
-  { index: 5, reward: 8 },                       // bottom-middle
-  { index: 6, reward: 10 },                      // bottom-left
-  { index: 7, reward: 20 },                      // middle-left
-]
+/* =========================================================
+   RING 20 Ô — mẫu vòng 5 (bản mẫu HTML của chủ sở hữu, 2026-10-09)
+   ---------------------------------------------------------
+   20 ô vuông BAO QUANH một lõi chữ nhật: CSS grid 7×5, lõi chiếm
+   grid-area 2/2/5/7. Vị trí ô theo CHIỀU KIM ĐỒNG HỒ:
+     hàng trên  (slot 0–6)  : row 1, col 1..7
+     cột phải   (slot 7–9)  : col 7, row 2..4
+     hàng dưới  (slot 10–16): row 5, col 7..1
+     cột trái   (slot 17–19): col 1, row 4..2
+   SPIN_RING[slot] = mức giải đặt tại ô đó — 20 ô lặp lại 7 mức THEO TRỌNG
+   SỐ (1×5 · 2×4 · 3×4 · 5×2 · 8×2 · 10×2 · 20×1 = 20, giống tỉ lệ rút),
+   xen kẽ để hai ô kề nhau không trùng mức. Server trả MỨC GIẢI → spinRing-
+   Target chọn ô ĐÍCH tất định (m ứng viên trước vị trí hiện tại) — client
+   không random, không tự chọn thưởng.
+   ========================================================= */
+export const SPIN_RING = [3, 2, 1, 5, 2, 8, 1, 10, 3, 2, 5, 1, 8, 3, 10, 2, 1, 20, 3, 1]
 
-/* Thứ tự RENDER theo dòng của CSS grid — 9 slot row-major, sentinel `null`
-   là ô GIỮA (nút QUAY, không phải ô giải):
-   [0 1 2 / 7 NÚT 3 / 6 5 4] để index spec khớp vị trí hình học. */
-export const SPIN_GRID_RENDER_ORDER = [0, 1, 2, 7, null, 3, 6, 5, 4]
+/* Vị trí CSS grid (row/col, 1-based) của từng slot — test chốt khớp vòng. */
+export function spinRingSlot(slot) {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= SPIN_RING.length) {
+    throw new Error('err.spinResponse')
+  }
+  if (slot < 7) return [1, slot + 1]
+  if (slot < 10) return [slot - 5, 7]
+  if (slot < 17) return [5, 17 - slot]
+  return [21 - slot, 1]   // slot 17/18/19 → (4,1) (3,1) (2,1)
+}
 
-/* Mức giải server trả → ô grid DUY NHẤT chứa mức đó. Accent không thể là kết
-   quả (không phải giá trị giải nào); mức lạ từ server là dữ liệu hỏng. */
-export function spinCellForReward(reward, rewards = SPIN_REWARDS) {
-  const value = rewards[spinSectorIndex(rewards.indexOf(reward), rewards)]
-  const cell = SPIN_GRID_CELLS.find(c => c.reward === value)
-  if (!cell) throw new Error('err.spinResponse')
-  return cell.index
+/* Ô ĐÍCH tất định cho mức giải `reward`, chạy TIẾP theo chiều kim đồng hồ
+   từ slot `from`: chọn ứng viên CÁCH NHỎ NHẤT phía trước (mức lặp nhiều ô —
+   dừng ở ô kế tiếp trông tự nhiên nhất, và tuyệt đối tất định). Không có
+   ứng viên = mức lạ từ server → err.spinResponse. Trả về số bước tới đích
+   (1..20). */
+export function spinRingTarget(reward, from, ring = SPIN_RING) {
+  const candidates = []
+  ring.forEach((value, slot) => { if (value === reward) candidates.push(slot) })
+  if (!candidates.length) throw new Error('err.spinResponse')
+  const n = ring.length
+  const start = (Number.isInteger(from) && from >= 0 && from < n ? from : 0)
+  let best = null
+  for (const slot of candidates) {
+    const steps = 1 + ((slot - start - 1) % n + n) % n   // 1..n, luôn tiến
+    if (best === null || steps < best) best = steps
+  }
+  return best
 }
 
 export function spinAverage(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {

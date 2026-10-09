@@ -41,7 +41,7 @@ test('the standalone page renders its own shell and waits for data server-side',
     const html = renderToStaticMarkup(createElement(I18nProvider, null,
       createElement(MysteryBoxPage, { userId: 'test-user', onDailyLogin() {} })))
     // Own heading + reset chip; nothing from the check-in page leaks in here.
-    assert.match(html, /Daily mystery box/)
+    assert.match(html, /Daily box/)
     assert.match(html, /Next reset/)
     assert.doesNotMatch(html, /Your check-in calendar|Check-in rewards/)
     // Data arrives client-side only: server shows the loading state, never a
@@ -59,42 +59,42 @@ test('the card: locked points to check-in, ready offers the box, opened shows th
       createElement(MysteryBox, { userId: 'u1', mystery, checkedIn, onOpened() {} })))
 
     // MỘT vùng trạng thái aria-live (nhận focus sau reveal): mọi bước được đọc,
-    // focus không bị rơi giữa animation.
+    // focus không bị rơi giữa animation. (vòng 5: vùng live = thanh kết quả.)
     const live = render(card({ checked_in: true }), true)
-    assert.match(live, /class="mystery-outcome" role="status" aria-live="polite" tabindex="-1"/)
+    assert.match(live, /class="box-bar r0" role="status" aria-live="polite" aria-atomic="true"/)
 
-    // LOCKED: the gate copy, no button, dimmed box + padlock (no "?").
+    // LOCKED: gate copy, hộp mờ có khoá; hộp vẫn là <button> nhưng DISABLED.
     const locked = render(card({ checked_in: false }), false)
     assert.match(locked, /Check in to unlock today’s box\./)
-    assert.doesNotMatch(locked, /<button/)
-    assert.match(locked, /mystery-card[^"]*is-locked/)
+    assert.match(locked, /<button[^>]*disabled/)
+    assert.match(locked, /box-stage[^"]*is-locked/)
     assert.match(locked, /mystery-padlock/)
-    assert.doesNotMatch(locked, /mystery-q">\?</)
+    assert.doesNotMatch(locked, /aria-label="Open daily box"/)
 
-    // READY: the only state with an open button; no prize line yet.
+    // READY: chính HỘP là nút mở (vòng 5); chưa có dòng giải.
     const ready = render(card({ checked_in: true }), true)
-    assert.match(ready, /What’s inside today\?/)
-    assert.match(ready, /mystery-open[^>]*>Open mystery box</)
-    assert.match(ready, /mystery-card[^"]*"[^>]*aria-label="Daily mystery box"/)
+    assert.match(ready, /Your daily box is ready/)
+    assert.match(ready, /aria-label="Open daily box"/)
+    assert.match(ready, /Tap the box to open today’s gift/)
     assert.doesNotMatch(ready, /mystery-padlock/)
 
     // OPENED (+5 votes): the committed result — DUY NHẤT outcome +5 của bảng.
     const opened = render(card({ checked_in: true, opened: true, result: 3, reward_votes: 5, reward_kind: 'votes' }), true)
     assert.match(opened, /\+5 votes/)
-    assert.match(opened, /Next box after your next check-in\./)
-    assert.doesNotMatch(opened, /mystery-open[^>]*>/)
-    assert.match(opened, /mystery-prize votes/)
+    assert.match(opened, /Next box in/)
+    assert.match(opened, /box-prize votes/)
+    assert.doesNotMatch(opened, /aria-label="Open daily box"/)
 
     // NOTHING (result 0): "Chúc may mắn" — KHÔNG giống thông báo lỗi, không +0.
     const nothing = render(card({ checked_in: true, opened: true, result: 0, reward_votes: 0, reward_kind: 'nothing' }), true)
     assert.match(nothing, /Better luck next time\./)
-    assert.match(nothing, /mystery-prize nothing/)
+    assert.match(nothing, /box-prize nothing/)
     assert.doesNotMatch(nothing, /\+0/)
 
     // PAID +1 (result 5, v2 kind): nói rõ FREE PAID REQUEST, không mơ hồ.
     const paid1 = render(card({ checked_in: true, opened: true, result: 5, reward_votes: 0, reward_kind: 'free_paid_request' }), true)
     assert.match(paid1, /\+1 free paid request/)
-    assert.match(paid1, /mystery-prize free_paid_request/)
+    assert.match(paid1, /box-prize free_paid_request/)
     assert.doesNotMatch(paid1, /\+1 free request</, 'không còn nhãn mơ hồ cũ')
 
     // PAID +2 (result 6, cùng kind, KHÁC số lượng): phải phân biệt rõ với +1.
@@ -108,18 +108,17 @@ test('the card: locked points to check-in, ready offers the box, opened shows th
   })
 })
 
-/* Opening flow (v3, feedback 2026-10-09): case-opening REEL — kết quả do
-   SERVER quyết trước (RPC chạy song song với nhịp charge), reel chỉ diễn tả
-   lại ô đích. Không client pick, không random, không reflow, không audio.
-   Nhịp chốt: charge 450ms → reel 3600ms (cửa 2–4s) → reveal. */
-test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on server result → reveal', async () => {
+/* Opening flow (vòng 5, bản mẫu): LẮC → MỞ NẮP → reel TRỒI LÊN NẰM TRÊN
+   hộp → dừng đúng ô kết quả SERVER. RPC chạy song song với nhịp lắc; ô đích
+   chỉ diễn tả lại kết quả. Không client pick, không random, không reflow. */
+test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips → reel 4.6s lands on server result → reveal', async () => {
   const read = async f => (await import('node:fs/promises')).readFile(new URL(f, import.meta.url), 'utf8')
   const jsx = await read('./MysteryBox.jsx')
   // Nút bị chặn NGAY: busy-guard + chỉ mở từ trạng thái available.
   assert.match(jsx, /if \(busy\.current \|\| phase !== 'idle' \|\| opened \|\| !checkedIn\) return/)
   // Kết quả server quyết TRƯỚC: RPC chạy SONG SONG với nhịp charge 450ms.
   assert.match(jsx, /const rpc = openMysteryBox\(userId, day\)/)
-  assert.match(jsx, /const \[result\] = await Promise\.all\(\[rpc, wait\(450\)\]\)/)
+  assert.match(jsx, /const \[result\] = await Promise\.all\(\[rpc, wait\(MYSTERY_SHAKE_MS\)\]\)/)
   // Ô đích GHỈ ĐÈ bằng kết quả thật — client không chọn gì, hai mức paid
   // phân biệt bằng con số trên ô (+1 / +2).
   /* Số trên ô paid đọc từ reward_amount SERVER trả; payload cũ thiếu trường
@@ -127,19 +126,27 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
   assert.match(jsx, /Number\.isInteger\(result\?\.mystery\?\.reward_amount\)/)
   assert.match(jsx, /prizeResult === 6 \? 2 : 1/)
   assert.match(jsx, /setWinTile\(\{ kind: 's5', label: `\+\$\{amount\}` \}\)/)
+  /* Filler TẤT ĐỊNH (chu kỳ cố định) — không random trên dải. */
+  assert.match(jsx, /FILLER_CYCLE|TAIL_CYCLE/)
   assert.doesNotMatch(jsx, /Math\.random\(\)|weightedPick|pickPrize/,
     'client không được tự chọn phần thưởng')
-  // Timeline chặt: charge 450ms → reel 3600ms → reveal.
-  assert.match(jsx, /setPhase\('charging'\)/)
+  // Timeline chặt: lắc 800ms (RPC song song) → reel trồi lên 950ms rồi trượt
+  // 4600ms tới ô đích → reveal.
+  assert.match(jsx, /setPhase\('shaking'\)/)
   assert.match(jsx, /setPhase\('reeling'\)/)
-  assert.match(jsx, /const MYSTERY_REEL_MS = 3600/)
+  assert.match(jsx, /const MYSTERY_SHAKE_MS = 800/)
+  assert.match(jsx, /const MYSTERY_RISE_MS = 950/)
+  assert.match(jsx, /const MYSTERY_REEL_MS = 4600/)
   assert.match(jsx, /setReveal\(true\)/)
   // Reel = component DÙNG CHUNG của mystery (không đụng Daily Spin);
   // hằng số hợp đồng sống ở lib để test node trần dùng chung một nguồn.
   assert.match(jsx, /import CaseOpeningReel from '\.\/CaseOpeningReel\.jsx'/)
-  assert.match(jsx, /MYSTERY_SYNC_KEY, REEL_TARGET_INDEX,/)
-  assert.match(jsx, /<CaseOpeningReel items=\{items\} spinning targetIndex=\{REEL_TARGET_INDEX\}/)
-  assert.match(jsx, /duration=\{MYSTERY_REEL_MS\} onSettled=\{finish\}/)
+  assert.match(jsx, /REEL_TARGET_INDEX, REEL_ITEM_COUNT,/)
+  /* Reel GIỮ qua reveal (settled, không unmount) — ô đích sáng sau khi dừng. */
+  assert.match(jsx, /\(phase === 'reeling' \|\| reveal\) && \(/)
+  assert.match(jsx, /spinning=\{phase === 'reeling'\}\s*\n\s*settled=\{reveal\}/)
+  assert.match(jsx, /targetIndex=\{REEL_TARGET_INDEX\}/)
+  assert.match(jsx, /duration=\{MYSTERY_REEL_MS\} hold=\{MYSTERY_RISE_MS\} onSettled=\{finish\}/)
   // Reveal trả focus về vùng kết quả; callback cha neo bằng ref (đổi identity
   // mỗi render → không neo là cleanup vô hạn, reveal không bao giờ tới).
   assert.match(jsx, /outcomeRef\.current\?\.focus\?\.\(\{ preventScroll: true \}\)/)
@@ -151,9 +158,8 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
 
   const css = await read('./MysteryBox.css')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
-  assert.match(css, /\.mystery-flash \{ animation: none !important/)
   // Keyframes động chỉ đụng transform/opacity — không gây reflow.
-  for (const kf of ['mystery-breathe', 'mystery-pop', 'mystery-flash', 'mystery-lid-hop', 'mystery-q-out']) {
+  for (const kf of ['box-tw', 'box-rot', 'box-shake', 'box-pulse', 'box-pop']) {
     const block = css.match(new RegExp(`@keyframes ${kf} \\{([\\s\\S]*?)\\n\\}`))?.[1]
     assert.ok(block, `keyframes ${kf} tồn tại`)
     assert.doesNotMatch(block, /(^|[^-])\b(width|height|top|left|margin|padding)\b\s*:/,
@@ -163,7 +169,7 @@ test('opening flow: lock instantly → charge 450ms → reel 3.6s lands on serve
   // không item lòi (luật viewport của case reel).
   const reelCss = await read('./CaseOpeningReel.css')
   assert.match(reelCss, /\.reel-viewport \{[^}]*overflow:\s*hidden/)
-  assert.match(reelCss, /\.reel-viewport \{[^}]*height:\s*124px/)
+  assert.match(reelCss, /\.reel-viewport \{[^}]*height:\s*160px/)
   assert.match(reelCss, /\.reel-viewport \{[^}]*mask-image:\s*linear-gradient/)
 })
 

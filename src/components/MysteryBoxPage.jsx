@@ -126,7 +126,8 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
         <div className="mystery-page-grid">
           <div className="mystery-page-stage">
             <MysteryBox userId={userId} mystery={mystery} checkedIn={checkedIn}
-              onOpened={next => (next ? setMystery(next) : load())} />
+              onOpened={next => (next ? setMystery(next) : load())}
+              nextResetAt={Date.parse(nextSpinReset())} />
             {!checkedIn && !mystery.opened && (
               <button type="button" className="btn mystery-gate-link" onClick={onDailyLogin}>
                 {t('mystery.goCheckin')}
