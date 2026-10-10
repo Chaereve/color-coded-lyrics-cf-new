@@ -61,10 +61,12 @@ jobs:
           set +e
           npm test 2>&1 | tee /tmp/npm-test.txt
           code=${PIPESTATUS[0]}
-          node -e '
+          TEST_CODE=$code node -e '
             const fs = require("fs")
+            const code = Number(process.env.TEST_CODE || 0)
+            if (!code) process.exit(0)
             const t = fs.readFileSync("/tmp/npm-test.txt", "utf8")
-            const fails = t.split(/\n/).filter(l => /^not ok /.test(l) || /^# fail /.test(l)).slice(0, 40)
+            const fails = t.split(/\n/).filter(l => /^not ok /.test(l) || /^# fail [1-9]/.test(l)).slice(0, 40)
             const msg = s => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")
             if (fails.length) console.log(`::error title=npm test::${msg(fails.join("\n"))}`)
           '
