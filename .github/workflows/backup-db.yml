@@ -30,8 +30,9 @@ on:
     # duyệt B4.4 (20261210_vote_back). Token sandbox không có actions:write nên
     # không dispatch được; push là đường còn lại. Script backup-db.sh CHỈ ĐỌC
     # với database nguồn — không ghi gì vào production.
+    # Tắt push-trigger trong lúc deploy B1 để không dump song song với apply.
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-during-b1-deploy'
 
 # Hai lượt chồng nhau (bấm tay đúng lúc cron nổ) thì bản sau xếp hàng, không
 # chạy song song: hai pg_dump cùng lúc chỉ tốn tài nguyên vô ích.

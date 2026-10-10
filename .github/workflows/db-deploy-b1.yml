@@ -1,0 +1,133 @@
+# B1 production deploy — 20261126 + 20261127 + 20261128 ONLY.
+# Approved 2026-10-10. --until 20261128 is a hard stop: B2/B3/B4 stay held.
+# Sandbox has no SUPABASE_DB_URL / actions:write; push on this arena branch
+# is the remaining path. Do not copy this file to main. Do not drop --until.
+name: DB deploy production — B1 20261126-28 (đã duyệt)
+
+on:
+  push:
+    branches:
+      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+
+concurrency:
+  group: db-deploy-b1
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-b1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UNTIL: '20261128'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: db:check (tĩnh)
+        run: npm run db:check
+
+      - name: Preflight plan — đúng 3 file B1, không file lạ
+        id: preflight
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/pre-plan.txt
+          node -e '
+          const fs = require("fs")
+          const t = fs.readFileSync("/tmp/pre-plan.txt","utf8")
+          const apply = [...t.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[1]+" "+m[2])
+          const hold = [...t.matchAll(/^hold (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          const expected = [
+            "20261126 20261126_reward_ledger.sql",
+            "20261127 20261127_login_streak_rewards.sql",
+            "20261128 20261128_achievements_v2.sql",
+          ]
+          const already = apply.length === 0 && hold.includes("20261129_mystery_box.sql")
+          const out = process.env.GITHUB_OUTPUT
+          if (already) {
+            console.log("B1 already on production — skip apply")
+            fs.appendFileSync(out, "skip=1\n")
+            process.exit(0)
+          }
+          if (JSON.stringify(apply) !== JSON.stringify(expected)) {
+            console.error("UNEXPECTED APPLY LIST:", apply)
+            process.exit(1)
+          }
+          if (hold.some(n => n.startsWith("20261126") || n.startsWith("20261127") || n.startsWith("20261128"))) {
+            console.error("B1 file landed in hold — refusing")
+            process.exit(1)
+          }
+          fs.appendFileSync(out, "skip=0\n")
+          console.log("preflight OK — will apply exactly B1")
+          '
+
+      - name: db:deploy --until 20261128
+        if: steps.preflight.outputs.skip != '1'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:deploy -- --until "$UNTIL" 2>&1 | tee /tmp/deploy.txt
+          if grep -E '^apply 20261129|^apply 20261201|^apply 20261202|^apply 20261203|^apply 20261204|^apply 20261210' /tmp/deploy.txt; then
+            echo "STOP: deploy log applied a later batch"
+            exit 1
+          fi
+
+      - name: Verify + smoke (psql, docker client 17)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          docker run --rm --network host \
+            -e SUPABASE_DB_URL \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -w /work \
+            postgres:17 \
+            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/verify-b1-post-deploy.sql && psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/smoke-b1.sql'
+
+      - name: Post plan — B1 applied, later batch still hold
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/post-plan-b1.txt
+          npm run db:plan 2>&1 | tee /tmp/post-plan-all.txt
+          node -e '
+          const fs = require("fs")
+          const b1 = fs.readFileSync("/tmp/post-plan-b1.txt","utf8")
+          const all = fs.readFileSync("/tmp/post-plan-all.txt","utf8")
+          if (/^apply 20261126/m.test(b1) || /^apply 20261127/m.test(b1) || /^apply 20261128/m.test(b1)) {
+            console.error("B1 still pending after deploy")
+            process.exit(1)
+          }
+          const apply = [...all.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          const forbidden = apply.filter(n => n.startsWith("20261126") || n.startsWith("20261127") || n.startsWith("20261128"))
+          if (forbidden.length) { console.error("B1 still in full plan", forbidden); process.exit(1) }
+          const expectedHold = ["20261129_mystery_box.sql","20261201_spin_v2.sql","20261202_mystery_paid_v2.sql","20261203_mystery_month.sql","20261204_mystery_odds.sql","20261210_vote_back.sql"]
+          if (JSON.stringify(apply) !== JSON.stringify(expectedHold)) {
+            console.error("UNEXPECTED remaining apply list:", apply)
+            process.exit(1)
+          }
+          console.log("post-plan OK — remaining apply is B2/B3/B4 only")
+          '
+
+      - name: Xuất log ra annotation
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs")
+          const read = p => { try { return fs.readFileSync(p,"utf8") } catch { return "" } }
+          const msg = s => String(s).replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A")
+          const title = s => msg(s).replace(/:/g,"%3A").replace(/,/g,"%2C")
+          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== post-until ==", read("/tmp/post-plan-b1.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
+          console.log(`::notice title=${title("B1 deploy production")}::${msg(body.trim() || "(no output)")}`)
+          '
