@@ -2,6 +2,14 @@ import { hasSupabase, supabase } from './supabaseClient.js'
 import { spinDay, nextSpinReset } from './dailySpin.js'
 import { isCalendarMonth, monthLength } from './checkInCalendar.js'
 import { SPIN_GATE_URL } from './spinShield.js'
+/* VITE_SPIN_GATE_URL production = `/api/daily-spin` (spin POST …/spin).
+   Mystery Pages Function is `/api/mystery/open`, NOT `/api/daily-spin/mystery/open`. */
+export function mysteryOpenUrl(spinGateUrl = SPIN_GATE_URL) {
+  if (!spinGateUrl) return ''
+  const base = String(spinGateUrl).replace(/\/$/, '')
+  if (/\/daily-spin$/i.test(base)) return `${base.replace(/\/daily-spin$/i, '')}/mystery/open`
+  return `${base}/mystery/open`
+}
 import { gateShouldFallback } from './gateFallback.js'
 
 /* =========================================================
