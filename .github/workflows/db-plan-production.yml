@@ -38,9 +38,9 @@ jobs:
     timeout-minutes: 10
     env:
       BASELINE: ${{ inputs.baseline }}
-      # B3 batch (plan chỉ đọc, chờ duyệt). --until 20261201 = đúng 1 file
-      # spin_v2; B4 20261210 ở hold. Không --except. Không để UNTIL trống.
-      UNTIL: '20261201'
+      # B4 batch (plan chỉ đọc, chờ duyệt). --until 20261210 = đúng 1 file
+      # vote_back. Không --except. Không để UNTIL trống.
+      UNTIL: '20261210'
       EXCEPT: ''
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
             echo "== db:plan --baseline $BASELINE --until $UNTIL ${EXCEPT:+--except $EXCEPT} (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
             PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL" "${PLAN_EXTRA[@]}")
           else
-            echo "== db:plan --until $UNTIL (B3 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            echo "== db:plan --until $UNTIL (B4 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
             PLAN_CMD=(npm run db:plan -- --until "$UNTIL" "${PLAN_EXTRA[@]}")
           fi
           if "${PLAN_CMD[@]}" 2>&1 | tee -a /tmp/plan.txt; then

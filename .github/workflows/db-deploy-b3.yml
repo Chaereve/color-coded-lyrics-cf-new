@@ -5,8 +5,9 @@ name: DB deploy production — B3 spin v2 (đã duyệt)
 
 on:
   push:
+    # B3 đã apply + smoke xanh. Tắt push-trigger để plan B4 không chạy lại smoke.
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b3'
 
 concurrency:
   group: db-deploy-b3
