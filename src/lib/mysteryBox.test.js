@@ -14,7 +14,13 @@ const status = (over = {}) => ({
   opened: true, result: 1, reward_votes: 1, reward_kind: 'votes', ...over,
 })
 
-test('the prize table is the approved v3 70/16/8/4/1.5/0.4/0.1 — ONE +5, paid amounts split', () => {
+test('mystery open URL sits next to /api/daily-spin, not under it', () => {
+  assert.equal(mysteryOpenUrl(''), '')
+  assert.equal(mysteryOpenUrl('/api/daily-spin'), '/api/mystery/open')
+  assert.equal(mysteryOpenUrl('/api/daily-spin/'), '/api/mystery/open')
+  assert.equal(mysteryOpenUrl('https://chaereve.pages.dev/api/daily-spin'),
+    'https://chaereve.pages.dev/api/mystery/open')
+  assert.equal(mysteryOpenUrl('/api/mystery'), '/api/mystery/mystery/open')
   assert.deepEqual(MYSTERY_PRIZES.map(p => [p.result, p.kind, p.votes, p.requests, p.weight]), [
     [0, 'nothing', 0, 0, 700], [1, 'votes', 1, 0, 160], [2, 'votes', 3, 0, 80],
     [3, 'votes', 5, 0, 40], [4, 'votes', 10, 0, 15],
