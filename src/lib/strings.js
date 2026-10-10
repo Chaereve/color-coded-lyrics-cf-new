@@ -1157,6 +1157,7 @@ const S = {
   'err.notVoted': 'You have not cast that many votes here.',
   'err.voteQty': 'Enter a number between 1 and 100.',
   'err.voteLocked': 'This request is already picked. Voting is closed.',
+  'err.unpickLocked': 'Vote-back already paid. This request cannot be removed from Up next.',
   'err.notEnoughVotes': 'Not enough votes. {n} left.',
   'err.mediaTitle': 'The video needs a name.',
   'err.mediaUrl': 'Paste a YouTube video URL.',
