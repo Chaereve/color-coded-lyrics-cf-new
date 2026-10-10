@@ -257,7 +257,7 @@ export async function openMysteryBox(userId, expectedDay) {
     const timeout = setTimeout(() => controller.abort(), 20_000)
     let response
     try {
-      response = await fetch(`${SPIN_GATE_URL}/mystery/open`, {
+      response = await fetch(mysteryOpenUrl(), {
         method: 'POST',
         signal: controller.signal,
         headers: { 'content-type': 'application/json' },
