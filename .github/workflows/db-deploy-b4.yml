@@ -5,7 +5,7 @@ name: DB deploy production — B4 vote-back (đã duyệt)
 on:
   push:
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b4'
 
 concurrency:
   group: db-deploy-b4
