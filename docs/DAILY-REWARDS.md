@@ -10,11 +10,12 @@
 
 ## 2026-10 B4: Vote-back 10% khi request được PICKED
 
-> Đã duyệt (2026-10). Đơn vị duy nhất là **vote**. Chạy
+> Đã duyệt và **đã apply production** (2026-10-10, run
+> [38044695921](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38044695921)).
+> Đơn vị duy nhất là **vote**. File
 > `supabase/migrations/20261210_vote_back.sql` (một transaction, rerunnable)
-> sau B1 ledger (`grant_reward_event`) và catalog v2 (`firstVoteBack`).
-> **Chưa apply production** — B4.4, chỉ sau khi duyệt riêng. Cờ:
-> `reward_config.vote_back_enabled`.
+> chạy sau B1 ledger (`grant_reward_event`) và catalog v2 (`firstVoteBack`).
+> Cờ: `reward_config.vote_back_enabled`.
 
 ### Điều kiện kích hoạt
 

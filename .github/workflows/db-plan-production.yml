@@ -21,7 +21,7 @@ name: DB plan production (chỉ đọc)
 on:
   push:
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b4'
   workflow_dispatch:
     inputs:
       baseline:

@@ -680,8 +680,10 @@ số lệch bị từ chối, chạy lại an toàn); manifest
 ## 20261202 — B2 fix: Mystery prize table v2 (một +5 duy nhất, paid tách 2 mức)
 
 Một file append-only, một transaction, rerunnable, không thuộc fresh-install
-bundle. **Chỉ viết file, CHƯA apply production** (quyết định của owner,
-2026-10-09). Sửa ĐÚNG một lỗi mapping của bảng 20261129: outcome 1% trước đây
+bundle. **Đã apply production** cùng B2 (2026-10-10, apply
+[38042210783](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38042210783),
+smoke [38043497992](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38043497992)).
+Sửa ĐÚNG một lỗi mapping của bảng 20261129: outcome 1% trước đây
 là "+5 votes" — trùng với outcome 7%, làm bảng hiển thị hai giải +5.
 
 | File | Vai trò |
@@ -708,7 +710,8 @@ chấp nhận row legacy).
 ## 20261210 — B4: Vote-back 10% khi request được PICKED
 
 Một file append-only, một transaction, rerunnable, không thuộc fresh-install
-bundle. **Chỉ viết file, CHƯA apply production** (B4.4 sau duyệt riêng).
+bundle. **Đã apply production** (2026-10-10, run
+[38044695921](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38044695921)).
 
 | File | Vai trò |
 | --- | --- |

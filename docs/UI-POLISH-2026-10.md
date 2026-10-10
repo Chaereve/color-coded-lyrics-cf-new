@@ -193,7 +193,7 @@ Quyết định của owner chốt lại hai UI thành HAI NGÔN NGỮ KHÁC NHA
   `free_paid_request`); reveal: "+1/+2 free paid request(s)"; nothing:
   "Better luck next time." (không giống lỗi).
 
-## Mapping v2 (migration 20261202_mystery_paid_v2.sql — chỉ viết file, chưa apply)
+## Mapping v2 (migration 20261202_mystery_paid_v2.sql — đã apply production 2026-10-10 cùng B2; odds hiện hành là v3 ở `20261204`)
 - 55 nothing · 20 +1 · 12 +3 · **7 +5 (DUY NHẤT outcome +5)** · 3 +10 ·
   2 **+1 free paid request** · 1 **+2 free paid requests** — tổng 100%.
 - Paid: `bonus_requests += amount` đúng nhánh, ngoài cap 30, không reward_event,
