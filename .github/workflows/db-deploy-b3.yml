@@ -1,0 +1,178 @@
+# B3 production deploy — 20261201_spin_v2 ONLY.
+# Approved 2026-10-10. --until 20261201 holds B4 20261210.
+# Do not copy to main. Do not drop --until.
+name: DB deploy production — B3 spin v2 (đã duyệt)
+
+on:
+  push:
+    branches:
+      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+
+concurrency:
+  group: db-deploy-b3
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-b3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UNTIL: '20261201'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: EDGE_GATE_TOKEN có mặt (chỉ đo độ dài)
+        env:
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          n=${#EDGE_GATE_TOKEN}
+          echo "EDGE_GATE_TOKEN length=$n"
+          if [ "$n" -lt 32 ]; then
+            echo "STOP: GitHub secret EDGE_GATE_TOKEN missing or shorter than 32"
+            exit 1
+          fi
+
+      - name: db:check (tĩnh)
+        run: npm run db:check
+
+      - name: UI spin không in odds/%
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync } from 'node:fs'
+          const jsx = readFileSync('src/components/DailySpin.jsx', 'utf8')
+          if (/spin-odds|odds table|SPIN_WEIGHTS/.test(jsx)) {
+            console.error('DailySpin.jsx must not render odds'); process.exit(1)
+          }
+          if (/\b\d+%\b/.test(jsx)) {
+            console.error('DailySpin.jsx contains a percent odds string'); process.exit(1)
+          }
+          const lib = readFileSync('src/lib/dailySpin.js', 'utf8')
+          if (!lib.includes('[30, 25, 20, 12, 8, 4, 1]')) {
+            console.error('lib weights not v2'); process.exit(1)
+          }
+          console.log('UI no-odds + lib weights OK')
+          EOF
+
+      - name: Preflight plan — đúng 1 file B3, hold B4
+        id: preflight
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/pre-plan.txt
+          node -e '
+          const fs = require("fs")
+          const t = fs.readFileSync("/tmp/pre-plan.txt","utf8")
+          const apply = [...t.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[1]+" "+m[2])
+          const hold = [...t.matchAll(/^hold (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          const expected = ["20261201 20261201_spin_v2.sql"]
+          const already = apply.length === 0 && hold.includes("20261210_vote_back.sql")
+          const out = process.env.GITHUB_OUTPUT
+          if (already) {
+            console.log("B3 already on production — skip apply")
+            fs.appendFileSync(out, "skip=1\n")
+            process.exit(0)
+          }
+          if (JSON.stringify(apply) !== JSON.stringify(expected)) {
+            console.error("UNEXPECTED APPLY LIST:", apply)
+            process.exit(1)
+          }
+          if (!hold.includes("20261210_vote_back.sql")) {
+            console.error("B4 missing from hold", hold)
+            process.exit(1)
+          }
+          if (hold.some(n => n.startsWith("20261201"))) {
+            console.error("B3 file landed in hold — refusing")
+            process.exit(1)
+          }
+          fs.appendFileSync(out, "skip=0\n")
+          console.log("preflight OK — will apply exactly B3")
+          '
+
+      - name: db:deploy --until 20261201
+        if: steps.preflight.outputs.skip != '1'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:deploy -- --until "$UNTIL" 2>&1 | tee /tmp/deploy.txt
+          if grep -E '^apply 20261210' /tmp/deploy.txt; then
+            echo "STOP: deploy log applied B4"
+            exit 1
+          fi
+          if ! grep -E '^applied 20261201$' /tmp/deploy.txt; then
+            echo "STOP: 20261201 not applied"
+            exit 1
+          fi
+
+      - name: Verify + smoke (psql, docker client 17)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          set -o pipefail
+          node --input-type=module <<'EOF'
+          import { writeFileSync } from 'node:fs'
+          const t = (process.env.EDGE_GATE_TOKEN || '').trim()
+          const lit = t ? "'" + t.replace(/'/g, "''") + "'" : 'NULL'
+          writeFileSync('/tmp/b3-gate.sql',
+            `select set_config('b3.gate_token', coalesce(${lit}::text, ''), false);\n`)
+          EOF
+          docker run --rm --network host \
+            -e SUPABASE_DB_URL \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -v /tmp/b3-gate.sql:/tmp/b3-gate.sql \
+            -w /work \
+            postgres:17 \
+            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f /tmp/b3-gate.sql -f scripts/verify-b3-post-deploy.sql -f scripts/smoke-b3.sql' \
+            2>&1 | tee /tmp/verify-smoke.txt
+
+      - name: Post plan — B3 applied, B4 still hold
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/post-plan-b3.txt
+          npm run db:plan 2>&1 | tee /tmp/post-plan-all.txt
+          node -e '
+          const fs = require("fs")
+          const b3 = fs.readFileSync("/tmp/post-plan-b3.txt","utf8")
+          const all = fs.readFileSync("/tmp/post-plan-all.txt","utf8")
+          if (/^apply 20261201/m.test(b3)) {
+            console.error("B3 still pending after deploy")
+            process.exit(1)
+          }
+          if (/^apply 20261210/m.test(b3)) {
+            console.error("B4 leaked into B3 plan")
+            process.exit(1)
+          }
+          const apply = [...all.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          if (JSON.stringify(apply) !== JSON.stringify(["20261210_vote_back.sql"])) {
+            console.error("UNEXPECTED remaining apply list:", apply)
+            process.exit(1)
+          }
+          console.log("post-plan OK — remaining apply is B4 only")
+          '
+
+      - name: Xuất log ra annotation
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs")
+          const read = p => { try { return fs.readFileSync(p,"utf8") } catch { return "" } }
+          const msg = s => String(s).replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A")
+          const title = s => msg(s).replace(/:/g,"%3A").replace(/,/g,"%2C")
+          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== verify-smoke ==", read("/tmp/verify-smoke.txt"), "== post-until ==", read("/tmp/post-plan-b3.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
+          console.log(`::notice title=${title("B3 deploy production")}::${msg(body.trim() || "(no output)")}`)
+          '
