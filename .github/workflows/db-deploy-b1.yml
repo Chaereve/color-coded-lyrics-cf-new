@@ -6,8 +6,9 @@ name: DB deploy production — B1 20261126-28 (đã duyệt)
 
 on:
   push:
+    # B1 đã apply. Tắt push-trigger để plan B2 không chạy lại deploy/smoke B1.
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b1'
 
 concurrency:
   group: db-deploy-b1

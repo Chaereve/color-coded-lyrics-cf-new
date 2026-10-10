@@ -38,9 +38,10 @@ jobs:
     timeout-minutes: 10
     env:
       BASELINE: ${{ inputs.baseline }}
-      # B1 batch (duyệt riêng). Đổi khi sang B2/B3/B4 — không bao giờ để trống
-      # trên nhánh này kẻo db:plan/db:deploy nuốt cả 9 file pending.
-      UNTIL: '20261128'
+      # B2 batch (plan chỉ đọc, chờ duyệt). --except giữ B3 (spin_v2) ngoài batch.
+      # Không bao giờ để UNTIL trống trên nhánh này kẻo nuốt B3+B4.
+      UNTIL: '20261204'
+      EXCEPT: '20261201'
     steps:
       - uses: actions/checkout@v4
 
@@ -65,12 +66,14 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -o pipefail
+          PLAN_EXTRA=()
+          if [ -n "$EXCEPT" ]; then PLAN_EXTRA+=(--except "$EXCEPT"); fi
           if [ -n "$BASELINE" ]; then
-            echo "== db:plan --baseline $BASELINE --until $UNTIL (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL")
+            echo "== db:plan --baseline $BASELINE --until $UNTIL --except $EXCEPT (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL" "${PLAN_EXTRA[@]}")
           else
-            echo "== db:plan --until $UNTIL (B1 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan -- --until "$UNTIL")
+            echo "== db:plan --until $UNTIL --except $EXCEPT (B2 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --until "$UNTIL" "${PLAN_EXTRA[@]}")
           fi
           if "${PLAN_CMD[@]}" 2>&1 | tee -a /tmp/plan.txt; then
             PLAN_RC=0

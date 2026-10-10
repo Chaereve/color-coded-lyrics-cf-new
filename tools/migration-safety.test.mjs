@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
-  collectMigrations, assertMigrationSafety, planPending, planLines, clipUntil, findDestructive, readQuarantine,
+  collectMigrations, assertMigrationSafety, planPending, planLines, clipUntil, clipExcept, clipBatch,
+  normalizeExcept, parseArgs, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
   normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
@@ -567,4 +568,61 @@ test('--until 20261128 keeps B1 and holds every later batch', () => {
   assert.equal(lines[0], '3 migration(s) would be applied:')
   assert.match(lines.join('\n'), /hold 6 migration\(s\) after --until 20261128/)
   assert.doesNotMatch(lines.join('\n'), /^apply 20261129/m)
+})
+
+const B2_PENDING = [
+  '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+  '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+].map(id => ({ id, version: id.slice(0, 8), name: `${id}.sql` }))
+
+test('--until 20261204 --except 20261201 keeps B2 and holds B3+B4', () => {
+  const { pending: batch, held } = clipBatch(B2_PENDING, { until: '20261204', except: ['20261201'] })
+  assert.deepEqual(batch.map(({ id }) => id), [
+    '20261129_mystery_box',
+    '20261202_mystery_paid_v2',
+    '20261203_mystery_month',
+    '20261204_mystery_odds',
+  ])
+  assert.deepEqual(held.map(({ id }) => id), [
+    '20261201_spin_v2',
+    '20261210_vote_back',
+  ])
+  const lines = planLines({ pending: batch, held, until: '20261204', except: ['20261201'] })
+  assert.equal(lines[0], '4 migration(s) would be applied:')
+  assert.match(lines.join('\n'), /hold 2 migration\(s\) after --until 20261204 \/ --except 20261201/)
+  assert.match(lines.join('\n'), /^hold 20261201 {2}20261201_spin_v2\.sql$/m)
+  assert.match(lines.join('\n'), /^hold 20261210 {2}20261210_vote_back\.sql$/m)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261201/m)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261210/m)
+})
+
+test('--except alone holds that version; --until 20261204 without except still pulls B3', () => {
+  const onlyExcept = clipExcept(B2_PENDING, '20261201')
+  assert.deepEqual(onlyExcept.held.map(({ id }) => id), ['20261201_spin_v2'])
+  assert.equal(onlyExcept.pending.length, 5)
+  const untilOnly = clipUntil(B2_PENDING, '20261204')
+  assert.deepEqual(untilOnly.pending.map(({ version }) => version), [
+    '20261129', '20261201', '20261202', '20261203', '20261204',
+  ])
+})
+
+test('--except of a version already past --until does not duplicate hold', () => {
+  const { pending: batch, held } = clipBatch(B2_PENDING, { until: '20261204', except: ['20261210'] })
+  assert.equal(held.filter(({ version }) => version === '20261210').length, 1)
+  assert.ok(batch.every(({ version }) => version !== '20261210'))
+})
+
+test('normalizeExcept / parseArgs accept one version, repeats, and commas', () => {
+  assert.deepEqual(normalizeExcept('20261201'), ['20261201'])
+  assert.deepEqual(normalizeExcept(['20261201', '20261201', '20261210']), ['20261201', '20261210'])
+  assert.deepEqual(normalizeExcept('20261201,20261210'), ['20261201', '20261210'])
+  assert.throws(() => normalizeExcept('spin_v2'), /invalid --except/)
+  assert.throws(() => clipUntil(B2_PENDING, '2026-12-04'), /invalid --until/)
+  const args = parseArgs(['--plan', '--until', '20261204', '--except', '20261201'])
+  assert.equal(args.mode, 'plan')
+  assert.equal(args.until, '20261204')
+  assert.deepEqual(args.except, ['20261201'])
+  const repeated = parseArgs(['--plan', '--except', '20261201', '--except', '20261210'])
+  assert.deepEqual(repeated.except, ['20261201', '20261210'])
+  assert.throws(() => parseArgs(['--plan', '--except']), /missing --except/)
 })
