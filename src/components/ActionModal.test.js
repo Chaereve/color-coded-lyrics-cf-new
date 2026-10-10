@@ -149,7 +149,7 @@ test('bài đã có trên bảng: form chỉ cho vote cho bài cũ, và luôn ch
   assert.match(tx, /Continue/, 'gợi ý không được biến thành cửa chặn')
   const src = readFileSync(`${root}src/components/ActionModal.jsx`, 'utf8')
   const submit = src.match(/<button type="submit"([\s\S]*?)>/)[1]
-  assert.match(submit, /disabled=\{busy\}/, 'nút gửi chỉ chặn khi đang gửi')
+  assert.match(submit, /disabled=\{submitDisabled\}/, 'nút gửi chặn khi đang gửi HOẶC khi vừa sang bước 3 (chống double-tap)')
   assert.doesNotMatch(submit, /dup/, 'bài trùng không được chặn nút gửi')
 })
 test('form nhớ việc đang làm dở, và Enter/ dán link đều có đường đi ngắn', async () => {
