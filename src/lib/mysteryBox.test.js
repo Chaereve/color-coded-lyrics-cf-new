@@ -21,6 +21,8 @@ test('mystery open URL sits next to /api/daily-spin, not under it', () => {
   assert.equal(mysteryOpenUrl('https://chaereve.pages.dev/api/daily-spin'),
     'https://chaereve.pages.dev/api/mystery/open')
 })
+
+test('the prize table matches the approved weights exactly', () => {
   assert.deepEqual(MYSTERY_PRIZES.map(p => [p.result, p.kind, p.votes, p.requests, p.weight]), [
     [0, 'nothing', 0, 0, 700], [1, 'votes', 1, 0, 160], [2, 'votes', 3, 0, 80],
     [3, 'votes', 5, 0, 40], [4, 'votes', 10, 0, 15],
