@@ -118,6 +118,9 @@ test('Daily Spin uses the approved palette on the ring and opts out of the share
   /* LÕI: quét conic (vành quét chạy quanh lõi) + nền lõi inner. */
   assert.match(pageCss, /\.spin-core::before\s*\{[^}]*conic-gradient/)
   assert.match(pageCss, /\.spin-core::after\s*\{[^}]*radial-gradient/)
+  /* Sau khi đáp: tắt vành conic — không để gradient quay mãi. */
+  assert.match(pageCss, /\.spin-board\.dim \.spin-core::before\s*\{[^}]*opacity:\s*0/)
+  assert.match(jsx, /active \? ' is-run'/)
   /* Nút QUAY #3D05DD, focus ring thấy được, disabled mờ đi. */
   assert.match(pageCss, /\.spin-cta\s*\{[^}]*background:\s*#3D05DD/)
   assert.match(pageCss, /\.spin-cta:focus-visible\s*\{[^}]*outline:\s*2px solid/)

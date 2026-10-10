@@ -100,7 +100,7 @@ const NOW_SHOW = 2
    mà bảng đã nói bằng số. Mục nào không có trong bảng này thì không vẽ dòng
    phụ, chứ không vẽ một dòng rỗng. */
 const NAV_SUB = {
-  board: 'nav.boardSub', login: 'nav.loginSub',
+  board: 'nav.boardSub', login: 'nav.loginSub', mystery: 'mystery.ready',
   spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 

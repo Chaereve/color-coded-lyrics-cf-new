@@ -432,10 +432,13 @@ button { font-family: inherit; }
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-1), var(--ring); transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out); }
-/* khối "đang làm" thở rất nhẹ — có người thật đang ngồi sửa video */
-.nowbar::before { content: ''; position: absolute; left: -40%; top: 0; bottom: 0; width: 55%;
+/* khối "đang làm" thở rất nhẹ — vệt shine loop, clipped trong card */
+.nowbar::before {
+  content: ''; position: absolute; left: -40%; top: 0; bottom: 0; width: 55%;
   background: linear-gradient(90deg, transparent, rgba(169,164,255,.10), transparent);
-  transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite alternate; pointer-events: none; }
+  transform: translateX(0); animation: nowdrift 7.5s var(--e-soft) infinite alternate;
+  pointer-events: none;
+}
 @keyframes nowdrift { 0% { transform: translateX(0) } 55%,100% { transform: translateX(260%) } }
 .nowbar:hover { border-color: var(--line-2); }
 /* accent bên trong, clipped theo border-radius của khối — border-left 2px
@@ -894,11 +897,10 @@ select {
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
    Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
    cột tổng vote, nút mũi tên tròn. Bấm là bung ra đủ request (mở/rút mượt). */
-.grow { position: relative; margin: 10px 12px; border: 1px solid rgba(169,164,255,.35);
+.grow { position: relative; margin: 10px 12px; border: 1px solid var(--line);
   border-radius: var(--r-md); overflow: hidden;
-  background: linear-gradient(135deg, rgba(77,64,240,.16), rgba(77,64,240,.04) 55%, transparent),
-    var(--surface);
-  box-shadow: 0 8px 24px -18px var(--a-glow);
+  background: var(--surface);
+  box-shadow: var(--sh-1);
   transition: border-color var(--t-2) var(--e-soft), box-shadow var(--t-2) var(--e-soft); }
 .list > .grow:first-child { margin-top: 12px; }
 .list > .grow:last-child { margin-bottom: 12px; }
@@ -1973,7 +1975,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   position: relative; display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
   padding: 14px 16px; margin: 4px 0 22px; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--r-md);
-  background: linear-gradient(180deg, rgba(77,64,240,.10), rgba(0,0,0,0) 62%), var(--panel);
+  background: var(--panel);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-1), var(--ring);
 }
@@ -2000,24 +2002,25 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 .pick { margin-bottom: 26px; }
 /* sân khấu nằm GIỮA trang, rộng vừa phải — không kéo giãn hết khung nhìn;
    hai nút qua lại đè lên hai mép, dải mục lục ở dưới. */
-.pick-main { display: flex; flex-direction: column; gap: 18px; }
-.pick-hero { position: relative; width: 100%; max-width: 760px; margin-inline: auto; }
+.pick-main { display: flex; flex-direction: column; gap: 12px; }
+.pick-hero { position: relative; width: 100%; max-width: 760px; margin-inline: auto;
+  isolation: isolate; }
 
 /* sân khấu: ảnh lớn, tên video đè lên đáy ảnh trên nền tối dần.
    Nút mũi tên là phần tử riêng nằm ngoài link (không được lồng
    button trong a) nên khung bao .pick-hero giữ cả sân khấu lẫn
-   hai nút — nút đè lên hai mép ảnh như chặn biên. */
+   hai nút — nút đè lên hai mép ảnh như chặn biên.
+   overflow:hidden + 16/9 chặt: quầng/caption không được tràn xuống
+   dải Latest update (lỗi overlay "4K + title" đè thumbnail). */
 .pick-stage { position: relative; display: block; padding: 0; border: 0; background: var(--surface-3);
   cursor: pointer; border-radius: var(--r-md); color: inherit; text-decoration: none;
+  aspect-ratio: 16 / 9; overflow: hidden;
   transition: transform var(--t-2) var(--e-out), box-shadow var(--t-2) var(--e-soft); }
 /* đổi video: sân khấu dựng lại (key theo video) nên animation này chạy
    một nhịp — ảnh mới lóe nhẹ thay vì nhảy cắt */
 .pick-stage { animation: pickSwap .32s var(--e-out); }
 @keyframes pickSwap { from { opacity: .45; transform: scale(.988) } }
-/* Ảnh phải bị cắt theo góc bo, nhưng KHÔNG overflow: hidden trên sân khấu —
-   quầng sáng ở dưới nằm ngoài khung, để hidden là nó bị xén mất. Cắt ở lớp
-   ảnh bên trong thay vì ở khối ngoài. */
-.pick-stage .mthumb { border-radius: var(--r-md); overflow: hidden; }
+.pick-stage .mthumb { height: 100%; border-radius: inherit; overflow: hidden; }
 .pick-stage > .pick-cap { border-radius: 0 0 var(--r-md) var(--r-md); }
 
 /* ---- hai nút qua lại giữa các video ----
@@ -2044,23 +2047,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
    mảnh cùng tông. Đây là khối duy nhất trên trang được nhấn như vậy nên
    mắt biết ngay đâu là video chính.
 
-   Dùng một lớp ::before riêng thay vì box-shadow: quầng cần to và mềm hơn
-   nhiều so với mức box-shadow còn trông tự nhiên, và làm bằng lớp riêng thì
-   hover chỉ đổi opacity — chạy trên compositor, không vẽ lại cái blur.
-
-   Không đặt z-index: -1 (sẽ tụt xuống dưới cả nền trang). Thay vào đó dựa
-   vào thứ tự vẽ: ::before là con positioned đầu tiên, còn .mthumb / .pick-cap
-   / .pick-flag đều positioned và đứng sau trong DOM nên tự nằm đè lên. */
-.pick-stage::before {
-  content: ''; position: absolute;
-  left: 6%; right: 6%; top: 10%; bottom: -6%;
-  border-radius: var(--r-lg);
-  background: radial-gradient(60% 60% at 50% 60%, var(--a-glow), rgba(77,64,240,0) 72%);
-  filter: blur(34px); opacity: .5;
-  transition: opacity var(--t-3) var(--e-soft);
-  pointer-events: none;
-}
-.pick-stage:hover::before, .pick-stage:focus-visible::before { opacity: .9; }
+   Quầng NẰM TRONG khung 16/9 (inset: 0, không filter:blur, không bottom âm)
+   — bản cũ loãng ra dưới sân khấu và nhuộm dải Latest update. */
+.pick-stage::before { content: none; display: none; }
+.pick-stage:hover::before, .pick-stage:focus-visible::before { content: none; display: none; }
 /* viền trong mảnh: tách khung khỏi nền mà không cần thêm border thật
    (border sẽ đội kích thước và làm lệch tỉ lệ 16/9 của ảnh) */
 .pick-stage::after {
@@ -2087,7 +2077,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   text-shadow: 0 1px 2px rgba(0,0,0,.5); }
 
 .pick-side { display: flex; flex-direction: column; min-width: 0; }
-.pv-label { font-size: 12px; font-weight: 600; color: var(--txt-2); margin: 0 0 8px;
+.pv-label { font-size: 12px; font-weight: 600; color: var(--txt); margin: 0 0 8px;
   padding-bottom: 6px; border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 10px; }
 /* vị trí đang mở trong danh sách: "3 / 8" — mũi tên xoay tới đâu, mắt
@@ -2112,8 +2102,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 .pvlist::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r-pill); }
 .pvlist::-webkit-scrollbar-track { background: transparent; }
 .pvrow {
-  flex: 0 0 186px; scroll-snap-align: start;
-  display: flex; flex-direction: column; gap: 7px; padding: 0; overflow: hidden; cursor: pointer;
+  flex: 0 0 168px; scroll-snap-align: start;
+  display: flex; flex-direction: column; gap: 6px; padding: 0; overflow: hidden; cursor: pointer;
+  isolation: isolate;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel-2); color: inherit; font-family: inherit; text-align: left; text-decoration: none;
   transition: transform var(--t-2) var(--e-out), border-color var(--t-2) var(--e-soft),
@@ -2132,8 +2123,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 .pvrow.on .playbtn.sm { opacity: 1; transform: none; }
 .pv-thumb { position: relative; display: block; }
 .pv-thumb .mthumb { border-radius: 0; }
-.pv-tx { display: block; padding: 0 9px 10px; }
-.pv-tx b { font-size: 12.5px; font-weight: 500; line-height: 1.42;
+.pv-tx { display: block; padding: 0 8px 8px; }
+.pv-tx b { font-size: 12px; font-weight: 500; line-height: 1.35;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .empty-acts { display: flex; gap: 7px; justify-content: center; margin-top: 12px; }
@@ -2267,7 +2258,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 @media (max-width: 620px) {
   /* blur 34px trên cả một khung rộng là khoản đắt nhất của màn nhỏ — thu
      quầng lại và giảm bán kính, nhìn vẫn ra hiệu ứng đó */
-  .pick-stage::before { filter: blur(22px); opacity: .42; top: 16%; bottom: -3%; }
+  .pick-stage::before { content: none; display: none; }
   /* trên Phone, hai nút qua lại là cách chính để lướt video: giữ to vừa tay, thu nhẹ cho đỡ chiếm ảnh */
   .pick-nav { width: 42px; height: 42px; margin-top: -21px }
   .sect { animation-duration: .26s; }
@@ -2301,8 +2292,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   /* cảm ứng không có hover thật: nút qua lại giữ nguyên sắc lìa, chỉ sáng nhẹ khi bấm */
   .pick-nav:hover { background: rgba(13,15,18,.72); border-color: rgba(255,255,255,.22); transform: none }
   /* không có chuột thì không có hover để bật quầng sáng — để sẵn mức giữa */
-  .pick-stage::before { opacity: .68; }
-  .pick-stage:hover::before { opacity: .68; }
+  .pick-stage::before { content: none; display: none; }
+  .pick-stage:hover::before { content: none; display: none; }
   .pick-stage:hover::after { box-shadow: inset 0 0 0 1px rgba(169,164,255,.22), inset 0 1px 0 rgba(255,255,255,.06); }
   .pick-stage:hover .mthumb > img, .pvrow:hover .mthumb > img { transform: none; }
   .pick-stage:hover .playbtn { transform: none; background: rgba(13,15,18,.6); border-color: rgba(255,255,255,.28); }
@@ -2764,7 +2755,8 @@ html[data-section="spin"] .bgfx { display: none; }
 /* ---- tôn trọng lựa chọn giảm chuyển động / giảm trong suốt ---- */
 @media (prefers-reduced-motion: reduce) {
   .bgfx-aurora { animation: none; }
-  .nowbar::before, .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
+  .nowbar::before, .hall-card::before, .weekly-card::before,
+  .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
   .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }
   .pick-stage::before { transition: none }
   .toast, .lb-me, .lb-pod, .lb-table tbody tr { animation: none }
@@ -4167,8 +4159,8 @@ html[data-section="spin"] .bgfx { display: none; }
 .hall-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--txt-3); font-size: 11px; }
 .hall-play { flex: 0 0 28px; display: grid; place-items: center; width: 28px; height: 28px; color: var(--a-2); border: 1px solid currentColor; border-radius: 50%; font-size: 11px; }
 .weekly { margin-top: 20px; }
-.weekly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.weekly-card { display: flex; flex-direction: column; gap: 4px; padding: 13px; color: var(--txt); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--a) 8%, var(--bg-2)); }
+.weekly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.weekly-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; min-width: 0; overflow: hidden; color: var(--txt); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .weekly-card:hover, .weekly-card:focus-visible { border-color: var(--a-2); }
 .weekly-card small { color: var(--a-2); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; font-weight: 700; }
 /* Tuần qua nhìn lại (T7): một dòng tóm tắt + nút Save card, tách với hai
@@ -4217,7 +4209,13 @@ html[data-section="spin"] .bgfx { display: none; }
 .stat .tick { font-size: 24px; letter-spacing: -.04em; }
 .nowbar { border-color: color-mix(in srgb, var(--a-2) 22%, var(--line)); background: linear-gradient(125deg, color-mix(in srgb, var(--a) 8%, var(--panel)) 0%, var(--panel) 48%); box-shadow: 0 18px 44px rgba(0,0,0,.16); }
 .nowbar .lbl { letter-spacing: -.02em; }
-.hall-card, .weekly-card { background: linear-gradient(145deg, color-mix(in srgb, var(--panel-2) 82%, var(--a) 18%), var(--panel)); box-shadow: 0 8px 22px rgba(0,0,0,.12); }
+.hall-card, .weekly-card { position: relative; overflow: hidden; background: linear-gradient(145deg, color-mix(in srgb, var(--panel-2) 82%, var(--a) 18%), var(--panel)); box-shadow: 0 8px 22px rgba(0,0,0,.12); }
+.hall-card::before, .weekly-card::before {
+  content: ''; position: absolute; left: -45%; top: 0; bottom: 0; width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(169,164,255,.12), transparent);
+  animation: nowdrift 8.2s var(--e-soft) infinite alternate; pointer-events: none;
+}
+.weekly-card::before { animation-delay: 1.8s; }
 .hall-card:hover, .hall-card:focus-visible, .weekly-card:hover, .weekly-card:focus-visible { box-shadow: 0 10px 26px rgba(0,0,0,.22); }
 @media (max-width: 620px) {
   .stats { border-radius: var(--r-md); }
@@ -4618,7 +4616,8 @@ body {
    ========================================================= */
 html { overflow-x: hidden; }
 body { overflow-x: hidden; }
-.main, .board, .list, .lb, .nowbar, .votepanel, .pick, .hall, .weekly, .adm-panel, .public-profile { min-width: 0; }
+.main, .board, .list, .lb, .nowbar, .votepanel, .pick, .hall, .weekly, .adm-panel, .public-profile,
+.daily-spin, .mystery-page, .daily-rewards { min-width: 0; }
 
 @media (max-width: 899px) {
   .main { padding: 18px 14px 72px; max-width: 100%; }

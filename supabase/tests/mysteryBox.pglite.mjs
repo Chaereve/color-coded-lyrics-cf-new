@@ -9,8 +9,8 @@
  *     never rolls again (one mystery_opens row, one ledger grant);
  *   * every result 0..6 maps to the approved v2 prize table (kind + votes
  *     ceiling) and the empirical distribution of 600 independent boxes matches
- *     the approved weights 55/20/12/7/3/2/1 within a wide, deterministic-safe
- *     margin — the ONLY +5-votes outcome is result 3 (7%);
+ *     the approved weights 70/16/8/4/1.5/0.4/0.1 within a wide, deterministic-safe
+ *     margin — the ONLY +5-votes outcome is result 3 (4%);
  *   * vote prizes go through grant_reward_event: the shared 30/day cap scales
  *     them down (a fully clipped prize still spends the box, paid = 0);
  *   * paid prizes (result 5 = +1, result 6 = +2 free paid requests, kind
@@ -40,7 +40,7 @@ const CHAIN = ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz
   '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
   '20261125_reward_eligibility_and_quota_races']
 const B1 = ['20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2']
-const B2 = ['20261129_mystery_box', '20261202_mystery_paid_v2']
+const B2 = ['20261129_mystery_box', '20261202_mystery_paid_v2', '20261204_mystery_odds']
 
 const SCAFFOLD = `
   do $$ begin create role anon nologin; exception when duplicate_object or unique_violation then null; end $$;
@@ -193,7 +193,7 @@ test('the box only opens after check-in, one per day, replay never re-rolls', as
     first.mystery.reward_kind === 'votes' ? 1 : 0)
 })
 
-test('the 600-box distribution matches the approved 55/20/12/7/3/2/1 weights', async () => {
+test('the 600-box distribution matches the approved 70/16/8/4/1.5/0.4/0.1 weights', async () => {
   const { db, today } = await buildB2Database()
   await db.query('select setseed(0.42)')
   const SAMPLES = 600
@@ -209,12 +209,11 @@ test('the 600-box distribution matches the approved 55/20/12/7/3/2/1 weights', a
         `result ${opened.mystery.result} must pay EXACTLY its free-paid-request amount`)
     }
   }
-  const expected = { 0: 0.55, 1: 0.20, 2: 0.12, 3: 0.07, 4: 0.03, 5: 0.02, 6: 0.01 }
+  const expected = { 0: 0.70, 1: 0.16, 2: 0.08, 3: 0.04, 4: 0.015, 5: 0.004, 6: 0.001 }
   for (const [result, share] of Object.entries(expected)) {
     const got = buckets[result] / SAMPLES
-    // Wide margin: the rarest bucket expects ~6 hits, so cap the lower bound
-    // at 0 and keep generous upper bounds — flaky CI proves nothing.
-    const margin = share >= 0.07 ? 0.07 : share * 8
+    // Wide margin: rare buckets (0.1–0.4%) may land 0 hits in 600 draws.
+    const margin = share >= 0.07 ? 0.07 : Math.max(share * 8, 0.02)
     assert.ok(Math.abs(got - share) <= margin,
       `result ${result}: got ${(got * 100).toFixed(1)}%, expected ${(share * 100).toFixed(1)}% (buckets ${JSON.stringify(buckets)})`)
   }

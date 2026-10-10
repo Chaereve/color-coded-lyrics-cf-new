@@ -188,7 +188,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
       '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
       '20261127_login_streak_rewards', '20261128_achievements_v2',
-      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2'])
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -202,7 +203,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
       '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
       '20261127_login_streak_rewards', '20261128_achievements_v2',
-      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2'])
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -218,7 +220,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift',
       '20261124_restore_daily_free_votes', '20261125_reward_eligibility_and_quota_races',
       '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
-      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2'])
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -498,11 +501,12 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
   assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
 
-  /* Và trên chính máy này: quét thật vẫn phải ra đúng 47 migration đang hoạt động
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 49 migration đang hoạt động
      (41 cũ + ba bản B1: 20261126/27/28 + B2: 20261129 + B3: 20261201
-     + bản sửa bảng giải mystery v2: 20261202). */
+     + bản sửa bảng giải mystery v2: 20261202 + lịch sử tháng: 20261203
+     + siết tỉ lệ hộp: 20261204). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 47)
+  assert.equal(active.length, 49)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -519,9 +523,10 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
       '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
       '20261127_login_streak_rewards', '20261128_achievements_v2',
-      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2'])
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+      '20261203_mystery_month', '20261204_mystery_odds'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '11 migration(s) would be applied:')
+  assert.equal(lines[0], '13 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -534,6 +539,8 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261129  20261129_mystery_box.sql',
     'apply 20261201  20261201_spin_v2.sql',
     'apply 20261202  20261202_mystery_paid_v2.sql',
+    'apply 20261203  20261203_mystery_month.sql',
+    'apply 20261204  20261204_mystery_odds.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

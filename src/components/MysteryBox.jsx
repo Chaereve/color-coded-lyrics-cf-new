@@ -5,6 +5,7 @@ import {
   REEL_TARGET_INDEX, REEL_ITEM_COUNT,
 } from '../lib/mysteryBox.js'
 import { confettiBurst } from '../lib/confetti.js'
+import { sfx } from '../lib/sfx.js'
 import CaseOpeningReel from './CaseOpeningReel.jsx'
 import Icon from './Icon.jsx'
 import './MysteryBox.css'
@@ -19,8 +20,8 @@ import './MysteryBox.css'
    RPC chạy SONG SONG với nhịp lắc):
      t0      LẮC 800ms — hộp lắc lư (rotate ±6°, vibrate nhẹ); RPC
              openMysteryBox chạy SONG SONG ngay từ t0
-     ~0,8s   MỞ NẮP — nắp lật ngửa 112° quanh BẢN LỀ CẠNH SAU (transform-
-             style preserve-3d), tia sáng bung từ hộp, starfield sẵn sẵn
+     ~0,8s   MỞ NẮP — nắp lật ngửa quanh BẢN LỀ CẠNH SAU (transform-style
+             preserve-3d, rotateX 158°), tia sáng bung từ hộp, starfield sẵn sẵn
      ~1,3s   REEL TRỒI LÊN nằm PHÍA TRÊN hộp (.rw.up, overshoot) — 44 ô,
              dừng CHÍNH XÁC ô kết quả server trả dưới kim giữa (~4,6s trượt
              giảm tốc), kim nảy theo từng ô
@@ -50,6 +51,7 @@ const VOTES_TILE = { 1: 's1', 3: 's2', 5: 's3', 10: 's4' }
 const MYSTERY_SHAKE_MS = 800   // lắc trước khi mở nắp
 const MYSTERY_RISE_MS = 950    // reel trồi lên phía trên hộp
 const MYSTERY_REEL_MS = 4600   // trượt giảm tốc tới ô đích
+const MYSTERY_MISS_MS = 900    // hộp không: xem kết quả rồi đóng nắp + phai
 
 /* Độ hiếm hiển thị (màu rays/rbar) theo outcome — chỉ trình diễn. */
 const RARITY_CLASS = { 0: 'r0', 1: 'r0', 2: 'r1', 3: 'r1', 4: 'r2', 5: 'r2', 6: 'r3' }
@@ -57,10 +59,13 @@ const rarityOf = (kind, result) => (kind === 'nothing' ? 'r0' : RARITY_CLASS[res
 
 /* Sao trời TẤT ĐỊNH: 18 điểm [left%, top%, delay s] — không Math.random. */
 const STARS = [
-  [6, 12, 0], [14, 64, .7], [22, 30, 1.4], [31, 82, .3], [38, 8, 2.1],
-  [46, 52, 1.1], [54, 18, .5], [61, 74, 1.8], [69, 38, .9], [77, 88, 2.4],
-  [84, 22, .2], [92, 58, 1.5], [11, 42, 2.2], [27, 6, 1.9], [49, 90, .6],
-  [66, 10, 1.2], [81, 46, 2.0], [95, 84, .8],
+  [12, 18, 0], [28, 8, 1.1], [48, 22, .4], [70, 12, 1.6],
+  [86, 28, .8], [18, 72, 2], [78, 68, 1.3], [92, 80, .5],
+]
+/* Tia nổ lúc mở nắp — vị trí tất định, chỉ chạy khi is-reeling. */
+const SPARKS = [
+  [46, 36, 0], [54, 32, .08], [40, 40, .14], [60, 38, .2],
+  [50, 28, .1], [36, 34, .22], [64, 30, .16], [48, 44, .26],
 ]
 
 const Padlock = () => (
@@ -80,6 +85,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
   const [winTile, setWinTile] = useState(null) // ô kết quả server (kind+label)
   const [winRarity, setWinRarity] = useState('r1')
   const [error, setError] = useState('')
+  const [miss, setMiss] = useState(() => !!mystery?.opened && mystery.reward_kind === 'nothing')
   const [clock, setClock] = useState(() => Date.now())
   const timers = useRef([])
   const busy = useRef(false)
@@ -96,16 +102,24 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     setPhase('idle')
     setReveal(true)
     const result = resultRef.current
-    // Rays + confetti theo độ hiếm — chỉ trình diễn sau khi reel dừng.
+    const kind = result?.mystery?.reward_kind
+    const votes = result?.mystery?.reward_votes ?? 0
+    const empty = kind === 'nothing'
+    if (empty) sfx.boxEmpty()
+    else sfx.boxWin(kind === 'free_paid_request' || votes >= 10)
+    // Rays + confetti theo độ hiếm — hộp không thì không bung giấy.
     const stage = outcomeRef.current?.closest('.box-stage')
-    if (stage && !reducedMotion()) {
+    if (stage && !empty && !reducedMotion()) {
       const reelEl = stage.querySelector('.reel-viewport')
       if (reelEl) {
         const r = reelEl.getBoundingClientRect()
-        const kind = result?.mystery?.reward_kind
-        const big = kind === 'free_paid_request' || (result?.mystery?.reward_votes ?? 0) >= 10
+        const big = kind === 'free_paid_request' || votes >= 10
         confettiBurst(r.left + r.width / 2, r.top + r.height / 2, big ? 170 : 90)
       }
+    }
+    if (empty) {
+      const wait = reducedMotion() ? 0 : MYSTERY_MISS_MS
+      timers.current.push(setTimeout(() => setMiss(true), wait))
     }
     onOpenedRef.current?.(result?.mystery)
     // Trả focus về vùng kết quả — animation không được làm rơi focus.
@@ -127,6 +141,13 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     const tick = setInterval(() => setClock(Date.now()), 1000)
     return () => clearInterval(tick)
   }, [nextResetAt])
+
+  /* Tab khác / lần vào lại: hộp không thì nắp đã đóng. Không đụng nhịp
+     mở đang chạy (reveal) — finish tự hẹn đóng sau MYSTERY_MISS_MS. */
+  useEffect(() => {
+    if (phase !== 'idle' || reveal) return
+    if (mystery?.opened && mystery.reward_kind === 'nothing') setMiss(true)
+  }, [mystery?.opened, mystery?.reward_kind, phase, reveal])
 
   /* useMemo TRƯỚC early-return (luật hooks) + identity ỔN ĐỊNH qua mỗi
      re-render của page (đồng hồ/props) — reel tính offset MỘT lần từ items;
@@ -150,6 +171,8 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     setError('')
     setReveal(false)
     setRisen(false)
+    setMiss(false)
+    sfx.boxOpen()
     // Kết quả do SERVER quyết: RPC chạy SONG SONG với nhịp lắc; reel sau đó
     // chỉ diễn tả lại ô đích đã định.
     const rpc = openMysteryBox(userId, day)
@@ -210,20 +233,24 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     <div className="box-wrap">
       {/* SÂN KHẤU: sao trời + rays + reel TRÊN + hộp quà 3D (nắp bản lề sau) */}
       <div className={`box-stage${checkedIn ? '' : ' is-locked'}${opened ? ' is-opened' : ''}`
-        + `${working ? ` is-${phase}` : ''}${reveal ? ' is-reveal' : ''}${risen ? ' is-risen' : ''}`}>
-        <span className={`box-rays ${winRarity}`} aria-hidden="true" />
-        {STARS.map(([left, top, delay], i) => (
-          <i key={i} className="box-star" aria-hidden="true"
-            style={{ left: `${left}%`, top: `${top}%`, animationDelay: `${delay}s` }} />
-        ))}
-        {!opened && (
-          <p className="box-hint" aria-hidden="true">
-            {checkedIn ? t('mystery.tap') : t('mystery.locked')}
-          </p>
-        )}
+        + `${working ? ` is-${phase}` : ''}${reveal ? ' is-reveal' : ''}${risen ? ' is-risen' : ''}`
+        + `${miss ? ' is-miss' : ''}`}>
+        {/* FX ngoài cây 3D — overflow:hidden không cắt preserve-3d. */}
+        <div className="box-stage-fx" aria-hidden="true">
+          <span className={`box-rays ${winRarity}`} />
+          <span className="box-beam" />
+          {STARS.map(([left, top, delay], i) => (
+            <i key={i} className="box-star"
+              style={{ left: `${left}%`, top: `${top}%`, animationDelay: `${delay}s` }} />
+          ))}
+          {SPARKS.map(([left, top, delay], i) => (
+            <i key={`spk-${i}`} className="box-spark"
+              style={{ left: `${left}%`, top: `${top}%`, animationDelay: `${delay}s` }} />
+          ))}
+        </div>
+        <span className="box-stage-veil" aria-hidden="true" />
+        <span className="box-floor" aria-hidden="true" />
 
-        {/* Reel GIỮ NGUYÊN qua reveal (không unmount — không mất transform):
-            đang chạy thì spinning, reveal thì settled highlight ô đích. */}
         {(phase === 'reeling' || reveal) && (
           <div className={`box-reel${risen ? ' up' : ''}`} aria-hidden="true">
             <CaseOpeningReel items={items} spinning={phase === 'reeling'}
@@ -233,28 +260,35 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
           </div>
         )}
 
-        {/* HỘP QUÀ 3D: chính hộp là NÚT MỞ (mẫu gốc) — keyboard + aria-label. */}
-        <button type="button" className={`box3d${working ? ' working' : ''}`}
-          onClick={open}
-          disabled={!checkedIn || opened || working}
-          aria-label={opened ? t('mystery.todayDone')
-            : checkedIn ? t('mystery.openNow') : t('mystery.lockedAria')}>
-          <span className="box-shadow" aria-hidden="true" />
-          <span className="box-beam" aria-hidden="true" />
-          <span className="cube" aria-hidden="true">
-            <span className="bd">
-              <i className="f in ib" /><i className="f in il" /><i className="f in ir" />
-              <i className="f gl" />
-              <i className="f fr s" /><i className="f bk" /><i className="f lf" /><i className="f rt s" />
-              {opened || working ? null : <span className="box-face-mark">{checkedIn ? '?' : <Padlock />}</span>}
+        <div className="box-slot">
+          <button type="button" className={`box3d${working ? ' working' : ''}`}
+            onClick={open}
+            disabled={!checkedIn || opened || working}
+            aria-label={opened ? t('mystery.todayDone')
+              : checkedIn ? t('mystery.openNow') : t('mystery.lockedAria')}>
+            <span className="cube" aria-hidden="true">
+              <span className="box-body">
+                <i className="box-face box-in box-in-b" />
+                <i className="box-face box-in box-in-l" />
+                <i className="box-face box-in box-in-r" />
+                <i className="box-face box-glow" />
+                <i className="box-face box-front box-ribbon" />
+                <i className="box-face box-back" />
+                <i className="box-face box-left" />
+                <i className="box-face box-right box-ribbon" />
+                {opened || working ? null : <span className="box-face-mark">{checkedIn ? '?' : <Padlock />}</span>}
+              </span>
+              <span className="box-lid">
+                <i className="box-face box-lid-under" />
+                <i className="box-face box-front box-ribbon" />
+                <i className="box-face box-back" />
+                <i className="box-face box-left" />
+                <i className="box-face box-right box-ribbon" />
+                <i className="box-face box-lid-top box-ribbon" />
+              </span>
             </span>
-            <span className="lid">
-              <i className="f lu" /><i className="f fr s" /><i className="f bk" />
-              <i className="f lf" /><i className="f rt s" /><i className="f lt s" />
-              <span className="bow"><u /></span>
-            </span>
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* THANH KẾT QUẢ: MỘT vùng live — locked/ready/mở/résultat + countdown. */}

@@ -263,20 +263,19 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   return (
     <section className="daily-spin" aria-label={t('spin.playLabel')}>
       <header className="spin-head">
-        <div className="spin-head-text">
-          <h2>{t('spin.playLabel')}</h2>
-          {/* Nhãn demo ở lại (nói dữ liệu này là dữ liệu mẫu — điều người dùng
-              PHẢI biết), đặt CẠNH tiêu đề cho gọn; không demo → không thẻ rỗng. */}
+        {/* H1 trang đã là "Daily Spin" — h2 chỉ cho a11y, không lặp chữ trên màn. */}
+        <h2 className="sr-only">{t('spin.playLabel')}</h2>
+        <div className="spin-head-meta">
           {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
-        </div>
-        <div className="spin-reset" title={t('spin.ruleReset')}>
-          <span>{t('spin.resetIn')}</span>
-          <b>{status ? spinCountdown(deadline - clock) : '--:--:--'}</b>
+          <div className="spin-reset" title={t('spin.ruleReset')}>
+            <span>{t('spin.resetIn')}</span>
+            <b>{status ? spinCountdown(deadline - clock) : '--:--:--'}</b>
+          </div>
         </div>
       </header>
 
       {/* BOARD 7×5: 20 ô vuông quanh lõi chữ nhật — đèn chạy vòng quanh. */}
-      <div className={`spin-board${dimBoard ? ' dim' : ''}`}>
+      <div className={`spin-board${dimBoard ? ' dim' : ''}${active ? ' is-run' : ''}`}>
         {SPIN_RING.map((reward, slot) => {
           const [row, col] = spinRingSlot(slot)
           const rarity = rarityOfReward(reward, rewards)

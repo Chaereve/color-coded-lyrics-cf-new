@@ -688,6 +688,10 @@ là "+5 votes" — trùng với outcome 7%, làm bảng hiển thị hai giải 
 | --- | --- |
 | `20261202_mystery_paid_v2.sql` | Nới CHECK `mystery_opens_reward_kind_check` thêm `'free_paid_request'` (giữ `'paid_request'` cho row cũ); **thêm cột `reward_amount smallint NOT NULL DEFAULT 0` + CHECK `>= 0`** (backfill: votes → số vote đã trả, `paid_request` cũ → 1, FPR result 6 → 2, nothing → 0); `open_mystery_box`: dải 970–989 → result 5 = **+1 free paid request**, dải 990–999 → result 6 = **+2 free paid requests** — cộng `bonus_requests` đúng theo amount của từng nhánh, NGOÀI cap 30/ngày, không ghi reward_event như vote, INSERT ghi `reward_amount` literal 1\|2; `mystery_status`/`my_mystery_status` trả thêm khoá `reward_amount` (payload 9 khoá). Trọng số giữ nguyên 55/20/12/7/3/2/1. |
 | `supabase/rollback/20261202_mystery_paid_v2.sql` | Từ chối chạy khi còn row result 6 kind `free_paid_request` (+2 không có tương đương trong bảng cũ — rollback sẽ biến paid +2 thành +5 votes sai nghĩa); row result 5 `free_paid_request` đổi ngược về `paid_request`; khôi phục hàm + CHECK + comment 20261129. |
+| `20261203_mystery_month.sql` | RPC đọc-only `my_mystery_month(date)` — lịch sử mở hộp trong một tháng Việt Nam, từ `mystery_opens`. Không đổi odds, cap, hay `open_mystery_box`. |
+| `supabase/rollback/20261203_mystery_month.sql` | Drop `my_mystery_month(date)`. |
+| `20261204_mystery_odds.sql` | Chỉ thay dải roll của `open_mystery_box`: **70 / 16 / 8 / 4 / 1.5 / 0.4 / 0.1** (nothing / +1 / +3 / +5 / +10 vote / +1 FPR / +2 FPR). Không đổi gate, PK, replay, cap, kind, `reward_amount`. |
+| `supabase/rollback/20261204_mystery_odds.sql` | Khôi phục dải roll 55/20/12/7/3/2/1 của 20261202. |
 
 Không đổi: cổng check-in, PK một hộp/ngày, replay, `grant_reward_event`/cap,
 RLS, cờ `mystery_box_enabled`. Client (`src/lib/mysteryBox.js`) đọc CẢ hai

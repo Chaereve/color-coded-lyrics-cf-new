@@ -5,9 +5,9 @@
    which is exactly what must happen); the card is rendered with REAL payload
    shapes, like DailyLogin.test renders RewardCard.
 
-   BẢNG GIẢI v2 (master prompt 2026-10-09) được khoá ở đây: DUY NHẤT một
-   outcome +5 votes (7%); 2% = +1 free paid request; 1% = +2 free paid
-   requests — hai mức paid KHÁC số lượng, không gộp, không nhãn mơ hồ. */
+   BẢNG GIẢI v3 được khoá ở đây: DUY NHẤT một outcome +5 votes (4%);
+   0.4% = +1 free paid request; 0.1% = +2 free paid requests — hai mức paid
+   KHÁC số lượng, không gộp, không nhãn mơ hồ. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -137,6 +137,11 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
   assert.match(jsx, /const MYSTERY_SHAKE_MS = 800/)
   assert.match(jsx, /const MYSTERY_RISE_MS = 950/)
   assert.match(jsx, /const MYSTERY_REEL_MS = 4600/)
+  assert.match(jsx, /const MYSTERY_MISS_MS = 900/)
+  assert.match(jsx, /sfx\.boxOpen\(\)/)
+  assert.match(jsx, /sfx\.boxEmpty\(\)/)
+  assert.match(jsx, /sfx\.boxWin\(/)
+  assert.match(jsx, /is-miss/)
   assert.match(jsx, /setReveal\(true\)/)
   // Reel = component DÙNG CHUNG của mystery (không đụng Daily Spin);
   // hằng số hợp đồng sống ở lib để test node trần dùng chung một nguồn.
@@ -158,8 +163,25 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
 
   const css = await read('./MysteryBox.css')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
+  /* 3D phải GIỮ KHỐI: filter/opacity trên .cube/.lid/.box3d flatten mặt
+     (hộp nhìn như mảng tối). overflow:hidden trên sân khấu thì được — clip
+     tia/sao; khối 3D render trong .box3d (preserve-3d nội bộ). */
+  assert.match(css, /\.box3d\s*\{[^}]*transform-style:\s*preserve-3d/)
+  assert.match(css, /\.box-stage\s*\{[^}]*overflow:\s*hidden/)
+  assert.doesNotMatch(css, /\.box-stage\.is-locked \.cube[\s\S]{0,80}filter:/,
+    'filter trên .cube dẹt 3D — locked phải đổi màu từng mặt')
+  assert.doesNotMatch(css, /\.box-stage\.is-opened \.cube[\s\S]{0,80}filter:/)
+  assert.match(css, /transform:\s*rotateX\(158deg\)/,
+    'nắp ngả ra sau gần nằm, không đứng 84°/112° che reel')
+  /* Mặt 3D phải prefix box- — .f/.in/.s từng là CSS toàn cục, vào Daily Box
+     xong rời đi là card trang chủ bị nhuộm gradient tím hồng. */
+  const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.doesNotMatch(cssNoComment, /(^|}|,)(\s*)\.(f|fr|bk|lf|rt|in|s|lid|bd|gl|bow)(\s|,|\{)/,
+    'không selector mặt hộp trần — CSS này sống sót sau khi rời /mystery-box')
+  assert.match(css, /\.box-stage-fx\s*\{[^}]*overflow:\s*hidden/,
+    'tia/beam phải clip trong lớp fx, không trong cây preserve-3d')
   // Keyframes động chỉ đụng transform/opacity — không gây reflow.
-  for (const kf of ['box-tw', 'box-rot', 'box-shake', 'box-pulse', 'box-pop']) {
+  for (const kf of ['box-tw', 'box-rot', 'box-shake', 'box-pulse', 'box-pop', 'box-rays-out', 'box-beam-out', 'box-spark', 'box-sway', 'box-floor-breathe']) {
     const block = css.match(new RegExp(`@keyframes ${kf} \\{([\\s\\S]*?)\\n\\}`))?.[1]
     assert.ok(block, `keyframes ${kf} tồn tại`)
     assert.doesNotMatch(block, /(^|[^-])\b(width|height|top|left|margin|padding)\b\s*:/,
@@ -173,35 +195,37 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
   assert.match(reelCss, /\.reel-viewport \{[^}]*mask-image:\s*linear-gradient/)
 })
 
-test('BẢNG GIẢI v2: tổng 100%, DUY NHẤT +5@7%, hai mức paid tách bạch — lib/SQL/demo khớp nhau', async () => {
+test('BẢNG GIẢI v3: tổng 100%, DUY NHẤT +5@4%, hai mức paid tách bạch — lib/SQL/demo khớp nhau', async () => {
   const { MYSTERY_PRIZES } = await import('../lib/mysteryBox.js')
   const strings = readFileSync(new URL('../lib/strings.js', import.meta.url), 'utf8')
-  const sql = readFileSync(new URL('../../supabase/migrations/20261202_mystery_paid_v2.sql', import.meta.url), 'utf8')
+  const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261202_mystery_paid_v2.sql', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../../supabase/migrations/20261204_mystery_odds.sql', import.meta.url), 'utf8')
 
   // Tổng trọng số đúng 100% và đủ 7 outcome (0..6).
   assert.equal(MYSTERY_PRIZES.length, 7)
   assert.equal(MYSTERY_PRIZES.reduce((sum, p) => sum + p.weight, 0), 1000, 'tổng 100%')
   assert.deepEqual(MYSTERY_PRIZES.map(p => p.result), [0, 1, 2, 3, 4, 5, 6])
 
-  // DUY NHẤT một outcome +5 votes, ở 7% — không còn +5 trùng ở 1%.
+  // DUY NHẤT một outcome +5 votes, ở 4% — không còn +5 trùng.
   assert.equal(MYSTERY_PRIZES.filter(p => p.kind === 'votes' && p.votes === 5).length, 1)
   const five = MYSTERY_PRIZES.find(p => p.kind === 'votes' && p.votes === 5)
   assert.equal(five.result, 3)
-  assert.equal(five.weight, 70)
+  assert.equal(five.weight, 40)
 
   // Hai mức paid: cùng kind 'free_paid_request', KHÁC số lượng, khác trọng số.
   const paid1 = MYSTERY_PRIZES.find(p => p.result === 5)
   const paid2 = MYSTERY_PRIZES.find(p => p.result === 6)
   assert.equal(paid1.kind, 'free_paid_request')
   assert.equal(paid2.kind, 'free_paid_request')
-  assert.equal(paid1.requests, 1); assert.equal(paid1.votes, 0); assert.equal(paid1.weight, 20)
-  assert.equal(paid2.requests, 2); assert.equal(paid2.votes, 0); assert.equal(paid2.weight, 10)
+  assert.equal(paid1.requests, 1); assert.equal(paid1.votes, 0); assert.equal(paid1.weight, 4)
+  assert.equal(paid2.requests, 2); assert.equal(paid2.votes, 0); assert.equal(paid2.weight, 1)
 
-  // SQL migration v2 khớp bảng lib: dải roll + bonus_requests theo amount.
+  // SQL v3 khớp bảng lib: dải roll siết + bonus_requests theo amount.
+  assert.match(sql, /v_roll < 700/)
   assert.match(sql, /v_result := 5; v_kind := 'free_paid_request'; v_ask := 0;\s+v_free := 1/)
   assert.match(sql, /v_result := 6; v_kind := 'free_paid_request'; v_ask := 0;\s+v_free := 2/)
   assert.match(sql, /set bonus_requests = bonus_requests \+ v_free/)
-  assert.match(sql, /'nothing', 'votes', 'paid_request', 'free_paid_request'/,
+  assert.match(sqlV2, /'nothing', 'votes', 'paid_request', 'free_paid_request'/,
     'constraint nhận thêm kind mới, vẫn đọc được row cũ')
   assert.ok(!/v_result := 6; v_kind := 'votes'/.test(sql), 'không còn outcome votes+5 ở 1%')
 
@@ -227,6 +251,20 @@ test('the odds table and the route/nav wiring are exactly the approved shape', a
     void MysteryBoxPage; void I18nProvider
     assert.match(pageSrc, /prize\.kind === 'free_paid_request'\s*\n?\s*&& t\(prize\.requests === 2 \? 'mystery\.paidRequestTwo' : 'mystery\.paidRequestOne'\)/)
     assert.doesNotMatch(pageSrc, /mystery\.paidRequest'/, 'nhãn paid cũ (1 mức) phải khỏi trang')
+    // Bảng giải gọn: nút mở popup, không chiếm layout bằng aside.
+    assert.match(pageSrc, /mystery-odds-btn/)
+    assert.match(pageSrc, /mystery-history-btn/)
+    assert.match(pageSrc, /role="dialog"/)
+    assert.match(pageSrc, /useModalExit\(oddsOpen\)/)
+    assert.match(pageSrc, /useModalExit\(historyOpen\)/)
+    assert.match(pageSrc, /useFocusTrap\(oddsRef, oddsOpen\)/)
+    assert.match(pageSrc, /useFocusTrap\(historyRef, historyOpen\)/)
+    assert.doesNotMatch(pageSrc, /mystery-side/, 'aside odds không còn chiếm cột')
+    assert.doesNotMatch(pageSrc, /mystery-layout/, 'lịch sử không chiếm cột layout')
+    assert.doesNotMatch(pageSrc, /mystery-month-grid/, 'lịch sử là popup danh sách, không lưới lịch')
+    assert.match(pageSrc, /mystery-history-dialog/)
+    assert.match(pageSrc, /fetchMysteryMonth/)
+    assert.match(pageSrc, /buildMysteryMonth/)
   })
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8')
   assert.match(app, /mystery: '\/mystery-box'/)

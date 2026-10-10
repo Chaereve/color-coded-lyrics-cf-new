@@ -8,15 +8,22 @@
    mọi keyframes chỉ transform/opacity/filter.
    ========================================================= */
 
-.daily-spin { max-width: 980px; margin: 0 auto; }
+.daily-spin {
+  max-width: 760px; margin: 0 auto 22px;
+  padding: 14px 16px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xl);
+  box-shadow: 0 12px 32px rgb(0 0 0 / .22);
+  overflow: hidden; isolation: isolate;
+}
 
-/* ---- head: tiêu đề + chip đếm ngược reset ---- */
+/* ---- head: chip đếm ngược (h2 sr-only — H1 trang đã mang tên) ---- */
 .spin-head {
-  display: flex; justify-content: space-between; align-items: flex-start;
+  display: flex; justify-content: flex-end; align-items: center;
   gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
 }
-.spin-head h2 { margin: 0; font-size: 17px; font-weight: 650; }
-.spin-head-text { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.spin-head-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .spin-demo {
   font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
   color: #DC94EF; border: 1px solid color-mix(in oklab, #DC94EF 40%, transparent);
@@ -42,7 +49,8 @@
   --c: #9D5BE8;
   aspect-ratio: 1; position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; border-radius: clamp(10px, 1.6vw, 14px);
+  gap: 2px; border-radius: clamp(10px, 1.6vw, 14px);
+  user-select: none;
   background: linear-gradient(160deg, color-mix(in oklab, var(--c) 30%, #141821), #10141d);
   border: 1px solid color-mix(in oklab, var(--c) 55%, transparent);
   transition: transform .12s var(--e-out), box-shadow .12s var(--e-out),
@@ -58,11 +66,14 @@
   filter: drop-shadow(0 2px 5px rgb(0 0 0 / .5));
 }
 .spin-tile b {
-  font: 800 clamp(13px, 2.2vw, 20px)/1 var(--mono); font-variant-numeric: tabular-nums;
+  font: 800 clamp(11px, 1.6vw, 15px)/1 var(--mono); font-variant-numeric: tabular-nums;
   letter-spacing: -.01em;
   color: #fff; filter: drop-shadow(0 2px 6px rgb(0 0 0 / .55));
 }
 .spin-tile small {
+  /* Số đã có +N — "votes" lặp 20 lần chỉ làm ô chật, lòi chữ. Ẩn luôn;
+     media ≤480px vẫn giữ display:none để test/hợp đồng mobile không gãy. */
+  display: none;
   font-size: clamp(8px, 1.1vw, 10px); font-weight: 700; line-height: 1.1;
   color: color-mix(in oklab, var(--c) 72%, #fff);
 }
@@ -80,42 +91,60 @@
 .spin-tile.on {
   z-index: 2; transform: scale(1.12);
   background: linear-gradient(160deg, var(--c), color-mix(in oklab, var(--c) 55%, #000));
-  box-shadow: 0 0 0 2px #fff, 0 0 26px var(--c), 0 0 60px color-mix(in oklab, var(--c) 60%, transparent);
+  box-shadow: 0 0 0 2px #fff, 0 0 22px var(--c), 0 0 40px color-mix(in oklab, var(--c) 50%, transparent);
+}
+.spin-board.is-run .spin-tile.on { animation: spin-on-flash .16s var(--e-pop) both; }
+@keyframes spin-on-flash {
+  0% { transform: scale(1.02); }
+  70% { transform: scale(1.16); }
+  100% { transform: scale(1.12); }
 }
 .spin-tile.on small { color: #fff; }
-/* Ô trúng: nổ liên hồi tới khi lượt kế tiếp */
-.spin-tile.win { animation: spin-win .7s ease-in-out infinite alternate; }
+/* Ô trúng: nổ MỘT nhịp rồi đứng — không pulse vô hạn (quầng 90px là
+   "gradient còn sót" sau khi quay). */
+.spin-tile.win {
+  z-index: 3; transform: scale(1.08);
+  box-shadow: 0 0 0 2px #fff, 0 8px 18px rgb(0 0 0 / .4), 0 0 26px var(--c);
+  animation: spin-win .65s cubic-bezier(.2, 1.45, .4, 1) both;
+}
 @keyframes spin-win {
-  to {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 3px #fff, 0 0 46px var(--c), 0 0 90px var(--c);
-  }
+  0% { transform: scale(.92); }
+  45% { transform: scale(1.16); }
+  100% { transform: scale(1.08); }
 }
 .spin-board.dim .spin-tile:not(.win) { opacity: .4; }
 
 /* ---- LÕI CHỮ NHẬT: vành quét conic + trạng thái + nút SPIN ---- */
 .spin-core {
   grid-area: 2 / 2 / 5 / 7;
-  position: relative; isolation: isolate; overflow: hidden;
+  position: relative; isolation: isolate; overflow: hidden; contain: paint;
   border-radius: clamp(14px, 2.6vw, 20px);
-  display: grid; place-items: center; padding: 10px; text-align: center;
+  display: grid; place-items: center; padding: 8px 10px; text-align: center;
+  min-width: 0; background: var(--surface);
 }
+.spin-core > [aria-live] { min-width: 0; max-width: 100%; }
 .spin-core::before {
-  content: ''; position: absolute; inset: -70%; z-index: -2;
+  content: ''; position: absolute; inset: -48%; z-index: -2;
   background: conic-gradient(transparent 0 55%, #9D5BE8 80%, transparent);
-  animation: spin-rot 5s linear infinite; opacity: .9;
+  animation: spin-rot 14s linear infinite; opacity: .28;
 }
+.spin-board.is-run .spin-core::before { opacity: 1; animation-duration: .75s; }
+/* Sau khi đáp: TẮT vành conic — đây là "gradient còn sót" sau spin. */
+.spin-board.dim .spin-core::before { animation: none; opacity: 0; }
 .spin-core::after {
   content: ''; position: absolute; inset: 2px; z-index: -1; border-radius: inherit;
   background: radial-gradient(circle at 50% 0,
     color-mix(in oklab, #BC77EC 16%, var(--surface)), var(--surface) 75%);
+}
+.spin-board.dim .spin-core::after {
+  background: var(--surface);
 }
 @keyframes spin-rot { to { transform: rotate(1turn); } }
 
 .spin-core-k { color: var(--txt-2); font-size: 12px; font-weight: 700; }
 .spin-now {
   display: grid; place-items: center; min-height: 1.1em;
-  font-size: clamp(34px, 9vw, 56px); line-height: 1.15;
+  font-size: clamp(20px, 4.6vw, 28px); line-height: 1.15;
   filter: drop-shadow(0 4px 14px rgb(0 0 0 / .55));
 }
 .spin-now b { font-family: var(--mono); font-weight: 800; }
@@ -123,13 +152,13 @@
 .spin-now b.r1 { color: #DC94EF; }
 .spin-now b.r2 { color: #FCB0F3; }
 .spin-now b.r3 { color: #fff; text-shadow: 0 0 22px #FCB0F3; }
-.spin-now-gift { width: clamp(30px, 7vw, 46px); color: #DC94EF; }
+.spin-now-gift { width: clamp(20px, 4.4vw, 28px); color: #DC94EF; }
 .spin-now.pop { animation: spin-pop .6s cubic-bezier(.2, 1.6, .4, 1) both; }
 @keyframes spin-pop {
   0% { transform: scale(.2) rotate(-25deg); }
   100% { transform: none; }
 }
-.spin-pn { font-weight: 800; font-size: clamp(15px, 4.2vw, 22px); letter-spacing: -.01em; color: var(--txt); }
+.spin-pn { font-weight: 800; font-size: clamp(13px, 3vw, 16px); letter-spacing: -.01em; color: var(--txt); }
 .spin-rar { font-size: 12px; font-weight: 700; min-height: 1.2em; color: var(--txt-3); }
 .spin-rar.r0 { color: #BC77EC; }
 .spin-rar.r1 { color: #DC94EF; }
@@ -138,13 +167,14 @@
 
 /* Nút SPIN: pill đập nhẹ mời chạm; disabled = tắt nhịp, xám đi */
 .spin-cta {
-  font: 800 clamp(14px, 4vw, 18px)/1.2 var(--font); color: #fff;
-  border: 0; border-radius: 99px; padding: 11px 28px; margin-top: 8px; cursor: pointer;
+  font: 800 clamp(12px, 2.8vw, 15px)/1.2 var(--font); color: #fff;
+  border: 0; border-radius: 99px; padding: 10px 22px; margin-top: 8px; cursor: pointer;
   background: #3D05DD;
   box-shadow: 0 8px 24px color-mix(in oklab, #3D05DD 45%, transparent), inset 0 -3px 0 rgb(0 0 0 / .2);
   transition: transform .15s var(--e-out);
   animation: spin-beat 1.8s ease-in-out infinite;
-  font-variant-numeric: tabular-nums; max-width: 100%;
+  font-variant-numeric: tabular-nums; max-width: 100%; min-height: 40px;
+  white-space: normal; text-wrap: balance; overflow-wrap: anywhere;
 }
 .spin-cta:hover:not(:disabled) { transform: translateY(-2px) scale(1.03); background: color-mix(in oklab, #3D05DD 86%, #fff); }
 .spin-cta:active:not(:disabled) { transform: scale(.96); }
@@ -155,7 +185,7 @@
 }
 
 .spin-pending {
-  margin: 10px auto 0; max-width: 720px; font-size: 12px; color: #DC94EF;
+  margin: 10px auto 0; max-width: 100%; font-size: 12px; color: #DC94EF;
   display: flex; align-items: center; gap: 7px; justify-content: center; text-align: center;
 }
 .spin-pending::before {
@@ -163,7 +193,7 @@
   background: #DC94EF; box-shadow: 0 0 8px #DC94EF; flex: 0 0 auto;
 }
 .spin-error {
-  max-width: 720px; margin: 10px auto 0;
+  max-width: 100%; margin: 10px auto 0;
   display: grid; gap: 8px; justify-items: center; padding: 11px 12px;
   border: 1px solid color-mix(in oklab, var(--denied) 45%, transparent);
   border-radius: var(--r-md); background: color-mix(in oklab, var(--denied) 9%, transparent);
@@ -173,7 +203,7 @@
 /* ---- dải dưới gọn: lượt còn · hôm nay · link votes ---- */
 .spin-strip {
   display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
-  width: min(100%, 720px); margin: 14px auto 0; padding: 12px 14px;
+  width: 100%; margin: 14px auto 0; padding: 12px 14px;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
 .spin-remaining { display: grid; gap: 5px; min-width: 128px; }
@@ -211,18 +241,23 @@
 /* ---- mobile: ẩn phụ đề ô + dòng độ hiếm (mẫu gốc), board vẫn tràn đều ---- */
 @media (max-width: 480px) {
   .spin-core-k, .spin-rar, .spin-tile small { display: none; }
-  .spin-cta { padding: 8px 18px; margin-top: 4px; }
+  .spin-cta { padding: 7px 12px; margin-top: 2px; font-size: 12.5px; }
   .spin-board { gap: 4px; }
+  .spin-now { font-size: clamp(18px, 6vw, 24px); }
+  .spin-pn { font-size: 13px; }
+  .spin-core { padding: 4px 6px; }
+  .daily-spin { padding: 12px 10px 12px; }
 }
 
 /* ---- reduced motion: tắt mọi nhịp, trạng thái vẫn đọc được qua viền ---- */
 @media (prefers-reduced-motion: reduce) {
-  .spin-core::before { animation: none; opacity: .35; }
+  .spin-core::before { animation: none; opacity: .18; }
+  .spin-board.dim .spin-core::before { opacity: 0; }
   .spin-tile.r3::after { animation: none; opacity: 0; }
   .spin-cta { animation: none; }
   .spin-tile { transition: none; }
-  .spin-tile.on, .spin-tile.t1, .spin-tile.t2 { transform: none; }
+  .spin-tile.on, .spin-tile.t1, .spin-tile.t2 { transform: none; animation: none; }
   .spin-tile.win { animation: none; transform: none;
-    box-shadow: 0 0 0 3px #fff, 0 0 30px var(--c); }
+    box-shadow: 0 0 0 3px #fff, 0 0 22px var(--c); }
   .spin-now.pop { animation: none; }
 }
