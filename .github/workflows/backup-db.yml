@@ -26,13 +26,12 @@ on:
     - cron: '0 19 * * *'
   workflow_dispatch:
   push:
-    # 2026-10-08 · nhánh phiên arena/c7f9fc9b — chạy đúng pipeline backup của repo
-    # (dump + phục hồi thử + so dấu vân tay) để có backup production ĐÃ XÁC MINH
-    # trước khi duyệt migration 20261125. Token sandbox không có actions:write nên
-    # không dispatch được; push là đường còn lại (giống job browser & edge check).
-    # Script backup-db.sh CHỈ ĐỌC với database nguồn — không ghi gì vào production.
+    # 2026-10-10 · nhánh phiên arena/6a19d183 — backup + so dấu vân tay trước khi
+    # duyệt B4.4 (20261210_vote_back). Token sandbox không có actions:write nên
+    # không dispatch được; push là đường còn lại. Script backup-db.sh CHỈ ĐỌC
+    # với database nguồn — không ghi gì vào production.
     branches:
-      - 'arena/c7f9fc9b-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new'
 
 # Hai lượt chồng nhau (bấm tay đúng lúc cron nổ) thì bản sau xếp hàng, không
 # chạy song song: hai pg_dump cùng lúc chỉ tốn tài nguyên vô ích.
