@@ -121,6 +121,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
         run: |
+          set -o pipefail
           node --input-type=module <<'EOF'
           import { writeFileSync } from 'node:fs'
           const t = process.env.EDGE_GATE_TOKEN || ''
@@ -134,9 +135,11 @@ jobs:
             -v /tmp/b2-gate.sql:/tmp/b2-gate.sql \
             -w /work \
             postgres:17 \
-            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f /tmp/b2-gate.sql -f scripts/verify-b2-post-deploy.sql -f scripts/smoke-b2.sql'
+            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f /tmp/b2-gate.sql -f scripts/verify-b2-post-deploy.sql -f scripts/smoke-b2.sql' \
+            2>&1 | tee /tmp/verify-smoke.txt
 
       - name: Post plan — B2 applied, B3+B4 still hold
+        if: always()
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -172,6 +175,6 @@ jobs:
           const read = p => { try { return fs.readFileSync(p,"utf8") } catch { return "" } }
           const msg = s => String(s).replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A")
           const title = s => msg(s).replace(/:/g,"%3A").replace(/,/g,"%2C")
-          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== post-until-except ==", read("/tmp/post-plan-b2.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
+          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== verify-smoke ==", read("/tmp/verify-smoke.txt"), "== post-until-except ==", read("/tmp/post-plan-b2.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
           console.log(`::notice title=${title("B2 deploy production")}::${msg(body.trim() || "(no output)")}`)
           '
