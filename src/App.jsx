@@ -1041,7 +1041,12 @@ function AppInner() {
     // GIU NGUYEN trang thai truoc do — khong spread vs.value ke ca free_used,
     // vi no keo theo purchased/bonus/credits cua thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
-      setVoteStatus(() => vs.value)
+      setVoteStatus(previous => ({
+        ...vs.value,
+        bonus_requests: Number.isInteger(vs.value.bonus_requests)
+          ? vs.value.bonus_requests
+          : (previous.bonus_requests ?? 0),
+      }))
     }
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
@@ -1078,7 +1083,12 @@ function AppInner() {
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
     // do, khong de so du thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
-      setVoteStatus(() => vs.value)
+      setVoteStatus(previous => ({
+        ...vs.value,
+        bonus_requests: Number.isInteger(vs.value.bonus_requests)
+          ? vs.value.bonus_requests
+          : (previous.bonus_requests ?? 0),
+      }))
     }
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
@@ -2214,37 +2224,42 @@ function AppInner() {
             }
 
             <section className="votepanel" data-reveal data-glow>
-              <div className="vp-main">
-                <div className="vp-label">{t('vp.yourVotes')}</div>
-                <div className="vp-big">
-                  <Num v={votesLeft} />
-                  <span>{t('vp.left')}</span>
+              <div className="vp-top">
+                <div className="vp-main">
+                  <div className="vp-label">{t('vp.yourVotes')}</div>
+                  <div className="vp-big">
+                    <Num v={votesLeft} />
+                    <span>{t('vp.left')}</span>
+                  </div>
+                </div>
+                <div className="vp-acts">
+                  <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
+                  <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
+                  <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
                 </div>
               </div>
-              <div className="vp-divider" />
-              <div className="vp-cell">
-                <div className="vp-k">{t('vp.freeToday')}</div>
-                <div className="vp-v" style={{ color: freeLeft > 0 ? 'var(--done)' : 'var(--denied)' }}>
-                  <Num v={freeLeft} /> / {voteStatus.free_limit}
+              <div className="vp-stats">
+                <div className={`vp-cell${freeLeft > 0 ? ' is-free' : ' is-empty'}`} title={t('vp.reset')}>
+                  <div className="vp-k">{t('vp.freeToday')}</div>
+                  <div className="vp-v">
+                    <Num v={freeLeft} /> / {voteStatus.free_limit}
+                  </div>
+                  <div className="vs-bar">
+                    <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="vs-bar" style={{ marginTop: 6 }}>
-                  <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vote.purchased')}</div>
+                  <div className="vp-v"><Num v={voteStatus.purchased ?? 0} /></div>
                 </div>
-                <div className="vp-note">{t('vp.reset')}</div>
-              </div>
-              <div className="vp-cell">
-                <div className="vp-k">{t('vote.purchased')}</div>
-                <div className="vp-v" style={{ color: 'var(--paid)' }}><Num v={voteStatus.purchased ?? 0} /></div>
-              </div>
-              <div className="vp-cell">
-                <div className="vp-k">{t('vote.bonus')}</div>
-                <div className="vp-v" style={{ color: 'var(--a-2)' }}><Num v={voteStatus.bonus ?? 0} /></div>
-                <div className="vp-note">{t('vp.bonusReset')}</div>
-              </div>
-              <div className="vp-acts">
-                <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
-                <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
-                <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
+                <div className="vp-cell is-bonus" title={t('vp.bonusReset')}>
+                  <div className="vp-k">{t('vp.voteBonus')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus ?? 0} /></div>
+                </div>
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vp.freePaid')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus_requests ?? 0} /></div>
+                </div>
               </div>
             </section>
 

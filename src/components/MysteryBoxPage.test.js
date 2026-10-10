@@ -232,6 +232,8 @@ test('BẢNG GIẢI v3: tổng 100%, DUY NHẤT +5@4%, hai mức paid tách bạ
   // Copy: nói rõ "free paid request", không "credits", không nhãn mơ hồ.
   assert.match(strings, /'mystery\.paidRequestOne': '\+1 free paid request'/)
   assert.match(strings, /'mystery\.paidRequestTwo': '\+2 free paid requests'/)
+  assert.match(strings, /'mystery\.ruleCap': 'Votes → Vote bonus · cap 30\/day\.'/)
+  assert.match(strings, /'mystery\.rulePaid': 'Free paid request · no cap\.'/)
   const mysteryCopy = [...strings.matchAll(/'mystery\.[a-zA-Z]+': '([^']*)'/g)].map(m => m[1])
   assert.ok(mysteryCopy.length > 10, 'đọc được các nhãn mystery từ strings.js')
   for (const copy of mysteryCopy) {

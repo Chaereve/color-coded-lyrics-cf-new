@@ -683,7 +683,11 @@ export async function fetchVoteStatus() {
   const { data, error } = await readQuery(() => supabase.rpc('my_vote_status'))
   if (error) throw error
   const r = Array.isArray(data) ? data[0] : data
-  return { free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r) }
+  const bonus_requests = Number.isInteger(r.bonus_requests) ? r.bonus_requests : null
+  return {
+    free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r),
+    ...(bonus_requests !== null ? { bonus_requests } : {}),
+  }
 }
 
 /* Rewards are never accepted from the browser. The RPC calculates every
