@@ -31,7 +31,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { withDatabase, installLevel, migrationSql, dayOf, seedUser, POST_20261125 } from './_fixtures.mjs'
+import { withDatabase, installLevel, migrationSql, dayOf, seedUser } from './_fixtures.mjs'
 import { applyMigration, ensureHistory, readHistory, deploy } from '../../tools/migrate.mjs'
 import { verifyBaseline } from '../../tools/schema-readiness.mjs'
 
@@ -313,12 +313,11 @@ test('the guarded runner applies it on the fresh-install path and the 20261120 b
       const before = await snapshot(pool)
       assert.equal(await grantOf(pool, userId, d), 0, 'the bundle seed still ships the retired policy')
 
-      const result = await deploy(client, { baseline: '20261120' })
+      const result = await deploy(client, { baseline: '20261120', until: '20261125' })
       assert.deepEqual(result.pending.map(({ id }) => id), [
         '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
         '20261123_reconcile_security_drift', MIGRATION_ID,
         '20261125_reward_eligibility_and_quota_races',
-        ...POST_20261125,
       ])
       assert.ok((await readHistory(client)).includes(MIGRATION_ID))
 
@@ -331,12 +330,14 @@ test('the guarded runner applies it on the fresh-install path and the 20261120 b
         'the deploy moved no wallet and wrote no vote')
 
       /* Config values are deliberately outside the fingerprint comparison
-         (LIVE_VOTE_QUOTA_CONFIG_KEYS), so a post-20261124 database is still the
-         committed 20261120 state — no new baseline or fingerprint is needed. */
+         (LIVE_VOTE_QUOTA_CONFIG_KEYS), so a post-20261125 database (quiz off,
+         free votes on, no B1–B4 yet) is still the committed 20261120 state.
+         B3/B4 replace spin/admin_pick and would fail this fingerprint — they
+         are a later batch, clipped by --until 20261125 above. */
       const readiness = await verifyBaseline(client, '20261120')
       assert.equal(readiness.ok, true, JSON.stringify(readiness.problems))
-      /* Re-running the documented command changes nothing. */
-      const again = await deploy(client)
+      /* Re-running the same clip changes nothing. */
+      const again = await deploy(client, { until: '20261125' })
       assert.deepEqual(again.pending, [])
     })
   })

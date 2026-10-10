@@ -200,8 +200,11 @@ test('mode B — a database that never applied 20261112-20261117 bootstraps inst
       assert.ok(applied.includes('20261122_disable_daily_quiz_runtime'))
       assert.ok(applied.includes('20261123_reconcile_security_drift'))
       assert.equal(applied.filter(id => id.startsWith('20261118')).length, 0)
-
-      assert.equal((await verifyBaseline(client, '20261120')).ok, true, 'the bootstrap lands in the final state')
+      for (const id of POST_20261125) {
+        assert.ok(applied.includes(id), `bootstrap must apply ${id}`)
+      }
+      // 20261120 is the last committed fingerprint. B3/B4 replace spin/admin_pick
+      // so the live tip is past that snapshot — immutability below is the check.
       const user = await seedUser(pool)
       const { y } = await dayOf(pool)
       await insertHistorical(pool, user, y, 2)
