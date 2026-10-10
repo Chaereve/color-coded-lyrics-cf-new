@@ -6,7 +6,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   MYSTERY_PRIZES, MYSTERY_KINDS, validateMysteryStatus, demoRoll, demoResultFor,
-  buildMysteryMonth,
+  buildMysteryMonth, mysteryOpenUrl,
 } from './mysteryBox.js'
 
 const status = (over = {}) => ({
