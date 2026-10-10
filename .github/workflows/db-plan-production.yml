@@ -38,6 +38,9 @@ jobs:
     timeout-minutes: 10
     env:
       BASELINE: ${{ inputs.baseline }}
+      # B1 batch (duyệt riêng). Đổi khi sang B2/B3/B4 — không bao giờ để trống
+      # trên nhánh này kẻo db:plan/db:deploy nuốt cả 9 file pending.
+      UNTIL: '20261128'
     steps:
       - uses: actions/checkout@v4
 
@@ -63,11 +66,11 @@ jobs:
         run: |
           set -o pipefail
           if [ -n "$BASELINE" ]; then
-            echo "== db:plan --baseline $BASELINE (chỉ đọc — không ghi history, không chạy SQL) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE")
+            echo "== db:plan --baseline $BASELINE --until $UNTIL (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL")
           else
-            echo "== db:plan (history production, không --baseline — chỉ đọc, không ghi) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan)
+            echo "== db:plan --until $UNTIL (B1 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --until "$UNTIL")
           fi
           if "${PLAN_CMD[@]}" 2>&1 | tee -a /tmp/plan.txt; then
             PLAN_RC=0

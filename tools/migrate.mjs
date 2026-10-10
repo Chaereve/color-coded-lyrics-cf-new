@@ -2,7 +2,9 @@
  *
  *   node tools/migrate.mjs --check                    # static safety only, no DB
  *   node tools/migrate.mjs --plan  --baseline 20261117
+ *   node tools/migrate.mjs --plan  --until 20261128
  *   node tools/migrate.mjs --apply --baseline 20261117
+ *   node tools/migrate.mjs --apply --until 20261128   # one batch; never the rest
  *
  * Why this exists: the daily-login correction shipped a destructive migration
  * (20261118) that rewrites historical check-in amounts. "Remember to skip it"
@@ -269,7 +271,23 @@ export function assertMigrationSafety (dir = MIGRATIONS_DIR, { schemaFile = SCHE
 export const planLines = result => [
   `${result.pending.length} migration(s) would be applied:`,
   ...result.pending.map(({ version, name }) => `apply ${version}  ${name}`),
+  ...(result.held?.length
+    ? [`hold ${result.held.length} migration(s) after --until ${result.until} (not this batch)`,
+      ...result.held.map(({ version, name }) => `hold ${version}  ${name}`)]
+    : []),
 ]
+
+/** Keep pending at or below an 8-digit timestamp; the rest is another batch. */
+export function clipUntil (pending, until) {
+  if (until == null || until === '') return { pending, held: [] }
+  if (!/^\d{8}$/.test(until)) {
+    throw new Error(`invalid --until ${until}: use the 8-digit migration timestamp, e.g. 20261128`)
+  }
+  return {
+    pending: pending.filter(({ version }) => version <= until),
+    held: pending.filter(({ version }) => version > until),
+  }
+}
 
 export function planPending ({ active, quarantined = [], applied = [], baseline = null }) {
   const appliedSet = new Set(applied)
@@ -387,7 +405,7 @@ export async function applyMigration (client, migration) {
   }
 }
 
-export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = {}) {
+export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null, until = null } = {}) {
   const { active, quarantined } = assertMigrationSafety(dir)
   // Read-only until the plan is accepted: a refused deployment must not leave
   // even an empty history table behind.
@@ -417,11 +435,17 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = 
      history (recordBaseline đã ghi trước đó), tức một abort khó hiểu thay vì kế
      hoạch đúng. */
   const plan = planPending({ active, quarantined, applied, baseline })
-  return { ...plan, applied, state, active, readiness, toRecord }
+  if (until != null && until !== '') {
+    if (!active.some(({ version }) => version === until)) {
+      throw new Error(`--until ${until} does not match any migration version`)
+    }
+  }
+  const { pending, held } = clipUntil(plan.pending, until)
+  return { ...plan, pending, held, until, applied, state, active, readiness, toRecord }
 }
 
-export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, onApplied = () => {} } = {}) {
-  const result = await plan(client, { dir, baseline })
+export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, until = null, onApplied = () => {} } = {}) {
+  const result = await plan(client, { dir, baseline, until })
   // Only now, with the baseline verified, may the history table be created.
   if (result.toRecord.length || result.pending.length) await ensureHistory(client)
   result.recordedBaseline = await recordBaseline(client, { active: result.active, baseline })
@@ -435,10 +459,11 @@ export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, o
 /* --------------------------------- CLI ---------------------------------- */
 
 function parseArgs (argv) {
-  const args = { mode: null, baseline: null, dbUrl: process.env.SUPABASE_DB_URL ?? null }
+  const args = { mode: null, baseline: null, until: null, dbUrl: process.env.SUPABASE_DB_URL ?? null }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--plan' || argv[i] === '--apply' || argv[i] === '--check' || argv[i] === '--verify') args.mode = argv[i].slice(2)
     else if (argv[i] === '--baseline') args.baseline = argv[++i]
+    else if (argv[i] === '--until') args.until = argv[++i]
     else if (argv[i] === '--db-url') args.dbUrl = argv[++i]
     else throw new Error(`unknown argument ${argv[i]} (use --check, --plan or --apply)`)
   }
@@ -477,7 +502,7 @@ async function verifyCommand (baseline, dbUrl) {
 }
 
 async function main (argv) {
-  const { mode, baseline, dbUrl } = parseArgs(argv)
+  const { mode, baseline, until, dbUrl } = parseArgs(argv)
   if (mode === 'verify') return verifyCommand(baseline, dbUrl)
   if (mode === 'check') {
     const { active, quarantined } = assertMigrationSafety()
@@ -493,7 +518,7 @@ async function main (argv) {
   const client = new pg.Client({ connectionString: dbUrl })
   await client.connect()
   try {
-    const result = await plan(client, { baseline })
+    const result = await plan(client, { baseline, until })
     for (const q of result.quarantinedNeverRuns) {
       console.log(`skip ${q.version}  quarantined — ${q.reason}`)
     }
@@ -507,14 +532,18 @@ async function main (argv) {
     if (result.skippedApplied.length) {
       console.log(`skip ${result.skippedApplied.length} migration(s) already recorded as applied`)
     }
-    if (!result.pending.length) {
-      console.log('up to date — nothing to apply')
-      return 0
-    }
     if (mode === 'plan') {
       /* Chỉ in, không ghi: lệnh này phải cho người vận hành thấy ĐỦ những gì sẽ
-         chạy trước khi họ gõ db:deploy. */
+         chạy trước khi họ gõ db:deploy. --until giữ batch sau ở nhóm hold. */
+      if (!result.pending.length && !result.held?.length) {
+        console.log('up to date — nothing to apply')
+        return 0
+      }
       for (const line of planLines(result)) console.log(line)
+      return 0
+    }
+    if (!result.pending.length) {
+      console.log('up to date — nothing to apply')
       return 0
     }
     if (result.toRecord.length || result.pending.length) await ensureHistory(client)

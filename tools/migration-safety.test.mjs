@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
-  collectMigrations, assertMigrationSafety, planPending, planLines, findDestructive, readQuarantine,
+  collectMigrations, assertMigrationSafety, planPending, planLines, clipUntil, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
   normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
@@ -547,4 +547,24 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
   assert.deepEqual(done.pending, [])
   assert.deepEqual(planLines(done).slice(1), [])
+})
+
+test('--until 20261128 keeps B1 and holds every later batch', () => {
+  const pending = [
+    '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
+    '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+    '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+  ].map(id => ({ id, version: id.slice(0, 8), name: `${id}.sql` }))
+  const { pending: batch, held } = clipUntil(pending, '20261128')
+  assert.deepEqual(batch.map(({ id }) => id), [
+    '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
+  ])
+  assert.deepEqual(held.map(({ id }) => id), [
+    '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+    '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+  ])
+  const lines = planLines({ pending: batch, held, until: '20261128' })
+  assert.equal(lines[0], '3 migration(s) would be applied:')
+  assert.match(lines.join('\n'), /hold 6 migration\(s\) after --until 20261128/)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261129/m)
 })
