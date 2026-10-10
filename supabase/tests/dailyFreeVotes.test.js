@@ -31,7 +31,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { withDatabase, installLevel, migrationSql, dayOf, seedUser } from './_fixtures.mjs'
+import { withDatabase, installLevel, migrationSql, dayOf, seedUser, POST_20261125 } from './_fixtures.mjs'
 import { applyMigration, ensureHistory, readHistory, deploy } from '../../tools/migrate.mjs'
 import { verifyBaseline } from '../../tools/schema-readiness.mjs'
 
@@ -318,6 +318,7 @@ test('the guarded runner applies it on the fresh-install path and the 20261120 b
         '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
         '20261123_reconcile_security_drift', MIGRATION_ID,
         '20261125_reward_eligibility_and_quota_races',
+        ...POST_20261125,
       ])
       assert.ok((await readHistory(client)).includes(MIGRATION_ID))
 

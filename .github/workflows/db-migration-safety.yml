@@ -57,7 +57,18 @@ jobs:
       # Full suite against the throwaway Postgres service: deployment modes,
       # baseline readiness, quarantine, fresh install, quiz/spin/comments.
       - name: Tests (including the real-PostgreSQL migration and baseline suites)
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/npm-test.txt
+          code=${PIPESTATUS[0]}
+          node -e '
+            const fs = require("fs")
+            const t = fs.readFileSync("/tmp/npm-test.txt", "utf8")
+            const fails = t.split(/\n/).filter(l => /^not ok /.test(l) || /^# fail /.test(l)).slice(0, 40)
+            const msg = s => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")
+            if (fails.length) console.log(`::error title=npm test::${msg(fails.join("\n"))}`)
+          '
+          exit $code
 
       # Cùng file migration, nhưng trên engine thứ hai (PostgreSQL WASM trong
       # PGlite): suite này không tự skip khi thiếu service, nên nó vẫn kiểm tra

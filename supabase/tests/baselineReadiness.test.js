@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import {
   withDatabase, installLevel, seedUser, rewardOf, rewardChecks, historyRows, claim,
-  insertHistorical, dayOf, migrationSql, archivedSql,
+  insertHistorical, dayOf, migrationSql, archivedSql, POST_20261125,
 } from './_fixtures.mjs'
 import { deploy, plan, ensureHistory } from '../../tools/migrate.mjs'
 import {
@@ -92,14 +92,14 @@ test('mode A — a database equivalent to post-20261117 is verified, and only th
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
           '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
           '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-          '20261125_reward_eligibility_and_quota_races'])
+          '20261125_reward_eligibility_and_quota_races', ...POST_20261125])
       const history = await historyRows(client)
       assert.ok(history.includes('20261119_preserve_legacy_daily_login_rewards'))
       assert.ok(history.includes('20261120_daily_login_reward_immutable'))
       assert.ok(history.includes('20261121_vote_calendar_decoupling'))
       assert.ok(history.includes('20261122_disable_daily_quiz_runtime'))
       assert.equal(history.filter(v => v.startsWith('20261118')).length, 0)
-      assert.equal(history.length, result.recordedBaseline.length + 7, 'history is written only after verification passed')
+      assert.equal(history.length, result.recordedBaseline.length + 7 + POST_20261125.length, 'history is written only after verification passed')
       const copiedQuota = await pool.query(`
         select key, value from public.daily_vote_quota_config
          where key = any($1::text[]) order by key`, [liveQuota.map(([key]) => key)])
@@ -252,7 +252,7 @@ test('mode D — a database where 20261118 ran is detected and still moves forwa
         ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
           '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
           '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-          '20261125_reward_eligibility_and_quota_races'])
+          '20261125_reward_eligibility_and_quota_races', ...POST_20261125])
       const checks = await rewardChecks(pool)
       assert.equal(checks.table_checks, 0, '20261119 removed the table-wide CHECK')
       assert.equal(checks.triggers, 1)
@@ -364,7 +364,7 @@ test('--baseline vẫn là SÀN khi history đã có một phần: bản ≤ bas
       assert.deepEqual(result.pending.map(({ id }) => id),
         ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
           '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-          '20261125_reward_eligibility_and_quota_races'],
+          '20261125_reward_eligibility_and_quota_races', ...POST_20261125],
         'chỉ các bản SAU baseline được xếp vào pending')
       assert.ok(result.pending.every(({ version }) => version > '20261120'))
       assert.ok(result.toRecord.every(({ version }) => version <= '20261120'), 'toRecord chỉ gồm bản ≤ baseline')
