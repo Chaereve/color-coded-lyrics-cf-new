@@ -1,0 +1,146 @@
+# B4 production deploy — 20261210_vote_back ONLY.
+# Approved 2026-10-10. --until 20261210. Do not copy to main.
+name: DB deploy production — B4 vote-back (đã duyệt)
+
+on:
+  push:
+    branches:
+      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+
+concurrency:
+  group: db-deploy-b4
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-b4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UNTIL: '20261210'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: EDGE_GATE_TOKEN có mặt (chỉ đo độ dài)
+        env:
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          n=${#EDGE_GATE_TOKEN}
+          echo "EDGE_GATE_TOKEN length=$n"
+          if [ "$n" -lt 32 ]; then
+            echo "STOP: GitHub secret EDGE_GATE_TOKEN missing or shorter than 32"
+            exit 1
+          fi
+
+      - name: db:check (tĩnh)
+        run: npm run db:check
+
+      - name: Preflight plan — đúng 1 file B4
+        id: preflight
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/pre-plan.txt
+          node -e '
+          const fs = require("fs")
+          const t = fs.readFileSync("/tmp/pre-plan.txt","utf8")
+          const apply = [...t.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[1]+" "+m[2])
+          const expected = ["20261210 20261210_vote_back.sql"]
+          const already = apply.length === 0 && /up to date|skip 50 /.test(t)
+          const out = process.env.GITHUB_OUTPUT
+          if (already) {
+            console.log("B4 already on production — skip apply")
+            fs.appendFileSync(out, "skip=1\n")
+            process.exit(0)
+          }
+          if (JSON.stringify(apply) !== JSON.stringify(expected)) {
+            console.error("UNEXPECTED APPLY LIST:", apply)
+            process.exit(1)
+          }
+          fs.appendFileSync(out, "skip=0\n")
+          console.log("preflight OK — will apply exactly B4")
+          '
+
+      - name: db:deploy --until 20261210
+        if: steps.preflight.outputs.skip != '1'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:deploy -- --until "$UNTIL" 2>&1 | tee /tmp/deploy.txt
+          if ! grep -E '^applied 20261210$' /tmp/deploy.txt; then
+            echo "STOP: 20261210 not applied"
+            exit 1
+          fi
+          if grep -E '^apply 20261211' /tmp/deploy.txt; then
+            echo "STOP: unexpected later file"
+            exit 1
+          fi
+
+      - name: Verify + smoke (psql, docker client 17)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          set -o pipefail
+          node --input-type=module <<'EOF'
+          import { writeFileSync } from 'node:fs'
+          const t = (process.env.EDGE_GATE_TOKEN || '').trim()
+          const lit = t ? "'" + t.replace(/'/g, "''") + "'" : 'NULL'
+          writeFileSync('/tmp/b4-gate.sql',
+            `select set_config('b4.gate_token', coalesce(${lit}::text, ''), false);\n`)
+          EOF
+          docker run --rm --network host \
+            -e SUPABASE_DB_URL \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -v /tmp/b4-gate.sql:/tmp/b4-gate.sql \
+            -w /work \
+            postgres:17 \
+            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f /tmp/b4-gate.sql -f scripts/verify-b4-post-deploy.sql -f scripts/smoke-b4.sql' \
+            2>&1 | tee /tmp/verify-smoke.txt
+
+      - name: Post plan — hết pending
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" 2>&1 | tee /tmp/post-plan-b4.txt
+          npm run db:plan 2>&1 | tee /tmp/post-plan-all.txt
+          node -e '
+          const fs = require("fs")
+          const b4 = fs.readFileSync("/tmp/post-plan-b4.txt","utf8")
+          const all = fs.readFileSync("/tmp/post-plan-all.txt","utf8")
+          if (/^apply 20261210/m.test(b4) || /^apply 20261210/m.test(all)) {
+            console.error("B4 still pending after deploy")
+            process.exit(1)
+          }
+          const apply = [...all.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          if (apply.length) {
+            console.error("UNEXPECTED remaining apply list:", apply)
+            process.exit(1)
+          }
+          console.log("post-plan OK — no pending migrations")
+          '
+
+      - name: Xuất log ra annotation
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs")
+          const read = p => { try { return fs.readFileSync(p,"utf8") } catch { return "" } }
+          const msg = s => String(s).replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A")
+          const title = s => msg(s).replace(/:/g,"%3A").replace(/,/g,"%2C")
+          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== verify-smoke ==", read("/tmp/verify-smoke.txt"), "== post-until ==", read("/tmp/post-plan-b4.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
+          console.log(`::notice title=${title("B4 deploy production")}::${msg(body.trim() || "(no output)")}`)
+          '
