@@ -26,6 +26,7 @@ export const POST_20261125 = [
   '20261203_mystery_month',
   '20261204_mystery_odds',
   '20261210_vote_back',
+  '20261211_achievements_v3',
 ]
 
 const SCAFFOLD = `

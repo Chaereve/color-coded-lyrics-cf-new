@@ -138,6 +138,13 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
   assert.match(jsx, /const MYSTERY_RISE_MS = 950/)
   assert.match(jsx, /const MYSTERY_REEL_MS = 4600/)
   assert.match(jsx, /const MYSTERY_MISS_MS = 900/)
+  /* Hộp TRÚNG cũng phải ĐÓNG NẮP: sau reveal 1,8s thì is-settled sập nắp,
+     sân khấu lặng (không mở nắp cả ngày); vào lại trang với hộp đã mở thì
+     đóng ngay (opened && !reveal). */
+  assert.match(jsx, /const MYSTERY_SETTLE_MS = 1800/)
+  assert.match(jsx, /setSettled\(true\), reducedMotion\(\) \? 0 : MYSTERY_SETTLE_MS/)
+  assert.match(jsx, /const closedLook = miss \|\| settled \|\| \(opened && !reveal\)/)
+  assert.match(jsx, /\$\{closedLook \? ' is-settled' : ''\}/)
   assert.match(jsx, /sfx\.boxOpen\(\)/)
   assert.match(jsx, /sfx\.boxEmpty\(\)/)
   assert.match(jsx, /sfx\.boxWin\(/)
@@ -173,6 +180,13 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
   assert.doesNotMatch(css, /\.box-stage\.is-opened \.cube[\s\S]{0,80}filter:/)
   assert.match(css, /transform:\s*rotateX\(158deg\)/,
     'nắp ngả ra sau gần nằm, không đứng 84°/112° che reel')
+  /* Nắp phải ĐÓNG LẠI khi đã mở xong: is-settled (hộp trúng sau 1,8s, hoặc
+     vào lại trang/tab khác) thắng rule mở nắp is-opened/is-reveal cùng
+     specificity nhờ đứng SAU trong tệp; reel phai, đèn tắt theo. */
+  assert.match(css, /\.box-stage\.is-settled \.box-lid \{[^}]*transform:\s*none/)
+  assert.match(css, /\.box-stage\.is-settled \.box-reel \{[^}]*opacity:\s*0/)
+  assert.ok(css.indexOf('.box-stage.is-settled .box-lid') > css.indexOf('.box-stage.is-opened .box-lid'),
+    'rule đóng nắp phải đứng SAU rule mở nắp để thắng cùng specificity')
   /* Mặt 3D phải prefix box- — .f/.in/.s từng là CSS toàn cục, vào Daily Box
      xong rời đi là card trang chủ bị nhuộm gradient tím hồng. */
   const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '')

@@ -93,7 +93,7 @@
   background: rgb(11 13 18 / 0); opacity: 0;
   transition: opacity .8s var(--e-soft), background .8s var(--e-soft);
 }
-.box-stage.is-miss .box-stage-veil { opacity: 1; background: rgb(11 13 18 / .4); }
+.box-stage.is-miss .box-stage-veil, .box-stage.is-settled .box-stage-veil { opacity: 1; background: rgb(11 13 18 / .4); }
 
 .box-rays {
   --c: #9D5BE8;
@@ -232,24 +232,32 @@
   transform-origin: 50% 100% -98px;
   transition: transform .72s cubic-bezier(.18, 1.28, .32, 1);
 }
+/* Nắp CHỈ MỞ TRONG NHỊP diễn (reeling/reveal). Đứng sau các rule is-opened /
+   is-reveal bên trên để khi cùng specificity, TRẠNG THÁI NGHỈ thắng: hộp đã
+   mở xong (trượt = is-miss sau 900ms, trúng = is-settled sau 1.8s, hoặc vào
+   lại trang/tab khác) thì NẮP SẬP XUỐNG, reel phai, đèn tắt — kết quả đọc
+   trên thanh box-bar chứ không nằm trên một cái hộp mở nắp cả ngày. */
 .box-stage.is-reeling .box-lid, .box-stage.is-reveal .box-lid, .box-stage.is-opened .box-lid {
   transform: rotateX(158deg);
 }
-.box-stage.is-miss .box-lid {
+.box-stage.is-miss .box-lid, .box-stage.is-settled .box-lid {
   transform: none;
   transition: transform .7s cubic-bezier(.4, 0, .2, 1);
 }
-.box-stage.is-miss .box-reel {
+.box-stage.is-miss .box-reel, .box-stage.is-settled .box-reel {
   opacity: 0;
   transform: translateY(16px) scale(.96);
   transition: transform .55s var(--e-soft), opacity .55s var(--e-soft);
 }
 .box-stage.is-miss .box-beam,
 .box-stage.is-miss .box-rays,
-.box-stage.is-miss .box-glow { opacity: 0; animation: none; }
-.box-stage.is-miss .box3d { animation: none; }
-.box-stage.is-miss .box-star { animation: none; opacity: .08; }
-.box-stage.is-miss .box-spark { animation: none; opacity: 0; }
+.box-stage.is-miss .box-glow,
+.box-stage.is-settled .box-beam,
+.box-stage.is-settled .box-rays,
+.box-stage.is-settled .box-glow { opacity: 0; animation: none; }
+.box-stage.is-miss .box3d, .box-stage.is-settled .box3d { animation: none; }
+.box-stage.is-miss .box-star, .box-stage.is-settled .box-star { animation: none; opacity: .08; }
+.box-stage.is-miss .box-spark, .box-stage.is-settled .box-spark { animation: none; opacity: 0; }
 
 .box-face { position: absolute; display: block; backface-visibility: hidden; }
 .box-front, .box-back, .box-left, .box-right, .box-in { inset: 0; }
@@ -369,7 +377,7 @@
   .box-stage.is-reeling .box-beam, .box-stage.is-reveal .box-beam,
   .box-stage.is-opened .box-beam, .box-stage.is-reeling .box-spark { opacity: 0; }
   .box-stage.is-reeling .box-lid { transform: rotateX(158deg); }
-  .box-stage.is-miss .box-lid { transform: none; }
+  .box-stage.is-miss .box-lid, .box-stage.is-settled .box-lid { transform: none; }
   .box-stage-veil { transition: none; }
 }
 

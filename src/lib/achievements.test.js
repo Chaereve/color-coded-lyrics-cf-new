@@ -2,11 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACHIEVEMENTS, achievementProgress, evaluateAchievements } from './achievements.js'
 
-/* Catalog v2 (kế hoạch đã duyệt 2026-10): ĐÚNG 20 mục trong 5 nhóm.
-   Danh mục máy chủ (achievement_definitions sau 20261128) là nguồn sự thật;
-   bài test này chốt bản client vẽ đúng cùng một bộ 20. */
-test('catalog v2 has exactly twenty milestones across the five approved groups', () => {
-  assert.equal(ACHIEVEMENTS.length, 20)
+/* Catalog v3 (20261211, trên nền v2 20261128): ĐÚNG 52 mục trong 7 nhóm.
+   Danh mục máy chủ (achievement_definitions sau 20261211) là nguồn sự thật;
+   bài test này chốt bản client vẽ đúng cùng một bộ 52. */
+test('catalog v3 has exactly fifty-two milestones across the seven approved groups', () => {
+  assert.equal(ACHIEVEMENTS.length, 52)
   const bySource = {}
   for (const a of ACHIEVEMENTS) {
     assert.ok(a.id && a.source && a.title && a.desc && a.reward && a.need > 0)
@@ -15,15 +15,29 @@ test('catalog v2 has exactly twenty milestones across the five approved groups',
     assert.match(a.reward, /^ach2\./)
     bySource[a.source] = (bySource[a.source] || 0) + 1
   }
-  assert.deepEqual(bySource, { requests: 5, votes: 5, paid: 4, streak: 3, pick: 1, voteBack: 1, mystery: 1 })
-  assert.equal(new Set(ACHIEVEMENTS.map(a => a.id)).size, 20)
-  // Mốc đúng spec: Request 1/5/10/25/50, Vote 1/10/50/100/250,
-  // Paid 1/3/5/10, Streak 7/30/100, đặc biệt đều 1 (sự kiện lần đầu).
+  assert.deepEqual(bySource, {
+    requests: 9, votes: 9, paid: 7, completed: 8, streak: 9, leaderboard: 7,
+    pick: 1, voteBack: 1, mystery: 1,
+  })
+  assert.equal(new Set(ACHIEVEMENTS.map(a => a.id)).size, 52)
+  // Mốc đúng spec 20261211 (server = bản gốc, id ↔ threshold).
   const need = id => ACHIEVEMENTS.find(a => a.id === id)?.need
-  assert.deepEqual(['firstRequest', 'request5', 'request10', 'request25', 'request50'].map(need), [1, 5, 10, 25, 50])
-  assert.deepEqual(['votesCast1', 'votesCast10', 'votesCast50', 'votesCast100', 'votesCast250'].map(need), [1, 10, 50, 100, 250])
-  assert.deepEqual(['firstPaidRequest', 'paid3', 'paid5', 'paid10'].map(need), [1, 3, 5, 10])
-  assert.deepEqual(['streak7', 'streak30', 'streak100'].map(need), [7, 30, 100])
+  assert.deepEqual(['firstRequest', 'request3', 'request5', 'request10', 'request25',
+    'request50', 'request100', 'request250', 'request500'].map(need),
+  [1, 3, 5, 10, 25, 50, 100, 250, 500])
+  assert.deepEqual(['votesCast1', 'votesCast10', 'votesCast25', 'votesCast50', 'votesCast100',
+    'votesCast250', 'votesCast500', 'votesCast1000', 'votesCast2500'].map(need),
+  [1, 10, 25, 50, 100, 250, 500, 1000, 2500])
+  assert.deepEqual(['firstPaidRequest', 'paid3', 'paid5', 'paid10', 'paid25', 'paid50', 'paid100'].map(need),
+    [1, 3, 5, 10, 25, 50, 100])
+  assert.deepEqual(['firstCompletion', 'completion3', 'completion5', 'completion10',
+    'completion25', 'completion50', 'completion100', 'completion200'].map(need),
+  [1, 3, 5, 10, 25, 50, 100, 200])
+  assert.deepEqual(['streak3', 'streak7', 'streak14', 'streak30', 'streak60',
+    'streak100', 'streak180', 'streak365', 'streak500'].map(need),
+  [3, 7, 14, 30, 60, 100, 180, 365, 500])
+  assert.deepEqual(['top50', 'top25', 'top10', 'top5', 'podium', 'runnerUp', 'champion'].map(need),
+    [50, 25, 10, 5, 3, 2, 1])
   assert.deepEqual(['firstPick', 'firstVoteBack', 'firstMystery'].map(need), [1, 1, 1])
 })
 
@@ -39,7 +53,9 @@ test('streak, request, paid, vote and special achievements evaluate independentl
     mystery: false,
   })
   assert.deepEqual(got.filter(a => a.earned).map(a => a.id).sort(), [
-    'firstRequest', 'firstPaidRequest', 'firstPick', 'paid3', 'request5', 'streak7', 'streak30', 'votesCast1', 'votesCast10',
+    'completion3', 'completion5', 'firstCompletion', 'firstPaidRequest', 'firstPick',
+    'firstRequest', 'paid3', 'request3', 'request5',
+    'streak3', 'streak7', 'streak14', 'streak30', 'votesCast1', 'votesCast10',
   ].sort())
   assert.equal(got.find(a => a.id === 'streak100').progress, 30)
   assert.equal(got.find(a => a.id === 'paid5').progress, 3)

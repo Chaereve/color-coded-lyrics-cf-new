@@ -25,9 +25,13 @@ import './MysteryBox.css'
      ~1,3s   REEL TRỒI LÊN nằm PHÍA TRÊN hộp (.rw.up, overshoot) — 44 ô,
              dừng CHÍNH XÁC ô kết quả server trả dưới kim giữa (~4,6s trượt
              giảm tốc), kim nảy theo từng ô
-     dừng    ô đích sáng + còn lại mờ + rays xoay theo độ hiếm + confetti +
-             rbar hiện kết quả (label bắt buộc: +N votes / +1/+2 free paid
-             requests / Better luck next time) + countdown hộp kế
+   dừng    ô đích sáng + còn lại mờ + rays xoay theo độ hiếm + confetti +
+            rbar hiện kết quả (label bắt buộc: +N votes / +1/+2 free paid
+            requests / Better luck next time) + countdown hộp kế
+   +1,8s   ĐÓNG NẮP (is-settled): hộp TRÚNG cũng phải sập nắp — sân khấu
+            lặng xuống (reel phai, rays/beam tắt, veil mờ), quà đọc trên
+            box-bar. Hộp không trượt đi đường is-miss riêng (đóng sau 900ms).
+            Vào lại trang/tab khác với hộp đã mở: nắp đóng NGAY, không diễn lại
 
    Ô trên dải: FILLER TẤT ĐỊNH (không random), ô đích GHI ĐÈ bằng kết quả
    server. Reduced-motion: bỏ lắc + reel dài, fade thẳng tới kết quả đầy đủ.
@@ -52,6 +56,9 @@ const MYSTERY_SHAKE_MS = 800   // lắc trước khi mở nắp
 const MYSTERY_RISE_MS = 950    // reel trồi lên phía trên hộp
 const MYSTERY_REEL_MS = 4600   // trượt giảm tốc tới ô đích
 const MYSTERY_MISS_MS = 900    // hộp không: xem kết quả rồi đóng nắp + phai
+const MYSTERY_SETTLE_MS = 1800 // hộp TRÚNG: xem ô thưởng/rays/confetti một
+                               // nhịp rồi ĐÓNG NẮP, sân khấu lặng xuống —
+                               // kết quả vẫn đọc trên thanh box-bar
 
 /* Độ hiếm hiển thị (màu rays/rbar) theo outcome — chỉ trình diễn. */
 const RARITY_CLASS = { 0: 'r0', 1: 'r0', 2: 'r1', 3: 'r1', 4: 'r2', 5: 'r2', 6: 'r3' }
@@ -82,6 +89,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
   const [phase, setPhase] = useState('idle')   // idle | shaking | reeling
   const [risen, setRisen] = useState(false)    // reel đã trồi lên (điều khiển .up)
   const [reveal, setReveal] = useState(false)
+  const [settled, setSettled] = useState(false) // trúng thưởng: đã đóng nắp sau reveal
   const [winTile, setWinTile] = useState(null) // ô kết quả server (kind+label)
   const [winRarity, setWinRarity] = useState('r1')
   const [error, setError] = useState('')
@@ -120,6 +128,12 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     if (empty) {
       const wait = reducedMotion() ? 0 : MYSTERY_MISS_MS
       timers.current.push(setTimeout(() => setMiss(true), wait))
+    } else {
+      /* Trúng thưởng cũng phải ĐÓNG NẮP: cho người chơi thấy ô thưởng,
+         rays + confetti một nhịp, rồi sân khấu lặng xuống (nắp sập, reel
+         phai, đèn tắt). Quà không mất — nó nằm trên thanh box-bar kèm
+         đồng hồ hộp kế. Không hẹn thì hộp mở nắp CẢ NGÀY. */
+      timers.current.push(setTimeout(() => setSettled(true), reducedMotion() ? 0 : MYSTERY_SETTLE_MS))
     }
     onOpenedRef.current?.(result?.mystery)
     // Trả focus về vùng kết quả — animation không được làm rơi focus.
@@ -172,6 +186,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     setReveal(false)
     setRisen(false)
     setMiss(false)
+    setSettled(false)
     sfx.boxOpen()
     // Kết quả do SERVER quyết: RPC chạy SONG SONG với nhịp lắc; reel sau đó
     // chỉ diễn tả lại ô đích đã định.
@@ -220,6 +235,11 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
   }
 
   const working = phase !== 'idle'
+  /* Nắp chỉ mở TRONG NHỊP diễn (reeling/reveal). Đã mở xong — trúng hay
+     trượt, ở bản địa sau khi settle hay vào lại trang/tab khác (opened mà
+     không có reveal cục bộ) — hộp ĐÓNG NẮP, sân khấu lặng; kết quả hôm nay
+     đọc trên thanh box-bar. Hộp trượt đi thêm đường is-miss (đóng sớm 900ms). */
+  const closedLook = miss || settled || (opened && !reveal)
   const prize = opened ? mystery.result : null
   const kind = opened ? mystery.reward_kind : null
   const votes = opened ? mystery.reward_votes : 0
@@ -234,7 +254,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
       {/* SÂN KHẤU: sao trời + rays + reel TRÊN + hộp quà 3D (nắp bản lề sau) */}
       <div className={`box-stage${checkedIn ? '' : ' is-locked'}${opened ? ' is-opened' : ''}`
         + `${working ? ` is-${phase}` : ''}${reveal ? ' is-reveal' : ''}${risen ? ' is-risen' : ''}`
-        + `${miss ? ' is-miss' : ''}`}>
+        + `${miss ? ' is-miss' : ''}${closedLook ? ' is-settled' : ''}`}>
         {/* FX ngoài cây 3D — overflow:hidden không cắt preserve-3d. */}
         <div className="box-stage-fx" aria-hidden="true">
           <span className={`box-rays ${winRarity}`} />
