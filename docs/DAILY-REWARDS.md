@@ -8,6 +8,90 @@
 > không còn là hướng dẫn vận hành. Xem `docs/DAILY-QUIZ-RETIREMENT.md` để biết
 > cái gì còn, cái gì mất, và danh sách object cho giai đoạn dọn dẹp sau.
 
+## 2026-10 B4: Vote-back 10% khi request được PICKED
+
+> Đã duyệt (2026-10). Đơn vị duy nhất là **vote**. Chạy
+> `supabase/migrations/20261210_vote_back.sql` (một transaction, rerunnable)
+> sau B1 ledger (`grant_reward_event`) và catalog v2 (`firstVoteBack`).
+> **Chưa apply production** — B4.4, chỉ sau khi duyệt riêng. Cờ:
+> `reward_config.vote_back_enabled`.
+
+### Điều kiện kích hoạt
+
+- Request chuyển **unpicked → PICKED**: `picked_at` từ NULL sang NOT NULL.
+  Mọi đường pick đều dính cùng trigger (`pick_top_request`, `admin_pick`,
+  `admin_pick_group`, SQL `UPDATE`).
+- **Một lần trong đời request.** Cột latch `requests.vote_back_paid_at` được
+  set **cùng transaction** với lần pick đầu, kể cả khi trả 0 vote. Unpick
+  **không** xóa latch. Pick lần 2 / gỡ chốt rồi chốt lại = không trả thêm.
+- Unpick (`admin_pick` / `admin_pick_group` với `p_picked = false`) **bị cấm**
+  khi latch đã set → `err.unpickLocked`. Gỡ chốt thủ công sau khi đã trả
+  không thuộc B4.
+- Vote hai chiều khóa khi `picked_at` khác NULL (`err.voteLocked`) — không
+  rút phiếu gốc sau khi đã nhận hoàn.
+
+### Công thức 10%
+
+Đếm trên bảng `votes` của đúng request đó (từng dòng = 1 phiếu):
+
+| Vai trò | Công thức | Ví dụ |
+| --- | --- | --- |
+| Voter, `n ≥ 1` | `greatest(1, floor(n / 10))` | 1–9 phiếu → **1**; 10–19 → 1; 20–29 → 2 |
+| Owner | `floor(total / 10)` | total &lt; 10 → **0** |
+| Owner tự vote | **Cả hai** nguồn, 2 row ledger | 20 phiếu của chính mình → owner 2 + voter 2 |
+
+`vote_back_owner` và `vote_back_voter` là hai **khoản thưởng vote**, không
+phải hai lần thành tựu (xem `firstVoteBack` dưới).
+
+### Cap
+
+- **50 vote thưởng / request:** nếu `owner_raw + sum(voter_raw) > 50`, giữ
+  phần owner trước (tối đa 50), voter chia phần còn theo largest-remainder.
+  Phần bị clip **mất**, không top-up ngày sau.
+- **30 vote thưởng / người / ngày VN:** đi qua `grant_reward_event` (cùng cap
+  với login / spin / mystery / achievement). Phần clip **cũng mất** — vote-back
+  là một lần/đời request, khác thành tựu (thành tựu tự bù slice).
+- **Ngoài cap:** vote đã mua, quota free 3/ngày, `bonus_requests`, thưởng mùa
+  do admin chốt.
+
+### Cờ `vote_back_enabled`
+
+- **Tắt:** trigger **vẫn set latch**, không trả thưởng, không ghi
+  `reward_events`.
+- **Bật lại:** chỉ request được pick **sau** lúc bật (chưa có latch) mới được
+  trả. Bài đã latch lúc tắt **không** nhận thưởng truy thu.
+
+Tắt cờ bằng SQL (không có đường client):
+
+```sql
+update public.reward_config
+   set value = 'false'::jsonb, updated_at = clock_timestamp()
+ where key = 'vote_back_enabled';
+```
+
+### Thành tựu `firstVoteBack`
+
+- Catalog v2: +3 bonus votes, threshold 1, **một lần / tài khoản**.
+- Máy chủ (`claim_achievements`): `EXISTS` bất kỳ row
+  `reward_events.source IN ('vote_back_owner','vote_back_voter')` → progress
+  **= 1**. Owner có cả hai row ledger **không** nhận badge hai lần, **không**
+  cộng 2 vào tiến độ.
+- Client (`achievementProgress`): `fact01` — mọi giá trị truthy / số ≥ 1
+  gom về 1, nên UI không thể vẽ 2/1 nếu ai đó lỡ cộng hai nguồn.
+- Phần +3 của badge đi qua cap 30 **và được tự bù** ở lần claim sau nếu bị
+  cắt (đây là achievement, không phải khoản vote-back 10%).
+
+### Vận hành
+
+- Test: `npm run test:voteback:pglite` (7 kịch bản: làm tròn, latch/replay,
+  cap 50 + cap 30, mọi đường pick, `voteLocked`, `firstVoteBack` một lần,
+  flag off).
+- Rollback: `supabase/rollback/20261210_vote_back.sql` — từ chối khi còn
+  grant vote-back trong 48 giờ; không xóa `reward_events`; không claw-back ví.
+- Không thuộc fresh-install bundle (`schema.sql` dừng ở 20261120).
+- UI toast/inbox (B4.3) **không bắt buộc** cho payout — lịch sử Daily Login
+  đã có nhãn `daily.source.vote_back_owner` / `vote_back_voter`.
+
 ## 2026-10 B2: Mystery Box — một hộp mỗi ngày, mở sau check-in
 
 > Đã duyệt (2026-10). Đơn vị duy nhất là **vote** ("credits" cũ quy về vote).
@@ -82,9 +166,10 @@ ngày đó.
 Feature flags trong `reward_config` (chỉnh bằng SQL, không có đường client):
 `login_rewards_enabled` (tắt = về hành vi lịch-only cũ), `daily_reward_cap`,
 `login_daily_votes`, `login_day7_extra`, `login_milestone7_bonus`,
-`login_milestone30_bonus`. Rollback code: ba file tương ứng trong
-`supabase/rollback/` (đều có preflight, không chạy lại được hai lần, không bao
-giờ thu hồi thưởng đã cấp).
+`login_milestone30_bonus`. Cờ hộp / vote-back (`mystery_box_enabled`,
+`vote_back_enabled`) do B2/B4 thêm — xem các mục tương ứng. Rollback code:
+file trong `supabase/rollback/` (đều có preflight, không bao giờ thu hồi
+thưởng đã cấp).
 
 Kiểm chứng: `npm run test:ledger:pglite` (PGlite — chain thật 9 kịch bản, gồm
 đúc lệch cap và tự-bù), suite cũ vẫn xanh; test DB thật cần URL vẫn giữ nguyên

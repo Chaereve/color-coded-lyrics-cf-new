@@ -640,7 +640,7 @@ const S = {
   'ach2.firstPickDesc': 'Have one of your requests picked',
   'ach2.firstPickReward': '+2 bonus votes',
   'ach2.firstVoteBack': 'Vote it forward',
-  'ach2.firstVoteBackDesc': 'Receive your first vote-back reward',
+  'ach2.firstVoteBackDesc': 'Get a vote-back once — as owner or voter, not twice',
   'ach2.firstVoteBackReward': '+3 bonus votes',
   'ach2.firstMystery': 'Lucky box',
   'ach2.firstMysteryDesc': 'Open your first daily box',

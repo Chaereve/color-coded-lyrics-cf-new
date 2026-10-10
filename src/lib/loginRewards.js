@@ -23,6 +23,8 @@ export const LOGIN_MILESTONE7_BONUS = 10
 export const LOGIN_MILESTONE30_BONUS = 20
 export const LOGIN_REWARD_CAP = 30
 
+/* Two vote-back ledger sources (owner vs voter 10%) share ONE firstVoteBack
+   badge: claim_achievements ORs them (EXISTS → 1). History UI lists both. */
 export const LOGIN_REWARD_SOURCES = Object.freeze([
   'daily_login', 'login_day7', 'login_milestone7', 'login_milestone30',
   'daily_spin', 'mystery_box', 'vote_back_owner', 'vote_back_voter', 'achievement',

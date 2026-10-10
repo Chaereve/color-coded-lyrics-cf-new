@@ -60,6 +60,18 @@ test('special sources are one-time facts: any truthy metric counts, nothing else
   }
 })
 
+test('firstVoteBack does not double-count owner + voter ledger rows', () => {
+  /* Server: EXISTS (vote_back_owner OR vote_back_voter) → 1.
+     Client fact01 must collapse a summed count (2) the same way so the card
+     never reads 2/1 or implies two badges. */
+  for (const voteBack of [1, 2, 99, true, 'owner+voter']) {
+    const a = evaluateAchievements({ voteBack }).find(x => x.id === 'firstVoteBack')
+    assert.equal(a.progress, 1, `voteBack=${String(voteBack)}`)
+    assert.ok(a.earned)
+  }
+  assert.equal(achievementProgress({ voteBack: 2 }).voteBack, 1)
+})
+
 test('invalid metrics never create a fake leaderboard rank or negative progress', () => {
   assert.deepEqual(achievementProgress({
     longestStreak: -4, requests: 'nope', paidRequests: -2, votesCast: -9, rank: NaN,

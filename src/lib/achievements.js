@@ -22,7 +22,9 @@ const milestone = (id, source, need, title, desc, reward) => ({
    Vote    (5): 1/10/50/100/250 → +1/2/3/5/10 vote
    Paid    (4): 1/3/5/10 → 1/2/3/4 free paid request
    Streak  (3): 7/30/100 → +5/10/20 vote
-   Đặc biệt(3): pick/vote-back/mystery lần đầu → +2/3/5 vote */
+   Đặc biệt(3): pick/vote-back/mystery lần đầu → +2/3/5 vote.
+   firstVoteBack đọc sổ cái B4: EXISTS (vote_back_owner OR vote_back_voter)
+   → đúng 1. Owner nhận cả hai nguồn 10% vẫn chỉ một badge, không cộng 2. */
 export const ACHIEVEMENTS = [
   milestone('firstRequest', 'requests', 1, 'ach2.firstRequest', 'ach2.firstRequestDesc', 'ach2.firstRequestReward'),
   milestone('request5', 'requests', 5, 'ach2.request5', 'ach2.request5Desc', 'ach2.request5Reward'),
@@ -48,7 +50,9 @@ export const ACHIEVEMENTS = [
 
 const nonNegative = (value) => Math.max(0, Number(value) || 0)
 /* The special sources are one-time facts: either the event exists or it does
-   not. truthy metrics (a picked_at timestamp, a ledger hit) collapse to 1. */
+   not. truthy metrics collapse to 1 so a caller that sums both vote-back
+   ledger sources (owner + voter) cannot show progress 2 or imply two badges.
+   Matches claim_achievements: EXISTS (vote_back_owner OR vote_back_voter). */
 const fact01 = value => (value ? 1 : 0)
 
 export function achievementProgress(metrics = {}) {

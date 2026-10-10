@@ -704,3 +704,19 @@ derive theo `result` khi payload cũ thiếu trường. Test:
 mapping setseed: +1/+2 cộng đúng amount, không ledger, replay không cộng lặp;
 cap; flag; identity/RLS) + `src/lib/mysteryBox.test.js` (bảng v2 + validator
 chấp nhận row legacy).
+
+## 20261210 — B4: Vote-back 10% khi request được PICKED
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. **Chỉ viết file, CHƯA apply production** (B4.4 sau duyệt riêng).
+
+| File | Vai trò |
+| --- | --- |
+| `20261210_vote_back.sql` | Cột latch `requests.vote_back_paid_at`; cờ `vote_back_enabled`; trigger `AFTER UPDATE OF picked_at` khi NULL→NOT NULL; `pay_vote_back` (10% owner/voter, cap 50/request rồi cap 30/ngày qua `grant_reward_event`); `admin_pick` / `admin_pick_group` từ chối unpick khi đã latch (`err.unpickLocked`); index `votes(request_id, user_id)`. Flag off vẫn set latch, không trả, không truy thu khi bật lại. |
+| `supabase/rollback/20261210_vote_back.sql` | Từ chối khi còn grant `vote_back_*` trong 48 giờ; drop trigger/hàm/cột/flag/index; khôi phục `admin_pick` cũ. Không xóa `reward_events`, không claw-back ví. |
+
+`firstVoteBack` (+3) **không** đổi catalog: `claim_achievements` đã `EXISTS`
+hai source `vote_back_owner` / `vote_back_voter` → progress 1 (owner tự vote
+không nhận badge hai lần). Test: `npm run test:voteback:pglite`; manifest
+`tools/migration-safety.test.mjs` = **50** migration active. Luật đầy đủ:
+`docs/DAILY-REWARDS.md` mục B4.
