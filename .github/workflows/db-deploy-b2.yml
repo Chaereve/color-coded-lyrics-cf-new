@@ -34,6 +34,17 @@ jobs:
 
       - run: npm ci
 
+      - name: EDGE_GATE_TOKEN có mặt (chỉ đo độ dài, không in giá trị)
+        env:
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          n=${#EDGE_GATE_TOKEN}
+          echo "EDGE_GATE_TOKEN length=$n"
+          if [ "$n" -lt 32 ]; then
+            echo "STOP: GitHub secret EDGE_GATE_TOKEN missing or shorter than 32"
+            exit 1
+          fi
+
       - name: db:check (tĩnh)
         run: npm run db:check
 
@@ -78,10 +89,12 @@ jobs:
             && hold.includes("20261210_vote_back.sql")
           const out = process.env.GITHUB_OUTPUT
           if (already) {
-            console.log("B2 already on production — skip apply")
+            console.log("B2 already on production — smoke-only, no apply")
             fs.appendFileSync(out, "skip=1\n")
             process.exit(0)
           }
+          console.error("SMOKE-ONLY RETRY: refusing to apply. Unexpected pending:", apply)
+          process.exit(1)
           if (JSON.stringify(apply) !== JSON.stringify(expected)) {
             console.error("UNEXPECTED APPLY LIST:", apply)
             process.exit(1)
@@ -99,7 +112,7 @@ jobs:
           '
 
       - name: db:deploy --until 20261204 --except 20261201
-        if: steps.preflight.outputs.skip != '1'
+        if: false
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -124,7 +137,7 @@ jobs:
           set -o pipefail
           node --input-type=module <<'EOF'
           import { writeFileSync } from 'node:fs'
-          const t = process.env.EDGE_GATE_TOKEN || ''
+          const t = (process.env.EDGE_GATE_TOKEN || '').trim()
           const lit = t ? "'" + t.replace(/'/g, "''") + "'" : 'NULL'
           writeFileSync('/tmp/b2-gate.sql',
             `select set_config('b2.gate_token', coalesce(${lit}::text, ''), false);\n`)
