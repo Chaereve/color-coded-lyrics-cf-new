@@ -148,6 +148,23 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const artistRef = useRef(null)
   const titleRef = useRef(null)
   const noteRef = useRef(null)
+  /* CHỐT CHẶN DOUBLE-TAP KHI VỪA SANG BƯỚC 3.
+     Trên điện thoại, một cú chạm VỪA gọi `next()` vừa rơi luôn vào cái nút
+     submit vừa được dựng ở đúng vị trí của nút Continue (do re-render cùng
+     khung hình) — kết quả là bước chọn paid bị bỏ qua, request được gửi luôn
+     ở dạng free mà người dùng chưa hề nhìn thấy ô tick.
+     Khoá là state để chính cái nút submit cũng thấy nó bị vô hiệu hoá
+     (không phải chỉ chặn ở hàm `submit`, mà mắt thấy rõ là chưa bấm được),
+     và tự mở ra sau một nhịp ngắn — đủ để chặn double-tap, đủ ngắn để không
+     làm cảm giác chậm. */
+  const [submitLocked, setSubmitLocked] = useState(false)
+  const submitLockTimer = useRef(null)
+  const lockSubmit = (ms = 280) => {
+    setSubmitLocked(true)
+    clearTimeout(submitLockTimer.current)
+    submitLockTimer.current = setTimeout(() => setSubmitLocked(false), ms)
+  }
+  useEffect(() => () => clearTimeout(submitLockTimer.current), [])
   /* Bấm "Add a note" thì con trỏ phải rơi vào ô vừa hiện — nếu không, người
      dùng còn phải bấm thêm một lần nữa vào đúng chỗ vừa mở. Cờ `wantsNote`
      để lần render sau khi mở mới focus, và chỉ focus khi người dùng CHỦ ĐỘNG
@@ -253,6 +270,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
     if (n === step) return
     sfx[n > step ? 'step' : 'back']()
     setStep(n)
+    if (n === 3 && step < 3) lockSubmit()   /* bấm thẳng dải bước sang bước 3 cũng phải khoá */
   }
   const next = () => {
     if (step === 1) { sfx.step(); setStep(2); return }
@@ -268,6 +286,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       }
       sfx.step()
       setStep(3)
+      lockSubmit()   /* khoá submit một nhịp — chống double-tap vừa sang bước 3 */
     }
   }
   const back = () => { sfx.back(); setStep(s2 => Math.max(1, s2 - 1)) }
@@ -347,8 +366,10 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
   const submit = (e) => {
     e.preventDefault()
     if (step < 3) { next(); return }
+    if (busy || submitLocked) return
     goSubmit()
   }
+  const submitDisabled = busy || submitLocked
 
   /* Enter trong ô nhập ở bước 1–2 = "xong bước này", không phải "gửi".
      Chặn ngay tại đây để trình duyệt không kịp gửi ngầm, và vì đi tiếp một bước
@@ -698,8 +719,8 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           </button>
         ) : (
           <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
-            style={{ flex: 1 }} disabled={busy}
-            title={ready ? undefined : t('req.notReady')}>
+            style={{ flex: 1 }} disabled={submitDisabled}
+            title={ready && !submitLocked ? undefined : t('req.notReady')}>
             {busy ? t('req.sending')
               : paid ? (useBonus ? t('req.submitBonusPaid') : t('req.submitPaid', { p: usd(PAID_REQUEST.usd) }))
                 : ready ? t('req.submit') : t('req.submitFix')}
