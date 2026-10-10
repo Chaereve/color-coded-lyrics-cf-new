@@ -156,6 +156,17 @@ an toàn, chưa chạy thì tính năng mới tự ẩn (UI không vỡ):
    request; Streak 7/30/100 → +5/10/20 vote; Đặc biệt (pick/vote-back/mystery
    lần đầu) → +2/3/5 vote. 25 mục cũ bị **deactivate** (không xoá — huy hiệu đã
    nhận giữ nguyên trong `achievement_rewards`).
+4. `supabase/migrations/20261211_achievements_v3.sql` — mở rộng danh mục lên
+   **đúng 52 mục active trong 7 nhóm** (trên nền v2, không đổi RPC
+   `claim_achievements`): bật lại 25 mốc v1 (streak 3/14/60/180/365; request
+   3/100/250; completion 1/3/5/10/25/50/100; paid 25/50; vote 25/500/1000;
+   top 1/2/3/5/10) và thêm 7 mốc mới (streak500, request500, votesCast2500,
+   completion200, paid100, top25, top50). Quà vẫn CHỈ trong ba họ: bonus vote
+   (qua sổ cái + cap, tự bù khi bị cắt), free paid request (một lần), badge.
+   Badge đã nhận từ đời v1 KHÔNG cấp lại; bonus vote của chúng được quyết toán
+   một lần qua slice `ach:<id>#1`. Rollback:
+   `supabase/rollback/20261211_achievements_v3.sql` (tắt lại 32 mốc, giữ nguyên
+   huy hiệu + sổ cái).
 
 **Cap 30 vote thưởng/ngày/người** áp cho TỔNG vote thưởng từ: điểm danh, spin,
 mystery, vote-back, achievement. NĂNGOÀI cap: vote mua, quota free 3/ngày,
