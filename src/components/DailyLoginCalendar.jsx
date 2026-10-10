@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import {
-  buildCheckInCalendar, shiftMonth, monthOf, isCalendarMonth, isCalendarDay, CHECK_IN_MILESTONES,
+  buildCheckInCalendar, shiftMonth, monthOf, isCalendarMonth, isCalendarDay,
 } from '../lib/checkInCalendar.js'
 
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -50,11 +50,10 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
 
   const calendar = buildCheckInCalendar(status, { month, days: view?.days, available: view?.available })
   if (!calendar) return null
-  const { monthLabel, cells, daysInMonth, checkedCount, currentMonth: isCurrent } = calendar
+  const { monthLabel, cells, checkedCount, currentMonth: isCurrent } = calendar
   const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7))
   const earliest = isCalendarDay(status.login?.first_day) ? monthOf(status.login.first_day) : currentMonth
   const stats = status.login || {}
-  const progress = checkedCount === null ? 0 : Math.round((checkedCount / daysInMonth) * 100)
   const monthCount = checkedCount === null ? null : checkedCount
   const go = delta => setBrowsed(shiftMonth(month, delta))
 
@@ -73,30 +72,6 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         {monthCount === null ? t('calendar.unknown')
           : t(monthCount === 1 ? 'calendar.monthSummaryOne' : 'calendar.monthSummary', { n: monthCount })}
       </span>
-    </div>
-    <div className="check-in-stats" aria-label={t('calendar.stats')}>
-      <span className="check-in-stat is-main">
-        <b>{monthCount === null ? '—' : `${monthCount}/${daysInMonth}`}</b>
-        <i>{t('calendar.thisMonth')}</i>
-      </span>
-      <span className="check-in-stat">
-        <b><Icon name="flame" size={13} />{typeof stats.streak === 'number' ? stats.streak : '—'}</b>
-        <i>{t('calendar.streak')}</i>
-      </span>
-      <span className="check-in-stat">
-        <b>{typeof stats.best_streak === 'number' ? stats.best_streak : '—'}</b>
-        <i>{t('calendar.best')}</i>
-      </span>
-      <span className="check-in-stat">
-        <b>{typeof stats.total_days === 'number' ? stats.total_days : '—'}</b>
-        <i>{t('calendar.lifetime')}</i>
-      </span>
-    </div>
-    <div className="check-in-progress" role="img"
-      aria-label={monthCount === null ? t('calendar.unknown') : t('calendar.progress', { n: monthCount, total: daysInMonth })}>
-      <i style={{ width: `${progress}%` }} />
-      {CHECK_IN_MILESTONES.map(days => <b key={days} className={monthCount !== null && monthCount >= days ? 'is-reached' : ''}
-        style={{ left: `${(days / daysInMonth) * 100}%` }} title={t('calendar.milestone', { n: days })}>{days}</b>)}
     </div>
     <table className="check-in-calendar-grid">
       <caption>{t('calendar.caption', { month: monthLabel })}</caption>
@@ -119,13 +94,11 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         </td>
       })}</tr>)}</tbody>
     </table>
-    <div className="check-in-calendar-legend" aria-label={t('calendar.legend')}>
-      <span><i className="is-checked" />{t('calendar.checked')}</span>
-      <span><i className="is-today" />{t('calendar.today')}</span>
-      <span><i className="is-upcoming" />{t('calendar.upcoming')}</span>
-      {view?.available && <span><i className="is-missed" />{t('calendar.missed')}</span>}
+    <div className="check-in-calendar-extra">
+      {t('calendar.best')} <b>{typeof stats.best_streak === 'number' ? stats.best_streak : '—'}</b>
+      {' · '}
+      {t('calendar.lifetime')} <b>{typeof stats.total_days === 'number' ? stats.total_days : '—'}</b>
     </div>
-    <p className="check-in-calendar-note">{t(isCurrent ? 'calendar.rule' : 'calendar.pastRule')}</p>
     {!view?.available && <p className="check-in-calendar-unavailable" role="status">
       {t(cache[month] === undefined ? 'calendar.historyUnavailable' : 'calendar.historyFailed')}
     </p>}

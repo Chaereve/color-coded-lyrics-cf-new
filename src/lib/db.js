@@ -587,7 +587,7 @@ export async function fetchMyAchievementRequests(userId) {
   if (!hasSupabase) return demoRows().filter(row => row.user_id === userId)
   return fetchAllPages((from, size) => {
     const q = supabase.from('requests')
-      .select('id,user_id,artist,title,status,is_paid,payment_status')
+      .select('id,user_id,artist,title,status,is_paid,payment_status,picked_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
@@ -683,7 +683,11 @@ export async function fetchVoteStatus() {
   const { data, error } = await readQuery(() => supabase.rpc('my_vote_status'))
   if (error) throw error
   const r = Array.isArray(data) ? data[0] : data
-  return { free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r) }
+  const bonus_requests = Number.isInteger(r.bonus_requests) ? r.bonus_requests : null
+  return {
+    free_used: r.free_used, free_limit: r.free_limit, ...splitCredits(r),
+    ...(bonus_requests !== null ? { bonus_requests } : {}),
+  }
 }
 
 /* Rewards are never accepted from the browser. The RPC calculates every

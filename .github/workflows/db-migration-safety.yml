@@ -57,13 +57,40 @@ jobs:
       # Full suite against the throwaway Postgres service: deployment modes,
       # baseline readiness, quarantine, fresh install, quiz/spin/comments.
       - name: Tests (including the real-PostgreSQL migration and baseline suites)
-        run: npm test
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/npm-test.txt
+          code=${PIPESTATUS[0]}
+          TEST_CODE=$code node -e '
+            const fs = require("fs")
+            const code = Number(process.env.TEST_CODE || 0)
+            if (!code) process.exit(0)
+            const t = fs.readFileSync("/tmp/npm-test.txt", "utf8")
+            const fails = t.split(/\n/).filter(l => /^not ok /.test(l) || /^# fail [1-9]/.test(l)).slice(0, 40)
+            const msg = s => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")
+            if (fails.length) console.log(`::error title=npm test::${msg(fails.join("\n"))}`)
+          '
+          exit $code
 
       # Cùng file migration, nhưng trên engine thứ hai (PostgreSQL WASM trong
       # PGlite): suite này không tự skip khi thiếu service, nên nó vẫn kiểm tra
       # tiền kiểm/hậu kiểm và rollback ngay cả khi Postgres bên trên lỗi.
       - name: Daily free votes on PGlite (second engine, no service needed)
         run: npm run test:free-votes:pglite
+
+      # Chuỗi thưởng B1 (ledger + cap + check-in + achievements v2) trên cùng
+      # engine thứ hai: không cần service, không tự skip khi thiếu URL.
+      - name: Reward ledger & login rewards on PGlite (B1 chain)
+        run: npm run test:ledger:pglite
+
+      # Mystery box B2 (20261129) trên cùng chuỗi migration đã có ở trên.
+      - name: Mystery box on PGlite (B2 chain)
+        run: npm run test:mystery:pglite
+
+      # Daily Spin v2 (20261201): 7 ô trọng số 30/25/20/12/8/4/1 + luật
+      # không-lặp trên cùng chuỗi migration đã có ở trên.
+      - name: Daily Spin v2 on PGlite (B3 chain)
+        run: npm run test:spinv2:pglite
 
       # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
       # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.

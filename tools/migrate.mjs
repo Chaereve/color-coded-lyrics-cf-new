@@ -2,7 +2,11 @@
  *
  *   node tools/migrate.mjs --check                    # static safety only, no DB
  *   node tools/migrate.mjs --plan  --baseline 20261117
+ *   node tools/migrate.mjs --plan  --until 20261128
+ *   node tools/migrate.mjs --plan  --until 20261204 --except 20261201
  *   node tools/migrate.mjs --apply --baseline 20261117
+ *   node tools/migrate.mjs --apply --until 20261128   # one batch; never the rest
+ *   node tools/migrate.mjs --apply --until 20261204 --except 20261201  # B2; hold B3
  *
  * Why this exists: the daily-login correction shipped a destructive migration
  * (20261118) that rewrites historical check-in amounts. "Remember to skip it"
@@ -266,10 +270,71 @@ export function assertMigrationSafety (dir = MIGRATIONS_DIR, { schemaFile = SCHE
    "skip 36 migration(s) …" rồi im lặng về ba migration thật sự sẽ chạy — người
    vận hành không có cách nào chỉ-đọc để xem kế hoạch. Định dạng dòng giữ nguyên
    như `db:deploy` in (và như docs/DB-MIGRATIONS.md mô tả). */
+export function holdCaption (result) {
+  if (!result.held?.length) return null
+  const bits = []
+  if (result.until) bits.push(`--until ${result.until}`)
+  if (result.except?.length) bits.push(`--except ${result.except.join(',')}`)
+  const after = bits.length ? ` after ${bits.join(' / ')}` : ''
+  return `hold ${result.held.length} migration(s)${after} (not this batch)`
+}
+
 export const planLines = result => [
   `${result.pending.length} migration(s) would be applied:`,
   ...result.pending.map(({ version, name }) => `apply ${version}  ${name}`),
+  ...(result.held?.length
+    ? [holdCaption(result),
+      ...result.held.map(({ version, name }) => `hold ${version}  ${name}`)]
+    : []),
 ]
+
+/** Keep pending at or below an 8-digit timestamp; the rest is another batch. */
+export function clipUntil (pending, until) {
+  if (until == null || until === '') return { pending, held: [] }
+  if (!/^\d{8}$/.test(until)) {
+    throw new Error(`invalid --until ${until}: use the 8-digit migration timestamp, e.g. 20261128`)
+  }
+  return {
+    pending: pending.filter(({ version }) => version <= until),
+    held: pending.filter(({ version }) => version > until),
+  }
+}
+
+/** 8-digit timestamps to pull out of this batch (repeatable / comma-separated). */
+export function normalizeExcept (except) {
+  if (except == null || except === '') return []
+  const list = Array.isArray(except) ? except : String(except).split(',')
+  const versions = [...new Set(list.flatMap(s => String(s).split(',').map(x => x.trim())).filter(Boolean))]
+  for (const v of versions) {
+    if (!/^\d{8}$/.test(v)) {
+      throw new Error(`invalid --except ${v}: use the 8-digit migration timestamp, e.g. 20261201`)
+    }
+  }
+  return versions.sort()
+}
+
+/** Move matching versions from pending into held. Does not look past `--until`. */
+export function clipExcept (pending, except) {
+  const set = new Set(normalizeExcept(except))
+  if (!set.size) return { pending, held: [] }
+  return {
+    pending: pending.filter(({ version }) => !set.has(version)),
+    held: pending.filter(({ version }) => set.has(version)),
+  }
+}
+
+/** One batch: `--until` then `--except`. Held list is version-sorted, no dupes. */
+export function clipBatch (pending, { until = null, except = [] } = {}) {
+  const untilClip = clipUntil(pending, until)
+  const exceptClip = clipExcept(untilClip.pending, except)
+  const heldByKey = new Map()
+  for (const row of [...exceptClip.held, ...untilClip.held]) {
+    heldByKey.set(row.id ?? `${row.version}:${row.name}`, row)
+  }
+  const held = [...heldByKey.values()].sort((a, b) =>
+    a.version.localeCompare(b.version) || String(a.name).localeCompare(String(b.name)))
+  return { pending: exceptClip.pending, held }
+}
 
 export function planPending ({ active, quarantined = [], applied = [], baseline = null }) {
   const appliedSet = new Set(applied)
@@ -387,7 +452,7 @@ export async function applyMigration (client, migration) {
   }
 }
 
-export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = {}) {
+export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null, until = null, except = [] } = {}) {
   const { active, quarantined } = assertMigrationSafety(dir)
   // Read-only until the plan is accepted: a refused deployment must not leave
   // even an empty history table behind.
@@ -417,11 +482,23 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null } = 
      history (recordBaseline đã ghi trước đó), tức một abort khó hiểu thay vì kế
      hoạch đúng. */
   const plan = planPending({ active, quarantined, applied, baseline })
-  return { ...plan, applied, state, active, readiness, toRecord }
+  if (until != null && until !== '') {
+    if (!active.some(({ version }) => version === until)) {
+      throw new Error(`--until ${until} does not match any migration version`)
+    }
+  }
+  const exceptVersions = normalizeExcept(except)
+  for (const v of exceptVersions) {
+    if (!active.some(({ version }) => version === v)) {
+      throw new Error(`--except ${v} does not match any migration version`)
+    }
+  }
+  const { pending, held } = clipBatch(plan.pending, { until, except: exceptVersions })
+  return { ...plan, pending, held, until, except: exceptVersions, applied, state, active, readiness, toRecord }
 }
 
-export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, onApplied = () => {} } = {}) {
-  const result = await plan(client, { dir, baseline })
+export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, until = null, except = [], onApplied = () => {} } = {}) {
+  const result = await plan(client, { dir, baseline, until, except })
   // Only now, with the baseline verified, may the history table be created.
   if (result.toRecord.length || result.pending.length) await ensureHistory(client)
   result.recordedBaseline = await recordBaseline(client, { active: result.active, baseline })
@@ -434,15 +511,24 @@ export async function deploy (client, { dir = MIGRATIONS_DIR, baseline = null, o
 
 /* --------------------------------- CLI ---------------------------------- */
 
-function parseArgs (argv) {
-  const args = { mode: null, baseline: null, dbUrl: process.env.SUPABASE_DB_URL ?? null }
+export function parseArgs (argv) {
+  const args = { mode: null, baseline: null, until: null, except: [], dbUrl: process.env.SUPABASE_DB_URL ?? null }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--plan' || argv[i] === '--apply' || argv[i] === '--check' || argv[i] === '--verify') args.mode = argv[i].slice(2)
     else if (argv[i] === '--baseline') args.baseline = argv[++i]
+    else if (argv[i] === '--until') args.until = argv[++i]
+    else if (argv[i] === '--except') {
+      const raw = argv[++i]
+      if (raw == null || String(raw).startsWith('--')) {
+        throw new Error('missing --except version: use the 8-digit migration timestamp, e.g. 20261201')
+      }
+      args.except = normalizeExcept([...args.except, raw])
+    }
     else if (argv[i] === '--db-url') args.dbUrl = argv[++i]
     else throw new Error(`unknown argument ${argv[i]} (use --check, --plan or --apply)`)
   }
   if (!args.mode) throw new Error('use --check (static), --plan (what would run) or --apply')
+  args.except = normalizeExcept(args.except)
   return args
 }
 
@@ -477,7 +563,7 @@ async function verifyCommand (baseline, dbUrl) {
 }
 
 async function main (argv) {
-  const { mode, baseline, dbUrl } = parseArgs(argv)
+  const { mode, baseline, until, except, dbUrl } = parseArgs(argv)
   if (mode === 'verify') return verifyCommand(baseline, dbUrl)
   if (mode === 'check') {
     const { active, quarantined } = assertMigrationSafety()
@@ -493,7 +579,7 @@ async function main (argv) {
   const client = new pg.Client({ connectionString: dbUrl })
   await client.connect()
   try {
-    const result = await plan(client, { baseline })
+    const result = await plan(client, { baseline, until, except })
     for (const q of result.quarantinedNeverRuns) {
       console.log(`skip ${q.version}  quarantined — ${q.reason}`)
     }
@@ -507,14 +593,18 @@ async function main (argv) {
     if (result.skippedApplied.length) {
       console.log(`skip ${result.skippedApplied.length} migration(s) already recorded as applied`)
     }
-    if (!result.pending.length) {
-      console.log('up to date — nothing to apply')
-      return 0
-    }
     if (mode === 'plan') {
       /* Chỉ in, không ghi: lệnh này phải cho người vận hành thấy ĐỦ những gì sẽ
-         chạy trước khi họ gõ db:deploy. */
+         chạy trước khi họ gõ db:deploy. --until / --except giữ batch khác ở nhóm hold. */
+      if (!result.pending.length && !result.held?.length) {
+        console.log('up to date — nothing to apply')
+        return 0
+      }
       for (const line of planLines(result)) console.log(line)
+      return 0
+    }
+    if (!result.pending.length) {
+      console.log('up to date — nothing to apply')
       return 0
     }
     if (result.toRecord.length || result.pending.length) await ensureHistory(client)

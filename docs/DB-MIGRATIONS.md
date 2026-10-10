@@ -622,3 +622,104 @@ export DAILY_SPIN_TEST_DATABASE_URL=$MIGRATION_DEPLOY_TEST_DATABASE_URL
 export COMMENTS_TEST_DATABASE_URL=$MIGRATION_DEPLOY_TEST_DATABASE_URL
 npm test
 ```
+
+---
+
+## 20261126 → 20261128 — B1: reward ledger, login rewards, achievements v2
+
+Ba file append-only, một transaction mỗi file, rerunnable, KHÔNG thuộc
+fresh-install bundle (bundle dừng ở baseline 20261120 như 20261121+):
+
+| File | Vai trò |
+| --- | --- |
+| `20261126_reward_ledger.sql` | Sổ cái `reward_events` + `reward_config` + `reward_milestone_once` + hàm cấp duy nhất `grant_reward_event` (cap 30/ngày, scale-down, idempotent). Chưa có đường client nào gọi trực tiếp. |
+| `20261127_login_streak_rewards.sql` | `claim_daily_login_calendar` trả thưởng (+2; ngày 7 chu kỳ +5 cộng thêm; mốc 7 ngày +10; mốc 30 ngày +20 một lần) và RPC mới `my_login_reward_status` (exact-key, thêm RPC chứ không đổi payload lịch — bundle cũ không vỡ). |
+| `20261128_achievements_v2.sql` | Catalog 42 → **20 active** (25 deactivate, không xoá), nới CHECK `source` thêm `pick/vote_back/mystery`, `claim_achievements` trả vote qua ledger + cap với tự-bù slice. |
+
+Quy tắc an toàn được giữ vững: **không** đụng cột `daily_login_rewards.reward`
+(trigger 20261120 vẫn là chốt cuối), **không** UPDATE/DELETE dữ liệu lịch sử,
+thưởng đã cấp không bao giờ bị rollback thu hồi. Rollback: `supabase/rollback/2026112{6,7,8}_*.sql`
+— 20261126 chỉ xoá được khi sổ cái còn trống; 20261128 từ chối nếu đã có người
+giả mốc Đặc biệt. Test: `npm run test:ledger:pglite`; các manifest test của
+runner (`tools/migration-safety.test.mjs`) đã cập nhật lên 44 migration active.
+
+## 20261129 — B2: Mystery Box (một hộp mỗi ngày, mở sau check-in)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. Cờ `reward_config.mystery_box_enabled` (CHECK của `reward_config` được
+nới tại chỗ — không đụng giá trị đã tinh chỉnh):
+
+| File | Vai trò |
+| --- | --- |
+| `20261129_mystery_box.sql` | Bảng `mystery_opens` (PK `user_id, day` — một hộp/ngày), RPC `my_mystery_status` (exact-key) và `open_mystery_box(p_expected_day, p_gate_token)`: khoá theo check-in cùng ngày VN, rút thưởng 55/20/12/7/3/2/1 (nothing / +1 / +3 / +5 / +10 vote / +1 free paid request / +5 vote — "credits" cũ quy về vote), phần vote qua `grant_reward_event` (cùng cap 30/ngày), giải 2% cộng `bonus_requests` NGOÀI cap, replay trả kết quả đã commit. |
+
+Rollback: `supabase/rollback/20261129_mystery_box.sql` — từ chối chạy khi còn
+grant `mystery_box` trong 48 giờ gần nhất (không claw-back), xoá RPC + bảng +
+flag và thu hẹp CHECK về bộ key B1. Test: `npm run test:mystery:pglite`;
+manifest `tools/migration-safety.test.mjs` đã cập nhật lên 45 migration active.
+
+## 20261201 — B3: Daily Spin v2 (7 ô trọng số, cùng hạn mức 2 lượt/ngày)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. Không đụng bảng nào: chỉ `create or replace` hàm + nới đúng một CHECK.
+
+| File | Vai trò |
+| --- | --- |
+| `20261201_spin_v2.sql` | `daily_spin_prizes()` → `[1,2,3,5,8,10,20]`, hàm mới `daily_spin_weights()` → `[30,25,20,12,8,4,1]` (tổng 100); nới CHECK `reward in (1,2,3,5)` → `(1,2,3,5,8,10,20)` (hàng cũ 1..5 vẫn hợp lệ); `spin_daily` (6 tham số, giữ nguyên cổng Edge / advisory lock / hạn mức device-account-fp / luật không-lặp): rút qua **hai byte + lấy mẫu loại bỏ** `raw < 65536 − (65536 % tổng)` → `r = raw % tổng` đi dải tích luỹ 30/55/75/87/95/99/100 — vì `256 % 7 <> 0`, một byte không còn đủ để đều; hai lượt gần nhất trùng giải thì dải mang giải đó bị rút lại (phân phối còn lại đúng bằng có điều kiện), fallback 8 lượt = đều trên ô hợp lệ; `daily_spin_payload` thêm key `weights` cho bản vẽ. |
+| `supabase/rollback/20261201_spin_v2.sql` | Từ chối chạy khi còn lượt quay trong 48 giờ; trả prizes về bảng 16 ô, drop `daily_spin_weights`, khôi phục `spin_daily` (20261111) + `payload` (20261107); CHECK reward thu về bộ cũ **chỉ khi** ledger chưa có giải 8/10/20, nếu có thì giữ nới (notice) để không từ chối lịch sử thật. |
+
+Không đổi: hạn mức 2/device + 2/account + 2/fingerprint, khiên IP, ràng buộc
+`segment 0..15` (hàng 16 ô cũ giữ nguyên ý nghĩa, bản mới chỉ rút 0..6), ví
+nhận thưởng `bonus_credits` (reset 31/10). Bundle cũ không gọi `weights` vẫn
+chạy đúng — nó bỏ qua key lạ. Test: `npm run test:spinv2:pglite` (7 kịch bản:
+chain, phân phối 300 lượt, không-lặp, hạn mức + replay, hàng legacy, bảng trọng
+số lệch bị từ chối, chạy lại an toàn); manifest
+`tools/migration-safety.test.mjs` đã cập nhật lên **46 migration active**
+(bản 20261202 dưới đây nâng số này lên **47**).
+
+## 20261202 — B2 fix: Mystery prize table v2 (một +5 duy nhất, paid tách 2 mức)
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. **Đã apply production** cùng B2 (2026-10-10, apply
+[38042210783](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38042210783),
+smoke [38043497992](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38043497992)).
+Sửa ĐÚNG một lỗi mapping của bảng 20261129: outcome 1% trước đây
+là "+5 votes" — trùng với outcome 7%, làm bảng hiển thị hai giải +5.
+
+| File | Vai trò |
+| --- | --- |
+| `20261202_mystery_paid_v2.sql` | Nới CHECK `mystery_opens_reward_kind_check` thêm `'free_paid_request'` (giữ `'paid_request'` cho row cũ); **thêm cột `reward_amount smallint NOT NULL DEFAULT 0` + CHECK `>= 0`** (backfill: votes → số vote đã trả, `paid_request` cũ → 1, FPR result 6 → 2, nothing → 0); `open_mystery_box`: dải 970–989 → result 5 = **+1 free paid request**, dải 990–999 → result 6 = **+2 free paid requests** — cộng `bonus_requests` đúng theo amount của từng nhánh, NGOÀI cap 30/ngày, không ghi reward_event như vote, INSERT ghi `reward_amount` literal 1\|2; `mystery_status`/`my_mystery_status` trả thêm khoá `reward_amount` (payload 9 khoá). Trọng số giữ nguyên 55/20/12/7/3/2/1. |
+| `supabase/rollback/20261202_mystery_paid_v2.sql` | Từ chối chạy khi còn row result 6 kind `free_paid_request` (+2 không có tương đương trong bảng cũ — rollback sẽ biến paid +2 thành +5 votes sai nghĩa); row result 5 `free_paid_request` đổi ngược về `paid_request`; khôi phục hàm + CHECK + comment 20261129. |
+| `20261203_mystery_month.sql` | RPC đọc-only `my_mystery_month(date)` — lịch sử mở hộp trong một tháng Việt Nam, từ `mystery_opens`. Không đổi odds, cap, hay `open_mystery_box`. |
+| `supabase/rollback/20261203_mystery_month.sql` | Drop `my_mystery_month(date)`. |
+| `20261204_mystery_odds.sql` | Chỉ thay dải roll của `open_mystery_box`: **70 / 16 / 8 / 4 / 1.5 / 0.4 / 0.1** (nothing / +1 / +3 / +5 / +10 vote / +1 FPR / +2 FPR). Không đổi gate, PK, replay, cap, kind, `reward_amount`. |
+| `supabase/rollback/20261204_mystery_odds.sql` | Khôi phục dải roll 55/20/12/7/3/2/1 của 20261202. |
+
+Không đổi: cổng check-in, PK một hộp/ngày, replay, `grant_reward_event`/cap,
+RLS, cờ `mystery_box_enabled`. Client (`src/lib/mysteryBox.js`) đọc CẢ hai
+chính tả kind VÀ CẢ hai shape payload (8 khoá pre-migration, 9 khoá có
+`reward_amount` sau migration — kiểm NGHIÊM amount khi có: sai số lượng là
+lỗi giao thức, không render) nên deploy client trước hay sau migration đều
+không vỡ; UI hiển thị +1/+2 từ `reward_amount` của server, chỉ fallback
+derive theo `result` khi payload cũ thiếu trường. Test:
+`supabase/tests/mysteryBox.pglite.mjs` (chain qua 20261202; phân phối 600 hộp;
+mapping setseed: +1/+2 cộng đúng amount, không ledger, replay không cộng lặp;
+cap; flag; identity/RLS) + `src/lib/mysteryBox.test.js` (bảng v2 + validator
+chấp nhận row legacy).
+
+## 20261210 — B4: Vote-back 10% khi request được PICKED
+
+Một file append-only, một transaction, rerunnable, không thuộc fresh-install
+bundle. **Đã apply production** (2026-10-10, run
+[38044695921](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38044695921)).
+
+| File | Vai trò |
+| --- | --- |
+| `20261210_vote_back.sql` | Cột latch `requests.vote_back_paid_at`; cờ `vote_back_enabled`; trigger `AFTER UPDATE OF picked_at` khi NULL→NOT NULL; `pay_vote_back` (10% owner/voter, cap 50/request rồi cap 30/ngày qua `grant_reward_event`); `admin_pick` / `admin_pick_group` từ chối unpick khi đã latch (`err.unpickLocked`); index `votes(request_id, user_id)`. Flag off vẫn set latch, không trả, không truy thu khi bật lại. |
+| `supabase/rollback/20261210_vote_back.sql` | Từ chối khi còn grant `vote_back_*` trong 48 giờ; drop trigger/hàm/cột/flag/index; khôi phục `admin_pick` cũ. Không xóa `reward_events`, không claw-back ví. |
+
+`firstVoteBack` (+3) **không** đổi catalog: `claim_achievements` đã `EXISTS`
+hai source `vote_back_owner` / `vote_back_voter` → progress 1 (owner tự vote
+không nhận badge hai lần). Test: `npm run test:voteback:pglite`; manifest
+`tools/migration-safety.test.mjs` = **50** migration active. Luật đầy đủ:
+`docs/DAILY-REWARDS.md` mục B4.

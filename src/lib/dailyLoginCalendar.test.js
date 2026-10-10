@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   validateDailyLoginCalendarMonth, validateDailyLoginCalendarStatus,
-  fetchDailyLoginCalendarStatus, claimDailyLoginCalendar, fetchDailyLoginCalendarMonth,
+  validateLoginRewardStatus,
+  fetchDailyLoginCalendarStatus, fetchLoginRewardStatus, claimDailyLoginCalendar, fetchDailyLoginCalendarMonth,
 } from './dailyLoginCalendar.js'
 
 /* Demo mode đọc localStorage thật của trình duyệt; ở Node thì dựng một bản
@@ -110,4 +111,62 @@ test('demo month browsing is read-only, owner-scoped and carries no reward field
   const other = await fetchDailyLoginCalendarMonth('demo-user-c', month)
   assert.deepEqual(other.days, [])
   await assert.rejects(() => fetchDailyLoginCalendarMonth(userId, 'nonsense'), /err\./)
+})
+
+/* ===== B1 — reward view (20261127): demo claim pays, validator is exact ===== */
+
+test('demo claim pays +2 and surfaces the reward view with an exact contract', async () => {
+  const userId = 'demo-reward-a'
+  const before = await fetchDailyLoginCalendarStatus(userId)
+  const result = await claimDailyLoginCalendar(userId, before.day)
+  assert.equal(result.replayed, false)
+  assert.ok(result.rewards, 'claim returns the reward view when rewards exist')
+  assert.deepEqual(Object.keys(result.rewards).sort(), [
+    'breakdown', 'cap', 'cap_left', 'cap_used', 'cycle_day', 'day', 'enabled',
+    'milestone30_granted', 'streak', 'today_total', 'user_id',
+  ])
+  assert.deepEqual(result.rewards.breakdown, [{ source: 'daily_login', amount: 2 }])
+  assert.equal(result.rewards.today_total, 2)
+  assert.equal(result.rewards.cap_used, 2)
+  assert.equal(result.rewards.streak, 1)
+  assert.equal(result.rewards.cycle_day, 1)
+  assert.equal(result.rewards.milestone30_granted, false)
+
+  // Replay: same day, no new grant slices, wallet untouched.
+  const again = await claimDailyLoginCalendar(userId, before.day)
+  assert.equal(again.replayed, true)
+  assert.deepEqual(again.rewards.breakdown, [{ source: 'daily_login', amount: 2 }])
+
+  // The standalone fetch mirrors the claim view.
+  const view = await fetchLoginRewardStatus(userId)
+  assert.deepEqual(view, result.rewards)
+})
+
+test('validateLoginRewardStatus enforces the exact contract and consistent totals', () => {
+  const base = {
+    user_id: 'u', day: '2026-10-08', enabled: true, cap: 30, cap_used: 2, cap_left: 28,
+    streak: 1, cycle_day: 1, milestone30_granted: false, today_total: 2,
+    breakdown: [{ source: 'daily_login', amount: 2 }],
+  }
+  assert.equal(validateLoginRewardStatus(base, 'u'), base)
+  assert.throws(() => validateLoginRewardStatus({ ...base }, 'someone-else'), /err\.dailyAccountChanged/)
+  for (const broken of [
+    { ...base, cap_used: 3 },
+    { ...base, today_total: 0 },
+    { ...base, cap_left: 27 },
+    { ...base, cycle_day: 8 },
+    { ...base, streak: 0 },
+    { ...base, enabled: false },
+    { ...base, breakdown: [{ source: 'login_day7', amount: 0 }] },
+    { ...base, breakdown: [{ source: 'daily_login' }] },
+    { ...base, breakdown: [{ source: 'not_a_source', amount: 2 }] },
+    { ...base, breakdown: [{ source: 'daily_login', amount: 2 }, { source: 'daily_spin', amount: 5 }] },
+  ]) {
+    assert.throws(() => validateLoginRewardStatus(broken, 'u'), /err\.dailyResponse/, JSON.stringify(broken))
+  }
+  // Disabled view must be empty; extra keys are refused (exact contract).
+  assert.ok(validateLoginRewardStatus({ ...base, enabled: false, cap_used: 0, cap_left: 30, today_total: 0, breakdown: [] }, 'u'))
+  assert.throws(() => validateLoginRewardStatus({ ...base, quiz: null }, 'u'), /err\.dailyResponse/)
+  // The last case above (breakdown rows while disabled) must throw as well.
+  assert.throws(() => validateLoginRewardStatus({ ...base, enabled: false }, 'u'), /err\.dailyResponse/)
 })

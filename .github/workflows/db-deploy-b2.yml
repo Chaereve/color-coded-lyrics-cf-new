@@ -1,0 +1,194 @@
+# B2 production deploy — 20261129 + 20261202 + 20261203 + 20261204 ONLY.
+# Approved 2026-10-10. --until 20261204 --except 20261201: B3 spin_v2 and
+# B4 vote_back stay held. Sandbox has no SUPABASE_DB_URL / actions:write;
+# push on this arena branch is the remaining path. Do not copy to main.
+# Do not drop --except 20261201.
+name: DB deploy production — B2 mystery box (đã duyệt)
+
+on:
+  push:
+    # B2 đã apply + smoke xanh. Tắt push-trigger để plan B3 không chạy lại smoke.
+    branches:
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b2'
+
+concurrency:
+  group: db-deploy-b2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-b2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UNTIL: '20261204'
+      EXCEPT: '20261201'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: EDGE_GATE_TOKEN có mặt (chỉ đo độ dài, không in giá trị)
+        env:
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          n=${#EDGE_GATE_TOKEN}
+          echo "EDGE_GATE_TOKEN length=$n"
+          if [ "$n" -lt 32 ]; then
+            echo "STOP: GitHub secret EDGE_GATE_TOKEN missing or shorter than 32"
+            exit 1
+          fi
+
+      - name: db:check (tĩnh)
+        run: npm run db:check
+
+      - name: UI labels + odds v3 table (tĩnh)
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync } from 'node:fs'
+          const s = readFileSync('src/lib/strings.js', 'utf8')
+          if (!s.includes("'mystery.paidRequestOne': '+1 free paid request'")) {
+            console.error('missing +1 free paid request label'); process.exit(1)
+          }
+          if (!s.includes("'mystery.paidRequestTwo': '+2 free paid requests'")) {
+            console.error('missing +2 free paid requests label'); process.exit(1)
+          }
+          const m = readFileSync('src/lib/mysteryBox.js', 'utf8')
+          for (const w of ['weight: 700', 'weight: 160', 'weight: 80', 'weight: 40', 'weight: 15', 'weight: 4', 'weight: 1']) {
+            if (!m.includes(w)) { console.error('odds v3 table missing', w); process.exit(1) }
+          }
+          console.log('UI labels + odds v3 table OK')
+          EOF
+
+      - name: Preflight plan — đúng 4 file B2, hold B3+B4
+        id: preflight
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" --except "$EXCEPT" 2>&1 | tee /tmp/pre-plan.txt
+          node -e '
+          const fs = require("fs")
+          const t = fs.readFileSync("/tmp/pre-plan.txt","utf8")
+          const apply = [...t.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[1]+" "+m[2])
+          const hold = [...t.matchAll(/^hold (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          const expected = [
+            "20261129 20261129_mystery_box.sql",
+            "20261202 20261202_mystery_paid_v2.sql",
+            "20261203 20261203_mystery_month.sql",
+            "20261204 20261204_mystery_odds.sql",
+          ]
+          const already = apply.length === 0
+            && hold.includes("20261201_spin_v2.sql")
+            && hold.includes("20261210_vote_back.sql")
+          const out = process.env.GITHUB_OUTPUT
+          if (already) {
+            console.log("B2 already on production — smoke-only, no apply")
+            fs.appendFileSync(out, "skip=1\n")
+            process.exit(0)
+          }
+          console.error("SMOKE-ONLY RETRY: refusing to apply. Unexpected pending:", apply)
+          process.exit(1)
+          if (JSON.stringify(apply) !== JSON.stringify(expected)) {
+            console.error("UNEXPECTED APPLY LIST:", apply)
+            process.exit(1)
+          }
+          if (!hold.includes("20261201_spin_v2.sql") || !hold.includes("20261210_vote_back.sql")) {
+            console.error("B3/B4 missing from hold", hold)
+            process.exit(1)
+          }
+          if (hold.some(n => n.startsWith("20261129") || n.startsWith("20261202") || n.startsWith("20261203") || n.startsWith("20261204"))) {
+            console.error("B2 file landed in hold — refusing")
+            process.exit(1)
+          }
+          fs.appendFileSync(out, "skip=0\n")
+          console.log("preflight OK — will apply exactly B2")
+          '
+
+      - name: db:deploy --until 20261204 --except 20261201
+        if: false
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:deploy -- --until "$UNTIL" --except "$EXCEPT" 2>&1 | tee /tmp/deploy.txt
+          if grep -E '^apply 20261201|^apply 20261210' /tmp/deploy.txt; then
+            echo "STOP: deploy log applied B3 or B4"
+            exit 1
+          fi
+          for id in 20261129 20261202 20261203 20261204; do
+            if ! grep -E "^applied $id\$" /tmp/deploy.txt; then
+              echo "STOP: $id not applied"
+              exit 1
+            fi
+          done
+
+      - name: Verify + smoke (psql, docker client 17)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          EDGE_GATE_TOKEN: ${{ secrets.EDGE_GATE_TOKEN }}
+        run: |
+          set -o pipefail
+          node --input-type=module <<'EOF'
+          import { writeFileSync } from 'node:fs'
+          const t = (process.env.EDGE_GATE_TOKEN || '').trim()
+          const lit = t ? "'" + t.replace(/'/g, "''") + "'" : 'NULL'
+          writeFileSync('/tmp/b2-gate.sql',
+            `select set_config('b2.gate_token', coalesce(${lit}::text, ''), false);\n`)
+          EOF
+          docker run --rm --network host \
+            -e SUPABASE_DB_URL \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -v /tmp/b2-gate.sql:/tmp/b2-gate.sql \
+            -w /work \
+            postgres:17 \
+            bash -lc 'psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f /tmp/b2-gate.sql -f scripts/verify-b2-post-deploy.sql -f scripts/smoke-b2.sql' \
+            2>&1 | tee /tmp/verify-smoke.txt
+
+      - name: Post plan — B2 applied, B3+B4 still hold
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -o pipefail
+          npm run db:plan -- --until "$UNTIL" --except "$EXCEPT" 2>&1 | tee /tmp/post-plan-b2.txt
+          npm run db:plan 2>&1 | tee /tmp/post-plan-all.txt
+          node -e '
+          const fs = require("fs")
+          const b2 = fs.readFileSync("/tmp/post-plan-b2.txt","utf8")
+          const all = fs.readFileSync("/tmp/post-plan-all.txt","utf8")
+          if (/^apply 20261129/m.test(b2) || /^apply 20261202/m.test(b2) || /^apply 20261203/m.test(b2) || /^apply 20261204/m.test(b2)) {
+            console.error("B2 still pending after deploy")
+            process.exit(1)
+          }
+          if (/^apply 20261201/m.test(b2) || /^apply 20261210/m.test(b2)) {
+            console.error("B3/B4 leaked into B2 plan")
+            process.exit(1)
+          }
+          const apply = [...all.matchAll(/^apply (\d{8})\s+(\S+)/gm)].map(m => m[2])
+          const expectedHold = ["20261201_spin_v2.sql","20261210_vote_back.sql"]
+          if (JSON.stringify(apply) !== JSON.stringify(expectedHold)) {
+            console.error("UNEXPECTED remaining apply list:", apply)
+            process.exit(1)
+          }
+          console.log("post-plan OK — remaining apply is B3+B4 only")
+          '
+
+      - name: Xuất log ra annotation
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs")
+          const read = p => { try { return fs.readFileSync(p,"utf8") } catch { return "" } }
+          const msg = s => String(s).replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A")
+          const title = s => msg(s).replace(/:/g,"%3A").replace(/,/g,"%2C")
+          const body = ["== pre ==", read("/tmp/pre-plan.txt"), "== deploy ==", read("/tmp/deploy.txt"), "== verify-smoke ==", read("/tmp/verify-smoke.txt"), "== post-until-except ==", read("/tmp/post-plan-b2.txt"), "== post-all ==", read("/tmp/post-plan-all.txt")].join("\n")
+          console.log(`::notice title=${title("B2 deploy production")}::${msg(body.trim() || "(no output)")}`)
+          '

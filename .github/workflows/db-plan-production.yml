@@ -21,13 +21,12 @@ name: DB plan production (chỉ đọc)
 on:
   push:
     branches:
-      - 'arena/c7f9fc9b-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b4'
   workflow_dispatch:
     inputs:
       baseline:
-        description: 'Baseline 8 chữ số (vd 20261124) — mọi migration ≤ baseline coi như đã có trong DB'
-        required: true
-        default: '20261124'
+        description: 'Baseline 8 chữ số (tuỳ chọn). Trống = kế hoạch thật từ history production, không đoán sàn.'
+        required: false
         type: string
 
 permissions:
@@ -38,7 +37,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      BASELINE: ${{ inputs.baseline || '20261124' }}
+      BASELINE: ${{ inputs.baseline }}
+      # B4 batch (plan chỉ đọc, chờ duyệt). --until 20261210 = đúng 1 file
+      # vote_back. Không --except. Không để UNTIL trống.
+      UNTIL: '20261210'
+      EXCEPT: ''
     steps:
       - uses: actions/checkout@v4
 
@@ -63,8 +66,16 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -o pipefail
-          echo "== db:plan --baseline $BASELINE (chỉ đọc — không ghi history, không chạy SQL) ==" | tee /tmp/plan.txt
-          if npm run db:plan -- --baseline "$BASELINE" 2>&1 | tee -a /tmp/plan.txt; then
+          PLAN_EXTRA=()
+          if [ -n "$EXCEPT" ]; then PLAN_EXTRA+=(--except "$EXCEPT"); fi
+          if [ -n "$BASELINE" ]; then
+            echo "== db:plan --baseline $BASELINE --until $UNTIL ${EXCEPT:+--except $EXCEPT} (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL" "${PLAN_EXTRA[@]}")
+          else
+            echo "== db:plan --until $UNTIL (B4 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --until "$UNTIL" "${PLAN_EXTRA[@]}")
+          fi
+          if "${PLAN_CMD[@]}" 2>&1 | tee -a /tmp/plan.txt; then
             PLAN_RC=0
           else
             PLAN_RC=$?

@@ -17,9 +17,9 @@
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
 import {
   ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
-  CalendarCheck, CircleAlert, Disc3, Download, Flame, Info, ListMusic, LogOut, Minus, Music4, Play,
+  CalendarCheck, CircleAlert, Disc3, Download, Flame, Gift, Info, ListMusic, LogOut, Minus, Music4, Play,
   Eye, Plus, Receipt, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
-  Trophy, User, Volume2, VolumeX, X,
+  Crown, Trophy, User, Volume2, VolumeX, X,
 } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
@@ -43,6 +43,8 @@ const SET = {
   spin: Disc3,                    /* vòng quay */
   calendar: CalendarCheck,         /* điểm danh hằng ngày */
   cup: Trophy,                    /* xếp hạng */
+  crown: Crown,                   /* jackpot — ô +20 Daily Spin */
+  gift: Gift,                     /* hộp quà — mystery box hằng ngày */
   flame: Flame,                   /* chuỗi ngày hoạt động (streak) */
   save: Download,                 /* tải card PNG chia sẻ */
   receipt: Receipt,               /* đơn hàng — mục "Your orders" */

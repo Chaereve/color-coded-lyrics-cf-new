@@ -45,6 +45,12 @@ export const VOICES = {
   error:  [[N.B4, 0.000, 0.13, 0.120], [N.Bb4, 0.110, 0.28, 0.120]],
   // vòng quay bắt đầu chạy — quãng năm đi lên, ngắn gọn
   spinGo: [[N.C5, 0.000, 0.12, 0.110], [N.G5, 0.050, 0.16, 0.100], [N.C6, 0.100, 0.22, 0.080]],
+  // mở hộp — gõ gỗ rồi nhấc nắp
+  boxOpen: [[N.C5, 0.000, 0.10, 0.110], [N.G5, 0.070, 0.14, 0.100], [N.C6, 0.140, 0.22, 0.085]],
+  // hộp không — hạ dần, khẽ
+  boxEmpty: [[N.E5, 0.000, 0.14, 0.100], [N.C5, 0.080, 0.18, 0.090], [N.B4, 0.170, 0.28, 0.080]],
+  // trúng hộp — quãng ba, ngắn hơn jackpot spin
+  boxWin: [[N.C6, 0.000, 0.16, 0.140], [N.E6, 0.055, 0.20, 0.125], [N.G6, 0.110, 0.32, 0.100]],
   // trúng thưởng thường — quãng ba trưởng rồi ngân
   spinWin: [[N.C6, 0.000, 0.20, 0.150], [N.E6, 0.060, 0.24, 0.140],
             [N.G6, 0.120, 0.34, 0.120], [N.C7, 0.180, 0.44, 0.070]],
@@ -337,6 +343,9 @@ export const sfx = {
   spinGo:      () => play('spinGo'),
   spinWin:     jackpot => play(jackpot ? 'spinJackpot' : 'spinWin'),
   spinTicks:   ticks => playTicks(ticks),
+  boxOpen:     () => play('boxOpen'),
+  boxEmpty:    () => play('boxEmpty'),
+  boxWin:      jackpot => play(jackpot ? 'spinJackpot' : 'boxWin'),
 }
 
 /* Làm nóng: dựng AudioContext ngay ở lần chạm/bấm phím đầu tiên

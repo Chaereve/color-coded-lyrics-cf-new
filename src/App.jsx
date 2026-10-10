@@ -37,6 +37,7 @@ const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
+const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
 import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
@@ -74,7 +75,7 @@ import {
    không phải hộp thoại: nó là nơi làm việc thật (soát bài, duyệt, sửa mốc tiến
    độ, xử lý đơn) nên phải vào được bằng link, F5 không mất chỗ đang đứng, và
    mở được ở tab trình duyệt thứ hai bên cạnh trang công khai. */
-const SECTIONS = ['board', 'login', 'spin', 'ranking', 'mine']
+const SECTIONS = ['board', 'login', 'mystery', 'spin', 'ranking', 'mine']
 const ADMIN_ONLY = 'admin'
 
 /* Nhịp của màn chờ — hai mốc, xem effect trong App(): sàn và trần. */
@@ -99,11 +100,11 @@ const NOW_SHOW = 2
    mà bảng đã nói bằng số. Mục nào không có trong bảng này thì không vẽ dòng
    phụ, chứ không vẽ một dòng rỗng. */
 const NAV_SUB = {
-  board: 'nav.boardSub', login: 'nav.loginSub',
+  board: 'nav.boardSub', login: 'nav.loginSub', mystery: 'mystery.ready',
   spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 
-const ROUTES = { board: '/', login: '/daily-login', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', mystery: '/mystery-box', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
 
 /* Đường dẫn của tính năng đã nghỉ hưu. `/quiz` từng là màn quiz âm nhạc và đã
    bị gỡ khỏi sản phẩm; ai còn bookmark/link cũ (hoặc tab mở từ bundle cũ) được
@@ -1040,7 +1041,12 @@ function AppInner() {
     // GIU NGUYEN trang thai truoc do — khong spread vs.value ke ca free_used,
     // vi no keo theo purchased/bonus/credits cua thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
-      setVoteStatus(() => vs.value)
+      setVoteStatus(previous => ({
+        ...vs.value,
+        bonus_requests: Number.isInteger(vs.value.bonus_requests)
+          ? vs.value.bonus_requests
+          : (previous.bonus_requests ?? 0),
+      }))
     }
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
@@ -1077,7 +1083,12 @@ function AppInner() {
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
     // do, khong de so du thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
-      setVoteStatus(() => vs.value)
+      setVoteStatus(previous => ({
+        ...vs.value,
+        bonus_requests: Number.isInteger(vs.value.bonus_requests)
+          ? vs.value.bonus_requests
+          : (previous.bonus_requests ?? 0),
+      }))
     }
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
@@ -1246,7 +1257,7 @@ function AppInner() {
       if (prev[id] === n) return prev
       return { ...prev, [id]: n }
     })
-  }, [])
+  }, [setCommentCounts]) // setter ổn định — khai báo tường minh cho compiler
 
   useEffect(() => {
     if (!rows || rows.length === 0) return
@@ -1864,10 +1875,12 @@ function AppInner() {
     setUser(null); setAdmin(null); setModal(false); setMenu(false)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
-  const openModal = (t) => {
+  /* useCallback: phím tắt 'n' phụ thuộc openModal — identity ổn định giữa
+     các render (chỉ đổi khi user đổi) để effect keyboard không tái đăng ký vô ích. */
+  const openModal = useCallback((t) => {
     if (!user && (t === 'request' || t === 'buy' || t === 'vote')) { setAuthPrompt(true); return }
     setModalTab(t); setModal(true)
-  }
+  }, [user])
 
   useEffect(() => {
     const h = (e) => {
@@ -1890,7 +1903,7 @@ function AppInner() {
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [modal, admin, voteFor, menu, section, go])
+  }, [modal, admin, voteFor, menu, section, go, openModal])
 
   /* ---------------- render ---------------- */
   /* Trong lúc boot: màn chờ KHÔNG có `hide`. Ra khỏi boot thì hai nhánh dưới
@@ -2211,37 +2224,42 @@ function AppInner() {
             }
 
             <section className="votepanel" data-reveal data-glow>
-              <div className="vp-main">
-                <div className="vp-label">{t('vp.yourVotes')}</div>
-                <div className="vp-big">
-                  <Num v={votesLeft} />
-                  <span>{t('vp.left')}</span>
+              <div className="vp-top">
+                <div className="vp-main">
+                  <div className="vp-label">{t('vp.yourVotes')}</div>
+                  <div className="vp-big">
+                    <Num v={votesLeft} />
+                    <span>{t('vp.left')}</span>
+                  </div>
+                </div>
+                <div className="vp-acts">
+                  <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
+                  <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
+                  <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
                 </div>
               </div>
-              <div className="vp-divider" />
-              <div className="vp-cell">
-                <div className="vp-k">{t('vp.freeToday')}</div>
-                <div className="vp-v" style={{ color: freeLeft > 0 ? 'var(--done)' : 'var(--denied)' }}>
-                  <Num v={freeLeft} /> / {voteStatus.free_limit}
+              <div className="vp-stats">
+                <div className={`vp-cell${freeLeft > 0 ? ' is-free' : ' is-empty'}`} title={t('vp.reset')}>
+                  <div className="vp-k">{t('vp.freeToday')}</div>
+                  <div className="vp-v">
+                    <Num v={freeLeft} /> / {voteStatus.free_limit}
+                  </div>
+                  <div className="vs-bar">
+                    <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="vs-bar" style={{ marginTop: 6 }}>
-                  <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vote.purchased')}</div>
+                  <div className="vp-v"><Num v={voteStatus.purchased ?? 0} /></div>
                 </div>
-                <div className="vp-note">{t('vp.reset')}</div>
-              </div>
-              <div className="vp-cell">
-                <div className="vp-k">{t('vote.purchased')}</div>
-                <div className="vp-v" style={{ color: 'var(--paid)' }}><Num v={voteStatus.purchased ?? 0} /></div>
-              </div>
-              <div className="vp-cell">
-                <div className="vp-k">{t('vote.bonus')}</div>
-                <div className="vp-v" style={{ color: 'var(--a-2)' }}><Num v={voteStatus.bonus ?? 0} /></div>
-                <div className="vp-note">{t('vp.bonusReset')}</div>
-              </div>
-              <div className="vp-acts">
-                <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
-                <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
-                <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
+                <div className="vp-cell is-bonus" title={t('vp.bonusReset')}>
+                  <div className="vp-k">{t('vp.voteBonus')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus ?? 0} /></div>
+                </div>
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vp.freePaid')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus_requests ?? 0} /></div>
+                </div>
               </div>
             </section>
 
@@ -2437,11 +2455,23 @@ function AppInner() {
           )
         )}
 
+        {/* Mystery Box là MỘT TRANG RIÊNG (duyệt 2026-10): cùng chuỗi thưởng
+            hằng ngày nhưng tách bạch UI/route với /daily-login — lịch không ôm
+            thêm card nào nữa. Cổng sign-in y như mục Daily Login. */}
+        {section === 'mystery' && !onProfile && (
+          user ? (
+            <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
+              <MysteryBoxPage key={`mystery-${user.id}`} userId={user.id} onDailyLogin={() => navTo('login')} />
+            </Suspense>
+          ) : (
+            <SignInPanel title={t('gate.needTitle')} body={t('gate.needMystery')} onSignIn={() => setAuthPrompt(true)} />
+          )
+        )}
+
         {section === 'spin' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
-              <DailySpin key={user.id} userId={user.id} credits={voteStatus.credits}
-                purchased={voteStatus.purchased} bonus={voteStatus.bonus}
+              <DailySpin key={user.id} userId={user.id}
                 onBalance={applySpinBalance} onVote={() => openModal('vote')} />
             </Suspense>
           ) : (

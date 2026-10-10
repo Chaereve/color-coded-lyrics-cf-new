@@ -1,99 +1,226 @@
-.daily-rewards { margin-bottom: 22px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-md); overflow: hidden; }
+.daily-rewards { margin-bottom: 22px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 12px 32px rgb(0 0 0 / .22); }
 .daily-login-page { max-width: 720px; }
-.daily-rewards-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.daily-login-page.has-side { max-width: 960px; }
+.daily-rewards-head { display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in oklab, var(--a) 5%, transparent), transparent); }
 .daily-rewards-head h2 { font-size: 16px; font-weight: 650; margin: 0 0 5px; }
 .daily-rewards-head p { font-size: 12px; color: var(--txt-2); margin: 0; }
 .daily-rewards-reset { display: flex; align-items: center; gap: 9px; font-size: 11px; color: var(--txt-2); }
-.daily-rewards-reset b { font-family: var(--mono); color: var(--txt); font-size: 12px; font-variant-numeric: tabular-nums; }
+.daily-rewards-reset b { font-family: var(--mono); color: var(--txt); font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 9px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); }
 .daily-demo { margin: 12px 20px 0; font-size: 11px; color: var(--txt-2); }
-.daily-missions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; }
-.daily-mission { padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); display: flex; flex-direction: column; align-items: flex-start; }
-.daily-mission.is-complete { border-color: color-mix(in oklab, var(--done) 35%, var(--line)); }
-.daily-mission-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; }
-.daily-mission-icon { display: inline-flex; color: var(--a-2); }
-.daily-mission h3 { margin: 0; font-size: 14px; font-weight: 600; }
-.daily-mission p { margin: 10px 0 16px; font-size: 12px; color: var(--txt-2); line-height: 1.7; }
-.daily-mission .btn { margin-top: auto; min-height: 42px; white-space: normal; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.daily-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; align-items: start; }
+.daily-main, .daily-side { min-width: 0; }
+@media (min-width: 880px) {
+  .daily-login-page.has-side .daily-cols { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  /* Thẻ thưởng bám theo khi cuộn — nội dung cột lịch thường cao hơn nó */
+  .daily-login-page.has-side .daily-side { position: sticky; top: 78px; }
+}
+.daily-claim { margin-top: 4px; }
 .daily-loading { padding: 0 20px 15px; color: var(--txt-2); font-size: 12px; }
-.daily-notice { margin: 0; padding: 0 20px; color: var(--done); font-size: 12px; line-height: 1.7; }
-.daily-notice:not(:empty) { padding-bottom: 16px; }
 .daily-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 16px 20px 0; padding: 12px; border: 1px solid var(--denied); border-radius: var(--r-md); font-size: 12px; color: var(--denied); }
 .daily-error span { flex: 1 1 200px; overflow-wrap: anywhere; }
 .daily-error .btn { min-height: 40px; }
-.daily-rewards-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); background: var(--surface-2); padding: 12px 20px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
-@media (max-width: 620px) {
-  .daily-missions { grid-template-columns: minmax(0, 1fr); padding: 14px; }
-  .daily-rewards-head { padding: 16px 14px; }
-  .daily-rewards-foot { padding: 12px 14px; }
-}
 
-/* Actual monthly check-ins. Only today's cell is actionable; browsing older
-   months reads the same ledger and can never claim a past/future reward. */
+/* ---- Thống kê tháng ---- */
 .check-in-calendar-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .check-in-calendar-nav { display: inline-flex; align-items: center; gap: 6px; }
-.check-in-calendar-month { font-size: 14px; font-weight: 650; min-width: 132px; text-align: center; }
-.check-in-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--surface); color: var(--txt-2); cursor: pointer; }
+.check-in-nav { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); color: var(--txt-2); cursor: pointer; }
 .check-in-nav:hover:not(:disabled) { border-color: var(--a); color: var(--a-2); }
 .check-in-nav:disabled { opacity: .35; cursor: default; }
 .check-in-nav:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 .check-in-calendar-head > span { color: var(--txt-2); font-size: 11px; }
-.check-in-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
-.check-in-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
-.check-in-stat b { display: inline-flex; align-items: center; gap: 4px; font-size: 15px; font-variant-numeric: tabular-nums; }
-.check-in-stat i { font-style: normal; font-size: 10px; color: var(--txt-2); }
-.check-in-stat.is-main b { color: var(--a-2); }
-.check-in-progress { position: relative; height: 8px; margin: 0 0 18px; border-radius: var(--r-pill); background: var(--line-2); }
-.check-in-progress i { display: block; height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--a), var(--done)); transition: width .4s ease; }
-.check-in-progress b { position: absolute; top: -4px; transform: translateX(-50%); display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line-2); color: var(--txt-3); font: 600 8px/1 var(--font); }
-.check-in-progress b.is-reached { border-color: var(--done); color: var(--done); background: color-mix(in oklab, var(--done) 12%, var(--surface)); }
-.check-in-calendar.is-celebrating .check-in-day.is-today { animation: check-in-pop .6s ease; }
-@keyframes check-in-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.12); box-shadow: 0 0 0 6px color-mix(in oklab, var(--done) 18%, transparent); }
-  100% { transform: scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .check-in-calendar.is-celebrating .check-in-day.is-today { animation: none; }
-  .check-in-progress i { transition: none; }
-}
 
+/* ---- Lưới ngày ---- */
 .check-in-calendar { width: 100%; margin: 0 0 18px; }
-.check-in-calendar-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .check-in-calendar-month { font-size: 14px; font-weight: 650; }
-.check-in-calendar-head > span { color: var(--txt-2); font-size: 11px; }
 .check-in-calendar-grid { table-layout: fixed; width: calc(100% + 8px); margin-inline: -4px; border-spacing: 4px; }
 .check-in-calendar-grid caption { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .check-in-calendar-grid th { padding: 2px 0 7px; text-align: center; font-size: 10px; font-weight: 500; color: var(--txt-2); }
 .check-in-calendar-grid abbr { text-decoration: none; }
 .check-in-calendar-grid td { padding: 0; vertical-align: middle; }
-.check-in-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 62px; min-width: 0; padding: 6px 2px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--txt-2); font: inherit; }
+.check-in-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 100%; height: 62px; min-width: 0; padding: 6px 2px; border: 1px solid var(--line); border-radius: var(--r-md); background: color-mix(in oklab, var(--surface) 82%, transparent); color: var(--txt-2); font: inherit; }
 .check-in-day time { font-size: 13px; font-weight: 600; line-height: 1.2; }
-.check-in-day-mark { display: flex; align-items: center; justify-content: center; height: 14px; font-size: 10px; line-height: 1; }
-.check-in-day.is-upcoming { color: var(--txt-3); border-color: transparent; }
-.check-in-day.is-missed { border-color: transparent; background: color-mix(in oklab, var(--surface) 55%, transparent); }
+.check-in-day-mark { display: flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; font-size: 10px; line-height: 1; }
+.check-in-day.is-upcoming { color: var(--txt-3); border-color: color-mix(in oklab, var(--line) 45%, transparent); background: transparent; }
+.check-in-day.is-missed { border-color: transparent; background: color-mix(in oklab, var(--surface) 40%, transparent); color: var(--txt-3); }
 .check-in-day.is-unknown { border-style: dashed; }
-.check-in-day.is-today { border-color: var(--a); color: var(--a-2); background: var(--a-soft); }
-.check-in-day.is-checked { color: var(--done); background: color-mix(in oklab, var(--done) 9%, var(--surface)); border-color: color-mix(in oklab, var(--done) 30%, var(--line)); }
-.check-in-day.is-checked.is-today { border-color: var(--done); }
+/* Ô HÔM NAY — ring gradient + pulse nhẹ, nổi mà không chói */
+.check-in-day.is-today {
+  border-color: transparent;
+  color: var(--a-2);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--a) 26%, var(--surface-3)), color-mix(in oklab, var(--a) 9%, var(--surface)));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--a) 75%, transparent), 0 0 0 7px var(--a-soft), 0 8px 22px color-mix(in oklab, var(--a) 24%, transparent);
+  animation: today-ring 2.6s var(--e-out) infinite;
+}
+@keyframes today-ring {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--a) 75%, transparent), 0 0 0 7px var(--a-soft), 0 8px 22px color-mix(in oklab, var(--a) 24%, transparent); }
+  50% { box-shadow: 0 0 0 2px var(--a-2), 0 0 0 11px color-mix(in oklab, var(--a) 11%, transparent), 0 10px 26px color-mix(in oklab, var(--a) 30%, transparent); }
+}
+/* Đã điểm danh: chấm ✓ xanh trong chip tròn */
+.check-in-day.is-checked { color: var(--txt); background: color-mix(in oklab, var(--done) 10%, var(--surface)); border-color: color-mix(in oklab, var(--done) 30%, var(--line)); }
+.check-in-day.is-checked .check-in-day-mark { background: color-mix(in oklab, var(--done) 22%, transparent); color: var(--done); }
+.check-in-day.is-checked time { color: var(--txt); }
+/* Hôm nay ĐÃ điểm danh: ring về xanh done, dừng pulse (bình tĩnh hơn) */
+.check-in-day.is-checked.is-today {
+  border-color: transparent;
+  color: var(--done);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--done) 20%, var(--surface-3)), color-mix(in oklab, var(--done) 7%, var(--surface)));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--done) 70%, transparent), 0 0 0 7px color-mix(in oklab, var(--done) 12%, transparent), 0 8px 22px color-mix(in oklab, var(--done) 20%, transparent);
+  animation: none;
+}
+.check-in-calendar.is-celebrating .check-in-day.is-today { animation: check-in-pop .6s var(--e-out); }
+@keyframes check-in-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); box-shadow: 0 0 0 6px color-mix(in oklab, var(--done) 18%, transparent); }
+  100% { transform: scale(1); }
+}
 button.check-in-day { cursor: pointer; }
 button.check-in-day:not(:disabled):hover { border-color: var(--a-2); background: color-mix(in oklab, var(--a) 20%, var(--surface)); }
 button.check-in-day:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 button.check-in-day:disabled { cursor: default; }
-.check-in-calendar-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 12px; font-size: 10px; color: var(--txt-2); }
-.check-in-calendar-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.check-in-calendar-legend i { width: 8px; height: 8px; border: 1px solid var(--line-2); border-radius: 2px; }
-.check-in-calendar-legend .is-checked { background: var(--done); border-color: var(--done); }
-.check-in-calendar-legend .is-today { background: var(--a-soft); border-color: var(--a); }
-.check-in-calendar .check-in-calendar-note { margin: 10px 0 0; font-size: 11px; color: var(--txt-2); line-height: 1.7; }
+.check-in-calendar-extra { display: flex; justify-content: flex-end; align-items: baseline; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--txt-2); }
+.check-in-calendar-extra b { font-family: var(--mono); font-weight: 600; color: var(--txt); font-variant-numeric: tabular-nums; }
 .check-in-calendar .check-in-calendar-unavailable { margin: 10px 0 0; padding: 10px; border: 1px dashed var(--line-2); border-radius: var(--r-md); font-size: 11px; line-height: 1.7; color: var(--txt-2); }
 @media (max-width: 620px) {
-  .check-in-day { height: 52px; gap: 5px; border-radius: 6px; }
+  .check-in-day { height: 52px; gap: 4px; border-radius: 8px; }
   .check-in-day time { font-size: 12px; }
   .check-in-calendar-head > span { font-size: 10px; }
-  .check-in-calendar-legend { gap: 8px 14px; }
-  .check-in-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .check-in-calendar-month { min-width: 108px; font-size: 13px; }
+  .daily-claim { width: 100%; }
 }
 
-.check-in-calendar-legend .is-missed { background: var(--txt-3); border-color: var(--txt-3); opacity: .6; }
+/* =========================================================
+   THẺ THƯỞNG — hero: số streak lớn, kính mờ, viền accent trên đỉnh
+   ========================================================= */
+.login-rewards {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
+  border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent);
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(170deg, color-mix(in oklab, var(--a) 8%, transparent), transparent 46%),
+    color-mix(in oklab, var(--surface-2) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 34px rgb(0 0 0 / .26), inset 0 1px 0 rgb(255 255 255 / .045);
+}
+/* Dải accent trên đỉnh thẻ — ba màu trạng thái của chính luật thưởng */
+.login-rewards::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, var(--a), var(--a-2) 46%, var(--done)); opacity: .85; }
+/* Quét sáng khi vừa nhận thưởng */
+.login-rewards::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; background: linear-gradient(105deg, transparent 42%, rgb(255 255 255 / .07) 50%, transparent 58%); background-size: 240% 100%; }
+.login-rewards.is-fete::after { opacity: 1; animation: card-sheen 1.3s var(--e-out); }
+@keyframes card-sheen { from { background-position: 130% 0; } to { background-position: -30% 0; } }
 
+.login-rewards h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; color: var(--txt-2); }
+.login-rewards h3 svg { color: var(--a-2); }
+
+/* HERO — flame badge + số streak lớn (font display, gradient text) */
+.login-rewards-hero { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid color-mix(in oklab, var(--a) 22%, var(--line)); border-radius: var(--r-lg); background: linear-gradient(140deg, color-mix(in oklab, var(--a) 17%, transparent), color-mix(in oklab, var(--done) 6%, transparent) 58%, transparent); }
+.login-rewards-flame { display: grid; place-items: center; flex: 0 0 auto; width: 46px; height: 46px; border-radius: var(--r-lg); color: var(--txt); background: linear-gradient(150deg, var(--a), var(--a-dim)); box-shadow: 0 6px 18px var(--a-glow); }
+.login-rewards-hero-streak { display: flex; flex-direction: column; min-width: 0; }
+.login-rewards-streak-num { font-family: var(--display); font-size: 42px; font-weight: 700; line-height: .95; letter-spacing: -.01em; background: linear-gradient(120deg, var(--a-2), var(--txt)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.login-rewards.is-fete .login-rewards-streak-num { background: linear-gradient(110deg, var(--a-2) 20%, var(--txt) 40%, var(--a-2) 60%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; animation: streak-shimmer 1.5s var(--e-out); }
+@keyframes streak-shimmer { from { background-position: 120% 0; } to { background-position: -60% 0; } }
+.login-rewards-streak-label { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-2); }
+.login-rewards-earn { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin-left: auto; text-align: right; }
+.login-rewards-counter { font-family: var(--mono); font-size: 19px; font-weight: 700; line-height: 1.1; color: var(--a-2); font-variant-numeric: tabular-nums; }
+.login-rewards-earn > span { font-size: 10px; color: var(--txt-2); }
+
+/* FX — số vote bay lên + confetti nhẹ, CHỈ khi vừa nhận thưởng */
+.login-rewards-fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: inherit; }
+.fx-vote { position: absolute; left: var(--fx-x, 20%); bottom: 34%; font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--a-2); text-shadow: 0 2px 12px var(--a-glow); opacity: 0; animation: fx-rise 1.15s var(--e-out) var(--fx-delay, 0ms) forwards; }
+@keyframes fx-rise {
+  0% { opacity: 0; transform: translateY(10px) scale(.85); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-48px) scale(1.05); }
+}
+.fx-confetti { position: absolute; top: -12px; width: 7px; height: 11px; border-radius: 2px; opacity: 0; animation: fx-fall 1.5s ease-in var(--fx-delay, 0ms) forwards; }
+.fx-confetti:nth-child(4n+1) { background: var(--a-2); }
+.fx-confetti:nth-child(4n+2) { background: var(--done); }
+.fx-confetti:nth-child(4n+3) { background: var(--paid); }
+.fx-confetti:nth-child(4n+4) { background: var(--denied); }
+@keyframes fx-fall {
+  0% { opacity: 0; transform: translate(0, -4px) rotate(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--fx-dx, 0px) + var(--fx-drift, 0px)), 215px) rotate(300deg); }
+}
+.fx-confetti:nth-child(2n) { animation-name: fx-fall-alt; }
+@keyframes fx-fall-alt {
+  0% { opacity: 0; transform: translate(0, -4px) rotate(0deg); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--fx-dx, 0px) - var(--fx-drift, 0px)), 215px) rotate(-260deg); }
+}
+
+.login-rewards-live { margin: 0; min-height: 1em; font-size: 11px; color: var(--done); }
+
+/* CHU KỲ 7 NGÀY — segmented bar, ô cuối là ô mốc */
+.login-rewards-cycle { display: flex; flex-direction: column; gap: 7px; }
+.login-rewards-cycle-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--txt-2); }
+.login-rewards-cycle-bar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.login-rewards-cycle-bar i { height: 9px; border-radius: 4px; background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--line-2) 55%, transparent); transition: background .45s var(--e-out), box-shadow .45s var(--e-out); }
+.login-rewards-cycle-bar i.is-on { background: linear-gradient(90deg, var(--a), var(--a-2)); box-shadow: 0 2px 9px color-mix(in oklab, var(--a) 32%, transparent); }
+.login-rewards-cycle-bar i.is-goal { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--paid) 60%, transparent); }
+.login-rewards-cycle-bar i.is-goal.is-on { background: linear-gradient(90deg, var(--paid), var(--a-2)); box-shadow: 0 2px 10px color-mix(in oklab, var(--paid) 38%, transparent); }
+.login-rewards-cycle-bar.is-complete i { animation: cycle-pop .45s var(--e-out) both; }
+.login-rewards-cycle-bar.is-complete i:nth-child(2) { animation-delay: .05s; }
+.login-rewards-cycle-bar.is-complete i:nth-child(3) { animation-delay: .1s; }
+.login-rewards-cycle-bar.is-complete i:nth-child(4) { animation-delay: .15s; }
+.login-rewards-cycle-bar.is-complete i:nth-child(5) { animation-delay: .2s; }
+.login-rewards-cycle-bar.is-complete i:nth-child(6) { animation-delay: .25s; }
+.login-rewards-cycle-bar.is-complete i:nth-child(7) { animation-delay: .3s; }
+@keyframes cycle-pop {
+  0% { transform: scaleY(1); }
+  45% { transform: scaleY(1.7); }
+  100% { transform: scaleY(1); }
+}
+
+/* MỐC 7/30 — chips viên thuốc, progress nội tại, nhịp unlock khi vừa đạt */
+.login-rewards-milestones { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.login-rewards-milestones li { position: relative; overflow: hidden; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-pill); background: color-mix(in oklab, var(--surface) 70%, transparent); }
+.login-rewards-milestones em { font-style: normal; font-size: 10px; color: var(--txt-3); }
+.login-rewards-milestones li.is-done { border-color: color-mix(in oklab, var(--done) 40%, transparent); background: color-mix(in oklab, var(--done) 9%, transparent); }
+.login-rewards-milestones li.is-done em { color: var(--done); }
+.login-rewards-milestones li.just-unlocked { animation: chip-unlock .9s var(--e-out); }
+.login-rewards-milestones li.just-unlocked::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(105deg, transparent 30%, color-mix(in oklab, var(--done) 30%, transparent) 50%, transparent 70%); background-size: 240% 100%; animation: card-sheen .9s var(--e-out); }
+@keyframes chip-unlock {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.05); box-shadow: 0 0 0 5px color-mix(in oklab, var(--done) 16%, transparent); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+.login-rewards-milestone-bar { display: block; height: 5px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.login-rewards-milestone-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--a), var(--a-2)); transition: width .45s var(--e-out); }
+.login-rewards-milestones li.is-done .login-rewards-milestone-bar i { background: linear-gradient(90deg, var(--done), var(--a-2)); }
+.login-rewards-milestone-copy { font-size: 11px; color: var(--txt-2); line-height: 1.5; }
+
+/* BREAKDOWN — từng nguồn thưởng trong ngày */
+.login-rewards-breakdown-title { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--txt-2); }
+.login-rewards-breakdown ul { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.login-rewards-breakdown li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px dashed color-mix(in oklab, var(--line-2) 60%, transparent); font-size: 12px; }
+.login-rewards-breakdown li:last-child { border-bottom: 0; }
+.login-rewards-breakdown li span { color: var(--txt-2); overflow-wrap: anywhere; }
+.login-rewards-breakdown li b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--txt); }
+
+/* CAP — thanh mảnh, màu đi theo mức dùng: xanh → vàng → đỏ (token sẵn có) */
+.login-rewards-cap { display: flex; flex-direction: column; gap: 5px; }
+.login-rewards-cap-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--txt-2); }
+.login-rewards-cap-head b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.login-rewards-cap-bar { height: 5px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.login-rewards-cap-bar i { display: block; height: 100%; border-radius: inherit; background: var(--done); transition: width .5s var(--e-out), background .5s var(--e-out), box-shadow .5s var(--e-out); }
+.login-rewards-cap[data-level="mid"] .login-rewards-cap-bar i { background: var(--paid); }
+.login-rewards-cap[data-level="high"] .login-rewards-cap-bar i { background: var(--denied); box-shadow: 0 0 10px color-mix(in oklab, var(--denied) 45%, transparent); }
+
+/* =========================================================
+   CHUYỂN ĐỘNG CÓ KIỂM SOÁT — reduced-motion tắt hết hiệu ứng trang trí
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .check-in-day.is-today { animation: none; }
+  .check-in-calendar.is-celebrating .check-in-day.is-today { animation: none; }
+  .login-rewards.is-fete::after { animation: none; opacity: 0; }
+  .login-rewards.is-fete .login-rewards-streak-num { animation: none; }
+  .login-rewards-fx { display: none; }
+  .login-rewards-cycle-bar.is-complete i { animation: none; }
+  .login-rewards-milestones li.just-unlocked { animation: none; }
+  .login-rewards-milestones li.just-unlocked::after { animation: none; opacity: 0; }
+  .login-rewards-milestone-bar i, .login-rewards-cap-bar i,
+  .login-rewards-counter, .login-rewards-streak-num, .login-rewards-cycle-bar i { transition: none; }
+}

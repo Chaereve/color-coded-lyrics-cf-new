@@ -1,6 +1,9 @@
 /* Render the actual JSX with Vite's SSR loader, without running browser effects
-   or connecting to Supabase. Guard the requested layout against regressions:
-   head / stage (wheel + action | status card) / footer, 16 honest sectors. */
+   or connecting to Supabase. Guard the RING SPINNER (vòng 5, bản mẫu chủ sở
+   hữu): 20 ô vuông xếp vành kim đồng hồ quanh lõi chữ nhật (conic sweep +
+   nút Spin), đèn chạy vòng với đuôi comet, dừng đúng ô chứa mức SERVER trả —
+   ZERO odds/percentages anywhere, and NO wheel or horizontal reel leftovers
+   (the reel belongs to the Daily Box only). */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
@@ -12,7 +15,7 @@ import react from '@vitejs/plugin-react'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 
-test('Daily Spin renders head, dial with its action, status card and footer', async () => {
+test('Daily Spin renders head, 7×5 ring board with core Spin button — no odds UI', async () => {
   const server = await createServer({
     root, configFile: false, mode: 'test', logLevel: 'error',
     cacheDir: 'node_modules/.vite-spin-ui-test',
@@ -25,187 +28,181 @@ test('Daily Spin renders head, dial with its action, status card and footer', as
     const { default: DailySpin } = await server.ssrLoadModule('/src/components/DailySpin.jsx')
     const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
     const html = renderToStaticMarkup(createElement(I18nProvider, null,
-      createElement(DailySpin, {
-        userId: 'test-user', credits: 12, purchased: 7, bonus: 5,
-        onBalance() {}, onVote() {},
-      })))
+      createElement(DailySpin, { userId: 'test-user', onBalance() {}, onVote() {} })))
 
-    assert.doesNotMatch(html, /<img\b|<image\b|logo-\d|spin-wheel-halo|spin-intro|spin-eyebrow/)
+    /* KHÔNG wheel tròn, KHÔNG reel ngang — reel chỉ thuộc Daily Box.
+       Icon ô là <svg> nội tuyến nên svg ĐƯỢC PHÉP; img/canvas thì không. */
+    assert.doesNotMatch(html, /<img\b|<canvas\b|spin-wheel|spin-sector|reel-track|reel-item/)
+    assert.doesNotMatch(html, /<image\b|logo-\d|spin-intro|spin-eyebrow/)
 
-    // 1. head: title, demo badge and the reset countdown chip (not buried below)
+    // 1. head: title and the reset countdown chip (not buried below)
     const head = html.match(/<header class="spin-head">([\s\S]*?)<\/header>/)?.[1]
     assert.ok(head, 'the section needs a head band')
-    assert.match(head, /Daily bonus wheel/)
+    assert.match(head, /Daily spin/)
+    assert.match(head, /Demo · local data/, 'nhãn demo nằm cạnh tiêu đề')
     assert.match(head, /Next reset/)
     assert.match(head, /--:--:--/)
-    /* Đầu trang CHỈ có tiêu đề + nhãn demo + đồng hồ đếm ngược (vòng 12):
-       dòng "mỗi lượt thắng trung bình 1,75 vote" đã bị gỡ, và test này chốt
-       đúng việc đó — dựng lại nó là hỏng ở đây. */
-    assert.doesNotMatch(head, /1\.75|bonus votes on average/)
 
-    // 2. stage: the wheel and the button that spins it stay in one column
-    const dial = html.match(/<div class="spin-dial">([\s\S]*?)<aside class="spin-panel">/)?.[1]
-    assert.ok(dial, 'stage must keep a dial column and a status card')
-    assert.ok(dial.indexOf('spin-wheel-wrap') < dial.indexOf('spin-button'), 'action sits under the wheel')
-    assert.match(dial, /class="spin-result"/)
-    assert.doesNotMatch(dial, /spin-rules|spin-odds/)
-    /* Không còn câu ghi chú "ô nào cũng có thưởng" nằm dưới nút: luật đó đã
-       hiện ra bằng chính các ô có thưởng trên đĩa. */
-    assert.doesNotMatch(dial, /spin-hint|Every sector wins/)
+    // 2. ZERO odds in the UI: no percentage anywhere, no legend, no odds table.
+    assert.doesNotMatch(html, /\d+%/, 'không phần trăm nào được in trên UI spin')
+    assert.doesNotMatch(html, /spin-legend|spin-odds|odds table/i)
 
-    /* 16 lát vẫn BẰNG NHAU (22,5° mỗi lát — xác suất không đổi), nhưng màu nay
-       đi theo MỨC THƯỞNG: 9 lát +1 cùng một tông, 4 lát +2 tông khác… nhờ vậy
-       mỗi mức thưởng là MỘT VÙNG đọc được. Cách tô xen kẽ theo chẵn/lẻ trước
-       đây khiến hai ô cùng thưởng nằm cạnh nhau vẫn khác màu. */
-    assert.equal((html.match(/class="spin-sector [^"]*"/g) || []).length, 16)
-    assert.equal((html.match(/class="spin-sector t1(?: |")/g) || []).length, 9, '9 lát +1')
-    assert.equal((html.match(/class="spin-sector t2(?: |")/g) || []).length, 4, '4 lát +2')
-    assert.equal((html.match(/class="spin-sector t3(?: |")/g) || []).length, 2, '2 lát +3')
-    assert.equal((html.match(/class="spin-sector t4(?: |")/g) || []).length, 1, 'đúng MỘT lát giải cao nhất')
-    assert.equal((html.match(/class="spin-sector [^"]*weave/g) || []).length, 0,
-      'không còn mẹo tô xen kẽ: ranh giới ô do nét viền vẽ ra')
-    /* LỖI "TRÙNG LẶP SỐ VOTE": mỗi ô từng in một số, nên chín ô +1 in ra chín số
-       1 giống hệt nhau rải quanh đĩa. Nay mỗi mức thưởng in ĐÚNG MỘT lần, ở ô
-       giữa dải — và CHỈ con số thưởng ("+1"), không kèm "×9": số ô của dải đã
-       hiện ra bằng độ dài cung của chính dải đó. */
-    const labels = [...html.matchAll(/class="spin-wheel-number[^"]*"[^>]*>([\s\S]*?)<\/text>/g)]
-      .map(m => m[1].replace(/<[^>]*>/g, '').trim())
-    assert.deepEqual(labels, ['+1', '+2', '+3', '+5'], 'bốn nhãn, một nhãn cho một dải')
-    assert.equal(new Set(labels).size, labels.length, 'không nhãn nào lặp lại')
-    assert.equal((html.match(/class="spin-wheel-number jackpot"/g) || []).length, 1)
-    /* Không nan hoa: hai tông xen kẽ đã tự kẻ ranh giới lát, nên 16 đường kẻ
-       từ trục ra vành chỉ làm bánh xe trông như nan hoa xe đạp. */
-    assert.equal((html.match(/class="spin-wheel-spoke"/g) || []).length, 0, 'không còn nan hoa')
-    /* Bánh xe chỉ còn NĂM lớp: vành + đường tóc ngoài, lát, số, trục, con trỏ.
-       Vành chia độ 48 vạch, mũi chỉ trên trục, chấm trục, đường tóc trong lòng
-       đĩa và cung ăn mừng ngoài vành đều đã bị gỡ — chúng nói lại điều hai
-       tông lát và con trỏ đã nói. */
-    assert.equal((html.match(/class="spin-wheel-tick/g) || []).length, 0, 'không còn vành chia độ')
-    assert.equal((html.match(/class="spin-wheel-hub-mark"/g) || []).length, 0, 'không còn mũi chỉ trên trục')
-    assert.equal((html.match(/class="spin-wheel-seam"/g) || []).length, 0, 'không còn đường tóc trong đĩa')
-    assert.equal((html.match(/class="spin-wheel-rim"/g) || []).length, 1)
-    assert.equal((html.match(/class="spin-wheel-hub"/g) || []).length, 1, 'trục là MỘT đĩa phẳng')
-    /* Chưa có kết quả thì không được có dấu hiệu ăn mừng nào */
-    assert.doesNotMatch(html, /spin-burst|spin-wheel-win-arc|spin-won-num/)
-    assert.match(html, /aria-label="Wheel with 16 equal sectors: 9× \+1, 4× \+2, 2× \+3, 1× \+5 votes/)
-    // Nothing is highlighted before a result exists.
-    assert.doesNotMatch(html, /has-won|is-won|spin-wheel-marker/)
+    // 3. THE RING: exactly 20 tiles around the core — đúng bảng SPIN_RING của
+    //    lib (đết từng mức), mỗi ô có ICON riêng (không phân biệt chỉ bằng màu).
+    const { SPIN_RING } = await server.ssrLoadModule('/src/lib/dailySpin.js')
+    assert.ok(html.includes('class="spin-board'), 'ring board must exist')
+    const tiles = [...html.matchAll(/class="spin-tile r\d[^"]*"/g)]
+    assert.equal(tiles.length, 20, 'đúng 20 ô quanh lõi')
+    const numbers = [...html.matchAll(/<b>\+(\d+)<\/b>/g)].map(m => Number(m[1])).sort((a, b) => a - b)
+    assert.deepEqual(numbers, [...SPIN_RING].sort((a, b) => a - b),
+      'các mức trên board = đúng bảng vành của lib')
+    assert.ok((html.match(/<svg/g) || []).length >= 20,
+      'mỗi ô có icon SVG riêng — icon phân biệt ô, không chỉ màu')
+    assert.match(html, /data-slot="0"/, 'ô mang slot index để đèn chạy tìm đúng ô')
+    assert.match(html, /grid-area:\s*1 \/ 1/, 'ô 0 đặt góc trên-trái qua gridArea')
 
-    // 3. status card: three metrics (spins, purchased, bonus), the slot bar,
-    //    two short rules (the reset line lives in the head chip, not twice)
-    const panel = html.match(/<aside class="spin-panel">([\s\S]*?)<\/aside>/)?.[1]
-    assert.ok(panel)
-    // purchased and bonus balances are shown as their own metrics, not a
-    // combined "Purchased + bonus" number
-    assert.match(panel, /7<small>votes<\/small>/)
-    assert.match(panel, /5<small>votes<\/small>/)
-    assert.match(panel, /<span>Purchased<\/span>/)
-    assert.match(panel, /<span>Bonus<\/span>/)
-    assert.doesNotMatch(panel, /Purchased \+ bonus/)
-    const pips = panel.match(/<span class="spin-pips"[^>]*>([\s\S]*?)<\/span>/)?.[1]
+    // 4. THE CORE: trạng thái + NÚT SPIN thật nằm giữa vành + MỘT vùng live.
+    const core = html.match(/<div class="spin-core">([\s\S]*?)<\/div><\/div>/)?.[1]
+    assert.ok(core, 'lõi chữ nhật phải tồn tại')
+    assert.match(core, /aria-live="polite"/, 'một vùng live duy nhất đọc trạng thái + kết quả')
+    assert.match(core, /<button type="button" class="spin-cta"/, 'nút QUAY thật')
+    assert.match(core, /Win bonus votes/)
+    const boardOpen = html.indexOf('class="spin-board')
+    const coreOpen = html.indexOf('class="spin-core"')
+    const boardClose = html.indexOf('</section>')
+    assert.ok(boardOpen !== -1 && coreOpen !== -1 && boardOpen < coreOpen && coreOpen < boardClose,
+      'nút QUAY nằm giữa vành')
+
+    // 5. side strip EXACTLY three things: remaining+pips · short history ·
+    //    vote link. No odds table, no wallet metrics, no rules.
+    const strip = html.match(/<aside class="spin-strip">([\s\S]*?)<\/aside>/)?.[1]
+    assert.ok(strip)
+    assert.match(strip, /Spins left today/)
+    const pips = strip.match(/<span class="spin-pips"[^>]*>([\s\S]*?)<\/span>/)?.[1]
     assert.equal((pips?.match(/<i /g) || []).length, 2, 'two daily slots, drawn as a bar')
-
-    const rules = panel.match(/<ul class="spin-rules"[^>]*>([\s\S]*?)<\/ul>/)?.[1]
-    assert.ok(rules)
-    assert.equal((rules.match(/<li>/g) || []).length, 2)
-    const words = rules.replace(/<[^>]*>/g, ' ').trim().split(/\s+/)
-    assert.ok(words.length <= 25, 'rules should stay short')
-    assert.match(rules, /2 spins daily, for one account per browser/)
-    /* Mốc reset KHÔNG được nhắc lại ở đây: nó đã là một chip ở đầu khối. */
-    assert.doesNotMatch(rules, /GMT/, 'reset chỉ được nói một lần, ở chip đếm ngược')
-    assert.doesNotMatch(rules, /hardware|fingerprint|cookie|browser ID/i)
-
-    // 4. today's rewards sit in the status card (the odds table is gone from the
-    //    UI on purpose); the spend link stands next to its heading
-    assert.doesNotMatch(html, /spin-odds|spin-chip|<footer class="spin-account"/)
-    assert.match(panel, /<div class="spin-history">/)
-    assert.match(panel, /Today’s rewards/)
-    assert.match(panel, /No spins yet\./)
+    assert.match(strip, /<div class="spin-history">/)
+    assert.match(strip, /Today’s rewards/)
+    assert.match(strip, /No spins yet\./)
+    assert.match(strip, /class="spin-vote-link"/)
+    assert.doesNotMatch(strip, /spin-legend|spin-odds|Purchased|Bonus|spin-rules|%/,
+      'dải phụ chỉ có 3 thứ — không odds, không ví, không phần trăm')
     /* Chưa quay thì KHÔNG in dòng tổng: "+0 vote" là một con số vô nghĩa. */
-    assert.doesNotMatch(panel, /spin-total/)
-    assert.match(panel, /class="spin-vote-link"/)
+    assert.doesNotMatch(strip, /spin-total/)
   } finally {
     await server.close()
   }
 })
 
-
-test('Daily Spin uses flat site colours and opts out of the shared background', async () => {
-  const [pageCss, siteCss] = await Promise.all([
+test('Daily Spin uses the approved palette on the ring and opts out of the shared background', async () => {
+  const [pageCss, siteCss, jsx] = await Promise.all([
     readFile(new URL('./DailySpin.css', import.meta.url), 'utf8'),
     readFile(new URL('../index.css', import.meta.url), 'utf8'),
+    readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8'),
   ])
-  assert.doesNotMatch(pageCss, /(?:linear|radial|conic)-gradient\s*\(/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*background:\s*var\(--surface\)/)
-  /* Ba tông, tất cả là token: hai tông nền xen kẽ + ĐÚNG MỘT tông nhấn cho ô
-     giải cao nhất. Bảng 12 sắc độ cũ (4 bậc × 3 sắc) đã bị gỡ — nếu nó quay
-     lại, bài này phải đỏ. */
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-1:\s*var\(--surface-3\)/)
-  /* Bốn tầng là bốn MÀU, không phải bốn sắc độ xám: +2 xanh tím, +3 hổ phách,
-     +5 vàng đặc (chữ mực đậm cho đủ tương phản trên nền vàng). */
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-2:\s*color-mix\(in oklab, var\(--queued\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-3:\s*color-mix\(in oklab, var\(--progress\)/)
-  assert.match(pageCss, /\.daily-spin\s*\{[^}]*--w-4:\s*var\(--paid\)/)
-  /* Tông lát đi theo MỨC THƯỞNG: mỗi lớp tier trỏ về một token, nên đổi bảng
-     thưởng là đổi luôn bảng màu — không phải sửa tay từng lát. */
-  assert.match(pageCss, /\.spin-sector\s*\{[^}]*fill:\s*var\(--wc/)
-  assert.match(pageCss, /\.spin-sector\.t1\s*\{[^}]*--wc:\s*var\(--w-1\)/)
-  assert.match(pageCss, /\.spin-sector\.t4\s*\{[^}]*--wc:\s*var\(--w-4\)/)
-  /* Ranh giới giữa các ô: nét mảnh màu nền thẻ, nằm trong lát. */
-  assert.match(pageCss, /\.spin-sector\s*\{[^}]*stroke:\s*var\(--surface\)/)
-  assert.doesNotMatch(pageCss, /\.spin-sector\.(?:alt|base)/, 'tông xen kẽ theo chẵn/lẻ đã bị gỡ')
-  /* Nhãn dải CHỈ là con số thưởng — không còn dòng "×9" dưới số. */
-  assert.doesNotMatch(pageCss, /\.spin-wheel-times\s*\{/)
-  assert.doesNotMatch(pageCss, /--w-t\d/, 'bảng 4 bậc thưởng đã bị gỡ')
-  assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
-  // Số thưởng đọc bằng màu chữ của trang; chỉ ô giải cao nhất mới đi chữ trắng.
-  assert.match(pageCss, /\.spin-wheel-number\s*\{[^}]*fill:\s*var\(--txt\)/)
-  assert.match(pageCss, /\.spin-wheel-number\.jackpot\s*\{[^}]*fill:\s*#1a1206/,
-    'chữ trên ô vàng phải là mực đậm (trắng trên vàng chỉ ~2,5:1)')
-  assert.doesNotMatch(pageCss, /--w-\d[abc]/, 'bảng 12 sắc độ đã bị gỡ')
-  // Không quầng sáng màu nhấn: đĩa nổi bằng bóng đổ trung tính.
-  assert.doesNotMatch(pageCss, /box-shadow[^;]*var\(--a-glow\)/, 'bỏ quầng sáng màu')
-  // Con trỏ gõ theo nhịp THẬT do JS đặt (drivePointer), không rung đều vô hạn.
-  assert.doesNotMatch(pageCss, /spinPointerTick|animation:\s*spinPointerTick/)
-  assert.match(pageCss, /\.spin-wheel-pointer svg\s*\{[^}]*transition:\s*transform/)
-  assert.match(pageCss, /\.daily-spin \.btn-primary::after\s*\{[^}]*content:\s*none/)
-  assert.match(pageCss, /prefers-reduced-motion/)
+  /* Bốn tông rarity = bảng màu vòng 5 theo bản mẫu (r0→r3); CTA là #3D05DD. */
+  for (const hex of ['#5D22E1', '#9D5BE8', '#DC94EF', '#FCB0F3', '#3D05DD']) {
+    assert.ok(pageCss.includes(hex), `palette thiếu ${hex}`)
+  }
+  /* Ô giải: gradient nền theo --c; +20 (r3) viền #FCB0F3 + sheen riêng. */
+  assert.match(pageCss, /\.spin-tile\s*\{[^}]*background:\s*linear-gradient/)
+  assert.match(pageCss, /\.spin-tile\.r3\s*\{[^}]*--c:\s*#FCB0F3/)
+  assert.match(pageCss, /\.spin-tile\.r3::after\s*\{/, '+20 có sheen riêng')
+  /* Đèn chạy: ô .on nổi rõ (scale + viền trắng), đuôi comet t1/t2 mờ dần. */
+  assert.match(pageCss, /\.spin-tile\.on\s*\{[^}]*transform:\s*scale/)
+  assert.match(pageCss, /\.spin-tile\.on\s*\{[^}]*box-shadow/)
+  assert.match(pageCss, /\.spin-tile\.t1\s*\{[^}]*scale\(1\.05\)/)
+  assert.match(pageCss, /\.spin-tile\.t2\s*\{[^}]*scale\(1\.02\)/)
+  /* Ô trúng: pulse riêng + board mờ các ô còn lại (không chỉ đổi màu). */
+  assert.match(pageCss, /\.spin-tile\.win\s*\{[^}]*animation:\s*spin-win/)
+  assert.match(pageCss, /\.spin-board\.dim \.spin-tile:not\(\.win\)\s*\{[^}]*opacity/)
+  /* LÕI: quét conic (vành quét chạy quanh lõi) + nền lõi inner. */
+  assert.match(pageCss, /\.spin-core::before\s*\{[^}]*conic-gradient/)
+  assert.match(pageCss, /\.spin-core::after\s*\{[^}]*radial-gradient/)
+  /* Sau khi đáp: tắt vành conic — không để gradient quay mãi. */
+  assert.match(pageCss, /\.spin-board\.dim \.spin-core::before\s*\{[^}]*opacity:\s*0/)
+  assert.match(jsx, /active \? ' is-run'/)
+  /* Nút QUAY #3D05DD, focus ring thấy được, disabled mờ đi. */
+  assert.match(pageCss, /\.spin-cta\s*\{[^}]*background:\s*#3D05DD/)
+  assert.match(pageCss, /\.spin-cta:focus-visible\s*\{[^}]*outline:\s*2px solid/)
+  assert.match(pageCss, /\.spin-cta:disabled\s*\{[^}]*filter:\s*grayscale/)
+  /* Board 7 cột cố định — vành kim đồng hồ cần hình chữ nhật đều nhau. */
+  assert.match(pageCss, /\.spin-board\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*1fr\)/)
+  /* Reduced motion: tắt nhô/zoom, giữ viền + glow tĩnh (trạng thái vẫn đọc được). */
+  assert.match(pageCss, /prefers-reduced-motion[\s\S]*\.spin-tile\.win[\s\S]*animation:\s*none/)
+  /* Vẫn tắt nền động dùng chung của trang spin. */
   assert.match(siteCss, /html\[data-section="spin"\] \.bgfx\s*\{[^}]*display:\s*none/)
+  /* Media query chỉ sống trong CSS — JSX không nhét @media vào inline style. */
+  assert.doesNotMatch(jsx, /@media/)
 })
 
-/* ---------- KÉO ĐĨA (vòng 13, phần dư) ---------- */
+/* ---------- RING SPINNER — luật chạy (source-level contract) ---------- */
 
-test('kéo đĩa: chuột/bút kéo được, ngón tay thì không, và nhả ra mới quay', async () => {
-  const [jsx, pageCss] = await Promise.all([
-    readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('./DailySpin.css', import.meta.url), 'utf8'),
-  ])
+test('ring: 20 ô = bảng lib, hình học kim đồng hồ, icon đủ mọi mức, comet theo slot', async () => {
+  const { spinRingSlot, SPIN_REWARDS } = await import('../lib/dailySpin.js')
+  const jsx = await readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8')
+  /* Board dựng TỪ bảng lib (SPIN_RING.map + spinRingSlot) — không mảng ô cứng
+     trong JSX có thể trượt khỏi hợp đồng. */
+  assert.match(jsx, /SPIN_RING\.map\(\(reward, slot\)/)
+  assert.match(jsx, /spinRingSlot\(slot\)/)
+  /* Icon ô = BỘ CỦA TRANG (Icon.jsx): map đủ 7 mức, thăng hạng theo giá trị. */
+  const mapBlock = jsx.match(/const REWARD_ICON = \{([^}]*)\}/)?.[1] || ''
+  const map = Object.fromEntries([...mapBlock.matchAll(/(\d+):\s*'(\w+)'/g)].map(m => [m[1], m[2]]))
+  for (const reward of SPIN_REWARDS) {
+    assert.ok(map[reward], `REWARD_ICON thiếu icon cho mức +${reward}`)
+  }
+  assert.equal(map[20], 'crown', 'jackpot +20 mang vương miện')
+  assert.match(jsx, /<Icon name=\{REWARD_ICON\[reward\]/, 'ô render icon QUA bộ dùng chung của trang')
+  /* Đuôi comet = 2 ô PHÍA SAU đèn chính theo chiều chạy: (on+19)%20, (on+18)%20. */
+  assert.match(jsx, /\(onSlot \+ 19\) % 20 === slot \? ' t1' : ''/)
+  assert.match(jsx, /\(onSlot \+ 18\) % 20 === slot \? ' t2' : ''/)
+  /* Ô trúng gắn class .win — highlight không dựa vào vị trí đoán. */
+  assert.match(jsx, /winSlot === slot \? ' win' : ''/)
+  /* Hình học &nh đã được lib-test khoá chặt; ở đây chỉ neo 4 điểm mốc. */
+  assert.deepEqual(spinRingSlot(0), [1, 1])
+  assert.deepEqual(spinRingSlot(6), [1, 7])
+  assert.deepEqual(spinRingSlot(10), [5, 7])
+  assert.deepEqual(spinRingSlot(16), [5, 1])
+})
 
-  /* NGUYÊN TẮC: trên máy cảm ứng, kéo một ngón ở giữa màn hình là cuộn trang.
-     Cướp thao tác đó để quay thì trang khó dùng hơn hẳn, mà nút quay 46px đã
-     nằm ngay dưới đĩa. */
-  assert.match(jsx, /e\.pointerType === 'touch'[^\n]*return/,
-    'phải chặn kéo bằng ngón tay ngay đầu dragDown')
-  assert.match(jsx, /onPointerDown=\{canDrag \? drag\.down : undefined\}/,
-    'chỉ gắn tay kéo khi đĩa thật sự kéo được (còn lượt và đang đứng yên)')
+test('spin(): server-decides-first, ≥3 vòng ease-out quint, dừng đúng ô trúng, cleanup sạch', async () => {
+  const jsx = await readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8')
+  /* Server trả xong mới có kế hoạch decel — client KHÔNG chọn giải. */
+  assert.match(jsx, /performDailySpin\(requestId, userId\)/, 'giải đến từ RPC server')
+  assert.match(jsx, /const winIndex = spinSectorIndex\(data\.spin\.segment, rewards\)/,
+    'ô trúng quy đổi từ segment SERVER trả về')
+  assert.match(jsx, /spinRingTarget\(rewards\[winIndex\], ringPos\.current\)/,
+    'ô đáp tất định phía trước vị trí hiện tại')
+  assert.doesNotMatch(jsx, /=\s*Math\.random\(/, 'cấm random client quyết giải')
+  /* Nhịp chạy: ≥ 3 vòng (60 bước) + đủ bước tới đích; delay ease-out quint. */
+  assert.match(jsx, /const RING_RUN_STEPS = 60/, 'tối thiểu 3 vòng trước khi giảm tốc')
+  assert.match(jsx, /RING_RUN_STEPS \+ targetSteps/)
+  assert.match(jsx, /34 \+ 290 \* \(i \/ n\) \*\* 5/, 'đường cong ease-out quint của bản mẫu')
+  assert.match(jsx, /setTimeout\(done, 240\)/, 'một nhịp thấy ô đọng trước khi settle')
+  /* Ô dừng = ô chứa mức server trả; settle: confetti + sfx + đồng bộ lại. */
+  assert.match(jsx, /confettiBurst\(/)
+  assert.match(jsx, /sfx\.spinWin\(/)
+  /* Lỗi: dừng an toàn + trả nút. */
+  assert.match(jsx, /setPhase\('idle'\); setError\(errMsg\(t, e\)\)/)
+  /* Cleanup: mọi timeout nhịp chạy bị xoá khi unmount. */
+  assert.match(jsx, /useEffect\(\(\) => \(\) => \{ mounted\.current = false; clearSpinTimers\(\) \}, \[\]\)/)
+  /* Khóa chống double-submit ngay đầu spin(). */
+  assert.match(jsx, /if \(busy\.current \|\| !status \|\| \(!status\.remaining && !pending\)\) return/)
+  /* Replay: KHÔNG diễn lại màn quay — đặt đèn thẳng vào ô kết quả (tất định). */
+  assert.match(jsx, /if \(data\.replayed\) \{[\s\S]*?settle\(\)/)
+  /* Reduced-motion: nhịp 18ms đều thay vì đường cong dài. */
+  assert.match(jsx, /reducedMotion\(\) \? 18 : 34 \+ 290/)
+  /* Nút giữa bị khoá khi requesting/spinning và khi hết lượt. */
+  assert.match(jsx, /disabled=\{active \|\| loading \|\| !status \|\| \(!remaining && !pending\)\}/)
+})
 
-  /* PHẦN KÉO NẰM Ở LỚP BỌC, KHÔNG Ở ĐĨA: đĩa đã có transform của nhịp quay
-     CSS. Kéo ở lớp bọc rồi cộng dồn lúc nhả ra là cách duy nhất để đĩa không
-     nhảy về vị trí cũ trước khi quay. */
-  assert.match(jsx, /el\.style\.transform = `rotate\(\$\{d\.turned\}deg\)`/)
-  assert.match(jsx, /angle\.current \+= d\.turned/,
-    'lúc nhả phải cộng phần đã kéo vào góc thật TRƯỚC khi gọi lượt quay')
-  assert.match(jsx, /discRef\.current\.style\.transform = `rotate\(\$\{angle\.current\}deg\)`/,
-    'đặt lại transform của đĩa theo góc mới trong cùng khung hình')
-
-  /* Tiếng tách khi kéo: cùng hàm đếm vạch, có sàn thời gian, và đi theo hướng
-     nào cũng kêu (giá trị tuyệt đối). */
-  assert.match(jsx, /dragTicks\(d\.tickAt, d\.turned, \{ ms: now - d\.last \}\)/)
-  assert.match(jsx, /now - d\.lastTick < DRAG_TICK_GAP_MS/)
-  assert.match(jsx, /Math\.min\(3, Math\.abs\(count\)\)/, 'một cú nhích dài không thành tràng tạch tạch')
-
-  /* CSS: hình bàn tay chỉ hiện khi kéo được; lúc kéo thì tắt nhịp đàn hồi. */
-  assert.match(pageCss, /\.spin-wheel-wrap\.can-drag \{[^}]*cursor:\s*grab/)
-  assert.match(pageCss, /\.spin-wheel-wrap\.dragging \{[^}]*transition:\s*none/)
-  assert.match(pageCss, /prefers-reduced-motion[\s\S]*\.spin-wheel-wrap \{[^}]*transition:\s*none !important/)
+test('ring mobile: 7 ô + 6 gap khít bề rộng khung — không tràn ngang 320px', async () => {
+  const pageCss = await readFile(new URL('./DailySpin.css', import.meta.url), 'utf8')
+  /* Board dùng 7×1fr (không % cyclic trong track sizing) và ô aspect-ratio 1 —
+     các ô co theo bề cột, không bao giờ tràn khung 320px. */
+  assert.doesNotMatch(pageCss, /grid-template-columns:[^\n]*100%/,
+    'không % cyclic trong track sizing')
+  assert.match(pageCss, /\.spin-tile\s*\{[^}]*aspect-ratio:\s*1/)
+  /* ≤480px: ẩn phụ đề ô + dòng độ hiếm (theo bản mẫu), chặt gap. */
+  assert.match(pageCss, /@media \(max-width: 480px\)[\s\S]*?\.spin-tile small\s*\{[^}]*display:\s*none/)
+  assert.match(pageCss, /@media \(max-width: 480px\)[\s\S]*?\.spin-cta\s*\{[^}]*padding/)
 })

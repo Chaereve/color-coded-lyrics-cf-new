@@ -1,6 +1,7 @@
 import { hasSupabase, supabase } from './supabaseClient.js'
 import { isCalendarDay, isCalendarMonth, monthOf, monthLength, checkInStats } from './checkInCalendar.js'
 import { nextSpinReset, spinDay } from './dailySpin.js'
+import { LOGIN_REWARD_SOURCES, checkInGrantsFor, applyCap, LOGIN_REWARD_CAP, LOGIN_MILESTONE30_BONUS } from './loginRewards.js'
 
 export const DAILY_LOGIN_CALENDAR_SYNC_KEY = 'ccl.daily.login.calendar.changed.v1'
 const DEMO_KEY = userId => `ccl.daily.login.calendar.demo.v1.${userId}`
@@ -10,19 +11,58 @@ const VN_OFFSET_MS = 7 * 3_600_000
 const STATUS_KEYS = ['user_id', 'day', 'server_now', 'reset_at', 'timezone', 'login']
 const LOGIN_KEYS = ['claimed', 'claimed_days', 'total_days', 'first_day', 'streak', 'best_streak']
 const MONTH_KEYS = ['user_id', 'month', 'day', 'days']
+const REWARD_KEYS = ['user_id', 'day', 'enabled', 'cap', 'cap_used', 'cap_left', 'streak',
+  'cycle_day', 'milestone30_granted', 'today_total', 'breakdown']
+const BREAKDOWN_KEYS = ['source', 'amount']
 
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
 const natural = value => Number.isInteger(value) && value >= 0
 const timestamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
-const readDemo = userId => {
+const readDemoState = userId => {
   try {
     const parsed = JSON.parse(localStorage.getItem(DEMO_KEY(userId)) || '{"days":[]}')
-    return Array.isArray(parsed?.days) ? parsed.days.filter(isCalendarDay).sort() : []
-  } catch { return [] }
+    return {
+      days: Array.isArray(parsed?.days) ? parsed.days.filter(isCalendarDay).sort() : [],
+      milestone30Granted: parsed?.milestone30Granted === true,
+      milestone30Day: isCalendarDay(parsed?.milestone30Day) ? parsed.milestone30Day : null,
+    }
+  } catch { return { days: [], milestone30Granted: false, milestone30Day: null } }
 }
-const writeDemo = (userId, days) => {
-  try { localStorage.setItem(DEMO_KEY(userId), JSON.stringify({ days })) } catch { /* demo only */ }
+const readDemo = userId => readDemoState(userId).days
+const writeDemoState = (userId, state) => {
+  try { localStorage.setItem(DEMO_KEY(userId), JSON.stringify(state)) } catch { /* demo only */ }
+}
+
+/* Demo mode mirrors the SQL policy (20261126/20261127) through loginRewards.js.
+   Production numbers always come from my_login_reward_status — this object is
+   preview-only and never overrides the server. */
+function makeRewardStatus(userId, state, now = Date.now()) {
+  const day = spinDay(now)
+  const stats = checkInStats(state.days, day)
+  const claimedToday = state.days.includes(day)
+  const breakdown = claimedToday
+    ? applyCap(checkInGrantsFor(stats.streak))
+    : []
+  // The 30-day reward belongs to the day it was granted, exactly like the SQL
+  // ledger: once-only for the lifetime, +20 on that day's breakdown.
+  if (claimedToday && state.milestone30Granted && state.milestone30Day === day) {
+    breakdown.push({ source: 'login_milestone30', amount: LOGIN_MILESTONE30_BONUS })
+  }
+  const capUsed = breakdown.reduce((sum, grant) => sum + grant.amount, 0)
+  return {
+    user_id: userId,
+    day,
+    enabled: true,
+    cap: LOGIN_REWARD_CAP,
+    cap_used: capUsed,
+    cap_left: Math.max(0, LOGIN_REWARD_CAP - capUsed),
+    streak: stats.streak,
+    cycle_day: stats.streak === 0 ? 0 : ((stats.streak - 1) % 7) + 1,
+    milestone30_granted: state.milestone30Granted,
+    today_total: capUsed,
+    breakdown,
+  }
 }
 
 function makeStatus(userId, allDays, now = Date.now()) {
@@ -96,6 +136,34 @@ export function validateDailyLoginCalendarMonth(payload, expectedUserId, expecte
   return payload
 }
 
+/* The reward view (20261127). An exact-key contract of its own so the
+   calendar payload could stay byte-compatible for old bundles. */
+export function validateLoginRewardStatus(payload, expectedUserId) {
+  if (!exactKeys(payload, REWARD_KEYS)) throw new Error('err.dailyResponse')
+  if (payload.user_id !== expectedUserId) throw new Error('err.dailyAccountChanged')
+  if (!isCalendarDay(payload.day) || typeof payload.enabled !== 'boolean'
+    || !natural(payload.cap) || payload.cap === 0 || payload.cap > 1000
+    || !natural(payload.cap_used) || !natural(payload.cap_left)
+    || payload.cap_used + payload.cap_left !== payload.cap
+    || !natural(payload.streak) || !natural(payload.cycle_day) || payload.cycle_day > 7
+    || (payload.streak === 0) !== (payload.cycle_day === 0)
+    || typeof payload.milestone30_granted !== 'boolean'
+    || !Array.isArray(payload.breakdown)) {
+    throw new Error('err.dailyResponse')
+  }
+  let total = 0
+  for (const slice of payload.breakdown) {
+    if (!exactKeys(slice, BREAKDOWN_KEYS) || !LOGIN_REWARD_SOURCES.includes(slice.source)
+      || !natural(slice.amount) || slice.amount === 0) throw new Error('err.dailyResponse')
+    total += slice.amount
+  }
+  if (payload.today_total !== total || payload.cap_used !== total
+    || (!payload.enabled && payload.breakdown.length > 0)) {
+    throw new Error('err.dailyResponse')
+  }
+  return payload
+}
+
 async function assertCurrentAccount(expectedUserId) {
   if (!hasSupabase) return
   const { data, error } = await supabase.auth.getUser()
@@ -127,6 +195,22 @@ export async function fetchDailyLoginCalendarStatus(userId) {
   return validateDailyLoginCalendarStatus(payload, userId)
 }
 
+/* Reward view of the same day. NULL means "not available" — the migration has
+   not run, or the owner disabled rewards — and the screen simply hides the
+   reward card instead of breaking the calendar. Any failure degrades the same
+   way: the calendar itself is the feature that must never die. */
+export async function fetchLoginRewardStatus(userId) {
+  if (!userId) return null
+  if (!hasSupabase) return makeRewardStatus(userId, readDemoState(userId))
+  try {
+    await assertCurrentAccount(userId)
+    const payload = await calendarRpc('my_login_reward_status')
+    return payload ? validateLoginRewardStatus(payload, userId) : null
+  } catch {
+    return null
+  }
+}
+
 export async function claimDailyLoginCalendar(userId, expectedDay) {
   if (!userId) throw new Error('err.signin')
   if (!isCalendarDay(expectedDay)) throw new Error('err.dailyDayChanged')
@@ -136,15 +220,32 @@ export async function claimDailyLoginCalendar(userId, expectedDay) {
     // The only client argument is the stale-day guard. The server uses auth.uid().
     result = await calendarRpc('claim_daily_login_calendar', { p_expected_day: expectedDay })
   } else {
-    const before = makeStatus(userId, readDemo(userId))
+    const state = readDemoState(userId)
+    const before = makeStatus(userId, state.days)
     if (before.day !== expectedDay) throw new Error('err.dailyDayChanged')
-    const days = readDemo(userId)
-    const replayed = days.includes(before.day)
-    if (!replayed) writeDemo(userId, [...days, before.day].sort())
-    result = { replayed, status: makeStatus(userId, readDemo(userId)) }
+    const replayed = state.days.includes(before.day)
+    if (!replayed) {
+      const days = [...state.days, before.day].sort()
+      const stats = checkInStats(days, before.day)
+      // Milestone 30 marks done only when the full reward fits under the cap —
+      // same rule as the SQL claim (partial grants retry on later check-ins).
+      const requested = checkInGrantsFor(stats.streak).reduce((sum, g) => sum + g.amount, 0)
+      const paid = applyCap(checkInGrantsFor(stats.streak)).reduce((sum, g) => sum + g.amount, 0)
+      const milestone30JustNow = stats.streak >= 30 && !state.milestone30Granted && paid >= requested
+      const milestone30Granted = milestone30JustNow || state.milestone30Granted
+      writeDemoState(userId, {
+        days,
+        milestone30Granted,
+        milestone30Day: milestone30JustNow ? before.day : state.milestone30Day,
+      })
+    }
+    result = { replayed, status: makeStatus(userId, readDemo(userId)), rewards: makeRewardStatus(userId, readDemoState(userId)) }
   }
   if (!result || typeof result.replayed !== 'boolean') throw new Error('err.dailyResponse')
   result.status = validateDailyLoginCalendarStatus(result.status, userId)
+  // rewards is additive (20261127): absent on a database that has not caught
+  // up, and validated when present. Old bundles ignore it entirely.
+  result.rewards = result.rewards ? validateLoginRewardStatus(result.rewards, userId) : null
   return result
 }
 

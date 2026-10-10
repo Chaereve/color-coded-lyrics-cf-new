@@ -14,6 +14,20 @@ export const DAILY_REWARD_MIGRATIONS = ['20261112_daily_rewards', '20261113_cale
   '20261114_daily_rewards_upgrade', '20261115_daily_quiz_schema', '20261116_daily_quiz_pool',
   '20261117_daily_quiz_flow']
 
+/** B1–B4 files after 20261125. Guarded-runner Postgres tests that pin the
+    20261119–20261125 path must append this tail so CI matches production. */
+export const POST_20261125 = [
+  '20261126_reward_ledger',
+  '20261127_login_streak_rewards',
+  '20261128_achievements_v2',
+  '20261129_mystery_box',
+  '20261201_spin_v2',
+  '20261202_mystery_paid_v2',
+  '20261203_mystery_month',
+  '20261204_mystery_odds',
+  '20261210_vote_back',
+]
+
 const SCAFFOLD = `
   -- Roles live in pg_authid, which is cluster-wide: CREATE DATABASE isolates
   -- tables, schemas and functions but NOT roles, so every parallel test file

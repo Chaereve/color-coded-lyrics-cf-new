@@ -726,7 +726,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
     if (s) out = out.filter(r => `${r.artist} ${r.title}`.toLowerCase().includes(s))
     return sort === 'top'
       ? [...out].sort((a, b) => b.votes - a.votes)
-      : [...out].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      : [...out].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
   }, [rows, q, sort])
 
   const left = Math.max(0, voteStatus.free_limit - voteStatus.free_used)
@@ -737,28 +737,30 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
 
   return (
     <>
-      <div className="card" style={{ marginBottom: 14, padding: 13 }}>
-        <div className="vote-status">
-          <div className="vs-row">
-            <span>{t('vote.freeToday')}</span>
-            <b style={{ color: left > 0 ? 'var(--done)' : 'var(--denied)' }}>{left} / {voteStatus.free_limit}</b>
-          </div>
+      <div className="vp-stats vs-mini">
+        <div className={`vp-cell${left > 0 ? ' is-free' : ' is-empty'}`}>
+          <div className="vp-k">{t('vote.freeToday')}</div>
+          <div className="vp-v">{left} / {voteStatus.free_limit}</div>
           <div className="vs-bar"><i style={{ width: `${(left / voteStatus.free_limit) * 100}%` }} /></div>
-          <div className="vs-row">
-            <span>{t('vote.purchased')}</span>
-            <b style={{ color: 'var(--paid)' }}>{voteStatus.purchased ?? 0}</b>
-          </div>
-          <div className="vs-row">
-            <span>{t('vote.bonus')}</span>
-            <b style={{ color: 'var(--a-2)' }}>{voteStatus.bonus ?? 0}</b>
-          </div>
         </div>
-        {total === 0 && (
-          <button className="btn btn-sm" style={{ width: '100%', marginTop: 11 }} onClick={goBuy}>
-            {t('vote.outBuy')}
-          </button>
-        )}
+        <div className="vp-cell is-paid">
+          <div className="vp-k">{t('vote.purchased')}</div>
+          <div className="vp-v">{voteStatus.purchased ?? 0}</div>
+        </div>
+        <div className="vp-cell is-bonus">
+          <div className="vp-k">{t('vote.bonus')}</div>
+          <div className="vp-v">{voteStatus.bonus ?? 0}</div>
+        </div>
+        <div className="vp-cell is-paid">
+          <div className="vp-k">{t('vp.freePaid')}</div>
+          <div className="vp-v">{voteStatus.bonus_requests ?? 0}</div>
+        </div>
       </div>
+      {total === 0 && (
+        <button className="btn btn-sm" style={{ width: '100%', margin: '-6px 0 14px' }} onClick={goBuy}>
+          {t('vote.outBuy')}
+        </button>
+      )}
 
       <div className="toolbar" style={{ marginBottom: 10 }}>
         <div className="tabs">
@@ -819,6 +821,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const [busy, setBusy] = useState(null)
   const [msg, setMsg] = useState(null)
   const [qty, setQty] = useState(1)
+  const [sel, setSel] = useState(() => VOTE_PACKS[VOTE_PACKS.length - 1].id)
   const [picked, setPicked] = useState(null)
 
   const buy = async (p, label) => {
@@ -837,86 +840,106 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const custom = singlePrice(Math.max(1, Math.min(100, Number(qty) || 1)))
   const best = VOTE_PACKS[VOTE_PACKS.length - 1]
   const saving = (p) => Math.round((1 - (p.usd / p.qty) / SINGLE_VOTE.usd) * 100)
+  const chosen = sel === 'custom' ? custom : (VOTE_PACKS.find(p => p.id === sel) || best)
+  const chosenOff = saving(chosen)
   const orderStatus = (s) => s === 'paid' ? t('order.paid') : s === 'rejected' ? t('order.rejected') : t('order.awaiting')
+  const bumpCustom = (next) => { setSel('custom'); setQty(next) }
 
   return (
     <>
-      <h3 className="section-title">{t('buy.packs')}</h3>
-      <div className="packs">
-        {VOTE_PACKS.map(p => (
-          <div className={`pack${p.id === best.id ? ' best' : ''}`} key={p.id}>
-            {p.id === best.id && <div className="pack-flag">{t('buy.best')}</div>}
-            <b>{p.qty}</b>
-            <div className="u">{t('buy.unit')}</div>
-            <div className="p">{usd(p.usd)}<small>{vnd(p.vnd)}</small></div>
-            {saving(p) > 0 && <div className="pack-save">−{saving(p)}%</div>}
-            <button className={`btn btn-sm${p.id === best.id ? ' btn-primary' : ''}`} style={{ width: '100%', marginTop: 10 }}
-              disabled={busy === p.id} onClick={() => buy(p, t('order.votes', { n: p.qty }))}>
-              {busy === p.id ? '…' : t('buy.order')}
-            </button>
+      <section className="buy-shop">
+        <p className="buy-lead">{t('buy.lead')}</p>
+        <div className="packs" role="listbox" aria-label={t('buy.packs')}>
+          {VOTE_PACKS.map(p => {
+            const unit = usd(Math.round((p.usd / p.qty) * 100) / 100)
+            const off = saving(p)
+            const on = sel === p.id
+            return (
+              <button type="button" role="option" aria-selected={on}
+                className={`pack${p.id === best.id ? ' best' : ''}${on ? ' on' : ''}`} key={p.id}
+                disabled={!!busy} onClick={() => setSel(p.id)}>
+                {p.id === best.id && <span className="pack-flag">{t('buy.best')}</span>}
+                <b>{p.qty}</b>
+                <span className="u">{t('buy.unit')}</span>
+                <span className="p">{usd(p.usd)}<small>{vnd(p.vnd)}</small></span>
+                <span className="pack-unit">{unit} {t('buy.perVote')}</span>
+                {off > 0 && <span className="pack-save">−{off}%</span>}
+              </button>
+            )
+          })}
+        </div>
+        <div className={`buy-custom${sel === 'custom' ? ' on' : ''}`}
+          onClick={() => !busy && setSel('custom')}>
+          <span className="buy-custom-k">
+            {t('buy.single')}
+            <small>{usd(SINGLE_VOTE.usd)} {t('buy.perVote')} · {t('buy.each', { v: vnd(SINGLE_VOTE.vnd) })}</small>
+          </span>
+          <span className="qty" onClick={e => e.stopPropagation()}>
+            <button type="button" disabled={!!busy} onClick={() => bumpCustom(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
+            <input type="number" min="1" max="100" value={qty} disabled={!!busy}
+              onFocus={() => setSel('custom')}
+              onChange={e => bumpCustom(e.target.value)}
+              onBlur={() => bumpCustom(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
+            <button type="button" disabled={!!busy} onClick={() => bumpCustom(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
+          </span>
+          <span className="buyone-total">
+            <b>{usd(custom.usd)}</b>
+            <span>{vnd(custom.vnd)}</span>
+          </span>
+        </div>
+        <div className="buy-checkout">
+          <div className="buy-checkout-info">
+            <b>{t('order.votes', { n: chosen.qty })}</b>
+            <span>{usd(chosen.usd)} · {vnd(chosen.vnd)}</span>
           </div>
-        ))}
-      </div>
-
-      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.single')}</h3>
-      <div className="buyone">
-        <div className="buyone-info">
-          <div className="buyone-rate">{usd(SINGLE_VOTE.usd)} <span>{t('buy.perVote')}</span></div>
-          <div className="buyone-sub">{t('buy.each', { v: vnd(SINGLE_VOTE.vnd) })}</div>
+          {chosenOff > 0 && sel !== 'custom' && <span className="pack-save">{`−${chosenOff}%`}</span>}
+          <button type="button" className="btn btn-gold" disabled={!!busy}
+            onClick={() => buy(chosen, t('order.votes', { n: chosen.qty }))}>
+            {busy ? '…' : t('buy.order')}
+          </button>
         </div>
-        <div className="qty">
-          <button type="button" onClick={() => setQty(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
-          <input type="number" min="1" max="100" value={qty}
-            onChange={e => setQty(e.target.value)}
-            onBlur={() => setQty(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
-          <button type="button" onClick={() => setQty(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
-        </div>
-        <div className="buyone-total">
-          <b>{usd(custom.usd)}</b>
-          <span>{vnd(custom.vnd)}</span>
-        </div>
-        <button className="btn" disabled={busy === 'custom'}
-          onClick={() => buy(custom, t('order.votes', { n: custom.qty }))}>
-          {busy === 'custom' ? '…' : t('buy.order')}
-        </button>
-      </div>
+      </section>
 
       {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
 
-      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.payment')}</h3>
-      <div className="pay-note">
-        {t('buy.payNote1')}<b>{t('buy.payNoteB')}</b>{t('buy.payNote2')}
-      </div>
-      <PaymentMethods amountVnd={lastOrder?.vnd ?? 0} amountUsd={lastOrder?.usd ?? 0} content={userName} />
+      <section className="buy-sec">
+        <h3 className="section-title">{t('buy.payment')}</h3>
+        <div className="pay-note">
+          {t('buy.payNote1')}<b>{t('buy.payNoteB')}</b>{t('buy.payNote2')}
+        </div>
+        <PaymentMethods amountVnd={lastOrder?.vnd ?? 0} amountUsd={lastOrder?.usd ?? 0} content={userName} />
+      </section>
 
-      <h3 className="section-title" style={{ marginTop: 20 }}>{t('buy.yourOrders')}</h3>
-      <div className="support">
-        {t('support.line')}{' '}
-        <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
-      </div>
-      {myOrders.length === 0
-        ? (
-          <div className="empty">
-            <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={18} /></span>
-            <b>{t('buy.noOrders')}</b>
-            <small>{t('buy.noOrdersBody')}</small>
-          </div>
-        )
-        : myOrders.slice(0, 12).map(o => (
-          <div className="adm" key={o.id}>
-            <div className="nm">
-              <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-              <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)}</small>
+      <section className="buy-sec">
+        <h3 className="section-title">{t('buy.yourOrders')}</h3>
+        <div className="support">
+          {t('support.line')}{' '}
+          <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
+        </div>
+        {myOrders.length === 0
+          ? (
+            <div className="empty">
+              <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={18} /></span>
+              <b>{t('buy.noOrders')}</b>
+              <small>{t('buy.noOrdersBody')}</small>
             </div>
-            <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
-              {orderStatus(o.status)}
-            </span>
-            {o.status === 'awaiting' && onCancelOrder && (
-              <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
-            )}
-          </div>
-        ))}
+          )
+          : myOrders.slice(0, 12).map(o => (
+            <div className="adm" key={o.id}>
+              <div className="nm">
+                <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
+                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)}</small>
+              </div>
+              <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
+                {orderStatus(o.status)}
+              </span>
+              {o.status === 'awaiting' && onCancelOrder && (
+                <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
+                  onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
+              )}
+            </div>
+          ))}
+      </section>
     </>
   )
 }

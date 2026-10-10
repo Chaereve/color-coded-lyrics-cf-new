@@ -2,26 +2,38 @@
    exclusively from Supabase; none of these helpers authorizes a real reward. */
 export const DAILY_SPIN_LIMIT = 2
 
-/* Sixteen EQUAL sectors, clockwise from twelve o'clock. Equal sectors matter:
-   the server draws one sector uniformly, so the slice a player sees IS the real
-   chance — no thin slice secretly paying like a fat one.
-     +1 vote  x9 = 56.25%   |  +2 votes x4 = 25%
-     +3 votes x2 = 12.5%    |  +5 votes x1 = 6.25%  (jackpot, at six o'clock)
-   Average 1.75 votes per spin, 3.5 per day, most 10 per day. Every spin wins.
-   The count must stay a divisor of 256 so one random byte needs no rejection
-   sampling (both SQL and the tests check this).
+/* Seven WEIGHTED sectors, clockwise from twelve o'clock. The odds are explicit,
+   not a byproduct of counting slices — and the arc a player sees is EXACTLY as
+   wide as its weight (360° × weight / 100), so the slice on screen IS the real
+   chance:
+     +1  30%  | +2  25%  | +3  20%  | +5  12%
+     +8   8%  | +10  4%  | +20  1%  (jackpot, at six o'clock)
+   Average 3.24 votes per spin, 6.48 per day at two spins. Every spin wins.
+   The two tables must agree (same length, weights summing to 100) — the server
+   refuses to draw otherwise (err.spinSetup), and because 256 % 7 <> 0 the SQL
+   side draws through rejection sampling (two bytes, see 20261201_spin_v2.sql);
+   this side samples r over the weight total directly, which is the same
+   distribution without any rejection.
 
    MỘT LUẬT CHỒNG LÊN, KHÔNG ĐỔI BẢNG THƯỞNG: cùng một số thưởng không được ra
-   quá 2 lần liên tiếp trên cùng một thiết bị (chủ dự án chốt 19/09 — 9/16 ô là
-   "+1", nên ba lượt liền ra +1 là chuyện thường về xác suất nhưng đọc ra thành
-   "vòng quay gian"). Luật nằm ở `drawSegment` dưới đây và ở `spin_daily` trong
-   `supabase/migrations/20261104_spin_streak.sql` — hai bên phải luôn khớp. */
-export const SPIN_REWARDS = Object.freeze([1, 2, 1, 3, 1, 1, 2, 1, 5, 1, 2, 1, 3, 1, 2, 1])
+   quá 2 lần liên tiếp trên cùng một thiết bị (chủ dự án chốt 19/09 — với giải
+   nhỏ trúng liên tiếp là chuyện thường về xác suất nhưng đọc ra thành "vòng
+   quay gian"). Với 7 ô, mỗi giá trị sở hữu đúng MỘT ô, nên bị chặn = loại đúng
+   một dải. Luật nằm ở `drawSegment` dưới đây và ở `spin_daily` trong
+   `supabase/migrations/20261201_spin_v2.sql` — hai bên phải luôn khớp. */
+export const SPIN_REWARDS = Object.freeze([1, 2, 3, 5, 8, 10, 20])
+export const SPIN_WEIGHTS = Object.freeze([30, 25, 20, 12, 8, 4, 1])
 export const SPIN_TIME_ZONE = 'Asia/Ho_Chi_Minh'
 const DAY = 86_400_000
 const VN_OFFSET = 7 * 3_600_000
-const TIERS = ['t1', 't2', 't3', 't4']
-const mod360 = n => ((n % 360) + 360) % 360
+const TIERS = ['t1', 't2', 't3', 't4', 't5', 't6', 't7']
+
+/* Trọng số của một bảng thưởng: dùng bảng đã duyệt nếu khớp độ dài, ngược lại
+   rơi về ĐỀU NHAU. Bản deploy cũ (hoặc một payload thiếu `weights`) phải vẽ
+   được đúng hình của chính nó — mỗi ô một cung bằng nhau — chứ không mượn odds
+   của bảng v2. */
+const weightsOf = (rewards, weights) =>
+  Array.isArray(weights) && weights.length === rewards.length ? weights : rewards.map(() => 1)
 
 export function spinDay(now = Date.now()) {
   return new Date(+new Date(now) + VN_OFFSET).toISOString().slice(0, 10)
@@ -38,23 +50,34 @@ export function streakBlocked(recent = []) {
   return recent.length >= 2 && recent[0] === recent[1] ? recent[0] : null
 }
 
-/* Chọn ô để kim dừng. Không chặn gì thì rút đều trên 16 ô như cũ; đang bị chặn
-   thì hẹp tập ô lại rồi rút đều TRONG TẬP ĐÓ — chứ không rút rồi rút lại, vì
-   cách đó vừa lệch xác suất vừa có thể lặp vô hạn. */
-export function drawSegment({ rewards = SPIN_REWARDS, recent = [], random = Math.random } = {}) {
+/* Chọn ô để kim dừng. Rút theo TRỌNG SỐ: một số r 0..tổng trọng số-1 rơi vào
+   dải tích luỹ nào thì ô đó thắng. Đang bị chặn thì dải mang số bị chặn bị
+   LOẠI ngay từ đầu, tổng co lại theo — phân phối còn lại đúng bằng phân phối
+   cũ có điều kiện (chính xác, không rút-rồi-rút-lại). */
+export function drawSegment({ rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS, recent = [], random = Math.random } = {}) {
+  const w = weightsOf(rewards, weights)
   const blocked = streakBlocked(recent)
-  const allowed = blocked == null ? null : rewards.map((r, i) => (r === blocked ? -1 : i)).filter(i => i >= 0)
-  const pool = allowed && allowed.length ? allowed : rewards.map((_, i) => i)
-  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
+  let pool = rewards.map((reward, i) => ({ reward, i, weight: w[i] }))
+  if (blocked != null) {
+    const allowed = pool.filter(p => p.reward !== blocked && p.weight > 0)
+    if (allowed.length) pool = allowed
+  }
+  const total = pool.reduce((sum, p) => sum + p.weight, 0)
+  if (total <= 0) return 0
+  let r = Math.floor(random() * total)
+  for (const p of pool) {
+    r -= p.weight
+    if (r < 0) return p.i
+  }
+  return pool[pool.length - 1].i
 }
 
-export function rewardOdds(rewards = SPIN_REWARDS) {
-  const counts = new Map()
-  for (const reward of rewards) counts.set(reward, (counts.get(reward) || 0) + 1)
-  return [...counts].sort(([a], [b]) => a - b)
-    .map(([reward, count]) => ({
-      reward, count, chance: count * 100 / rewards.length, tier: spinTier(reward, rewards),
-    }))
+export function rewardOdds(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
+  const w = weightsOf(rewards, weights)
+  const total = w.reduce((sum, x) => sum + x, 0)
+  return rewards.map((reward, i) => ({
+    reward, weight: w[i], chance: w[i] * 100 / total, tier: spinTier(reward, rewards),
+  }))
 }
 
 /* Brighter slice = rarer, bigger prize. Derived from the reward list itself, so
@@ -64,176 +87,92 @@ export function spinTier(reward, rewards = SPIN_REWARDS) {
   return TIERS[Math.min(TIERS.length - 1, Math.max(0, values.indexOf(reward)))]
 }
 
-/* THỨ TỰ VẼ — khác thứ tự RÚT.
+/* THỨ TỰ VẼ = THỨ TỰ RÚT.
    -----------------------------------------------------------
-   Bảng rút vẫn là 16 ô bằng nhau (server rút đều trên 16 ô, xem SPIN_REWARDS)
-   nhưng THỨ TỰ VẼ thì khác: các ô cùng giá trị được gom thành MỘT DẢI LIỀN, và
-   mỗi dải chỉ in số thưởng MỘT lần ở ô giữa dải, kèm số ô của dải ("×9").
+   Bảng rút là 7 ô với trọng số đã duyệt (SPIN_WEIGHTS); server rút qua các dải
+   tích luỹ 30|55|75|87|95|99|100 và trả về chỉ số ô trong chính bảng này, nên
+   ô vẽ thứ i chính là ô rút thứ i — không còn bước "gom ô cùng thưởng thành
+   dải" của bản 16 ô. Mỗi ô là MỘT dải, độ rộng cung = trọng số, và cả vòng
+   được xoay để tâm ô giải cao nhất (giá trị lớn nhất) rơi đúng 180° (6 giờ),
+   đối diện con trỏ — như hai bản trước.
 
-   Vì sao: vẽ đúng thứ tự rút thì chín ô "+1" nằm rải rác và mỗi ô in một số 1 —
-   trên đĩa có chín số 1 giống hệt nhau, đúng thứ bị báo là "trùng lặp số vote".
-   Xác suất KHÔNG đổi (vẫn 16 ô bằng nhau, 22,5° mỗi ô); chỉ có cách bày biến
-   đổi, nên góc nhìn vẫn là xác suất thật: dải nào dài gấp đôi thì khả năng
-   trúng gấp đôi.
-
-   Dải giải cao nhất được đặt nằm chính giữa 6 giờ như trước. */
-export function spinSectors(rewards = SPIN_REWARDS) {
-  const total = rewards.length
-  const step = 360 / total
-  const groups = rewardOdds(rewards)                       // tăng dần theo giá trị
-  const last = groups[groups.length - 1]
-  const before = groups.slice(0, -1).reduce((n, g) => n + g.count, 0)
-  /* TÂM ô giữa của dải cuối rơi vào 180° (6 giờ). Khung gốc đặt tâm ô thứ
-     `slot` ở đúng `slot × 22,5°`, nên phần dịch được tính bằng SỐ Ô rồi mới
-     nhân với bước — trộn hai đơn vị vào nhau là lệch nửa ô, và kim sẽ dừng
-     ngay trên đường kẻ giữa hai ô thay vì giữa ô trúng. */
-  const shift = 180 / step - (before + (last.count - 1) / 2)
-  const sectors = []
-  let slot = 0
-  for (const group of groups) {
-    for (let k = 0; k < group.count; k++, slot++) {
-      sectors.push({
-        reward: group.reward,
-        count: group.count,
-        tier: spinTier(group.reward, rewards),
-        slot: k,                                  // ô thứ mấy TRONG dải (0..n-1)
-        // nhãn in ở ô giữa dải; dải lẻ thì lệch về ô giữa-trái một ô
-        label: k === Math.floor((group.count - 1) / 2),
-        angle: mod360((slot + shift) * step),     // tâm ô, độ, 0° = 12 giờ
-      })
-    }
-  }
-  return sectors
-}
-
-/* Ô TRÚNG theo thứ tự VẼ: server trả về chỉ số ô trong bảng rút (0..15), ở đó
-   các ô cùng giá trị nằm rải rác. Bản vẽ gom chúng lại nên phải quy đổi: đếm
-   xem ô trúng là ô thứ mấy trong NHÓM của nó, rồi tìm đúng ô đó trong dải. */
+   Trả về { reward, weight, tier, from, span, angle } với `from`/`span` là cung
+   hiển thị (độ) và `angle` là tâm ô, 0° = 12 giờ. Mỗi ô tự nó là một nhãn. */
+/* Ô TRÚNG theo CHỈ SỐ BẢNG RÚT: server rút segment 0..6 và client PHẢI dùng
+   đúng chỉ số đó để tra mức giải — không chọn lại, không random client.
+   Sai biên (segment rác) là dữ liệu hỏng từ server (err.spinResponse). */
 export function spinSectorIndex(segment, rewards = SPIN_REWARDS) {
   if (!Number.isInteger(segment) || segment < 0 || segment >= rewards.length) {
     throw new Error('err.spinResponse')
   }
-  const reward = rewards[segment]
-  const nth = rewards.slice(0, segment + 1).filter(r => r === reward).length - 1
-  let seen = -1
-  const sectors = spinSectors(rewards)
-  for (let i = 0; i < sectors.length; i++) {
-    if (sectors[i].reward !== reward) continue
-    if (++seen === nth) return i
-  }
-  /* Không tới được: mọi ô trúng đều có mặt trong bản vẽ. */
-  throw new Error('err.spinResponse')
+  return segment
 }
 
-export function spinTiers(rewards = SPIN_REWARDS) {
-  return Object.fromEntries([...new Set(rewards)].map(reward => [reward, spinTier(reward, rewards)]))
-}
-
-export function spinAverage(rewards = SPIN_REWARDS) {
-  return rewards.reduce((total, reward) => total + reward, 0) / rewards.length
-}
-
-/* 56.25 / 25 / 12.5 / 6.25 — never 56.25000000000001 in the odds table. */
-export function formatChance(chance) {
-  return String(Math.round(chance * 100) / 100)
-}
-
-/* GÓC DỪNG CỦA ĐĨA — tính theo GÓC CỦA Ô TRÚNG TRÊN BẢN VẼ, không theo chỉ số.
-   ------------------------------------------------------------------
-   LỖI THẬT (vòng 13 — "quay ra ko đúng phần thưởng"): hàm này từng nhận chỉ số
-   ô trong BẢNG RÚT và quy ra góc bằng `segment × 360/n`. Cách đó chỉ đúng khi
-   bản vẽ giữ nguyên thứ tự rút. Nhưng bản vẽ đã GOM các ô cùng thưởng thành
-   dải liền và dịch cả vòng (xem `spinSectors`), nên ô rút thứ 7 không còn nằm ở
-   7 × 22,5° nữa — kim dừng đúng chỗ "theo công thức" nhưng chỗ đó là ô KHÁC,
-   trong khi ô được tô sáng lại là ô đúng. Người chơi thấy đĩa nói một đằng, con
-   số nói một nẻo.
-
-   Nay hợp đồng là: truyền vào GÓC TÂM của ô trúng trên bản vẽ
-   (`sectors[spinSectorIndex(segment)].angle`), và đĩa quay sao cho tâm ô đó
-   dừng ở 0° (12 giờ). Số vòng quay tối thiểu 5 vòng giữ nguyên. */
-export function spinRotation(current, angle) {
-  if (!Number.isFinite(angle)) throw new Error('err.spinResponse')
-  const mod = n => ((n % 360) + 360) % 360
-  return current + 5 * 360 + mod(-angle - mod(current))
-}
-
-/* ĐĨA DỪNG Ở Ô NÀO? — phép kiểm ngược của `spinRotation`, dùng cho test và cho
-   bất cứ ai cần biết "kim đang chỉ vào ô nào sau khi quay R độ". */
-export function sectorAtPointer(rotation, sectors) {
-  const mod = n => ((n % 360) + 360) % 360
-  const step = 360 / sectors.length
-  const at = mod(-rotation)
-  /* Tâm ô nằm trên lưới `step` độ (spinSectors bảo đảm điều đó), nên làm tròn
-     tới lưới là đủ và không phụ thuộc sai số dấu phẩy động. */
-  const slot = mod(Math.round(at / step)) % sectors.length
-  return sectors.find(s => mod(s.angle) === slot * step) ?? null
-}
-
-/* ---- tiếng "tách" khi mép ô chạy qua kim ----------------------------------
-   Đĩa quay theo cubic-bezier(.12,.72,.12,1) đúng như CSS, nên lịch phát tiếng
-   phải bám vào chính đường cong đó: dồn dập lúc đầu, thưa dần khi sắp dừng.
-   Hàm thuần, không đụng Web Audio, để test chạy được ngoài trình duyệt. */
-const EASE = { x1: .12, y1: .72, x2: .12, y2: 1 }
-const bez = (a, b, t) => { const u = 1 - t; return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t }
-
-/** Thời điểm (giây) mỗi mép ô đi qua kim, kèm "độ mạnh" 0..1 theo tốc độ.
-    Bỏ bớt tiếng cách nhau dưới `minGap` để lúc quay nhanh không thành tiếng ù. */
-export function spinTicks(totalDeg, count = SPIN_REWARDS.length, durationMs = 4500,
-  { minGap = 0.05, maxTicks = 140 } = {}) {
-  if (!(durationMs > 0) || !(totalDeg > 0) || !(count > 0)) return []
-  const crossings = totalDeg / (360 / count)
-  const samples = 2000
-  const ticks = []
-  let next = 1, prevY = 0, prevX = 0
-  for (let i = 1; i <= samples && next <= crossings; i++) {
-    const t = i / samples
-    const x = bez(EASE.x1, EASE.x2, t)      // phần thời gian đã trôi, 0..1
-    const y = bez(EASE.y1, EASE.y2, t)      // phần góc đã quay, 0..1
-    // tốc độ tức thời, chuẩn hoá theo tốc độ trung bình → dùng làm âm lượng
-    const speed = (y - prevY) / Math.max(1e-9, x - prevX)
-    while (next <= y * crossings && next <= crossings) {
-      const at = Math.round(x * durationMs) / 1000
-      if (!ticks.length || at - ticks[ticks.length - 1].at >= minGap) {
-        ticks.push({ at, gain: Math.min(1, Math.max(.3, 1 / (1 + speed * .5))) })
-      }
-      next++
-    }
-    prevY = y; prevX = x
-  }
-  return ticks.length > maxTicks ? ticks.slice(ticks.length - maxTicks) : ticks
-}
 
 /* =========================================================
-   KÉO ĐĨA BẰNG TAY — đếm vạch để tiếng tách bám đúng tay
+   SQUARE GRID SPINNER — bản đồ 8 ô viền (spec chốt 2026-10-09)
    ---------------------------------------------------------
-   Khi máy tự quay, `spinTicks` tính trước CẢ đường cong rồi xếp lịch một lần:
-   biết trước đĩa đi bao nhiêu độ, trong bao lâu, nên biết trước từng mốc vạch
-   đi qua kim. Kéo bằng tay thì ngược lại — mỗi lần con trỏ nhích, ta chỉ biết
-   "vừa đi thêm bao nhiêu độ". Vì vậy phải hỏi TỪNG NHỊP: từ góc này sang góc
-   kia thì mấy vạch đã đi qua, và tiếng đó to nhỏ ra sao.
+   KHÔNG wheel tròn, KHÔNG reel ngang cho Spin: lưới 3×3, 8 ô quanh viền chạy
+   vệt sáng theo CHIỀU KIM ĐỒNG HỒ, ô giữa là nút QUAY. Bảy giải thật + MỘT ô
+   accent (điểm nhấn thị giác — KHÔNG thuộc bảng rút, KHÔNG bao giờ là ô
+   dừng). `reward: null` = accent.
+   ========================================================= */
+/* =========================================================
+   RING 20 Ô — mẫu vòng 5 (bản mẫu HTML của chủ sở hữu, 2026-10-09)
+   ---------------------------------------------------------
+   20 ô vuông BAO QUANH một lõi chữ nhật: CSS grid 7×5, lõi chiếm
+   grid-area 2/2/5/7. Vị trí ô theo CHIỀU KIM ĐỒNG HỒ:
+     hàng trên  (slot 0–6)  : row 1, col 1..7
+     cột phải   (slot 7–9)  : col 7, row 2..4
+     hàng dưới  (slot 10–16): row 5, col 7..1
+     cột trái   (slot 17–19): col 1, row 4..2
+   SPIN_RING[slot] = mức giải đặt tại ô đó — 20 ô lặp lại 7 mức THEO TRỌNG
+   SỐ (1×5 · 2×4 · 3×4 · 5×2 · 8×2 · 10×2 · 20×1 = 20, giống tỉ lệ rút),
+   xen kẽ để hai ô kề nhau không trùng mức. Server trả MỨC GIẢI → spinRing-
+   Target chọn ô ĐÍCH tất định (m ứng viên trước vị trí hiện tại) — client
+   không random, không tự chọn thưởng.
+   ========================================================= */
+export const SPIN_RING = [3, 2, 1, 5, 2, 8, 1, 10, 3, 2, 5, 1, 8, 3, 10, 2, 1, 20, 3, 1]
 
-   Hàm thuần để đếm vạch kiểm được ngoài trình duyệt (không cần Web Audio).
-
-   `trunc` chứ không phải `floor`: kéo ngược chiều kim đồng hồ phải kêu y như
-   kéo xuôi. Với `floor`, một góc âm nhỏ (-10°) bị tính thành -1 vạch ngay khi
-   vừa chạm tay vào đĩa — tiếng tách kêu trước cả khi đĩa kịp nhúc nhích.
-
-   `gain` theo TỐC ĐỘ kéo (độ/giây): kéo chậm thì tiếng nhẹ, kéo mạnh thì tiếng
-   rõ. Sàn 0,45 vì tiếng tách quá nhỏ thì coi như không có; trần 1 vì trên
-   ngưỡng đó tai không phân biệt thêm được gì, chỉ có nguy cơ chói. */
-
-export const DRAG_SECTOR_DEG = 22.5      // một vạch = một ô trên bản vẽ (360/16)
-export const DRAG_MIN_DEG = 40           // kéo dưới ngưỡng này coi như chạm hụt
-export const DRAG_TICK_GAP_MS = 45       // nhanh hơn nữa là tiếng ù, không phải nhịp
-
-export function dragTicks(fromDeg, toDeg, { sectorDeg = DRAG_SECTOR_DEG, ms = 0 } = {}) {
-  if (!(sectorDeg > 0) || !Number.isFinite(fromDeg) || !Number.isFinite(toDeg)) {
-    return { count: 0, gain: .6 }
+/* Vị trí CSS grid (row/col, 1-based) của từng slot — test chốt khớp vòng. */
+export function spinRingSlot(slot) {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= SPIN_RING.length) {
+    throw new Error('err.spinResponse')
   }
-  const count = Math.trunc(toDeg / sectorDeg) - Math.trunc(fromDeg / sectorDeg)
-  const speed = ms > 0 ? Math.abs(toDeg - fromDeg) / (ms / 1000) : 0
-  const gain = Math.min(1, Math.max(.45, .45 + speed / 900))
-  return { count, gain }
+  if (slot < 7) return [1, slot + 1]
+  if (slot < 10) return [slot - 5, 7]
+  if (slot < 17) return [5, 17 - slot]
+  return [21 - slot, 1]   // slot 17/18/19 → (4,1) (3,1) (2,1)
+}
+
+/* Ô ĐÍCH tất định cho mức giải `reward`, chạy TIẾP theo chiều kim đồng hồ
+   từ slot `from`: chọn ứng viên CÁCH NHỎ NHẤT phía trước (mức lặp nhiều ô —
+   dừng ở ô kế tiếp trông tự nhiên nhất, và tuyệt đối tất định). Không có
+   ứng viên = mức lạ từ server → err.spinResponse. Trả về số bước tới đích
+   (1..20). */
+export function spinRingTarget(reward, from, ring = SPIN_RING) {
+  const candidates = []
+  ring.forEach((value, slot) => { if (value === reward) candidates.push(slot) })
+  if (!candidates.length) throw new Error('err.spinResponse')
+  const n = ring.length
+  const start = (Number.isInteger(from) && from >= 0 && from < n ? from : 0)
+  let best = null
+  for (const slot of candidates) {
+    const steps = 1 + ((slot - start - 1) % n + n) % n   // 1..n, luôn tiến
+    if (best === null || steps < best) best = steps
+  }
+  return best
+}
+
+export function spinAverage(rewards = SPIN_REWARDS, weights = SPIN_WEIGHTS) {
+  const w = weightsOf(rewards, weights)
+  const total = w.reduce((sum, x) => sum + x, 0)
+  return rewards.reduce((sum, reward, i) => sum + reward * w[i], 0) / total
+}
+
+/* 30 / 25 / 20 / 12 / 8 / 4 / 1 — never 33.333333333333336 in the odds list. */
+export function formatChance(chance) {
+  return String(Math.round(chance * 100) / 100)
 }
 
 export function spinCountdown(ms) {
@@ -260,12 +199,13 @@ export function demoSpinStatus({ entries, deviceToken, userId, credits, purchase
     remaining: deviceAccountBlocked ? 0 : Math.max(0, DAILY_SPIN_LIMIT - Math.max(deviceUsed, mine.length)),
     credits: total, purchased: purchased || 0, bonus: bonus || 0,
     rewards: [...SPIN_REWARDS],
+    weights: [...SPIN_WEIGHTS],
     history: mine.map(({ request_id, reward, segment, created_at, day }) =>
       ({ request_id, reward, segment, created_at, day })).reverse(),
   }
 }
 
-export function drawDemoSpin({ entries, deviceToken, userId, requestId, now = Date.now(), random = Math.random }) {
+export function drawDemoSpin({ entries, deviceToken, userId, requestId, now = Date.now(), random = Math.random } = {}) {
   if (!userId) throw new Error('err.signin')
   if (!requestId) throw new Error('err.spinRequest')
   const previous = entries.find(s => s.user_id === userId && s.request_id === requestId)
@@ -304,6 +244,13 @@ export function validateSpinResult(result, userId, requestId) {
     || spin.reward !== status.rewards[spin.segment]
     || !Number.isInteger(status.remaining) || status.remaining < 0 || status.remaining > DAILY_SPIN_LIMIT
     || !Number.isInteger(status.credits)) throw new Error('err.spinResponse')
+  // Bảng trọng số (v2) luon di kem rewards; backend cu khong gui — vang mat thi
+  // bo qua, con gui len thi phai dung do dai va la so nguyen khong am.
+  if (status.weights != null && (!Array.isArray(status.weights)
+    || status.weights.length !== status.rewards.length
+    || !status.weights.every(x => Number.isInteger(x) && x >= 0))) {
+    throw new Error('err.spinResponse')
+  }
   // So du tach loai (vote da mua / bonus) chi co tren backend moi; backend cu
   // chi tra tong credits. Co thi phai la so nguyen khong am, khong ep tong.
   for (const k of ['purchased', 'bonus']) {

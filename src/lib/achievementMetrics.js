@@ -30,6 +30,14 @@ export function achievementRequestMetrics (requests, orders, ranking, userId) {
     requests: grouped.length,
     completed: grouped.filter(work => work.completed).length,
     paidRequests: grouped.filter(work => work.paid).length,
+    /* "Picked" is the one-time fact the firstPick achievement reads: any of
+       this user's requests entered Up next (picked_at set). The column is
+       cleared again on completion — B4's vote-back latch/ledger keeps the
+       pick-payout history, but firstPick still looks at picked_at, so
+       progress may legitimately read 0 for an old completed pick.
+       firstVoteBack is NOT derived here: the server ORs vote_back_owner and
+       vote_back_voter (EXISTS → 1). Do not sum those two sources. */
+    picked: (requests || []).some(request => request?.picked_at),
     rank: achievementRank(ranking, userId),
   }
 }

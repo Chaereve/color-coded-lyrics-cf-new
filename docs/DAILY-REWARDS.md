@@ -8,6 +8,174 @@
 > không còn là hướng dẫn vận hành. Xem `docs/DAILY-QUIZ-RETIREMENT.md` để biết
 > cái gì còn, cái gì mất, và danh sách object cho giai đoạn dọn dẹp sau.
 
+## 2026-10 B4: Vote-back 10% khi request được PICKED
+
+> Đã duyệt và **đã apply production** (2026-10-10, run
+> [38044695921](https://github.com/Chaereve/color-coded-lyrics-cf-new/actions/runs/38044695921)).
+> Đơn vị duy nhất là **vote**. File
+> `supabase/migrations/20261210_vote_back.sql` (một transaction, rerunnable)
+> chạy sau B1 ledger (`grant_reward_event`) và catalog v2 (`firstVoteBack`).
+> Cờ: `reward_config.vote_back_enabled`.
+
+### Điều kiện kích hoạt
+
+- Request chuyển **unpicked → PICKED**: `picked_at` từ NULL sang NOT NULL.
+  Mọi đường pick đều dính cùng trigger (`pick_top_request`, `admin_pick`,
+  `admin_pick_group`, SQL `UPDATE`).
+- **Một lần trong đời request.** Cột latch `requests.vote_back_paid_at` được
+  set **cùng transaction** với lần pick đầu, kể cả khi trả 0 vote. Unpick
+  **không** xóa latch. Pick lần 2 / gỡ chốt rồi chốt lại = không trả thêm.
+- Unpick (`admin_pick` / `admin_pick_group` với `p_picked = false`) **bị cấm**
+  khi latch đã set → `err.unpickLocked`. Gỡ chốt thủ công sau khi đã trả
+  không thuộc B4.
+- Vote hai chiều khóa khi `picked_at` khác NULL (`err.voteLocked`) — không
+  rút phiếu gốc sau khi đã nhận hoàn.
+
+### Công thức 10%
+
+Đếm trên bảng `votes` của đúng request đó (từng dòng = 1 phiếu):
+
+| Vai trò | Công thức | Ví dụ |
+| --- | --- | --- |
+| Voter, `n ≥ 1` | `greatest(1, floor(n / 10))` | 1–9 phiếu → **1**; 10–19 → 1; 20–29 → 2 |
+| Owner | `floor(total / 10)` | total &lt; 10 → **0** |
+| Owner tự vote | **Cả hai** nguồn, 2 row ledger | 20 phiếu của chính mình → owner 2 + voter 2 |
+
+`vote_back_owner` và `vote_back_voter` là hai **khoản thưởng vote**, không
+phải hai lần thành tựu (xem `firstVoteBack` dưới).
+
+### Cap
+
+- **50 vote thưởng / request:** nếu `owner_raw + sum(voter_raw) > 50`, giữ
+  phần owner trước (tối đa 50), voter chia phần còn theo largest-remainder.
+  Phần bị clip **mất**, không top-up ngày sau.
+- **30 vote thưởng / người / ngày VN:** đi qua `grant_reward_event` (cùng cap
+  với login / spin / mystery / achievement). Phần clip **cũng mất** — vote-back
+  là một lần/đời request, khác thành tựu (thành tựu tự bù slice).
+- **Ngoài cap:** vote đã mua, quota free 3/ngày, `bonus_requests`, thưởng mùa
+  do admin chốt.
+
+### Cờ `vote_back_enabled`
+
+- **Tắt:** trigger **vẫn set latch**, không trả thưởng, không ghi
+  `reward_events`.
+- **Bật lại:** chỉ request được pick **sau** lúc bật (chưa có latch) mới được
+  trả. Bài đã latch lúc tắt **không** nhận thưởng truy thu.
+
+Tắt cờ bằng SQL (không có đường client):
+
+```sql
+update public.reward_config
+   set value = 'false'::jsonb, updated_at = clock_timestamp()
+ where key = 'vote_back_enabled';
+```
+
+### Thành tựu `firstVoteBack`
+
+- Catalog v2: +3 bonus votes, threshold 1, **một lần / tài khoản**.
+- Máy chủ (`claim_achievements`): `EXISTS` bất kỳ row
+  `reward_events.source IN ('vote_back_owner','vote_back_voter')` → progress
+  **= 1**. Owner có cả hai row ledger **không** nhận badge hai lần, **không**
+  cộng 2 vào tiến độ.
+- Client (`achievementProgress`): `fact01` — mọi giá trị truthy / số ≥ 1
+  gom về 1, nên UI không thể vẽ 2/1 nếu ai đó lỡ cộng hai nguồn.
+- Phần +3 của badge đi qua cap 30 **và được tự bù** ở lần claim sau nếu bị
+  cắt (đây là achievement, không phải khoản vote-back 10%).
+
+### Vận hành
+
+- Test: `npm run test:voteback:pglite` (7 kịch bản: làm tròn, latch/replay,
+  cap 50 + cap 30, mọi đường pick, `voteLocked`, `firstVoteBack` một lần,
+  flag off).
+- Rollback: `supabase/rollback/20261210_vote_back.sql` — từ chối khi còn
+  grant vote-back trong 48 giờ; không xóa `reward_events`; không claw-back ví.
+- Không thuộc fresh-install bundle (`schema.sql` dừng ở 20261120).
+- UI toast/inbox (B4.3) **không bắt buộc** cho payout — lịch sử Daily Login
+  đã có nhãn `daily.source.vote_back_owner` / `vote_back_voter`.
+
+## 2026-10 B2: Mystery Box — một hộp mỗi ngày, mở sau check-in
+
+> Đã duyệt (2026-10). Đơn vị duy nhất là **vote** ("credits" cũ quy về vote).
+> Chạy `supabase/migrations/20261129_mystery_box.sql` (một transaction,
+> rerunnable) sau B1; cờ tắt/mở: `reward_config.mystery_box_enabled`.
+
+Luật:
+- **Khoá theo check-in**: phải điểm danh CÙNG ngày (VN) rồi hộp mới mở —
+  chưa điểm danh RPC trả `err.mysteryLocked`, card hiện trạng khoá.
+- **Một hộp/ngày/tài khoản**: PK `(user_id, day)` trên `mystery_opens`;
+  mở lại/trong tab khác/retry → replay trả đúng kết quả đã commit, không rút lại.
+- **Bảng thưởng** (rút đều 0..999; bản v3 siết tỉ lệ — DUY NHẤT một
+  outcome +5 votes ở 4%; 0.4% = +1 free paid request, 0.1% = +2 free paid
+  requests; mapping kind giữ từ `20261202_mystery_paid_v2.sql`, trọng số
+  mới ở `20261204_mystery_odds.sql` — row cũ kind `paid_request` vẫn đọc được):
+  | Kết quả | Trọng số | Thưởng |
+  | --- | --- | --- |
+  | Trống | 70% | — |
+  | +1 vote | 16% | qua cap |
+  | +3 votes | 8% | qua cap |
+  | +5 votes | 4% | qua cap |
+  | +10 votes | 1.5% | qua cap |
+  | +1 free paid request | 0.4% | NGOÀI cap (`bonus_requests`) |
+  | +2 free paid requests | 0.1% | NGOÀI cap (`bonus_requests`) |
+- Phần thưởng vote đi qua `grant_reward_event` — **cùng cap 30 vote thưởng/ngày**
+  với login/spin/vote-back/achievement; hộp vẫn tính đã mở nếu prize bị cap cắt
+  hết (ledger giữ `meta.requested`).
+- Không có cổng Turnstile riêng: RPC yêu cầu `p_gate_token` qua `edge_gate_ok`
+  (chỉ Edge function cầm `EDGE_GATE_TOKEN` mới gọi được khi cổng được vũ khí hoá).
+- Mystery Box là **TRANG RIÊNG `/mystery-box`** (duyệt 2026-10, tách khỏi
+  /daily-login): entry "Mystery Box" nằm cạnh Daily Login trong menu, route
+  lazy-load riêng, gate check-in dẫn người chơi về `/daily-login` — hai tính
+  năng tách bạch UI/route.
+- Migration chưa chạy / cờ tắt → `my_mystery_status` lỗi/tắt → trang báo
+  "chưa khả dụng"; `/daily-login` không hề nhắc tới hộp quà.
+
+## 2026-10 kế hoạch thưởng (B1): điểm danh trả vote lại, có cap 30/ngày
+
+> Quyết định của chủ dự án (đã duyệt, 2026-10): điểm danh **trả vote trở lại**
+> theo đúng spec dưới đây. Các mục "Điểm danh KHÔNG thưởng gì cả" bên dưới là
+> **lịch sử chính sách** (20261118–20261124) — vẫn đúng cho dữ liệu đã ghi, nhưng
+> không còn là luật hiện hành sau khi chạy ba migration B1.
+
+Chạy **đúng thứ tự**, mỗi file một lượt trong SQL Editor hoặc qua guarded runner
+(`npm run db:plan` → duyệt → `db:deploy`); mỗi file là một transaction, chạy lại
+an toàn, chưa chạy thì tính năng mới tự ẩn (UI không vỡ):
+
+1. `supabase/migrations/20261126_reward_ledger.sql` — sổ cái `reward_events`
+   (append-only, idempotent theo `UNIQUE (source, user_id, day, ref)`), bảng
+   config/flag `reward_config`, bảng mốc một-lần `reward_milestone_once`, và
+   hàm cấp thưởng duy nhất `grant_reward_event` (tự scale theo cap).
+2. `supabase/migrations/20261127_login_streak_rewards.sql` — `claim_daily_login_calendar`
+   trả thưởng: **+2 mỗi ngày; ngày thứ 7 của chu kỳ nhận +5 CỘNG THÊM lên +2;
+   trọn chu kỳ 7 ngày +10 (lặp lại ở 7/14/21/…); 30 ngày liên tiếp +20 MỘT LẦN
+   (ngày 30 nhận 2 + 20 = 22)**. Bỏ lỡ một ngày → streak về 0, chu kỳ đếm lại.
+   Cột `daily_login_rewards.reward` vẫn giữ nguyên bất biến (dòng mới = 0) —
+   thưởng ghi hoàn toàn vào `reward_events` và ví bonus.
+3. `supabase/migrations/20261128_achievements_v2.sql` — danh mục thành tựu
+   **đúng 20 mục active trong 5 nhóm**: Request 1/5/10/25/50 → +1/2/3/5/10 vote;
+   Vote 1/10/50/100/250 → +1/2/3/5/10 vote; Paid 1/3/5/10 → 1/2/3/4 free paid
+   request; Streak 7/30/100 → +5/10/20 vote; Đặc biệt (pick/vote-back/mystery
+   lần đầu) → +2/3/5 vote. 25 mục cũ bị **deactivate** (không xoá — huy hiệu đã
+   nhận giữ nguyên trong `achievement_rewards`).
+
+**Cap 30 vote thưởng/ngày/người** áp cho TỔNG vote thưởng từ: điểm danh, spin,
+mystery, vote-back, achievement. NĂNGOÀI cap: vote mua, quota free 3/ngày,
+thưởng mùa do admin chốt, free paid request. Grant bị cap cắt giữ `meta.requested`
+trong sổ cái; thưởng thành tựu bị cắt sẽ **tự bù** ở lần claim sau (slice
+`ach:<id>#<n>` / `once#<n>`), còn thưởng theo-ngày thì dừng ở mức headroom của
+ngày đó.
+
+Feature flags trong `reward_config` (chỉnh bằng SQL, không có đường client):
+`login_rewards_enabled` (tắt = về hành vi lịch-only cũ), `daily_reward_cap`,
+`login_daily_votes`, `login_day7_extra`, `login_milestone7_bonus`,
+`login_milestone30_bonus`. Cờ hộp / vote-back (`mystery_box_enabled`,
+`vote_back_enabled`) do B2/B4 thêm — xem các mục tương ứng. Rollback code:
+file trong `supabase/rollback/` (đều có preflight, không bao giờ thu hồi
+thưởng đã cấp).
+
+Kiểm chứng: `npm run test:ledger:pglite` (PGlite — chain thật 9 kịch bản, gồm
+đúc lệch cap và tự-bù), suite cũ vẫn xanh; test DB thật cần URL vẫn giữ nguyên
+cơ chế skip.
+
 Daily login là **cách duy nhất** còn lại trong nhóm này, bên cạnh vòng quay:
 
 - **Daily login** → `/daily-login`
@@ -30,6 +198,7 @@ Giao diện tiếp tục dùng tiếng Anh như phần còn lại của app.
   - Dạng câu lấy cảm hứng từ các bộ K-pop phổ biến trên Sporcle ([danh sách thẻ Kpop Quiz](https://www.sporcle.com/games/tags/kpopquiz)): nhóm nam/nữ, ai là leader, ai là maknae, tên thật của idol, tên fandom, công ty/năm debut, và **điền tiếp tên bài hát**. Chỉ lấy ý tưởng định dạng; **toàn bộ câu hỏi được viết lại**, không copy nội dung của họ.
   - Giao diện: thẻ câu hỏi có nhãn loại, 4 đáp án dạng thẻ (A/B/C/D) **được xáo thứ tự ở client nhưng vẫn mang option id ổn định**, thanh bước 1–5 bấm được, phím **1–4** chọn, **←/→** chuyển câu, **Enter** nộp. **Nộp từng câu**: mỗi câu đúng **+1 bonus**, sai **+0**, trần **+5/ngày**. Câu đã nộp khoá lại và hiện đáp án đúng + giải thích ngay. Sau 5 câu: thẻ điểm, review từng câu và đếm ngược đến lượt mới.
   - **Vote:** mỗi ngày một người chỉ nhận tối đa **5 vote từ quiz** (1 vote/đáp án đúng). Khoản **3 vote miễn phí tự động mỗi ngày** (theo ngày Việt Nam) đã **bật lại theo quyết định có review** bằng migration `20261124_restore_daily_free_votes` (`free_vote_grant_enabled = true`, `free_votes_per_day = 3` ở **cả hai** bản config phải khớp nhau: `public.daily_vote_quota_config` và `public.daily_quiz_config`); 3 vote này **tách biệt** với ví bonus/purchased chứ không cộng dồn vào đó. Trần chung tuỳ chọn `global_daily_vote_cap_enabled` không bị migration này thay đổi.
+- **Daily Spin (v2):** vòng quay **7 ô trọng số** `+1 30% · +2 25% · +3 20% · +5 12% · +8 8% · +10 4% · +20 1%` (bảng đã duyệt 2026-10, migration `20261201_spin_v2`). Mỗi ô **một mức thưởng**, độ rộng cung đúng bằng xác suất thật (trung bình **3,24 vote/lượt**, ~6,48/ngày với 2 lượt miễn phí — giữ nguyên hạn mức 2/device + 2/account + 2/fingerprint). Server rút qua hai byte + lấy mẫu loại bỏ để mỗi ô đúng trọng số đã duyệt; **luật không-lặp giữ nguyên**: hai lượt gần nhất của cùng trình duyệt trúng cùng một giải thì lượt kế không ra giải đó. Giải về `bonus_credits` như cũ (reset 31/10), và phần thưởng hiện bằng **votes** trên toàn bộ UI.
 - Ngày mới bắt đầu lúc **00:00 Asia/Ho_Chi_Minh (GMT+7)**. Câu chưa nộp của ngày trước hết hạn. Vòng mới có thể gặp lại câu cũ.
 - Bonus cộng vào `profiles.bonus_credits`, **không** vào vote đã mua; dùng và hết hạn cuối tháng 10 theo luật ví đang có. Ledger nhận thưởng không bị xóa khi ví reset, nên reset ví không cho nhận lại thưởng đã lấy.
 - Tải lại trang giữ nguyên bộ câu hỏi. Lựa chọn đang làm lưu nháp theo tài khoản + ID lượt chơi trên trình duyệt (nếu storage được cho phép); đổi thiết bị vẫn có cùng câu hỏi nhưng phải chọn lại câu trả lời chưa nộp. Kết quả đã nộp lưu trên máy chủ.

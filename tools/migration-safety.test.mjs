@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
-  collectMigrations, assertMigrationSafety, planPending, planLines, findDestructive, readQuarantine,
+  collectMigrations, assertMigrationSafety, planPending, planLines, clipUntil, clipExcept, clipBatch,
+  normalizeExcept, parseArgs, findDestructive, readQuarantine,
   stripExplicitTransaction, applyMigration, stripSqlNoise,
   normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
@@ -186,7 +187,10 @@ test('the default plan never schedules a quarantined migration', () => {
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-      '20261125_reward_eligibility_and_quota_races'])
+      '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
+      '20261127_login_streak_rewards', '20261128_achievements_v2',
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds', '20261210_vote_back'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -198,7 +202,10 @@ test('the default plan never schedules a quarantined migration', () => {
     ['20261119_preserve_legacy_daily_login_rewards', '20261120_daily_login_reward_immutable',
       '20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-      '20261125_reward_eligibility_and_quota_races'])
+      '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
+      '20261127_login_streak_rewards', '20261128_achievements_v2',
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds', '20261210_vote_back'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -212,7 +219,10 @@ test('the default plan never schedules a quarantined migration', () => {
   assert.deepEqual(partial.pending.map(({ id }) => id),
     ['20261120_daily_login_reward_immutable', '20261121_vote_calendar_decoupling',
       '20261122_disable_daily_quiz_runtime', '20261123_reconcile_security_drift',
-      '20261124_restore_daily_free_votes', '20261125_reward_eligibility_and_quota_races'])
+      '20261124_restore_daily_free_votes', '20261125_reward_eligibility_and_quota_races',
+      '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
+      '20261204_mystery_odds', '20261210_vote_back'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -492,9 +502,12 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
   assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
 
-  /* Và trên chính máy này: quét thật vẫn phải ra đúng 41 migration đang hoạt động. */
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 50 migration đang hoạt động
+     (41 cũ + ba bản B1: 20261126/27/28 + B2: 20261129 + B3: 20261201
+     + bản sửa bảng giải mystery v2: 20261202 + lịch sử tháng: 20261203
+     + siết tỉ lệ hộp: 20261204 + vote-back: 20261210). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 41)
+  assert.equal(active.length, 50)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -509,18 +522,107 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
   assert.deepEqual(planned.pending.map(({ id }) => id),
     ['20261121_vote_calendar_decoupling', '20261122_disable_daily_quiz_runtime',
       '20261123_reconcile_security_drift', '20261124_restore_daily_free_votes',
-      '20261125_reward_eligibility_and_quota_races'])
+      '20261125_reward_eligibility_and_quota_races', '20261126_reward_ledger',
+      '20261127_login_streak_rewards', '20261128_achievements_v2',
+      '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+      '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '5 migration(s) would be applied:')
+  assert.equal(lines[0], '14 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
     'apply 20261123  20261123_reconcile_security_drift.sql',
     'apply 20261124  20261124_restore_daily_free_votes.sql',
     'apply 20261125  20261125_reward_eligibility_and_quota_races.sql',
+    'apply 20261126  20261126_reward_ledger.sql',
+    'apply 20261127  20261127_login_streak_rewards.sql',
+    'apply 20261128  20261128_achievements_v2.sql',
+    'apply 20261129  20261129_mystery_box.sql',
+    'apply 20261201  20261201_spin_v2.sql',
+    'apply 20261202  20261202_mystery_paid_v2.sql',
+    'apply 20261203  20261203_mystery_month.sql',
+    'apply 20261204  20261204_mystery_odds.sql',
+    'apply 20261210  20261210_vote_back.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
   assert.deepEqual(done.pending, [])
   assert.deepEqual(planLines(done).slice(1), [])
+})
+
+test('--until 20261128 keeps B1 and holds every later batch', () => {
+  const pending = [
+    '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
+    '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+    '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+  ].map(id => ({ id, version: id.slice(0, 8), name: `${id}.sql` }))
+  const { pending: batch, held } = clipUntil(pending, '20261128')
+  assert.deepEqual(batch.map(({ id }) => id), [
+    '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
+  ])
+  assert.deepEqual(held.map(({ id }) => id), [
+    '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+    '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+  ])
+  const lines = planLines({ pending: batch, held, until: '20261128' })
+  assert.equal(lines[0], '3 migration(s) would be applied:')
+  assert.match(lines.join('\n'), /hold 6 migration\(s\) after --until 20261128/)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261129/m)
+})
+
+const B2_PENDING = [
+  '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
+  '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
+].map(id => ({ id, version: id.slice(0, 8), name: `${id}.sql` }))
+
+test('--until 20261204 --except 20261201 keeps B2 and holds B3+B4', () => {
+  const { pending: batch, held } = clipBatch(B2_PENDING, { until: '20261204', except: ['20261201'] })
+  assert.deepEqual(batch.map(({ id }) => id), [
+    '20261129_mystery_box',
+    '20261202_mystery_paid_v2',
+    '20261203_mystery_month',
+    '20261204_mystery_odds',
+  ])
+  assert.deepEqual(held.map(({ id }) => id), [
+    '20261201_spin_v2',
+    '20261210_vote_back',
+  ])
+  const lines = planLines({ pending: batch, held, until: '20261204', except: ['20261201'] })
+  assert.equal(lines[0], '4 migration(s) would be applied:')
+  assert.match(lines.join('\n'), /hold 2 migration\(s\) after --until 20261204 \/ --except 20261201/)
+  assert.match(lines.join('\n'), /^hold 20261201 {2}20261201_spin_v2\.sql$/m)
+  assert.match(lines.join('\n'), /^hold 20261210 {2}20261210_vote_back\.sql$/m)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261201/m)
+  assert.doesNotMatch(lines.join('\n'), /^apply 20261210/m)
+})
+
+test('--except alone holds that version; --until 20261204 without except still pulls B3', () => {
+  const onlyExcept = clipExcept(B2_PENDING, '20261201')
+  assert.deepEqual(onlyExcept.held.map(({ id }) => id), ['20261201_spin_v2'])
+  assert.equal(onlyExcept.pending.length, 5)
+  const untilOnly = clipUntil(B2_PENDING, '20261204')
+  assert.deepEqual(untilOnly.pending.map(({ version }) => version), [
+    '20261129', '20261201', '20261202', '20261203', '20261204',
+  ])
+})
+
+test('--except of a version already past --until does not duplicate hold', () => {
+  const { pending: batch, held } = clipBatch(B2_PENDING, { until: '20261204', except: ['20261210'] })
+  assert.equal(held.filter(({ version }) => version === '20261210').length, 1)
+  assert.ok(batch.every(({ version }) => version !== '20261210'))
+})
+
+test('normalizeExcept / parseArgs accept one version, repeats, and commas', () => {
+  assert.deepEqual(normalizeExcept('20261201'), ['20261201'])
+  assert.deepEqual(normalizeExcept(['20261201', '20261201', '20261210']), ['20261201', '20261210'])
+  assert.deepEqual(normalizeExcept('20261201,20261210'), ['20261201', '20261210'])
+  assert.throws(() => normalizeExcept('spin_v2'), /invalid --except/)
+  assert.throws(() => clipUntil(B2_PENDING, '2026-12-04'), /invalid --until/)
+  const args = parseArgs(['--plan', '--until', '20261204', '--except', '20261201'])
+  assert.equal(args.mode, 'plan')
+  assert.equal(args.until, '20261204')
+  assert.deepEqual(args.except, ['20261201'])
+  const repeated = parseArgs(['--plan', '--except', '20261201', '--except', '20261210'])
+  assert.deepEqual(repeated.except, ['20261201', '20261210'])
+  assert.throws(() => parseArgs(['--plan', '--except']), /missing --except/)
 })

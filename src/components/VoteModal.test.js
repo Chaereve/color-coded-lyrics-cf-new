@@ -69,8 +69,18 @@ test('quỹ phiếu đọc ra bằng MỘT dòng chữ, không phải ba ô có 
 
 test('không mức nhanh nào vượt quá số vote còn lại', async () => {
   const html = await render({ ...base, votesLeft: 3 })
-  assert.ok(html.includes('Use all 3') || html.includes('3'), 'còn 3 vote thì phải có lối dùng hết 3')
+  assert.match(html, /All 3/, 'còn 3 vote thì phải có Vote all 3')
   assert.ok(!html.includes('>25<'), 'còn 3 vote thì không được mời bấm 25')
+})
+
+test('Vote all và Take back all là hai việc độc lập, không dùng chung một con số', async () => {
+  const html = await render({ ...base, votesLeft: 12, myCount: 4 })
+  assert.match(html, /All 12/, 'Vote all = hết phiếu đang có')
+  assert.match(html, /Take back all 4/, 'Take back all = hết phiếu đã bỏ vào bài này')
+  assert.match(html, /vote-modeGive|Vote/, 'có chế độ Vote')
+  assert.match(html, /Take back/, 'có chế độ Take back')
+  /* Qty mặc định là 1 (vote) — Take back all vẫn bấm được, không bị khoá vì 1 ≠ 4. */
+  assert.match(html, /go\(-backCap\)|Take back all 4/)
 })
 
 test('hết vote thì không còn nút xác nhận — đổi thành lối mua thêm', async () => {

@@ -239,6 +239,33 @@ export async function handleVote(request, env) {
   }
 }
 
+/* ---------------------------------------------------------
+   MYSTERY BOX (2026-11-29)
+   Hộp một lần mỗi ngày, mở sau check-in. Không Turnstile, không shield:
+   thứ chống lạm dụng là PK (user_id, ngày) trong Postgres + cổng edge token,
+   giống kiến trúc vote/spin — chỉ cổng mới cầm EDGE_GATE_TOKEN, trình duyệt
+   không tự gọi RPC được khi cổng được vũ khí hoá. Replay là an toàn: RPC trả
+   kết quả đã commit, nên hết gate/network hang cũng không mất hay thêm quà.
+   --------------------------------------------------------- */
+export async function handleMystery(request, env) {
+  let body
+  try { body = await request.json() } catch { return deny('err.mysteryRequest', 400) }
+  const { expected_day: expectedDay, user_token: userToken } = body || {}
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expectedDay || '')
+    || typeof userToken !== 'string' || !userToken) {
+    return deny('err.mysteryRequest', 400)
+  }
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return deny('err.mysterySetup', 503)
+  try {
+    const res = await callRpc(env, 'open_mystery_box', userToken, { p_expected_day: expectedDay })
+    const text = await res.text()
+    if (!res.ok) return new Response(text, { status: res.status, headers: JSON_HEADERS })
+    return new Response(text, { status: 200, headers: JSON_HEADERS })
+  } catch {
+    return deny('err.mysteryGate', 500)
+  }
+}
+
 /* Ba hàm route — export để Pages Functions gọi lại, Workers cũng dùng chung:
    kiểm tra method ở đây (thay vì onRequestPost riêng) để phản hồi 405 cũng là
    JSON { error } cho frontend dịch, chứ không phải trang lỗi mặc định của nền tảng. */
@@ -260,12 +287,17 @@ export function voteRoute(request, env) {
   return request.method === 'POST' ? handleVote(request, env) : deny('err.voteQty', 405)
 }
 
+export function mysteryRoute(request, env) {
+  return request.method === 'POST' ? handleMystery(request, env) : deny('err.mysteryRequest', 405)
+}
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url)
     if (pathname === '/api/daily-spin/health') return healthResponse(env)
     if (pathname === '/api/daily-spin/spin') return spinRoute(request, env)
     if (pathname === '/api/vote/cast') return voteRoute(request, env)
+    if (pathname === '/api/mystery/open') return mysteryRoute(request, env)
     // Mọi đường dẫn còn lại: file tĩnh của app (SPA fallback do cấu hình assets lo).
     if (pathname.startsWith('/api/')) return deny('err.spinRequest', 404)
     return env.ASSETS.fetch(request)
