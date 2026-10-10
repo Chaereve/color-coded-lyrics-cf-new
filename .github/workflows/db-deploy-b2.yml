@@ -7,8 +7,9 @@ name: DB deploy production — B2 mystery box (đã duyệt)
 
 on:
   push:
+    # B2 đã apply + smoke xanh. Tắt push-trigger để plan B3 không chạy lại smoke.
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new'
+      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b2'
 
 concurrency:
   group: db-deploy-b2
