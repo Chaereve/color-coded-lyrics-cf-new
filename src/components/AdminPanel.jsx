@@ -230,8 +230,8 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         ) : (
           <>
-            {expired && <span className="status denied" title={t('adm.expiredBody')}>{t('expiry.label')}</span>}
-            {!expired && <span className="status" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>}
+            {expired && <span className="status s-denied" title={t('adm.expiredBody')}>{t('expiry.label')}</span>}
+            {!expired && <span className={`status s-${r.status}`} style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>}
             {/* Nhịp chốt bài đọc từ CÙNG nguồn với dòng "Next pick" ở trang
                 chủ (`settings.pick.interval_days`). Viết cứng `n: 4` ở đây là
                 cách lời giải thích lệch khỏi lịch thật ngay khi admin đổi nhịp

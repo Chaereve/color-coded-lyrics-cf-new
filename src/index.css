@@ -745,7 +745,22 @@ select {
 .row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
   background: var(--sc, var(--a)); transform: scaleY(0); transform-origin: 50% 50%;
   transition: transform .3s var(--e-out); }
-.row:hover { background: var(--hover); }
+/* HOVER NHUỘM MÉP (phương án V3). Nền vẫn là xám hover như cũ, nhưng 190px
+   đầu tiên lấy màu TRẠNG THÁI của chính hàng rồi tan dần ra trong suốt — rê
+   qua danh sách là thấy màu chạy theo từng hàng, mà hàng không đổi "chất
+   liệu". Đây là chỗ duy nhất dùng gradient trong hàng request; nó chỉ tồn tại
+   trong lúc rê chuột và không mang thông tin (thông tin đã có ở vạch 2px và ở
+   đèn trạng thái), nên không phạm vào lỗi "gradient để trang trí".
+   `--sc` do JSX đặt theo trạng thái của dòng; hàng không có `--sc` rơi về màu
+   nhấn, không rơi về trong suốt. */
+.row:hover {
+  background:
+    linear-gradient(90deg,
+      color-mix(in oklab, var(--sc, var(--a)) 13%, transparent) 0,
+      color-mix(in oklab, var(--sc, var(--a)) 4%, transparent) 90px,
+      transparent 190px),
+    var(--hover);
+}
 .row:hover::before { transform: scaleY(1); }
 /* HÀNG PAID — MỘT sắc phẳng, không phải một dải gradient chạy dần sang trái.
    Bản cũ khai báo hàng paid ở HAI chỗ: một luật phẳng ở đây và một cặp gradient
@@ -754,7 +769,16 @@ select {
    mất, chỉ còn nền hover xám. Nay chỉ còn một cặp luật, cả hai đều phẳng, và
    hover đậm hơn một chút thay vì đổi sang màu khác. */
 .row.paid { background: rgba(215,166,63,.045); }
-.row.paid:hover { background: rgba(215,166,63,.075); }
+/* Hàng PAID: nền vàng của nó là DANH TÍNH (bài trả phí), nên màu trạng thái
+   chỉ pha vào lớp ánh mép trái, không thay nền vàng. */
+.row.paid:hover {
+  background:
+    linear-gradient(90deg,
+      color-mix(in oklab, var(--sc, var(--a)) 11%, transparent) 0,
+      color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 90px,
+      transparent 190px),
+    rgba(215,166,63,.075);
+}
 /* SỐ THỨ TỰ: đã bỏ. Danh sách này không phải bảng xếp hạng — con số chỉ
    lặp lại đúng thứ tự vốn đã hiện ra bằng vị trí, mà lại chiếm một cột riêng
    bên trái nên tên bài bị đẩy vào trong và mép trái của mọi hàng không còn
@@ -797,8 +821,36 @@ select {
 .dot-inline { margin: 0 7px; }
 
 /* trạng thái: chấm tròn nhỏ + chữ, không phải thẻ màu */
-.status { display: inline-flex; align-items: center; gap: 5px; color: var(--txt-2); }
-.status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--txt-3)); }
+/* TRẠNG THÁI — ĐÈN BIẾT NÓI (phương án A).
+   Bản cũ: một chấm 6px tô màu + chữ xám. Toàn bộ thông tin trạng thái nằm
+   trong MÀU của một chấm 6px, trong khi chữ cạnh nó trông y hệt tên người gửi
+   và giờ gửi — nên thứ quan trọng nhất của hàng lại là thứ dễ bỏ qua nhất, và
+   ai không phân biệt màu thì mất luôn thông tin đó.
+
+   Nay HÌNH của đèn mang nghĩa, màu chỉ nhắc lại:
+     · chờ duyệt      → vòng rỗng mờ (chưa có gì trong đó)
+     · đã xếp hàng    → vòng rỗng, đậm (đã vào hàng, chưa bắt đầu)
+     · đang làm       → chấm đặc + quầng (đèn đang cháy)
+     · xong           → chấm đặc + viền mảnh (đã đóng lại)
+     · từ chối        → vòng ĐỨT nét (bị cắt ngang)
+   Lớp `.s-<status>` do JSX đặt; đèn không có lớp đó (chỗ khác dùng `.status`
+   mà không có trạng thái cụ thể) giữ nguyên chấm đặc như cũ. */
+.status { display: inline-flex; align-items: center; gap: 6px; color: var(--txt-2); }
+.status::before {
+  content: ''; flex: none; box-sizing: border-box;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--c, var(--txt-3));
+}
+/* Chờ duyệt: vòng rỗng 55% — "chưa có gì để báo". */
+.status.s-pending::before { background: none; border: 1.5px solid color-mix(in oklab, var(--c, var(--txt-3)) 55%, transparent); }
+/* Đã xếp hàng: cùng hình với chờ nhưng đậm — đã vào hàng, chưa bắt đầu. */
+.status.s-queued::before { background: none; border: 1.5px solid var(--c, var(--queued)); }
+/* Đang làm: đèn cháy — chấm đặc có quầng. */
+.status.s-in_progress::before { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c, var(--progress)) 22%, transparent); }
+/* Xong: chấm đặc, viền mảnh — trạng thái đã "đóng sổ". */
+.status.s-completed::before { box-shadow: 0 0 0 2px color-mix(in oklab, var(--c, var(--done)) 16%, transparent); }
+/* Từ chối: vòng đứt nét. */
+.status.s-denied::before { background: none; border: 1.5px dashed color-mix(in oklab, var(--c, var(--denied)) 80%, transparent); }
 
 /* NHÃN (tag) — một nguyên mẫu duy nhất cho .pill và .kind.
    Ba tính chất bắt buộc để nhãn không chồng/vướng vào nhau:
@@ -833,15 +885,34 @@ select {
 .pill.in_progress{ color: var(--progress); }
 .pill.completed  { color: var(--done); }
 .pill.denied     { color: var(--denied); }
-.pill.gold       { color: var(--paid); border-color: rgba(215,166,63,.4); }
+/* PAID — SAO + NỀN MỜ (phương án P4). Bản cũ là viền vàng 40% + chữ vàng: đứng
+   cạnh viền xám của thẻ thể loại thì hai cái na ná nhau, mà hàng PAID vốn đã có
+   nền vàng 4,5% nên chữ vàng trên nền vàng không nổi.
+   Nay: nền vàng 14% (ăn khớp với nền hàng), không viền, in hoa 10px nét 700,
+   và một ngôi sao 8px ở trước. Cỡ chữ NHỎ HƠN thang nhãn chung (10 so với 11)
+   để nhãn này không to hơn tên bài — nó là tem, không phải tiêu đề. */
+.pill.gold {
+  color: var(--paid); border: 0;
+  background: color-mix(in oklab, var(--paid) 14%, transparent);
+  padding: 3px 8px 3px 7px;
+  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+}
+.pill.gold::before {
+  content: '★'; margin-right: 4px; font-size: 8px; line-height: 1; opacity: .9; }
 
 /* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
    với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
 /* Thẻ loại bài: chữ THƯỜNG (chủ dự án chốt — không viết hoa nhãn lọc/nhãn thẻ
    nữa), phân biệt với tên bài bằng khuôn chữ + viền + nền nhạt. */
+/* Thẻ thể loại KHÔNG VIỀN: viền 34% đặt cạnh nền 12% là hai lớp nói cùng một
+   chuyện, và viền xám 1px là ngôn ngữ của ô nhập liệu — chủ dự án đã chê đúng
+   chỗ đó ở nút nghe. Nền 13% một mình đủ để thẻ đọc ra là thẻ, và nó về cùng
+   họ với pill PAID / nút nghe.
+   Chữ trong thẻ là TÊN NGẮN (`kindShort` trong meta.js): "Color Coded Lyrics"
+   18 ký tự là thứ dài nhất trên dòng phụ. Tên đầy đủ nằm trong `title`. */
 .kind { font-size: 11px; letter-spacing: .2px; padding: 3px 8px; border-radius: var(--r-pill);
-  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
-  background: color-mix(in srgb, currentColor 12%, transparent); color: var(--k-ccl); }
+  border: 0;
+  background: color-mix(in oklab, currentColor 13%, transparent); color: var(--k-ccl); }
 .kind.ccl   { color: var(--k-ccl); }
 .kind.album { color: var(--k-album); }
 .kind.loop  { color: var(--k-loop); }
@@ -3274,6 +3345,9 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
 .now-members li { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--txt-3); flex-wrap: wrap; }
 .now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
+/* Danh sách thành viên trong Up next: tem PAID ở đây bé hơn, nên ngôi sao cũng
+   phải bé theo — để 8px là nó thành ký tự to nhất dòng. */
+.now-members .pill.gold::before { font-size: 7px; margin-right: 3px; }
 .nowbar .now-empty { margin: 0; color: var(--txt-2); font-weight: 400; }
 
 .now-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
@@ -4969,6 +5043,24 @@ body { overflow-x: hidden; }
   .row.req { padding: 0 0 0 var(--sp-3); }
   .row.req .body { padding: 7px 0; }
   .row.req > .votebtn { min-width: 72px; padding: 0 6px; margin-left: var(--sp-2); }
+  /* Bản hẹp: ánh màu mép trái thu lại còn 120px — để nguyên 190px thì trên
+     màn 360px nó phủ quá nửa hàng và đọc ra thành nền màu, không phải ánh mép. */
+  .row:hover {
+    background:
+      linear-gradient(90deg,
+        color-mix(in oklab, var(--sc, var(--a)) 13%, transparent) 0,
+        color-mix(in oklab, var(--sc, var(--a)) 4%, transparent) 60px,
+        transparent 120px),
+      var(--hover);
+  }
+  .row.paid:hover {
+    background:
+      linear-gradient(90deg,
+        color-mix(in oklab, var(--sc, var(--a)) 11%, transparent) 0,
+        color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 60px,
+        transparent 120px),
+      rgba(215,166,63,.075);
+  }
   /* Bản hẹp: vách 2px cũng ăn 1px, giữ đệm trái 5px để cột số không nhảy. */
   .row.req > .votebtn.on { padding-left: 5px; }
   .row.req > .votebtn b { font-size: var(--fs-title); }

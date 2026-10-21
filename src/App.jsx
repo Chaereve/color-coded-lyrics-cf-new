@@ -34,7 +34,7 @@ const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
-import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
@@ -315,8 +315,15 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
             thay bằng ba vạch 3px (`.nhip`), cùng cỡ với một dấu chấm. */}
         <div className="sub">
           <div className="meta">
-            <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
-            <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
+            {/* `s-<status>` KHÔNG phải để tô màu — màu đã đi qua `--c`. Lớp này
+                đổi HÌNH của cái đèn: chờ là vòng rỗng mờ, đã xếp hàng là vòng
+                rỗng, đang làm là chấm đặc có quầng, xong là chấm đặc viền mảnh,
+                từ chối là vòng đứt. Nhờ vậy trạng thái đọc được kể cả khi người
+                xem không phân biệt màu. */}
+            <span className={`status s-${r.status}`} style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
+            {/* Nhãn thể loại dùng tên NGẮN; tên đầy đủ nằm trong `title` để rê
+                chuột vẫn đọc được "Color Coded Lyrics" thay vì chỉ "CCL". */}
+            <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span>
             <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
             <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
             {/* BA NHỊP thay thanh phần trăm: một yêu cầu có đúng ba việc có
@@ -2092,8 +2099,8 @@ function AppInner() {
                             )}
                           </h3>
                           <div className="sub">
-                            <span className="status" style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
-                            <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
+                            <span className={`status s-${rep.status}`} style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
+                            <span className={`kind ${kindCls(rep.kind)}`} title={rep.kind}>{kindShort(rep.kind)}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
                             {/* BA NHỊP, không phải thanh phần trăm: cùng một bài
@@ -2110,7 +2117,7 @@ function AppInner() {
                             <ul className="now-members">
                               {g.rows.map(rr => (
                                 <li key={rr.id}>
-                                  <span className="status" style={{ '--c': statusColor(rr.status) }}>{statusLabel(rr, t)}</span>
+                                  <span className={`status s-${rr.status}`} style={{ '--c': statusColor(rr.status) }}>{statusLabel(rr, t)}</span>
                                   {rr.is_paid && <span className="pill gold">PAID</span>}
                                   <span>{rr.votes} {t('now.votes')}</span>
                                 </li>

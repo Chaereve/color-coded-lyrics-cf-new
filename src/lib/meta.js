@@ -16,6 +16,16 @@ export const STATUS_META = {
 
 export const kindCls = (k) => KIND_META[k]?.cls || 'ccl'
 
+/* NHÃN NGẮN CỦA THỂ LOẠI. Tên đầy đủ ("Color Coded Lyrics", 18 ký tự) là thứ
+   dài nhất trên dòng phụ — dài hơn cả tên người gửi lẫn giờ gửi — trong khi nó
+   nói một thông tin người đọc thường đã đoán được từ tên bài. Dòng phụ vì thế
+   bị đẩy sang hàng thứ hai trên màn hẹp.
+   Trường `short` đã có sẵn trong KIND_META từ đầu (dùng cho ô chọn thể loại),
+   nên chỉ cần một hàm đọc nó ra — không dựng thêm bảng nhãn thứ hai, vì hai
+   bảng là hai chỗ sẽ lệch nhau sau một lần sửa.
+   Tên đầy đủ không mất: nó đi vào `title` của nhãn (xem App.jsx). */
+export const kindShort = (k) => KIND_META[k]?.short || k
+
 /* Màu trạng thái — LUÔN trả về một màu. Một dòng lạ (trạng thái cũ còn sót
    trong DB, dữ liệu nhập tay, hàng của bản deploy trước) không được làm vỡ cả
    bảng chỉ vì tra bảng màu không thấy: `STATUS_META[s].c` trần là TypeError
