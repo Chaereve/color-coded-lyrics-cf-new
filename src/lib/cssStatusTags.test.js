@@ -39,18 +39,27 @@ test('trạng thái có hình riêng cho từng giai đoạn, không chỉ khác
      "chưa bắt đầu". */
   assert.match(ruleOf('.status.s-pending::before'), /background:\s*none/,
     'chờ duyệt phải là vòng rỗng, không phải chấm đặc')
-  assert.match(ruleOf('.status.s-pending::before'), /border:\s*1\.5px solid color-mix/,
-    'vòng chờ duyệt mờ đi để không tranh với hàng đã vào hàng')
+  assert.match(ruleOf('.status.s-pending::before'), /border:\s*1px solid color-mix/,
+    'vòng chờ duyệt mảnh và mờ để không tranh với hàng đã vào hàng')
   assert.match(ruleOf('.status.s-queued::before'), /background:\s*none/,
     'đã xếp hàng là vòng rỗng')
-  assert.match(ruleOf('.status.s-queued::before'), /border:\s*1\.5px solid var\(--c/,
-    'vòng của hàng đã xếp phải đậm hơn vòng chờ duyệt')
-  /* Đang làm: đèn cháy. */
-  assert.match(ruleOf('.status.s-in_progress::before'), /box-shadow:\s*0 0 0 3px/,
-    'đang làm phải có quầng — đó là tín hiệu "đèn đang cháy"')
-  /* Xong: chấm đặc + viền mảnh. */
-  assert.match(ruleOf('.status.s-completed::before'), /box-shadow:\s*0 0 0 2px/,
-    'xong là chấm đặc có viền mảnh, khác quầng dày của "đang làm"')
+  assert.match(ruleOf('.status.s-queued::before'), /border:\s*2px solid var\(--c/,
+    'vòng của hàng đã xếp phải DÀY hơn hẳn vòng chờ duyệt — độ dày đọc được ở cỡ 7px, độ mờ thì không')
+  /* Đang làm: VÒNG HỞ. Bản đầu dùng "chấm đặc + quầng" và Completed dùng "chấm
+     đặc + viền mảnh" — ảnh chụp thật cho thấy hai cái chỉ khác nhau 2px đường
+     kính, mắt đọc ra hai chấm có quầng. Nay đèn đổi sang bộ hình cấu trúc:
+     rỗng (chờ / đã xếp) · hở (đang làm) · đặc (xong) · đứt (từ chối). */
+  const prog = ruleOf('.status.s-in_progress::before')
+  assert.match(prog, /border-right-color:\s*transparent/,
+    'đang làm là vòng HỞ — khúc khuyết mới là thứ đọc ra "đang chạy" ở cỡ 7px')
+  assert.match(prog, /animation:\s*status-spin/, 'vòng hở xoay chậm để nói "đang chạy"')
+  assert.doesNotMatch(prog, /box-shadow/, 'bỏ quầng: nó chỉ làm chấm nhoè, không phân biệt được với trạng thái khác')
+  assert.match(bare, /@media \(prefers-reduced-motion: reduce\) \{ \.status\.s-in_progress::before \{ animation: none/,
+    'ai tắt hiệu ứng thì vòng đứng yên')
+  /* Xong: chấm đặc trơn. */
+  const done = ruleOf('.status.s-completed::before')
+  assert.match(done, /background:\s*var\(--c, var\(--done\)\)/, 'xong là chấm đặc trơn')
+  assert.doesNotMatch(done, /box-shadow/, 'không quầng — "đầy" thì vẽ đầy, không phát sáng')
   /* Từ chối: vòng đứt. */
   assert.match(ruleOf('.status.s-denied::before'), /border:\s*1\.5px dashed/,
     'từ chối là vòng đứt nét')

@@ -827,12 +827,20 @@ select {
    và giờ gửi — nên thứ quan trọng nhất của hàng lại là thứ dễ bỏ qua nhất, và
    ai không phân biệt màu thì mất luôn thông tin đó.
 
-   Nay HÌNH của đèn mang nghĩa, màu chỉ nhắc lại:
-     · chờ duyệt      → vòng rỗng mờ (chưa có gì trong đó)
-     · đã xếp hàng    → vòng rỗng, đậm (đã vào hàng, chưa bắt đầu)
-     · đang làm       → chấm đặc + quầng (đèn đang cháy)
-     · xong           → chấm đặc + viền mảnh (đã đóng lại)
-     · từ chối        → vòng ĐỨT nét (bị cắt ngang)
+   Nay HÌNH của đèn mang nghĩa, màu chỉ nhắc lại — và mỗi trạng thái là một
+   hình KHÁC NHAU VỀ CẤU TRÚC, không phải cùng một chấm khác cỡ quầng:
+
+     · chờ duyệt      → vòng rỗng MẢNH, mờ   (chưa có gì trong đó)
+     · đã xếp hàng    → vòng rỗng DÀY, đậm   (đã vào hàng, chưa bắt đầu)
+     · đang làm       → vòng HỞ + xoay chậm   (đang chạy)
+     · xong           → chấm ĐẶC trơn         (đã đầy)
+     · từ chối        → vòng ĐỨT nét          (bị cắt ngang)
+
+   Vòng 6: bản đầu dùng "chấm đặc + quầng 3px" cho đang làm và "chấm đặc +
+   viền 2px" cho xong. Ảnh chụp thật cho thấy hai cái đó chỉ khác nhau 2px
+   đường kính và một lớp mờ — ở cỡ 1x mắt đọc ra "hai chấm có quầng". Hai
+   trạng thái khác nhau về nghĩa mà gần như trùng nhau về hình là lỗi, nên đèn
+   đổi hẳn sang bộ hình cấu trúc: rỗng / hở / đặc / đứt.
    Lớp `.s-<status>` do JSX đặt; đèn không có lớp đó (chỗ khác dùng `.status`
    mà không có trạng thái cụ thể) giữ nguyên chấm đặc như cũ. */
 .status { display: inline-flex; align-items: center; gap: 6px; color: var(--txt-2); }
@@ -841,14 +849,23 @@ select {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--c, var(--txt-3));
 }
-/* Chờ duyệt: vòng rỗng 55% — "chưa có gì để báo". */
-.status.s-pending::before { background: none; border: 1.5px solid color-mix(in oklab, var(--c, var(--txt-3)) 55%, transparent); }
-/* Đã xếp hàng: cùng hình với chờ nhưng đậm — đã vào hàng, chưa bắt đầu. */
-.status.s-queued::before { background: none; border: 1.5px solid var(--c, var(--queued)); }
-/* Đang làm: đèn cháy — chấm đặc có quầng. */
-.status.s-in_progress::before { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c, var(--progress)) 22%, transparent); }
-/* Xong: chấm đặc, viền mảnh — trạng thái đã "đóng sổ". */
-.status.s-completed::before { box-shadow: 0 0 0 2px color-mix(in oklab, var(--c, var(--done)) 16%, transparent); }
+/* Chờ duyệt: vòng rỗng MẢNH (1px) và mờ — "chưa có gì để báo". */
+.status.s-pending::before { background: none; border: 1px solid color-mix(in oklab, var(--c, var(--txt-3)) 55%, transparent); }
+/* Đã xếp hàng: cùng họ vòng rỗng nhưng DÀY 2px và đậm. Độ dày là thứ mắt đọc
+   được ở cỡ 7px, còn độ mờ thì không — bản trước để hai trạng thái này khác
+   nhau mỗi ở opacity, nên nhìn như nhau. */
+.status.s-queued::before { background: none; border: 2px solid var(--c, var(--queued)); }
+/* Đang làm: VÒNG HỞ — một khúc khuyết như vòng đang chạy, và xoay chậm. */
+.status.s-in_progress::before {
+  background: none;
+  border: 1.5px solid var(--c, var(--progress));
+  border-right-color: transparent;
+  animation: status-spin 3.2s linear infinite;
+}
+@keyframes status-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .status.s-in_progress::before { animation: none; } }
+/* Xong: chấm ĐẶC trơn — không quầng, không viền. "Đầy" thì vẽ đầy. */
+.status.s-completed::before { background: var(--c, var(--done)); }
 /* Từ chối: vòng đứt nét. */
 .status.s-denied::before { background: none; border: 1.5px dashed color-mix(in oklab, var(--c, var(--denied)) 80%, transparent); }
 
