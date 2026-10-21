@@ -132,10 +132,15 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
      (`.row .meta .prog`), không được sửa `.prog` trần: cùng component đó còn
      được khối Up next và bảng quản trị dùng, ở hai chỗ ấy thanh có dòng riêng
      của nó. */
-  assert.match(css, /\.row \.meta \.prog \{[^}]*max-width:\s*96px/,
-    'thanh trong dòng meta phải bị thu về 96px (thanh gốc 220px là cỡ một khối đứng riêng)')
-  assert.match(css, /\.row \.meta \.prog \.prog-num \{[^}]*min-width:\s*24px/,
+  assert.match(css, /\.row \.sub \.prog \{[^}]*max-width:\s*96px/,
+    'thanh trong dòng phụ của hàng phải bị thu về 96px (thanh gốc 220px là cỡ một khối đứng riêng)')
+  assert.match(css, /\.row \.sub \.prog \.prog-num \{[^}]*min-width:\s*24px/,
     'bề rộng chừa sẵn cho con số phải co theo cỡ chữ mới')
+  /* THANH TIẾN ĐỘ KHÔNG BAO GIỜ NẰM TRONG `.meta`. `.meta` là hộp flex của
+     CHỮ (có `flex-wrap` cho nhãn dài); một khối như thanh tiến độ đứng trong
+     đó làm cả hộp cao lên bất thường và hàng "đang làm" cao gần gấp đôi hàng
+     khác. Chốt: `.meta` phải thuần chữ, thanh là anh em ruột trong `.sub`. */
+  assert.doesNotMatch(css, /\.row \.meta \.prog/, 'thanh tiến độ không được nằm trong hộp chữ .meta nữa')
   assert.doesNotMatch(css, /\.prog\.prog-edge/,
     'biến thể "đường đáy" của phương án C đã bị gỡ — không để lại luật chết')
   assert.match(src.get('src/components/Progress.jsx'), /prog-full/,
@@ -157,9 +162,11 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
      xuất hiện trước thẻ Progress và không được có Progress nào đứng ngoài
      `.body` (biến thể đường đáy cũ đã gỡ). */
   const app = src.get('src/App.jsx')
-  const metaAt = app.indexOf('<div className="meta">')
+  const subAt = app.indexOf('<div className="sub">')
   const progAt = app.indexOf('<Progress pct={r.progress}')
-  assert.ok(metaAt > 0 && progAt > metaAt, 'thanh tiến độ của hàng phải nằm trong dòng meta')
+  const metaClose = app.indexOf('</div>', app.indexOf('<div className="meta">'))
+  assert.ok(subAt > 0 && progAt > subAt, 'thanh tiến độ của hàng phải nằm trong dòng phụ (.sub)')
+  assert.ok(progAt > metaClose, 'thanh tiến độ phải đứng NGOÀI .meta — đó là chỗ từng làm hàng cao gấp đôi')
   assert.equal((app.match(/<Progress pct=\{r\.progress\}/g) || []).length, 1,
     'chỉ MỘT thanh tiến độ cho mỗi hàng — hai thanh là hai bố cục chồng nhau')
   assert.doesNotMatch(app, /pctValue|prog-edge/, 'tàn dư của phương án C phải sạch')

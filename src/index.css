@@ -601,7 +601,12 @@ select {
    `align-items: stretch`: mọi mục cao bằng nhau, nên vạch màu của chúng nằm
    trên cùng một đường ngang — dải đọc ra một hàng, không phải bảy cục rời. */
 .fchips { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 1px;
-  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  /* Dải cuộn ngang nhưng KHÔNG vẽ thanh cuộn — nên mục cuối bị cắt cứng ngay
+     mép, đọc ra như giao diện hỏng ("Fol…"). Mờ dần 18px ở mép phải vừa nói
+     "còn nữa, cuộn được" vừa không cắt chữ giữa từ. */
+  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }
+.fchips:hover { mask-image: none; }
 .fchips::-webkit-scrollbar { display: none; }
 /* MỘT MỤC = vạch màu + nhãn + số. Không viền, không nền, không bo tròn ở đáy:
    mục chỉ "nhấc" lên khi rê tới (nền mờ, bo hai góc trên như một tab), đúng
@@ -764,7 +769,17 @@ select {
   line-height: 1.15; color: var(--txt-3);
   align-self: flex-start;
   padding-top: calc((var(--fs-title) * 1.15 - var(--fs-meta) * 1.15) / 2); }
-.row .body { flex: 1; min-width: 0; align-self: center; }
+.row .body { flex: 1; min-width: 0; align-self: center;
+  /* Lưới hai dòng cố định: tiêu đề, rồi dòng phụ. `align-content: center` giữ
+     cả khối chữ ở giữa ô; `gap` 2px là toàn bộ khoảng hở được phép có giữa hai
+     dòng — mọi thứ khác (lề của từng phần tử con) đã bị đưa về 0. */
+  display: grid; gap: 2px; align-content: center; }
+/* DÒNG PHỤ: chữ + thanh tiến độ + link nghe trên MỘT hàng flex, tự xuống dòng
+   khi hẹp. Tách khỏi `.meta` để một khối (thanh tiến độ) không bao giờ nằm
+   trong hộp flex của chữ nữa — chính thế mà hàng "đang làm" từng cao gần gấp
+   đôi các hàng khác. */
+.row .sub { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; min-width: 0; }
+.row .sub > .meta { min-width: 0; }
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
@@ -907,21 +922,24 @@ select {
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
-/* ---- TIẾN ĐỘ GỌN TRONG DÒNG META (phương án A) -------------------------
-   Hàng request in thanh tiến độ ngay trong dòng meta, cạnh giờ đăng. Ở ngữ
-   cảnh đó nó là CHI TIẾT PHỤ của một dòng chữ, không phải một khối riêng:
-   rộng tối đa 96px (thanh gốc 220px là cỡ của một khối đứng một mình), khe
-   hẹp lại, và bề rộng chừa sẵn cho con số co theo cỡ chữ mới.
+/* ---- TIẾN ĐỘ GỌN TRONG DÒNG PHỤ (phương án A) --------------------------
+   Hàng request in thanh tiến độ trên DÒNG PHỤ, cạnh dòng chữ trạng thái —
+   nhưng là ANH EM của hộp chữ, không nằm trong đó. Đây là điểm đã gây lỗi
+   thật: khi thanh còn nằm trong hộp flex của chữ, hàng "đang làm" cao gần gấp
+   đôi các hàng khác, chữ dồn lên trên và cả danh sách đọc ra lệch nhịp.
 
-   Vì sao phải là luật theo NGỮ CẢNH (`.row .meta .prog`) chứ không sửa
-   `.prog`: cùng component này còn được khối Up next và bảng quản trị dùng —
-   hai chỗ đó thanh tiến độ nằm trên dòng riêng của nó, ép về 96px là bóp
-   nghẹt đúng chỗ cần đọc rõ nhất. */
-.row .meta .prog { max-width: 96px; margin: 0; gap: 6px; }
-.row .meta .prog .prog-num { min-width: 24px; }
-/* Link nghe nằm trong dòng meta thì không cần lề trên — lề đó viết cho lúc nó
-   còn là một dòng riêng dưới cùng của hàng. */
-.row .meta .watch { margin-top: 0; }
+   Ở vị trí mới nó là CHI TIẾT PHỤ của một dòng: rộng tối đa 96px (thanh gốc
+   220px là cỡ của một khối đứng một mình), khe hẹp, và chừa sẵn bề rộng cho
+   con số. Luật vẫn phải theo NGỮ CẢNH (`.row .sub …`) chứ không sửa `.prog`:
+   cùng component này còn được khối Up next và bảng quản trị dùng, hai chỗ đó
+   thanh nằm trên dòng riêng của nó — ép về 96px là bóp nghẹt đúng chỗ cần đọc
+   rõ nhất. */
+.row .sub .prog { flex: none; max-width: 96px; margin: 0; gap: 6px; }
+.row .sub .prog .prog-track { min-width: 40px; }
+.row .sub .prog .prog-num { min-width: 24px; }
+/* Link nghe ở dòng phụ thì không cần lề trên — lề đó viết cho lúc nó còn là
+   một dòng riêng dưới cùng của hàng. */
+.row .sub .watch { margin-top: 0; flex: none; white-space: nowrap; }
 
 .watch { display: inline-block; margin-top: 2px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
@@ -931,7 +949,10 @@ select {
   color: var(--a-2); padding-left: 2px;
 }
 .votebtn {
+  /* Bề rộng tối thiểu để cột số phiếu thẳng hàng: không có nó thì "3 vote" và
+     "193 vote" rộng khác nhau và mép phải của cả danh sách so le từng hàng. */
   position: relative; flex: none; display: flex; align-items: center; gap: 6px;
+  justify-content: center; min-width: 88px;
   padding: 6px 12px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--line-2); background: none; color: var(--txt-2);
   font-family: inherit; transition: .13s;

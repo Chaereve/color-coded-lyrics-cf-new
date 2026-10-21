@@ -306,45 +306,40 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             </span>
           )}
         </div>
-        <div className="meta">
-          <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
-          <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-          <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
-          <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
-          {/* TIẾN ĐỘ NẰM TRONG DÒNG META (phương án A, chủ dự án chốt
-              21/10/2026). Trước đây thanh tiến độ là một DÒNG THỨ BA trong
-              `.body`, nên riêng hàng "đang làm" cao hơn hẳn các hàng khác và
-              cả danh sách đọc ra lệch nhịp. Nay nó là một phần tử của dòng meta
-              — hàng nào cũng đúng hai dòng, cao bằng nhau. Thanh bị CSS thu về
-              96px trong ngữ cảnh này (`.row .meta .prog`), còn khối Up next và
-              bảng quản trị vẫn dùng thanh đầy đủ của chúng. */}
-          {r.status === 'in_progress' && (
-            <><span className="dot" aria-hidden="true" />
-              <Progress pct={r.progress} label={t('progress.label')} /></>
-          )}
-          {r.status === 'denied' && r.deny_reason && (
-            <>
-              <span className="dot" aria-hidden="true" />
-              <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
-            </>
-          )}
-          {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
-              là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
-              theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
-          {!isPicked(r) && followed && <Standing st={st} />}
-          {/* Chuông nằm CUỐI dòng meta, không phải một ô nút ở mép phải: hàng
-              tĩnh thì chỉ có chữ, quyền theo dõi hiện lên khi rê. Dòng trong cụm
-              không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
-          {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
-          {onShare && <ShareBtn onShare={() => onShare(r)} />}
-          {/* Link nghe cũng ở TRONG dòng meta: đó là mảnh thứ ba từng bị đẩy
-              xuống dưới, làm hàng "đã xong" cũng cao hơn hai hàng còn lại. */}
-          {watchUrl && (
-            <>
-              <span className="dot" aria-hidden="true" />
-              <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>
-            </>
-          )}
+        {/* DÒNG PHỤ = MỘT HỘP RIÊNG (`.sub`) chứa chữ (`.meta`) + thanh tiến độ
+            + link nghe. Trước đây thanh tiến độ nằm TRONG `.meta` — một hộp
+            flex có `flex-wrap` cho chữ — nên một phần tử là *khối* như thanh
+            tiến độ nằm lẫn trong dòng chữ làm cả hộp cao lên bất thường (hàng
+            "đang làm" cao gần gấp đôi các hàng khác). Nay `.meta` chỉ còn chữ,
+            còn thanh và link là anh em của nó trong cùng một dòng flex. */}
+          <div className="sub">
+            <div className="meta">
+            <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
+            <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
+            <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
+            <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
+            {r.status === 'denied' && r.deny_reason && (
+              <>
+                <span className="dot" aria-hidden="true" />
+                <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
+              </>
+            )}
+            {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
+                là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
+                theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
+            {!isPicked(r) && followed && <Standing st={st} />}
+            {/* Chuông nằm CUỐI dòng meta, không phải một ô nút ở mép phải: hàng
+                tĩnh thì chỉ có chữ, quyền theo dõi hiện lên khi rê. Dòng trong cụm
+                không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
+            {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
+              {onShare && <ShareBtn onShare={() => onShare(r)} />}
+            </div>
+          {/* Thanh tiến độ: một KHỐI, nên nó đứng cạnh `.meta` chứ không nằm
+              trong — đây là chỗ từng làm hàng "đang làm" cao gần gấp đôi. */}
+          {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
+          {/* Link nghe là mảnh thứ ba từng bị đẩy xuống dưới thành dòng riêng,
+              làm hàng "đã xong" cao hơn hai hàng còn lại. Nay nó ở cùng dòng. */}
+          {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
         </div>
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
