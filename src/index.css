@@ -3742,17 +3742,6 @@ html[data-section="spin"] .bgfx { display: none; }
 .row .title .tags { margin-left: 2px; }
 .nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
 
-/* TỪ 899px TRỞ XUỐNG: đúng một thứ tự, chỉ đổi chỗ xuống dòng. Dải chip cần
-   trọn một hàng (7 chip không còn chỗ chen với ô tìm), còn ô tìm + số đếm ở
-   hàng trên. Không dùng `order` — thứ tự nhìn phải trùng thứ tự Tab. */
-@media (max-width: 899px) {
-  .fbar-side { flex: none; }
-}
-
-/* Từ 621px khối lọc thứ hai LUÔN hiện, nên chip "loại đang lọc" ở hàng chính
-   là chỗ thứ hai nói cùng một điều — ẩn nó đi. */
-/* (chip "loại đang lọc" kiểu cũ đã bị gỡ cùng dải chip) */
-
 /* Ô đang được gõ: cả HỘP sáng lên, không chỉ con trỏ — cùng một tín hiệu với
    kính lúp đổi màu, và là thứ duy nhất nhìn thấy được khi ô đã có chữ. */
 .searchwrap:focus-within .search { border-color: var(--a-2); }
