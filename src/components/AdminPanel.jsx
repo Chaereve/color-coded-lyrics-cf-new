@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAdminComments, fetchAdminActions, fetchRequestHistory, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
+import { MILESTONES, progressOf, fetchAdminActions, fetchRequestHistory, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, conversionRates, FUNNEL_CONVERSIONS, FUNNEL_EVENT_KEYS, seriesByDay, votesPerRequest } from '../lib/funnelSummary.js'
 import Sparkline from './Sparkline'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
@@ -16,7 +16,6 @@ import { useTransient } from '../lib/useTransient'
 import { here, putUrl } from '../lib/history'
 import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
-import { ADMIN_COMMENTS_PER_PAGE } from '../lib/adminComments.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
@@ -440,7 +439,6 @@ export default function AdminPanel({
     const b = ADMIN_TABS.join()
     if (a !== b) console.warn(`[admin] ADMIN_TAB_META lệch ADMIN_TABS: ${a} ≠ ${b}`)
   }
-  const [commentError, setCommentError] = useState('')
   const [busy, setBusy] = useState(false)
   /* Đơn hàng đang gửi đi: nút phải khoá NGAY, không đợi realtime tải lại danh
      sách (~400ms). Trước đây bấm "Đã nhận" hai lần trong khoảng đó là gọi
@@ -507,8 +505,8 @@ export default function AdminPanel({
       const qs = adminQuery({
         tab,
         q: ['media', 'overview', 'log'].includes(tab) ? '' : q,
-        sort: ['media', 'comments', 'overview', 'log'].includes(tab) ? 'default' : sortKey,
-        kind: ['media', 'comments', 'overview', 'log'].includes(tab) ? 'all' : kindF,
+        sort: ['media', 'overview', 'log'].includes(tab) ? 'default' : sortKey,
+        kind: ['media', 'overview', 'log'].includes(tab) ? 'all' : kindF,
         ost: tab === 'orders' ? ostF : 'all',
       })
       const next = window.location.pathname + qs
@@ -636,6 +634,16 @@ export default function AdminPanel({
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
   const expiredRows = useMemo(() => rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)), [rows])
+  /* ĐÃ PICK — những bài đang GIỮ SUẤT trong dây chuyền: có `picked_at` và còn
+     ở trạng thái queued / in_progress. Đây không phải "bài đã từng được chốt"
+     (bài đã xong rơi vào `others`, và cố ý không nằm ở đây): câu hỏi của mục
+     này là "suất đang bị chiếm bởi bài nào" — thứ admin cần biết trước khi
+     chốt đợt kế tiếp. Xếp theo `picked_at` tăng dần: bài chốt trước đứng
+     trước, đúng thứ tự dây chuyền. */
+  const pickedRows = useMemo(
+    () => rows.filter(r => r.picked_at && ['queued', 'in_progress'].includes(r.status))
+      .sort((a, b) => (+new Date(a.picked_at) || 0) - (+new Date(b.picked_at) || 0)),
+    [rows])
   /* Số đơn theo trạng thái + tiền ĐÃ NHẬN trong 30 ngày. Tính trên TOÀN BỘ đơn
      đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
      bấm sang trang 2 hay gõ một từ khoá. */
@@ -680,14 +688,8 @@ export default function AdminPanel({
     : tab === 'active' ? active
       : tab === 'expired' ? expiredRows
         : tab === 'orders' ? orders
-        : tab === 'done' ? others : []
-  /* Mục Bình luận đọc theo TRANG từ database: mỗi lần chỉ 20 dòng, kèm tổng
-     số khớp bộ lọc. Trước đây đọc 100 dòng mới nhất rồi vẽ hết — quá 100 thì
-     phần còn lại biến mất mà màn hình không nói gì. */
-  const [adminComments, setAdminComments] = useState([])
-  const [commentTotal, setCommentTotal] = useState(0)
-  const [commentPage, setCommentPage] = useState(1)
-  const [loadingComments, setLoadingComments] = useState(false)
+        : tab === 'done' ? others
+        : tab === 'picked' ? pickedRows : []
   /* NHẬT KÝ THAO TÁC — đọc theo trang, cùng khuôn với bình luận. `logMissing`
      là trạng thái "RPC chưa có" (database chưa chạy migration 20261213): nói
      ra việc cần làm thay vì một khung lỗi đỏ cho một tính năng chỉ-đọc. */
@@ -745,31 +747,6 @@ export default function AdminPanel({
     return () => { alive = false }
   }, [tab, funnelDays, applyFunnelRows, failFunnel])
 
-  const loadAdminComments = useCallback((page = 1, keyword = '') => {
-    setLoadingComments(true)
-    setCommentError('')
-    return fetchAdminComments({ q: keyword, page, perPage: ADMIN_COMMENTS_PER_PAGE }).then(res => {
-      setAdminComments(res.rows || [])
-      setCommentTotal(res.total || 0)
-      setCommentPage(res.page || 1)
-    }).catch(error => {
-      setCommentError(errMsg(t, error))
-    }).finally(() => {
-      setLoadingComments(false)
-    })
-  }, [t])
-
-  /* Đọc trang 1 ngay khi admin mở trang: dải số liệu có một ô "Bình luận", và
-     ô đó không được đứng ở 0 chỉ vì mục Bình luận chưa được bấm tới. Đây là
-     MỘT lần đọc khi mở trang, không polling. */
-  useEffect(() => {
-    /* Hoãn 0ms để lượt đọc không gọi setState NGAY trong effect (React coi đó
-       là một vòng render thừa ngay sau lần vẽ đầu); cách này cũng tự huỷ nếu
-       admin rời trang trước khi request kịp chạy. */
-    const id = setTimeout(() => loadAdminComments(1, ''), 0)
-    return () => clearTimeout(id)
-  }, [loadAdminComments])
-
   const loadLog = useCallback((page = 1) => {
     setLogLoading(true)
     setLogError('')
@@ -792,32 +769,6 @@ export default function AdminPanel({
     return () => clearTimeout(id)
   }, [loadLog])
 
-  /* Gõ từ khoá: hoãn 280ms rồi tìm ở database (lọc + đếm + cắt trang trong
-     một RPC). Tìm trong 20 dòng đang hiện là tìm sai — câu trả lời phải tính
-     trên toàn bộ bình luận, không phải trên trang đang nhìn. */
-  useEffect(() => {
-    if (tab !== 'comments') return
-    const id = setTimeout(() => loadAdminComments(1, q), q.trim() ? 280 : 0)
-    return () => clearTimeout(id)
-  }, [tab, q, loadAdminComments])
-
-  const confirmDeleteComment = async (commentId) => {
-    const ok = await ask({
-      title: t('adm.commentDelete'),
-      body: t('comment.remove'),
-      confirmLabel: t('adm.commentDelete'),
-    })
-    if (!ok) return
-    try {
-      setCommentError('')
-      await adminDeleteComment(commentId)
-      await loadAdminComments(commentPage, q)
-      sfx.delete()
-    } catch (error) {
-      setCommentError(errMsg(t, error))
-    }
-  }
-
   const order = (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
   const sortList = (list) => {
     if (sortKey === 'default') return list
@@ -831,7 +782,6 @@ export default function AdminPanel({
   }
   const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF) && matchOrder(o)))
     : tab === 'media' ? base
-    : tab === 'comments' ? adminComments
     : tab === 'log' ? logRows
       : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
   const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF])
@@ -850,7 +800,7 @@ export default function AdminPanel({
      con trỏ tự về -1 (`cur.key !== listKey`), không cần một effect đồng bộ. */
   const listKey = `${tab}|${q}|${sortKey}|${kindF}|${ostF}|${pg.page}`
   const cursor = cur.key === listKey ? cur.i : -1
-  const isRequestList = !['overview', 'media', 'comments', 'log', 'orders'].includes(tab)
+  const isRequestList = !['overview', 'media', 'log', 'orders'].includes(tab)
   const cursorRow = cursor >= 0 ? pg.items[cursor] : null
   const canApprove = !!cursorRow && cursorRow.status === 'pending'
   const canDeny = canApprove
@@ -974,8 +924,8 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.length, comments: commentTotal, log: logTotal,
-  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, commentTotal, logTotal])
+    done: others.length, media: media.length, picked: pickedRows.length, log: logTotal,
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, pickedRows.length, logTotal])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -1044,7 +994,6 @@ export default function AdminPanel({
 
   return (
     <section className="adm-page" aria-label={t('adm.pageAria')}>
-      {tab === 'comments' && commentError && <p role="alert" className="comment-error">{commentError}</p>}
       {/* DẢI SỐ LIỆU — VỪA LÀ TỔNG QUAN, VỪA LÀ BỘ CHUYỂN MỤC.
           Ô đang mở được tô bằng đúng màu trạng thái của nó, nên "đang đứng ở
           đâu" và "mục này có bao nhiêu việc" đọc trong cùng một cái liếc. */}
@@ -1177,15 +1126,13 @@ export default function AdminPanel({
             /* Bình luận: `n` là số thẻ ĐANG HIỆN, `total` là tổng khớp bộ lọc ở
                database — nên dòng này nói thật "đang xem 20 trong 1.240". */
             n: tab === 'media' ? media.length
-              : tab === 'comments' ? adminComments.length
-                : tab === 'log' ? logRows.length
-                  : tab === 'overview' ? counts.pending + counts.expired + counts.orders
-                    : pg.items.length,
+              : tab === 'log' ? logRows.length
+                : tab === 'overview' ? counts.pending + counts.expired + counts.orders
+                  : pg.items.length,
             total: tab === 'media' ? media.length
-              : tab === 'comments' ? commentTotal
-                : tab === 'log' ? logTotal
-                  : tab === 'overview' ? counts.pending + counts.expired + counts.orders
-                    : shown.length,
+              : tab === 'log' ? logTotal
+                : tab === 'overview' ? counts.pending + counts.expired + counts.orders
+                  : shown.length,
           })}</span>
         </h2>
 
@@ -1193,20 +1140,6 @@ export default function AdminPanel({
           /* Tổng quan không có gì để tìm, xếp hay chọn: nó là ba tấm thẻ đọc
              trong mười giây, mỗi con số dẫn sang mục tương ứng. */
           <div className="adm-bar adm-bar-end" />
-        ) : tab === 'comments' ? (
-          /* Bình luận có ô tìm riêng: tìm Ở DATABASE trên toàn bộ bình luận,
-             không phải trên 20 thẻ đang hiện. Cùng từ khoá với các mục request
-             (một `q` cho cả trang), nên đổi mục vẫn giữ nguyên từ đang tìm. */
-          <div className="adm-bar">
-            <SearchBox t={t} q={q} setQ={(v) => { setQ(v); setSel(new Set()) }}
-              inputRef={searchRef} placeholder={t('adm.searchComments')} />
-            <div className="adm-actions">
-              <button type="button" className="btn btn-sm"
-                onClick={() => loadAdminComments(commentPage, q)} disabled={loadingComments}>
-                {loadingComments ? t('adm.loading') : t('adm.refresh')}
-              </button>
-            </div>
-          </div>
         ) : tab === 'log' ? (
           /* Nhật ký chỉ để ĐỌC: không tìm, không xoá, không sửa. Một nút làm
              mới là đủ — và nó nói rõ việc cần làm khi database chưa có bảng. */
@@ -1326,7 +1259,7 @@ export default function AdminPanel({
         )}
         {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không
             được báo. Chỉ trình đọc màn hình đọc dòng này. */}
-        {!['media', 'comments', 'log', 'overview'].includes(tab) && (
+        {!['media', 'log', 'overview'].includes(tab) && (
           <p className="sr-only" role="status">{t('adm.resultCount', { n: shown.length })}</p>
         )}
 
@@ -1382,65 +1315,9 @@ export default function AdminPanel({
               </button>
             </div>
           </div>
-        ) : tab === 'comments' ? (
-          <div className="adm-comments-list" aria-busy={loadingComments || undefined}>
-            {loadingComments && adminComments.length === 0 ? (
-              <p className="adm-funnel-state" role="status">{t('adm.loading')}</p>
-            ) : adminComments.length === 0 ? (
-              /* Trống vì bộ lọc khác trống thật: câu chữ và lối thoát phải
-                 khác nhau, cùng luật với trạng thái rỗng của bảng request. */
-              <div className="empty">
-                <b>{q.trim() ? t('adm.noResults', { q: q.trim() }) : t('adm.noComments')}</b>
-                <p>{t('adm.emptyCommentsBody')}</p>
-                {q.trim() && (
-                  <span className="empty-acts">
-                    <button type="button" className="btn btn-sm" onClick={() => setQ('')}>
-                      {t('adm.clearFilters')}
-                    </button>
-                  </span>
-                )}
-              </div>
-            ) : (
-              adminComments.map(c => (
-                <div className="adm-comment-card" key={c.id}>
-                  <div className="adm-comment-head">
-                    <div className="adm-comment-user">
-                      {c.avatar ? (
-                        <img className="adm-comment-av" src={c.avatar} alt="" />
-                      ) : (
-                        <span className="adm-comment-av ph">{((c.author || '?')[0] || '?').toUpperCase()}</span>
-                      )}
-                      <div>
-                        <b>{c.author || 'Member'}</b>
-                        <small>{timeAgo(c.created_at, t)}</small>
-                      </div>
-                    </div>
-                    <div className="adm-comment-target">
-                      <span className="adm-comment-song">
-                        {c.songTitle ? `${c.songTitle} — ${c.songArtist}` : '(Request)'}
-                      </span>
-                      {c.parent_id && <span className="adm-comment-reply-lbl">Reply</span>}
-                    </div>
-                  </div>
-                  <div className="adm-comment-body">
-                    {c.body}
-                  </div>
-                  <div className="adm-comment-foot">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-no"
-                      onClick={() => confirmDeleteComment(c.id)}
-                    >
-                      <Icon name="close" size={13} /> {t('adm.commentDelete')}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         ) : tab === 'log' ? (
           <div className="adm-log" aria-busy={logLoading || undefined}>
-            {logError && <p role="alert" className="comment-error">{logError}</p>}
+            {logError && <p role="alert" className="adm-err">{logError}</p>}
             {logMissing ? (
               <div className="empty">
                 <b>{t('adm.logMissing')}</b>
@@ -1533,7 +1410,8 @@ export default function AdminPanel({
             ))
         ) : (
           shown.length === 0
-            ? <EmptyState title={t('adm.emptyTitle')} body={t('adm.emptyBody')}
+            ? <EmptyState title={t(tab === 'picked' ? 'adm.emptyPicked' : 'adm.emptyTitle')}
+                body={t(tab === 'picked' ? 'adm.emptyPickedBody' : 'adm.emptyBody')}
                 filtered={filtered} q={q} t={t} onClear={clearFilters} />
             : pg.items.map(r => (
               <RequestAdminRow key={r.id} r={r} dup={totals.get(groupKey(r))} pickInterval={pickInterval}
@@ -1583,21 +1461,8 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* Bình luận phân trang Ở DATABASE (mỗi trang 20 dòng), nên nó có
-            thanh phân trang riêng dựa trên `total` thật chứ không dựa trên
-            mảng đã tải. */}
-        {tab === 'comments' && (
-          <Pager
-            page={commentPage}
-            pages={Math.max(1, Math.ceil(commentTotal / ADMIN_COMMENTS_PER_PAGE))}
-            from={commentTotal === 0 ? 0 : (commentPage - 1) * ADMIN_COMMENTS_PER_PAGE + 1}
-            to={Math.min(commentPage * ADMIN_COMMENTS_PER_PAGE, commentTotal)}
-            total={commentTotal}
-            onChange={(n) => loadAdminComments(n, q)}
-            scrollTo={listRef}
-          />
-        )}
-        {/* Nhật ký phân trang ở database, cùng khuôn với bình luận. */}
+        {/* Nhật ký phân trang Ở DATABASE (mỗi trang 20 dòng), nên nó có thanh
+            phân trang riêng dựa trên `total` thật chứ không dựa trên mảng đã tải. */}
         {tab === 'log' && !logMissing && (
           <Pager
             page={logPage}
@@ -1609,8 +1474,8 @@ export default function AdminPanel({
             scrollTo={listRef}
           />
         )}
-        {/* tab media và comments tự quản lý hoặc cuộn dọc nên không cắt trang bằng Pager này */}
-        {!['media', 'comments', 'log', 'overview'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
+        {/* tab media cuộn dọc nên không cắt trang bằng Pager này */}
+        {!['media', 'log', 'overview'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
     </section>
   )

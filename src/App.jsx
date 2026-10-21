@@ -23,7 +23,6 @@ import Countdown from './components/Countdown'
 import CalcNote from './components/CalcNote'
 import FollowBtn from './components/FollowBtn'
 import ShareBtn from './components/ShareBtn'
-import Comments from './components/Comments'
 import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
@@ -64,7 +63,7 @@ import { SUPPORT } from './lib/payment'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyAchievementRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest, fetchCommentCounts,
+  fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest,
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
@@ -269,8 +268,8 @@ function SignInPanel({ title, body, onSignIn }) {
 }
 
 /* ---------------- một dòng request ---------------- */
-function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete, user = null,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null, commentCount = 0, onCommentCountChange }) {
+function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
+  followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
@@ -333,7 +332,6 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             đúng con số này — một bài, một con số. */}
         {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
         {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
-        <Comments requestId={r.id} user={user} onLogin={onLogin} initialCount={commentCount} onCountChange={onCommentCountChange ? (n) => onCommentCountChange(r.id, n) : undefined} />
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
@@ -353,7 +351,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
 }
 
 function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null, commentCounts, onCommentCountChange }) {
+  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -394,16 +392,13 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
       <div className="grow-rows">
         <div className="grow-rows-in">
           {g.rows.map((r, k) => (
-            <RequestRow key={r.id} r={r} i={null} n={k} user={user}
-              showDelete={r.user_id === user.id}
+            <RequestRow key={r.id} r={r} i={null} n={k}
+              showDelete={!!user && r.user_id === user.id}
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
               onVote={onVote}
               onShare={onShare}
-              onLogin={onLogin}
-              onDelete={onDelete}
-              commentCount={commentCounts?.[r.id] || 0}
-              onCommentCountChange={(n) => onCommentCountChange?.(r.id, n)} />
+              onDelete={onDelete} />
           ))}
         </div>
       </div>
@@ -1026,10 +1021,10 @@ function AppInner() {
     const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
-      fetchActivityDays(u.id), fetchCommentCounts(), fetchMyAchievementRequests(u.id),
+      fetchActivityDays(u.id), fetchMyAchievementRequests(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, od, , , act, cc, achievementReqs] = results
+    const [r, v, vs, ach, rk, od, , act, achievementReqs] = results
     /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
        để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
     /* Lượt cũ (đã có lượt nạp mới hơn bắt đầu) thì KHÔNG ghi gì cả: số liệu
@@ -1056,7 +1051,6 @@ function AppInner() {
     if (od.status === 'fulfilled') setOrders(od.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
-    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     return results
   }, [user, loadMedia, loadPick, noteBoard])
 
@@ -1070,13 +1064,13 @@ function AppInner() {
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(),
       /* vote/bình luận của mình vừa tạo cũng là một dấu ngày — tải lại streak
          trong chính lần tải bảng này để ngọn lửa không trễ một nhịp */
-      fetchActivityDays(u.id), fetchCommentCounts(),
+      fetchActivityDays(u.id),
       /* "vote nhận trong mùa" — tải cùng nhịp bảng để số phiếu trên Leaderboard
          tuần/tháng và thẻ This week không trễ sau một lần vote. */
       fetchRecentVotes(), fetchMyAchievementRequests(u.id),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, act, cc, vv, achievementReqs] = results
+    const [r, v, vs, ach, rk, act, vv, achievementReqs] = results
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
@@ -1097,7 +1091,6 @@ function AppInner() {
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
-    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     /* lỗi fetch phiếu thì giữ danh sách cũ — xoá đi thành ra số vote trong
        mùa về 0 tạm thời, nhìn như bảng tự sửa sai. */
     if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
@@ -1117,16 +1110,15 @@ function AppInner() {
      "Thử lại" và hai sự kiện bên dưới cùng dùng một đường nạp này. */
   const loadPublic = useCallback(async () => {
     const seq = nextTicket(dataSeq)
-    const [r, rk, cc, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchCommentCounts(), fetchRecentVotes()])
+    const [r, rk, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchRecentVotes()])
     /* Cùng luật với hai đường nạp trên: nút "Thử lại" bấm hai lần thì lượt cũ
        về sau không được dựng lại bảng bằng dữ liệu cũ hơn. */
-    if (!stillLatest(dataSeq, seq)) return { r, rk, cc }
+    if (!stillLatest(dataSeq, seq)) return { r, rk }
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') setRows(r.value)
     if (rk.status === 'fulfilled') setRanking(rk.value)
-    if (cc?.status === 'fulfilled' && cc.value) setCommentCounts(prev => ({ ...prev, ...cc.value }))
     if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
-    return { r, rk, cc }
+    return { r, rk }
   }, [noteBoard])
 
   useEffect(() => { if (!user) loadPublic() }, [user, loadPublic])
@@ -1263,22 +1255,6 @@ function AppInner() {
      Nạp theo tài khoản; đổi tài khoản là xoá snapshot cũ để không mang
      bảng của người này so với người kia (sẽ sinh toàn tin ảo). */
   const uid = user?.id
-  const [commentCounts, setCommentCounts] = useState({})
-  const handleCommentCountChange = useCallback((id, n) => {
-    setCommentCounts(prev => {
-      if (prev[id] === n) return prev
-      return { ...prev, [id]: n }
-    })
-  }, [setCommentCounts]) // setter ổn định — khai báo tường minh cho compiler
-
-  useEffect(() => {
-    if (!rows || rows.length === 0) return
-    let active = true
-    fetchCommentCounts(rows.map(r => r.id)).then(counts => {
-      if (active && counts) setCommentCounts(prev => ({ ...prev, ...counts }))
-    }).catch(() => {})
-    return () => { active = false }
-  }, [rows])
   useEffect(() => {
     snapRef.current = null
     if (!uid) {
@@ -2450,9 +2426,7 @@ function AppInner() {
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
                         followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)}
-                        commentCounts={commentCounts}
-                        onCommentCountChange={handleCommentCountChange} />
+                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
                       )
                     : (
                       <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i} user={viewer}
@@ -2462,9 +2436,7 @@ function AppInner() {
                         onVote={openVote}
                         onDelete={doDelete}
                         followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(groupKey(e.r))}
-                        commentCount={commentCounts[e.r.id] || 0}
-                        onCommentCountChange={handleCommentCountChange} />
+                        onShare={shareSong} st={standings.get(groupKey(e.r))} />
                       )
                   ))}
               </div>
@@ -2566,15 +2538,13 @@ function AppInner() {
                   <small>{t('mine.emptyHint')}</small>
                 </div>
                 : pgMine.items.map((r, i) => (
-                  <RequestRow key={r.id} r={r} n={i} user={viewer} showDelete
+                  <RequestRow key={r.id} r={r} n={i} showDelete
                     myCount={myVotes.get(r.id) || 0}
                     canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
                     onVote={openVote}
                     onDelete={doDelete}
                     followed={watchedSet.has(groupKey(r))} onWatch={doToggleWatch}
-                    onShare={shareSong} st={standings.get(groupKey(r))}
-                    commentCount={commentCounts[r.id] || 0}
-                    onCommentCountChange={handleCommentCountChange} />
+                    onShare={shareSong} st={standings.get(groupKey(r))} />
                 ))}
             </div>
             <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />

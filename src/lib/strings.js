@@ -336,7 +336,6 @@ const S = {
   'nt.grp.denied': 'Denied',
   'nt.grp.work': 'In progress',
   'nt.grp.out': 'Out now',
-  'nt.grp.comments': 'Comments & Replies',
   'nt.grp.other': 'Other',
 
   'nt.tag.near': 'Almost picked',
@@ -346,13 +345,7 @@ const S = {
   'nt.tag.picked': 'Up next',
   'nt.tag.done': 'Out now',
   'nt.tag.expired': 'Request expired',
-  'nt.tag.comment': 'Comment',
-  'nt.tag.reply': 'Reply',
-  'nt.tag.mention': 'Mention',
   'nt.n.expired': 'This request expired after one month and was deleted.',
-  'nt.n.comment': '{author} commented on your request: "{comment}"',
-  'nt.n.reply': '{author} replied to your comment: "{comment}"',
-  'nt.n.mention': '{author} mentioned you in a comment: "{comment}"',
   'nt.tag.denied': 'Denied',
   'nt.tag.progress': 'Progress',
   'nt.tag.votes': 'Votes',
@@ -565,7 +558,7 @@ const S = {
      Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
      ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
   'streak.label': 'Activity streak',
-  'streak.how': 'A day counts when you open the site while signed in, or when you send a request, vote, comment or use the daily spin (Vietnam time)',
+  'streak.how': 'A day counts when you open the site while signed in, or when you send a request, vote or use the daily spin (Vietnam time)',
   'streak.current': '{n}-day streak',
   'streak.longest': 'longest {n}',
   'streak.none': 'No active day yet — open the site while signed in to start a streak',
@@ -758,19 +751,6 @@ const S = {
   'recap.statVotes': 'votes this week',
   'recap.statDone': 'songs completed',
   'recap.statTop': 'top song votes',
-  'comment.reply': 'Reply',
-  'comment.cancel': 'Cancel',
-  'comment.replying': 'Replying to {name}',
-  'comment.replyPh': 'Write a reply…',
-  'comment.empty': 'No comments yet.',
-  'comment.signIn': 'Sign in to comment',
-  'comment.post': 'Post comment',
-  'comment.title': 'Comments',
-  'comment.write': 'Write a comment…',
-  'comment.remove': 'Remove comment',
-  'comment.posted': 'Your comment is now visible.',
-  'comment.removed': 'Your comment was removed.',
-  'comment.failed': 'Could not load or post comment.',
   'preview.close': 'Close preview',
   'preview.thirty': '30-second preview',
   'preview.open': 'Open full video on YouTube',
@@ -1143,6 +1123,11 @@ const S = {
   'adm.pick': 'Pick for Up next',
   'adm.unpick': 'Remove from Up next',
   'adm.picked': 'Up next',
+  /* Nhãn MỤC (dải số liệu) khác nhãn chip 'Up next' ở trên: chip nói một bài
+     đã được chốt, mục nói "xem những bài đang giữ suất". */
+  'adm.pickedTab': 'Picked',
+  'adm.emptyPicked': 'No request is holding the Up-next slot.',
+  'adm.emptyPickedBody': 'Pick a request in Pending or In progress and it will show up here.',
   'adm.sourceLink': 'source link',
   'adm.delete': 'Delete',
   'adm.confirmDelete': 'Delete this request?',
@@ -1183,7 +1168,6 @@ const S = {
   'adm.reqDeleted': '(request deleted)',
   'adm.votesShort': 'votes',
   'adm.search': 'Search song, artist or requester…',
-  'adm.searchComments': 'Search comment, song or member…',
   'adm.clearSearch': 'Clear search',
   'adm.noResults': 'Nothing matches “{q}”.',
   /* request trùng bài: dòng này là một phần của cụm, hạng tính theo tổng vote */
@@ -1251,10 +1235,6 @@ const S = {
   'adm.mediaSave': 'Save',
   'adm.mediaUp': 'Move up',
   'adm.mediaDown': 'Move down',
-  'adm.comments': 'Comments',
-  'adm.commentDelete': 'Delete comment',
-  'adm.noComments': 'No comments found',
-  'adm.emptyCommentsBody': 'Comments on requests will appear here for moderation.',
 
   /* thong bao duoi goc */
   'toast.deleted': 'Request deleted.',
@@ -1304,7 +1284,6 @@ const S = {
   'err.voteAuth': 'Sign in to vote.',
   'err.requestAuth': 'Sign in to send a request.',
   'err.requestMissing': 'Request not found.',
-  'err.commentInvalid': 'Comment must be between 1 and 180 characters.',
   'err.expiryLocked': 'This request is already in production and cannot expire.',
   'err.voteClosed': 'Voting is closed for this request.',
   'err.needFields': 'Artist and title are required.',
@@ -1315,10 +1294,6 @@ const S = {
   'err.rewardPeriod': 'That reward period is not valid.',
   'err.rewardType': 'Choose the paid-request option before using this reward.',
   'err.noBonusRequest': 'You have no free paid-request rewards left.',
-  'err.commentRate': 'Too many comments. Please wait a minute and try again.',
-  'err.commentParent': 'That reply no longer belongs to this request.',
-  'err.commentDeleteDenied': 'Could not delete that comment. It may have already been removed or you do not have permission.',
-  'err.commentLoadFailed': 'Could not load comments. Try again.',
   'err.orderOwner': 'You can only cancel your own orders.',
   'err.orderPaidLocked': 'The request is already approved, so the order cannot be cancelled.',
   'err.kindBad': 'Unknown video type.',
@@ -1350,6 +1325,12 @@ const S = {
   'err.mediaUrl': 'Paste a YouTube video URL.',
   'err.mediaMissing': 'That item no longer exists.',
   'err.mediaBulkEmpty': 'No valid lines. Use: https://youtu.be/… | Title',
+  /* Hai mã dưới đây không còn đường nào sinh ra trong mã web (tính năng bình
+     luận đã gỡ ở migration 20261216), nhưng vẫn nằm trong các file SQL cũ —
+     database chưa chạy 20261216 vẫn raise chúng, và lúc đó người dùng phải
+     đọc được câu tiếng người thay vì "err.commentRate". */
+  'err.commentRate': 'Too many comments. Please wait a minute and try again.',
+  'err.commentParent': 'That reply no longer belongs to this request.',
 
   /* thoi gian tuong doi */
   'time.now': 'now',

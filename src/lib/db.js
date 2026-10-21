@@ -7,11 +7,9 @@ import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken 
 import { TURNSTILE_SITE_KEY } from './turnstile'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
-import { ADMIN_COMMENTS_PER_PAGE, pageAdminComments } from './adminComments.js'
 import { rankDemo } from './ranking.js'
 import { fetchAllPages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
-import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
@@ -403,236 +401,11 @@ export async function adminExpireRequest(id) {
   if (error) throw rpcError(error)
 }
 
-export async function fetchComments(requestId) {
-  if (!requestId) return []
-  if (!hasSupabase) {
-    try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
-  }
-  // Load complete threads, rather than the latest 20 rows (which may exclude
-  // their roots). Never drop the deleted filter on a failed query.
-  const items = [], pageSize = 500
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase.from('request_comments')
-      .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
-      .eq('request_id', requestId).is('deleted_at', null)
-      .order('created_at', { ascending: false }).order('id')
-      .range(from, from + pageSize - 1)
-    if (error) throw error
-    items.push(...(data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null })))
-    if (!data || data.length < pageSize) return items
-  }
-}
-
-export async function deleteComment(commentId) {
-  if (!commentId) return true
-  if (!hasSupabase) {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('ccl.comments.')) {
-          let items = JSON.parse(localStorage.getItem(key) || '[]')
-          const before = items.length
-          items = removeCommentSubtree(items, commentId)
-          if (items.length !== before) localStorage.setItem(key, JSON.stringify(items))
-        }
-      }
-    } catch {}
-    return true
-  }
-  // Zero affected rows is NOT success: RLS may have rejected the deletion.
-  const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
-  if (error) throw rpcError(error)
-  if (!data?.length) throw appError('err.commentDeleteDenied')
-  return true
-}
-
-export async function fetchCommentCounts(requestIds = null) {
-  if (!hasSupabase) {
-    const counts = {}
-    try {
-      if (Array.isArray(requestIds) && requestIds.length > 0) {
-        for (const id of requestIds) {
-          const list = JSON.parse(localStorage.getItem(`ccl.comments.${id}`) || '[]')
-          if (list.length) counts[id] = list.length
-        }
-      } else {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i)
-          if (k && k.startsWith('ccl.comments.')) {
-            const id = k.replace('ccl.comments.', '')
-            const list = JSON.parse(localStorage.getItem(k) || '[]')
-            if (list.length) counts[id] = list.length
-          }
-        }
-      }
-    } catch {}
-    return counts
-  }
-  const run = async (withDeleted) => {
-    let query = supabase.from('request_comments').select('request_id')
-    if (withDeleted) query = query.is('deleted_at', null)
-    if (Array.isArray(requestIds) && requestIds.length > 0) {
-      query = query.in('request_id', requestIds)
-    }
-    const { data, error } = await query
-    if (error) throw error
-    const counts = {}
-    for (const c of data || []) {
-      if (c.request_id) counts[c.request_id] = (counts[c.request_id] || 0) + 1
-    }
-    return counts
-  }
-  try {
-    return await run(true)
-  } catch (e) {
-    if (isMissingSchemaObject(e)) return {}
-    try {
-      return await run(false)
-    } catch {
-      return {}
-    }
-  }
-}
-
 export async function settleCurrentSeasonRewards(seasonType = 'week') {
   if (!hasSupabase) return []
   const { data, error } = await supabase.rpc('settle_current_season_rewards', { p_season_type: seasonType })
   if (error) throw error
   return data || []
-}
-
-/* =========================================================
-   BÌNH LUẬN — MỘT TRANG, KHÔNG PHẢI "100 DÒNG MỚI NHẤT"
-   ---------------------------------------------------------
-   Bản cũ đọc thẳng 100 dòng mới nhất rồi trả hết về cho trang quản trị. Quá
-   100 bình luận thì phần còn lại biến mất mà màn hình không nói gì; không có
-   ô tìm; và trang không có cách nào biết mình đang thiếu dữ liệu.
-   Nay: lọc + đếm + cắt trang trong MỘT RPC (`admin_comments_page`, migration
-   20261212). SQL giữ chốt quyền is_admin — client không tự quyết định quyền.
-   `total` là tổng số dòng khớp bộ lọc, nên tiêu đề mục và dải số liệu đọc
-   được con số thật.
-   ========================================================= */
-const shapeAdminComment = (c) => ({
-  id: c.id,
-  request_id: c.request_id ?? c.requestId ?? null,
-  user_id: c.user_id ?? c.userId ?? null,
-  parent_id: c.parent_id ?? c.parentId ?? null,
-  body: c.body || '',
-  created_at: c.created_at ?? c.createdAt ?? null,
-  author: c.author ?? c.profiles?.name ?? c.profileName ?? 'Member',
-  avatar: c.avatar ?? c.profiles?.avatar_url ?? c.profileAvatar ?? null,
-  songTitle: c.songTitle ?? c.song_title ?? c.requests?.title ?? '',
-  songArtist: c.songArtist ?? c.song_artist ?? c.requests?.artist ?? '',
-})
-
-/* Mã lỗi "hàm chưa có trên database này". Trong khoảng thời gian giữa lúc
-   deploy frontend và lúc chạy migration, trang quản trị vẫn phải dùng được —
-   rơi về đường đọc cũ thay vì hiện một khung lỗi. */
-const MISSING_RPC_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
-const isMissingRpc = (error) => MISSING_RPC_CODES.has(error?.code)
-
-function demoAdminComments() {
-  const all = []
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key || !key.startsWith('ccl.comments.')) continue
-      const items = JSON.parse(localStorage.getItem(key) || '[]')
-      if (Array.isArray(items)) all.push(...items)
-    }
-  } catch { /* dữ liệu demo hỏng: coi như chưa có bình luận, không làm sập trang */ }
-  const rows = readData(LS.rows, [])
-  return all
-    .map(c => {
-      const req = rows.find(r => r.id === c.request_id)
-      return shapeAdminComment({ ...c, songTitle: req?.title || '', songArtist: req?.artist || '' })
-    })
-    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
-}
-
-/* Đường lui: chỉ chạy khi RPC chưa tồn tại (migration chưa áp dụng). Đọc một
-   cửa sổ rộng hơn một trang rồi lọc/cắt trang ở client — chấp nhận được trong
-   vài phút deploy, và vẫn tốt hơn một trang trắng. */
-async function fetchAdminCommentsLegacy({ q, page, perPage }) {
-  const { data, error } = await supabase.from('request_comments')
-    .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
-    .is('deleted_at', null).order('created_at', { ascending: false }).order('id', { ascending: false })
-    .limit(500)
-  if (error) throw rpcError(error)
-  return pageAdminComments((data || []).map(shapeAdminComment), { q, page, perPage })
-}
-
-export async function fetchAdminComments({ q = '', page = 1, perPage = ADMIN_COMMENTS_PER_PAGE } = {}) {
-  const limit = Math.max(1, Math.min(100, Math.trunc(Number(perPage)) || ADMIN_COMMENTS_PER_PAGE))
-  const wanted = Math.max(1, Math.trunc(Number(page)) || 1)
-  const offset = (wanted - 1) * limit
-  const keyword = String(q || '').trim().slice(0, 80)
-
-  if (!hasSupabase) {
-    return pageAdminComments(demoAdminComments(), { q: keyword, page: wanted, perPage: limit })
-  }
-
-  const { data, error } = await supabase.rpc('admin_comments_page', {
-    p_q: keyword || null, p_limit: limit, p_offset: offset,
-  })
-  if (error) {
-    if (isMissingRpc(error)) return fetchAdminCommentsLegacy({ q: keyword, page: wanted, perPage: limit })
-    throw rpcError(error)
-  }
-  const payload = data && typeof data === 'object' ? data : {}
-  const rows = Array.isArray(payload.rows) ? payload.rows.map(shapeAdminComment) : []
-  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
-  const pages = Math.max(1, Math.ceil(total / limit))
-  const current = Math.min(wanted, pages)
-  /* Xoá dòng cuối của trang cuối là chuyện thường: RPC trả trang rỗng nhưng
-     `total` vẫn còn dòng ở trang trước. Tự lùi một trang thay vì để admin nhìn
-     một khung trống và tự bấm Previous. */
-  if (rows.length === 0 && total > 0 && wanted > pages) {
-    return fetchAdminComments({ q: keyword, page: pages, perPage: limit })
-  }
-  /* RPC trả đúng cửa sổ đã xin; `page` ở đây chỉ để thanh phân trang biết
-     mình đang đứng đâu, không cắt lại lần hai. */
-  return {
-    rows, total, pages, page: current, perPage: limit,
-    from: total === 0 ? 0 : offset + 1,
-    to: offset + rows.length,
-  }
-}
-
-export async function adminDeleteComment(commentId) {
-  // Server RLS checks the actual role; never trust a client-side admin flag.
-  return deleteComment(commentId)
-}
-
-export async function addComment(requestId, userId, body, parentId = null) {
-  const clean = String(body || '').trim()
-  if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
-  if (!hasSupabase) {
-    const key = `ccl.comments.${requestId}`
-    /* Dữ liệu trong localStorage là thứ người dùng sửa được (và là thứ có thể
-       hỏng nửa chừng nếu tab bị đóng giữa lúc ghi). Một chuỗi không phải JSON ở
-       đây từng làm cả thao tác gửi bình luận ném ra SyntaxError — trong khi mọi
-       thứ cần cho việc gửi đều đã có. Hỏng thì coi như chưa có bình luận nào và
-       ghi lại từ đầu; KHÔNG im lặng bỏ qua giá trị hợp lệ. */
-    let old = []
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '[]')
-      if (Array.isArray(parsed)) old = parsed
-    } catch { old = [] }
-    if (parentId && !old.some(c => c.id === parentId && c.request_id === requestId && !c.deleted_at)) {
-      throw appError('err.commentParent')
-    }
-    const profile = readData(LS.user, {})
-    const next = { id: crypto.randomUUID(), request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: profile?.name || 'Member', avatar: profile?.avatar || null }
-    localStorage.setItem(key, JSON.stringify([next, ...old]))
-    return next
-  }
-  // Fail closed. In particular, never retry a rejected reply without parent_id.
-  const { data, error } = await supabase.from('request_comments')
-    .insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean })
-    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)').single()
-  if (error) throw rpcError(error)
-  return { ...data, author: data.profiles?.name || 'Member', avatar: data.profiles?.avatar_url || null }
 }
 
 export async function fetchRequests() {
@@ -997,16 +770,6 @@ function demoActivityDays(userId) {
     const ms = Date.parse(r.created_at)
     if (Number.isFinite(ms)) days.add(vnDayKey(ms))
   }
-  try {
-    for (const k of Object.keys(localStorage)) {
-      if (!k.startsWith('ccl.comments.')) continue
-      for (const c of JSON.parse(localStorage.getItem(k) || '[]')) {
-        if (c?.user_id !== userId) continue
-        const ms = Date.parse(c.created_at)
-        if (Number.isFinite(ms)) days.add(vnDayKey(ms))
-      }
-    }
-  } catch { /* storage bị chặn: demo chỉ còn dấu request + spin */ }
   for (const e of readData(LS.spins, [])) {
     if (e?.user_id === userId && typeof e.day === 'string') days.add(e.day)
   }
@@ -1497,6 +1260,12 @@ export async function adminEditRequest(id, patch = {}) {
   })
   if (error) throw rpcError(error)
 }
+
+/* Mã lỗi "hàm chưa có trên database này". Trong khoảng thời gian giữa lúc
+   deploy frontend và lúc chạy migration, bảng quản trị vẫn phải dùng được —
+   trả trang rỗng kèm cờ `missingSchema` thay vì một khung lỗi đỏ. */
+const MISSING_RPC_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
+const isMissingRpc = (error) => MISSING_RPC_CODES.has(error?.code)
 
 /* =========================================================
    NHẬT KÝ THAO TÁC QUẢN TRỊ — một trang, đọc từ database

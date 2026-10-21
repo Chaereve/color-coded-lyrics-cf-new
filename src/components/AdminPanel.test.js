@@ -69,7 +69,7 @@ const base = {
 }
 
 test('cả năm mục của trang quản trị đều dựng được (không sót prop → trang trắng)', async () => {
-  for (const tab of ['overview', 'pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']) {
+  for (const tab of ['overview', 'pending', 'active', 'expired', 'picked', 'orders', 'done', 'media', 'log']) {
     const html = await render({ ...base, tab })
     assert.ok(html.includes('class="adm-page"'), `mục ${tab}: thiếu khung .adm-page`)
     assert.ok(html.includes('adm-kpis'), `mục ${tab}: thiếu dải số liệu`)
@@ -121,8 +121,8 @@ test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê —
   const html = await render({ ...base, tab: 'pending' })
   const kpi = html.match(/<div class="adm-kpis"[\s\S]*?<\/div><\/div>/)?.[0] ?? ''
   const nums = [...kpi.matchAll(/<span class="v">(\d+)<\/span>/g)].map(m => m[1])
-  assert.deepEqual(nums, ['0', '2', '1', '0', '1', '2', '1', '0', '0'],
-    'tổng quan (không đếm) · chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đơn chờ 1 · đã xong/từ chối 2 · video 1 · bình luận 0 · nhật ký 0')
+  assert.deepEqual(nums, ['0', '2', '1', '0', '1', '1', '2', '1', '0'],
+    'tổng quan (không đếm) · chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đã pick 1 · đơn chờ 1 · đã xong/từ chối 2 · video 1 · nhật ký 0')
 
   /* TIÊU ĐỀ MỤC ĐANG MỞ: dải số liệu là bộ CHUYỂN MỤC nên nó không thể vừa là
      tiêu đề; mà trang không có tiêu đề nào thì trình đọc màn hình chỉ nghe được
@@ -272,24 +272,6 @@ test('mục Đơn hàng có bộ lọc trạng thái và con số tiền đã nh
     'ba trạng thái có thật của bảng orders là nguồn duy nhất')
 })
 
-test('mục Bình luận tìm ở database và phân trang thật, không còn cắt im lặng ở 100 dòng', async () => {
-  const html = await render({ ...base, tab: 'comments' })
-  assert.ok(html.includes('class="adm-bar"'), 'mục Bình luận cần thanh công cụ như mọi mục')
-  assert.match(html, /Search comment, song or member/, 'thiếu ô tìm của mục Bình luận')
-  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
-  assert.doesNotMatch(src, /fetchAllCommentsForAdmin/, 'đường đọc cũ (100 dòng, không tổng) phải bị gỡ')
-  assert.match(src, /fetchAdminComments\(\{ q: keyword, page, perPage: ADMIN_COMMENTS_PER_PAGE \}\)/,
-    'phải đọc theo trang, kèm tổng số')
-  assert.match(src, /commentTotal/, 'tổng số bình luận phải được đọc ra, không lấy độ dài mảng')
-  const db = readFileSync(`${root}src/lib/db.js`, 'utf8')
-  assert.match(db, /supabase\.rpc\('admin_comments_page'/, 'lọc + đếm + cắt trang phải ở database')
-  assert.match(db, /p_q: keyword \|\| null, p_limit: limit, p_offset: offset/,
-    'ba tham số của RPC phải được truyền đủ')
-  assert.doesNotMatch(db, /export async function fetchAllCommentsForAdmin/,
-    'hàm cũ phải bị gỡ khỏi db.js, không để hai đường đọc song song')
-})
-
-/* ================= TỔNG QUAN + PHÍM TẮT (P2) ================= */
 test('mục Tổng quan trả lời ba câu: còn gì phải làm · chờ bao lâu · đã thu bao nhiêu', async () => {
   const html = await render({ ...base, tab: 'overview', pickInterval: 4 })
   assert.match(html, /class="adm-ov"/, 'thiếu ba tấm thẻ tóm tắt')
@@ -328,7 +310,7 @@ test('bốn phím j/k/a/d và Enter có trong bảng quản trị, in ra chỗ d
   assert.match(src, /const canApprove = !!cursorRow && cursorRow\.status === 'pending'/,
     'a/d phải giới hạn ở hàng đang chờ')
   /* Mục không có danh sách request thì không có con trỏ. */
-  assert.match(src, /const isRequestList = !\['overview', 'media', 'comments', 'log', 'orders'\]\.includes\(tab\)/,
+  assert.match(src, /const isRequestList = !\['overview', 'media', 'log', 'orders'\]\.includes\(tab\)/,
     'mục Đơn hàng / Bình luận / Videos không có con trỏ bàn phím')
 })
 
@@ -404,4 +386,43 @@ test('lịch sử của một bài nằm trong khung sửa, chỉ tải khi khun
   /* Thiếu migration thì ẩn khối, không hiện khung lỗi giữa việc đang làm. */
   assert.match(src, /if \(missing\) return null/, 'thiếu hàm thì khối phải tự biến mất')
   assert.match(src, /className="adm-hist"/, 'thiếu khối bao ngoài của lịch sử')
+})
+
+/* ================= MỤC "ĐÃ PICK" (2026-12-16) ================= */
+test('mục Đã pick chỉ liệt kê bài đang GIỮ SUẤT, xếp theo thứ tự dây chuyền', async () => {
+  const html = await render({ ...base, tab: 'picked' })
+  /* Fixture: `a1` là bài duy nhất có picked_at và còn ở trạng thái chạy. Bài
+     đã xong (`c1`) và bài bị từ chối (`d1`) cố ý nằm ngoài — mục này trả lời
+     "suất đang bị chiếm bởi bài nào", không phải "bài nào từng được chốt". */
+  assert.match(html, /Whiplash/, 'bài đang giữ suất phải có mặt')
+  assert.ok(!html.includes('Get Up'), 'bài chưa được chốt không được lọt vào')
+  assert.match(html, /Showing 1 of 1/, 'số dòng phải khớp đúng một bài')
+
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /const pickedRows = useMemo\(/,
+    'danh sách đã pick phải tính một lần, không lọc lại trong JSX')
+  assert.match(src, /rows\.filter\(r => r\.picked_at && \['queued', 'in_progress'\]\.includes\(r\.status\)\)/,
+    'chỉ bài có picked_at VÀ còn đang chạy mới là "đang giữ suất"')
+  /* Thứ tự dây chuyền: bài chốt trước đứng trước. */
+  assert.match(src, /\.sort\(\(a, b\) => \(\+new Date\(a\.picked_at\) \|\| 0\) - \(\+new Date\(b\.picked_at\) \|\| 0\)\)/,
+    'phải xếp theo picked_at tăng dần')
+  /* Mục rỗng phải nói vì sao rỗng và làm gì tiếp, không phải "Nothing here". */
+  assert.match(src, /t\(tab === 'picked' \? 'adm\.emptyPicked' : 'adm\.emptyTitle'\)/,
+    'mục Đã pick có trạng thái rỗng riêng')
+})
+
+test('tính năng bình luận đã bị gỡ khỏi web và khỏi database', async () => {
+  const html = await render({ ...base, tab: 'pending' })
+  assert.ok(!html.includes('adm-comment'), 'không được còn thẻ bình luận nào trong bảng quản trị')
+  assert.ok(!html.includes('Comments'), 'không được còn mục Bình luận trong dải số liệu')
+
+  const db = readFileSync(`${root}src/lib/db.js`, 'utf8')
+  for (const fn of ['fetchComments', 'addComment', 'deleteComment', 'fetchCommentCounts', 'fetchAdminComments', 'adminDeleteComment']) {
+    assert.ok(!db.includes(`export async function ${fn}`), `${fn}: hàm của tính năng đã gỡ phải biến mất`)
+  }
+  /* Không còn đường đọc/ghi bảng đã bị xoá — một dòng select còn sót là một
+     lỗi 42P01 lúc chạy, không phải lúc build. */
+  assert.ok(!db.includes("from('request_comments')"), 'không được còn truy vấn tới bảng đã xoá')
+  const app = readFileSync(`${root}src/App.jsx`, 'utf8')
+  assert.ok(!app.includes("components/Comments"), 'trang công khai không được import khối bình luận')
 })

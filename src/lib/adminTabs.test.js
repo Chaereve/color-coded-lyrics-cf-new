@@ -11,10 +11,16 @@ import { ADMIN_ORDER_STATES, ADMIN_TABS, ADMIN_TAB_META, adminQuery, adminTabPat
 
 test('chín mục: Tổng quan đứng đầu, nhật ký đứng cuối', () => {
   assert.deepEqual(ADMIN_TABS,
-    ['overview', 'pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log'])
+    ['overview', 'pending', 'active', 'expired', 'picked', 'orders', 'done', 'media', 'log'])
   /* Tổng quan là câu hỏi ĐẦU TIÊN của người mở bảng ("tuần này thế nào"), nên
      nó là mục mở ra mặc định — không phải hàng đợi. */
   assert.equal(ADMIN_TABS[0], 'overview')
+  /* Đã pick đứng ngay sau nhóm hàng đợi: nó là "suất Up next đang do bài nào
+     giữ", cùng nhóm câu hỏi với Chờ duyệt / Đang xử lý / Hết hạn. */
+  assert.equal(ADMIN_TABS.indexOf('picked'), ADMIN_TABS.indexOf('expired') + 1)
+  /* Mục Bình luận đã bị gỡ cùng tính năng bình luận (migration 20261216) —
+     một mục trỏ tới bảng không còn tồn tại là mục chết. */
+  assert.equal(ADMIN_TABS.includes('comments'), false)
   /* Nhật ký là chỗ TRA CỨU, không phải việc phải làm hôm nay — nó không được
      chen trước hàng đợi duyệt bài. */
   assert.equal(ADMIN_TABS.at(-1), 'log')

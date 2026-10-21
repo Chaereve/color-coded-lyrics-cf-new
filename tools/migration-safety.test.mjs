@@ -192,7 +192,7 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
       '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review'])
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -209,7 +209,7 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
       '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review'])
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -228,7 +228,7 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
       '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review'])
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -514,9 +514,10 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
      + siết tỉ lệ hộp: 20261204 + vote-back: 20261210
      + catalog thành tựu v3: 20261211 + bulk/bình luận admin: 20261212
      + nhật ký quản trị / sửa request đầy đủ: 20261213
-     + lịch sử theo từng request: 20261214 + báo người gửi khi duyệt/từ chối: 20261215). */
+     + lịch sử theo từng request: 20261214 + báo người gửi khi duyệt/từ chối: 20261215
+     + gỡ tính năng bình luận: 20261216). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 55)
+  assert.equal(active.length, 56)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -537,9 +538,9 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
       '20261211_achievements_v3', '20261212_admin_bulk_and_comments_page',
       '20261213_admin_actions_and_request_edit', '20261214_request_history',
-      '20261215_notify_requester_review'])
+      '20261215_notify_requester_review', '20261216_remove_comments'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '19 migration(s) would be applied:')
+  assert.equal(lines[0], '20 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -560,6 +561,7 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261213  20261213_admin_actions_and_request_edit.sql',
     'apply 20261214  20261214_request_history.sql',
     'apply 20261215  20261215_notify_requester_review.sql',
+    'apply 20261216  20261216_remove_comments.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

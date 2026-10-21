@@ -807,3 +807,41 @@ duyệt lại là hai sự việc, còn duyệt hai lần cùng trạng thái b�
 Web đọc lại hộp thư cùng nhịp với bảng (kênh realtime `requests`) để người gửi
 đang mở trang thấy tin mà không phải F5. Test:
 `supabase/tests/adminRequestHistory.test.js`.
+
+## 20261216 — Gỡ hẳn tính năng bình luận
+
+**Migration xoá dữ liệu.** Chạy một lần, rerunnable (`drop … if exists`), một
+transaction, không thêm bảng. Bảng `request_comments` và toàn bộ bình luận cũ
+mất hẳn — khôi phục chỉ từ backup (`scripts/backup-db.sh`) chụp trước ngày chạy.
+
+| File | Vai trò |
+| --- | --- |
+| `20261216_remove_comments.sql` | Drop 7 hàm của tính năng (`admin_comments_page`, `notify_on_comment`, `hide_comment_subtree`, `comment_mention_handle`, `enforce_comment_limits`, `guard_comment_update`) → xoá tin `comment`/`reply`/`mention` trong `notifications` → `drop table public.request_comments`. Trigger/index/policy trên bảng đi theo bảng. |
+| `supabase/rollback/20261216_remove_comments.sql` | Dựng lại **khung** bảng (cột, index, RLS, grant) để web cũ không chết vì thiếu bảng. **Không** khôi phục được dữ liệu; muốn đủ hành vi cũ thì chạy lại 20260920/21/22 → 20261106/07 → 20261212 theo thứ tự ghi trong file. |
+
+Vì sao gỡ cả database: bảng còn đó nghĩa là vẫn còn trigger ghi `notifications`,
+vẫn còn RLS cho `anon` đọc một tính năng không còn ai dùng — bề mặt tấn công
+không có chủ, và dữ liệu chỉ là thứ không ai nhìn thấy. `notifications` giữ
+nguyên cấu trúc và giữ nguyên các loại tin về request/đơn hàng; chỉ ba loại tin
+sinh ra từ bình luận bị xoá (chúng trỏ tới nội dung vừa mất).
+
+Phía web (cùng bản này): xoá `Comments.jsx`, `lib/comments.js`,
+`lib/adminComments.js` và mọi lời gọi `fetchComments` / `addComment` /
+`deleteComment` / `fetchCommentCounts` / `fetchAdminComments` /
+`adminDeleteComment`; gỡ mục **Bình luận** khỏi bảng quản trị và gỡ nhóm tin
+`Comments & Replies` khỏi chuông. Hai mã lỗi `err.commentRate` /
+`err.commentParent` được giữ lại trong từ điển vì các file SQL cũ vẫn raise
+chúng trên database chưa chạy bản này.
+
+Kiểm chứng: PGlite — dựng bảng + 7 hàm + 4 dòng tin, chạy file **hai lần liên
+tiếp**: bảng và 7 hàm biến mất, chỉ còn tin `approved`.
+
+## Mục "Đã pick" trong bảng quản trị (không cần migration)
+
+Dải số liệu nay là: `overview · pending · active · expired · picked · orders ·
+done · media · log`. Mục Đã pick lọc `picked_at is not null` **và** status
+`queued` / `in_progress` — tức "suất Up next đang do bài nào giữ", xếp theo
+`picked_at` tăng dần (thứ tự dây chuyền). Bài đã xong và bài bị từ chối nằm ở
+mục Closed: mục này cố ý không liệt kê "bài từng được chốt", vì câu hỏi của nó
+là *hiện tại*. Không đọc thêm RPC nào — dữ liệu đã có trong `requests` mà bảng
+quản trị đang giữ.

@@ -8,7 +8,7 @@
    Thứ tự trong mảng là thứ tự trên màn hình: việc gấp nhất đứng trước.
    ========================================================= */
 
-export const ADMIN_TABS = ['overview', 'pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']
+export const ADMIN_TABS = ['overview', 'pending', 'active', 'expired', 'picked', 'orders', 'done', 'media', 'log']
 
 /* =========================================================
    MỖI MỤC MỘT DÒNG KHAI — nguồn duy nhất cho dải số liệu
@@ -29,10 +29,13 @@ export const ADMIN_TAB_META = [
   { k: 'pending', label: 'adm.pending', tone: 'var(--pending)',  count: 'pending' },
   { k: 'active',  label: 'adm.active',  tone: 'var(--progress)', count: 'active' },
   { k: 'expired', label: 'adm.expired', tone: 'var(--denied)',   count: 'expired' },
+  /* ĐÃ PICK đứng ngay sau nhóm hàng đợi: nó trả lời "suất Up next đang do bài
+     nào giữ". Tách khỏi Đang xử lý vì mục đó gộp cả bài chưa từng được chốt
+     (in_progress mà không có picked_at) — hai câu hỏi khác nhau. */
+  { k: 'picked',  label: 'adm.pickedTab', tone: 'var(--a-2)',    count: 'picked' },
   { k: 'orders',  label: 'adm.orders',  tone: 'var(--paid)',     count: 'orders' },
   { k: 'done',    label: 'adm.done',    tone: 'var(--done)',     count: 'done' },
   { k: 'media',   label: 'adm.media',   tone: 'var(--a-2)',      count: 'media' },
-  { k: 'comments', label: 'adm.comments', tone: 'var(--a-2)',    count: 'comments' },
   /* Nhật ký đứng CUỐI: nó là chỗ tra cứu khi cần, không phải việc phải làm
      hôm nay — nên nó không được chen trước hàng đợi. Màu `--queued` là tông
      duy nhất còn lại trong bảng màu trạng thái. */

@@ -11,7 +11,6 @@
     "preview": "vite preview",
     "test:spin:db": "node --test supabase/tests/dailySpin.test.js",
     "test:daily:db": "node --test supabase/tests/dailyRewards.test.js",
-    "test:comments:db": "node --test supabase/tests/commentsReplies.test.js",
     "test:question-bank": "node --test tools/question-bank.test.mjs",
     "question-bank:validate": "node tools/validate-question-bank.mjs",
     "test:migrate": "node --test tools/migration-safety.test.mjs",

@@ -2308,10 +2308,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   /* --- row actions: Follow/Share buttons (18×18 desktop → 40×40 mobile) --- */
   .rowact { min-width: 40px; min-height: 40px; padding: 8px; }
 
-  /* --- comments: reply/delete/toggle buttons --- */
-  .comment-reply-btn { min-height: 40px; padding: 6px 10px; }
-  .comment-delete { min-width: 40px; min-height: 40px; padding: 8px; }
-  .comments-toggle { min-height: 40px; }
 
   /* --- calendar navigation (28×28 desktop → 40×40 mobile) --- */
   .check-in-nav { min-width: 40px; min-height: 40px; }
@@ -3949,6 +3945,11 @@ html[data-section="spin"] .bgfx { display: none; }
   border-radius: var(--r-sm); background: color-mix(in srgb, var(--a-2) 10%, var(--panel)); }
 .adm-fresh-txt { flex: 1 1 auto; min-width: 0; color: var(--txt); font-size: 12px; }
 
+/* Câu lỗi trong bảng quản trị (nhật ký, lịch sử): một dòng chữ đỏ dưới thanh
+   công cụ, không phải khung cảnh báo — lỗi ở đây là "tải lại được", không phải
+   "trang hỏng". */
+.adm-err { margin: 0 0 8px; color: var(--denied); font-size: 11.5px; }
+
 /* LỊCH SỬ CỦA MỘT BÀI (trong khung sửa): khung lùi về sau, chữ nhỏ hơn phần
    việc-để-làm phía trên — lịch sử là để tra, không phải để làm. */
 .adm-hist { display: grid; gap: 4px; margin-top: 4px; padding: 9px 10px;
@@ -4562,54 +4563,6 @@ body {
      không thụt 30px kiểu "ước lượng" — thụt lệch là tên/số trông như bị đẩy sang một bên. */
   .lb-me.has .lb-me-stats { flex-basis: auto; width: auto; margin-left: 96px; }
 }
-/* =========================================================
-   COMMENTS & REPLIES
-   ========================================================= */
-.comments { margin-top: 7px; }
-.comments-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 3px 0; border: 0; background: none; color: var(--txt-3); font: 500 11px var(--font); cursor: pointer; transition: color var(--t-1) var(--e-soft); }
-.comments-toggle:hover { color: var(--a-2); }
-.comments-toggle b { min-width: 16px; padding: 1px 5px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--txt-2); font: 10px var(--mono); text-align: center; }
-.comments-panel { max-width: 520px; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); transform-origin: top left; animation: commentPanelIn .22s var(--e-out) both; }
-.comments-list { display: grid; gap: 8px; max-height: 240px; overflow-y: auto; padding-right: 2px; }
-.comment-card { display: grid; gap: 4px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--line-2); animation: commentRowIn .2s var(--e-out) both; }
-.comment-reply { margin-left: 16px; margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--a-2); }
-.comment-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
-.comment-av { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.comment-av.ph { display: grid; place-items: center; background: var(--a-soft); color: var(--a-2); font: 700 10px var(--mono); }
-.comment-meta { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
-.comment-author { color: var(--txt); font-size: 11.5px; font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.comment-author:hover { color: var(--a-2); text-decoration: underline; }
-.comment-plain { color: var(--txt); font-size: 11.5px; font-weight: 600; }
-.comment-time { color: var(--txt-3); font-size: 10px; font-family: var(--font); }
-.comment-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.comment-reply-btn { padding: 2px 7px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-3); font: 600 10px var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.comment-reply-btn:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
-.comment-delete { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-3); cursor: pointer; transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.comment-delete:hover { color: var(--denied); background: rgba(226, 110, 105, .15); }
-.comment-text { color: var(--txt); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; padding-left: 30px; }
-.comment-reply .comment-text { padding-left: 30px; }
-.comment-mention { display: inline-block; padding: 0 4px; border-radius: var(--r-sm); background: var(--a-soft); color: var(--a-2); font-weight: 600; font-size: 11px; }
-.comment-replies-list { display: grid; gap: 6px; margin-top: 4px; }
-.comments-empty { margin: 4px 0 10px; color: var(--txt-3); font-size: 11.5px; }
-
-.comment-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.replying { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 10px; border-radius: var(--r-sm); background: var(--a-soft); border: 1px solid var(--a-dim); animation: commentRowIn .15s var(--e-out) both; }
-.replying-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--a-2); font-size: 11px; font-weight: 600; }
-.replying-cancel { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface); color: var(--txt-3); font: 500 10.5px var(--font); cursor: pointer; transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.replying-cancel:hover { color: var(--denied); border-color: var(--denied); background: rgba(226, 110, 105, .12); }
-.comment-input-wrap { display: flex; gap: 6px; width: 100%; }
-.comment-input-wrap input { min-width: 0; flex: 1; height: 34px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--txt); font: 12px var(--font); transition: border-color var(--t-1) var(--e-soft); }
-.comment-input-wrap input:focus { outline: none; border-color: var(--a-2); }
-.comment-input-wrap button { display: grid; place-items: center; width: 36px; height: 34px; border: 1px solid var(--a-dim); border-radius: var(--r-sm); background: var(--a-soft); color: var(--a-2); cursor: pointer; transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
-.comment-input-wrap button:hover:not(:disabled) { background: var(--a-2); color: #fff; }
-.comment-input-wrap button:disabled { opacity: .45; cursor: not-allowed; }
-.comment-error { display: block; width: 100%; margin-top: 4px; color: var(--denied); font-size: 11px; }
-
-@media (max-width: 620px) { .comments-panel { max-width: none; } }
-@keyframes commentPanelIn { from { opacity: 0; transform: translateY(-5px) scaleY(.96); } to { opacity: 1; transform: none; } }
-@keyframes commentRowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .comments-panel, .comment-card { animation: none; } }
-
 /* =========================================================
    PUBLIC PROFILE
    ========================================================= */
