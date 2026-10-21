@@ -1196,6 +1196,17 @@ function AppInner() {
       t = setTimeout(() => {
         if (document.hidden) { dirty = true; return }
         loadBoard(user)
+        /* HỘP THƯ ĐỌC LẠI CÙNG NHỊP VỚI BẢNG. Từ 20261215, duyệt / từ chối một
+           bài sinh ra một tin trong hộp thư của NGƯỜI GỬI — mà hộp thư chỉ
+           được đọc lúc đăng nhập, nên không có dòng này thì người gửi phải F5
+           mới thấy kết quả, dù họ đang mở sẵn trang. `mergeInbox` đã chống
+           trùng theo id/sig nên đọc lại không làm chuông nhảy số sai. */
+        fetchNotifications(user.id)
+          .then(dbInbox => {
+            if (!dbInbox.length) return
+            setNotices(current => mergeInbox(current, dbInbox, loadDismissed(user.id)))
+          })
+          .catch(() => {})
       }, 400)
     }
     const ch = supabase.channel('live')

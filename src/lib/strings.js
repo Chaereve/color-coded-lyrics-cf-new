@@ -1069,6 +1069,8 @@ const S = {
   'adm.sparkSummary': '{total} in total · {peak}',
   'adm.sparkPeak': 'peak on day {d}',
   'adm.sparkNoPeak': 'no peaks yet',
+  'adm.histTitle': 'History · {n} changes',
+  'adm.histEmpty': 'No admin changes recorded for this request yet.',
   'adm.fresh': '{n} new requests since you opened this list',
   'adm.freshSee': 'See newest',
   'adm.freshDismiss': 'Dismiss',

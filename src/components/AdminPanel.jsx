@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAdminComments, fetchAdminActions, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
+import { MILESTONES, progressOf, fetchAdminComments, fetchAdminActions, fetchRequestHistory, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, conversionRates, FUNNEL_CONVERSIONS, FUNNEL_EVENT_KEYS, seriesByDay, votesPerRequest } from '../lib/funnelSummary.js'
 import Sparkline from './Sparkline'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
@@ -332,7 +332,79 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               {copied ? t('adm.creditsDone') : t('adm.credits')}
             </button>
           </div>
+          {/* LỊCH SỬ đứng CUỐI khung sửa: bốn nhóm trên là việc để làm, đây là
+              việc đã làm. Đọc lịch sử trước khi sửa cũng được — nhưng nó không
+              được đẩy các ô nhập xuống dưới màn hình đầu tiên. */}
+          <RequestHistory id={r.id} t={t} />
         </div>
+      )}
+    </div>
+  )
+}
+
+/* =========================================================
+   LỊCH SỬ CỦA ĐÚNG MỘT BÀI (migration 20261214)
+   ---------------------------------------------------------
+   Mục "Nhật ký" trả lời "admin đã làm gì". Khi đang sửa một bài, câu hỏi lại
+   là "bài NÀY đã qua tay ai" — nên khối này lọc theo id và nằm ngay trong
+   khung sửa, chỗ đang có việc.
+   Vì nó chỉ được DỰNG khi khung sửa mở (component mount = một lần đọc), không
+   cần cờ "đã tải chưa": đóng khung là quên, mở lại là đọc mới. Đổi lại, mỗi
+   lần mở khung là một RPC — rẻ hơn nhiều so với việc tải lịch sử của cả 10
+   dòng trong trang cho một khung có thể không ai mở.
+   Thiếu hàm (chưa chạy migration) thì khối tự biến mất, không phải một khung
+   lỗi chen giữa việc đang làm.
+   ========================================================= */
+function RequestHistory({ id, t }) {
+  const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [missing, setMissing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let live = true
+    fetchRequestHistory(id).then(res => {
+      if (!live) return
+      setRows(res.rows)
+      setTotal(res.total)
+      setMissing(!!res.missingSchema)
+    }).catch(() => { if (live) setMissing(true) })
+      .finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [id])
+
+  if (missing) return null
+  return (
+    <div className="adm-hist" aria-busy={loading || undefined}>
+      <span className="adm-hist-h">{t('adm.histTitle', { n: total })}</span>
+      {loading && rows.length === 0 ? (
+        <span className="adm-hist-muted">{t('adm.loading')}</span>
+      ) : rows.length === 0 ? (
+        <span className="adm-hist-muted">{t('adm.histEmpty')}</span>
+      ) : (
+        rows.map(row => {
+          const a = describeAction(row)
+          return (
+            <div className="adm-log-row" key={a.id}>
+              <div className="adm-log-what">
+                <b>{t(a.labelKey)}</b>
+                {a.fields.length > 0 && (
+                  <small className="adm-log-fields">
+                    {a.fields.map(f => (
+                      <span key={f.key} className="adm-log-field">
+                        {t(f.fieldKey)}: {shortValue(f.from, t)} → {shortValue(f.to, t)}
+                      </span>
+                    ))}
+                  </small>
+                )}
+              </div>
+              <small className="adm-log-meta">
+                {a.actor}
+                <span className="dot dot-inline" aria-hidden="true" />
+                {a.at ? timeAgo(a.at, t) : ''}
+              </small>
+            </div>
+          )
+        })
       )}
     </div>
   )

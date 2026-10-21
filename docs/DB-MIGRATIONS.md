@@ -766,3 +766,44 @@ hiện "cần chạy migration" thay vì một khung lỗi đỏ. Test:
 `src/lib/adminLog.test.js`, `src/lib/adminAge.test.js`. Đã chạy thử trên PGlite:
 chạy hai lần liên tiếp, ghi đúng khi admin sửa và **không** ghi khi user
 thường sửa, chặn `kind` lạ, non-admin không đọc được và không chèn được dòng.
+
+## 20261214 — Lịch sử của MỘT request
+
+Additive, một transaction, **rerunnable**, không thuộc fresh-install bundle.
+Chỉ THÊM một hàm đọc và một index — không `create or replace` trên hàm nào
+đang chạy.
+
+| File | Vai trò |
+| --- | --- |
+| `20261214_request_history.sql` | Index `admin_actions_target_time_idx (target_id, created_at desc, id desc)`. `admin_request_history(p_id uuid, p_limit int default 20)` → `{ total, rows }`, cùng khoá với `admin_actions_page` (`id, action, target_id, label, detail, created_at, actor_name`), lọc `target_id = p_id`, mới nhất trước, trần 100 dòng. |
+| `supabase/rollback/20261214_request_history.sql` | Drop hàm + index. **Giữ** toàn bộ dòng `admin_actions` — gỡ đường đọc không phải lý do để xoá bằng chứng; mục Nhật ký vẫn đọc được. |
+
+Mục Nhật ký trả lời "admin đã làm gì hôm nay"; câu hỏi khi đang sửa một bài là
+"bài NÀY đã qua tay ai". Trả lời bằng danh sách toàn cục nghĩa là cuộn qua hàng
+trăm dòng của bài khác, nên có RPC lọc theo `target_id`. Khối lịch sử nằm cuối
+khung sửa và chỉ được dựng khi khung đó mở (mount = một lần đọc); thiếu hàm thì
+`db.js` trả `missingSchema` và khối tự biến mất. Test:
+`supabase/tests/adminRequestHistory.test.js`, ca SSR trong
+`src/components/AdminPanel.test.js`.
+
+## 20261215 — Báo người gửi khi bài được duyệt / bị từ chối
+
+Rerunnable (`create or replace`), một transaction, không thêm bảng, không cron.
+**Có** `create or replace` trên hàm đang chạy — nhưng chỉ thêm phần ghi tin sau
+`UPDATE`; chữ ký `admin_review(uuid, boolean, text, text) → requests` giữ nguyên,
+`is_admin()` và phép kiểm `err.denyVideo` giữ nguyên.
+
+| File | Vai trò |
+| --- | --- |
+| `20261215_notify_requester_review.sql` | `admin_review` đọc trạng thái cũ (`for update`), update như cũ, rồi — **chỉ khi trạng thái thật sự đổi và bài có `user_id`** — chèn một dòng `notifications` loại `approved`/`denied`, `sig = 'review|<id>|<status mới>'`, `reason` giữ nguyên văn lý do từ chối. |
+| `supabase/rollback/20261215_notify_requester_review.sql` | Trả `admin_review` về thân cũ (không ghi tin). Không xoá tin đã ghi — đó là hộp thư của người dùng. |
+
+Bảng `notifications` đã có sẵn hai loại `approved`/`denied` trong check
+constraint và chuông đã có nhóm hiển thị, nhưng chưa có đường nào ghi ra chúng:
+người gửi chỉ biết kết quả bằng cách tự mở bảng xem lại. Đặt chỗ ghi ở
+`admin_review` (hàm duy nhất đổi status sang `queued`/`denied`; `admin_review_many`
+gọi lại chính nó) nên mọi đường đi đều báo. `sig` gồm trạng thái mới: từ chối rồi
+duyệt lại là hai sự việc, còn duyệt hai lần cùng trạng thái bị index unique chặn.
+Web đọc lại hộp thư cùng nhịp với bảng (kênh realtime `requests`) để người gửi
+đang mở trang thấy tin mà không phải F5. Test:
+`supabase/tests/adminRequestHistory.test.js`.

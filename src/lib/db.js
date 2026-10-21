@@ -1530,6 +1530,32 @@ export async function fetchAdminActions({ page = 1, perPage = 20 } = {}) {
   return { rows, total, pages, page: current, perPage: limit, from: total === 0 ? 0 : offset + 1, to: offset + rows.length, missingSchema: false }
 }
 
+/* =========================================================
+   LỊCH SỬ CỦA MỘT REQUEST (migration 20261214)
+   ---------------------------------------------------------
+   Mục "Nhật ký" trả lời "admin đã làm gì hôm nay". Câu hỏi khi đang sửa một
+   bài là "bài NÀY đã đi qua những tay nào" — nên phải lọc theo `target_id`,
+   không phải cuộn danh sách toàn cục.
+   Thiếu hàm (chưa chạy migration) thì trả `missingSchema` để khung sửa ẩn
+   khối lịch sử đi, thay vì hiện một khung lỗi giữa việc đang làm.
+   ========================================================= */
+export async function fetchRequestHistory(id, limit = 20) {
+  const empty = { rows: [], total: 0, missingSchema: false }
+  if (!id) return empty
+  const n = Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 20))
+  if (!hasSupabase) return empty
+
+  const { data, error } = await supabase.rpc('admin_request_history', { p_id: id, p_limit: n })
+  if (error) {
+    if (isMissingRpc(error)) return { ...empty, missingSchema: true }
+    throw rpcError(error)
+  }
+  const payload = data && typeof data === 'object' ? data : {}
+  const rows = Array.isArray(payload.rows) ? payload.rows : []
+  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
+  return { rows, total, missingSchema: false }
+}
+
 /* Duyệt / từ chối NHIỀU request trong một lượt. `admin_review` đã là nơi duy
    nhất quyết định chuyện gì xảy ra với một dòng (status, deny_reason,
    video_url, updated_at) — bản nhiều-dòng gọi lại chính hàm đó trong một

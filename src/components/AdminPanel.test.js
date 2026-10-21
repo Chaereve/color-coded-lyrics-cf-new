@@ -391,3 +391,17 @@ test('lúc chờ số liệu, ô funnel giữ chỗ bằng khung xám thay vì m
   const css = readFileSync(`${root}src/index.css`, 'utf8')
   assert.match(css, /\.adm-sk-num \{ height: 20px/, 'khung chờ phải có chiều cao xấp xỉ con số thật')
 })
+
+/* ================= LỊCH SỬ THEO TỪNG BÀI (P3) ================= */
+test('lịch sử của một bài nằm trong khung sửa, chỉ tải khi khung đó mở', async () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  /* Khung sửa đóng thì component không tồn tại → không có RPC nào chạy. Đó là
+     cách "lazy" ở đây: không cần cờ `loaded`, đóng khung là quên. */
+  assert.match(src, /function RequestHistory\(\{ id, t \}\)/, 'thiếu khối lịch sử riêng cho một bài')
+  assert.match(src, /\{open && \(\s*<div className="adm-edit">/, 'khung sửa phải còn là điều kiện duy nhất để dựng nó')
+  assert.match(src, /<RequestHistory id=\{r\.id\} t=\{t\} \/>/, 'khối lịch sử phải nhận đúng id của bài đang sửa')
+  assert.match(src, /fetchRequestHistory\(id\)/, 'phải đọc qua RPC lọc theo id, không lọc lại danh sách toàn cục')
+  /* Thiếu migration thì ẩn khối, không hiện khung lỗi giữa việc đang làm. */
+  assert.match(src, /if \(missing\) return null/, 'thiếu hàm thì khối phải tự biến mất')
+  assert.match(src, /className="adm-hist"/, 'thiếu khối bao ngoài của lịch sử')
+})
