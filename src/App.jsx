@@ -68,6 +68,7 @@ import {
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
+  adminReviewMany, adminDeleteMany, adminPickMany,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
 } from './lib/db'
 
@@ -1744,9 +1745,11 @@ function AppInner() {
     } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
   /* THAO TÁC HÀNG LOẠT từ bảng Admin: duyệt / từ chối / chốt / bỏ chốt / trả về
-     hàng đợi / xoá nhiều request trong một lần bấm. Chạy tuần tự rồi TẢI LẠI
-     BẢNG ĐÚNG MỘT LẦN — trước đây mỗi request là một vòng loadBoard, nên mười
-     dòng thành mười lần tải và mười cái toast.
+     hàng đợi / xoá nhiều request trong một lần bấm. Mỗi nhánh là MỘT lời gọi
+     RPC chạy trong một transaction (migration 20261212), rồi TẢI LẠI BẢNG
+     ĐÚNG MỘT LẦN — trước đây mỗi request là một vòng mạng riêng, nên mười
+     dòng thành mười lần gọi và mười cái toast, mà hỏng giữa chừng thì nửa
+     danh sách đã đổi.
      `selfActRef` nhận CẢ CỤM bài bị đụng tới, để phần thông báo không tự kể lại
      việc mình vừa làm. */
   const doBulk = async (action, ids = [], reason = null, videoUrl = null) => {
@@ -1754,12 +1757,15 @@ function AppInner() {
     const hit = rows.filter(r => ids.includes(r.id))
     if (hit.length) selfActRef.current = new Set(hit.map(groupKey))
     try {
+      /* Mỗi nhánh là MỘT lượt gọi (một transaction phía database) thay vì một
+         vòng lặp qua mạng. Trước đây 20 dòng là 20 request, hỏng giữa chừng
+         thì nửa danh sách đã đổi mà không ai biết đã tới đâu. */
       if (action === 'approve' || action === 'deny') {
-        for (const id of ids) await adminReview(id, action === 'approve', reason, videoUrl)
+        await adminReviewMany(ids, action === 'approve', reason, videoUrl)
       } else if (action === 'delete') {
-        for (const id of ids) await deleteRequest(id)
+        await adminDeleteMany(ids)
       } else if (action === 'pick' || action === 'unpick') {
-        for (const id of ids) await adminPickGroup(id, action === 'pick')
+        await adminPickMany(ids, action === 'pick')
       } else if (action === 'queue') {
         await adminUpdateMany(ids, { status: 'queued' })
       }

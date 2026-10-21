@@ -56,27 +56,40 @@ export function adminTabPath(base, k) {
    Đọc ở đây (một hàm thuần, test được bằng chuỗi) — giá trị lạ phải rơi về mặc
    định chứ không được làm trang trắng, cùng luật với `readAdminTab`.
    ========================================================= */
+/* =========================================================
+   TRẠNG THÁI ĐƠN HÀNG CŨNG LÀ MỘT BỘ LỌC
+   ---------------------------------------------------------
+   Mục Đơn hàng từng liệt kê LẪN đơn đang chờ với đơn đã nhận / đã từ chối:
+   danh sách chỉ sắp theo giờ, không có cách nào tách "còn phải xử lý" khỏi
+   "đã xong". Ba trạng thái dưới đây là đúng ba trạng thái có thật trong bảng
+   `orders`; `all` là giá trị mặc định và không được ghi vào địa chỉ.
+   ========================================================= */
+export const ADMIN_ORDER_STATES = ['awaiting', 'paid', 'rejected']
+
 export const ADMIN_SORTS = ['default', 'newest', 'votes', 'waiting']
 
-export function readAdminView(search, kinds = []) {
+export function readAdminView(search, kinds = [], orderStates = ADMIN_ORDER_STATES) {
   const p = new URLSearchParams(search || '')
   const sort = p.get('sort')
   const kind = p.get('kind')
+  const ost = p.get('ost')
   return {
     q: (p.get('q') || '').trim().slice(0, 80),
     sort: ADMIN_SORTS.includes(sort) ? sort : 'default',
     kind: kinds.length === 0 || kinds.includes(kind) ? (kind || 'all') : 'all',
+    ost: orderStates.length === 0 || orderStates.includes(ost) ? (ost || 'all') : 'all',
   }
 }
 
 /* Dựng lại query cho địa chỉ: giữ `tab` (mục đang mở) và chỉ ghi những tham số
    KHÁC mặc định — địa chỉ của một danh sách chưa lọc vẫn là `/admin?tab=…`. */
-export function adminQuery({ tab, q = '', sort = 'default', kind = 'all' }) {
+export function adminQuery({ tab, q = '', sort = 'default', kind = 'all', ost = 'all' }) {
   const p = new URLSearchParams()
   if (tab && tab !== ADMIN_TABS[0]) p.set('tab', tab)
   if (q.trim()) p.set('q', q.trim())
   if (sort && sort !== 'default') p.set('sort', sort)
   if (kind && kind !== 'all') p.set('kind', kind)
+  if (ost && ost !== 'all') p.set('ost', ost)
   const qs = p.toString()
   return qs ? `?${qs}` : ''
 }

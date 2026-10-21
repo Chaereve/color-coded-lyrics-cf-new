@@ -7,6 +7,7 @@ import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken 
 import { TURNSTILE_SITE_KEY } from './turnstile'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
+import { ADMIN_COMMENTS_PER_PAGE, pageAdminComments } from './adminComments.js'
 import { rankDemo } from './ranking.js'
 import { fetchAllPages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
@@ -500,28 +501,102 @@ export async function settleCurrentSeasonRewards(seasonType = 'week') {
   return data || []
 }
 
-export async function fetchAllCommentsForAdmin(limit = 100) {
-  if (!hasSupabase) {
-    const all = []
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('ccl.comments.')) {
-          const items = JSON.parse(localStorage.getItem(key) || '[]')
-          all.push(...items)
-        }
-      }
-    } catch {}
-    return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
-  }
+/* =========================================================
+   BÌNH LUẬN — MỘT TRANG, KHÔNG PHẢI "100 DÒNG MỚI NHẤT"
+   ---------------------------------------------------------
+   Bản cũ đọc thẳng 100 dòng mới nhất rồi trả hết về cho trang quản trị. Quá
+   100 bình luận thì phần còn lại biến mất mà màn hình không nói gì; không có
+   ô tìm; và trang không có cách nào biết mình đang thiếu dữ liệu.
+   Nay: lọc + đếm + cắt trang trong MỘT RPC (`admin_comments_page`, migration
+   20261212). SQL giữ chốt quyền is_admin — client không tự quyết định quyền.
+   `total` là tổng số dòng khớp bộ lọc, nên tiêu đề mục và dải số liệu đọc
+   được con số thật.
+   ========================================================= */
+const shapeAdminComment = (c) => ({
+  id: c.id,
+  request_id: c.request_id ?? c.requestId ?? null,
+  user_id: c.user_id ?? c.userId ?? null,
+  parent_id: c.parent_id ?? c.parentId ?? null,
+  body: c.body || '',
+  created_at: c.created_at ?? c.createdAt ?? null,
+  author: c.author ?? c.profiles?.name ?? c.profileName ?? 'Member',
+  avatar: c.avatar ?? c.profiles?.avatar_url ?? c.profileAvatar ?? null,
+  songTitle: c.songTitle ?? c.song_title ?? c.requests?.title ?? '',
+  songArtist: c.songArtist ?? c.song_artist ?? c.requests?.artist ?? '',
+})
+
+/* Mã lỗi "hàm chưa có trên database này". Trong khoảng thời gian giữa lúc
+   deploy frontend và lúc chạy migration, trang quản trị vẫn phải dùng được —
+   rơi về đường đọc cũ thay vì hiện một khung lỗi. */
+const MISSING_RPC_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
+const isMissingRpc = (error) => MISSING_RPC_CODES.has(error?.code)
+
+function demoAdminComments() {
+  const all = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith('ccl.comments.')) continue
+      const items = JSON.parse(localStorage.getItem(key) || '[]')
+      if (Array.isArray(items)) all.push(...items)
+    }
+  } catch { /* dữ liệu demo hỏng: coi như chưa có bình luận, không làm sập trang */ }
+  const rows = readData(LS.rows, [])
+  return all
+    .map(c => {
+      const req = rows.find(r => r.id === c.request_id)
+      return shapeAdminComment({ ...c, songTitle: req?.title || '', songArtist: req?.artist || '' })
+    })
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+}
+
+/* Đường lui: chỉ chạy khi RPC chưa tồn tại (migration chưa áp dụng). Đọc một
+   cửa sổ rộng hơn một trang rồi lọc/cắt trang ở client — chấp nhận được trong
+   vài phút deploy, và vẫn tốt hơn một trang trắng. */
+async function fetchAdminCommentsLegacy({ q, page, perPage }) {
   const { data, error } = await supabase.from('request_comments')
     .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
-    .is('deleted_at', null).order('created_at', { ascending: false }).limit(limit)
+    .is('deleted_at', null).order('created_at', { ascending: false }).order('id', { ascending: false })
+    .limit(500)
   if (error) throw rpcError(error)
-  return (data || []).map(c => ({
-    ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null,
-    songTitle: c.requests?.title || '', songArtist: c.requests?.artist || '',
-  }))
+  return pageAdminComments((data || []).map(shapeAdminComment), { q, page, perPage })
+}
+
+export async function fetchAdminComments({ q = '', page = 1, perPage = ADMIN_COMMENTS_PER_PAGE } = {}) {
+  const limit = Math.max(1, Math.min(100, Math.trunc(Number(perPage)) || ADMIN_COMMENTS_PER_PAGE))
+  const wanted = Math.max(1, Math.trunc(Number(page)) || 1)
+  const offset = (wanted - 1) * limit
+  const keyword = String(q || '').trim().slice(0, 80)
+
+  if (!hasSupabase) {
+    return pageAdminComments(demoAdminComments(), { q: keyword, page: wanted, perPage: limit })
+  }
+
+  const { data, error } = await supabase.rpc('admin_comments_page', {
+    p_q: keyword || null, p_limit: limit, p_offset: offset,
+  })
+  if (error) {
+    if (isMissingRpc(error)) return fetchAdminCommentsLegacy({ q: keyword, page: wanted, perPage: limit })
+    throw rpcError(error)
+  }
+  const payload = data && typeof data === 'object' ? data : {}
+  const rows = Array.isArray(payload.rows) ? payload.rows.map(shapeAdminComment) : []
+  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
+  const pages = Math.max(1, Math.ceil(total / limit))
+  const current = Math.min(wanted, pages)
+  /* Xoá dòng cuối của trang cuối là chuyện thường: RPC trả trang rỗng nhưng
+     `total` vẫn còn dòng ở trang trước. Tự lùi một trang thay vì để admin nhìn
+     một khung trống và tự bấm Previous. */
+  if (rows.length === 0 && total > 0 && wanted > pages) {
+    return fetchAdminComments({ q: keyword, page: pages, perPage: limit })
+  }
+  /* RPC trả đúng cửa sổ đã xin; `page` ở đây chỉ để thanh phân trang biết
+     mình đang đứng đâu, không cắt lại lần hai. */
+  return {
+    rows, total, pages, page: current, perPage: limit,
+    from: total === 0 ? 0 : offset + 1,
+    to: offset + rows.length,
+  }
 }
 
 export async function adminDeleteComment(commentId) {
@@ -1346,28 +1421,34 @@ export async function adminUpdate(id, patch) {
   }
   /* ten bai / nghe si: trim truoc khi gui; chuoi trang gui thang de
      database tra loi 'err.needFields' chu khong am tham giu ten cu */
-  const { error } = await supabase.rpc('admin_update', {
-    p_id: id,
-    p_status: patch.status ?? null,
-    p_progress: patch.progress ?? null,
-    p_video_url: patch.video_url ?? null,
-    p_layout: patch.done_layout ?? null,
-    p_lyrics: patch.done_lyrics ?? null,
-    p_edit: patch.done_edit ?? null,
-    p_artist: patch.artist == null ? null : String(patch.artist).trim(),
-    p_title: patch.title == null ? null : String(patch.title).trim(),
-  })
+  const { error } = await supabase.rpc('admin_update', { p_id: id, ...adminUpdateParams(patch) })
   if (error) throw error
 }
 
+/* Tham số RPC của một patch — dùng chung cho `admin_update` (một dòng) và
+   `admin_update_many` (một lượt), để hai đường không thể hiểu patch khác nhau. */
+const adminUpdateParams = (patch = {}) => ({
+  p_status: patch.status ?? null,
+  p_progress: patch.progress ?? null,
+  p_video_url: patch.video_url ?? null,
+  p_layout: patch.done_layout ?? null,
+  p_lyrics: patch.done_lyrics ?? null,
+  p_edit: patch.done_edit ?? null,
+  p_artist: patch.artist == null ? null : String(patch.artist).trim(),
+  p_title: patch.title == null ? null : String(patch.title).trim(),
+})
+
+const uniqIds = (ids = []) => [...new Set((ids || []).filter(x => x !== undefined && x !== null && x !== ''))]
+
 /* Ghi cung mot patch cho NHIEU request (thuong la ca cum trung bai — xem
-   groupIds trong src/lib/board.js). demo: MOT lan ghi localStorage de cac dong
-   khong nhay loi theo tung id; live: goi lai admin_update tung cai vi trong DB
-   khong co RPC nao nhan danh sach id (va minh khong them migration nao).
-   Khong nguyen tu: neu loi giua chung thi vai dong da doi — App se bao lai so
-   dong thuc su lien quan. */
+   groupIds trong src/lib/board.js).
+   LIVE: một RPC `admin_update_many` chạy trong MỘT transaction. Bản cũ gọi
+   admin_update lần lượt từng id — 20 dòng là 20 vòng mạng, và hỏng giữa chừng
+   thì nửa danh sách đã đổi mà không ai biết đã đổi tới đâu.
+   DEMO: vẫn một lần ghi localStorage để các dòng không nhảy lởi theo từng id.
+   Nếu migration chưa chạy, đường cũ được dùng làm đường lui. */
 export async function adminUpdateMany(ids = [], patch = {}) {
-  const uniq = [...new Set((ids || []).filter(x => x !== undefined && x !== null))]
+  const uniq = uniqIds(ids)
   if (!uniq.length) return 0
   if (!hasSupabase) {
     const set = new Set(uniq)
@@ -1380,7 +1461,83 @@ export async function adminUpdateMany(ids = [], patch = {}) {
     }))
     return uniq.length
   }
+  const { data, error } = await supabase.rpc('admin_update_many', {
+    p_ids: uniq, ...adminUpdateParams(patch),
+  })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
   for (const id of uniq) await adminUpdate(id, patch)
+  return uniq.length
+}
+
+/* Duyệt / từ chối NHIỀU request trong một lượt. `admin_review` đã là nơi duy
+   nhất quyết định chuyện gì xảy ra với một dòng (status, deny_reason,
+   video_url, updated_at) — bản nhiều-dòng gọi lại chính hàm đó trong một
+   transaction, nên hai đường không thể lệch luật.
+   Trả về số id có thật đã được xử lý (id đã bị người khác xoá thì bỏ qua). */
+export async function adminReviewMany(ids = [], approve, reason = null, videoUrl = null) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  const url = approve ? null : String(videoUrl || '').trim() || null
+  if (url && (url.length > 500 || !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(url))) throw appError('err.denyVideo')
+
+  if (!hasSupabase) {
+    const set = new Set(uniq)
+    wr(LS.rows, demoRows().map(r => set.has(r.id)
+      ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url }
+      : r))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_review_many', {
+    p_ids: uniq, p_approve: !!approve, p_reason: reason ?? null, p_video_url: url,
+  })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await adminReview(id, approve, reason, url)
+  return uniq.length
+}
+
+/* Xoá NHIỀU request trong một lượt. Chỉ admin đi tới đây (bảng quản trị chỉ
+   hiện với tài khoản quản trị, và RPC kiểm is_admin một lần nữa). */
+export async function adminDeleteMany(ids = []) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  if (!hasSupabase) {
+    const set = new Set(uniq)
+    wr(LS.rows, demoRows().filter(r => !set.has(r.id)))
+    wr(LS.votes, readData(LS.votes, []).filter(v => !set.has(v.id) && !set.has(v.request_id)))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_delete_many', { p_ids: uniq })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await deleteRequest(id)
+  return uniq.length
+}
+
+/* Chốt / gỡ chốt NHIỀU request. Mỗi id vẫn đi qua `admin_pick_group` (một bài
+   = một cụm trùng tên), nên bản nhiều-dòng chỉ gộp vòng lặp vào một
+   transaction, không đổi luật chốt. */
+export async function adminPickMany(ids = [], picked = true) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  if (!hasSupabase) {
+    const rows = demoRows()
+    const keys = new Set()
+    for (const id of uniq) {
+      const target = rows.find(r => r.id === id)
+      if (target) keys.add(groupKey(target))
+    }
+    const at = picked ? new Date().toISOString() : null
+    wr(LS.rows, rows.map(r =>
+      (keys.has(groupKey(r)) && ['queued', 'in_progress'].includes(r.status))
+        ? { ...r, picked_at: at } : r))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_pick_many', { p_ids: uniq, p_picked: !!picked })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await adminPickGroup(id, picked)
   return uniq.length
 }
 

@@ -723,3 +723,21 @@ hai source `vote_back_owner` / `vote_back_voter` → progress 1 (owner tự vote
 không nhận badge hai lần). Test: `npm run test:voteback:pglite`; manifest
 `tools/migration-safety.test.mjs` = **50** migration active. Luật đầy đủ:
 `docs/DAILY-REWARDS.md` mục B4.
+
+## 20261212 — Admin: thao tác hàng loạt nguyên tử + trang bình luận
+
+Additive, một transaction, rerunnable, không thuộc fresh-install bundle. Không
+đổi bảng, cột, policy hay grant nào đang có — chỉ thêm hàm.
+
+| File | Vai trò |
+| --- | --- |
+| `20261212_admin_bulk_and_comments_page.sql` | `admin_review_many` / `admin_update_many` / `admin_delete_many` / `admin_pick_many`: mỗi hàm gọi lại đúng hàm một-dòng đã có (`admin_review`, `admin_update`, `admin_pick_group`) cho từng id, nhưng trong **một transaction** và một lời gọi mạng; trả về số id có thật đã xử lý, trần 200 id (`err.bulkTooMany`). `admin_comments_page(p_q, p_limit, p_offset)`: lọc + đếm + cắt trang trong database, trả `{ total, rows }`; tìm theo từng từ và bỏ dấu qua `admin_fold` (cùng luật `fold()` của `src/lib/board.js`). |
+| `supabase/rollback/20261212_admin_bulk_and_comments_page.sql` | Drop sáu hàm. An toàn khi client mới hơn DB: `src/lib/db.js` nhận PGRST202/42883 và rơi về đường cũ (một `admin_*` mỗi id; bình luận đọc cửa sổ 500 dòng rồi cắt trang ở trình duyệt). |
+
+Không hàm nào tự quyết quyền: cả năm hàm nghiệp vụ kiểm `public.is_admin()`
+trước khi làm việc, và `revoke all … from public, anon` + `grant execute … to
+authenticated`. Test: `supabase/tests/adminBulk.test.js` (chữ ký + chốt quyền +
+không có lệnh phá dữ liệu), `src/lib/adminOrders.test.js`,
+`src/lib/adminComments.test.js`, và các ca SSR mới trong
+`src/components/AdminPanel.test.js`. Migration đã được chạy thử trên PGlite
+(fold, tìm nhiều từ, tổng/trang, bốn hàm bulk, trần 200).

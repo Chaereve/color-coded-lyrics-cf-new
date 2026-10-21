@@ -224,3 +224,48 @@ test('trang rỗng vẫn dựng được (không có dữ liệu, không có m�
   assert.ok(html.includes('class="adm-page"'))
   assert.ok(html.includes('adm-kpis'))
 })
+
+/* HAI LỖ HỔNG CỦA MỤC ĐƠN HÀNG VÀ BÌNH LUẬN (vòng 2026-12-12)
+   ---------------------------------------------------------
+   · Đơn hàng trộn đơn đang chờ với đơn đã nhận / đã từ chối, và không có con
+     số doanh thu nào.
+   · Bình luận đọc 100 dòng mới nhất rồi vẽ hết: quá 100 thì phần còn lại biến
+     mất mà màn hình không nói gì, và không có ô tìm.
+   Hai test dưới đây chốt phần nhìn thấy được bằng SSR, cộng hai điều chỉ đọc
+   được trong mã nguồn (đường đọc dữ liệu phải là RPC mới, không quay lại bản
+   cũ). */
+test('mục Đơn hàng có bộ lọc trạng thái và con số tiền đã nhận', async () => {
+  const html = await render({ ...base, tab: 'orders' })
+  assert.match(html, /adm-orderstate/, 'thiếu ô chọn trạng thái đơn')
+  assert.match(html, /All orders/, 'thiếu lựa chọn "tất cả"')
+  assert.match(html, /Awaiting payment/, 'thiếu nhãn trạng thái đang chờ')
+  assert.match(html, /adm-order-sum/, 'thiếu dải số liệu đơn hàng')
+  assert.match(html, /received/, 'phải nói ra tiền đã nhận, không chỉ số đơn')
+  assert.match(html, /20,000/, 'số tiền của đơn phải còn hiện trên hàng')
+
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /matchOrderState\(o, ostF\)/, 'danh sách phải lọc theo trạng thái đang chọn')
+  assert.match(src, /readAdminView\(window\.location\.search, KIND_KEYS, ADMIN_ORDER_STATES\)/,
+    'trạng thái đơn phải đọc từ địa chỉ, cùng luật với các bộ lọc khác')
+  assert.match(src, /ost: tab === 'orders' \? ostF : 'all'/, 'trạng thái đơn phải được ghi vào địa chỉ')
+  const tabs = readFileSync(`${root}src/lib/adminTabs.js`, 'utf8')
+  assert.match(tabs, /ADMIN_ORDER_STATES = \['awaiting', 'paid', 'rejected'\]/,
+    'ba trạng thái có thật của bảng orders là nguồn duy nhất')
+})
+
+test('mục Bình luận tìm ở database và phân trang thật, không còn cắt im lặng ở 100 dòng', async () => {
+  const html = await render({ ...base, tab: 'comments' })
+  assert.ok(html.includes('class="adm-bar"'), 'mục Bình luận cần thanh công cụ như mọi mục')
+  assert.match(html, /Search comment, song or member/, 'thiếu ô tìm của mục Bình luận')
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.doesNotMatch(src, /fetchAllCommentsForAdmin/, 'đường đọc cũ (100 dòng, không tổng) phải bị gỡ')
+  assert.match(src, /fetchAdminComments\(\{ q: keyword, page, perPage: ADMIN_COMMENTS_PER_PAGE \}\)/,
+    'phải đọc theo trang, kèm tổng số')
+  assert.match(src, /commentTotal/, 'tổng số bình luận phải được đọc ra, không lấy độ dài mảng')
+  const db = readFileSync(`${root}src/lib/db.js`, 'utf8')
+  assert.match(db, /supabase\.rpc\('admin_comments_page'/, 'lọc + đếm + cắt trang phải ở database')
+  assert.match(db, /p_q: keyword \|\| null, p_limit: limit, p_offset: offset/,
+    'ba tham số của RPC phải được truyền đủ')
+  assert.doesNotMatch(db, /export async function fetchAllCommentsForAdmin/,
+    'hàm cũ phải bị gỡ khỏi db.js, không để hai đường đọc song song')
+})

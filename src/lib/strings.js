@@ -1107,6 +1107,13 @@ const S = {
   'adm.confirmDelete': 'Delete this request?',
   'adm.received': 'Mark as paid',
   'adm.noOrders': 'No orders yet.',
+  /* MỤC ĐƠN HÀNG: lọc theo trạng thái + số liệu thu tiền. Trước đây mục này
+     trộn đơn chờ với đơn đã xử lý và không có con số doanh thu nào. */
+  'adm.orderFilterAria': 'Filter orders by status',
+  'adm.orderAll': 'All orders',
+  'adm.orderAwaiting': 'Awaiting payment',
+  'adm.orderSummary': '{n} awaiting · {paid} paid in the last {days} days',
+  'adm.orderRevenue': '{vnd} · {usd} received',
   /* TRẠNG THÁI RỖNG NÓI RA LÝ DO. Bản cũ chỉ có một dòng "Nothing here." giữa
      khung trống — người dùng đọc nó như một lỗi. Nay: một dòng đậm nói đang
      thiếu gì, một dòng nhỏ nói vì sao, và lối thoát (bỏ bộ lọc) khi cái trống
@@ -1122,6 +1129,7 @@ const S = {
   'adm.bulkAria': 'Bulk actions',
   'adm.bulkClear': 'Clear selection',
   'adm.bulkConfirmDelete': 'Delete {n} requests?',
+  'adm.bulkWorking': 'Working on {n}…',
   'adm.sortAria': 'Sort the list',
   'adm.sortDefault': 'Tab order',
   'adm.sortNewest': 'Newest first',
@@ -1130,6 +1138,7 @@ const S = {
   'adm.reqDeleted': '(request deleted)',
   'adm.votesShort': 'votes',
   'adm.search': 'Search song, artist or requester…',
+  'adm.searchComments': 'Search comment, song or member…',
   'adm.clearSearch': 'Clear search',
   'adm.noResults': 'Nothing matches “{q}”.',
   /* request trùng bài: dòng này là một phần của cụm, hạng tính theo tổng vote */
@@ -1241,6 +1250,7 @@ const S = {
   'err.paidPending': 'You already have {n} paid requests waiting for payment. Pay or cancel one first.',
   'err.orderQueueLimit': 'You have too many vote orders waiting for payment. Pay or cancel one first.',
   'err.generic': 'Something went wrong. Try again.',
+  'err.bulkTooMany': 'Too many rows at once. Select up to 200 and try again.',
   'err.funnelEvent': 'Unknown tracking event.',
   'err.databaseSetup': 'The database is out of date. Run the migration in supabase/migrations, then reload. Existing data is kept.',
   'err.rateLimit': 'Up to {n} requests per hour.',

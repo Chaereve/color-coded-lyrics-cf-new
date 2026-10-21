@@ -7,7 +7,7 @@
    Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ADMIN_TABS, ADMIN_TAB_META, adminQuery, adminTabPath, readAdminTab, readAdminView } from './adminTabs.js'
+import { ADMIN_ORDER_STATES, ADMIN_TABS, ADMIN_TAB_META, adminQuery, adminTabPath, readAdminTab, readAdminView } from './adminTabs.js'
 
 test('bảy mục, đúng thứ tự ưu tiên: việc gấp nhất đứng trước', () => {
   assert.deepEqual(ADMIN_TABS, ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments'])
@@ -40,13 +40,27 @@ test('dải số liệu lấy đúng danh sách mục, không có danh sách th�
 
 test('bộ lọc của bảng quản trị sống ở địa chỉ: đọc lại đúng, giá trị lạ rơi về mặc định', () => {
   assert.deepEqual(readAdminView('?tab=active&q=  aespa &sort=votes&kind=Short', ['Short', 'Full Album']),
-    { q: 'aespa', sort: 'votes', kind: 'Short' })
+    { q: 'aespa', sort: 'votes', kind: 'Short', ost: 'all' })
   /* loại bài lạ phải rơi về 'all' — nhưng chỉ khi biết danh sách loại có thật
      (bảng quản trị truyền KIND_META vào; hàm thuần không tự biết) */
-  assert.deepEqual(readAdminView('?sort=abc&kind=Không-Có', ['Short']), { q: '', sort: 'default', kind: 'all' })
-  assert.deepEqual(readAdminView(''), { q: '', sort: 'default', kind: 'all' })
-  assert.deepEqual(readAdminView(undefined), { q: '', sort: 'default', kind: 'all' })
+  assert.deepEqual(readAdminView('?sort=abc&kind=Không-Có', ['Short']),
+    { q: '', sort: 'default', kind: 'all', ost: 'all' })
+  assert.deepEqual(readAdminView(''), { q: '', sort: 'default', kind: 'all', ost: 'all' })
+  assert.deepEqual(readAdminView(undefined), { q: '', sort: 'default', kind: 'all', ost: 'all' })
   assert.equal(readAdminView(`?q=${'x'.repeat(200)}`).q.length, 80, 'từ khoá dán vào địa chỉ phải bị cắt')
+})
+
+test('trạng thái đơn hàng đọc từ địa chỉ: chỉ nhận ba trạng thái có thật', () => {
+  assert.deepEqual(ADMIN_ORDER_STATES, ['awaiting', 'paid', 'rejected'])
+  assert.equal(readAdminView('?tab=orders&ost=paid').ost, 'paid')
+  assert.equal(readAdminView('?ost=awaiting').ost, 'awaiting')
+  /* gõ tay một trạng thái không có thật: danh sách phải hiện hết, không được
+     lọc ra rỗng mà không ai hiểu vì sao */
+  assert.equal(readAdminView('?ost=abc').ost, 'all')
+  assert.equal(readAdminView('?ost=all').ost, 'all')
+  /* đơn hàng dùng `ost`, KHÔNG dùng `kind`: một địa chỉ cũ của mục request
+     không được lặng lẽ lọc mục đơn hàng */
+  assert.equal(readAdminView('?kind=Short').ost, 'all')
 })
 
 test('địa chỉ chỉ ghi tham số KHÁC mặc định — danh sách chưa lọc vẫn là địa chỉ ngắn', () => {
@@ -57,8 +71,13 @@ test('địa chỉ chỉ ghi tham số KHÁC mặc định — danh sách chưa 
   /* đi vòng: dựng địa chỉ rồi đọc lại phải ra đúng bộ lọc cũ */
   const url = adminQuery({ tab: 'active', q: 'aespa', sort: 'votes', kind: 'Short' })
   const back = readAdminView(url, ['Short', 'Full Album'])
-  assert.deepEqual(back, { q: 'aespa', sort: 'votes', kind: 'Short' })
+  assert.deepEqual(back, { q: 'aespa', sort: 'votes', kind: 'Short', ost: 'all' })
   assert.equal(readAdminTab(url), 'active')
+  /* trạng thái đơn đi vòng y hệt; `all` không được ghi vào địa chỉ */
+  assert.equal(adminQuery({ tab: 'orders', ost: 'all' }), '?tab=orders')
+  const ordersUrl = adminQuery({ tab: 'orders', ost: 'awaiting', q: 'minji' })
+  assert.equal(ordersUrl, '?tab=orders&q=minji&ost=awaiting')
+  assert.equal(readAdminView(ordersUrl).ost, 'awaiting')
 })
 
 test('đi vòng qua lại không sinh ra hai địa chỉ cho cùng một mục', () => {

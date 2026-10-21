@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAllCommentsForAdmin, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
+import { MILESTONES, progressOf, fetchAdminComments, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, FUNNEL_EVENT_KEYS } from '../lib/funnelSummary.js'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
@@ -13,7 +13,9 @@ import { useConfirm } from '../lib/confirm.jsx'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import { here, putUrl } from '../lib/history'
-import { ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
+import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
+import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
+import { ADMIN_COMMENTS_PER_PAGE } from '../lib/adminComments.js'
 import MediaAdmin from './MediaAdmin'
 import { sfx } from '../lib/sfx'
 import Pager from './Pager'
@@ -30,8 +32,8 @@ const KIND_KEYS = Object.keys(KIND_META)
 /* Bộ lọc đang mở đọc từ địa chỉ MỘT lần lúc dựng. Test dựng component bằng SSR
    (không có `window`) nên đây phải là hàm thuần có đường lui. */
 const initialView = () => (typeof window === 'undefined'
-  ? { q: '', sort: 'default', kind: 'all' }
-  : readAdminView(window.location.search, KIND_KEYS))
+  ? { q: '', sort: 'default', kind: 'all', ost: 'all' }
+  : readAdminView(window.location.search, KIND_KEYS, ADMIN_ORDER_STATES))
 
 
 /* TRẠNG THÁI RỖNG CỦA BẢNG QUẢN TRỊ.
@@ -52,6 +54,33 @@ function EmptyState({ title, body, filtered, q, t, onClear }) {
         </span>
       )}
     </div>
+  )
+}
+
+/* =========================================================
+   Ô TÌM KIẾM — một khuôn cho hai mục
+   ---------------------------------------------------------
+   Mục request và mục bình luận đều cần đúng một ô như nhau: icon trong ô,
+   ký tự `/` gợi ý phím tắt, nút xoá khi có chữ. Chép nguyên khối JSX hai lần
+   là mở đường cho hai ô lệch nhau ngay lần sửa sau (lỗi icon lòi ra ngoài
+   từng xảy ra đúng ở chỗ này).
+   `kbd` chỉ là gợi ý cho người có bàn phím; phím thật do bộ bắt phím của
+   trang xử lý.
+   ========================================================= */
+function SearchBox({ t, q, setQ, inputRef, placeholder }) {
+  return (
+    <span className="searchwrap">
+      <Icon name="search" size={14} className="search-ico" />
+      <input ref={inputRef} className="search"
+        placeholder={placeholder} aria-label={placeholder}
+        value={q} aria-keyshortcuts="/"
+        onChange={e => setQ(e.target.value)} />
+      {q
+        ? <button type="button" className="search-x" title={t('adm.clearSearch')}
+            aria-label={t('adm.clearSearch')}
+            onClick={() => { setQ(''); inputRef?.current?.focus() }}><Icon name="close" size={13} /></button>
+        : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
+    </span>
   )
 }
 
@@ -307,6 +336,10 @@ export default function AdminPanel({
      bằng cách gõ tên loại vào ô tìm kiếm — gõ "Short" thì ra cả bài có chữ
      short trong tên. */
   const [kindF, setKindF] = useState(init.kind)
+  /* Lọc theo TRẠNG THÁI ĐƠN: mục Đơn hàng từng trộn đơn đang chờ với đơn đã
+     nhận / đã từ chối, nên muốn soát "còn gì phải làm" phải tự dò từng dòng.
+     Cũng nằm trong địa chỉ như các bộ lọc khác. */
+  const [ostF, setOstF] = useState(init.ost)
   const goTab = useCallback((k) => { onTab(k); setSel(new Set()) }, [onTab])
   /* Hai việc dưới đây (chọn cả trang, và phím Ctrl/Cmd+A) phụ thuộc những giá
      trị chỉ tính được ở cuối phần thân — cất chúng vào ref để bộ bắt phím khai
@@ -322,8 +355,10 @@ export default function AdminPanel({
     const id = setTimeout(() => {
       const qs = adminQuery({
         tab,
-        q: ['media', 'comments'].includes(tab) ? '' : q, sort: ['media', 'comments'].includes(tab) ? 'default' : sortKey,
+        q: tab === 'media' ? '' : q,
+        sort: ['media', 'comments'].includes(tab) ? 'default' : sortKey,
         kind: ['media', 'comments'].includes(tab) ? 'all' : kindF,
+        ost: tab === 'orders' ? ostF : 'all',
       })
       const next = window.location.pathname + qs
       /* Ghi địa chỉ đi qua `putUrl` (src/lib/history.js): trong iframe bị
@@ -333,14 +368,14 @@ export default function AdminPanel({
       if (next !== here()) putUrl({ s: 'admin' }, next)
     }, 260)
     return () => clearTimeout(id)
-  }, [tab, q, sortKey, kindF])
+  }, [tab, q, sortKey, kindF, ostF])
 
   /* BACK/FORWARD: đọc lại bộ lọc từ địa chỉ, cùng lúc App đọc lại mục đang mở —
      không thì địa chỉ nói một đằng, bảng đang lọc một nẻo. */
   useEffect(() => {
     const onPop = () => {
-      const v = readAdminView(window.location.search, KIND_KEYS)
-      setQ(v.q); setSortKey(v.sort); setKindF(v.kind)
+      const v = readAdminView(window.location.search, KIND_KEYS, ADMIN_ORDER_STATES)
+      setQ(v.q); setSortKey(v.sort); setKindF(v.kind); setOstF(v.ost)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -408,6 +443,10 @@ export default function AdminPanel({
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
   const expiredRows = useMemo(() => rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)), [rows])
+  /* Số đơn theo trạng thái + tiền ĐÃ NHẬN trong 30 ngày. Tính trên TOÀN BỘ đơn
+     đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
+     bấm sang trang 2 hay gõ một từ khoá. */
+  const oStats = useMemo(() => orderStats(orders), [orders])
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
      người gửi / loại / ghi chú cho request; loại đơn + tên bài của request
@@ -416,8 +455,10 @@ export default function AdminPanel({
      khác nhau cho cùng một từ khoá. */
   /* Bỏ MỌI bộ lọc bằng một cú bấm: trạng thái rỗng vì lọc mà không có lối thoát
      thì người dùng phải tự đoán xem mình đã bấm vào đâu. */
-  const clearFilters = () => { setQ(''); setKindF('all'); setSortKey('default'); setSel(new Set()) }
-  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default'
+  const clearFilters = () => {
+    setQ(''); setKindF('all'); setSortKey('default'); setOstF('all'); setSel(new Set())
+  }
+  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default' || ostF !== 'all'
   /* So THEO TỪ bằng đúng hàm mà bảng công khai dùng (`allTermsIn` trong
      lib/board.js): bỏ dấu, hạ chữ thường, và mỗi từ trong từ khoá được dò độc
      lập nên "Whiplash aespa" với "aespa Whiplash" ra cùng một kết quả. Bản cũ
@@ -440,7 +481,12 @@ export default function AdminPanel({
       : tab === 'expired' ? expiredRows
         : tab === 'orders' ? orders
         : tab === 'done' ? others : []
+  /* Mục Bình luận đọc theo TRANG từ database: mỗi lần chỉ 20 dòng, kèm tổng
+     số khớp bộ lọc. Trước đây đọc 100 dòng mới nhất rồi vẽ hết — quá 100 thì
+     phần còn lại biến mất mà màn hình không nói gì. */
   const [adminComments, setAdminComments] = useState([])
+  const [commentTotal, setCommentTotal] = useState(0)
+  const [commentPage, setCommentPage] = useState(1)
   const [loadingComments, setLoadingComments] = useState(false)
   /* Metric funnel chỉ tải khi trang admin đã được mở, một RPC duy nhất; nút
      Làm mới là cách cập nhật tường minh — tuyệt đối không polling / cron. */
@@ -474,10 +520,13 @@ export default function AdminPanel({
     return () => { alive = false }
   }, [applyFunnelRows, failFunnel])
 
-  const loadAdminComments = useCallback(() => {
+  const loadAdminComments = useCallback((page = 1, keyword = '') => {
     setLoadingComments(true)
-    return fetchAllCommentsForAdmin().then(res => {
-      setAdminComments(res || [])
+    setCommentError('')
+    return fetchAdminComments({ q: keyword, page, perPage: ADMIN_COMMENTS_PER_PAGE }).then(res => {
+      setAdminComments(res.rows || [])
+      setCommentTotal(res.total || 0)
+      setCommentPage(res.page || 1)
     }).catch(error => {
       setCommentError(errMsg(t, error))
     }).finally(() => {
@@ -485,11 +534,25 @@ export default function AdminPanel({
     })
   }, [t])
 
+  /* Đọc trang 1 ngay khi admin mở trang: dải số liệu có một ô "Bình luận", và
+     ô đó không được đứng ở 0 chỉ vì mục Bình luận chưa được bấm tới. Đây là
+     MỘT lần đọc khi mở trang, không polling. */
   useEffect(() => {
-    if (tab === 'comments') {
-      loadAdminComments()
-    }
-  }, [tab, loadAdminComments])
+    /* Hoãn 0ms để lượt đọc không gọi setState NGAY trong effect (React coi đó
+       là một vòng render thừa ngay sau lần vẽ đầu); cách này cũng tự huỷ nếu
+       admin rời trang trước khi request kịp chạy. */
+    const id = setTimeout(() => loadAdminComments(1, ''), 0)
+    return () => clearTimeout(id)
+  }, [loadAdminComments])
+
+  /* Gõ từ khoá: hoãn 280ms rồi tìm ở database (lọc + đếm + cắt trang trong
+     một RPC). Tìm trong 20 dòng đang hiện là tìm sai — câu trả lời phải tính
+     trên toàn bộ bình luận, không phải trên trang đang nhìn. */
+  useEffect(() => {
+    if (tab !== 'comments') return
+    const id = setTimeout(() => loadAdminComments(1, q), q.trim() ? 280 : 0)
+    return () => clearTimeout(id)
+  }, [tab, q, loadAdminComments])
 
   const confirmDeleteComment = async (commentId) => {
     const ok = await ask({
@@ -501,7 +564,7 @@ export default function AdminPanel({
     try {
       setCommentError('')
       await adminDeleteComment(commentId)
-      await loadAdminComments()
+      await loadAdminComments(commentPage, q)
       sfx.delete()
     } catch (error) {
       setCommentError(errMsg(t, error))
@@ -512,15 +575,18 @@ export default function AdminPanel({
   const sortList = (list) => {
     if (sortKey === 'default') return list
     const out = [...list]
-    if (sortKey === 'votes') return out.sort((a, b) => (b.votes || 0) - (a.votes || 0) || order(a, b))
+    /* Đơn hàng không có `votes` mà có `qty` — "nhiều vote nhất" ở mục Đơn hàng
+       đọc là "đơn lớn nhất", cùng một câu hỏi. */
+    if (sortKey === 'votes') return out.sort((a, b) =>
+      ((b.votes ?? b.qty) || 0) - ((a.votes ?? a.qty) || 0) || order(a, b))
     if (sortKey === 'waiting') return out.sort((a, b) => -order(a, b))
     return out.sort(order)
   }
-  const shown = tab === 'orders' ? base.filter(matchOrder)
+  const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF) && matchOrder(o)))
     : tab === 'media' ? base
     : tab === 'comments' ? adminComments
       : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
-  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF])
+  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
      phần đã chọn mà không còn hiện không được lặng lẽ nằm trong lệnh hàng loạt. */
   const selIds = pg.items.map(r => r.id).filter(id => sel.has(id))
@@ -565,8 +631,8 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.length, comments: adminComments.length,
-  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, adminComments.length])
+    done: others.length, media: media.length, comments: commentTotal,
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, commentTotal])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -696,16 +762,26 @@ export default function AdminPanel({
         <h2 className="adm-h2">
           <span>{t(kpis.find(k => k.k === tab)?.label || 'adm.pageAria')}</span>
           <span className="adm-h2-n">{t('adm.showing', {
+            /* Bình luận: `n` là số thẻ ĐANG HIỆN, `total` là tổng khớp bộ lọc ở
+               database — nên dòng này nói thật "đang xem 20 trong 1.240". */
             n: tab === 'media' ? media.length : tab === 'comments' ? adminComments.length : pg.items.length,
-            total: tab === 'media' ? media.length : tab === 'comments' ? adminComments.length : shown.length,
+            total: tab === 'media' ? media.length : tab === 'comments' ? commentTotal : shown.length,
           })}</span>
         </h2>
 
         {tab === 'comments' ? (
-          <div className="adm-bar adm-bar-end">
-            <button type="button" className="btn btn-sm" onClick={loadAdminComments} disabled={loadingComments}>
-              {loadingComments ? t('adm.loading') : t('adm.refresh')}
-            </button>
+          /* Bình luận có ô tìm riêng: tìm Ở DATABASE trên toàn bộ bình luận,
+             không phải trên 20 thẻ đang hiện. Cùng từ khoá với các mục request
+             (một `q` cho cả trang), nên đổi mục vẫn giữ nguyên từ đang tìm. */
+          <div className="adm-bar">
+            <SearchBox t={t} q={q} setQ={(v) => { setQ(v); setSel(new Set()) }}
+              inputRef={searchRef} placeholder={t('adm.searchComments')} />
+            <div className="adm-actions">
+              <button type="button" className="btn btn-sm"
+                onClick={() => loadAdminComments(commentPage, q)} disabled={loadingComments}>
+                {loadingComments ? t('adm.loading') : t('adm.refresh')}
+              </button>
+            </div>
           </div>
         ) : tab === 'media' ? (
           /* Mục Videos không có gì để tìm hay xếp thứ tự, nhưng vẫn cần ĐÚNG MỘT
@@ -719,19 +795,21 @@ export default function AdminPanel({
           </div>
         ) : (
           <div className="adm-bar">
-            <span className="searchwrap">
-              <Icon name="search" size={14} className="search-ico" />
-              <input ref={searchRef} className="search"
-                placeholder={t('adm.search')} aria-label={t('adm.search')}
-                value={q} aria-keyshortcuts="/"
-                onChange={e => { setQ(e.target.value); setSel(new Set()) }} />
-              {q
-                ? <button type="button" className="search-x" title={t('adm.clearSearch')}
-                    aria-label={t('adm.clearSearch')}
-                    onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
-                : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
-            </span>
+            <SearchBox t={t} q={q} setQ={(v) => { setQ(v); setSel(new Set()) }}
+              inputRef={searchRef} placeholder={t('adm.search')} />
             <div className="adm-actions">
+              {/* TRẠNG THÁI ĐƠN đứng trước cách xếp: câu hỏi "còn gì phải làm"
+                  quan trọng hơn "xếp theo gì", và chỉ có ở mục Đơn hàng. */}
+              {tab === 'orders' && (
+                <select className="sel adm-orderstate" value={ostF}
+                  aria-label={t('adm.orderFilterAria')}
+                  onChange={e => setOstF(e.target.value)}>
+                  <option value="all">{t('adm.orderAll')}</option>
+                  {ADMIN_ORDER_STATES.map(st => (
+                    <option key={st} value={st}>{t(ORDER_STATE_LABEL[st])}</option>
+                  ))}
+                </select>
+              )}
               <select className="sel adm-sort" value={sortKey} aria-label={t('adm.sortAria')}
                 onChange={e => { setSortKey(e.target.value); setSel(new Set()) }}>
                 <option value="default">{t('adm.sortDefault')}</option>
@@ -772,6 +850,19 @@ export default function AdminPanel({
           </div>
         )}
 
+        {/* SỐ LIỆU ĐƠN HÀNG: câu hỏi "còn gì phải làm" đã có ở dải số liệu;
+            câu còn thiếu là "đã thu được bao nhiêu". Con số này tính trên TOÀN
+            BỘ đơn đã tải, không phải trang đang nhìn — nên nó không đổi khi
+            bấm sang trang khác hay gõ một từ khoá. */}
+        {tab === 'orders' && (
+          <div className="adm-note adm-order-sum">
+            <span>{t('adm.orderSummary', {
+              n: oStats.awaiting, paid: oStats.recentPaid, days: oStats.windowDays,
+            })}</span>
+            <b>{t('adm.orderRevenue', { vnd: vnd(oStats.receivedVnd), usd: usd(oStats.receivedUsd) })}</b>
+          </div>
+        )}
+
         {/* DÒNG ĐẾM + CHỌN CẢ TRANG: hai thứ cùng trả lời "tôi đang nhìn gì và
             đang chọn gì", nên nằm chung một hàng. */}
         {tab !== 'media' && (
@@ -797,11 +888,22 @@ export default function AdminPanel({
         )}
 
         {tab === 'comments' ? (
-          <div className="adm-comments-list">
-            {adminComments.length === 0 ? (
+          <div className="adm-comments-list" aria-busy={loadingComments || undefined}>
+            {loadingComments && adminComments.length === 0 ? (
+              <p className="adm-funnel-state" role="status">{t('adm.loading')}</p>
+            ) : adminComments.length === 0 ? (
+              /* Trống vì bộ lọc khác trống thật: câu chữ và lối thoát phải
+                 khác nhau, cùng luật với trạng thái rỗng của bảng request. */
               <div className="empty">
-                <b>{t('adm.noComments')}</b>
+                <b>{q.trim() ? t('adm.noResults', { q: q.trim() }) : t('adm.noComments')}</b>
                 <p>{t('adm.emptyCommentsBody')}</p>
+                {q.trim() && (
+                  <span className="empty-acts">
+                    <button type="button" className="btn btn-sm" onClick={() => setQ('')}>
+                      {t('adm.clearFilters')}
+                    </button>
+                  </span>
+                )}
               </div>
             ) : (
               adminComments.map(c => (
@@ -909,7 +1011,9 @@ export default function AdminPanel({
             nhiều VÀ có ít nhất một dòng được chọn. */}
         {pickMode && selIds.length > 0 && (
           <div className="adm-bulk" role="group" aria-label={t('adm.bulkAria')}>
-            <b>{t('adm.selected', { n: selIds.length })}</b>
+            <b>{bulkBusy
+              ? t('adm.bulkWorking', { n: selIds.length })
+              : t('adm.selected', { n: selIds.length })}</b>
             <div className="adm-bulk-acts">
               {tab === 'pending' && (
                 <>
@@ -939,6 +1043,20 @@ export default function AdminPanel({
           </div>
         )}
 
+        {/* Bình luận phân trang Ở DATABASE (mỗi trang 20 dòng), nên nó có
+            thanh phân trang riêng dựa trên `total` thật chứ không dựa trên
+            mảng đã tải. */}
+        {tab === 'comments' && (
+          <Pager
+            page={commentPage}
+            pages={Math.max(1, Math.ceil(commentTotal / ADMIN_COMMENTS_PER_PAGE))}
+            from={commentTotal === 0 ? 0 : (commentPage - 1) * ADMIN_COMMENTS_PER_PAGE + 1}
+            to={Math.min(commentPage * ADMIN_COMMENTS_PER_PAGE, commentTotal)}
+            total={commentTotal}
+            onChange={(n) => loadAdminComments(n, q)}
+            scrollTo={listRef}
+          />
+        )}
         {/* tab media và comments tự quản lý hoặc cuộn dọc nên không cắt trang bằng Pager này */}
         {!['media', 'comments'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
