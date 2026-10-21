@@ -21,12 +21,9 @@ import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
 import CalcNote from './components/CalcNote'
-import FollowBtn from './components/FollowBtn'
-import ShareBtn from './components/ShareBtn'
 import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
-import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
 import Progress from './components/Progress'
@@ -42,17 +39,16 @@ import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAg
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
+import { pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
 import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
-import { copyText } from './lib/clipboard'
 import {
-  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
-  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, saveOff, savePrefs, saveWatched,
-  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys, withoutDismissed,
+  DEFAULT_PREFS, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
+  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, savePrefs, saveWatched,
+  snapOf, songAttr, syncOwnRequests, toastOf, watchedKeys, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
@@ -270,7 +266,7 @@ function SignInPanel({ title, body, onSignIn }) {
 
 /* ---------------- một dòng request ---------------- */
 function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
-  followed = false, onWatch, onShare, hl = false, st = null }) {
+  hl = false }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
@@ -314,22 +310,18 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
             </span>
           )}
-          {/* CỤM HÀNH ĐỘNG PHỤ — theo dõi · chia sẻ · nghe. Ba việc cùng loại
-              nên cùng một kiểu: chữ nhỏ, không viền, không nền, chỉ đổi màu
-              khi rê. Chuông là công tắc nên đứng một mình dạng icon; hai việc
-              còn lại cần chữ mới rõ nghĩa. */}
-          {(onWatch || onShare || watchUrl) && (
-            <span className="acts">
-              {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
-              {onShare && <ShareBtn onShare={() => onShare(r)} />}
-              {watchUrl && (
-                <a className="act-link" href={watchUrl} target="_blank" rel="noreferrer"
-                  title={t('row.watch')}>
-                  <Icon name="play" size={11} />
-                  <span className="act-link-tx">{t('row.watchShort')}</span>
-                </a>
-              )}
-            </span>
+          {/* NÚT NGHE — hành động DUY NHẤT còn lại của một hàng, nên nó phải
+              ĐỌC RA LÀ MỘT NÚT: có viền, có nền, có mũi play. Bản trước để nó
+              là một chuỗi chữ xám không viền, ngang hàng với những thứ chỉ là
+              thông tin (trạng thái, giờ) — người dùng phải đoán xem chỗ nào
+              bấm được. Chuông theo dõi và nút chia sẻ đã bị gỡ khỏi sản phẩm,
+              nên chỗ này không còn phải nhường cho ai: một nút, một nghĩa. */}
+          {watchUrl && (
+            <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer"
+              title={t('row.watch')}>
+              <Icon name="play" size={12} />
+              <span>{t('row.watchShort')}</span>
+            </a>
           )}
         </div>
         {/* DÒNG PHỤ = một hàng chữ mô tả "đang ở đâu": trạng thái · loại bài
@@ -357,10 +349,6 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
                 <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
               </>
             )}
-            {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
-                là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
-                theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
-            {!isPicked(r) && followed && <Standing st={st} />}
           </div>
         </div>
       </div>
@@ -382,7 +370,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
 }
 
 function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
+  hl = false }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -391,14 +379,6 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
   const newest = Math.max(...g.rows.map(r => +new Date(r.created_at) || 0))
   return (
     <div className={`grow${expanded ? ' open' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(g.key)}>
-      {/* Chuông theo dõi đặt là ANH EM của .grow-head, không nhét vào trong
-          nút cha — HTML không cho nút lồng nút — nên nó chiếm cột lưới thứ hai
-          và nằm cùng hàng với nút mũi tên. Theo dõi là cho CẢ BÀI nên cụm chỉ
-          có một chuông; các dòng bên trong không có nút nào (cũng không cần ô
-          giữ chỗ: cuối dòng meta của hàng lẻ chỉ còn chấm trạng thái). */}
-      {onWatch && (
-        <FollowBtn on={followed} onToggle={() => onWatch(g.rows[0] || { artist: g.artist, title: g.title })} />
-      )}
       <button type="button" className="grow-head" aria-expanded={expanded}
         title={expanded ? t('group.hide') : t('group.showAll', { n: g.rows.length })}
         onClick={onToggle}>
@@ -411,7 +391,6 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
           <span className="meta">
             <span>{whoTx}</span>
             {newest > 0 && <><span className="dot" aria-hidden="true" /><span>{timeAgo(newest, t)}</span></>}
-            {followed && <Standing st={st} />}
           </span>
         </span>
         <span className="grow-stat" aria-hidden="true">
@@ -427,7 +406,6 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
               onVote={onVote}
-              onShare={onShare}
               onDelete={onDelete} />
           ))}
         </div>
@@ -1270,7 +1248,7 @@ function AppInner() {
   }, [section, t])
 
   /* Bọc useCallback: `flash` được dùng bên trong nhiều useCallback khác
-     (shareSong, các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
+     (các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
      mọi callback đó phải ghi `flash` vào deps, mà `flash` lại đổi mỗi render —
      React Compiler than phiền, và memo vô hiệu. Danh tính ổn định ở đây rẻ
      hơn nhiều so với việc đi giải thích từng chỗ. */
@@ -1409,16 +1387,10 @@ function AppInner() {
   useEffect(() => { prefsRef.current = prefs; if (uid) savePrefs(uid, prefs) }, [uid, prefs])
   useEffect(() => { watchedRef.current = watched }, [watched])
 
-  const doToggleWatch = (r) => {
-    if (!uid) return
-    const res = toggleWatched(watched, { ...r, own: r.user_id === uid }, Date.now(), offRef.current)
-    setWatched(res.list); saveWatched(uid, res.list)
-    offRef.current = res.off; saveOff(uid, res.off)
-    sfx.tap()
-    const song = `${r.title} — ${r.artist}`
-    flash(res.full ? 'err' : 'ok',
-      res.full ? t('watch.full', { n: WATCH_LIMIT }) : t(res.added ? 'watch.on' : 'watch.off', { song }))
-  }
+  /* Không còn nút theo dõi nào trên giao diện (xem chú thích ở `RequestRow`),
+     nên không còn chỗ nào gọi `toggleWatched`. Danh sách `watched` vẫn được
+     NẠP từ localStorage: bộ lọc "Following" và các tin trong hộp thư dựa trên
+     nó vẫn hoạt động với những bài người dùng đã theo dõi từ trước. */
 
   const doSetPrefs = (patch) => setPrefs(p => ({ ...p, ...patch }))
 
@@ -1616,33 +1588,10 @@ function AppInner() {
   /* ---------------- actions ---------------- */
   /* Chặn mở bảng vote cho Up next ngay ở lớp điều phối (nút đã disable,
      đây là lớp chặn thứ hai cho phím tắt / state cũ). */
-  /* CHIA SẺ MỘT BÀI. Link trỏ về CHÍNH bảng (`?f=top&q=<bài>`), không trỏ ra
-     YouTube: người nhận bấm vào là vote được ngay, thay vì phải tự đi tìm bài
-     trong danh sách. Điện thoại có hộp chia sẻ hệ thống thì mở hộp đó (người
-     dùng chọn được Zalo/Messenger), còn lại thì copy + toast.
-     Không dùng `navigator.share` ở desktop: hộp thoại hệ thống trên Windows
-     chậm và nhiều máy không có, trong khi copy link là thao tác ai cũng hiểu. */
-  const shareSong = useCallback(async (r) => {
-    /* Link dựng bằng `boardSearchUrl` — cùng một cửa với thẻ "This week" và
-       Recent requests của trang cá nhân. Bản cũ tự ghép `?f=top&q=…`: `top` chỉ
-       liệt kê bài ĐANG XIN PHIẾU, nên chia sẻ một bài vừa được chốt (hoặc đã
-       xong) là gửi đi một link mở ra danh sách RỖNG — người nhận không phân
-       biệt được "bài bị xoá" với "link hỏng". */
-    const url = absolute(boardSearchUrl(r?.title, r?.artist))
-    const text = `${r.title} - ${r.artist}`
-    /* Hộp chia sẻ hệ thống chỉ mở trên máy cảm ứng. Trên desktop nó là một hộp
-       thoại của hệ điều hành (Windows/macOS) chậm, hay bị chặn trong webview,
-       và không giúp gì: người dùng desktop muốn một chuỗi để dán. Nhận biết
-       bằng `(hover: none)` — cùng tiêu chí mà CSS dùng để phân biệt hai thế
-       giới, không phải đoán theo user-agent. */
-    const touch = window.matchMedia?.('(hover: none)').matches
-    if (touch && navigator.share) {
-      try { await navigator.share({ title: 'Chaereve', text, url }); return } catch { return }
-    }
-    const ok = await copyText(url)
-    if (ok) sfx.copy()
-    flash(ok ? 'ok' : 'err', t(ok ? 'row.shareCopied' : 'row.shareFailed'))
-  }, [flash, t])
+  /* Nút chia sẻ đã bị gỡ khỏi sản phẩm (cùng lượt với chuông theo dõi): người
+     dùng không muốn hàng request có thêm hành động nào ngoài "nghe bài". Link
+     dựng bằng `boardSearchUrl` vẫn còn ở hai thẻ "This week" và Recent requests
+     của trang cá nhân — chỗ đó chia sẻ là hành động chính, không phải nút phụ. */
 
   const openVote = useCallback((r) => {
     /* Guests can inspect and share the board, but voting is an explicit auth action. */
@@ -2455,8 +2404,7 @@ function AppInner() {
                       <RequestGroup key={e.key} g={e}
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
-                        followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
+                        hl={hlSong === e.key} />
                       )
                     : (
                       <RequestRow key={e.r.id} r={e.r} n={i} user={viewer}
@@ -2465,8 +2413,7 @@ function AppInner() {
                         canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}
                         onVote={openVote}
                         onDelete={doDelete}
-                        followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        onShare={shareSong} st={standings.get(groupKey(e.r))} />
+                        hl={hlSong === groupKey(e.r)} />
                       )
                   ))}
               </div>
@@ -2572,9 +2519,7 @@ function AppInner() {
                     myCount={myVotes.get(r.id) || 0}
                     canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
                     onVote={openVote}
-                    onDelete={doDelete}
-                    followed={watchedSet.has(groupKey(r))} onWatch={doToggleWatch}
-                    onShare={shareSong} st={standings.get(groupKey(r))} />
+                    onDelete={doDelete} />
                 ))}
             </div>
             <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />

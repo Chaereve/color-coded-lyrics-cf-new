@@ -9,14 +9,15 @@ import { fileURLToPath } from 'node:url'
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8')
 const css = read('../index.css').replace(/\/\*[\s\S]*?\*\//g, '')
 
-test('chuông và âm thanh giữ hai icon chồng nhau để cross-fade', () => {
-  const follow = read('../components/FollowBtn.jsx')
+/* Nút âm thanh là chỗ DUY NHẤT còn cross-fade icon sau khi chuông theo dõi bị
+   gỡ. Giữ hợp đồng ở đúng một chỗ: hai icon chồng trong một ô lưới, đổi trạng
+   thái chỉ là một phép mờ opacity — không phải thay phần tử nên hình không
+   nhảy, và không animate layout. */
+test('nút âm thanh giữ hai icon chồng nhau để cross-fade', () => {
   const sound = read('../components/SoundToggle.jsx')
-  assert.match(follow, /name="bell"[\s\S]*crossfade-off[\s\S]*name="bellOn"[\s\S]*crossfade-on/)
   assert.match(sound, /name="mute"[\s\S]*crossfade-off[\s\S]*name="sound"[\s\S]*crossfade-on/)
   assert.match(css, /\.icon-crossfade\s*\{[^}]*display:\s*inline-grid/)
   assert.match(css, /\.icon-crossfade\s*>\s*svg\s*\{[^}]*transition:\s*opacity\s+150ms/)
-  assert.match(css, /\.followbtn\.on\s+\.icon-crossfade\s+\.crossfade-on[^}]*opacity:\s*1/)
   assert.match(css, /\.sfxbtn\[aria-pressed="true"\]\s+\.icon-crossfade\s+\.crossfade-on[^}]*opacity:\s*1/)
 })
 

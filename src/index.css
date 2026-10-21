@@ -923,10 +923,8 @@ select {
    thay chỗ. Luật `.row .sub .prog` cũ (ép thanh về 96px) bị xoá cùng lúc, vì
    để lại là một luật chết trỏ vào thứ không còn ở đó — và người đọc CSS sau
    này sẽ tưởng thanh vẫn nằm trong hàng. */
-/* Link nghe ở dòng phụ thì không cần lề trên — lề đó viết cho lúc nó còn là
-   một dòng riêng dưới cùng của hàng. */
-/* `.watch` giờ chỉ còn trong hộp thông báo (Notifications.jsx). Trong hàng
-   request nó đã thành chip `.act-link` nằm trong cụm hành động. */
+/* `.watch` chỉ còn trong hộp thông báo (Notifications.jsx). Trong hàng request
+   nó đã thành nút `.watchbtn` trên dòng tiêu đề. */
 
 .watch { display: inline-block; margin-top: 2px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
@@ -1004,53 +1002,43 @@ select {
 .row.req > .votebtn.locked b { color: var(--txt-3); }
 .row.req > .votebtn.locked:hover { background: none; }
 .row.req > .votebtn.locked:hover span { color: var(--txt-3); }
-/* ===== CỤM HÀNH ĐỘNG PHỤ (theo dõi · chia sẻ · nghe) =====================
-   Trước đây ba hành động này có BA kiểu hiển thị khác nhau trong cùng một
-   hàng: chuông 18px ẩn tới khi rê, nút chia sẻ cũng 18px ẩn, còn link nghe là
-   chữ tím sáng đứng lẫn trong dòng meta. Ba hành động cùng loại mà ba hình
-   thức, và hai trong ba thì người dùng không thấy.
+/* ===== NÚT NGHE — hành động DUY NHẤT của một hàng =========================
+   Chuông theo dõi và nút chia sẻ đã bị gỡ khỏi sản phẩm (chủ dự án chốt:
+   một hàng request không cần thêm hành động nào khác ngoài "nghe bài"). Còn
+   lại một nút, nên nó phải đọc ra là MỘT NÚT: có viền, có nền, có mũi play.
+   Bản trước để nó là chuỗi chữ xám không viền nằm ngang hàng với những thứ
+   chỉ là thông tin — người dùng phải đoán xem chỗ nào bấm được.
 
-   Nay chúng là một CỤM ở mép phải của cột chữ: cùng một hàng, cùng chiều cao
-   chạm 24px, cùng màu xám, chỉ đổi màu khi rê. `margin-left: auto` đẩy cụm
-   sang phải để nó thẳng cột với vách ngăn của cột phiếu ở MỌI hàng — trước
-   đây chỗ đứng của cụm phụ thuộc độ dài dòng chữ nên hàng nào cũng lệch một
-   kiểu.
-
-   Vẫn dùng lại `.rowact` (nền, kích thước, crossfade icon) thay vì dựng kiểu
-   thứ hai; chỉ đổi ba thứ trong ngữ cảnh này: hiện sẵn thay vì ẩn, to lên
-   24px, và có nền nhẹ khi rê. */
-.row .acts { margin-left: auto; display: inline-flex; align-items: center; gap: 0; flex: none; }
-/* Ba nút dùng CHUNG một ngôn ngữ: chữ 11,5px, không viền, không nền, cao 24px.
-   Hai nút có chữ và một nút chỉ có icon nên phải ép cùng chiều cao — lệch 2px
-   là cả hàng nút gợn sóng. */
-.row .acts .rowact,
-.row .acts .act-link {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  height: 24px; padding: 0 6px; border: 0; border-radius: var(--r-sm);
-  background: none; color: var(--txt-3); opacity: .9; pointer-events: auto;
-  font-family: var(--font); font-size: 11.5px; font-weight: 500;
-  text-decoration: none; white-space: nowrap; cursor: pointer;
+   BA SỐ ĐO, mỗi số có lý do:
+   1) cao 24px — cùng cỡ một nút phụ khác trong app (nút trong dòng meta,
+      nút admin), đủ dày để có viền mà không thành một khối.
+   2) `margin-block: -4px` — hộp 24px cao hơn dòng chữ tiêu đề (15px × 1.15
+      ≈ 17px). Để nguyên thì chính cái nút kéo dòng tiêu đề cao lên, và chữ
+      trôi lơ lửng phía trên — đúng hiện tượng "chữ chưa ở giữa ô" mà chủ dự
+      án chỉ ra. Lề âm bù đúng phần chênh 6,75px, nên nút vẫn 24px mà dòng
+      chữ giữ nguyên chiều cao của nó.
+   3) mũi play mang màu nhấn, chữ màu xám sáng — thứ nhận ra ngay là biểu
+      tượng, nên nó là thứ duy nhất được tô màu. */
+.row .title .watchbtn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 24px; padding: 0 9px; margin-block: -4px;
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--txt-2);
+  font-family: var(--font); font-size: 11.5px; font-weight: 600;
+  letter-spacing: .1px; text-decoration: none; white-space: nowrap;
+  cursor: pointer;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
-              opacity var(--t-1) var(--e-soft);
+              border-color var(--t-1) var(--e-soft);
 }
-.row .acts .rowact { width: 24px; padding: 0; }
-.row .acts .rowact:hover, .row .acts .act-link:hover { color: var(--txt); background: var(--hover); opacity: 1; }
-.row .acts .rowact:focus-visible, .row .acts .act-link:focus-visible {
-  outline: 2px solid var(--a-2); outline-offset: 1px; }
-/* Đang theo dõi: chuông giữ màu accent và ĐẬM hẳn — trạng thái bật phải thấy
-   được cả khi không rê, vì nó là thông tin chứ không phải gợi ý. */
-.row .acts .rowact.followbtn.on { color: var(--a-2); opacity: 1; }
-.row .acts .act-link svg { flex: none; opacity: .85; }
-
-/* Trên máy cảm ứng, `.rowact` gốc được nới lên 40×40 (xem khối `pointer:
-   coarse` phía dưới). Ở dòng tiêu đề thì 40px là quá cao: nó đội cả hàng lên
-   gần gấp đôi chỉ vì hai cái nút. Nên giữ hộp 24px và nới VÙNG CHẠM bằng
-   pseudo — mắt thấy 24px, ngón tay vẫn được 40px, hàng không cao thêm. */
+.row .title .watchbtn svg { flex: none; color: var(--a-2); }
+.row .title .watchbtn:hover { color: var(--txt); background: var(--hover-2); border-color: color-mix(in oklab, var(--line-2) 55%, var(--txt-3)); }
+.row .title .watchbtn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+/* Máy cảm ứng: giữ hộp 24px (một nút 40px trong dòng tiêu đề sẽ đội cả hàng
+   lên) nhưng nới VÙNG CHẠM bằng pseudo — mắt thấy 24px, ngón tay được 40px. */
 @media (pointer: coarse) {
-  .row .acts .rowact { min-width: 24px; min-height: 24px; padding: 0; }
-  .row .acts .rowact::before, .row .acts .act-link::before {
-    content: ''; position: absolute; inset: -9px; border-radius: 50%; }
-  .row .acts .act-link { position: relative; }
+  .row .title .watchbtn { position: relative; }
+  .row .title .watchbtn::before {
+    content: ''; position: absolute; inset: -8px -6px; border-radius: var(--r-sm); }
 }
 
 /* ===== BA NHỊP TIẾN ĐỘ (thay thanh phần trăm trong hàng) =================
@@ -2505,9 +2493,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .side-item { min-height: 44px; }
   .side-cta { min-height: 44px; }
 
-  /* --- row actions: Follow/Share buttons (18×18 desktop → 40×40 mobile) --- */
-  .rowact { min-width: 40px; min-height: 40px; padding: 8px; }
-
 
   /* --- calendar navigation (28×28 desktop → 40×40 mobile) --- */
   .check-in-nav { min-width: 40px; min-height: 40px; }
@@ -3508,77 +3493,28 @@ html[data-section="spin"] .bgfx { display: none; }
   .nt-hvote { padding: 6px 12px }
 }
 
-/* ---- chuông trên dòng / trên cụm ---- */
-/* CHUONG NHAN TIN — affordance mo CUOI DONG META, khong phai o nut co hop.
-   Vi sao doi (nguoi dung bao "tho, mat tham my"): o 26px vien 1px nam o moi
-   dong, luc bat len thanh chip tim dac — no chiem mat hon dieu no noi, trong
-   khi dong cua bang ve la chu 12-13px. Cach moi:
-   - hang tinh: an hoan toan (opacity 0) -> glyph hien khi .row:hover /
-     .grow:hover / :focus-visible (bam Tab cung thay, khong bi mat lai);
-   - dang bat tin: cung cho do la MOT CHAM 4px mau accent, re vao thi cham
-     chuyen thanh glyph — ca hai nam trong o luoi 18px nen khong lech 1px nao;
-   - cam ung (hover:none): glyph lo mo mai, vi o day khong co "re" de phat hien;
-   - theo doi la cho CA BAI nen hang ben trong cum khong con chu ong nao ca —
-     bo duoc cai "o ghost" 26px dung cho thang cot cua lan truoc. */
-/* Nút mảnh cuối dòng meta — hiện dùng cho HAI việc: theo dõi bài (chuông) và
-   chia sẻ bài (mắt xích). Cùng cỡ, cùng chỗ, cùng độ mờ: một nút đậm hơn nút
-   kia ở cạnh nhau là cách nhanh nhất để hàng trông lệch. */
-.rowact {
-  position: relative;
-  flex: none; width: 18px; height: 18px; display: inline-grid; place-items: center;
-  border: 0; border-radius: var(--radius); background: none; cursor: pointer;
-  color: var(--txt-3); opacity: 0;
-  /* an thi KHONG duoc bamtrung nua: neu khong, cho trong 18px cuoi dong meta
-     van la nut — con tro ruc len chu, va kéo chuột bôi đen dòng chữ là dính
-     ô rỗng. Re/focus/cam ung thi mo lai o duoi. */
-  pointer-events: none;
-  /* `vertical-align` ở đây là chi tiết thừa: .meta là flex + align-items:center
-     nên item tự thẳng giữa — không có số đo tay nào cần bù. */
-  transition: color var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft);
-}
-/* Glyph swap giữ cả hai SVG trong cùng một ô: đổi trạng thái chỉ cross-fade
-   opacity (compositor), không nhảy hình. Một luật dùng cho chuông + âm thanh. */
-.rowact > svg { grid-area: 1 / 1 }
+/* ---- cross-fade icon (nút bật/tắt âm thanh) ----------------------------
+   Giữ HAI icon chồng nhau trong một ô lưới rồi đổi `opacity`: đổi trạng thái
+   chỉ là một phép mờ ở tầng compositor, không phải thay phần tử nên hình
+   không nhảy. Luật này từng phục vụ cả chuông theo dõi; chuông đã bị gỡ, chỉ
+   còn nút âm thanh dùng — nên mọi selector `.followbtn` đi kèm cũng đi theo. */
 .icon-crossfade { display: inline-grid; grid-area: 1 / 1; place-items: center; width: 16px; height: 16px; }
 .icon-crossfade > svg { grid-area: 1 / 1; transition: opacity 150ms var(--e-soft); }
 .icon-crossfade .crossfade-on { opacity: 0; }
-.followbtn.on .icon-crossfade .crossfade-off,
 .sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-off { opacity: 0; }
-.followbtn.on .icon-crossfade .crossfade-on,
 .sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-on { opacity: 1; }
-/* Vùng CHẠM rộng 26px quanh glyph 15px: nới bằng pseudo-element tuyệt đối nên
-   hình không đổi một pixel, hàng không cao thêm — đúng cách pro-max chỉ cho
-   icon nhỏ ("expand the hit area when the visual icon is smaller"). Bản hẹp
-   vẫn giữ hợp đồng 18px→24px trong @media ở dưới. */
-.rowact::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
-/* Phản hồi lúc bấm: thu nhẹ tại chỗ, không đổi kích thước hộp, không đẩy hàng. */
-.rowact:active { transform: scale(.9); }
-.row:hover .rowact, .grow:hover > .rowact, .rowact:focus-visible { opacity: .85; pointer-events: auto }
-/* Hàng đang bật thì giữ độ đậm 1, không nhạt đi khi rê vào. */
-.row:hover .followbtn.on, .grow:hover > .followbtn.on { opacity: 1 }
-.rowact:hover { color: var(--txt) }
-.followbtn.on { color: var(--a-2); opacity: 1 }
-@media (hover: none) { .rowact { opacity: .55; pointer-events: auto } }
-/* CHUONG CUA CA CU NAM O COT LUOI THU HAI, khong neo absolute: .grow-head cao
-   theo noi dung (nhan + ten + meta) nen moi so do "top: 15px" deu lech voi mui
-   ten; `align-self:center` tu thang hang. Cung nhip: 12px gitua cac nut, 14px
-   t mép phai — .row (dong le) va .grow (ca cum) vi the trung cot nut vote/xoá. */
-.grow { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-/* PHAI ghi ca `grid-row`: FollowBtn dung trc .grow-head trong DOM, neu de
-   auto-placement thi no chiem hang 1 (cot 2) va .grow-head bi day xuong hang 2
-   — chuong nam rieng mot dong o goc, the card cao them ~40px. Lan sua truoc do
-   lech nhieu hon cung vi ly do nay. */
-.grow > .grow-head { grid-area: 1 / 1; min-width: 0; padding-right: 0 }
-.grow > .rowact { grid-area: 1 / 2; align-self: center; justify-self: end; margin: 0 14px 0 12px; z-index: 2 }
-.grow > .grow-rows { grid-area: 2 / 1 / 3 / 3 }
+
+/* CỤM BÀI không còn chuông theo dõi nên KHÔNG còn cột lưới thứ hai: bản trước
+   dựng `.grow` thành lưới `1fr auto` để đặt chuông vào cột 2, kéo theo ba
+   luật `grid-area` và một `padding-right: 0` chỉ để nhường chỗ. Bỏ chuông là
+   bỏ luôn cả cụm đó — card trở lại một cột, đầu cụm có đệm phải bình thường. */
+.grow { display: block; }
+.grow > .grow-head { min-width: 0; }
+.grow-rows { display: block; }
 .grow.hl { border-color: var(--a-2); }
 
 @media (max-width: 620px) {
   .row { gap: 8px; }
-  /* ban cham: 18px qua nho cho ngon tay; 24px ma khong hop thi hang van ghe */
-  .rowact { width: 24px; height: 24px }
-  /* giu dung mot nhip o ban hep: 8px giua cac nut, 10px t mép phai */
-  .grow > .rowact { margin: 0 10px 0 8px }
   .grow-rows-in > .row { padding-right: 10px }
   .grow-rows-in > .row.req { padding-right: 0 }
   .votebtn { padding-left: 8px; padding-right: 8px; }
@@ -4971,8 +4907,6 @@ body {
 
 .requester-link { color: inherit; text-decoration: none; }
 .requester-link:hover { color: var(--a-2); text-decoration: underline; }
-.followbtn:hover, .followbtn:focus-visible { border-radius: 50%; background: var(--surface-3); }
-.followbtn.on { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--a-2) 35%, transparent)); }
 
 /* =========================================================
    RESPONSIVE OPTIMIZATION PASS (web + mobile)
@@ -5026,11 +4960,6 @@ body { overflow-x: hidden; }
   .row.req .body { padding: 7px 0; }
   .row.req > .votebtn { min-width: 72px; padding: 0 6px; margin-left: var(--sp-2); }
   .row.req > .votebtn b { font-size: var(--fs-title); }
-  /* Cụm hành động trên máy hẹp: chip nghe thu về đúng ô icon, `title` lo phần
-     giải thích. Không ẩn hẳn nút nào — ba hành động vẫn phải bấm được bằng
-     ngón tay, và ở đây `@media (pointer: coarse)` đã nới chúng lên 40px. */
-  .row .acts .act-link { width: 24px; padding: 0; }
-  .row .acts .act-link-tx { display: none; }
   .row .title { font-size: var(--fs-body); }
   /* Màn hẹp: tên bài + tên tác giả không đủ chỗ cho một dòng. Cắt bằng dấu ba
      chấm ở đây là cắt mất đúng phần người đọc cần nhất, nên cho phép xuống

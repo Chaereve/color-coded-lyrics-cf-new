@@ -15,12 +15,7 @@
    Hai nhãn hiệu (YouTube, Telegram) cố ý KHÔNG nằm ở đây: Lucide không vẽ
    logo thương hiệu, mà logo thì phải đúng logo — chúng nằm ngay tại chỗ dùng
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
-import {
-  ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight,
-  CalendarCheck, CircleAlert, Disc3, Download, Flame, Gift, Info, ListMusic, LogOut, Minus, Music4, Play,
-  Eye, Plus, Receipt, Search, Share2, ShieldCheck, SlidersHorizontal, SquarePen, Star,
-  Crown, Trophy, User, Volume2, VolumeX, X,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight, CalendarCheck, CircleAlert, Disc3, Download, Flame, Gift, Info, ListMusic, LogOut, Minus, Music4, Play, Eye, Plus, Receipt, Search, ShieldCheck, SlidersHorizontal, SquarePen, Star, Crown, Trophy, User, Volume2, VolumeX, X } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
 const SET = {
@@ -59,7 +54,6 @@ const SET = {
   sound: Volume2,
   mute: VolumeX,
   note: Music4,                   /* âm thanh trong sidebar */
-  share: Share2,                  /* copy link của một bài */
   preview: Eye,                   /* xem trước bài mình sắp gửi */
 }
 

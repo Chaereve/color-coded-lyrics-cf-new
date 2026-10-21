@@ -145,12 +145,14 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   assert.ok(metaAt > 0 && nhipAt > metaAt, 'ba nhịp là chi tiết của dòng phụ, phải đứng trong .meta')
   assert.match(app, /r\.status === 'in_progress' &&[\s\S]{0,300}<Steps pct=\{r\.progress\}/,
     'ba nhịp chỉ hiện khi hàng đang làm — hàng chờ chưa có gì để đếm')
-  /* Cụm hành động KHÔNG được rơi lại xuống dòng phụ: đó là lý do vòng 4 đưa nó
-     lên dòng tiêu đề (bảy thứ trên một dòng thì cỡ nào cũng chen). */
-  const actsAt = app.indexOf('<span className="acts">')
+  /* Nút nghe KHÔNG được rơi xuống dòng phụ: đó là lý do nó được đưa lên dòng
+     tiêu đề (dòng phụ đã có trạng thái · loại · người gửi · giờ · ba nhịp).
+     Chuông theo dõi và nút chia sẻ từng đứng cạnh nó đã bị gỡ khỏi sản phẩm;
+     giờ nút này là hành động duy nhất của một hàng. */
+  const watchAt = app.indexOf('<a className="watchbtn"')
   const titleAt = app.indexOf('<div className="title">')
-  assert.ok(titleAt > 0 && actsAt > titleAt && actsAt < metaAt,
-    'cụm hành động nằm ở dòng tiêu đề, trước dòng phụ')
+  assert.ok(titleAt > 0 && watchAt > titleAt && watchAt < metaAt,
+    'nút nghe nằm ở dòng tiêu đề, trước dòng phụ')
   assert.doesNotMatch(app, /pctValue|prog-edge/, 'tàn dư của phương án C phải sạch')
   assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/,
     'khối Up next vẫn dùng thanh — chỗ đó có trọn một dòng cho nó')
