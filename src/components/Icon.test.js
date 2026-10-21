@@ -72,7 +72,7 @@ test('SET không có tên chết (khai mà không chỗ nào dùng)', () => {
     for (const [, expr] of src.matchAll(/<Icon\s[^>]*?name=\{([^}]*)\}/gs)) {
       for (const [, name] of expr.matchAll(/'([A-Za-z][\w]*)'|"([A-Za-z][\w]*)"/g)) used.add(name)
     }
-    for (const [, , body] of src.matchAll(/const\s+(NAV_ICON|TONE|REWARD_ICON)\s*=\s*\{([^}]*)\}/gs)) {
+    for (const [, , body] of src.matchAll(/const\s+(NAV_ICON|TONE|REWARD_ICON|SORT_ICON)\s*=\s*\{([^}]*)\}/gs)) {
       for (const [, name] of body.matchAll(/:\s*'([A-Za-z][\w]*)'/g)) used.add(name)
     }
   }

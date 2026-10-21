@@ -298,6 +298,10 @@ const S = {
   'filter.picked': 'Up next',
   'filter.newest': 'Newest',
   'filter.top': 'Top voted',
+  /* ba cách xếp thêm vào cùng menu Sort */
+  'filter.oldest': 'Longest waiting',
+  'filter.requests': 'Most requested',
+  'filter.az': 'Title A–Z',
   'filter.in_progress': 'In progress',
   'filter.completed': 'Done',
 
@@ -437,13 +441,14 @@ const S = {
   'board.allStages': 'All',
   'board.clear': 'Clear',
   'board.sortBy': 'Sort by',
+  /* nhãn trên nút Sort khi đang xem một CHẶNG: chưa chọn cách xếp nào */
+  'board.sortLabel': 'Sort',
   'board.sortAria': 'Sort requests',
   'board.show': 'Show {n} results',
   'board.show1': 'Show 1 result',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
   'board.clearKind': 'Remove the type filter: {k}',
-  'board.showing': '{n} shown',
 
   /* phan trang — dung chung cho moi danh sach dai */
   'pager.label': 'Pagination',

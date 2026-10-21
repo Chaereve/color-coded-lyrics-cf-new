@@ -309,6 +309,19 @@ export function creditText(song, maxNames = 8) {
 /* Nhiều vote hơn đứng trước; hoà vote thì bài mới hơn đứng trước. */
 export const byVotes = (a, b) => ((b.votes || 0) - (a.votes || 0)) || (ts(b.created_at) - ts(a.created_at))
 export const byNewest = (a, b) => ts(b.created_at) - ts(a.created_at)
+export const byOldest = (a, b) => ts(a.created_at) - ts(b.created_at)
+export const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title)) || byNewest(a, b)
+
+/* NĂM CÁCH XẾP — danh sách DUY NHẤT, dùng cho cả menu Sort lẫn chỗ đọc địa
+   chỉ `?f=`. `filter` mang hai nghĩa (một chặng của dây chuyền, hoặc một cách
+   xếp cả bảng); nếu danh sách này nằm rải rác ở hai chỗ thì thêm một cách xếp
+   là mở ra đúng loại lỗi "dán link vào thì mất".
+     newest   — mới gửi trước (mặc định)
+     top      — nhiều phiếu trước; CHỈ bài đang xin phiếu, như tab cũ
+     oldest   — chờ lâu nhất trước: câu hỏi của người xếp hàng
+     requests — nhiều người cùng xin một bài nhất trước
+     az       — tên bài A→Z (bỏ dấu, nên "Đ" nằm cùng chỗ với "D") */
+export const SORTS = ['newest', 'top', 'oldest', 'requests', 'az']
 
 /* Danh sách Up next: đang làm trước, rồi tới hàng chốt sớm hơn. */
 export const byPickOrder = (a, b) =>
@@ -326,6 +339,12 @@ export function sortRows(rows, filter) {
   if (filter === 'in_progress') return out.sort((a, b) => (b.progress || 0) - (a.progress || 0) || byVotes(a, b))
   if (filter === 'newest') return out.sort(byNewest)
   if (filter === 'top') return out.sort(byVotes)
+  if (filter === 'oldest') return out.sort(byOldest)
+  if (filter === 'az') return out.sort(byTitle)
+  /* `requests` xếp theo SỐ DÒNG của cụm (một bài nhiều người xin) — đó là
+     chuyện của cả cụm, không phải của từng dòng, nên trong cụm chỉ cần dòng
+     mới nhất đứng đầu; sortGroups làm việc xếp cụm. */
+  if (filter === 'requests') return out.sort(byNewest)
   return out.sort((a, b) => ((b.is_paid ? 1 : 0) - (a.is_paid ? 1 : 0)) || byVotes(a, b))
 }
 
@@ -363,6 +382,16 @@ export function sortGroups(groups, filter) {
     || (b.votes - a.votes))
   if (filter === 'newest') return out.sort((a, b) => (b.newest - a.newest) || (b.votes - a.votes))
   if (filter === 'top') return out.sort((a, b) => (b.votes - a.votes) || (b.newest - a.newest))
+  /* Chờ lâu nhất: mốc của cụm là dòng CŨ NHẤT (người đầu tiên xin bài đó),
+     không phải dòng mới nhất — nếu lấy dòng mới nhất thì một bài nhận thêm
+     một lượt xin hôm nay sẽ nhảy xuống cuối hàng chờ. */
+  if (filter === 'oldest') return out.sort((a, b) =>
+    Math.min(...a.rows.map(r => ts(r.created_at))) - Math.min(...b.rows.map(r => ts(r.created_at)))
+    || (b.votes - a.votes))
+  if (filter === 'requests') return out.sort((a, b) =>
+    (b.rows.length - a.rows.length) || (b.votes - a.votes) || (b.newest - a.newest))
+  if (filter === 'az') return out.sort((a, b) =>
+    fold(a.title).localeCompare(fold(b.title)) || (b.votes - a.votes))
   return out.sort((a, b) => (b.paid - a.paid) || (b.votes - a.votes) || (b.newest - a.newest))
 }
 
@@ -507,7 +536,11 @@ export function filterBoard(opts = {}) {
   const picked = opts.picked || chainRows(pub)
   const t = (q ?? '').trim()
   let base = real(pub)
-  if (filter === 'newest' && t && rows?.length) {
+  /* Đang ở một CÁCH XẾP (không phải một chặng) thì tìm kiếm phải quét cả
+     `rows`, nên bài đang chờ duyệt / bị từ chối vẫn tìm ra — bản trước chỉ
+     làm vậy cho `newest`, còn `top` thì không, nên cùng một từ khoá cho hai
+     kết quả khác nhau tuỳ cái đang bật. */
+  if (SORTS.includes(filter) && t && rows?.length) {
     base = real(rows).filter(r => r.status !== 'denied')
   } else if (statusFilters.length) {
     /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối

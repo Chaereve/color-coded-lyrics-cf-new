@@ -143,7 +143,13 @@ test('bốn chặng của dây chuyền đứng đúng thứ tự công việc',
   assert.deepEqual(order, ['queued', 'picked', 'in_progress', 'completed'],
     'thứ tự chặng đã đổi khỏi thứ tự công việc')
   assert.match(app, /\{STAGES\.map\(k => \(/, 'bảng Status phải dựng từ STAGES')
-  assert.match(app, /\[\['newest', 'up'\], \['top', 'cup'\]\]/, 'sort chỉ có hai cách nhìn')
+  /* Menu Sort dựng từ SORTS (board.js), không phải từ một mảng viết tay
+     trong JSX — thêm một cách xếp thì không phải sửa ba chỗ. */
+  assert.match(app, /\{SORTS\.map\(k => \(/, 'menu Sort phải dựng từ SORTS')
+  assert.doesNotMatch(app, /\[\['newest', 'up'\]/, 'không quay lại mảng cặp viết tay')
+  /* Đang xem một CHẶNG thì nút Sort không được in tên một cách xếp nào. */
+  assert.match(app, /sortKey \? t\(`filter\.\$\{sortKey\}`\) : t\('board\.sortLabel'\)/,
+    'nút Sort phải trung tính khi danh sách đang xếp theo chặng')
   assert.doesNotMatch(app, /watchedSet/, 'tab "Following" đã bị gỡ')
 })
 

@@ -171,9 +171,12 @@ test('mọi nhãn trạng thái lấy màu qua statusColorOf, không tự tra th
       `${f} còn gọi statusColor(...) trực tiếp — đó là chỗ làm Up next trùng màu In queue`)
     assert.match(src, /statusColorOf\(/, `${f} phải lấy màu qua statusColorOf`)
   }
-  /* Chip lọc: Queue và Up next là hai mục khác nhau thì hai màu khác nhau. */
-  assert.match(app, /\{ k: 'picked',\s+c: 'var\(--upnext\)'/,
-    'chip "Up next" phải mang màu upnext, cùng màu với nhãn trên hàng')
+  /* Bảng chọn Status: Queue và Up next là hai mục khác nhau thì hai màu khác
+     nhau. Nguồn duy nhất nay là STAGE_COLOR (bản cũ là mảng FILTERS của dải
+     chip, đã bị gỡ cùng dải chip). */
+  assert.match(app, /picked: 'var\(--upnext\)'/,
+    'chặng "Up next" phải mang màu upnext, cùng màu với nhãn trên hàng')
+  assert.match(app, /queued: 'var\(--queued\)'/, 'chặng Queue giữ màu queued')
   /* Nhãn Up next trong .tags cũng vậy — cùng một hàng, cùng một sắc. */
   const upnext = ruleOf('.pill.upnext')
   assert.match(upnext, /color:\s*var\(--upnext\)/)

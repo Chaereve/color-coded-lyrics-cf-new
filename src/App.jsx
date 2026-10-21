@@ -43,7 +43,7 @@ import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
+import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
   diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
   mergeInbox, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
@@ -171,26 +171,20 @@ const sectionTransition = createSectionTransition({ reduced: REDUCED })
      · you  — việc của riêng người đang xem. Chỉ hiện khi có ít nhất một bài
        đang theo dõi (rỗng thì mục này vô nghĩa), nên nhóm này có thể vắng
        mặt — vạch ngăn của nó cũng phải biến mất theo (xem chỗ dựng dải). */
-const FILTERS = [
-  { k: 'queued',      c: 'var(--queued)',   ax: 'pipe' },
-  /* Chip "Up next" mang đúng màu của nhãn Up next trên hàng — trước đây hai
-     chip Queue và Up next cùng `--queued`, nên chúng trông như một mục. */
-  { k: 'picked',      c: 'var(--upnext)',   ax: 'pipe' },
-  { k: 'in_progress', c: 'var(--progress)', ax: 'pipe' },
-  { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
-  { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
-  { k: 'top',         c: 'var(--a-2)',      ax: 'view' },
-]
-const FILTER_KEYS = FILTERS.map(f => f.k)
+/* Giá trị hợp lệ cho `?f=`: bốn CHẶNG của dây chuyền + năm CÁCH XẾP. Danh
+   sách chặng nằm ở board.js (STAGES), cách xếp cũng vậy (SORTS) — ở đây chỉ
+   là phép cộng của hai nguồn đó, không có bảng thứ ba để lệch. */
+const FILTER_KEYS = [...STAGES, ...SORTS]
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
-/* Bốn chặng của dây chuyền, đúng thứ tự công việc — thanh lọc dựng bảng chọn
-   Status từ đây chứ không từ FILTERS, vì FILTERS còn có hai mục "cách nhìn"
-   (newest/top) ngày trước trộn lẫn vào cùng một dải. */
+/* Bốn chặng của dây chuyền, đúng thứ tự công việc: bảng chọn Status dựng từ
+   STAGES, không trộn hai "cách nhìn" (newest/top) vào cùng dải như bản cũ. */
 const STAGE_COLOR = {
   queued: 'var(--queued)', picked: 'var(--upnext)',
   in_progress: 'var(--progress)', completed: 'var(--done)',
 }
 const KIND_LIST = Object.keys(KIND_META)
+/* Icon dẫn đường cho từng cách xếp. Một bảng tra, không rải `if` trong JSX. */
+const SORT_ICON = { newest: 'up', top: 'cup', oldest: 'down', requests: 'board', az: 'az' }
 
 function Num({ v }) {
   const n = useCountUp(v)
@@ -1511,7 +1505,11 @@ function AppInner() {
   const stagePick = statusFilters.length
     ? statusFilters
     : (STAGES.includes(filter) ? [filter] : [])
-  const sortKey = filter === 'top' ? 'top' : 'newest'
+  /* Đang ở một CHẶNG (queued/picked/…) thì menu Sort không có mục nào được
+     chọn — bấm một cách xếp sẽ dọn chặng, đúng luật của pickSort. Nên nút
+     Sort cũng KHÔNG được in một cách xếp nào: đang xem Queue (xếp theo PAID
+     rồi tới phiếu) mà nút ghi "Newest" là nói sai về danh sách đang nhìn. */
+  const sortKey = SORTS.includes(filter) ? filter : null
   const fbActive = statusFilters.length + kindFilters.length + (q.trim() ? 1 : 0)
   const stageText = !stagePick.length ? t('board.allStages')
     : stagePick.length === 1 ? t(`filter.${stagePick[0]}`)
@@ -2329,7 +2327,6 @@ function AppInner() {
                           ))}
                         </ul>
                         <div className="fb-pf">
-                          <span className="fb-sum">{t('board.showing', { n: boardItems.length })}</span>
                           <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
                             {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
                           </button>
@@ -2367,7 +2364,6 @@ function AppInner() {
                           ))}
                         </ul>
                         <div className="fb-pf">
-                          <span className="fb-sum">{t('board.showing', { n: boardItems.length })}</span>
                           <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
                             {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
                           </button>
@@ -2384,17 +2380,17 @@ function AppInner() {
                       aria-label={t('board.sortAria')}
                       onClick={() => setFbTab(v => v === 'sort' ? null : 'sort')}>
                       <Icon name="sort" size={13} className="si" />
-                      <span className="v">{t(`filter.${sortKey}`)}</span>
+                      <span className="v">{sortKey ? t(`filter.${sortKey}`) : t('board.sortLabel')}</span>
                       <Icon name="chevron" size={13} className="car" />
                     </button>
                     {fbTab === 'sort' && (
                       <div className="fb-menu" id="fb-sort-menu" role="menu" aria-label={t('board.sortAria')}>
                         <div className="fb-mh" aria-hidden="true">{t('board.sortBy')}</div>
                         <div className="fb-sep" aria-hidden="true" />
-                        {[['newest', 'up'], ['top', 'cup']].map(([k, ico]) => (
+                        {SORTS.map(k => (
                           <button key={k} type="button" role="menuitemradio" aria-checked={sortKey === k}
                             className="fb-mi" onClick={() => pickSort(k)}>
-                            <Icon name={ico} size={14} className="mi-ico" />
+                            <Icon name={SORT_ICON[k]} size={14} className="mi-ico" />
                             <span className="nm">{t(`filter.${k}`)}</span>
                             <Icon name="check" size={13} className="ck" />
                           </button>
