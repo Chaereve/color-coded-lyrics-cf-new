@@ -773,7 +773,14 @@ select {
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
-.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 0; line-height: 1.15; }
+/* DÒNG TIÊU ĐỀ là MỘT HÀNG flex: tên bài + nhãn + cụm hành động.
+   `min-width: 0` cho phần chữ để tên bài dài bị cắt bằng dấu ba chấm thay vì
+   đẩy cụm nút ra khỏi hàng — đó là lỗi thường gặp khi đặt nút cạnh chữ trong
+   flex: chữ không co được nên nút bị đẩy xuống dòng dưới hoặc tràn ra ngoài. */
+.row .title { display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 0; line-height: 1.15; }
+.row .title .tx2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .title .tags { flex: none; display: inline-flex; gap: 6px; align-items: center; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
 .meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); line-height: 1.15; color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
@@ -912,21 +919,10 @@ select {
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
-/* ---- TIẾN ĐỘ GỌN TRONG DÒNG PHỤ (phương án A) --------------------------
-   Hàng request in thanh tiến độ trên DÒNG PHỤ, cạnh dòng chữ trạng thái —
-   nhưng là ANH EM của hộp chữ, không nằm trong đó. Đây là điểm đã gây lỗi
-   thật: khi thanh còn nằm trong hộp flex của chữ, hàng "đang làm" cao gần gấp
-   đôi các hàng khác, chữ dồn lên trên và cả danh sách đọc ra lệch nhịp.
-
-   Ở vị trí mới nó là CHI TIẾT PHỤ của một dòng: rộng tối đa 96px (thanh gốc
-   220px là cỡ của một khối đứng một mình), khe hẹp, và chừa sẵn bề rộng cho
-   con số. Luật vẫn phải theo NGỮ CẢNH (`.row .sub …`) chứ không sửa `.prog`:
-   cùng component này còn được khối Up next và bảng quản trị dùng, hai chỗ đó
-   thanh nằm trên dòng riêng của nó — ép về 96px là bóp nghẹt đúng chỗ cần đọc
-   rõ nhất. */
-.row .sub .prog { flex: none; max-width: 96px; margin: 0; gap: 6px; }
-.row .sub .prog .prog-track { min-width: 40px; }
-.row .sub .prog .prog-num { min-width: 24px; }
+/* Thanh tiến độ KHÔNG còn trong hàng request (vòng 4): ba nhịp `.nhip` đã
+   thay chỗ. Luật `.row .sub .prog` cũ (ép thanh về 96px) bị xoá cùng lúc, vì
+   để lại là một luật chết trỏ vào thứ không còn ở đó — và người đọc CSS sau
+   này sẽ tưởng thanh vẫn nằm trong hàng. */
 /* Link nghe ở dòng phụ thì không cần lề trên — lề đó viết cho lúc nó còn là
    một dòng riêng dưới cùng của hàng. */
 /* `.watch` giờ chỉ còn trong hộp thông báo (Notifications.jsx). Trong hàng
@@ -1023,33 +1019,67 @@ select {
    Vẫn dùng lại `.rowact` (nền, kích thước, crossfade icon) thay vì dựng kiểu
    thứ hai; chỉ đổi ba thứ trong ngữ cảnh này: hiện sẵn thay vì ẩn, to lên
    24px, và có nền nhẹ khi rê. */
-.row.req .acts { margin-left: auto; display: flex; align-items: center; gap: 2px; flex: none; }
-.row.req .acts .rowact {
-  width: 24px; height: 24px; border-radius: var(--r-sm);
-  color: var(--txt-3); opacity: .8; pointer-events: auto;
+.row .acts { margin-left: auto; display: inline-flex; align-items: center; gap: 0; flex: none; }
+/* Ba nút dùng CHUNG một ngôn ngữ: chữ 11,5px, không viền, không nền, cao 24px.
+   Hai nút có chữ và một nút chỉ có icon nên phải ép cùng chiều cao — lệch 2px
+   là cả hàng nút gợn sóng. */
+.row .acts .rowact,
+.row .acts .act-link {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 24px; padding: 0 6px; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--txt-3); opacity: .9; pointer-events: auto;
+  font-family: var(--font); font-size: 11.5px; font-weight: 500;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
               opacity var(--t-1) var(--e-soft);
 }
-.row.req .acts .rowact:hover { color: var(--txt); background: var(--hover); opacity: 1; }
-.row.req .acts .rowact:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+.row .acts .rowact { width: 24px; padding: 0; }
+.row .acts .rowact:hover, .row .acts .act-link:hover { color: var(--txt); background: var(--hover); opacity: 1; }
+.row .acts .rowact:focus-visible, .row .acts .act-link:focus-visible {
+  outline: 2px solid var(--a-2); outline-offset: 1px; }
 /* Đang theo dõi: chuông giữ màu accent và ĐẬM hẳn — trạng thái bật phải thấy
    được cả khi không rê, vì nó là thông tin chứ không phải gợi ý. */
-.row.req .acts .rowact.followbtn.on { color: var(--a-2); opacity: 1; }
+.row .acts .rowact.followbtn.on { color: var(--a-2); opacity: 1; }
+.row .acts .act-link svg { flex: none; opacity: .85; }
 
-/* Nút NGHE: chip có viền, cùng chiều cao với hai ô icon nên ba thứ đứng thành
-   một hàng đều. Chữ chỉ hiện khi đủ chỗ (xem @media bên dưới) — trên máy hẹp
-   nó thu về đúng ô icon và `title` lo phần giải thích. */
-.row.req .acts .act-link {
-  display: inline-flex; align-items: center; gap: 5px; flex: none;
-  height: 24px; padding: 0 8px; border-radius: var(--r-sm);
-  border: 1px solid var(--line-2); background: none;
-  color: var(--txt-2); font-size: var(--fs-cap); font-weight: 500;
-  text-decoration: none; white-space: nowrap;
-  transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
-              background var(--t-1) var(--e-soft);
+/* Trên máy cảm ứng, `.rowact` gốc được nới lên 40×40 (xem khối `pointer:
+   coarse` phía dưới). Ở dòng tiêu đề thì 40px là quá cao: nó đội cả hàng lên
+   gần gấp đôi chỉ vì hai cái nút. Nên giữ hộp 24px và nới VÙNG CHẠM bằng
+   pseudo — mắt thấy 24px, ngón tay vẫn được 40px, hàng không cao thêm. */
+@media (pointer: coarse) {
+  .row .acts .rowact { min-width: 24px; min-height: 24px; padding: 0; }
+  .row .acts .rowact::before, .row .acts .act-link::before {
+    content: ''; position: absolute; inset: -9px; border-radius: 50%; }
+  .row .acts .act-link { position: relative; }
 }
-.row.req .acts .act-link:hover { color: var(--a-2); border-color: var(--a-2); background: var(--a-soft); }
-.row.req .acts .act-link svg { flex: none; opacity: .8; }
+
+/* ===== BA NHỊP TIẾN ĐỘ (thay thanh phần trăm trong hàng) =================
+   Ba vạch nhỏ, mỗi vạch là MỘT việc có tên (Layout · Lyrics · Edit). Vạch đầy
+   = việc đã xong. Đoạn tô bên trong vạch là phần trăm của CHÍNH việc đó, nên
+   47% cho ra "vạch 1 đầy, vạch 2 mới 17%, vạch 3 trống" — đọc là biết đang
+   làm dở việc thứ hai, thay vì phải tự dịch con số.
+
+   Kích thước: mỗi vạch 16×3px, khe 3px, tổng cả cụm ~66px — nhỏ hơn thanh
+   220px cũ rất nhiều, nên dòng phụ không còn bị một khối ngang chiếm chỗ.
+   Màu ruột dùng `--sc` của hàng để cùng màu với chấm trạng thái bên cạnh.
+
+   Tên lớp là `.nhip`, KHÔNG phải `.steps`: `index.css` đã có `.steps` từ lâu
+   (bộ ba nút mốc trong panel quản trị, `margin-top: 9px` + `flex-wrap`). Đặt
+   trùng tên thì hai luật gộp vào một phần tử, và cái `margin-top: 9px` kia sẽ
+   đội dòng phụ của mọi hàng "đang làm" cao thêm 9px — đúng thứ vừa gỡ. */
+.nhip { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.nhip-seg { width: 16px; height: 3px; border-radius: 2px; overflow: hidden;
+  background: var(--surface-3); }
+.nhip-seg > i { display: block; height: 100%; width: var(--w, 0%);
+  border-radius: inherit; background: var(--sc, var(--progress));
+  transition: width .45s var(--e-out); }
+/* Số việc đã xong: nhỏ, mono, cùng màu xám của dòng — nó là bản dịch của hình,
+   không phải một con số thứ hai để so sánh. */
+.nhip-n { margin-left: 3px; font-family: var(--mono); font-size: 10px; font-weight: 500;
+  color: var(--txt-3); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .nhip-seg > i { transition: none } }
+
+
 
 /* Suất của chính mình (×2) đứng dưới số, cùng cột. */
 .row.req > .votebtn .mine { padding-left: 0; }
@@ -4999,9 +5029,15 @@ body { overflow-x: hidden; }
   /* Cụm hành động trên máy hẹp: chip nghe thu về đúng ô icon, `title` lo phần
      giải thích. Không ẩn hẳn nút nào — ba hành động vẫn phải bấm được bằng
      ngón tay, và ở đây `@media (pointer: coarse)` đã nới chúng lên 40px. */
-  .row.req .acts .act-link { padding: 0 6px; }
-  .row.req .acts .act-link-tx { display: none; }
+  .row .acts .act-link { width: 24px; padding: 0; }
+  .row .acts .act-link-tx { display: none; }
   .row .title { font-size: var(--fs-body); }
+  /* Màn hẹp: tên bài + tên tác giả không đủ chỗ cho một dòng. Cắt bằng dấu ba
+     chấm ở đây là cắt mất đúng phần người đọc cần nhất, nên cho phép xuống
+     tối đa hai dòng (line-clamp) — cụm hành động vẫn đứng bên phải dòng đầu
+     vì nó là flex item riêng, không nằm trong phần chữ. */
+  .row .title .tx2 { white-space: normal; display: -webkit-box;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .meta { font-size: var(--fs-cap); gap: var(--sp-2); }
   .votebtn { padding: 6px 9px; min-height: 36px; }
   .grow { margin: var(--sp-2) 0; }

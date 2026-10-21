@@ -127,49 +127,45 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
     'ai tắt hiệu ứng thì thanh đứng yên')
   assert.match(css, /\.prog-full \{ --sc: var\(--done\); \}/,
     'tick hết mốc thì --sc đổi sang màu xong')
-  /* PHƯƠNG ÁN A — thanh tiến độ nằm TRONG dòng meta của hàng request, nên nó
-     phải bị thu về cỡ một chi tiết phụ. Luật phải theo NGỮ CẢNH
-     (`.row .meta .prog`), không được sửa `.prog` trần: cùng component đó còn
-     được khối Up next và bảng quản trị dùng, ở hai chỗ ấy thanh có dòng riêng
-     của nó. */
-  assert.match(css, /\.row \.sub \.prog \{[^}]*max-width:\s*96px/,
-    'thanh trong dòng phụ của hàng phải bị thu về 96px (thanh gốc 220px là cỡ một khối đứng riêng)')
-  assert.match(css, /\.row \.sub \.prog \.prog-num \{[^}]*min-width:\s*24px/,
-    'bề rộng chừa sẵn cho con số phải co theo cỡ chữ mới')
-  /* THANH TIẾN ĐỘ KHÔNG BAO GIỜ NẰM TRONG `.meta`. `.meta` là hộp flex của
-     CHỮ (có `flex-wrap` cho nhãn dài); một khối như thanh tiến độ đứng trong
-     đó làm cả hộp cao lên bất thường và hàng "đang làm" cao gần gấp đôi hàng
-     khác. Chốt: `.meta` phải thuần chữ, thanh là anh em ruột trong `.sub`. */
-  assert.doesNotMatch(css, /\.row \.meta \.prog/, 'thanh tiến độ không được nằm trong hộp chữ .meta nữa')
-  assert.doesNotMatch(css, /\.prog\.prog-edge/,
-    'biến thể "đường đáy" của phương án C đã bị gỡ — không để lại luật chết')
-  assert.match(src.get('src/components/Progress.jsx'), /prog-full/,
-    'component phải thật sự đánh dấu trạng thái đã tick hết mốc')
-  /* Bảng quản trị và trang chủ phải tô GIỐNG nhau: không truyền màu trạng thái
-     vào vạch nữa (cùng một bài từng có hai màu vạch ở hai màn hình). */
-  assert.doesNotMatch(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*color=/,
-    'bảng quản trị không được tự tô màu vạch khác trang chủ')
-  /* Dấu % đi cùng tông với con số, không phải một màu xám thứ ba. */
-  assert.match(css, /\.prog-num span \{[^}]*opacity:\s*\.55/)
-
-  /* Ba chỗ dùng: hàng request, khối Up next, hàng admin. */
-  assert.match(src.get('src/App.jsx'), /<Progress pct=\{r\.progress\}/)
-  /* Hàng request dùng biến thể `edge`, và con số đọc qua `pctValue` chứ không
-     in thẳng `r.progress` — in trần là mở lại lỗi "NaN%" ở đúng chỗ khó thấy
-     nhất (một hàng lẫn trong danh sách). */
-  /* Hàng request vẽ thanh tiến độ BÊN TRONG `.meta` (phương án A) — đó là thứ
-     giữ cho mọi hàng đúng hai dòng. Chốt bằng ngữ cảnh JSX: khối `.meta` phải
-     xuất hiện trước thẻ Progress và không được có Progress nào đứng ngoài
-     `.body` (biến thể đường đáy cũ đã gỡ). */
+  /* HÀNG REQUEST KHÔNG CÒN DÙNG THANH NÀY (vòng 4). Chủ dự án nhìn ảnh chụp và
+     chốt: một yêu cầu có đúng ba việc có tên, nên ba nhịp (`.nhip`, xem
+     `Steps.jsx`) trả lời "đang ở đâu" thẳng hơn "47%". Thanh phần trăm vẫn còn
+     nguyên ở khối Up next và bảng quản trị — nơi có chỗ cho nó — nên bài này
+     canh đúng ranh giới đó: hàng thì ba nhịp, hai chỗ kia thì thanh. */
+  /* Bỏ chú thích trước khi soát: chính chú thích giải thích việc xoá luật cũ
+     có nhắc tên `.row .sub .prog`, soát cả chú thích là tự bắt lỗi mình. */
+  const cssBare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.doesNotMatch(cssBare, /\.row[^{}]*\.prog/, 'thanh tiến độ không còn trong hàng request — ba nhịp đã thay chỗ')
   const app = src.get('src/App.jsx')
-  const subAt = app.indexOf('<div className="sub">')
-  const progAt = app.indexOf('<Progress pct={r.progress}')
-  const metaClose = app.indexOf('</div>', app.indexOf('<div className="meta">'))
-  assert.ok(subAt > 0 && progAt > subAt, 'thanh tiến độ của hàng phải nằm trong dòng phụ (.sub)')
-  assert.ok(progAt > metaClose, 'thanh tiến độ phải đứng NGOÀI .meta — đó là chỗ từng làm hàng cao gấp đôi')
-  assert.equal((app.match(/<Progress pct=\{r\.progress\}/g) || []).length, 1,
-    'chỉ MỘT thanh tiến độ cho mỗi hàng — hai thanh là hai bố cục chồng nhau')
+  assert.equal((app.match(/<Progress pct=\{r\.progress\}/g) || []).length, 0,
+    'hàng request không được vẽ thanh tiến độ nữa')
+  /* Ba nhịp phải nằm trong dòng phụ `.meta` và chỉ hiện với hàng đang làm. */
+  const metaAt = app.indexOf('<div className="meta">')
+  const nhipAt = app.indexOf('<Steps pct={r.progress}')
+  assert.ok(metaAt > 0 && nhipAt > metaAt, 'ba nhịp là chi tiết của dòng phụ, phải đứng trong .meta')
+  assert.match(app, /r\.status === 'in_progress' &&[\s\S]{0,300}<Steps pct=\{r\.progress\}/,
+    'ba nhịp chỉ hiện khi hàng đang làm — hàng chờ chưa có gì để đếm')
+  /* Cụm hành động KHÔNG được rơi lại xuống dòng phụ: đó là lý do vòng 4 đưa nó
+     lên dòng tiêu đề (bảy thứ trên một dòng thì cỡ nào cũng chen). */
+  const actsAt = app.indexOf('<span className="acts">')
+  const titleAt = app.indexOf('<div className="title">')
+  assert.ok(titleAt > 0 && actsAt > titleAt && actsAt < metaAt,
+    'cụm hành động nằm ở dòng tiêu đề, trước dòng phụ')
   assert.doesNotMatch(app, /pctValue|prog-edge/, 'tàn dư của phương án C phải sạch')
-  assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/)
+  assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/,
+    'khối Up next vẫn dùng thanh — chỗ đó có trọn một dòng cho nó')
   assert.match(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*wide/)
+
+  /* BA NHỊP — hình học và nghĩa. Tên lớp là `.nhip` chứ không phải `.steps`:
+     `.steps` đã là bộ nút mốc của panel quản trị (`margin-top: 9px`,
+     `flex-wrap`), đặt trùng tên là hai luật gộp vào một phần tử và dòng phụ
+     cao thêm 9px — đúng thứ vừa gỡ. */
+  assert.match(css, /\.nhip\s*\{[^}]*display:\s*inline-flex/, 'ba nhịp là một cụm nằm trong dòng chữ')
+  assert.match(css, /\.nhip-seg\s*\{[^}]*width:\s*16px/, 'mỗi vạch 16px — chi tiết phụ, không phải khối')
+  assert.match(css, /\.nhip-seg\s*\{[^}]*height:\s*3px/, 'vạch 3px: một nét, không phải một dải băng')
+  assert.match(css, /\.nhip-seg > i\s*\{[^}]*width:\s*var\(--w, 0%\)/, 'phần tô của mỗi vạch theo đúng tỉ lệ việc đó')
+  assert.match(css, /\.nhip-n\s*\{[^}]*tabular-nums/, 'số việc phải đứng yên khi tiến độ đổi')
+  assert.doesNotMatch(css, /^\.nhip[^{]*\{[^}]*margin-top/m, 'ba nhịp không được có lề trên — nó nằm trong dòng chữ, không phải một khối riêng')
+  /* `.meta` là hộp flex của CHỮ: chỉ được chứa thứ thẳng hàng với chữ. */
+  assert.doesNotMatch(css, /\.row \.meta \.prog/, 'thanh tiến độ (khối) không được quay lại hộp chữ .meta')
 })

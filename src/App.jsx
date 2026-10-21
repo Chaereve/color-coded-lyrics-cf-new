@@ -30,6 +30,7 @@ import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
 import Progress from './components/Progress'
+import Steps from './components/Steps'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
@@ -297,8 +298,14 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
     <div className={`row req${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
       style={{ '--sc': sm.c, '--i': Math.min(n, 12) }}>
       <div className="body">
+        {/* DÒNG TIÊU ĐỀ = tên bài + nhãn + CỤM HÀNH ĐỘNG, tất cả trên một
+            hàng, cụm nút neo mép phải. Trước đây cụm nút nằm ở dòng phụ, cạnh
+            trạng thái — dòng đó đã có sẵn trạng thái, loại bài, người gửi, giờ,
+            ba nhịp tiến độ, nên thêm ba nút nữa là bảy thứ chen nhau và không
+            cỡ nào làm nó gọn được. Đưa lên dòng tiêu đề thì hai dòng tự cân:
+            trên là "bài gì + làm được gì", dưới là "đang ở đâu". */}
         <div className="title">
-          {r.title} <span className="artist">— {r.artist}</span>
+          <span className="tx2">{r.title} <span className="artist">— {r.artist}</span></span>
           {/* Nhãn nằm trong .tags: hộp này tự xuống dòng và giữ khoảng cách
               hàng-dọc, nên "PAID" với "Up next" không bao giờ dán vào nhau. */}
           {(r.is_paid || isPicked(r)) && (
@@ -307,46 +314,10 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
             </span>
           )}
-        </div>
-        {/* DÒNG PHỤ = MỘT HỘP RIÊNG (`.sub`) chứa chữ (`.meta`) + thanh tiến độ
-            + link nghe. Trước đây thanh tiến độ nằm TRONG `.meta` — một hộp
-            flex có `flex-wrap` cho chữ — nên một phần tử là *khối* như thanh
-            tiến độ nằm lẫn trong dòng chữ làm cả hộp cao lên bất thường (hàng
-            "đang làm" cao gần gấp đôi các hàng khác). Nay `.meta` chỉ còn chữ,
-            còn thanh và link là anh em của nó trong cùng một dòng flex. */}
-          <div className="sub">
-            <div className="meta">
-            <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
-            <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-            <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
-            <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
-            {r.status === 'denied' && r.deny_reason && (
-              <>
-                <span className="dot" aria-hidden="true" />
-                <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
-              </>
-            )}
-            {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
-                là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
-                theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
-            {!isPicked(r) && followed && <Standing st={st} />}
-            </div>
-          {/* Thanh tiến độ: một KHỐI, nên nó đứng cạnh `.meta` chứ không nằm
-              trong — đây là chỗ từng làm hàng "đang làm" cao gần gấp đôi. */}
-          {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
-          {/* CỤM HÀNH ĐỘNG PHỤ — theo dõi · chia sẻ · nghe.
-              Ba thứ này từng nằm rải rác: chuông và nút chia sẻ là hai ô 18px
-              ẨN cho tới khi rê vào hàng, còn link nghe là chữ tím sáng đứng
-              ngay trong dòng meta. Ba kiểu hiển thị khác nhau cho ba hành động
-              cùng loại, và hai trong ba thì không nhìn thấy.
-
-              Nay chúng là MỘT cụm: cùng một hàng, cùng độ cao chạm, đứng sát
-              mép phải của cột chữ — ngay cạnh vách ngăn của cột phiếu.
-              `margin-left: auto` đẩy cụm sang phải nên nó THẲNG CỘT với vách
-              phiếu ở mọi hàng, kể cả hàng có dòng chữ ngắn. Trước đây mỗi hàng
-              cụm nút nằm ở một chỗ khác nhau tuỳ độ dài dòng chữ.
-              Dòng trong cụm KHÔNG có chuông (theo dõi là chuyện của cả bài) —
-              chỉ còn nút chia sẻ, cụm tự co lại đúng một ô. */}
+          {/* CỤM HÀNH ĐỘNG PHỤ — theo dõi · chia sẻ · nghe. Ba việc cùng loại
+              nên cùng một kiểu: chữ nhỏ, không viền, không nền, chỉ đổi màu
+              khi rê. Chuông là công tắc nên đứng một mình dạng icon; hai việc
+              còn lại cần chữ mới rõ nghĩa. */}
           {(onWatch || onShare || watchUrl) && (
             <span className="acts">
               {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
@@ -360,6 +331,37 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               )}
             </span>
           )}
+        </div>
+        {/* DÒNG PHỤ = một hàng chữ mô tả "đang ở đâu": trạng thái · loại bài
+            · người gửi · giờ · ba nhịp tiến độ (chỉ hàng đang làm) · lý do từ
+            chối · thứ hạng chờ. Tất cả nằm trong `.meta` — hộp flex cho CHỮ,
+            nên chỉ chứa thứ thẳng hàng với chữ. Thanh tiến độ cao 4px từng
+            đứng ở đây và làm hàng "đang làm" cao gần gấp đôi hàng khác; nay
+            thay bằng ba vạch 3px (`.nhip`), cùng cỡ với một dấu chấm. */}
+        <div className="sub">
+          <div className="meta">
+            <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
+            <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
+            <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
+            <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
+            {/* BA NHỊP thay thanh phần trăm: một yêu cầu có đúng ba việc có
+                tên, nên "2/3" là câu trả lời trực tiếp cho "đang ở đâu" —
+                còn "47%" thì người đọc phải tự dịch ngược. */}
+            {r.status === 'in_progress' && (
+              <><span className="dot" aria-hidden="true" />
+                <Steps pct={r.progress} label={t('progress.label')} /></>
+            )}
+            {r.status === 'denied' && r.deny_reason && (
+              <>
+                <span className="dot" aria-hidden="true" />
+                <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
+              </>
+            )}
+            {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
+                là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
+                theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
+            {!isPicked(r) && followed && <Standing st={st} />}
+          </div>
         </div>
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}

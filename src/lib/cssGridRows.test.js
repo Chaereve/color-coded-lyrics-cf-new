@@ -105,23 +105,31 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
    Bốn vế dưới phải còn đủ — thiếu vế nào là cụm trôi lại theo độ dài dòng chữ
    hoặc biến mất khỏi tầm mắt người dùng. */
 test('cụm hành động phụ: hiện sẵn, cùng cỡ, neo mép phải', () => {
-  const acts = ruleOf('.row.req .acts')
-  assert.match(acts, /margin-left:\s*auto/, 'cụm phải bị đẩy sang mép phải — nếu không nó trôi theo độ dài dòng chữ')
-  assert.match(acts, /display:\s*flex/)
+  const acts = ruleOf('.row .acts')
+  assert.match(acts, /margin-left:\s*auto/, 'cụm phải bị đẩy sang mép phải — nếu không nó trôi theo độ dài tên bài')
+  assert.match(acts, /display:\s*inline-flex/)
 
-  const buttons = rulesWith('.row.req .acts .rowact').join(' ')
-  assert.match(buttons, /width:\s*24px/, 'ô bấm 24px — cùng cỡ với chip nghe, không còn 18px ẩn')
-  assert.match(buttons, /height:\s*24px/)
-  assert.match(buttons, /pointer-events:\s*auto/, 'nút hiện sẵn thì phải bấm được ngay, không đợi rê')
-  assert.match(buttons, /opacity:\s*\.8/, 'hiện sẵn nhưng chìm — chỉ là hành động phụ')
+  /* HAI nút có chữ và MỘT nút chỉ icon: chiều cao phải bằng nhau, nếu không
+     hàng nút gợn sóng. Đó là lý do luật đặt chung cho cả `.rowact` và
+     `.act-link` thay vì mỗi cái một kiểu. */
+  /* `rulesWith` nhận MỘT selector (nó khớp theo danh sách đã tách dấu phẩy), nên
+     phải gọi hai lần rồi gộp — gọi bằng chuỗi có dấu phẩy thì không bao giờ
+     khớp và test đỏ dù CSS đúng. */
+  const both = ['.row .acts .rowact', '.row .acts .act-link']
+    .flatMap((sel) => rulesWith(sel)).join(' ')
+  assert.match(both, /height:\s*24px/, 'cả ba nút cùng cao 24px')
+  assert.match(both, /font-size:\s*11\.5px/, 'nút có chữ dùng cỡ 11,5px — cỡ của dòng phụ, không phải cỡ nút')
+  assert.match(both, /font-weight:\s*500/, 'nét 500: đây là nút phụ, 600 là cỡ của nút chính')
+  assert.match(both, /border:\s*0/, 'không viền: đây là hành động phụ, viền làm chúng nổi hơn cả cột phiếu')
+  assert.match(both, /background:\s*none/, 'không nền — nền chỉ hiện khi rê')
+  assert.match(both, /pointer-events:\s*auto/, 'nút hiện sẵn thì phải bấm được ngay, không đợi rê')
 
-  const link = ruleOf('.row.req .acts .act-link')
-  assert.match(link, /height:\s*24px/, 'chip nghe cùng chiều cao với hai ô icon, nếu không ba thứ lệch hàng')
-  assert.match(link, /border-radius:\s*var\(--r-sm\)/, 'chip theo bo góc của nút, không bo tròn kiểu nhãn')
-  assert.ok(/text-decoration:\s*none/.test(link), 'chip không gạch chân kiểu link chữ')
-  /* Nhãn dài "Watch on YouTube" đứng cạnh hai icon là chiếm nửa dòng; máy hẹp
-     phải thu về ô icon. */
-  assert.match(css, /\.row\.req \.acts \.act-link-tx \{ display:\s*none/, 'máy hẹp phải ẩn chữ của chip nghe')
+  const link = ruleOf('.row .acts .act-link')
+  assert.match(link, /text-decoration:\s*none/, 'nút nghe không gạch chân kiểu link chữ')
+  /* Nhãn "YouTube" đứng cạnh hai icon là chiếm nửa dòng; máy hẹp phải thu về
+     ô icon. */
+  assert.match(css, /\.row \.acts \.act-link-tx \{ display:\s*none/, 'máy hẹp phải ẩn chữ của nút nghe')
+  assert.match(css, /\.row \.acts \.act-link \{ width:\s*24px/, 'máy hẹp nút nghe thu về đúng ô icon')
 })
 
 test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolute', () => {
@@ -245,19 +253,25 @@ test('hàng trong cụm không còn ô ghost giữ chỗ', () => {
      đứng của chúng trôi theo độ dài dòng chữ.
      Vẫn phải chốt: chuông nằm TRONG `.acts`, `.acts` nằm trong `.sub`, và
      KHÔNG nằm trong `.meta` (hộp chữ thuần). */
-  const subOpen = rowFn.indexOf('<div className="sub">')
+  /* VỊ TRÍ CUỐI CÙNG (vòng chỉnh 21/10/2026): cụm nút nằm trên DÒNG TIÊU ĐỀ,
+     sau phần tên bài, không nằm ở dòng phụ. Lý do đổi lần nữa: dòng phụ đã có
+     trạng thái · loại · người gửi · giờ · ba nhịp — thêm ba nút nữa thì bảy
+     thứ chen nhau, và thu nhỏ nút không cứu được vì vấn đề là SỐ LƯỢNG, không
+     phải kích thước. Dòng tiêu đề thì chỉ có tên bài + nhãn, nên đặt nút ở đó
+     làm hai dòng tự cân: trên "bài gì + làm được gì", dưới "đang ở đâu". */
+  const titleOpen = rowFn.indexOf('<div className="title">')
+  const titleClose = rowFn.indexOf('</div>', rowFn.indexOf('<span className="acts">'))
   const actsOpen = rowFn.indexOf('<span className="acts">')
   const metaOpen = rowFn.indexOf('<div className="meta">')
   const metaClose = rowFn.indexOf('</div>', metaOpen)
   const bellAt = rowFn.indexOf('{onWatch && <FollowBtn')
-  assert.ok(subOpen >= 0 && actsOpen > subOpen, 'phải còn dòng phụ `.sub` và cụm `.acts` trong đó')
+  assert.ok(titleOpen >= 0 && actsOpen > titleOpen, 'cụm `.acts` phải nằm trong dòng tiêu đề')
+  assert.ok(actsOpen < titleClose, 'cụm phải đóng TRƯỚC khi dòng tiêu đề đóng')
   assert.ok(bellAt > actsOpen,
     'chuông phải nằm TRONG cụm hành động `.acts`, không đứng lẻ trong dòng chữ')
   assert.ok(metaOpen >= 0 && metaClose > metaOpen, 'RequestRow phải còn <div className="meta">')
-  assert.ok(!(bellAt > metaOpen && bellAt < metaClose),
-    'chuông không được nằm trong `.meta` — hộp đó là chữ thuần, nút nằm trong là lý do hàng cao lệch')
-  assert.ok(actsOpen > rowFn.indexOf('<Standing st={st} />'),
-    'cụm hành động phải đứng SAU phần chữ — đưa lên trước Standing là đổi nhịp đọc')
+  assert.ok(actsOpen < metaOpen,
+    'cụm nút phải đứng TRƯỚC dòng phụ — rơi xuống dưới là quay lại bố cục bảy thứ chen nhau')
   /* doi chieu tren THEO THE <FollowBtn .../>, khong tren ca ham: `aria-hidden`
      cua svg/spans trong hang cung co chu "hidden=" va lam assert nay luc nao cung
      do (mau test xanh gia nguoc lai: bao bao loi). `[^>]*` cung khong dung vi
