@@ -486,6 +486,10 @@ const S = {
   'public.votes': 'Votes received',
   'public.achievements': 'Achievements',
   'public.recent': 'Recent requests',
+  /* Khối riêng của CHỦ hồ sơ: hàng chờ duyệt / bị từ chối không nằm trên bảng
+     (bảng ẩn cả hai loại), nên phải nói rõ đây là thứ chỉ mình thấy. */
+  'public.private': 'Only you can see these',
+  'public.privateNote': 'Requests waiting for review or denied are not published on the board. Only you see them here.',
   /* tên hiển thị khi hồ sơ chưa có tên — avatar lấy chữ đầu của chính câu này */
   'name.member': 'Community member',
   /* bảy badge thành tích trên hồ sơ: ngưỡng do số liệu quyết định

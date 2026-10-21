@@ -1957,7 +1957,9 @@ function AppInner() {
         </header>
         <div className="sect" key={section}>
 
-        {profileId && <PublicProfile userId={profileId} onBack={closeProfile} />}
+        {/* `viewerId` để trang cá nhân biết người xem có phải chủ hồ sơ không:
+            chỉ chủ mới thấy hàng chờ duyệt / bị từ chối của chính mình. */}
+        {profileId && <PublicProfile userId={profileId} viewerId={user?.id} onBack={closeProfile} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
         {section === 'board' && !onProfile && (

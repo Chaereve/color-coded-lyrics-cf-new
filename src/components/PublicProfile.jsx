@@ -10,7 +10,7 @@ import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import LoadErr from './LoadErr'
-import { statusLabel } from '../lib/meta'
+import { statusColor, statusLabel } from '../lib/meta'
 
 /* =========================================================
    TRANG CÁ NHÂN CÔNG KHAI — mở từ tên người gửi / tên tác giả bình luận
@@ -27,7 +27,7 @@ import { statusLabel } from '../lib/meta'
        đúng chữ mà hàng trên bảng nói.
    ========================================================= */
 
-export default function PublicProfile({ userId, onBack, fetchers = null }) {
+export default function PublicProfile({ userId, viewerId = null, onBack, fetchers = null }) {
   const { t } = useI18n()
   const nav = useNav()
   const back = onBack || nav.closeProfile
@@ -59,14 +59,17 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
   useEffect(() => {
     let live = true
     const api = fetchers || { profile: fetchPublicProfile, streak: fetchPublicStreak }
-    api.profile(userId)
+    /* `viewerId` là người ĐANG ĐĂNG NHẬP, `userId` là người được xem. Chỉ khi
+       hai cái trùng nhau thì nguồn dữ liệu mới trả thêm `privateRecent` —
+       quyết định nằm ở `fetchPublicProfile`, component chỉ vẽ những gì nhận. */
+    api.profile(userId, viewerId)
       .then(profile => { if (live) setLoaded({ id: userId, profile: profile || null, error: false }) })
       .catch(() => { if (live) setLoaded({ id: userId, profile: null, error: true }) })
     api.streak(userId)
       .then(stats => { if (live) setAct({ id: userId, stats }) })
       .catch(() => { if (live) setAct({ id: userId, stats: null }) })
     return () => { live = false }
-  }, [userId, fetchers, retry])
+  }, [userId, viewerId, fetchers, retry])
 
   const loading = loaded.id !== userId
   const profile = loading ? null : loaded.profile
@@ -81,6 +84,14 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
      sách rỗng và người bấm tưởng app hỏng. */
   const recent = useMemo(
     () => (profile?.recent || []).filter(r => r && (r.title || r.artist)).slice(0, PUBLIC_RECENT),
+    [profile])
+
+  /* Hàng CHỜ DUYỆT / BỊ TỪ CHỐI của chính chủ. Không đi qua `recent` vì loại
+     này không có trên bảng: dựng link `?q=` cho chúng là dẫn người dùng tới một
+     danh sách rỗng — đúng lỗi mà khối này vừa chữa. Nên chúng chỉ là chữ, kèm
+     lý do từ chối nếu có. `fetchPublicProfile` trả mảng rỗng cho người ngoài. */
+  const privateRecent = useMemo(
+    () => (profile?.privateRecent || []).filter(r => r && (r.title || r.artist)).slice(0, PUBLIC_RECENT),
     [profile])
 
   /* Nội dung tấm card PNG: số liệu lấy ĐÚNG nguồn đang hiển thị ở hồ sơ
@@ -161,6 +172,26 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
         {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>{t('badge.streak30')}</b></span>}
       </div>
     </div>
+    {privateRecent.length > 0 && (
+      <div className="public-requests public-private">
+        <h3>{t('public.private')}</h3>
+        <p className="public-private-note">{t('public.privateNote')}</p>
+        <div className="public-requests-grid">
+          {privateRecent.map((r, i) => (
+            <div className="public-request private" key={r.id || `priv-${i}`}>
+              <span className="public-request-copy">
+                <b>{r.title || r.artist}</b>
+                {r.title && r.artist && <small>{r.artist}</small>}
+                {r.status === 'denied' && r.deny_reason && (
+                  <span className="public-deny">{r.deny_reason}</span>
+                )}
+              </span>
+              <em className="public-state" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</em>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {recent.length > 0 && (
       <div className="public-requests">
         <h3>{t('public.recent')}</h3>

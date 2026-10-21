@@ -4838,6 +4838,28 @@ body {
 .public-request-link:hover b { color: var(--a-2); }
 .public-request-link small { color: var(--txt-3); font-size: 11.5px; }
 .public-state { flex-shrink: 0; font-size: 10.5px; font-style: normal; font-family: var(--mono); font-weight: 600; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); border: 1px solid var(--line-2); color: var(--txt-2); background: var(--surface); }
+/* ===== KHỐI "CHỈ BẠN THẤY" =====
+   Hàng chờ duyệt / bị từ chối không nằm trên bảng, nên khối này phải TRÔNG KHÁC
+   khối "Recent requests" ngay từ khung: viền đứt (không phải viền liền), nền
+   chìm hơn, và một câu giải thích ngắn. Viền đứt là ngôn ngữ của "chưa công
+   khai" trong chính app này (nhãn hết hạn, trạng thái từ chối). */
+.public-private { margin-top: 20px; padding: 14px 14px 12px; border: 1px dashed var(--line-2);
+  border-radius: var(--r-md); background: color-mix(in oklab, var(--surface-2) 55%, transparent); }
+.public-private h3 { margin-bottom: 4px; }
+.public-private-note { margin: 0 0 12px; color: var(--txt-3); font-size: 11.5px; line-height: 1.5; max-width: 62ch; }
+.public-request.private { background: none; border-color: transparent; border-bottom: 1px solid var(--line);
+  border-radius: 0; padding: 10px 0; }
+.public-request.private:last-child { border-bottom: 0; padding-bottom: 0; }
+.public-request.private:hover { background: none; border-color: transparent; border-bottom-color: var(--line); }
+.public-request-copy { display: grid; gap: 3px; min-width: 0; }
+.public-request-copy b { font-size: 13px; font-weight: 600; color: var(--txt-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-request-copy small { color: var(--txt-3); font-size: 11.5px; }
+.public-deny { color: var(--denied); font-size: 11.5px; line-height: 1.45; text-wrap: pretty; }
+/* Nhãn trạng thái trong khối riêng mang màu của chính nó (--c do JSX đặt) —
+   cùng một màu với vòng đứt / chấm đèn trên bảng. */
+.public-private .public-state { color: var(--c, var(--txt-2));
+  border-color: color-mix(in oklab, var(--c, var(--line-2)) 34%, transparent);
+  background: color-mix(in oklab, var(--c, var(--surface)) 11%, transparent); }
 
 @media (max-width: 620px) {
   .public-profile { padding: 18px 14px; border-radius: var(--r-lg); }
