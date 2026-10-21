@@ -10,7 +10,6 @@ import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
 import { fetchAllPages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
-import { removeCommentSubtree } from './comments.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
@@ -402,162 +401,11 @@ export async function adminExpireRequest(id) {
   if (error) throw rpcError(error)
 }
 
-export async function fetchComments(requestId) {
-  if (!requestId) return []
-  if (!hasSupabase) {
-    try { return JSON.parse(localStorage.getItem(`ccl.comments.${requestId}`) || '[]') } catch { return [] }
-  }
-  // Load complete threads, rather than the latest 20 rows (which may exclude
-  // their roots). Never drop the deleted filter on a failed query.
-  const items = [], pageSize = 500
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase.from('request_comments')
-      .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)')
-      .eq('request_id', requestId).is('deleted_at', null)
-      .order('created_at', { ascending: false }).order('id')
-      .range(from, from + pageSize - 1)
-    if (error) throw error
-    items.push(...(data || []).map(c => ({ ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null })))
-    if (!data || data.length < pageSize) return items
-  }
-}
-
-export async function deleteComment(commentId) {
-  if (!commentId) return true
-  if (!hasSupabase) {
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('ccl.comments.')) {
-          let items = JSON.parse(localStorage.getItem(key) || '[]')
-          const before = items.length
-          items = removeCommentSubtree(items, commentId)
-          if (items.length !== before) localStorage.setItem(key, JSON.stringify(items))
-        }
-      }
-    } catch {}
-    return true
-  }
-  // Zero affected rows is NOT success: RLS may have rejected the deletion.
-  const { data, error } = await supabase.from('request_comments').delete().eq('id', commentId).select('id')
-  if (error) throw rpcError(error)
-  if (!data?.length) throw appError('err.commentDeleteDenied')
-  return true
-}
-
-export async function fetchCommentCounts(requestIds = null) {
-  if (!hasSupabase) {
-    const counts = {}
-    try {
-      if (Array.isArray(requestIds) && requestIds.length > 0) {
-        for (const id of requestIds) {
-          const list = JSON.parse(localStorage.getItem(`ccl.comments.${id}`) || '[]')
-          if (list.length) counts[id] = list.length
-        }
-      } else {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i)
-          if (k && k.startsWith('ccl.comments.')) {
-            const id = k.replace('ccl.comments.', '')
-            const list = JSON.parse(localStorage.getItem(k) || '[]')
-            if (list.length) counts[id] = list.length
-          }
-        }
-      }
-    } catch {}
-    return counts
-  }
-  const run = async (withDeleted) => {
-    let query = supabase.from('request_comments').select('request_id')
-    if (withDeleted) query = query.is('deleted_at', null)
-    if (Array.isArray(requestIds) && requestIds.length > 0) {
-      query = query.in('request_id', requestIds)
-    }
-    const { data, error } = await query
-    if (error) throw error
-    const counts = {}
-    for (const c of data || []) {
-      if (c.request_id) counts[c.request_id] = (counts[c.request_id] || 0) + 1
-    }
-    return counts
-  }
-  try {
-    return await run(true)
-  } catch (e) {
-    if (isMissingSchemaObject(e)) return {}
-    try {
-      return await run(false)
-    } catch {
-      return {}
-    }
-  }
-}
-
 export async function settleCurrentSeasonRewards(seasonType = 'week') {
   if (!hasSupabase) return []
   const { data, error } = await supabase.rpc('settle_current_season_rewards', { p_season_type: seasonType })
   if (error) throw error
   return data || []
-}
-
-export async function fetchAllCommentsForAdmin(limit = 100) {
-  if (!hasSupabase) {
-    const all = []
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('ccl.comments.')) {
-          const items = JSON.parse(localStorage.getItem(key) || '[]')
-          all.push(...items)
-        }
-      }
-    } catch {}
-    return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
-  }
-  const { data, error } = await supabase.from('request_comments')
-    .select('id, request_id, user_id, parent_id, body, created_at, deleted_at, profiles(name, avatar_url), requests(title, artist)')
-    .is('deleted_at', null).order('created_at', { ascending: false }).limit(limit)
-  if (error) throw rpcError(error)
-  return (data || []).map(c => ({
-    ...c, author: c.profiles?.name || 'Member', avatar: c.profiles?.avatar_url || null,
-    songTitle: c.requests?.title || '', songArtist: c.requests?.artist || '',
-  }))
-}
-
-export async function adminDeleteComment(commentId) {
-  // Server RLS checks the actual role; never trust a client-side admin flag.
-  return deleteComment(commentId)
-}
-
-export async function addComment(requestId, userId, body, parentId = null) {
-  const clean = String(body || '').trim()
-  if (!requestId || !userId || !clean || clean.length > 180) throw new Error('err.commentInvalid')
-  if (!hasSupabase) {
-    const key = `ccl.comments.${requestId}`
-    /* Dữ liệu trong localStorage là thứ người dùng sửa được (và là thứ có thể
-       hỏng nửa chừng nếu tab bị đóng giữa lúc ghi). Một chuỗi không phải JSON ở
-       đây từng làm cả thao tác gửi bình luận ném ra SyntaxError — trong khi mọi
-       thứ cần cho việc gửi đều đã có. Hỏng thì coi như chưa có bình luận nào và
-       ghi lại từ đầu; KHÔNG im lặng bỏ qua giá trị hợp lệ. */
-    let old = []
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '[]')
-      if (Array.isArray(parsed)) old = parsed
-    } catch { old = [] }
-    if (parentId && !old.some(c => c.id === parentId && c.request_id === requestId && !c.deleted_at)) {
-      throw appError('err.commentParent')
-    }
-    const profile = readData(LS.user, {})
-    const next = { id: crypto.randomUUID(), request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean, created_at: new Date().toISOString(), author: profile?.name || 'Member', avatar: profile?.avatar || null }
-    localStorage.setItem(key, JSON.stringify([next, ...old]))
-    return next
-  }
-  // Fail closed. In particular, never retry a rejected reply without parent_id.
-  const { data, error } = await supabase.from('request_comments')
-    .insert({ request_id: requestId, user_id: userId, parent_id: parentId || null, body: clean })
-    .select('id, request_id, user_id, parent_id, body, created_at, profiles(name, avatar_url)').single()
-  if (error) throw rpcError(error)
-  return { ...data, author: data.profiles?.name || 'Member', avatar: data.profiles?.avatar_url || null }
 }
 
 export async function fetchRequests() {
@@ -922,16 +770,6 @@ function demoActivityDays(userId) {
     const ms = Date.parse(r.created_at)
     if (Number.isFinite(ms)) days.add(vnDayKey(ms))
   }
-  try {
-    for (const k of Object.keys(localStorage)) {
-      if (!k.startsWith('ccl.comments.')) continue
-      for (const c of JSON.parse(localStorage.getItem(k) || '[]')) {
-        if (c?.user_id !== userId) continue
-        const ms = Date.parse(c.created_at)
-        if (Number.isFinite(ms)) days.add(vnDayKey(ms))
-      }
-    }
-  } catch { /* storage bị chặn: demo chỉ còn dấu request + spin */ }
   for (const e of readData(LS.spins, [])) {
     if (e?.user_id === userId && typeof e.day === 'string') days.add(e.day)
   }
@@ -1346,28 +1184,34 @@ export async function adminUpdate(id, patch) {
   }
   /* ten bai / nghe si: trim truoc khi gui; chuoi trang gui thang de
      database tra loi 'err.needFields' chu khong am tham giu ten cu */
-  const { error } = await supabase.rpc('admin_update', {
-    p_id: id,
-    p_status: patch.status ?? null,
-    p_progress: patch.progress ?? null,
-    p_video_url: patch.video_url ?? null,
-    p_layout: patch.done_layout ?? null,
-    p_lyrics: patch.done_lyrics ?? null,
-    p_edit: patch.done_edit ?? null,
-    p_artist: patch.artist == null ? null : String(patch.artist).trim(),
-    p_title: patch.title == null ? null : String(patch.title).trim(),
-  })
+  const { error } = await supabase.rpc('admin_update', { p_id: id, ...adminUpdateParams(patch) })
   if (error) throw error
 }
 
+/* Tham số RPC của một patch — dùng chung cho `admin_update` (một dòng) và
+   `admin_update_many` (một lượt), để hai đường không thể hiểu patch khác nhau. */
+const adminUpdateParams = (patch = {}) => ({
+  p_status: patch.status ?? null,
+  p_progress: patch.progress ?? null,
+  p_video_url: patch.video_url ?? null,
+  p_layout: patch.done_layout ?? null,
+  p_lyrics: patch.done_lyrics ?? null,
+  p_edit: patch.done_edit ?? null,
+  p_artist: patch.artist == null ? null : String(patch.artist).trim(),
+  p_title: patch.title == null ? null : String(patch.title).trim(),
+})
+
+const uniqIds = (ids = []) => [...new Set((ids || []).filter(x => x !== undefined && x !== null && x !== ''))]
+
 /* Ghi cung mot patch cho NHIEU request (thuong la ca cum trung bai — xem
-   groupIds trong src/lib/board.js). demo: MOT lan ghi localStorage de cac dong
-   khong nhay loi theo tung id; live: goi lai admin_update tung cai vi trong DB
-   khong co RPC nao nhan danh sach id (va minh khong them migration nao).
-   Khong nguyen tu: neu loi giua chung thi vai dong da doi — App se bao lai so
-   dong thuc su lien quan. */
+   groupIds trong src/lib/board.js).
+   LIVE: một RPC `admin_update_many` chạy trong MỘT transaction. Bản cũ gọi
+   admin_update lần lượt từng id — 20 dòng là 20 vòng mạng, và hỏng giữa chừng
+   thì nửa danh sách đã đổi mà không ai biết đã đổi tới đâu.
+   DEMO: vẫn một lần ghi localStorage để các dòng không nhảy lởi theo từng id.
+   Nếu migration chưa chạy, đường cũ được dùng làm đường lui. */
 export async function adminUpdateMany(ids = [], patch = {}) {
-  const uniq = [...new Set((ids || []).filter(x => x !== undefined && x !== null))]
+  const uniq = uniqIds(ids)
   if (!uniq.length) return 0
   if (!hasSupabase) {
     const set = new Set(uniq)
@@ -1380,7 +1224,175 @@ export async function adminUpdateMany(ids = [], patch = {}) {
     }))
     return uniq.length
   }
+  const { data, error } = await supabase.rpc('admin_update_many', {
+    p_ids: uniq, ...adminUpdateParams(patch),
+  })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
   for (const id of uniq) await adminUpdate(id, patch)
+  return uniq.length
+}
+
+/* SỬA ĐẦY ĐỦ MỘT REQUEST — bốn trường mà `admin_update` không nhận: loại bài,
+   ghi chú, cờ đã trả phí, tên người gửi. Trước đây sửa sai loại bài là phải
+   xoá rồi tạo lại: mất vote và mất lịch sử.
+   `null` = giữ nguyên, đúng quy ước của admin_update. */
+export async function adminEditRequest(id, patch = {}) {
+  if (!hasSupabase) {
+    wr(LS.rows, demoRows().map(r => {
+      if (r.id !== id) return r
+      return {
+        ...r,
+        kind: patch.kind ?? r.kind,
+        note: patch.note === undefined ? r.note : String(patch.note || '').trim().slice(0, 300),
+        is_paid: patch.is_paid ?? r.is_paid,
+        requester: patch.requester == null ? r.requester : (String(patch.requester).trim() || r.requester),
+      }
+    }))
+    return
+  }
+  const { error } = await supabase.rpc('admin_request_edit', {
+    p_id: id,
+    p_kind: patch.kind ?? null,
+    p_note: patch.note === undefined ? null : String(patch.note || '').trim(),
+    p_is_paid: patch.is_paid ?? null,
+    p_requester: patch.requester == null ? null : String(patch.requester).trim(),
+  })
+  if (error) throw rpcError(error)
+}
+
+/* Mã lỗi "hàm chưa có trên database này". Trong khoảng thời gian giữa lúc
+   deploy frontend và lúc chạy migration, bảng quản trị vẫn phải dùng được —
+   trả trang rỗng kèm cờ `missingSchema` thay vì một khung lỗi đỏ. */
+const MISSING_RPC_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])
+const isMissingRpc = (error) => MISSING_RPC_CODES.has(error?.code)
+
+/* =========================================================
+   NHẬT KÝ THAO TÁC QUẢN TRỊ — một trang, đọc từ database
+   ---------------------------------------------------------
+   Bảng `admin_actions` (migration 20261213) được ghi bằng TRIGGER, nên mọi
+   đường đi (nút trên web, RPC, SQL tay) đều để lại dấu. Ở đây chỉ đọc.
+   RPC chưa có (frontend mới hơn database) thì trả trang rỗng kèm cờ
+   `missingSchema` để màn hình nói đúng "cần chạy migration", thay vì hiện một
+   khung lỗi đỏ cho một tính năng chỉ-đọc.
+   ========================================================= */
+export async function fetchAdminActions({ page = 1, perPage = 20 } = {}) {
+  const limit = Math.max(1, Math.min(100, Math.trunc(Number(perPage)) || 20))
+  const wanted = Math.max(1, Math.trunc(Number(page)) || 1)
+  const offset = (wanted - 1) * limit
+  const empty = { rows: [], total: 0, pages: 1, page: 1, perPage: limit, from: 0, to: 0 }
+  if (!hasSupabase) return { ...empty, missingSchema: false }
+
+  const { data, error } = await supabase.rpc('admin_actions_page', { p_limit: limit, p_offset: offset })
+  if (error) {
+    if (isMissingRpc(error)) return { ...empty, missingSchema: true }
+    throw rpcError(error)
+  }
+  const payload = data && typeof data === 'object' ? data : {}
+  const rows = Array.isArray(payload.rows) ? payload.rows : []
+  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
+  const pages = Math.max(1, Math.ceil(total / limit))
+  const current = Math.min(wanted, pages)
+  if (rows.length === 0 && total > 0 && wanted > pages) {
+    return fetchAdminActions({ page: pages, perPage: limit })
+  }
+  return { rows, total, pages, page: current, perPage: limit, from: total === 0 ? 0 : offset + 1, to: offset + rows.length, missingSchema: false }
+}
+
+/* =========================================================
+   LỊCH SỬ CỦA MỘT REQUEST (migration 20261214)
+   ---------------------------------------------------------
+   Mục "Nhật ký" trả lời "admin đã làm gì hôm nay". Câu hỏi khi đang sửa một
+   bài là "bài NÀY đã đi qua những tay nào" — nên phải lọc theo `target_id`,
+   không phải cuộn danh sách toàn cục.
+   Thiếu hàm (chưa chạy migration) thì trả `missingSchema` để khung sửa ẩn
+   khối lịch sử đi, thay vì hiện một khung lỗi giữa việc đang làm.
+   ========================================================= */
+export async function fetchRequestHistory(id, limit = 20) {
+  const empty = { rows: [], total: 0, missingSchema: false }
+  if (!id) return empty
+  const n = Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 20))
+  if (!hasSupabase) return empty
+
+  const { data, error } = await supabase.rpc('admin_request_history', { p_id: id, p_limit: n })
+  if (error) {
+    if (isMissingRpc(error)) return { ...empty, missingSchema: true }
+    throw rpcError(error)
+  }
+  const payload = data && typeof data === 'object' ? data : {}
+  const rows = Array.isArray(payload.rows) ? payload.rows : []
+  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
+  return { rows, total, missingSchema: false }
+}
+
+/* Duyệt / từ chối NHIỀU request trong một lượt. `admin_review` đã là nơi duy
+   nhất quyết định chuyện gì xảy ra với một dòng (status, deny_reason,
+   video_url, updated_at) — bản nhiều-dòng gọi lại chính hàm đó trong một
+   transaction, nên hai đường không thể lệch luật.
+   Trả về số id có thật đã được xử lý (id đã bị người khác xoá thì bỏ qua). */
+export async function adminReviewMany(ids = [], approve, reason = null, videoUrl = null) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  const url = approve ? null : String(videoUrl || '').trim() || null
+  if (url && (url.length > 500 || !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(url))) throw appError('err.denyVideo')
+
+  if (!hasSupabase) {
+    const set = new Set(uniq)
+    wr(LS.rows, demoRows().map(r => set.has(r.id)
+      ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url }
+      : r))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_review_many', {
+    p_ids: uniq, p_approve: !!approve, p_reason: reason ?? null, p_video_url: url,
+  })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await adminReview(id, approve, reason, url)
+  return uniq.length
+}
+
+/* Xoá NHIỀU request trong một lượt. Chỉ admin đi tới đây (bảng quản trị chỉ
+   hiện với tài khoản quản trị, và RPC kiểm is_admin một lần nữa). */
+export async function adminDeleteMany(ids = []) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  if (!hasSupabase) {
+    const set = new Set(uniq)
+    wr(LS.rows, demoRows().filter(r => !set.has(r.id)))
+    wr(LS.votes, readData(LS.votes, []).filter(v => !set.has(v.id) && !set.has(v.request_id)))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_delete_many', { p_ids: uniq })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await deleteRequest(id)
+  return uniq.length
+}
+
+/* Chốt / gỡ chốt NHIỀU request. Mỗi id vẫn đi qua `admin_pick_group` (một bài
+   = một cụm trùng tên), nên bản nhiều-dòng chỉ gộp vòng lặp vào một
+   transaction, không đổi luật chốt. */
+export async function adminPickMany(ids = [], picked = true) {
+  const uniq = uniqIds(ids)
+  if (!uniq.length) return 0
+  if (!hasSupabase) {
+    const rows = demoRows()
+    const keys = new Set()
+    for (const id of uniq) {
+      const target = rows.find(r => r.id === id)
+      if (target) keys.add(groupKey(target))
+    }
+    const at = picked ? new Date().toISOString() : null
+    wr(LS.rows, rows.map(r =>
+      (keys.has(groupKey(r)) && ['queued', 'in_progress'].includes(r.status))
+        ? { ...r, picked_at: at } : r))
+    return uniq.length
+  }
+  const { data, error } = await supabase.rpc('admin_pick_many', { p_ids: uniq, p_picked: !!picked })
+  if (!error) return Number(data) || uniq.length
+  if (!isMissingRpc(error)) throw error
+  for (const id of uniq) await adminPickGroup(id, picked)
   return uniq.length
 }
 

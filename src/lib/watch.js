@@ -437,7 +437,6 @@ export const NOTICE_GROUPS = [
   { id: 'denied', types: ['denied'] },
   { id: 'work', types: ['started', 'progress'] },
   { id: 'out', types: ['done', 'expired'] },
-  { id: 'comments', types: ['comment', 'reply', 'mention'] },
 ]
 
 export function groupNotices(inbox) {

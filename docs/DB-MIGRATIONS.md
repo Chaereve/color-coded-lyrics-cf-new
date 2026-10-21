@@ -723,3 +723,125 @@ hai source `vote_back_owner` / `vote_back_voter` → progress 1 (owner tự vote
 không nhận badge hai lần). Test: `npm run test:voteback:pglite`; manifest
 `tools/migration-safety.test.mjs` = **50** migration active. Luật đầy đủ:
 `docs/DAILY-REWARDS.md` mục B4.
+
+## 20261212 — Admin: thao tác hàng loạt nguyên tử + trang bình luận
+
+Additive, một transaction, rerunnable, không thuộc fresh-install bundle. Không
+đổi bảng, cột, policy hay grant nào đang có — chỉ thêm hàm.
+
+| File | Vai trò |
+| --- | --- |
+| `20261212_admin_bulk_and_comments_page.sql` | `admin_review_many` / `admin_update_many` / `admin_delete_many` / `admin_pick_many`: mỗi hàm gọi lại đúng hàm một-dòng đã có (`admin_review`, `admin_update`, `admin_pick_group`) cho từng id, nhưng trong **một transaction** và một lời gọi mạng; trả về số id có thật đã xử lý, trần 200 id (`err.bulkTooMany`). `admin_comments_page(p_q, p_limit, p_offset)`: lọc + đếm + cắt trang trong database, trả `{ total, rows }`; tìm theo từng từ và bỏ dấu qua `admin_fold` (cùng luật `fold()` của `src/lib/board.js`). |
+| `supabase/rollback/20261212_admin_bulk_and_comments_page.sql` | Drop sáu hàm. An toàn khi client mới hơn DB: `src/lib/db.js` nhận PGRST202/42883 và rơi về đường cũ (một `admin_*` mỗi id; bình luận đọc cửa sổ 500 dòng rồi cắt trang ở trình duyệt). |
+
+Không hàm nào tự quyết quyền: cả năm hàm nghiệp vụ kiểm `public.is_admin()`
+trước khi làm việc, và `revoke all … from public, anon` + `grant execute … to
+authenticated`. Test: `supabase/tests/adminBulk.test.js` (chữ ký + chốt quyền +
+không có lệnh phá dữ liệu), `src/lib/adminOrders.test.js`,
+`src/lib/adminComments.test.js`, và các ca SSR mới trong
+`src/components/AdminPanel.test.js`. Migration đã được chạy thử trên PGlite
+(fold, tìm nhiều từ, tổng/trang, bốn hàm bulk, trần 200).
+
+## 20261213 — Nhật ký thao tác quản trị + sửa request đầy đủ
+
+Additive, một transaction, **rerunnable** (`create table if not exists`,
+`create or replace function`, `drop trigger if exists`), không thuộc fresh-install
+bundle. Không `create or replace` trên hàm đang chạy nào — `admin_review`,
+`admin_update`, `admin_pick_group`, `delete_my_request` giữ nguyên.
+
+| File | Vai trò |
+| --- | --- |
+| `20261213_admin_actions_and_request_edit.sql` | Bảng `admin_actions` (RLS bật, **chỉ** policy đọc cho admin, không policy ghi) + trigger `requests_admin_audit` (AFTER UPDATE OR DELETE trên `requests`) và `orders_admin_audit` (AFTER UPDATE trên `orders`), cả hai chỉ ghi khi `auth.uid()` là admin; `detail` mang từng cặp cũ → mới. `admin_actions_page(p_limit, p_offset)` trả `{ total, rows }` kèm tên admin. `admin_request_edit(p_id, p_kind, p_note, p_is_paid, p_requester)` — bốn trường khung sửa cũ không có, kiểm `kind` thuộc bốn loại có thật, ghi chú ≤ 300 ký tự; **không** đụng `status`/`progress`/`picked_at`. |
+| `supabase/rollback/20261213_admin_actions_and_request_edit.sql` | Drop ba hàm + hai trigger; giữ bảng `admin_actions` (dữ liệu lịch sử, xoá là mất — rollback chỉ gỡ phần GHI). |
+
+Vì sao trigger chứ không phải gọi hàm log trong từng RPC: mọi đường đi (nút
+trên web, RPC, SQL tay trong Dashboard) đều để lại dấu, không phải nhớ. Và vì
+`auth.uid()` phải là admin, người dùng tự sửa request của mình không làm đầy
+nhật ký quản trị — nhật ký trả lời "admin đã làm gì", không phải "bảng đã đổi gì".
+
+Tab mới **Activity log** đứng cuối dải số liệu (chỗ tra cứu, không phải việc
+phải làm hôm nay), phân trang 20 dòng, đọc qua RPC; client nhận PGRST202 thì
+hiện "cần chạy migration" thay vì một khung lỗi đỏ. Test:
+`supabase/tests/adminBulk.test.js` (bảng/trigger/chữ ký/quyền/không policy ghi),
+`src/lib/adminLog.test.js`, `src/lib/adminAge.test.js`. Đã chạy thử trên PGlite:
+chạy hai lần liên tiếp, ghi đúng khi admin sửa và **không** ghi khi user
+thường sửa, chặn `kind` lạ, non-admin không đọc được và không chèn được dòng.
+
+## 20261214 — Lịch sử của MỘT request
+
+Additive, một transaction, **rerunnable**, không thuộc fresh-install bundle.
+Chỉ THÊM một hàm đọc và một index — không `create or replace` trên hàm nào
+đang chạy.
+
+| File | Vai trò |
+| --- | --- |
+| `20261214_request_history.sql` | Index `admin_actions_target_time_idx (target_id, created_at desc, id desc)`. `admin_request_history(p_id uuid, p_limit int default 20)` → `{ total, rows }`, cùng khoá với `admin_actions_page` (`id, action, target_id, label, detail, created_at, actor_name`), lọc `target_id = p_id`, mới nhất trước, trần 100 dòng. |
+| `supabase/rollback/20261214_request_history.sql` | Drop hàm + index. **Giữ** toàn bộ dòng `admin_actions` — gỡ đường đọc không phải lý do để xoá bằng chứng; mục Nhật ký vẫn đọc được. |
+
+Mục Nhật ký trả lời "admin đã làm gì hôm nay"; câu hỏi khi đang sửa một bài là
+"bài NÀY đã qua tay ai". Trả lời bằng danh sách toàn cục nghĩa là cuộn qua hàng
+trăm dòng của bài khác, nên có RPC lọc theo `target_id`. Khối lịch sử nằm cuối
+khung sửa và chỉ được dựng khi khung đó mở (mount = một lần đọc); thiếu hàm thì
+`db.js` trả `missingSchema` và khối tự biến mất. Test:
+`supabase/tests/adminRequestHistory.test.js`, ca SSR trong
+`src/components/AdminPanel.test.js`.
+
+## 20261215 — Báo người gửi khi bài được duyệt / bị từ chối
+
+Rerunnable (`create or replace`), một transaction, không thêm bảng, không cron.
+**Có** `create or replace` trên hàm đang chạy — nhưng chỉ thêm phần ghi tin sau
+`UPDATE`; chữ ký `admin_review(uuid, boolean, text, text) → requests` giữ nguyên,
+`is_admin()` và phép kiểm `err.denyVideo` giữ nguyên.
+
+| File | Vai trò |
+| --- | --- |
+| `20261215_notify_requester_review.sql` | `admin_review` đọc trạng thái cũ (`for update`), update như cũ, rồi — **chỉ khi trạng thái thật sự đổi và bài có `user_id`** — chèn một dòng `notifications` loại `approved`/`denied`, `sig = 'review|<id>|<status mới>'`, `reason` giữ nguyên văn lý do từ chối. |
+| `supabase/rollback/20261215_notify_requester_review.sql` | Trả `admin_review` về thân cũ (không ghi tin). Không xoá tin đã ghi — đó là hộp thư của người dùng. |
+
+Bảng `notifications` đã có sẵn hai loại `approved`/`denied` trong check
+constraint và chuông đã có nhóm hiển thị, nhưng chưa có đường nào ghi ra chúng:
+người gửi chỉ biết kết quả bằng cách tự mở bảng xem lại. Đặt chỗ ghi ở
+`admin_review` (hàm duy nhất đổi status sang `queued`/`denied`; `admin_review_many`
+gọi lại chính nó) nên mọi đường đi đều báo. `sig` gồm trạng thái mới: từ chối rồi
+duyệt lại là hai sự việc, còn duyệt hai lần cùng trạng thái bị index unique chặn.
+Web đọc lại hộp thư cùng nhịp với bảng (kênh realtime `requests`) để người gửi
+đang mở trang thấy tin mà không phải F5. Test:
+`supabase/tests/adminRequestHistory.test.js`.
+
+## 20261216 — Gỡ hẳn tính năng bình luận
+
+**Migration xoá dữ liệu.** Chạy một lần, rerunnable (`drop … if exists`), một
+transaction, không thêm bảng. Bảng `request_comments` và toàn bộ bình luận cũ
+mất hẳn — khôi phục chỉ từ backup (`scripts/backup-db.sh`) chụp trước ngày chạy.
+
+| File | Vai trò |
+| --- | --- |
+| `20261216_remove_comments.sql` | Drop 7 hàm của tính năng (`admin_comments_page`, `notify_on_comment`, `hide_comment_subtree`, `comment_mention_handle`, `enforce_comment_limits`, `guard_comment_update`) → xoá tin `comment`/`reply`/`mention` trong `notifications` → `drop table public.request_comments`. Trigger/index/policy trên bảng đi theo bảng. |
+| `supabase/rollback/20261216_remove_comments.sql` | Dựng lại **khung** bảng (cột, index, RLS, grant) để web cũ không chết vì thiếu bảng. **Không** khôi phục được dữ liệu; muốn đủ hành vi cũ thì chạy lại 20260920/21/22 → 20261106/07 → 20261212 theo thứ tự ghi trong file. |
+
+Vì sao gỡ cả database: bảng còn đó nghĩa là vẫn còn trigger ghi `notifications`,
+vẫn còn RLS cho `anon` đọc một tính năng không còn ai dùng — bề mặt tấn công
+không có chủ, và dữ liệu chỉ là thứ không ai nhìn thấy. `notifications` giữ
+nguyên cấu trúc và giữ nguyên các loại tin về request/đơn hàng; chỉ ba loại tin
+sinh ra từ bình luận bị xoá (chúng trỏ tới nội dung vừa mất).
+
+Phía web (cùng bản này): xoá `Comments.jsx`, `lib/comments.js`,
+`lib/adminComments.js` và mọi lời gọi `fetchComments` / `addComment` /
+`deleteComment` / `fetchCommentCounts` / `fetchAdminComments` /
+`adminDeleteComment`; gỡ mục **Bình luận** khỏi bảng quản trị và gỡ nhóm tin
+`Comments & Replies` khỏi chuông. Hai mã lỗi `err.commentRate` /
+`err.commentParent` được giữ lại trong từ điển vì các file SQL cũ vẫn raise
+chúng trên database chưa chạy bản này.
+
+Kiểm chứng: PGlite — dựng bảng + 7 hàm + 4 dòng tin, chạy file **hai lần liên
+tiếp**: bảng và 7 hàm biến mất, chỉ còn tin `approved`.
+
+## Mục "Đã pick" trong bảng quản trị (không cần migration)
+
+Dải số liệu nay là: `overview · pending · active · expired · picked · orders ·
+done · media · log`. Mục Đã pick lọc `picked_at is not null` **và** status
+`queued` / `in_progress` — tức "suất Up next đang do bài nào giữ", xếp theo
+`picked_at` tăng dần (thứ tự dây chuyền). Bài đã xong và bài bị từ chối nằm ở
+mục Closed: mục này cố ý không liệt kê "bài từng được chốt", vì câu hỏi của nó
+là *hiện tại*. Không đọc thêm RPC nào — dữ liệu đã có trong `requests` mà bảng
+quản trị đang giữ.

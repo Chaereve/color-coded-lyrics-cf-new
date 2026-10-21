@@ -62,6 +62,7 @@ export function ConfirmProvider({ children }) {
         reasonPh={req?.reasonPh}
         reason={reason}
         onReason={setReason}
+        presets={req?.presets || []}
         videoLabel={req?.videoLabel}
         videoUrl={videoUrl}
         onVideoUrl={setVideoUrl}
