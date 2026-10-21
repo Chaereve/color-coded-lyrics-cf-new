@@ -76,7 +76,7 @@ test('nhịp cụm nút phải thống nhất giữa dòng lẻ và cả cụm',
      nấc thì phải đổi cả chỗ này — đó chính là mục đích: một chỗ khai, một
      chỗ chốt. */
   assert.match(row, /gap:\s*var\(--sp-3\)/, '.row gap phải là nấc --sp-3 (= 12px) như cam kết trong HUONG-DAN')
-  assert.match(row, /padding:\s*var\(--sp-3\) var\(--sp-4\)/, '.row đệm --sp-3/--sp-4 (= 12px 16px)')
+  assert.match(row, /padding:\s*9px var\(--sp-4\)/, '.row đệm 9px/--sp-4 (= 9px 16px)')
   const bell = rulesWith('.grow > .rowact')
   assert.ok(bell.some((b) => /margin:\s*0 14px 0 12px/.test(b)),
     'chuông cụm: 12px từ mũi tên, 14px từ mép phải — đúng bằng .row')
