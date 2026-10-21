@@ -183,6 +183,14 @@ const FILTERS = [
 ]
 const FILTER_KEYS = FILTERS.map(f => f.k)
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
+/* Bốn chặng của dây chuyền, đúng thứ tự công việc — thanh lọc dựng bảng chọn
+   Status từ đây chứ không từ FILTERS, vì FILTERS còn có hai mục "cách nhìn"
+   (newest/top) ngày trước trộn lẫn vào cùng một dải. */
+const STAGE_COLOR = {
+  queued: 'var(--queued)', picked: 'var(--upnext)',
+  in_progress: 'var(--progress)', completed: 'var(--done)',
+}
+const KIND_LIST = Object.keys(KIND_META)
 
 function Num({ v }) {
   const n = useCountUp(v)
@@ -582,7 +590,7 @@ function AppInner() {
   /* Bộ lọc trên máy hẹp nằm trong một khối gấp/mở, và thanh lọc tự dính lên
      đầu khi cuộn qua — hai thứ này chỉ để phục vụ việc CHỌN, không phải dữ
      liệu, nên không lưu vào localStorage. */
-  const [fbarOpen, setFbarOpen] = useState(false)
+  const [fbTab, setFbTab] = useState(null)
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
@@ -1491,6 +1499,70 @@ function AppInner() {
   const boardItems = useMemo(() => buildBoardItems(visible, filter), [visible, filter])
   const pgBoard = usePager(boardItems, PER_PAGE, [filter, kindFilter, q])
 
+  /* =====================================================================
+     THANH LỌC — giá trị hiển thị và các thao tác
+     ---------------------------------------------------------------------
+     `filter` mang hai nghĩa cùng lúc trong mô hình dữ liệu: một chặng của dây
+     chuyền (queued/picked/in_progress/completed) HOẶC một cách nhìn cả bảng
+     (newest/top). Bảng chọn Status vì vậy đọc trạng thái từ `statusFilters`,
+     và khi nó rỗng thì lấy chặng đang nằm trong `filter` — nếu không, mặc
+     định `filter === 'queued'` (chỉ hàng chờ) sẽ hiện ra thành "All" trong khi
+     danh sách thật ra đang chỉ có Queue. */
+  const stagePick = statusFilters.length
+    ? statusFilters
+    : (STAGES.includes(filter) ? [filter] : [])
+  const sortKey = filter === 'top' ? 'top' : 'newest'
+  const fbActive = statusFilters.length + kindFilters.length + (q.trim() ? 1 : 0)
+  const stageText = !stagePick.length ? t('board.allStages')
+    : stagePick.length === 1 ? t(`filter.${stagePick[0]}`)
+    : `${t(`filter.${stagePick[0]}`)} +${stagePick.length - 1}`
+  const kindText = !kindFilters.length ? t('board.allKinds')
+    : kindFilters.length === 1 ? kindFilters[0]
+    : `${kindFilters[0]} +${kindFilters.length - 1}`
+
+  /* Bỏ MỘT chặng. Chặng cuối cùng bị bỏ thì về "cả bảng": để `filter` ở lại
+     chặng vừa bỏ là danh sách vẫn lọc y như cũ trong khi ô đã trống — người
+     bấm thấy "không có gì thay đổi". */
+  const removeStage = (k) => {
+    const next = statusFilters.filter(x => x !== k)
+    setStatusFilters(next)
+    setFilter(next.length === 1 ? next[0] : 'newest')
+  }
+  const toggleStage = (k) => {
+    if (stagePick.includes(k)) return removeStage(k)
+    const next = [...statusFilters, k]
+    setStatusFilters(next)
+    setFilter(next.length === 1 ? next[0] : 'newest')
+  }
+  /* `kindFilters` là thứ lọc thật; `kindFilter` chỉ là bản sao MỘT lựa chọn cho
+     địa chỉ `?k=` và bộ lọc đã lưu, nên phải đổi theo. */
+  const toggleKind = (k) => {
+    const next = kindFilters.includes(k) ? kindFilters.filter(x => x !== k) : [...kindFilters, k]
+    setKindFilters(next)
+    setKindFilter(next.length === 1 ? next[0] : 'all')
+  }
+  /* Sort là MỘT lựa chọn và là một trục khác với Status, nên chọn sort thì dọn
+     chặng đang chọn — hai trục cùng ghi vào `filter` mà để cả hai thì cái sau
+     ghi đè cái trước một cách âm thầm. */
+  const pickSort = (k) => { setStatusFilters([]); setFilter(k); setFbTab(null) }
+  const clearAll = () => {
+    setStatusFilters([]); setFilter('newest'); setKindFilters([]); setKindFilter('all'); setQ(''); setFbTab(null)
+  }
+
+  /* Đóng bảng chọn khi bấm ra ngoài hoặc Esc. `pointerdown` chứ không `click`:
+     bấm ra ngoài mà đóng ở `click` thì bảng đã kịp nhận cú bấm đầu. */
+  useEffect(() => {
+    if (!fbTab) return
+    const onDown = (e) => { if (!e.target.closest?.('.fbar')) setFbTab(null) }
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setFbTab(null) } }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [fbTab])
+
   /* Tin bấm từ hộp thư (jumpToSong) thường rơi vào bài ở trang khác. Bộ lọc
      vừa đổi là usePager tự về trang 1, nên KHÔNG setPage được ngay trong
      jumpToSong — phải đợi bảng + bộ lọc ổn định rồi mới kéo trang chứa bài đó
@@ -2201,23 +2273,16 @@ function AppInner() {
 
             <div className="board-list">
               <h2 className="section-title">{t('board.listTitle')}</h2>
-              {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
-                  đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
-                  cuộn ngang chứ không xuống dòng. */}
-              {/* THANH LỌC — mỗi thứ chỉ có MỘT ô điều khiển. Hàng trên là ô
-                  tìm + tóm tắt/nút Bộ lọc; dải status ở hàng dưới luôn giữ MỘT
-                  hàng, hết chỗ thì cuộn ngang chứ không gãy thành hai hàng.
-                  Hàng loại bài gấp sau nút "Bộ lọc" trên máy hẹp — nhồi tất cả
-                  vào một hàng 340px là mỗi thứ một mẩu. Thanh NẰM TRONG DÒNG,
-                  không dính mép trên: cuộn qua nó là nó đi theo trang (vòng 13
-                  — "đừng để thanh lọc floating lúc cuộn"); nút "lên đầu trang"
-                  là đường quay lại. */}
-              <div className={`fbar${fbarOpen ? ' open' : ''}`}>
-                <div className="fbar-top">
-                  {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — thứ tự DOM cũng là thứ tự
-                      bàn phím: ô nhập → tóm tắt/nút Bộ lọc → dải status. Máy
-                      hẹp tự thành hai hàng (ô tìm + nút ở trên, chip ở dưới),
-                      không cần đảo thứ tự bằng `order`. */}
+              {/* THANH LỌC — ba điều khiển trên một đường ngang.
+                  · ô tìm là hộp DUY NHẤT có nền riêng (nó là chỗ để gõ);
+                  · Status / Type là hai pill có viền, mở bảng chọn nhiều;
+                  · Sort là menu một lựa chọn, chọn xong đóng ngay;
+                  · Clear chỉ hiện khi thật sự có gì để xoá.
+                  Bố cục gọn (≤899px): Status/Type gom vào MỘT bảng sau nút
+                  icon, còn sort ra một icon riêng — sort không phải bộ lọc
+                  nên không được chui vào bảng lọc. Thanh NẰM TRONG DÒNG. */}
+              <div className="fbar">
+                <div className="fb-main">
                   <span className="searchwrap">
                     <Icon name="search" size={14} className="search-ico" />
                     <input ref={searchRef} className="search" placeholder={t('board.search')}
@@ -2228,113 +2293,211 @@ function AppInner() {
                           onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
                       : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
                   </span>
-                  <div className="fbar-side">
-                    <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
-                    <button type="button" className={`fmore${fbarOpen ? ' on' : ''}`}
-                      aria-expanded={fbarOpen} aria-controls="fbar-more"
-                      onClick={() => setFbarOpen(v => !v)}>
-                      <Icon name="settings" size={14} />{t('board.filters')}
-                      {(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0) > 0 && (
-                        <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
-                      )}
+
+                  {/* Mỗi facet là một KHỐI NEO: bảng chọn nằm ngay dưới chính
+                      cái pill mở nó, nên không phải tính toạ độ bằng JS. */}
+                  <span className="fb-wrap">
+                    <button type="button" className={`fb-fac${stagePick.length ? ' on' : ''}`}
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'status'} aria-controls="fb-status"
+                      onClick={() => setFbTab(v => v === 'status' ? null : 'status')}>
+                      <span className="k">{t('board.status')}</span>
+                      {/* Chưa lọc thì pill CHỈ mang tên trường. In thêm "All"
+                          là hai chữ cho một sự thật, và chữ "All" cạnh chữ
+                          "Status" đọc ra như một giá trị đang chọn. */}
+                      {stagePick.length > 0 && <span className="v">{stageText}</span>}
+                      <Icon name="chevron" size={13} className="car" />
                     </button>
-                  </div>
-                  <div className="fchips" role="group" aria-label={t('board.filterAria')}>
-                    {/* Mỗi mục = VẠCH MÀU + nhãn + số (xem khối THANH LỌC trong
-                        index.css). Vạch ngăn chỉ mọc lên ở mục đầu tiên của
-                        một nhóm MỚI, và nhóm "đang theo dõi" vắng mặt thì vạch
-                        ngăn của nó cũng không được ở lại một mình. */}
-                    {FILTERS.map((f, i, list) => (
-                      <Fragment key={f.k}>
-                        {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
-                        <button type="button" className={`fchip${(STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
-                          style={{ '--c': f.c }} aria-pressed={STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k}
-                          onClick={() => {
-                            const stage = STAGES.includes(f.k)
-                            const next = stage
-                              ? (statusFilters.includes(f.k) ? statusFilters.filter(s => s !== f.k) : [...statusFilters, f.k])
-                              : []
-                            setStatusFilters(next)
-                            /* Bỏ chọn chip giai đoạn CUỐI CÙNG thì về "cả bảng"
-                               (newest). Để `filter` ở lại giai đoạn vừa bỏ là
-                               danh sách vẫn lọc đúng y như cũ trong khi chip đã
-                               tắt — người bấm thấy "không có gì thay đổi". */
-                            setFilter(stage && !next.length ? 'newest' : f.k)
-                          }}>
-                          <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
-                          <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
-                        </button>
-                      </Fragment>
-                    ))}
-                    {/* LOẠI BÀI ĐANG LỌC, hiện thành chip bỏ được ngay trên hàng
-                        chính. Trên màn rộng khối lọc thứ hai luôn hiện nên chip
-                        này là thừa (CSS ẩn nó từ 621px); trên máy hẹp khối đó
-                        gấp sau nút "Bộ lọc", nên đây là chỗ DUY NHẤT cho biết
-                        "danh sách này đang bị lọc theo một loại bài" — người
-                        dùng cuộn xuống thấy thiếu bài mà không hiểu vì sao. */}
-                    {kindFilter !== 'all' && (
-                      <button type="button" className="fchip fkind on onkind"
-                        style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
-                        aria-label={t('board.clearKind', { k: kindFilter })}
-                        title={t('board.clearKind', { k: kindFilter })}
-                        onClick={() => { setKindFilters([]); setKindFilter('all') }}>
-                        <i className="kswatch" aria-hidden="true" />{kindFilter}<Icon name="close" size={12} />
-                      </button>
+                    {fbTab === 'status' && (
+                      <div className="fb-pop" id="fb-status" role="dialog" aria-label={t('board.status')}>
+                        <div className="fb-ph">
+                          <b>{t('board.status')}</b>
+                          <span className="fb-num">{stagePick.length ? `${stagePick.length}/${STAGES.length}` : ''}</span>
+                          <button type="button" className="fb-clr" disabled={!stagePick.length}
+                            onClick={() => { setStatusFilters([]); setFilter('newest') }}>{t('board.clear')}</button>
+                        </div>
+                        <ul className="fb-list">
+                          {STAGES.map(k => (
+                            <li key={k}>
+                              <button type="button" className="fb-opt" aria-pressed={stagePick.includes(k)}
+                                style={{ '--c': STAGE_COLOR[k] }} onClick={() => toggleStage(k)}>
+                                <span className="fb-box"><Icon name="check" size={10} /></span>
+                                <span className="fb-sw" aria-hidden="true" />
+                                <span className="fb-nm">{t(`filter.${k}`)}</span>
+                                <span className="fb-cn">{counts[k]}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="fb-pf">
+                          <span className="fb-sum">{t('board.showing', { n: boardItems.length })}</span>
+                          <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                            {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                          </button>
+                        </div>
+                      </div>
                     )}
-                  </div>
+                  </span>
+
+                  <span className="fb-wrap">
+                    <button type="button" className={`fb-fac${kindFilters.length ? ' on' : ''}`}
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'kind'} aria-controls="fb-kind"
+                      onClick={() => setFbTab(v => v === 'kind' ? null : 'kind')}>
+                      <span className="k">{t('board.type')}</span>
+                      {kindFilters.length > 0 && <span className="v">{kindText}</span>}
+                      <Icon name="chevron" size={13} className="car" />
+                    </button>
+                    {fbTab === 'kind' && (
+                      <div className="fb-pop" id="fb-kind" role="dialog" aria-label={t('board.kindAria')}>
+                        <div className="fb-ph">
+                          <b>{t('board.type')}</b>
+                          <span className="fb-num">{kindFilters.length ? `${kindFilters.length}/${KIND_LIST.length}` : ''}</span>
+                          <button type="button" className="fb-clr" disabled={!kindFilters.length}
+                            onClick={() => { setKindFilters([]); setKindFilter('all') }}>{t('board.clear')}</button>
+                        </div>
+                        <ul className="fb-list">
+                          {KIND_LIST.map(k => (
+                            <li key={k}>
+                              <button type="button" className="fb-opt" aria-pressed={kindFilters.includes(k)}
+                                style={{ '--c': `var(--k-${kindCls(k)})` }} onClick={() => toggleKind(k)}>
+                                <span className="fb-box"><Icon name="check" size={10} /></span>
+                                <span className="fb-sw sq" aria-hidden="true" />
+                                <span className="fb-nm">{k}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="fb-pf">
+                          <span className="fb-sum">{t('board.showing', { n: boardItems.length })}</span>
+                          <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                            {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </span>
+
+                  <span className="fb-gap" aria-hidden="true" />
+
+                  <span className="fb-wrap fb-wrap-end">
+                    <button type="button" className="fb-sort"
+                      aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls="fb-sort-menu"
+                      aria-label={t('board.sortAria')}
+                      onClick={() => setFbTab(v => v === 'sort' ? null : 'sort')}>
+                      <Icon name="sort" size={13} className="si" />
+                      <span className="v">{t(`filter.${sortKey}`)}</span>
+                      <Icon name="chevron" size={13} className="car" />
+                    </button>
+                    {fbTab === 'sort' && (
+                      <div className="fb-menu" id="fb-sort-menu" role="menu" aria-label={t('board.sortAria')}>
+                        <div className="fb-mh" aria-hidden="true">{t('board.sortBy')}</div>
+                        <div className="fb-sep" aria-hidden="true" />
+                        {[['newest', 'up'], ['top', 'cup']].map(([k, ico]) => (
+                          <button key={k} type="button" role="menuitemradio" aria-checked={sortKey === k}
+                            className="fb-mi" onClick={() => pickSort(k)}>
+                            <Icon name={ico} size={14} className="mi-ico" />
+                            <span className="nm">{t(`filter.${k}`)}</span>
+                            <Icon name="check" size={13} className="ck" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </span>
+
+                  {/* bố cục gọn: nút mở bảng lọc (Status + Type cùng một chỗ) */}
+                  <button type="button" className={`fb-icon${fbActive ? ' on' : ''}`}
+                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls="fb-filters"
+                    aria-label={t('board.filters')}
+                    onClick={() => setFbTab(v => v === 'filters' ? null : 'filters')}>
+                    <Icon name="filter" size={17} />
+                    {fbActive > 0 && <i className="fb-dot" aria-hidden="true" />}
+                  </button>
+
+                  <button type="button" className="fb-clear" hidden={!fbActive} onClick={clearAll}>
+                    {t('board.clearAll')}
+                  </button>
                 </div>
 
-                <div className="fbar-more" id="fbar-more">
-                  {/* MỤC LỌC LOẠI BÀI KHÔNG PHẢI THẺ. Bốn nút dưới đây từng mang
-                      lớp `kind` — lớp của THẺ loại bài nằm trên từng hàng request.
-                      Thẻ đó khoá cứng `color: var(--k-ccl)`, nên cả bốn nút (kể
-                      cả "All types") đều hiện đúng một màu TÍM CCL, bất kể
-                      `--c` của chúng: bốn thẻ loại khác nhau mà mắt thấy cùng
-                      một màu, còn nền của nút đang chọn lại lấy `--c` — nên nút
-                      "Full Album" đang chọn có CHỮ TÍM trên NỀN XANH TEAL.
-                      Nay chúng mang lớp riêng `.fkind` và tự mang màu của mình.
-                      Dấu hiệu để nhận ra lỗi này từ đầu: một lớp CSS mang tên
-                      dữ liệu (`kind`) được dùng cho cả thứ hiển thị dữ liệu lẫn
-                      control để lọc dữ liệu đó. */}
-                  <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
-                    <button type="button" className={`fchip fkind${kindFilters.length === 0 ? ' on' : ''}`}
-                      aria-pressed={kindFilters.length === 0} onClick={() => { setKindFilters([]); setKindFilter('all') }}>
-                      <i className="kswatch any" aria-hidden="true" />{t('board.allKinds')}
-                    </button>
-                    {Object.keys(KIND_META).map(k => (
-                      <button key={k} type="button"
-                        className={`fchip fkind${kindFilters.includes(k) ? ' on' : ''}`}
-                        style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilters.includes(k)}
-                        onClick={() => {
-                          const next = kindFilters.includes(k) ? kindFilters.filter(x => x !== k) : [...kindFilters, k]
-                          setKindFilters(next)
-                          /* `kindFilter` là bản sao MỘT lựa chọn (địa chỉ `?k=`,
-                             bộ lọc đã lưu, chip bỏ được trên hàng chính) nên phải
-                             đổi theo: bỏ chọn loại cuối cùng mà nó vẫn giữ tên
-                             loại đó thì chip "đang lọc" còn hiện trong khi danh
-                             sách đã hết lọc. */
-                          setKindFilter(next.length === 1 ? next[0] : 'all')
-                        }}>
-                        <i className="kswatch" aria-hidden="true" />{k}
+                {/* Dải chip "đang lọc" — CHỈ ở bố cục gọn, nơi Status/Type nằm
+                    sau một lần bấm. Trên màn rộng chính hai pill đã nói điều
+                    này, nói lại là hai chỗ cho một sự thật. */}
+                {fbActive > 0 && (
+                  <div className="fb-applied" role="group" aria-label={t('board.filterAria')}>
+                    {stagePick.map(k => (
+                      <button key={k} type="button" className="fb-chip" style={{ '--c': STAGE_COLOR[k] }}
+                        aria-label={t('board.clearKind', { k: t(`filter.${k}`) })}
+                        onClick={() => toggleStage(k)}>
+                        <i className="fb-bar" aria-hidden="true" />{t(`filter.${k}`)}<Icon name="close" size={11} />
                       </button>
                     ))}
+                    {kindFilters.map(k => (
+                      <button key={k} type="button" className="fb-chip" style={{ '--c': `var(--k-${kindCls(k)})` }}
+                        aria-label={t('board.clearKind', { k })}
+                        onClick={() => toggleKind(k)}>
+                        <i className="sw" aria-hidden="true" />{k}<Icon name="close" size={11} />
+                      </button>
+                    ))}
+                    {q.trim() && (
+                      <button type="button" className="fb-chip"
+                        aria-label={t('board.clearQ')}
+                        onClick={() => { setQ(''); searchRef.current?.focus() }}>
+                        “{q.trim()}”<Icon name="close" size={11} />
+                      </button>
+                    )}
+                    <button type="button" className="fb-all" onClick={clearAll}>{t('board.clearAll')}</button>
                   </div>
-                  {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu
-                      bài và lối thoát về trạng thái đầy đủ. */}
-                  {(kindFilter !== 'all' || !!q) && (
-                    <div className="fbar-meta">
-                      <span>{t('board.showing', { n: boardItems.length })}</span>
-                      <button type="button" className="lnk"
-                        onClick={() => {
-                          /* Clear filters means restore the full board, not the
-                             narrower default queue. `newest` is the all-requests
-                             view; this also preserves the clean baseline when
-                             the user filtered an already-open All requests list. */
-                          setStatusFilters([]); setFilter('newest'); setKindFilters([]); setKindFilter('all'); setQ('')
-                        }}>{t('board.clearAll')}</button>
+                )}
+
+
+
+
+
+
+
+                {/* ---------- BẢNG LỌC CỦA BỐ CỤC GỌN ---------- */}
+                {fbTab === 'filters' && (
+                  <div className="fb-pop fb-wide" id="fb-filters" role="dialog" aria-label={t('board.filters')}>
+                    <div className="fb-ph">
+                      <b>{t('board.filters')}</b>
+                      <button type="button" className="fb-clr" disabled={!fbActive} onClick={clearAll}>
+                        {t('board.clear')}
+                      </button>
                     </div>
-                  )}
-                </div>
+                    <div className="fb-body">
+                      <h3>{t('board.status')}</h3>
+                      <ul className="fb-list">
+                        {STAGES.map(k => (
+                          <li key={k}>
+                            <button type="button" className="fb-opt" aria-pressed={stagePick.includes(k)}
+                              style={{ '--c': STAGE_COLOR[k] }} onClick={() => toggleStage(k)}>
+                              <span className="fb-box"><Icon name="check" size={10} /></span>
+                              <span className="fb-sw" aria-hidden="true" />
+                              <span className="fb-nm">{t(`filter.${k}`)}</span>
+                              <span className="fb-cn">{counts[k]}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <h3>{t('board.type')}</h3>
+                      <ul className="fb-list">
+                        {KIND_LIST.map(k => (
+                          <li key={k}>
+                            <button type="button" className="fb-opt" aria-pressed={kindFilters.includes(k)}
+                              style={{ '--c': `var(--k-${kindCls(k)})` }} onClick={() => toggleKind(k)}>
+                              <span className="fb-box"><Icon name="check" size={10} /></span>
+                              <span className="fb-sw sq" aria-hidden="true" />
+                              <span className="fb-nm">{k}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="fb-pf">
+                      <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                        {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="list" data-glow key={filter} ref={listRef}>

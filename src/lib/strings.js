@@ -430,6 +430,16 @@ const S = {
      — hai chỗ nói cùng một chuyện thì phải nói cùng một câu; ba khoá `load.*`
      gần trùng chữ đã được gộp về đây. */
   'board.filterAria': 'Filter requests',
+  /* Thanh lọc: ba điều khiển — Status, Type, Sort. Nhãn hiện giá trị đang chọn
+     chứ không chỉ tên trường, nên người dùng không phải mở bảng ra để nhớ. */
+  'board.status': 'Status',
+  'board.type': 'Type',
+  'board.allStages': 'All',
+  'board.clear': 'Clear',
+  'board.sortBy': 'Sort by',
+  'board.sortAria': 'Sort requests',
+  'board.show': 'Show {n} results',
+  'board.show1': 'Show 1 result',
   'board.clearQ': 'Clear search',
   'board.clearAll': 'Clear filters',
   'board.clearKind': 'Remove the type filter: {k}',

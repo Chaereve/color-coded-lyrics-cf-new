@@ -15,7 +15,7 @@
    Hai nhãn hiệu (YouTube, Telegram) cố ý KHÔNG nằm ở đây: Lucide không vẽ
    logo thương hiệu, mà logo thì phải đúng logo — chúng nằm ngay tại chỗ dùng
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
-import { ArrowDown, ArrowUp, ArrowUpRight, Bell, BellRing, Check, ChevronLeft, ChevronRight, CalendarCheck, CircleAlert, Disc3, Download, Flame, Gift, Info, ListMusic, LogOut, Minus, Music4, Play, Eye, Plus, Receipt, Search, ShieldCheck, SlidersHorizontal, SquarePen, Star, Crown, Trophy, User, Volume2, VolumeX, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ArrowUpRight, Bell, BellRing, Check, ChevronDown, ChevronLeft, ChevronRight, CalendarCheck, CircleAlert, Disc3, Download, Flame, Gift, Info, ListFilter, ListMusic, LogOut, Minus, Music4, Play, Eye, Plus, Receipt, Search, ShieldCheck, SquarePen, Star, Crown, Trophy, User, Volume2, VolumeX, X } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
 const SET = {
@@ -27,7 +27,6 @@ const SET = {
   close: X,                       /* đóng / xoá một mục */
   prev: ChevronLeft,
   next: ChevronRight,
-  settings: SlidersHorizontal,    /* tuỳ chọn thông báo */
   search: Search,                 /* ô tìm kiếm */
   check: Check,
   info: Info,
@@ -55,6 +54,10 @@ const SET = {
   mute: VolumeX,
   note: Music4,                   /* âm thanh trong sidebar */
   preview: Eye,                   /* xem trước bài mình sắp gửi */
+  chevron: ChevronDown,           /* mũi mở xuống của nút mở bảng chọn */
+  sort: ArrowUpDown,              /* thứ tự đang xếp */
+  filter: ListFilter,             /* mở bảng lọc — ba vạch ngắn dần, KHÔNG dùng
+                                     bánh răng: bánh răng đọc ra "cài đặt" */
 }
 
 export default function Icon({ name, size = 16, className = '', fill = null }) {

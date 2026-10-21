@@ -41,250 +41,110 @@ const anchor = (sel, re, what = '') => {
 const has = (sel, re) => bodies(sel).some((b) => re.test(b))
 
 /* ---------- 1. thanh lọc ---------- */
+/* BẢN 2026-10: thanh lọc đổi hẳn cấu trúc — từ "hai dải chip + một nút gấp"
+   sang ba điều khiển trên một đường ngang. Bộ kiểm cũ khoá chặt `.fchip`,
+   `.fchips`, `.fmore` nên đã được thay bằng bộ kiểm cho cấu trúc mới, GIỮ
+   NGUYÊN TINH THẦN: mỗi luật phải còn cả vế desktop lẫn vế máy hẹp, và mỗi
+   lỗi người dùng từng báo phải có một phép kiểm đứng canh. */
 test('.fbar nằm TRONG DÒNG — không dính, không nổi trên danh sách khi cuộn', () => {
   const bar = anchor('.fbar', /background:\s*var\(--panel\)/, 'khối trong dòng')
-  /* LỖI NGƯỜI DÙNG CHỈ RA (vòng 13 — "đừng để cái filter search bar floating lúc
-     cuộn trang"): thanh từng `position: sticky; top: 0`, nên suốt lúc cuộn nó
-     phủ lên các hàng request; ở máy hẹp nó cao gần nửa màn hình. Nay nó trôi
-     theo trang. Chốt hai vế: KHÔNG sticky, và KHÔNG còn khối luật `.stuck` mồ
-     côi (đổi nền + viền + bóng của trạng thái dính). */
   assert.doesNotMatch(bodies('.fbar').join(' '), /position:\s*sticky/,
-    'thanh lọc không được dính mép trên nữa')
-  assert.equal(bodies('.fbar.stuck').length, 0, 'khối luật của trạng thái "đang dính" phải bị gỡ')
-  assert.doesNotMatch(css, /\.fbar\.stuck/, 'không còn tham chiếu nào tới .fbar.stuck')
-  /* Vẫn phải là khối ĐỤC: nền trong suốt là lý do hàng request hiện xuyên qua. */
-  assert.match(bar, /background:\s*var\(--panel\)/)
+    'thanh lọc không được dính mép trên')
   assert.doesNotMatch(bodies('.fbar').join(' '), /backdrop-filter/,
-    'thanh lọc không được dùng nền mờ (đó là nguyên nhân chữ chồng lên nhau)')
-  /* Mép thanh phải TRÙNG mép danh sách: lề âm làm thanh thò ra ngoài cột nội
-     dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
-  /* `var(--sp-4)` cũng chứa chuỗi "-4" nên phải bóc var() ra TRƯỚC khi dò dấu
-     trừ: từ Gói 2 lề lấy từ thang `--sp-*`, và luật cũ đọc tên nấc thành một
-     số âm — báo đỏ trong khi lề vẫn dương. Chỉ số âm viết tay mới là lỗi. */
+    'thanh lọc không được dùng nền mờ (chữ sẽ chồng lên nhau)')
   const marginDigits = bar.replace(/var\([^)]*\)/g, '')
   assert.doesNotMatch(marginDigits, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')
 })
 
-test('lọc status giữ một hàng — hết chỗ thì cuộn ngang, không gãy thành hai hàng', () => {
-  /* Đây là lỗi người dùng báo trực tiếp: các pill trạng thái bị bẻ thành hai
-     hàng trong cùng một rãnh, hàng trên/dưới lệch nhau và nhìn như hai thanh
-     khác nhau. Rãnh phải nowrap ở luật gốc, và luật desktop không được đè lại
-     bằng `flex-wrap: wrap` + `overflow: visible`. */
-  const strip = anchor('.fchips', /flex-wrap:\s*nowrap/, 'không xuống hàng')
-  assert.match(strip, /overflow-x:\s*auto/, 'hết chỗ phải cuộn ngang trong rãnh')
-  assert.doesNotMatch(css, /\.fbar \.fchips\s*\{[^}]*flex-wrap:\s*wrap/,
-    'desktop không được bật lại xuống hàng cho dải status')
-  const desktop = css.slice(css.indexOf('.fbar-top { flex-wrap: wrap; align-items: center'))
-  assert.match(desktop, /\.fbar-top > \.fchips\s*\{[\s\S]*flex-wrap:\s*nowrap/,
-    'desktop phải giữ dải status một hàng')
-})
-
-test('màn rộng vẫn với tới được bộ lọc loại bài (lỗi cũ: hàng đó chỉ mở trên máy hẹp)', () => {
-  /* Khối lọc thứ hai từng chỉ có mặt trong `@media (max-width: 620px)`, còn nút
-     mở nó cũng chỉ hiện ở đó — trên desktop không có cách nào chọn loại bài. */
-  assert.match(css, /\.fbar-more \{ display: flex/, 'hàng lọc thứ hai phải hiện mặc định')
-  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
-  assert.match(mq, /\.fbar:not\(\.open\) \.fbar-more \{ display: none/,
-    'máy hẹp vẫn phải gấp được (hai vế của cùng một luật)')
-  /* Điện thoại: hàng trên xuống dòng được, nếu không dải chip bị bóp còn vài
-     chục pixel trong khi ô tìm kiếm chiếm hết chỗ. */
-  assert.match(mq, /\.fbar-top \{ flex-wrap: wrap/, 'hàng trên phải xuống dòng trên máy hẹp')
-  assert.match(mq, /\.fchips\.kinds \{ flex-wrap: wrap/,
-    'chip loại bài trong khối gấp phải xuống dòng để thấy hết')
-  /* và con số kết quả chỉ được in MỘT lần trên màn rộng */
-  assert.match(css, /@media \(min-width: 621px\) \{ \.fbar-meta > span:first-child \{ display: none/,
-    'màn rộng không in con số kết quả hai lần')
-})
-
-test('máy hẹp: nút Bộ lọc hiện ra, khối lọc thứ hai gấp lại cho tới khi bấm', () => {
-  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
-  assert.match(mq, /\.fmore \{ display: inline-flex/, 'nút Bộ lọc phải hiện trên máy hẹp')
-  assert.match(mq, /\.fbar:not\(\.open\) \.fbar-more \{ display: none/, 'khối lọc phải gấp lại mặc định')
-  assert.match(mq, /\.fbar\.open \.fbar-more/, 'bấm thì khối lọc phải mở ra')
-  assert.match(mq, /\.fbar \.fcount \{ display: none/, 'dòng đếm nhường chỗ cho nút Bộ lọc')
-})
-
-test('máy hẹp: mỗi hàng một việc — dải chip trọn một hàng, ô tìm kiếm trọn hàng dưới', () => {
-  /* Trước đây dải chip (co được tới 0) và ô tìm kiếm chen nhau trên một hàng,
-     nên chip bị bóp còn vài chục pixel: người dùng chỉ thấy một mẩu chip cụt. */
-  /* Luật "chip trọn một hàng" nay nằm ở mốc 899px — đúng mốc mà dải bảy chip
-     hết chỗ chen với ô tìm kiếm; ≤620px chỉ còn việc gấp khối lọc. */
-  const narrow = css.slice(css.indexOf('.fbar-top { flex-wrap: wrap'))
-  assert.match(narrow, /\.fchips \{ flex: 1 1 100%/, 'dải chip phải chiếm trọn một hàng')
-  assert.match(narrow, /\.fbar-top > \.searchwrap \{ flex: 1 1 auto/, 'ô tìm kiếm co giãn ở hàng trên')
-  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
-  /* Dải chip vẫn cuộn ngang được (không xuống dòng): thanh lọc không được cao
-     thêm ở màn hình vốn đã hẹp, nhưng phải biết DỪNG ở từng chip. */
-  assert.match(mq, /scroll-snap-type: x proximity/, 'cuộn ngang có điểm dừng ở mỗi chip')
-  assert.match(mq, /\.fchip \{ scroll-snap-align: start/, 'chip phải là điểm dừng')
-})
-
-test('loại bài đang lọc hiện thành chip bỏ được — chỉ trên máy hẹp', () => {
-  /* Trên màn hẹp khối lọc gấp sau nút Bộ lọc, nên nếu không có chip này thì
-     không có chỗ nào NÓI RA là danh sách đang bị lọc theo loại bài: người dùng
-     chỉ thấy danh sách thiếu bài. Trên màn rộng khối lọc luôn hiện nên chip đó
-     là chỗ thứ hai nói cùng một điều. */
-  assert.match(app, /className="fchip fkind on onkind"/, "thiếu chip loại bài đang lọc")
-  assert.match(app, /kindFilter !== 'all' && \(/, 'chip chỉ hiện khi ĐANG lọc theo loại bài')
-  assert.match(app, /board\.clearKind/, 'chip phải có nhãn đọc được, không chỉ một dấu ×')
-  /* Bấm chip là bỏ lọc THẬT. `kindFilters` (chọn nhiều) mới là thứ lọc danh
-     sách; `kindFilter` chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ `?k=` và
-     cho bộ lọc đã lưu. Bản cũ chỉ đặt lại bản sao, nên chip biến mất mà danh
-     sách vẫn thiếu bài — đúng kiểu "không hiểu vì sao không thấy bài". */
-  assert.match(app, /onClick=\{\(\) => \{ setKindFilters\(\[\]\); setKindFilter\('all'\) \}\}/,
-    'bấm chip phải dọn cả bộ lọc nhiều-chọn, không chỉ bản sao một lựa chọn')
-  const mq = css.slice(css.indexOf('@media (max-width: 620px)'))
-  assert.match(mq, /\.fchip\.onkind \{ display: inline-flex/, 'máy hẹp phải thấy chip này')
-  assert.match(css, /@media \(min-width: 621px\) \{ \.fchip\.onkind \{ display: none; \} \}/,
-    'màn rộng không nói lại điều khối lọc đang nói')
-})
-
-test('chip lọc đủ to để chạm trên thiết bị cảm ứng, bản desktop không đổi', () => {
-  assert.ok(/@media \(pointer: coarse\)/.test(css), 'phải có một luật riêng cho thiết bị chạm')
-  const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
-  assert.match(coarse, /\.fchip \{ min-height: 4\dpx/, 'chip phải cao ≥40px trên cảm ứng')
-  /* Ô tìm kiếm và nút Bộ lọc là hai thứ ngón tay chạm nhiều nhất trong thanh —
-     34px là dưới ngưỡng chạm thoải mái. */
-  assert.match(coarse, /min-height: 44px/, 'ô tìm kiếm / nút Bộ lọc phải đủ 44px khi chạm')
-  assert.match(anchor('.fchip', /white-space:\s*nowrap/, 'không ngắt dòng'),
-    /white-space:\s*nowrap/, 'nhãn chip không được tự xuống dòng')
-})
-
-test('dải lọc là vạch + chữ, không phải hàng chip: bỏ rãnh, bỏ chấm, bỏ huy hiệu số', () => {
-  /* VÒNG 15 — người dùng chỉ ra đúng ba chữ: "phần hiện status xấu quá", "nhìn
-     AI". Ba lớp bo tròn xếp lên nhau trên một hàng (rãnh thuốc → chip thuốc →
-     huy hiệu số, cộng thêm chấm tròn màu) là khuôn mẫu của mọi bảng điều khiển
-     máy sinh. Chốt lại bằng ba vế, đúng ba thứ đã bị gỡ — vì đây là loại thứ
-     được "dọn CSS" trả lại đầu tiên khi có người sửa thanh lọc sau này. */
-  const strip = anchor('.fchips', /flex-wrap:\s*nowrap/, 'không xuống hàng')
-  for (const [prop, re] of [['background', /background\s*:/], ['viền', /border\s*:/], ['bo góc', /border-radius\s*:/]]) {
-    assert.doesNotMatch(strip, re, `rãnh của dải lọc không được có ${prop} — đó là lớp bo tròn thừa`)
+test('thanh lọc chỉ còn BA điều khiển, dải chip cũ đã bị gỡ hẳn', () => {
+  /* Hai dải chip + một nút gấp là ba tầng điều khiển cho cùng một việc. Nay:
+     ô tìm, Status, Type, Sort, Clear — và không còn dấu vết nào của bản cũ. */
+  assert.doesNotMatch(app, /className="fchip/, 'không còn chip lọc kiểu cũ trong JSX')
+  assert.doesNotMatch(css, /\.fchips|\.fchip\b|\.fmore\b/, 'luật CSS của dải chip cũ phải bị xoá')
+  for (const sel of ['.fb-fac', '.fb-sort', '.fb-clear', '.fb-icon']) {
+    assert.ok(bodies(sel).length > 0, `thiếu luật cho \`${sel}\``)
   }
-  assert.equal(bodies('.fchip .fdot').length, 0, 'chấm tròn màu của chip phải bị gỡ (không còn luật nào)')
-  assert.doesNotMatch(app, /className="fdot"/, 'JSX cũng không được dựng lại chấm tròn')
-  /* Con số chỉ là số: không nền, không huy hiệu. */
-  const num = anchor('.fchip .fnum', /var\(--txt-3\)/, 'số của mục lọc')
-  assert.doesNotMatch(num, /background\s*:/, 'con số không được nhốt trong một viên thuốc nữa')
-  assert.match(num, /font-variant-numeric:\s*tabular-nums/, 'số phải đứng yên khi giá trị đổi')
+  /* Facet hiện GIÁ TRỊ đang chọn chứ không chỉ tên trường: mở bảng ra để nhớ
+     mình đã chọn gì là việc thừa. */
+  assert.match(app, /className="v">\{stageText\}/, 'pill Status phải in giá trị đang chọn')
+  assert.match(app, /className="v">\{kindText\}/, 'pill Type phải in giá trị đang chọn')
 })
 
-test('PC có nhịp riêng, và vế CHẠM không bị nó đè', () => {
-  /* Bốn nhịp riêng cho PC nằm trong khối BỐN NHỊP RIÊNG CHO PC của index.css.
-     Điều đáng chốt nhất không phải "có mấy luật" mà là THỨ TỰ: khối PC phải
-     đứng TRƯỚC `@media (pointer: coarse)`. Một thiết bị lạ (máy tính bảng cắm
-     chuột) đôi khi khớp cả hai vế, và khi đó vế chạm phải thắng — để sau là
-     32px của chuột đè lên 40px của ngón tay, đúng thứ người dùng chỉ ra ở vòng
-     1 ("nút nhỏ quá, bấm trượt"). */
-  const pc = css.indexOf('@media (min-width: 900px) and (hover: hover)')
-  const touch = css.indexOf('@media (pointer: coarse)')
-  assert.ok(pc > 0, 'thiếu khối nhịp riêng cho PC (chuột)')
-  assert.ok(touch > 0, 'thiếu khối nới cỡ cho thiết bị chạm')
-  assert.ok(pc < touch, 'khối PC phải đứng trước khối thiết bị chạm, nếu không vế chạm bị đè')
-  const block = css.slice(pc, css.indexOf('}', css.indexOf('.fchip:hover', pc)) + 1)
-  assert.match(block, /\.fchip \{ min-height: 32px/, 'hàng mục trên PC phải cao 32px')
-  assert.match(block, /\.fchips \.fchip:hover \{ background: var\(--hover-2\)/,
-    'nền rê chuột phải đậm hơn bản gốc — và phải gọi ba lớp, vì luật :hover gốc nằm dưới')
-  /* Dải có thể tràn khi cửa sổ 900–1010px: trên PC phải có affordance thật
-     (thanh cuộn mảnh), không phải im lặng cắt mất mục cuối. */
-  const wide = css.slice(css.indexOf('@media (min-width: 900px) {'))
-  assert.match(wide, /\.fchips \{ scrollbar-width: thin/, 'cửa sổ hẹp trên PC phải thấy thanh cuộn')
-  assert.match(wide, /\.fchips::-webkit-scrollbar \{ display: block; height: 5px/,
-    'thanh cuộn phải hiện lại được ở bản webkit, và chỉ cao 5px')
-  /* Vạch của mục đầu thẳng hàng với mép ô tìm kiếm và mép danh sách. */
-  assert.ok(has('.fchips > .fchip:first-child', /padding-left:\s*0/),
-    'mục đầu không được thụt vào so với mép nội dung')
-  /* Ô tìm kiếm trên PC bị chặn bề rộng: để nó co giãn hết hàng thì trên màn
-     27" nó rộng ~1000px, và phím tắt `/` neo ở mép phải bị đẩy cách chỗ gõ
-     gần một mét. */
-  assert.match(wide, /\.fbar-top > \.searchwrap \{ flex: 0 1 \d+px/,
-    'ô tìm kiếm trên PC phải có bề rộng chặn, không co giãn hết hàng')
-  assert.match(wide, /\.fbar-top > \.fbar-side \{[^}]*margin-left: auto/,
-    'con số đếm phải được đẩy về mép phải khi ô tìm kiếm không còn co giãn')
+test('bảng chọn neo ngay dưới chính cái pill mở nó', () => {
+  /* Không tính toạ độ bằng JS: mỗi facet là một khối `position: relative`, bảng
+     nằm trong đó. Đổi bề rộng cửa sổ là bảng vẫn dính đúng pill. */
+  const wrap = anchor('.fb-wrap', /position:\s*relative/, 'khối neo')
+  assert.match(wrap, /display:\s*inline-flex/)
+  assert.match(anchor('.fb-pop', /position:\s*absolute/, 'bảng nổi'), /top:\s*calc\(100% \+ 8px\)/)
+  assert.match(app, /<span className="fb-wrap">/, 'JSX phải thật sự bọc pill trong khối neo')
 })
 
-test('mục lọc loại bài KHÔNG mang lớp của thẻ loại bài (lỗi: cả bốn nút cùng màu tím)', () => {
-  /* LỖI THẬT (vòng 16): bốn nút lọc loại bài mang `className="fchip kind"` —
-     `kind` là lớp của THẺ loại bài trên từng hàng request, và thẻ đó khoá cứng
-     `color: var(--k-ccl)`. Hệ quả: cả bốn nút, kể cả "All types", hiện đúng
-     một màu tím CCL bất kể `--c` của chúng; riêng nút đang chọn lại lấy `--c`
-     cho NỀN, nên "Full Album" đang chọn có chữ tím trên nền teal.
-     Dấu hiệu của lỗi này: một lớp CSS mang tên DỮ LIỆU (`kind`) được dùng cho
-     cả thứ hiển thị dữ liệu lẫn control để lọc dữ liệu đó. */
-  assert.ok(!/fchip kind/.test(app), 'mục lọc loại bài không được mang lớp .kind của thẻ')
-  /* và chúng có lớp riêng, cùng dấu màu của mình */
-  assert.match(app, /className=\{`fchip fkind/, 'mục lọc loại bài phải mang lớp .fkind')
-  assert.match(app, /className="kswatch any"/, '"All types" phải có dấu rỗng, không phải một ô màu')
-  assert.equal((app.match(/className="kswatch"/g) || []).length, 2,
-    'mỗi mục loại bài (bảng lọc + chip đang lọc) phải có dấu màu của nó')
-  /* Ô vuông của loại bài KHÁC HÌNH vạch đứng của trạng thái — hai dải nằm gần
-     nhau, hai bảng màu lại có vài sắc na ná nhau. */
-  assert.ok(has('.fchip .kswatch', /border-radius:\s*2px/), 'dấu loại bài phải là ô vuông bo góc nhỏ')
-  assert.ok(has('.fchip .ftick', /width:\s*3px/), 'dấu trạng thái vẫn là vạch đứng 3px')
-  /* Chọn loại thì chữ mang màu CỦA CHÍNH LOẠI ĐÓ (khác dải trạng thái, nơi mục
-     đang chọn dùng chữ trắng) — để nối thẳng với thẻ loại trên hàng request. */
-  assert.ok(has('.fchip.fkind.on', /color:\s*var\(--c/), 'mục loại đang chọn phải lấy màu của chính nó')
-  assert.ok(!bodies('.fchip.fkind.on').some(b => /background\s*:/.test(b)),
-    'mục loại đang chọn cũng không được tô nền')
+test('máy hẹp: Status/Type vào MỘT bảng, Sort ra icon riêng, chip đang lọc hiện ra', () => {
+  const mq = css.slice(css.indexOf('.fb-main { gap: 6px;'))   /* khối thanh lọc, không phải @media đầu tiên trong tệp */
+  assert.match(mq, /\.fb-wrap:not\(\.fb-wrap-end\) \{ display: none/,
+    'hai khối neo của Status/Type phải gập lại')
+  assert.match(mq, /\.fb-icon \{ display: inline-flex/, 'nút mở bảng lọc phải hiện trên máy hẹp')
+  assert.match(mq, /\.fb-applied \{ display: flex/, 'dải chip "đang lọc" chỉ có nghĩa ở bố cục gọn')
+  assert.match(mq, /\.fb-pop \{ left: 0; right: 0; width: auto/, 'bảng lọc phải rộng hết thanh')
+  /* Sort KHÔNG phải bộ lọc nên nó không chui vào bảng lọc: nó ở lại thành nút
+     icon riêng, và tên nút vẫn đọc được (clip, không phải display:none). */
+  assert.match(mq, /\.fb-sort \.v \{\s*position: absolute; width: 1px; height: 1px/,
+    'nhãn sort phải bị ẩn bằng clip để không mất tên khỏi cây trợ năng')
+  assert.doesNotMatch(mq, /\.fb-sort \{[^}]*display: none/, 'nút sort không được biến mất')
+  assert.match(mq, /\.fb-sort \{[\s\S]{0,120}width: 32px/, 'máy hẹp: sort là nút icon vuông')
 })
 
-test('thanh tiến độ của request: số không được đẩy vạch, và có hai mốc chia', () => {
-  /* 1. SỐ PHẢI ĐƯỢC CHỪA CHỖ. `tabular-nums` một mình là chưa đủ: "9%" và
-     "100%" vẫn khác nhau một con số, mà con số nằm SAU vạch (`flex: 1`), nên
-     mỗi lần tiến độ qua hàng chục/một trăm thì vạch tự ngắn lại đúng bằng một
-     con số. Chừa sẵn bề rộng rồi canh phải thì mép vạch đứng yên. */
-  const num = anchor('.prog-num', /tabular-nums/, 'số của thanh tiến độ')
-  assert.match(num, /min-width:\s*\d+px/, 'số phải có bề rộng chừa sẵn, nếu không vạch bị đẩy')
-  assert.match(num, /text-align:\s*right/, 'số canh phải để mép vạch không đổi theo số chữ số')
-  /* và chỉ MỘT luật màu cho con số (bản cũ khai hai, luật sau đè luật trước) */
-  assert.equal(bodies('.prog-num').filter(b => /color\s*:/.test(b)).length, 1,
-    'màu của con số phải được khai đúng một lần')
-  assert.match(num, /color:\s*color-mix\(in oklab, var\(--sc/, 'số phải lấy tông của chính vạch')
-  /* 2. HAI MỐC CHIA: 40% và 80% là biên của ba việc có tên (Layout · Lyrics ·
-     Edit — MILESTONES), nên "42%" đọc ra "xong Layout, đang làm Lyrics" thay vì
-     một con số trừu tượng. */
-  const mile = anchor('.prog-mile', /position:\s*absolute/, 'vạch mốc trong lòng vạch')
-  assert.match(mile, /left:\s*var\(--m\)/, 'vị trí mốc do JS đặt — đổi trọng số ba mốc là vạch chia đi theo')
-  assert.match(mile, /width:\s*1px/, 'mốc là một vạch 1px, không phải một khối')
-  const progress = at('../components/Progress.jsx')
-  assert.match(progress, /MILESTONES\.slice\(0, -1\)/, 'mốc phải suy từ MILESTONES, không viết cứng 40/80')
-  assert.match(progress, /title=\{stages\}/, 'cấu trúc ba mốc phải đọc được (title), nếu không vạch chia là câm')
+test('bề rộng ô tìm KHÔNG phụ thuộc vào việc đang lọc hay chưa', () => {
+  /* Lỗi người dùng báo: "trước và sau khi tick chọn filter thì chiều dài
+     search bar bị lỗi". Hai nguyên nhân, cả hai đều phải bị chốt:
+       1. nút Clear ẩn vẫn chiếm chỗ (visibility) → ở bố cục gọn phải ẩn HẲN;
+       2. ô tìm co giãn theo NỘI DUNG (flex-basis: auto) → đổi sang basis 0. */
+  const mq = css.slice(css.indexOf('.fb-main { gap: 6px;'))   /* khối thanh lọc, không phải @media đầu tiên trong tệp */
+  assert.match(mq, /\.fb-main \.fb-clear, \.fb-main \.fb-clear\[hidden\] \{ display: none/,
+    'bố cục gọn không được giữ chỗ cho nút Clear')
+  assert.match(mq, /\.fbar \.searchwrap \{ flex: 1 1 0; \}/,
+    'ô tìm phải lớn lên từ 0, không từ nội dung bên trong')
+  /* và thanh cuộn của trang không được làm cả trang rộng ra khi danh sách ngắn lại */
+  assert.match(css, /scrollbar-gutter:\s*stable/, 'giữ chỗ thanh cuộn để bề ngang không nhảy')
 })
 
-test('mục đang chọn mang đúng màu của nó, và không tô nền', () => {
-  /* Màu của một mục lọc là DỮ LIỆU (giai đoạn nào đang có việc), không phải
-     trang trí — nó sống trong VẠCH, lấy từ cùng biến `--c` mà thanh tiến độ
-     của hàng request đang dùng. */
-  assert.ok(has('.fchip .ftick', /background: var\(--c/), 'vạch màu của mục lấy từ biến của chính nó')
-  assert.ok(has('.fchip.on .ftick', /opacity:\s*1/), 'mục đang chọn phải giữ vạch ở đủ màu')
-  assert.ok(has('.fchip.on .fnum', /var\(--c/), 'số của mục đang chọn mang màu của mục đó')
-  /* Vế QUAN TRỌNG NHẤT: không tô nền cho mục đang chọn. Một viên thuốc phết
-     màu nhạt là thứ ai cũng vẽ được, và nó chính là thứ làm hàng này đọc ra
-     "do máy sinh" — chữ trắng + vạch đầy màu đã nói đủ. */
-  assert.ok(!bodies('.fchip.on').some(b => /background\s*:/.test(b)),
-    'mục đang chọn không được tô nền (chỉ chữ + vạch)')
+test('bảng lọc không chứa mục sắp xếp, và menu sắp xếp là một lựa chọn', () => {
+  const filtersPanel = app.slice(app.indexOf("id=\"fb-filters\""), app.indexOf('</div>', app.indexOf("id=\"fb-filters\"")))
+  assert.ok(filtersPanel.includes('fb-opt') === false || !/filter\.newest|filter\.top/.test(filtersPanel),
+    'bảng lọc không được chứa Newest/Top voted — sort không phải bộ lọc')
+  assert.match(app, /role="menuitemradio"/, 'menu sort phải là lựa chọn MỘT ô')
+  assert.match(css, /\.fb-mi\[aria-checked="true"\]/, 'mục đang chọn phải có trạng thái nhìn thấy được')
 })
 
-test('dây chuyền không bị cắt: bốn giai đoạn đứng liền nhau, đúng thứ tự công việc', () => {
-  /* Bản cũ xếp FILTERS là queued · picked · newest · top · in_progress ·
-     completed, tức "In progress" đứng SAU "Top voted": bốn giai đoạn của cùng
-     một dây chuyền bị một trục khác chen vào giữa. Nay thứ tự nhóm là
-     pipe → view → you, và trong nhóm pipe là thứ tự việc chạy. */
-  const order = [...app.matchAll(/\{\s*k:\s*'(\w+)',\s*c:[^,]+,\s*ax:\s*'(\w+)'\s*\}/g)]
-    .map(m => ({ k: m[1], ax: m[2] }))
-  /* Tầng theo dõi đã bị gỡ nên nhóm `you` (tab "Following") cũng đi theo:
-     còn đúng hai nhóm — dây chuyền sản xuất và hai cách xem. */
-  assert.deepEqual(order.map(x => x.k), ['queued', 'picked', 'in_progress', 'completed', 'newest', 'top'],
-    'thứ tự mục lọc đã đổi khỏi thứ tự dây chuyền')
-  assert.deepEqual([...new Set(order.map(x => x.ax))], ['pipe', 'view'],
-    'hai nhóm phải đứng liền nhau, không xen kẽ')
-  /* Vạch ngăn chỉ mọc ở mục ĐẦU của một nhóm mới, và nhóm vắng mặt thì vạch
-     ngăn của nó biến mất theo — không để lại một vạch lẻ giữa hai mục. */
-  assert.match(app, /i > 0 && f\.ax !== list\[i - 1\]\.ax && <span className="dot"/,
-    'vạch ngăn giữa hai nhóm phải theo nhóm, không viết cứng vào JSX')
-  assert.doesNotMatch(app, /watchedSet/,
-    'tab "Following" đã bị gỡ — không được còn điều kiện hiện nó dựa trên watchedSet')
-  assert.ok(has('.fchips .dot', /align-self:\s*center/),
-    'vạch ngăn phải tự canh giữa hàng (dùng lại lớp .dot của dòng meta)')
+test('đang lọc thì có MỘT tín hiệu, không phải ba', () => {
+  /* Pill đang lọc: viền nhấn. KHÔNG tô chữ bằng màu nhấn (hai tín hiệu cho một
+     sự thật), KHÔNG chấm màu trong pill. */
+  const on = anchor('.fb-fac.on', /box-shadow:\s*inset 0 0 0 1px color-mix/, 'viền nhấn')
+  assert.doesNotMatch(on, /color:/, 'không tô chữ bằng màu nhấn')
+  assert.doesNotMatch(bodies('.fb-fac').join(' '), /\.fb-fac \.pips|border-radius:\s*999px/,
+    'không quay lại khuôn "viên thuốc + chấm màu"')
+})
+
+test('chip lọc và nút icon đủ to để chạm', () => {
+  const coarse = css.slice(css.lastIndexOf('@media (pointer: coarse)'))
+  assert.match(coarse, /\.fbar \.searchwrap, \.fbar \.search \{ height: 44px/, 'ô tìm 44px khi chạm')
+  assert.match(coarse, /\.fb-icon, \.fb-sort \{ width: 44px; height: 44px/, 'hai nút icon 44px khi chạm')
+  assert.match(coarse, /\.fb-opt \{ height: 44px/, 'mục trong bảng chọn 44px khi chạm')
+  assert.match(anchor('.fb-chip', /white-space:\s*nowrap/, 'chip không ngắt dòng'), /white-space:\s*nowrap/)
+})
+
+test('bốn chặng của dây chuyền đứng đúng thứ tự công việc', () => {
+  /* Bản cũ trộn bốn chặng với hai "cách nhìn" vào cùng một dải, và để "In
+     progress" đứng sau "Top voted": dây chuyền bị cắt làm hai khúc. Nay bảng
+     chọn Status dựng từ STAGES (thứ tự công việc), còn newest/top nằm ở menu
+     sắp xếp. */
+  const stages = app.match(/STAGE_COLOR = \{([\s\S]*?)\n\}/)[1]
+  const order = [...stages.matchAll(/(\w+):/g)].map(m => m[1])
+  assert.deepEqual(order, ['queued', 'picked', 'in_progress', 'completed'],
+    'thứ tự chặng đã đổi khỏi thứ tự công việc')
+  assert.match(app, /\{STAGES\.map\(k => \(/, 'bảng Status phải dựng từ STAGES')
+  assert.match(app, /\[\['newest', 'up'\], \['top', 'cup'\]\]/, 'sort chỉ có hai cách nhìn')
+  assert.doesNotMatch(app, /watchedSet/, 'tab "Following" đã bị gỡ')
 })
 
 /* ---------- 2. nhãn / tag ---------- */
@@ -333,8 +193,9 @@ test('icon kính lúp nằm TRONG ô: canh giữa theo chiều dọc, không nh�
   const x = anchor('.search-x', /position:\s*absolute/, 'nằm đè trong ô')
   assert.match(x, /right:\s*var\(--x-x\)/, 'nút xoá phải neo theo cùng biến')
   assert.match(x, /width:\s*var\(--x-w\)/, 'bề rộng nút xoá phải lấy từ biến — nới nút là khoảng chừa tự theo')
-  const coarse = css.slice(css.indexOf('@media (pointer: coarse)'))
-  assert.match(coarse, /\.searchwrap \{ --x-w: 30px; --x-x: 5px; \}/,
+  /* Luật này nằm ở khối `@media (pointer: coarse)` của phần ô tìm, KHÔNG phải
+     khối cuối tệp của thanh lọc — nên dò trên toàn tệp, đừng cắt theo mốc cuối. */
+  assert.match(css, /\.searchwrap \{ --x-w: 30px; --x-x: 5px; \}/,
     'trên thiết bị chạm nút xoá to hơn, và khoảng chừa phải đi theo')
   /* Nhãn đọc được cho trình đọc màn hình: placeholder không phải nhãn. */
   assert.match(app, /className="search" placeholder=\{t\('board\.search'\)\}[\s\S]{0,80}aria-label=\{t\('board\.search'\)\}/,

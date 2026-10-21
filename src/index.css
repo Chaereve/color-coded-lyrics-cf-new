@@ -395,7 +395,6 @@ button { font-family: inherit; }
 .gate-card > *:nth-child(5) { animation-delay: .36s; }
 .gate-card { animation: popIn .4s var(--e-out) both; }
 
-
 /* HỆ NÚT — bớt "thô": đệm rộng hơn cho chữ thở, bo --r-md đồng bộ khối,
    chữ 600 + thư chữ nhẹ cho chắc; một lớp sáng 1px trên mép (--ring) và bóng
    --sh-1 cho chiều sâu thay vì ô phẳng. Transition bằng token, không .13s magic. */
@@ -445,7 +444,6 @@ button { font-family: inherit; }
 }
 .sfxbtn:hover { color: var(--txt); border-color: #3c4550; }
 .sfxbtn[aria-pressed="true"] { color: var(--txt-2); }
-
 
 /* Turnstile chỉ lộ panel khi managed challenge thật sự cần người dùng chạm.
    Trước đó host invisible + non-interactive, không che nút; khi hiện, challenge
@@ -621,126 +619,19 @@ select {
 
    Máy hẹp: dải CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh
    sách xuống dưới màn hình đầu. */
-/* `flex-wrap: nowrap` là mặc định của flex nhưng được VIẾT RA ở đây: đã từng
-   có một luật `@media (min-width: 900px) { .fbar .fchips { flex-wrap: wrap } }`
-   ở cuối tệp đè lên, và bảy chip trạng thái gãy thành hai hàng lệch nhau bên
-   trong một khuôn thuốc — đúng thứ người dùng chỉ ra ("lọc status xuống hàng
-   xấu quá"). Hết chỗ thì dải này CUỘN NGANG, không bao giờ xuống dòng.
-   `align-items: stretch`: mọi mục cao bằng nhau, nên vạch màu của chúng nằm
-   trên cùng một đường ngang — dải đọc ra một hàng, không phải bảy cục rời. */
-.fchips { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: nowrap; align-items: stretch; gap: 1px;
-  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
-  /* Dải cuộn ngang nhưng KHÔNG vẽ thanh cuộn — nên mục cuối bị cắt cứng ngay
-     mép, đọc ra như giao diện hỏng ("Fol…"). Mờ dần 18px ở mép phải vừa nói
-     "còn nữa, cuộn được" vừa không cắt chữ giữa từ. */
-  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }
-.fchips:hover { mask-image: none; }
-.fchips::-webkit-scrollbar { display: none; }
-/* MỘT MỤC = vạch màu + nhãn + số. Không viền, không nền, không bo tròn ở đáy:
-   mục chỉ "nhấc" lên khi rê tới (nền mờ, bo hai góc trên như một tab), đúng
-   lúc con trỏ đang ở đó — còn lại thì dải chỉ là chữ.
-   KHÔNG đổi độ đậm khi đang chọn: chữ đậm lên là cả hàng nhích một nhịp mỗi
-   lần bấm, mà "đang chọn" ở đây đã có hai tín hiệu khác (chữ trắng + vạch đầy
-   màu) nên không cần tín hiệu thứ ba đánh đổi bằng rung hình. */
-.fchip { flex: none; display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
-  border: 0; border-radius: var(--radius) var(--radius) 0 0; background: none;
-  color: var(--txt-2); font-family: var(--font); font-size: var(--fs-meta); font-weight: 500;
-  line-height: 1; white-space: nowrap; cursor: pointer;
-  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft); }
-/* ---- BỐN NHỊP RIÊNG CHO PC (màn ≥900px, chuột) -------------------------
-   Đặt TRƯỚC khối `@media (pointer: coarse)` bên dưới, và đây là chủ ý: một
-   thiết bị lạ (máy tính bảng cắm chuột) đôi khi khớp cả hai vế, và khi đó vế
-   CHẠM phải thắng — 40px cho ngón tay quan trọng hơn 32px cho chuột.
-
-     1. HÀNG MỤC CAO 32px. Chuột trỏ chính xác nên không cần 40px, nhưng 25px
-        (đúng chiều cao chữ + đệm) trên màn 27" đọc ra như một dòng phụ chứ
-        không như một hàng điều khiển; 32px bằng nút **Bộ lọc** và gần bằng ô
-        tìm kiếm ở hàng trên. Áp theo `hover: hover` chứ không theo bề rộng:
-        màn hẹp mà vẫn có chuột (cửa sổ nửa màn hình) thì cũng được hưởng.
-     2. RÊ CHUỘT ĐẬM HƠN MỘT NHỊP. Rê là thao tác chỉ có trên PC (điện thoại
-        không có hover, xem khối `@media (hover: none)` ở cuối tệp) — nền nhấc
-        từ 5,5% lên 8,5% để "chỗ này bấm được" đọc ra ngay trên màn to.
-     3. THANH CUỘN MẢNH KHI DẢI THẬT SỰ TRÀN. Cửa sổ 900–1010px (cửa sổ nửa
-        màn hình) là bề rộng duy nhất mà bảy mục không vừa một hàng, mà lăn
-        chuột ngang thì không phải ai cũng biết. `overflow-x: auto` chỉ vẽ
-        thanh cuộn KHI có tràn, nên lúc bình thường hàng vẫn sạch — đây là
-        affordance thật, không phải trang trí.
-     4. MỤC ĐẦU KHÔNG THỤT VÀO. Vạch của mục đầu tiên phải thẳng hàng với mép
-        ô tìm kiếm ở hàng trên và mép danh sách request ở dưới — trên màn rộng
-        một khoảng thụt 10px đọc ra là "lệch", không ra là "đệm". */
-@media (min-width: 900px) and (hover: hover) {
-  .fchip { min-height: 32px; }
-  /* `.fchips .fchip:hover` (ba lớp) chứ không phải `.fchip:hover` (hai lớp):
-     luật `:hover` gốc nằm ở dưới trong tệp, và với cùng độ ưu tiên thì bản
-     dưới thắng — viết hai lớp ở đây là bản desktop bị đè im lặng. */
-  .fchips .fchip:hover { background: var(--hover-2); }
-}
-@media (min-width: 900px) {
-  .fchips { scrollbar-width: thin; }
-  .fchips::-webkit-scrollbar { display: block; height: 5px; }
-  .fchips::-webkit-scrollbar-track { background: none; }
-  .fchips::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
-}
-.fchips > .fchip:first-child { padding-left: 0; }
-
-/* Trên thiết bị CHẠM, mục lọc phải đủ to cho ngón tay: giữ nguyên hình dáng
-   bản desktop (vạch + chữ 12.5px) và chỉ nâng chiều cao tối thiểu, nới hai bên
-   một chút. Áp theo `pointer: coarse` nên chuột vẫn thấy đúng bản desktop —
-   không phải hai bản CSS, chỉ là một luật cho thiết bị khác. */
-@media (pointer: coarse) {
-  .fchip { min-height: 40px; padding-left: 14px; padding-right: 14px }
-  .fchip.fkind { min-height: 38px }
-  /* nút mở khối lọc và ô tìm kiếm là hai thứ ngón tay chạm nhiều nhất trong
-     thanh này — 34px là dưới ngưỡng chạm thoải mái */
-  .fmore { height: 44px; padding-left: 14px; padding-right: 14px }
-  .fbar .search, .fbar .fmore { min-height: 44px; }
-  /* Nút xoá to hơn cho ngón tay — và khoảng chừa bên phải tự đi theo, vì nó
-     tính từ chính hai biến này. */
-  .searchwrap { --x-w: 30px; --x-x: 5px; }
-}
-.fchip .ftick { flex: none; width: 3px; height: 15px; border-radius: 2px;
-  background: var(--c, var(--txt-3)); opacity: .42;
-  transition: opacity var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out); }
-/* Con số chỉ là SỐ: mono, không nền, không huy hiệu — huy hiệu bo tròn thứ tư
-   trên một hàng là thứ làm nó đọc ra "chip mẫu". Số 0 lùi lại một nhịp: mục
-   không có gì thì đừng nói to bằng mục đang có việc. */
-.fchip .fnum { font-family: var(--mono); font-size: 10.5px; line-height: 1;
-  color: var(--txt-3); font-variant-numeric: tabular-nums; }
-.fchip .fnum.zero { opacity: .5; }
-/* Đang chọn: chữ trắng + vạch đầy màu, cao thêm một nhịp (`scaleY` nên không
-   đẩy chữ chạy), số mang đúng màu của mục đó. KHÔNG tô nền — đó là điểm khác
-   duy nhất giữa dải này với hàng chip của một bảng điều khiển máy sinh. */
-.fchip:hover { color: var(--txt); background: var(--hover); }
-.fchip:hover .ftick { opacity: .68; }
-.fchip.on { color: var(--txt); }
-.fchip.on .ftick { opacity: 1; transform: scaleY(1.3); }
-.fchip.on .fnum { color: var(--c, var(--txt)); }
-/* Vạch ngăn giữa hai NHÓM. Dùng lại đúng lớp `.dot` của dòng meta (xem khối
-   .meta) — một khuôn vạch mảnh cho cả trang, không dựng khuôn thứ hai; ở đây
-   nó chỉ cao hơn (ngang tầm vạch màu) và tự canh giữa hàng. */
-.fchips .dot { align-self: center; height: 18px; margin: 0 7px; }
-.fchip:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-/* Ba luật .fbar* từng nằm ở đây đã dời về khối THANH LỌC ở cuối file — một
-   chỗ duy nhất định hình thanh này. Hai bản khai cùng tên thì bản sau thắng
-   một cách âm thầm, và đó chính là kiểu lỗi đã làm thanh lọc không đọc ra
-   được luật nào ở màn hẹp. */
-/* Kính lúp của ô tìm kiếm. LỖI CŨ: thiếu `top` nên phần tử absolute rơi về
-   ĐIỂM TĨNH ĐẦU TIÊN của hộp (góc trên-trái), tức là icon nằm lệch lên trên và
-   lòi ra ngoài viền ô nhập. Nay neo đúng giữa theo chiều dọc. */
-/* HAI BÊN Ô TÌM KIẾM, CÙNG MỘT LUẬT: khoảng chừa được TÍNH từ bề rộng thật
-   của thứ nằm đè lên ô (kính lúp bên trái, nút xoá bên phải). Bản trước chỉ
-   chừa chỗ bên trái; bên phải là con số 26px viết cứng, mà trên thiết bị chạm
-   nút xoá được nới lên 30px — thành ra chữ gõ vào vẫn có thể chui xuống dưới
-   nút xoá, đúng kiểu "icon chồng chữ" người dùng nhìn ra. */
+/* ---- KÍNH LÚP + KHOẢNG CHỪA TRONG Ô TÌM KIẾM ---------------------------
+   LỖI CŨ: thiếu `top` nên phần tử absolute rơi về điểm tĩnh đầu tiên của hộp
+   (góc trên-trái), tức là icon nằm lệch lên trên và lòi ra ngoài viền ô nhập.
+   Nay neo đúng giữa theo chiều dọc. Khoảng chừa hai bên được TÍNH từ bề rộng
+   thật của thứ nằm đè lên ô (kính lúp bên trái, nút xoá bên phải) — bản trước
+   chỉ chừa bên trái, còn bên phải là con số viết cứng, nên chữ gõ vào chui
+   xuống dưới nút xoá. */
 .searchwrap { --ico-x: 10px; --ico-w: 14px; --x-x: 4px; --x-w: 22px; }
 .search-ico { position: absolute; left: var(--ico-x); top: 50%; transform: translateY(-50%);
   color: var(--txt-3); pointer-events: none; }
-/* CHỪA CHỖ CHO ICON — MỌI ô tìm kiếm, không riêng ô ở trang chủ.
-   LỖI THẬT: luật cũ chỉ là `.fbar .search { padding-left: 28px }`, nên ô tìm
-   kiếm trong BẢNG QUẢN TRỊ (cùng lớp `.search`, cùng icon) không được chừa chỗ:
-   chữ và dấu nháy của ô nằm ngay dưới kính lúp — đúng lỗi "icon lòi ra/chồng
-   chữ" người dùng chỉ ra, chỉ khác màn hình. Nay khoảng chừa tính từ chính bề
-   rộng icon + lề của nó, nên đổi cỡ icon là khoảng chừa tự đi theo. */
+/* Nút xoá to hơn cho ngón tay — khoảng chừa bên phải tự đi theo vì nó tính
+   từ chính hai biến này. */
+@media (pointer: coarse) { .searchwrap { --x-w: 30px; --x-x: 5px; } }
 .searchwrap .search {
   padding-left: calc(var(--ico-x) + var(--ico-w) + 4px);
   padding-right: calc(var(--x-x) + var(--x-w) + 4px);
@@ -753,14 +644,6 @@ select {
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
 .search-x svg { display: block; flex-shrink: 0; }
 .search-x:hover { color: var(--txt); background: var(--hover-2); }
-@media (max-width: 620px) {
-  /* Màn hẹp: ô chọn chỉ còn một cột hẹp — cắt bề rộng để nó không đẩy hàng.
-     Bốn luật .fbar* từng nằm ở đây đã được gỡ: chúng là bản CŨ của thanh lọc,
-     trùng tên với khối v3 ở cuối file, nên màn hẹp phải chịu hai bộ luật chồng
-     nhau — đúng thứ làm bố cục thanh lọc không đọc ra được luật nào. */
-  .sel { max-width: 132px; }
-  .fchip { height: 34px; padding: 0 12px; }
-}
 
 /* ---- danh sách request ---- */
 .list { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
@@ -1228,8 +1111,6 @@ select {
   color: var(--txt-3); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .nhip-seg > i { transition: none } }
 
-
-
 /* Suất của chính mình (×3) đứng dưới số, cùng cột. Ba tầng chữ trong một cột
    104px là chỗ ồn nhất của hàng: số · nhãn · số suất, mà dòng thứ ba lại đúng
    màu nhấn nên nó thành tầng nổi thứ hai. Nay nó là một PILL nhỏ — cùng họ với
@@ -1252,7 +1133,6 @@ select {
   font-size: 15px; line-height: 1; transition: .13s;
 }
 .icon-btn:hover { color: var(--denied); border-color: var(--line-2); }
-
 
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
    Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
@@ -1373,7 +1253,6 @@ select {
   box-shadow: var(--ring); }
 .card h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .card h4 .dotc { width: 6px; height: 6px; border-radius: 50%; background: var(--a-2); }
-
 
 .vote-status { display: flex; flex-direction: column; gap: 8px; }
 .vs-mini { margin-bottom: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1497,7 +1376,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
   70% { transform: translateX(-1.5px) }
 }
 .msg.info { border-color: var(--line-2); color: var(--txt-2); }
-
 
 .paidbox { margin: 14px 0; padding: 11px 13px; border: 1px solid var(--line-2); border-radius: var(--radius); }
 .paidbox .t { font-size: 13px; font-weight: 600; color: var(--paid); }
@@ -2060,9 +1938,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   outline: 2px solid var(--a-2); outline-offset: 2px;
 }
 
-
-
-
 /* ================= VIDEO — ảnh bìa & nút phát ================= */
 /* ảnh bìa: giữ khung 16:9 trước khi ảnh tải về, khỏi giật bố cục */
 .mthumb { position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
@@ -2093,7 +1968,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
               opacity var(--t-2) var(--e-soft);
 }
 .playbtn.sm { width: 34px; height: 34px; margin: -17px 0 0 -17px; opacity: 0; transform: scale(.85); }
-
 
 /* ---- form thêm/sửa trong bảng Admin → Kênh ---- */
 .mform { padding: 13px; margin-bottom: 14px; border: 1px solid var(--line-2); border-radius: var(--r-md);
@@ -2664,7 +2538,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .side-item { min-height: 44px; }
   .side-cta { min-height: 44px; }
 
-
   /* --- calendar navigation (28×28 desktop → 40×40 mobile) --- */
   .check-in-nav { min-width: 40px; min-height: 40px; }
 
@@ -2821,8 +2694,6 @@ html[data-section="spin"] .bgfx { display: none; }
     html[data-vt="on"] .sect { animation: none; }
   }
 }
-
-
 
 /* =========================================================
    THÔNG BÁO — chồng toast góc phải
@@ -3105,14 +2976,11 @@ html[data-section="spin"] .bgfx { display: none; }
   pointer-events: none; animation: votefx .62s var(--e-out) both }
 @keyframes votefx { 0% { opacity: .85; transform: scale(.94) } 100% { opacity: 0; transform: scale(1.22) } }
 
-
-
 /* nút chính: vệt sáng quét khi rê vào — cùng nhịp với splash */
 .btn-primary::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none;
   background: linear-gradient(100deg, transparent 35%, rgba(255,255,255,.3) 50%, transparent 65%) }
 .btn-primary:hover:not(:disabled)::after { animation: btnSheen .75s var(--e-out) 1 both }
 @keyframes btnSheen { from { opacity: 1; transform: translateX(-100%) } to { opacity: 0; transform: translateX(100%) } }
-
 
 /* ---- bản hẹp ---- */
 @media (max-width: 899px) {
@@ -3249,7 +3117,6 @@ html[data-section="spin"] .bgfx { display: none; }
 /* logo ở đầu sidebar: vòng sáng viền ngoài khi rê vào */
 .side-brand .applogo { transition: box-shadow var(--t-2) var(--e-soft); box-shadow: 0 0 0 0 var(--a-glow) }
 .side-brand:hover .applogo { box-shadow: 0 0 0 4px rgba(77,64,240,.18) }
-
 
 /* chữ không bao giờ xuống dòng lổn nhổn.
    KHÔNG gồm .lb-pod-name: `text-wrap` là longhand của `white-space`, nên
@@ -3465,7 +3332,6 @@ html[data-section="spin"] .bgfx { display: none; }
   .side.min .sfxvol { display: none; }
 }
 
-
 /* =========================================================
    NOTIFICATIONS — chuông + bảng thông báo (mở tại chỗ)
    ---------------------------------------------------------
@@ -3602,13 +3468,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-empty p { margin: 0; max-width: 34ch; font-size: 12px; line-height: 1.6; color: var(--txt-3) }
 .nt-empty-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 2px }
 
-
 /* Tab cài đặt + dòng "còn 2 vote nữa là tới lượt" đã bị gỡ cùng tầng theo dõi.
    Bốn công tắc cũ chỉ có nghĩa với bài của NGƯỜI KHÁC, còn `.standing` là bản
    dịch của phép xếp hạng `pickLadder` — cả hai đi cùng một quyết định. Xoá
    luôn CSS: để lại là ma, và lần sau ai đó dựng lại đúng cái đã bỏ.
    `.nt-back` (nút lùi của tab cài đặt) cũng đi theo. */
-
 
 /* Tấm chắn của bảng thông báo: chỉ có nghĩa ở máy hẹp (bảng trải kín đáy màn
    hình). Ở màn rộng bảng chỉ là một khối nhỏ cạnh chuông — che cả trang bằng
@@ -3773,7 +3637,6 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm:last-child { margin-bottom: 0; }
 .adm:hover { border-color: var(--line-2); background: var(--surface-2); }
 
-
 /* =========================================================
    BỐ CỤC BẢNG — nội dung chính + cột video (≥1300px)
    ---------------------------------------------------------
@@ -3856,7 +3719,6 @@ html[data-section="spin"] .bgfx { display: none; }
 /* Bản hẹp: cột video trở lại dải cuộn ngang như cũ — .pick-hero đã có
    max-width 760px của nó, không cần gì thêm. */
 
-
 /* Nút "Copy credits" trong hàng admin: đổi nhãn tại chỗ sau khi copy thay vì
    bật toast. Toast nằm ở góc màn hình còn mắt đang ở giữa bảng; nhãn nút đổi
    ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
@@ -3880,137 +3742,16 @@ html[data-section="spin"] .bgfx { display: none; }
 .row .title .tags { margin-left: 2px; }
 .nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
 
-/* ---- THANH LỌC -----------------------------------------------------------
-   MỘT thanh, một thứ tự cho mọi bề rộng:
-     · hàng 1 — ô tìm kiếm (việc chính) + tóm tắt/nút Bộ lọc;
-     · hàng 2 — dải chip trạng thái, luôn là MỘT hàng và cuộn ngang nếu cột
-       hẹp (mỗi chip mang màu giai đoạn nó lọc);
-     · hàng 3 — chip loại bài + lối thoát "Bỏ hết lọc", luôn hiện từ 621px.
-   Máy hẹp giữ đúng hai việc đầu ở hai hàng: ô tìm + nút Bộ lọc ở hàng trên,
-   dải status ở hàng dưới; hàng loại bài gấp sau nút Bộ lọc. Trước đây thanh
-   này có hai bộ luật chồng nhau (bản cũ ≤620px và bản v3), nên mỗi bề rộng lại
-   ra một hình dạng khác, mép không thẳng hàng với danh sách.
-
-   Thanh là một KHỐI CÓ VIỀN nằm trong cột nội dung (không tràn ra ngoài bằng
-   lề âm) — mép trái của nó trùng mép trái của danh sách request ngay dưới.
-   KHÔNG DÍNH MÉP TRÊN (vòng 13: "đừng để cái filter search bar floating lúc cuộn
-   trang"). Trước đây thanh `position: sticky; top: 0` và khi dính thì đổi nền,
-   thêm viền + bóng — nhưng ở máy hẹp nó là một khối cao gần nửa màn hình (ô tìm
-   + dải chip + nút Bộ lọc), nên nó phủ lên danh sách request suốt lúc cuộn, và
-   người dùng đọc đúng như một lỗi. Nay thanh là một KHỐI TRONG DÒNG: cuộn qua
-   nó thì nó đi theo trang. Đổi lại, nút "lên đầu trang" (đã có sẵn, góc phải
-   dưới) là đường về thanh lọc — không phải một thanh chiếm màn hình.
-   Mép trái/phải của thanh vẫn TRÙNG mép danh sách: lề âm làm nó thò ra ngoài
-   cột nội dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
-.fbar {
-  animation: rise .42s var(--e-out) .05s both;
-  display: grid; gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4); margin: 0 0 var(--sp-4);
-  border: 1px solid var(--line); border-radius: var(--r-md);
-  background: var(--panel);
-  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
-}
-.fbar-top { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
-.fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
-.fbar .search { width: 100%; max-width: none; }
-.fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
-/* ---- MỤC LỌC LOẠI BÀI (`.fkind`) ---------------------------------------
-   Cùng ngôn ngữ với dải chế độ xem ở hàng trên — chữ + DẤU MÀU, không viền,
-   không nền, không bo tròn — nhưng dấu đổi hình cho đúng loại dữ liệu:
-
-     · dải trạng thái: VẠCH ĐỨNG 3×15px. Trạng thái là một chặng của dây
-       chuyền (Queue → Up next → In progress → Done), vạch đọc ra "đang ở
-       khúc nào".
-     · dải loại bài: Ô VUÔNG 9×9px bo 2px. Loại bài là một NHÃN dán trên hàng
-       (`.kind` cũng là một thẻ có góc bo), nên dấu của nó mang đúng góc bo đó.
-       Khác hình còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau
-       và hai bảng màu có vài sắc na ná nhau — nay cả hai cùng họ nhấn và cố ý
-       tách bằng CHROMA: trạng thái bão hoà cao, thẻ loại hạ bão hoà
-       (`--done` #45e0a8 với `--k-album` #8fc7c0, `--upnext` #b18cff với
-       `--k-ccl` #b6b3e6`).
-
-   Màu chữ: khi CHỌN, chữ mang màu CỦA CHÍNH LOẠI ĐÓ — khác dải trạng thái
-   (ở đó mục đang chọn dùng chữ trắng). Lý do: một màu trạng thái có thể được
-   nhiều mục chia nhau, còn màu loại bài là DANH TÍNH của riêng một mục — và tô
-   chữ bằng đúng màu đó là nối thẳng được với thẻ loại bài trên hàng request
-   (thẻ cũng lấy màu đó cho cả chữ lẫn viền).
-
-   Khe 1px + đệm 10px: giống hệt dải chế độ xem, để hai hàng đọc ra là hai anh
-   em của cùng một thanh lọc. */
-/* `row-gap` riêng: dải này XUỐNG DÒNG ở ≤620px (khối lọc gấp lại, thà thấy
-   hết còn hơn giấu sau một dải cuộn ngang) — khe 1px mà xuống dòng thì hai
-   hàng dán vào nhau. */
-.fchips.kinds { flex: 1 1 auto; gap: 1px; row-gap: 4px; }
-.fchip.fkind { padding: var(--sp-2) var(--sp-3); }
-.fchip .kswatch { flex: none; width: 9px; height: 9px; border-radius: 2px;
-  background: var(--c, var(--txt-3)); opacity: .42;
-  transition: opacity var(--t-1) var(--e-soft); }
-/* "All types" = không lọc loại nào: ô RỖNG viền mảnh. Đọc ra "chưa chọn màu
-   nào", khác hẳn một ô đặc màu — và vẫn giữ đúng nhịp dấu ở đầu hàng. */
-.fchip .kswatch.any { background: none; box-shadow: inset 0 0 0 1px var(--txt-3); opacity: .8; }
-.fchip.fkind:hover .kswatch { opacity: .7; }
-.fchip.fkind.on { color: var(--c, var(--txt)); }
-.fchip.fkind.on .kswatch { opacity: 1; }
-.fchip.fkind.on .kswatch.any { opacity: 1; }
-/* Con số đếm kết quả của THANH LỌC. Phải gọi đúng tên `.fbar .fcount`: trong
-   form request cũng có một `.fcount` (bộ đếm ký tự nằm trong ô nhập, khác hẳn
-   về vị trí lẫn ý nghĩa). Một luật trần `.fcount` ở đây sẽ kéo theo bộ đếm của
-   form — đúng kiểu hai thứ khác nhau dùng chung một cái tên. */
-.fbar .fcount { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
-/* nút mở khối lọc trên máy hẹp — chỉ hiện ở đó */
-.fmore { display: none; flex: none; align-items: center; gap: 7px; padding: 0 12px; height: 34px;
-  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
-  color: var(--txt-2); font: 500 12.5px/1 var(--font); cursor: pointer; }
-.fmore b { min-width: 16px; padding: 2px 5px; border-radius: var(--r-pill); background: var(--a-soft);
-  color: var(--a-2); font-family: var(--mono); font-size: 10.5px; }
-.fmore.on { color: var(--txt); border-color: var(--a-dim); background: var(--surface-3); }
-/* HÀNG LỌC THỨ HAI — trước đây chỉ được mở trong `@media (max-width: 620px)`,
-   mà nút mở nó (`.fmore`) cũng chỉ hiện ở đó: trên desktop KHÔNG có cách nào
-   chọn loại bài. Nay nó là hàng thứ hai LUÔN hiện của thanh lọc; máy hẹp mới
-   gấp lại sau nút "Bộ lọc". */
-.fbar-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* Trên màn rộng, con số kết quả đã in ở hàng trên (`.fcount`); dòng tóm tắt
-   chỉ còn để giữ lối thoát. In lại con số ở đây là hai chỗ nói cùng một điều. */
-.fbar-meta { flex: 1 1 100%; display: flex; align-items: center; gap: 9px;
-  font-size: 11.5px; color: var(--txt-3); }
-@media (min-width: 621px) { .fbar-meta > span:first-child { display: none; } .fbar-meta { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; } }
-
 /* TỪ 899px TRỞ XUỐNG: đúng một thứ tự, chỉ đổi chỗ xuống dòng. Dải chip cần
    trọn một hàng (7 chip không còn chỗ chen với ô tìm), còn ô tìm + số đếm ở
    hàng trên. Không dùng `order` — thứ tự nhìn phải trùng thứ tự Tab. */
 @media (max-width: 899px) {
-  .fbar-top { flex-wrap: wrap; row-gap: 8px; }
-  .fbar-top > .searchwrap { flex: 1 1 auto; min-width: 0; }
-  .fchips { flex: 1 1 100%; }
   .fbar-side { flex: none; }
-}
-
-@media (max-width: 620px) {
-  /* Ở màn hẹp, nút Bộ lọc đã mang con số "đang lọc mấy thứ", và chỗ của con
-     số đếm kết quả là hàng dưới của danh sách — ẩn nó ở đây, không ẩn bộ đếm
-     ký tự của form (xem chú thích ở khối THANH LỌC). */
-  .fbar .fcount { display: none; }
-  .fmore { display: inline-flex; }
-  /* chip loại bài trong khối gấp: xuống dòng cho thấy HẾT, không bắt người dùng
-     đoán là còn nữa phía sau một dải cuộn ngang */
-  .fchips.kinds { flex-wrap: wrap; overflow: visible; }
-  /* máy hẹp: hàng dưới gấp lại, chỉ mở khi bấm nút Bộ lọc */
-  .fbar:not(.open) .fbar-more { display: none; }
-  .fbar.open .fbar-more {
-    display: flex; flex-direction: column; align-items: stretch; gap: 9px;
-    flex: 1 1 100%; padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line);
-  }
-  /* dải chip trạng thái đi ngang, snap từng chip — ngón tay vuốt là dừng đúng
-     một chip, không dừng giữa hai chip */
-  .fchips { scroll-snap-type: x proximity; }
-  .fchip { scroll-snap-align: start; }
-  /* chip loại bài đang lọc: chỉ có nghĩa trên máy hẹp (khối lọc gấp lại) */
-  .fchip.onkind { display: inline-flex; }
 }
 
 /* Từ 621px khối lọc thứ hai LUÔN hiện, nên chip "loại đang lọc" ở hàng chính
    là chỗ thứ hai nói cùng một điều — ẩn nó đi. */
-@media (min-width: 621px) { .fchip.onkind { display: none; } }
+/* (chip "loại đang lọc" kiểu cũ đã bị gỡ cùng dải chip) */
 
 /* Ô đang được gõ: cả HỘP sáng lên, không chỉ con trỏ — cùng một tín hiệu với
    kính lúp đổi màu, và là thứ duy nhất nhìn thấy được khi ô đã có chữ. */
@@ -4130,7 +3871,6 @@ html[data-section="spin"] .bgfx { display: none; }
   font-variant-numeric: tabular-nums; }
 .adm-kpi.on .v { color: var(--sc); }
 .adm-kpi:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-
 
 /* TIÊU ĐỀ CỦA MỤC ĐANG MỞ. Dải số liệu là bộ chuyển mục, nên nó không thể
    vừa là tiêu đề; mà một trang quản trị không có tiêu đề nào thì người đọc
@@ -4528,13 +4268,6 @@ html[data-section="spin"] .bgfx { display: none; }
    một ô tra cứu. Chặn ở 360px và đẩy con số đếm về mép phải bằng
    `margin-left: auto` để hàng trên vẫn là một thanh công cụ hai đầu. */
 @media (min-width: 900px) {
-  .fbar-top { flex-wrap: wrap; align-items: center; row-gap: 8px; }
-  .fbar-top > .searchwrap { flex: 0 1 360px; min-width: 0; }
-  .fbar-top > .fbar-side { flex: none; min-height: 34px; align-items: center; margin-left: auto; }
-  .fbar-top > .fchips {
-    flex: 1 1 100%; min-width: 0;
-    flex-wrap: nowrap; overflow-x: auto;
-  }
 }
 .adm-req-t { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
 .adm.adm-req { padding: 9px 11px; margin-bottom: 6px; gap: 8px; }
@@ -4750,46 +4483,12 @@ body {
 /* Filter drawer polish on phones: an intentional compact panel, not a tall
    stack of loose controls. */
 @media (max-width: 620px) {
-  .fbar.open .fbar-more {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 10px;
-    margin: 2px -2px -2px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-md);
-    background: var(--surface-2);
-    animation: filterIn .18s var(--e-out) both;
-  }
-  .fbar.open .fbar-more .fchips { width: 100%; }
-  .fbar.open .fbar-more .fchips.kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
-  .fbar.open .fbar-more .fchip { min-height: 36px; padding-inline: 9px; border-radius: var(--r-sm); }
-  .fbar.open .fbar-more .fchip:hover { background: var(--hover); }
-  .fbar.open .fbar-more .fbar-meta { padding-top: 3px; }
 }
 @keyframes filterIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .fbar.open .fbar-more { animation: none; } }
 
 /* Same filter language on desktop: keep the board calm, reveal the detailed
    controls only on demand instead of showing a second dense row permanently. */
 @media (min-width: 621px) {
-  .fmore { display: inline-flex; }
-  .fbar:not(.open) .fbar-more { display: none; }
-  .fbar.open .fbar-more {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 10px;
-    margin: 1px -2px -2px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-md);
-    background: var(--surface-2);
-    animation: filterIn .18s var(--e-out) both;
-  }
-  .fbar.open .fbar-more .fchips { width: 100%; }
-  .fbar.open .fbar-more .fchips.kinds { flex-wrap: wrap; }
-  .fbar.open .fbar-more .fchip { border-radius: var(--r-sm); }
-  .fbar.open .fbar-more .fchip:hover { background: var(--hover); }
 }
 
 /* Vote sheet: fit the actual mobile viewport, including safe areas and the
@@ -5159,12 +4858,6 @@ body { overflow-x: hidden; }
   .grow { margin: var(--sp-2) 0; }
   .grow-head { padding: 7px var(--sp-3); }
   .grow-stat b { font-size: 16px; }
-  .fbar { padding: var(--sp-3); gap: var(--sp-2); }
-  .fbar-top { gap: var(--sp-2); }
-  .fbar-top > .searchwrap { flex: 1 1 100%; min-width: 0; }
-  .fbar-side { width: 100%; justify-content: space-between; }
-  .fmore { flex: 1 1 auto; justify-content: center; min-height: 40px; }
-  .fbar .fcount { font-size: 11px; }
   .pager { gap: 8px; }
   .pager-btn { min-height: 36px; }
   .overlay { padding: 0; align-items: end; }
@@ -5196,7 +4889,6 @@ body { overflow-x: hidden; }
   .stat b { font-size: 14px; }
   .row .title { font-size: 14px; }
   .votebtn b { font-size: 13px; }
-  .fchip { padding: 6px 8px; font-size: 11.5px; }
   .lb-table th, .lb-table td { padding: 7px 6px; font-size: 12px; }
   .lb-pod-name { font-size: 10.5px; }
   .lb-pod-num b { font-size: 16px; }
@@ -5220,7 +4912,7 @@ img, video, iframe { max-width: 100%; }
 
 /* Tap target minimum 40px on touch devices */
 @media (pointer: coarse) {
-  .btn, .votebtn, .icon-btn, .side-item, .side-cta, .fchip, .lb-segb, .lb-tab, .pager-btn, .pager-n, .vm-preset, .qty button {
+  .btn, .votebtn, .icon-btn, .side-item, .side-cta, .fb-chip, .lb-segb, .lb-tab, .pager-btn, .pager-n, .vm-preset, .qty button {
     min-height: 40px;
   }
   .icon-btn { width: 32px; height: 32px; }
@@ -5267,4 +4959,260 @@ img, video, iframe { max-width: 100%; }
 @media (max-width: 899px) {
   .nt-btn { width: 40px; height: 40px; }
   .to-top { width: 40px; height: 40px; }
+}
+
+/* =====================================================================
+   THANH LỌC — BA ĐIỀU KHIỂN, MỘT ĐƯỜNG NGANG
+   ---------------------------------------------------------------------
+   Bản cũ là hai dải chip (bốn chặng + hai cách nhìn, rồi bốn loại bài) cộng
+   một nút "Bộ lọc" gấp/mở. Ba vấn đề người dùng chỉ ra, theo đúng thứ tự:
+
+     1. "thanh lọc còn sơ sài / bố cục kỳ cục" — hai dải chip + một nút gấp
+        = ba tầng điều khiển cho cùng một việc, và tầng nào cũng tự nhận là
+        quan trọng;
+     2. "trước và sau khi tick thì lỗi" — bề rộng ô tìm đổi theo trạng thái
+        lọc (xem chú thích ở .fb-clear);
+     3. "nhìn AI quá" — mọi thứ đều là viên thuốc bo tròn, mỗi mục một chấm
+        màu, mỗi số một huy hiệu.
+
+   Nay: ô tìm là hộp DUY NHẤT có nền riêng; Status và Type là hai pill có
+   viền, nhãn chìm + giá trị sáng; Sort là một pill riêng (menu một lựa chọn);
+   Clear là chữ trơn. Bố cục gọn (≤899px) chỉ còn ô tìm + hai nút icon.
+   ===================================================================== */
+.fbar {
+  position: relative; z-index: 5;
+  animation: rise .42s var(--e-out) .05s both;
+  padding: var(--sp-3) var(--sp-4);
+  margin: 0 0 var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel);
+  transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
+}
+.fb-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fbar .searchwrap {
+  flex: 0 1 300px; min-width: 0; height: 32px;
+  border-radius: var(--r-sm); background: var(--surface-2);
+  transition: box-shadow var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.fbar .search {
+  width: 100%; max-width: none; height: 32px; padding-top: 0; padding-bottom: 0;
+  border-color: transparent; background: none; border-radius: var(--r-sm);
+}
+.fbar .searchwrap:hover { background: var(--surface-3); }
+.fbar .searchwrap:focus-within { background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--a-2); }
+.fbar .searchwrap:focus-within .search { border-color: transparent; }
+.fbar .search-kbd { right: 7px; }
+
+/* ---- ô tìm: hộp duy nhất có nền ---- */
+
+/* ---- pill có viền: Status, Type, Sort ---- */
+.fb-fac, .fb-sort {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px;
+  padding: 0 9px; border: 0; border-radius: var(--r-sm); background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
+  transition: background var(--t-1) var(--e-soft), box-shadow var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
+}
+.fb-fac:hover, .fb-sort:hover { color: var(--txt); background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-2); }
+.fb-fac:focus-visible, .fb-sort:focus-visible, .fb-icon:focus-visible, .fb-clear:focus-visible {
+  outline: 2px solid var(--a-2); outline-offset: 2px;
+}
+.fb-fac[aria-expanded="true"], .fb-sort[aria-expanded="true"] {
+  color: var(--txt); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--a-dim);
+}
+/* Nhãn trường: khi pill CHƯA có giá trị thì nhãn là thứ duy nhất phải đọc
+   được, nên nó dùng --txt-2; có giá trị rồi thì nhãn lùi lại làm nền. */
+.fb-fac .k { color: var(--txt-2); }
+.fb-fac:has(.v) .k { color: var(--txt-3); }
+.fb-fac .v {
+  min-width: 0; max-width: 132px; overflow: hidden; text-overflow: ellipsis;
+  color: var(--txt); font-weight: 600;
+}
+.fb-sort .v { font-weight: 500; }
+/* Pill ĐANG LỌC: một nét viền nhấn, không tô chữ — hai tín hiệu cho một sự
+   thật là thứ làm giao diện trông "phát sáng" kiểu máy vẽ. */
+.fb-fac.on { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--a-2) 55%, transparent); }
+.fb-fac.on .k { color: var(--txt-2); }
+.fb-fac .car, .fb-sort .car { flex: none; color: var(--txt-3); transition: transform var(--t-1) var(--e-soft); }
+.fb-fac[aria-expanded="true"] .car, .fb-sort[aria-expanded="true"] .car { transform: rotate(180deg); }
+.fb-sort .si { flex: none; color: var(--txt-3); }
+
+/* Khối neo của mỗi facet: bảng chọn nằm ngay dưới chính cái pill mở nó. */
+.fb-wrap { position: relative; flex: none; display: inline-flex; min-width: 0; }
+.fb-wrap-end { flex: none; }
+
+.fb-gap { flex: 1 1 auto; min-width: 0; }
+
+/* ---- Clear: chữ trơn, chỉ hiện khi có gì để xoá ----
+   GIỮ CHỖ khi ẩn (`visibility`) trên màn rộng: để cột phải rộng cố định nên
+   nút Sort không nhảy mỗi lần áp dụng bộ lọc. Ở bố cục gọn thì ngược lại —
+   luật `.fb-main .fb-clear[hidden]` bên dưới ẩn HẲN, vì ở đó mọi thứ trong
+   hàng phải cố định, nếu không chiều dài ô tìm sẽ phụ thuộc vào việc đang lọc
+   hay chưa. Đây đúng là lỗi "search bar đổi chiều dài trước và sau khi lọc". */
+.fb-clear {
+  flex: none; height: 28px; padding: 0 8px; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--txt-3); font: 500 12px/1 var(--font); cursor: pointer;
+  transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1), visibility var(--t-1);
+}
+.fb-clear:hover { color: var(--denied); background: color-mix(in oklab, var(--denied) 12%, transparent); }
+.fb-clear[hidden] { display: inline-flex; opacity: 0; visibility: hidden; pointer-events: none; }
+
+/* ---- nút icon (chỉ bố cục gọn) ---- */
+.fb-icon {
+  display: none; position: relative; flex: none;
+  align-items: center; justify-content: center; width: 32px; height: 32px;
+  padding: 0; border: 0; border-radius: var(--r-sm); background: none;
+  color: var(--txt-2); cursor: pointer;
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
+}
+.fb-icon:hover { background: var(--hover); color: var(--txt); }
+.fb-icon.on { color: var(--a-2); }
+/* chấm báo "đang lọc": một CHẤM, không phải huy hiệu số — con số đã nằm ở
+   dòng đếm bên dưới danh sách, thêm số nữa là nói hai lần */
+.fb-dot {
+  position: absolute; top: 6px; right: 6px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--a-2); box-shadow: 0 0 0 2px var(--panel);
+}
+
+/* ---- dải chip "đang lọc" — CHỈ ở bố cục gọn ---- */
+.fb-applied { display: none; align-items: center; gap: 6px; margin-top: 9px; min-width: 0;
+  overflow-x: auto; scrollbar-width: none; }
+.fb-applied::-webkit-scrollbar { display: none; }
+.fb-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px;
+  padding: 0 5px 0 8px; border: 0; border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--txt-2);
+  font: 500 11.5px/1 var(--font); white-space: nowrap; cursor: pointer;
+}
+.fb-chip:hover { background: var(--surface-3); color: var(--txt); }
+.fb-chip .fb-bar { flex: none; width: 3px; height: 12px; border-radius: 2px; background: var(--c, var(--txt-3)); }
+.fb-chip .sw { flex: none; width: 7px; height: 7px; border-radius: 2px; background: var(--c, var(--txt-3)); }
+.fb-all {
+  flex: none; height: 26px; padding: 0 6px; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--txt-3); font: 500 11.5px/1 var(--font); cursor: pointer;
+}
+.fb-all:hover { color: var(--denied); }
+
+/* ---- bảng chọn (popover) ---- */
+.fb-pop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 272px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-2);
+  box-shadow: 0 24px 60px -24px #000, 0 0 0 1px rgba(0, 0, 0, .45);
+  overflow: hidden; animation: fbIn .14s var(--e-out) both;
+}
+.fb-pop.fb-wide { left: 0; right: 0; width: auto; }
+@keyframes fbIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fb-pop, .fb-menu { animation: none; } }
+
+.fb-ph {
+  display: flex; align-items: center; gap: 8px; padding: 8px 9px 8px 11px;
+  border-bottom: 1px solid var(--line); background: rgba(0, 0, 0, .22);
+}
+.fb-ph b { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+.fb-num { font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
+.fb-clr { margin-left: auto; height: 24px; padding: 0 7px; border: 0; border-radius: var(--r-sm);
+  background: none; color: var(--txt-3); font: 500 11.5px/1 var(--font); cursor: pointer; }
+.fb-clr:hover:not(:disabled) { color: var(--denied); background: color-mix(in oklab, var(--denied) 12%, transparent); }
+.fb-clr:disabled { opacity: .35; cursor: default; }
+.fb-list { list-style: none; margin: 0; padding: 5px; max-height: 264px; overflow: auto; }
+.fb-body { padding: 4px 0 6px; max-height: 60vh; overflow: auto; }
+.fb-body h3 { margin: 8px 12px 4px; font: 600 11px/1 var(--font); letter-spacing: .02em; color: var(--txt-3); text-transform: uppercase; }
+.fb-opt {
+  display: flex; align-items: center; gap: 9px; width: 100%; height: 33px; padding: 0 8px;
+  border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-2);
+  font: 500 12.5px/1 var(--font); cursor: pointer; text-align: left;
+}
+.fb-opt:hover { background: var(--hover-2); color: var(--txt); }
+.fb-opt:focus-visible { outline: 2px solid var(--a-2); outline-offset: -2px; }
+.fb-box {
+  flex: none; width: 14px; height: 14px; border-radius: 4px; display: flex;
+  align-items: center; justify-content: center; color: #0b0e13;
+  box-shadow: inset 0 0 0 1.5px var(--line-2); transition: background var(--t-1), box-shadow var(--t-1);
+}
+.fb-box svg { opacity: 0; transform: scale(.5); transition: opacity .1s, transform .14s var(--e-out); }
+.fb-opt[aria-pressed="true"] .fb-box { background: var(--c, var(--a-2)); box-shadow: none; }
+.fb-opt[aria-pressed="true"] .fb-box svg { opacity: 1; transform: none; }
+.fb-sw { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--txt-3)); opacity: .5; }
+.fb-sw.sq { border-radius: 2px; }
+.fb-opt[aria-pressed="true"] .fb-sw { opacity: 1; }
+.fb-nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-cn { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); font-variant-numeric: tabular-nums; }
+.fb-pf { padding: 9px; border-top: 1px solid var(--line); background: rgba(0, 0, 0, .22); }
+.fb-sum { display: block; margin: 0 2px 7px; font-size: 11px; color: var(--txt-3); font-variant-numeric: tabular-nums; }
+.fb-apply {
+  width: 100%; height: 34px; padding: 0 11px; border: 0; border-radius: var(--r-sm);
+  background: var(--a); color: #fff; font: 600 12px/1 var(--font); cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.fb-apply:hover { background: var(--a-dim); }
+.fb-apply:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+/* ---- menu Sort ---- */
+.fb-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: 210px; padding: 5px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-2);
+  box-shadow: 0 18px 44px -20px #000, 0 0 0 1px rgba(0, 0, 0, .45);
+  animation: fbIn .14s var(--e-out) both;
+}
+.fb-mh { display: flex; align-items: center; height: 28px; padding: 2px 8px 0;
+  font: 600 11.5px/1 var(--font); color: var(--txt-3); }
+.fb-sep { height: 1px; margin: 4px 6px 5px; background: var(--line); }
+.fb-mi {
+  display: flex; align-items: center; gap: 9px; width: 100%; height: 34px; padding: 0 8px;
+  border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-2);
+  font: 400 13px/1 var(--font); cursor: pointer; text-align: left;
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
+}
+.fb-mi:hover { background: var(--hover-2); color: var(--txt); }
+.fb-mi:focus-visible { outline: 2px solid var(--a-2); outline-offset: -2px; }
+.fb-mi .mi-ico { flex: none; color: var(--txt-3); }
+.fb-mi .nm { flex: 1 1 auto; }
+.fb-mi .ck { flex: none; color: var(--a-2); opacity: 0; }
+.fb-mi[aria-checked="true"] { background: var(--surface-3); color: var(--txt); font-weight: 500; }
+.fb-mi[aria-checked="true"] .ck { opacity: 1; }
+.fb-mi[aria-checked="true"] .mi-ico { color: var(--txt-2); }
+
+/* =====================================================================
+   BỐ CỤC GỌN (≤899px) — một hàng, ba vật thể
+   Ngưỡng 899 là mốc thanh rộng thật sự hết chỗ (ô tìm 300 + hai pill +
+   Sort + Clear). Dưới mốc đó: Status/Type vào một bảng, Sort ra một icon
+   riêng, Clear ẩn HẲN (không giữ chỗ) để chiều dài ô tìm không phụ thuộc
+   vào việc đang lọc hay chưa.
+   ===================================================================== */
+@media (max-width: 899px) {
+  .fb-main { gap: 6px; }
+  /* Ô tìm lớn lên từ 0 chứ không từ nội dung bên trong: độ dài placeholder
+     hoặc sự xuất hiện của nút × không được làm đổi hộp ngoài. */
+  .fbar .searchwrap { flex: 1 1 0; }
+  /* Hai khối neo của Status/Type biến mất — chúng đã nằm trong bảng lọc chung */
+  .fb-wrap:not(.fb-wrap-end) { display: none; }
+  /* SortỞ LẠI nhưng thành nút icon vuông: nhãn và mũi bị ẩn bằng kỹ thuật clip
+     (KHÔNG `display:none`, vì thế là xoá luôn tên nút khỏi cây trợ năng). */
+  .fb-sort {
+    width: 32px; height: 32px; padding: 0; justify-content: center; gap: 0;
+    box-shadow: none; background: none; border-radius: var(--r-sm);
+  }
+  .fb-sort:hover { background: var(--hover); }
+  .fb-sort[aria-expanded="true"] { background: var(--surface-3); box-shadow: none; }
+  .fb-sort .v {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  .fb-sort .car { display: none; }
+  .fb-sort .si { width: 17px; height: 17px; }
+  .fb-icon { display: inline-flex; }
+  .fb-main .fb-clear, .fb-main .fb-clear[hidden] { display: none; }
+  .fb-applied { display: flex; }
+  .fb-pop { left: 0; right: 0; width: auto; }
+  .fb-menu { left: auto; right: 0; }
+}
+
+/* Thiết bị chạm: cỡ chạm 44px cho ô tìm và hai nút icon. */
+@media (pointer: coarse) {
+  .fb-icon, .fb-sort { width: 44px; height: 44px; }
+  .fbar .searchwrap, .fbar .search { height: 44px; }
+  .fb-fac, .fb-sort { height: 40px; }
+  .fb-opt { height: 44px; }
+  .fb-apply { height: 44px; }
+  .fb-chip { height: 32px; }
 }
