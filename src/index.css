@@ -732,7 +732,7 @@ select {
 /* ---- danh sách request ---- */
 .list { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
   background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
-.row { position: relative; display: flex; align-items: center; gap: var(--sp-3); padding: 9px var(--sp-4); border-bottom: 1px solid var(--line);
+.row { position: relative; display: flex; align-items: center; gap: var(--sp-3); padding: 8px var(--sp-4); border-bottom: 1px solid var(--line);
   transition: background var(--t-1) var(--e-soft); }
 .row:last-child { border-bottom: 0; }
 /* vạch màu trạng thái chạy dọc mép trái, lớn dần từ tâm — hover có lý do
@@ -755,9 +755,9 @@ select {
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
-.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 3px; line-height: 1.3; }
+.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 1px; line-height: 1.2; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
-.meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); line-height: 1.35; color: var(--txt-3); }
+.meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); line-height: 1.25; color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
    Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau bằng dấu chấm giữa
    là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh — vạch mảnh đọc
@@ -939,7 +939,7 @@ select {
 .grow:hover { border-color: rgba(169,164,255,.6); }
 .grow.open { border-color: var(--a-2); box-shadow: 0 10px 28px -16px var(--a-glow); }
 .grow-head { position: relative; display: flex; align-items: center; gap: var(--sp-3);
-  width: 100%; padding: 10px var(--sp-4);
+  width: 100%; padding: 8px var(--sp-4);
   border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
   background: none; }
 .grow-head .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono);
@@ -953,10 +953,10 @@ select {
   background: linear-gradient(90deg, var(--a), var(--a-dim));
   box-shadow: 0 2px 10px -4px var(--a-glow); }
 .grow-head .title { display: block; font-size: var(--fs-lead); font-weight: 700; letter-spacing: .1px;
-  margin-bottom: 2px; line-height: 1.25; }
+  margin-bottom: 1px; line-height: 1.15; }
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
 .grow-head .meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
-  font-size: var(--fs-meta); line-height: 1.35; color: var(--txt-3); }
+  font-size: var(--fs-meta); line-height: 1.25; color: var(--txt-3); }
 /* cột tổng vote bên phải — con số mono lớn màu accent */
 .grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
   min-width: 44px; }
@@ -4847,12 +4847,12 @@ body { overflow-x: hidden; }
   .stat { border-right: 0; border-bottom: 1px solid var(--line); }
   .stats .stat:nth-child(odd) { border-right: 1px solid var(--line); }
   .stats .stat:nth-last-child(-n+2) { border-bottom: 0; }
-  .row { padding: 8px var(--sp-3); gap: var(--sp-2); }
+  .row { padding: 7px var(--sp-3); gap: var(--sp-2); }
   .row .title { font-size: var(--fs-body); }
   .meta { font-size: var(--fs-cap); gap: var(--sp-2); }
   .votebtn { padding: 6px 9px; min-height: 36px; }
   .grow { margin: var(--sp-2) 0; }
-  .grow-head { padding: 9px var(--sp-3); }
+  .grow-head { padding: 7px var(--sp-3); }
   .grow-stat b { font-size: 16px; }
   .fbar { padding: var(--sp-3); gap: var(--sp-2); }
   .fbar-top { gap: var(--sp-2); }
