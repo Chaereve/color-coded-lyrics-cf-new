@@ -8,7 +8,7 @@
    Thứ tự trong mảng là thứ tự trên màn hình: việc gấp nhất đứng trước.
    ========================================================= */
 
-export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']
+export const ADMIN_TABS = ['overview', 'pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']
 
 /* =========================================================
    MỖI MỤC MỘT DÒNG KHAI — nguồn duy nhất cho dải số liệu
@@ -22,6 +22,10 @@ export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'me
    theo mảng này. `count` là tên phép đếm mà trang cung cấp (xem AdminPanel).
    ========================================================= */
 export const ADMIN_TAB_META = [
+  /* TỔNG QUAN đứng đầu: `/admin` mở ra đây. Nó không phải "việc gấp nhất" mà là
+     câu hỏi đầu tiên của người mở bảng — "tuần này thế nào" — và mỗi mục còn
+     lại vẫn mang đúng con số việc của mình ngay trên ô bấm tới. */
+  { k: 'overview', label: 'adm.overview', tone: 'var(--a-2)',  count: null },
   { k: 'pending', label: 'adm.pending', tone: 'var(--pending)',  count: 'pending' },
   { k: 'active',  label: 'adm.active',  tone: 'var(--progress)', count: 'active' },
   { k: 'expired', label: 'adm.expired', tone: 'var(--denied)',   count: 'expired' },
@@ -82,18 +86,26 @@ export function readAdminView(search, kinds = [], orderStates = ADMIN_ORDER_STAT
     sort: ADMIN_SORTS.includes(sort) ? sort : 'default',
     kind: kinds.length === 0 || kinds.includes(kind) ? (kind || 'all') : 'all',
     ost: orderStates.length === 0 || orderStates.includes(ost) ? (ost || 'all') : 'all',
+    /* `?focus=<id>` — mở thẳng MỘT bài, dùng khi báo cho chính mình hoặc cho
+       người khác "vào sửa bài này". Không kiểm được id có thật hay không ở đây
+       (không có database), nên chỉ cắt độ dài và bỏ ký tự lạ; id không tồn tại
+       thì trang lặng lẽ bỏ qua, không dựng một khung sửa rỗng. */
+    focus: (p.get('focus') || '').trim().slice(0, 64),
   }
 }
 
 /* Dựng lại query cho địa chỉ: giữ `tab` (mục đang mở) và chỉ ghi những tham số
    KHÁC mặc định — địa chỉ của một danh sách chưa lọc vẫn là `/admin?tab=…`. */
-export function adminQuery({ tab, q = '', sort = 'default', kind = 'all', ost = 'all' }) {
+export function adminQuery({ tab, q = '', sort = 'default', kind = 'all', ost = 'all', focus = '' }) {
   const p = new URLSearchParams()
   if (tab && tab !== ADMIN_TABS[0]) p.set('tab', tab)
   if (q.trim()) p.set('q', q.trim())
   if (sort && sort !== 'default') p.set('sort', sort)
   if (kind && kind !== 'all') p.set('kind', kind)
   if (ost && ost !== 'all') p.set('ost', ost)
+  /* `focus` KHÔNG được ghi lại: nó là đích của một lần mở, không phải bộ lọc.
+     Ghi lại là F5 lần nữa vẫn mở khung sửa dù admin đã đóng nó từ lâu. */
+  void focus
   const qs = p.toString()
   return qs ? `?${qs}` : ''
 }

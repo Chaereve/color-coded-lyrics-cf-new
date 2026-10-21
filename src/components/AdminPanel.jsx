@@ -4,7 +4,8 @@ import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf, fetchAdminComments, fetchAdminActions, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
-import { aggregateFunnel, FUNNEL_EVENT_KEYS } from '../lib/funnelSummary.js'
+import { aggregateFunnel, conversionRates, FUNNEL_CONVERSIONS, FUNNEL_EVENT_KEYS, seriesByDay, votesPerRequest } from '../lib/funnelSummary.js'
+import Sparkline from './Sparkline'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
 import { safeHttpUrl } from '../lib/safeUrl'
@@ -17,7 +18,7 @@ import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminVi
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
 import { ADMIN_COMMENTS_PER_PAGE } from '../lib/adminComments.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
-import { ageChip } from '../lib/adminAge.js'
+import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
 import { sfx } from '../lib/sfx'
 import Pager from './Pager'
@@ -34,7 +35,7 @@ const KIND_KEYS = Object.keys(KIND_META)
 /* Bộ lọc đang mở đọc từ địa chỉ MỘT lần lúc dựng. Test dựng component bằng SSR
    (không có `window`) nên đây phải là hàm thuần có đường lui. */
 const initialView = () => (typeof window === 'undefined'
-  ? { q: '', sort: 'default', kind: 'all', ost: 'all' }
+  ? { q: '', sort: 'default', kind: 'all', ost: 'all', focus: '' }
   : readAdminView(window.location.search, KIND_KEYS, ADMIN_ORDER_STATES))
 
 
@@ -101,7 +102,8 @@ function SearchBox({ t, q, setQ, inputRef, placeholder }) {
 }
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
-  onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire }) {
+  onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire,
+  reveal = null, focused = false }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
@@ -112,7 +114,15 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
      còn toast nằm ở góc màn hình. */
   /* Hộp xác nhận của app, gọi ngay trong hàng: hai việc không hoàn tác được
      (từ chối bài, xoá bài) nằm ở đây chứ không ở thân bảng. */
-  const ask = useConfirm()
+  const askRaw = useConfirm()
+  /* Hộp xác nhận đang mở thì phím tắt của TRANG phải im: `j`/`k` lúc đó là gõ
+     trong ô lý do (đã chặn bằng kiểm `typing`), nhưng `a`/`d`/Enter thì vẫn
+     lọt tới bảng phía sau lớp phủ và có thể duyệt đúng hàng vừa mới bị từ chối. */
+  const modalRef = useRef(false)
+  const ask = useCallback(async (opts) => {
+    modalRef.current = true
+    try { return await askRaw(opts) } finally { modalRef.current = false }
+  }, [askRaw])
   const [copied, setCopied] = useState(false)
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
@@ -122,12 +132,17 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   const [kind, setKind] = useState(r.kind)
   const [note, setNote] = useState(r.note || '')
   const [paid, setPaid] = useState(!!r.is_paid)
-  const [open, setOpen] = useState(false)
+  /* Bàn phím: Enter trên hàng đang trỏ KHÔNG mở một khung riêng — nó đặt
+     `reveal.id` cho đúng hàng này, và hàng tự mở. `openManual` là lựa chọn của
+     người dùng (bấm Sửa/Đóng), nên nó thắng tín hiệu từ bàn phím; nhờ vậy
+     đóng được khung vừa mở bằng Enter mà không cần một effect đồng bộ. */
+  const [openManual, setOpenManual] = useState(null)
+  const open = openManual ?? (reveal?.id === r.id)
   /* mo form la nap lai ten hien tai (tranh giu ten cu sau khi da luu) */
   const toggleOpen = () => {
     setArtist(r.artist); setTitle(r.title)
     setKind(r.kind); setNote(r.note || ''); setPaid(!!r.is_paid)
-    setOpen(o => !o)
+    setOpenManual(!open)
   }
   const songClean = { artist: artist.trim(), title: title.trim() }
   const songChanged = songClean.artist !== r.artist || songClean.title !== r.title
@@ -138,7 +153,8 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   const picked = isPicked(r)
 
   return (
-    <div className={`adm adm-req${selected ? ' on' : ''}`}>
+    <div id={`adm-row-${r.id}`} tabIndex={-1}
+      className={`adm adm-req${selected ? ' on' : ''}${focused ? ' cursor' : ''}`}>
       {select && (
         /* Ô chọn dùng lại đúng component Check của trang (một chỗ vẽ checkbox),
            kèm nhãn ẩn để trình đọc màn hình đọc được là chọn dòng nào. */
@@ -380,6 +396,12 @@ export default function AdminPanel({
      được phép còn hiệu lực. */
   const [pickMode, setPickMode] = useState(false)
   const [sel, setSel] = useState(() => new Set())
+  /* CON TRỎ BÀN PHÍM (j/k). Đây là vị trí ĐANG CHỈ, khác với "đang chọn" của
+     chế độ chọn nhiều: một cái để đi lại bằng phím, một cái để chạy lệnh hàng
+     loạt. Con trỏ tự về -1 khi danh sách đổi (đổi mục, đổi bộ lọc, sang
+     trang) — so bằng khoá thay vì effect, để không có nhịp vẽ thừa nào vẽ con
+     trỏ cũ trên danh sách mới. */
+  const [cur, setCur] = useState({ i: -1, key: '' })
   const [bulkBusy, setBulkBusy] = useState(false)
   /* Thứ tự danh sách. 'default' = đúng thứ tự từng tab vốn có (tab Đang xử lý
      xếp theo tổng vote của cả bài) — ba lựa chọn còn lại là để TRẢ LỜI CÂU HỎI
@@ -400,6 +422,9 @@ export default function AdminPanel({
      báo TRƯỚC vẫn gọi được bản mới nhất, thay vì phải chép lại phép tính. */
   const pageIdsRef = useRef([])
   const toggleAllPageRef = useRef(null)
+  /* Cùng lý do: bộ bắt phím được khai báo TRƯỚC khi biết danh sách đang hiện
+     gì, nên nó gọi qua một ref được cập nhật sau mỗi lần vẽ. */
+  const navRef = useRef(null)
 
   /* GHI BỘ LỌC VÀO ĐỊA CHỈ — hoãn 260ms như ô tìm của bảng công khai, để mỗi ký
      tự gõ vào không tạo một lần ghi lịch sử. Mục Videos không có ba bộ lọc này
@@ -409,9 +434,9 @@ export default function AdminPanel({
     const id = setTimeout(() => {
       const qs = adminQuery({
         tab,
-        q: tab === 'media' ? '' : q,
-        sort: ['media', 'comments'].includes(tab) ? 'default' : sortKey,
-        kind: ['media', 'comments'].includes(tab) ? 'all' : kindF,
+        q: ['media', 'overview', 'log'].includes(tab) ? '' : q,
+        sort: ['media', 'comments', 'overview', 'log'].includes(tab) ? 'default' : sortKey,
+        kind: ['media', 'comments', 'overview', 'log'].includes(tab) ? 'all' : kindF,
         ost: tab === 'orders' ? ostF : 'all',
       })
       const next = window.location.pathname + qs
@@ -441,6 +466,13 @@ export default function AdminPanel({
        Esc ngoài ô tìm kiếm → bỏ chọn hàng loạt (thao tác đang dở, nguy hiểm
                               hơn cả việc cuộn lên đầu trang)
        Ctrl/Cmd+A khi đang chọn nhiều → chọn cả trang đang nhìn
+       j / k (hoặc ↓ / ↑) → đi xuống / lên từng hàng
+       Enter → mở khung sửa của hàng đang trỏ
+       a → duyệt hàng đang trỏ (chỉ hàng đang chờ)
+       d → từ chối hàng đang trỏ (mở hộp hỏi lý do, như bấm nút)
+     Bốn phím cuối chỉ có nghĩa khi danh sách là danh sách REQUEST; ở mục Đơn
+     hàng / Bình luận / Videos chúng không làm gì. Hộp xác nhận đang mở thì
+     toàn bộ nhóm này im (xem `modalRef`), vì phía sau lớp phủ vẫn còn bảng.
      Chỉ gắn khi trang đang mở, để không cướp phím của phần còn lại của app. */
   useEffect(() => {
     if (tab == null) return
@@ -454,18 +486,45 @@ export default function AdminPanel({
         }
         return
       }
+      /* Hộp xác nhận đang mở: phần còn lại của trang không được nhận phím. */
+      if (modalRef.current) return
       if (e.key === '/') {
         e.preventDefault()
         searchRef.current?.focus()
-      } else if (e.key === 'Escape' && sel.size) {
-        setSel(new Set())
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && pickMode && pageIdsRef.current.length) {
+      } else if (e.key === 'j' || e.key === 'ArrowDown' || e.key === 'k' || e.key === 'ArrowUp') {
+        const nav = navRef.current
+        if (!nav?.canNav) return
+        e.preventDefault()
+        nav.move(e.key === 'j' || e.key === 'ArrowDown' ? 1 : -1)
+      } else if (e.key === 'Enter') {
+        const nav = navRef.current
+        if (!nav?.canNav || nav.cursor < 0) return
+        e.preventDefault()
+        nav.enter()
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
         /* CHỌN CẢ TRANG BẰNG BÀN PHÍM — ghi chú của đoạn này vẫn hứa có phím
            này từ đầu, nhưng phần thân thì chưa bao giờ viết: một tính năng chỉ
            tồn tại trong ghi chú. Chỉ chặn Ctrl/Cmd+A khi đang ở chế độ chọn
-           nhiều, các trường hợp khác vẫn phải là "chọn hết chữ" của trình duyệt. */
+           nhiều, các trường hợp khác vẫn phải là "chọn hết chữ" của trình duyệt.
+           Nhánh này đứng TRƯỚC `a`/`d` của con trỏ: `a` trần mà lọt vào đây thì
+           Ctrl+A thành "duyệt bài". */
+        if (!pickMode || !pageIdsRef.current.length) return
         e.preventDefault()
         toggleAllPageRef.current?.()
+      } else if (e.key === 'a' || e.key === 'A') {
+        const nav = navRef.current
+        /* `a` trần: duyệt hàng đang trỏ. Không có thì thôi, để trình duyệt làm
+           việc của nó. */
+        if (!nav?.canNav || !nav.canApprove) return
+        e.preventDefault()
+        nav.approve()
+      } else if (e.key === 'd' || e.key === 'D') {
+        const nav = navRef.current
+        if (!nav?.canNav || !nav.canDeny) return
+        e.preventDefault()
+        nav.deny()
+      } else if (e.key === 'Escape' && sel.size) {
+        setSel(new Set())
       }
     }
     window.addEventListener('keydown', h)
@@ -491,7 +550,15 @@ export default function AdminPanel({
     [activeRows, totals])
   /* Hộp xác nhận trong app (xem components/ConfirmDialog.jsx): ba việc không
      hoàn tác được — từ chối bài, xoá một bài, và lệnh hàng loạt. */
-  const ask = useConfirm()
+  const askRaw = useConfirm()
+  /* Hộp xác nhận đang mở thì phím tắt của TRANG phải im: `j`/`k` lúc đó là gõ
+     trong ô lý do (đã chặn bằng kiểm `typing`), nhưng `a`/`d`/Enter thì vẫn
+     lọt tới bảng phía sau lớp phủ và có thể duyệt đúng hàng vừa mới bị từ chối. */
+  const modalRef = useRef(false)
+  const ask = useCallback(async (opts) => {
+    modalRef.current = true
+    try { return await askRaw(opts) } finally { modalRef.current = false }
+  }, [askRaw])
   const orderQueue = useMemo(() => orders.filter(o => o.status === 'awaiting'), [orders])
   /* (Khối `pipeline` cũ đã bị gỡ: nó tính năm con số mà không chỗ nào đọc —
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
@@ -501,6 +568,13 @@ export default function AdminPanel({
      đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
      bấm sang trang 2 hay gõ một từ khoá. */
   const oStats = useMemo(() => orderStats(orders), [orders])
+  /* Bài đang chờ lâu nhất — null khi không còn bài nào chờ, để màn hình nói
+     được "không có gì tồn" thay vì "0 ngày". */
+  const oldestPending = useMemo(() => {
+    const waiting = rows.filter(r => r.status === 'pending' && !r.picked_at)
+    if (!waiting.length) return null
+    return waiting.reduce((max, r) => Math.max(max, ageInDays(r.created_at)), 0)
+  }, [rows])
 
   /* Lọc từ khoá trên ĐÚNG những cột admin đang nhìn: tên bài / nghệ sĩ /
      người gửi / loại / ghi chú cho request; loại đơn + tên bài của request
@@ -557,6 +631,10 @@ export default function AdminPanel({
   const [funnelLoading, setFunnelLoading] = useState(true)
   const [funnelLoaded, setFunnelLoaded] = useState(false)
   const [funnelError, setFunnelError] = useState(false)
+  /* Cửa sổ số liệu: 7 ngày (nhịp làm việc) hay 30 ngày (nhịp tháng). Một con
+     số 7 ngày không nói được "tháng này khác tháng trước thế nào", và RPC đã
+     nhận sẵn tham số này — chỉ là giao diện chưa từng cho chọn. */
+  const [funnelDays, setFunnelDays] = useState(7)
   const applyFunnelRows = useCallback((data) => {
     setFunnelRows(data)
     setFunnelLoaded(true)
@@ -566,22 +644,34 @@ export default function AdminPanel({
        câu hướng dẫn migration, người dùng không cần đọc mã kỹ thuật. */
     setFunnelError(true)
   }, [])
-  const loadFunnel = useCallback(() => {
+  const loadFunnel = useCallback((days = funnelDays) => {
     setFunnelLoading(true)
     setFunnelError(false)
-    fetchFunnelSummary(7).then(applyFunnelRows).catch(failFunnel).finally(() => setFunnelLoading(false))
-  }, [applyFunnelRows, failFunnel])
+    fetchFunnelSummary(days).then(applyFunnelRows).catch(failFunnel).finally(() => setFunnelLoading(false))
+    /* eslint-disable-next-line react-hooks/exhaustive-deps -- `days` là tham số, `funnelDays` là mặc định */
+  }, [applyFunnelRows, failFunnel, funnelDays])
   const funnelTotals = useMemo(() => aggregateFunnel(funnelRows), [funnelRows])
-  /* Loading ban đầu đã true: effect chỉ nhận kết quả bất đồng bộ, không setState
-     đồng bộ khi mở admin, và cũng không khởi động poll. */
+  /* Cùng những dòng RPC đã tải, nhưng giữ lại TRỤC NGÀY: sparkline cần dãy,
+     không cần tổng. Ngày không có sự kiện là 0 trong dãy, không bị bỏ đi. */
+  const funnelSeries = useMemo(() => seriesByDay(funnelRows, funnelDays), [funnelRows, funnelDays])
+  const conv = useMemo(() => conversionRates(funnelTotals), [funnelTotals])
+  const perRequest = useMemo(() => votesPerRequest(funnelTotals), [funnelTotals])
+  /* FUNNEL CHỈ ĐỌC KHI TỔNG QUAN ĐANG MỞ. Trước đây thẻ này nằm trên MỌI mục
+     của bảng quản trị, nên mở trang để duyệt bài là mất thêm một vòng RPC và
+     một khối chiếm chỗ mà không ai đọc. Nay: mở Tổng quan mới đọc, và đổi cửa
+     sổ 7/30 ngày cũng đọc lại.
+     Loading ban đầu đã true: effect chỉ nhận kết quả bất đồng bộ, không
+     setState đồng bộ khi mở admin, và cũng không khởi động poll. */
   useEffect(() => {
+    if (tab !== 'overview') return undefined
     let alive = true
-    fetchFunnelSummary(7)
+    setFunnelLoading(true)
+    fetchFunnelSummary(funnelDays)
       .then(data => { if (alive) applyFunnelRows(data) })
       .catch(() => { if (alive) failFunnel() })
       .finally(() => { if (alive) setFunnelLoading(false) })
     return () => { alive = false }
-  }, [applyFunnelRows, failFunnel])
+  }, [tab, funnelDays, applyFunnelRows, failFunnel])
 
   const loadAdminComments = useCallback((page = 1, keyword = '') => {
     setLoadingComments(true)
@@ -680,6 +770,101 @@ export default function AdminPanel({
     const next = new Set(prev)
     if (next.has(id)) next.delete(id); else next.add(id)
     return next
+  })
+
+  /* ================= CON TRỎ BÀN PHÍM (j/k, Enter, a, d) =================
+     Một hàng dưới con trỏ, khác hẳn "đang chọn" của chế độ chọn nhiều. Con trỏ
+     sống theo danh sách đang nhìn: đổi mục / bộ lọc / trang thì khoá đổi và
+     con trỏ tự về -1 (`cur.key !== listKey`), không cần một effect đồng bộ. */
+  const listKey = `${tab}|${q}|${sortKey}|${kindF}|${ostF}|${pg.page}`
+  const cursor = cur.key === listKey ? cur.i : -1
+  const isRequestList = !['overview', 'media', 'comments', 'log', 'orders'].includes(tab)
+  const cursorRow = cursor >= 0 ? pg.items[cursor] : null
+  const canApprove = !!cursorRow && cursorRow.status === 'pending'
+  const canDeny = canApprove
+  const moveCursor = (delta) => {
+    const n = pg.items.length
+    if (!n) return
+    const next = cursor < 0 ? (delta > 0 ? 0 : n - 1) : Math.min(n - 1, Math.max(0, cursor + delta))
+    setCur({ i: next, key: listKey })
+    /* Cuộn và ĐƯA TIÊU ĐIỂM vào hàng: người dùng bàn phím không thấy được một
+       cái viền ở ngoài màn hình, và trình đọc màn hình chỉ đọc cái đang focus. */
+    const id = pg.items[next]?.id
+    if (id && typeof document !== 'undefined') {
+      const el = document.getElementById(`adm-row-${id}`)
+      el?.scrollIntoView({ block: 'nearest' })
+      el?.focus?.({ preventScroll: true })
+    }
+  }
+  const [reveal, setReveal] = useState({ id: null, n: 0 })
+
+  /* ================= `?focus=<id>`: MỞ THẲNG MỘT BÀI =====================
+     Địa chỉ `/admin?tab=pending&focus=<id>` là thứ dán được vào tin nhắn
+     ("vào sửa bài này"), và cũng là đích của nút trong thông báo. Việc mở là
+     MỘT LẦN: đọc xong là xoá khỏi state, nên đóng khung sửa rồi F5 vẫn không
+     bị mở lại. Nếu bài nằm ở trang khác thì lật sang trang đó trước — một liên
+     kết trỏ tới bài không có trên trang đang nhìn là liên kết hỏng. */
+  const [focusId, setFocusId] = useState(init.focus)
+  useEffect(() => {
+    if (!focusId) return undefined
+    const idx = shown.findIndex(r => r.id === focusId)
+    /* Không có trong danh sách đang lọc: bài đã bị xoá, hoặc focus trỏ sang
+       mục khác. Bỏ im lặng — dựng một khung sửa rỗng còn tệ hơn. */
+    if (idx < 0) { setFocusId(''); return undefined }
+    const want = Math.floor(idx / PER_PAGE) + 1
+    if (want !== pg.page) { pg.setPage(want); return undefined }
+    /* Chờ một nhịp cho hàng kịp có trong DOM rồi mới cuộn và mở. */
+    const id = setTimeout(() => {
+      const el = document.getElementById(`adm-row-${focusId}`)
+      el?.scrollIntoView({ block: 'center' })
+      setCur({ i: idx - (pg.page - 1) * PER_PAGE, key: listKey })
+      setReveal({ id: focusId, n: 1 })
+      setFocusId('')
+    }, 0)
+    return () => clearTimeout(id)
+    /* eslint-disable-next-line react-hooks/exhaustive-deps -- `shown`/`pg` là giá trị dẫn xuất, `focusId` là thứ khởi động */
+  }, [focusId, shown, pg.page, listKey])
+
+  /* ================= "CÓ BÀI MỚI" =================
+     Realtime của App đã tự đẩy dòng mới vào danh sách. Nhưng đẩy IM LẶNG nghĩa
+     là danh sách nhảy dưới tay người đang soát: họ đọc dòng thứ ba, một bài mới
+     chèn lên đầu, và cú bấm Duyệt rơi vào bài khác. Nên khi có dòng mới, đếm nó
+     và nói ra — người dùng tự quyết định lúc nào nhìn. */
+  const seenRef = useRef(null)
+  const [fresh, setFresh] = useState(0)
+  useEffect(() => {
+    const ids = new Set(rows.map(r => r.id))
+    if (seenRef.current) {
+      let n = 0
+      rows.forEach(r => { if (r.status === 'pending' && !seenRef.current.has(r.id)) n += 1 })
+      if (n) setFresh(f => f + n)
+    }
+    seenRef.current = ids
+  }, [rows])
+  const navEnter = () => {
+    const row = pg.items[cursor]
+    if (!row) return
+    setReveal({ id: row.id, n: reveal.n + 1 })
+  }
+  const navApprove = () => {
+    if (canApprove) onReview(cursorRow.id, true)
+  }
+  const navDeny = async () => {
+    if (!canDeny) return
+    const row = cursorRow
+    const r2 = await ask({
+      title: t('dlg.denyTitle'), body: t('dlg.denyBody'), presets: denyPresets(t),
+      reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
+    })
+    if (r2) onReview(row.id, false, r2.reason, r2.videoUrl)
+  }
+  /* Đăng ký SAU khi vẽ, không ghi trong lúc render: ghi ref trong render là việc
+     phụ trong một hàm phải thuần, và React có quyền vẽ lại mà bỏ qua nó. */
+  useEffect(() => {
+    navRef.current = {
+      move: moveCursor, enter: navEnter, approve: navApprove, deny: navDeny,
+      canNav: isRequestList && pg.items.length > 0, cursor, canApprove, canDeny,
+    }
   })
   const runBulk = async (action) => {
     if (!selIds.length || bulkBusy) return
@@ -801,38 +986,107 @@ export default function AdminPanel({
         ))}
       </div>
 
-      {/* Funnel 7 ngày: summary RPC đã gộp theo ngày + event; UI chỉ cộng
-          năm event được phép, không nhận tên người, device id hay raw log. */}
-      <section className="adm-funnel" aria-labelledby="adm-funnel-title" aria-busy={funnelLoading || undefined}>
-        <div className="adm-funnel-head">
-          <div>
-            <h2 id="adm-funnel-title">{t('adm.funnelTitle')}</h2>
-            <p>{t('adm.funnelSubtitle')}</p>
+      {/* ================= TỔNG QUAN =================
+          Thẻ funnel chỉ tồn tại ở mục này. Summary RPC đã gộp theo ngày +
+          event; UI chỉ cộng năm event được phép, không nhận tên người, device
+          id hay raw log. */}
+      {tab === 'overview' && (
+        <section className="adm-funnel" aria-labelledby="adm-funnel-title" aria-busy={funnelLoading || undefined}>
+          <div className="adm-funnel-head">
+            <div>
+              <h2 id="adm-funnel-title">{t('adm.funnelTitle', { n: funnelDays })}</h2>
+              <p>{t('adm.funnelSubtitle')}</p>
+            </div>
+            <div className="adm-funnel-acts">
+              {/* Cửa sổ 7 ngày là nhịp làm việc; 30 ngày để thấy xu hướng tháng.
+                  Hai nút thay vì một ô chọn: chỉ có hai lựa chọn, và cái đang
+                  chọn phải đọc được bằng mắt. */}
+              <span className="adm-range" role="group" aria-label={t('adm.rangeAria')}>
+                {[7, 30].map(d => (
+                  <button key={d} type="button"
+                    className={`adm-range-btn${funnelDays === d ? ' on' : ''}`}
+                    aria-pressed={funnelDays === d}
+                    onClick={() => setFunnelDays(d)}>{t('adm.rangeDays', { n: d })}</button>
+                ))}
+              </span>
+              <button type="button" className="btn btn-sm" onClick={() => loadFunnel()} disabled={funnelLoading}>
+                {funnelLoading ? t('adm.funnelLoading') : t('adm.funnelRefresh')}
+              </button>
+            </div>
           </div>
-          <button type="button" className="btn btn-sm" onClick={loadFunnel} disabled={funnelLoading}>
-            {funnelLoading ? t('adm.funnelLoading') : t('adm.funnelRefresh')}
-          </button>
-        </div>
-        {funnelError ? (
-          <p className="adm-funnel-state" role="status">
-            {!hasSupabase ? t('adm.funnelDemo') : t('adm.funnelError')}
-          </p>
-        ) : funnelLoading && !funnelLoaded ? (
-          <p className="adm-funnel-state" role="status">{t('adm.funnelLoading')}</p>
-        ) : (
-          <div className="adm-funnel-grid">
-            {FUNNEL_EVENT_KEYS.map(event => (
-              <div className="adm-funnel-stat" key={event}>
-                <span>{t(`adm.funnel.${event}`)}</span>
-                <b>{funnelTotals[event].toLocaleString()}</b>
+          {funnelError ? (
+            <p className="adm-funnel-state" role="status">
+              {!hasSupabase ? t('adm.funnelDemo') : t('adm.funnelError')}
+            </p>
+          ) : funnelLoading && !funnelLoaded ? (
+            /* KHUNG CHỜ GIỮ CHỖ: hộp xám đúng kích thước ô số liệu, nên khi số
+               về thì trang không nhảy — mắt không phải tìm lại chỗ đang đọc. */
+            <div className="adm-funnel-grid" role="status" aria-label={t('adm.funnelLoading')}>
+              {FUNNEL_EVENT_KEYS.map(event => (
+                <div className="adm-funnel-stat is-loading" key={event}>
+                  <span className="sk adm-sk-txt" aria-hidden="true" />
+                  <span className="sk adm-sk-num" aria-hidden="true" />
+                  <span className="sk adm-sk-spark" aria-hidden="true" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="adm-funnel-grid">
+                {FUNNEL_EVENT_KEYS.map(event => (
+                  <div className="adm-funnel-stat" key={event}>
+                    <span>{t(`adm.funnel.${event}`)}</span>
+                    <b>{funnelTotals[event].toLocaleString()}</b>
+                    {/* Xu hướng, không phải một con số nữa: tổng 7 ngày nói
+                        "bao nhiêu", sparkline nói "đang lên hay xuống". */}
+                    <Sparkline values={funnelSeries.series[event]}
+                      label={t(`adm.funnel.${event}`)} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+              {/* TỈ LỆ: ba con số tuyệt đối không trả lời được "người mới bỏ đi
+                  ở đâu". Mẫu số 0 hiện "—" chứ không phải 0%. */}
+              <div className="adm-conv">
+                {FUNNEL_CONVERSIONS.map(({ key, from, to }) => (
+                  <div className="adm-conv-item" key={key}>
+                    <span>{t(`adm.conv.${key}`)}</span>
+                    <b>{conv[key] === null ? '—' : `${conv[key].toFixed(1)}%`}</b>
+                    <small>{t('adm.conv.of', {
+                      a: funnelTotals[from].toLocaleString(), b: funnelTotals[to].toLocaleString(),
+                    })}</small>
+                  </div>
+                ))}
+                {/* Vote trên mỗi request là TỈ SỐ (một bài nhận được 20 vote),
+                    không phải phần trăm — kẹp về 100% là nói dối. */}
+                <div className="adm-conv-item">
+                  <span>{t('adm.conv.votesPerRequest')}</span>
+                  <b>{perRequest === null ? '—' : perRequest.toFixed(1)}</b>
+                  <small>{t('adm.conv.votesPerRequestHint')}</small>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* `aria-busy` trong lúc chạy thao tác hàng loạt: trình đọc màn hình phải
           biết danh sách đang được ghi, không phải "bảng trống". */}
+      {/* CÓ BÀI MỚI: realtime đã đẩy dòng vào danh sách, nhưng nói ra thì người
+          đang soát mới biết vì sao danh sách vừa dài thêm. Bấm "Xem" là sang
+          hàng đợi xếp mới nhất trước; bấm "×" là giữ nguyên chỗ đang đọc. */}
+      {fresh > 0 && isRequestList && (
+        <div className="adm-fresh" role="status">
+          <span className="adm-fresh-txt">{t('adm.fresh', { n: fresh })}</span>
+          <button type="button" className="btn btn-sm btn-ok"
+            onClick={() => { setFresh(0); setSortKey('newest'); goTab('pending') }}>
+            {t('adm.freshSee')}
+          </button>
+          <button type="button" className="icon-btn" aria-label={t('adm.freshDismiss')}
+            title={t('adm.freshDismiss')} onClick={() => setFresh(0)}>
+            <Icon name="close" size={13} />
+          </button>
+        </div>
+      )}
       <div className="adm-panel" aria-busy={bulkBusy || undefined}>
         {/* THANH CÔNG CỤ: tìm kiếm → xếp thứ tự → lọc loại bài → chế độ chọn.
             Ô tìm kiếm đứng đầu vì đó là việc admin làm nhiều nhất; nút chọn
@@ -852,14 +1106,22 @@ export default function AdminPanel({
                database — nên dòng này nói thật "đang xem 20 trong 1.240". */
             n: tab === 'media' ? media.length
               : tab === 'comments' ? adminComments.length
-                : tab === 'log' ? logRows.length : pg.items.length,
+                : tab === 'log' ? logRows.length
+                  : tab === 'overview' ? counts.pending + counts.expired + counts.orders
+                    : pg.items.length,
             total: tab === 'media' ? media.length
               : tab === 'comments' ? commentTotal
-                : tab === 'log' ? logTotal : shown.length,
+                : tab === 'log' ? logTotal
+                  : tab === 'overview' ? counts.pending + counts.expired + counts.orders
+                    : shown.length,
           })}</span>
         </h2>
 
-        {tab === 'comments' ? (
+        {tab === 'overview' ? (
+          /* Tổng quan không có gì để tìm, xếp hay chọn: nó là ba tấm thẻ đọc
+             trong mười giây, mỗi con số dẫn sang mục tương ứng. */
+          <div className="adm-bar adm-bar-end" />
+        ) : tab === 'comments' ? (
           /* Bình luận có ô tìm riêng: tìm Ở DATABASE trên toàn bộ bình luận,
              không phải trên 20 thẻ đang hiện. Cùng từ khoá với các mục request
              (một `q` cho cả trang), nên đổi mục vẫn giữ nguyên từ đang tìm. */
@@ -964,7 +1226,7 @@ export default function AdminPanel({
 
         {/* DÒNG ĐẾM + CHỌN CẢ TRANG: hai thứ cùng trả lời "tôi đang nhìn gì và
             đang chọn gì", nên nằm chung một hàng. */}
-        {tab !== 'media' && tab !== 'log' && (
+        {!['media', 'log', 'overview'].includes(tab) && (
           <div className="adm-note">
             {pickMode && pageIds.length > 0 && (
               <label className="adm-all">
@@ -977,16 +1239,78 @@ export default function AdminPanel({
                 thiết bị cảm ứng (không có bàn phím thì đừng hứa). */}
             <span className="adm-keys">
               <kbd>Esc</kbd>{t('adm.keyEsc')}<kbd>Ctrl/Cmd + A</kbd>{t('adm.keyAll')}
+              {/* Phím đi lại và phím hành động: in ra chỗ dùng, cùng lý do với
+                  hai phím trên — phím tắt không ai biết thì không phải phím
+                  tắt. Chỉ hiện ở những mục thật sự có danh sách request. */}
+              {isRequestList && (
+                <>
+                  <kbd>j</kbd><kbd>k</kbd>{t('adm.keyMove')}
+                  <kbd>a</kbd>{t('adm.keyApprove')}<kbd>d</kbd>{t('adm.keyDeny')}
+                  <kbd>Enter</kbd>{t('adm.keyEdit')}
+                </>
+              )}
             </span>
           </div>
         )}
         {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không
             được báo. Chỉ trình đọc màn hình đọc dòng này. */}
-        {!['media', 'comments', 'log'].includes(tab) && (
+        {!['media', 'comments', 'log', 'overview'].includes(tab) && (
           <p className="sr-only" role="status">{t('adm.resultCount', { n: shown.length })}</p>
         )}
 
-        {tab === 'comments' ? (
+        {tab === 'overview' ? (
+          /* BA CÂU HỎI CỦA NGƯỜI MỞ BẢNG QUẢN TRỊ: còn gì phải làm · bài nào
+             đang chờ lâu nhất · đã thu được bao nhiêu. Mỗi ô bấm được và dẫn
+             thẳng tới danh sách đã lọc sẵn — con số không đứng một mình. */
+          <div className="adm-ov">
+            <div className="adm-ov-card">
+              <h3>{t('adm.ov.todo')}</h3>
+              <button type="button" className="adm-ov-num" onClick={() => goTab('pending')}
+                style={{ '--sc': 'var(--pending)' }}>
+                <b>{counts.pending}</b>
+                <span>{t('adm.pending')}</span>
+              </button>
+              <button type="button" className="adm-ov-num" onClick={() => goTab('expired')}
+                style={{ '--sc': 'var(--denied)' }}>
+                <b>{counts.expired}</b>
+                <span>{t('adm.expired')}</span>
+              </button>
+              <button type="button" className="adm-ov-num" onClick={() => goTab('orders')}
+                style={{ '--sc': 'var(--paid)' }}>
+                <b>{counts.orders}</b>
+                <span>{t('adm.orderAwaiting')}</span>
+              </button>
+            </div>
+
+            <div className="adm-ov-card">
+              <h3>{t('adm.ov.waiting')}</h3>
+              {oldestPending === null ? (
+                <p className="adm-funnel-state">{t('adm.ov.noBacklog')}</p>
+              ) : (
+                <>
+                  <p className="adm-ov-lead">
+                    {t(oldestPending === 0 ? 'adm.ov.oldestToday' : 'adm.ov.oldest', { d: oldestPending })}
+                  </p>
+                  <p className="adm-ov-sub">{t('adm.ov.interval', { n: pickInterval })}</p>
+                  {oldestPending > pickInterval && (
+                    <p className="adm-ov-warn">{t('adm.ov.overdue', { n: oldestPending - pickInterval })}</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="adm-ov-card">
+              <h3>{t('adm.ov.money')}</h3>
+              <p className="adm-ov-lead adm-ov-money">{vnd(oStats.receivedVnd)}</p>
+              <p className="adm-ov-sub">
+                {t('adm.orderRevenueWindow', { days: oStats.windowDays, usd: usd(oStats.receivedUsd) })}
+              </p>
+              <button type="button" className="btn btn-sm" onClick={() => goTab('orders')}>
+                {t('adm.ov.openOrders')}
+              </button>
+            </div>
+          </div>
+        ) : tab === 'comments' ? (
           <div className="adm-comments-list" aria-busy={loadingComments || undefined}>
             {loadingComments && adminComments.length === 0 ? (
               <p className="adm-funnel-state" role="status">{t('adm.loading')}</p>
@@ -1147,7 +1471,7 @@ export default function AdminPanel({
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
                 songRows={rows.filter(x => groupKey(x) === groupKey(r))}
                 onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick}
-                onEdit={onEdit} />
+                onEdit={onEdit} reveal={reveal} focused={cursor >= 0 && pg.items[cursor]?.id === r.id} />
             ))
         )}
 
@@ -1214,7 +1538,7 @@ export default function AdminPanel({
           />
         )}
         {/* tab media và comments tự quản lý hoặc cuộn dọc nên không cắt trang bằng Pager này */}
-        {!['media', 'comments', 'log'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
+        {!['media', 'comments', 'log', 'overview'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
     </section>
   )

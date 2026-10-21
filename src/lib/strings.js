@@ -1047,12 +1047,37 @@ const S = {
   /* bang dieu hanh */
   /* Tên cho cả trang quản trị… */
   'adm.pageAria': 'Admin workspace',
+  'adm.overview': 'Overview',
+  /* TỔNG QUAN: cửa sổ số liệu, tỉ lệ chuyển đổi, và ba tấm thẻ tóm tắt. */
+  'adm.rangeAria': 'Data window',
+  'adm.rangeDays': '{n} days',
+  'adm.conv.visitRequest': 'Visits → requests',
+  'adm.conv.visitBuy': 'Visits → purchases',
+  'adm.conv.votesPerRequest': 'Votes per request',
+  'adm.conv.votesPerRequestHint': 'Votes cast per request sent',
+  'adm.conv.of': '{a} visits · {b} done',
+  'adm.ov.todo': 'Waiting for you',
+  'adm.ov.waiting': 'Oldest request',
+  'adm.ov.noBacklog': 'Nothing waiting — the queue is empty.',
+  'adm.ov.oldest': 'The oldest open request has been waiting {d} days.',
+  'adm.ov.oldestToday': 'The oldest open request came in today.',
+  'adm.ov.interval': 'Pick interval is {n} days.',
+  'adm.ov.overdue': '{n} days past that interval.',
+  'adm.ov.money': 'Money received',
+  'adm.ov.openOrders': 'Open orders',
+  'adm.orderRevenueWindow': 'last {days} days · {usd}',
+  'adm.sparkSummary': '{total} in total · {peak}',
+  'adm.sparkPeak': 'peak on day {d}',
+  'adm.sparkNoPeak': 'no peaks yet',
+  'adm.fresh': '{n} new requests since you opened this list',
+  'adm.freshSee': 'See newest',
+  'adm.freshDismiss': 'Dismiss',
   /* …và tên RIÊNG cho dải số liệu bên trong. Trước đây hai chỗ dùng chung một
      câu: dải là con của trang, nên trình đọc màn hình vừa nghe tên trang vừa
      nghe lại y hệt cho nhóm con — hai vùng khác nhau, một cái tên. Dải này vừa
      là tổng quan vừa là bộ chuyển mục, nên tên nói đúng việc đó. */
   'adm.kpisAria': 'Sections and their totals',
-  'adm.funnelTitle': 'Community funnel · last 7 days',
+  'adm.funnelTitle': 'Community funnel · last {n} days',
   'adm.funnelSubtitle': 'Daily totals · aggregated, no names or device identifiers',
   'adm.funnelRefresh': 'Refresh',
   'adm.funnelLoading': 'Loading funnel…',
@@ -1074,6 +1099,10 @@ const S = {
   /* Hai phím tắt của bảng quản trị, in ngay chỗ dùng (tự ẩn trên máy cảm ứng). */
   'adm.keyEsc': 'clears the selection',
   'adm.keyAll': 'selects this page',
+  'adm.keyMove': 'moves between rows',
+  'adm.keyApprove': 'approves',
+  'adm.keyDeny': 'denies',
+  'adm.keyEdit': 'opens the editor',
   /* Vùng chỉ trình đọc màn hình đọc: đổi bộ lọc là con số đổi, nhưng mắt
      thường không được báo. */
   'adm.resultCount': 'Now showing {n} requests',

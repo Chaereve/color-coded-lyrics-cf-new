@@ -69,7 +69,7 @@ const base = {
 }
 
 test('cả năm mục của trang quản trị đều dựng được (không sót prop → trang trắng)', async () => {
-  for (const tab of ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']) {
+  for (const tab of ['overview', 'pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']) {
     const html = await render({ ...base, tab })
     assert.ok(html.includes('class="adm-page"'), `mục ${tab}: thiếu khung .adm-page`)
     assert.ok(html.includes('adm-kpis'), `mục ${tab}: thiếu dải số liệu`)
@@ -77,15 +77,34 @@ test('cả năm mục của trang quản trị đều dựng được (không s�
   }
 })
 
-test('admin có thẻ funnel 7 ngày, tải tường minh qua đúng một RPC (không polling / KV)', async () => {
-  const html = await render({ ...base, tab: 'pending' })
-  assert.match(html, /class="adm-funnel"/, 'thiếu thẻ funnel trong trang admin')
+test('funnel 7/30 ngày chỉ đọc ở mục Tổng quan, tải tường minh qua đúng một RPC (không polling)', async () => {
+  const html = await render({ ...base, tab: 'overview' })
+  assert.match(html, /class="adm-funnel"/, 'thiếu thẻ funnel ở mục Tổng quan')
   assert.match(html, /Community funnel · last 7 days/, 'thiếu nhãn khoảng thời gian')
   assert.match(html, /Loading funnel/, 'SSR phải có trạng thái chờ thay vì giả vờ số 0')
+  assert.match(html, /adm-range/, 'thiếu bộ chọn 7/30 ngày')
+
+  /* Thẻ funnel TỪNG nằm trên mọi mục: mở trang để duyệt bài là mất thêm một
+     vòng RPC và một khối chiếm chỗ mà không ai đọc. */
+  for (const other of ['pending', 'orders', 'done', 'comments', 'log']) {
+    const page = await render({ ...base, tab: other })
+    assert.ok(!page.includes('adm-funnel'), `mục ${other} không được mang thẻ funnel`)
+  }
+
   const panel = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
   const db = readFileSync(`${root}src/lib/db.js`, 'utf8')
-  assert.match(panel, /fetchFunnelSummary\(7\)/, 'dải admin đọc đúng cửa sổ 7 ngày')
-  assert.match(panel, /useEffect\(\(\) => \{[\s\S]*?fetchFunnelSummary\(7\)/, 'đọc khi admin mở trang')
+  /* Số tổng một mình không nói được xu hướng: mỗi sự kiện phải có dãy theo
+     ngày. Dãy đó dựng từ CÙNG dữ liệu RPC đã tải, không gọi thêm lần nữa. */
+  assert.match(panel, /<Sparkline values=\{funnelSeries\.series\[event\]\}/,
+    'mỗi sự kiện phải có sparkline lấy từ dãy theo ngày')
+  assert.match(panel, /const funnelSeries = useMemo\(\(\) => seriesByDay\(funnelRows, funnelDays\)/,
+    'dãy theo ngày dựng từ dòng RPC đã có, không đọc thêm')
+  assert.match(panel, /className="adm-conv"/, 'thiếu hàng tỉ lệ chuyển đổi')
+  assert.match(panel, /FUNNEL_CONVERSIONS\.map/, 'ba tỉ lệ phải lấy từ một danh sách dùng chung')
+  assert.match(panel, /fetchFunnelSummary\(funnelDays\)/, 'phải đọc đúng cửa sổ đang chọn')
+  assert.match(panel, /if \(tab !== 'overview'\) return undefined/,
+    'chỉ đọc khi Tổng quan đang mở')
+  assert.match(panel, /\[tab, funnelDays, applyFunnelRows, failFunnel\]/, 'đổi cửa sổ thì đọc lại')
   assert.match(db, /supabase\.rpc\('funnel_summary',\s*\{\s*p_days:\s*pDays\s*\}\)/,
     'đọc qua RPC được bảo vệ is_admin, không select bảng trực tiếp')
   assert.doesNotMatch(db, /\.from\(['"]funnel_events['"]\)/, 'không mở đường đọc bảng trực tiếp')
@@ -102,8 +121,8 @@ test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê —
   const html = await render({ ...base, tab: 'pending' })
   const kpi = html.match(/<div class="adm-kpis"[\s\S]*?<\/div><\/div>/)?.[0] ?? ''
   const nums = [...kpi.matchAll(/<span class="v">(\d+)<\/span>/g)].map(m => m[1])
-  assert.deepEqual(nums, ['2', '1', '0', '1', '2', '1', '0', '0'],
-    'chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đơn chờ 1 · đã xong/từ chối 2 · video 1 · bình luận 0 · nhật ký 0')
+  assert.deepEqual(nums, ['0', '2', '1', '0', '1', '2', '1', '0', '0'],
+    'tổng quan (không đếm) · chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đơn chờ 1 · đã xong/từ chối 2 · video 1 · bình luận 0 · nhật ký 0')
 
   /* TIÊU ĐỀ MỤC ĐANG MỞ: dải số liệu là bộ CHUYỂN MỤC nên nó không thể vừa là
      tiêu đề; mà trang không có tiêu đề nào thì trình đọc màn hình chỉ nghe được
@@ -268,4 +287,107 @@ test('mục Bình luận tìm ở database và phân trang thật, không còn c
     'ba tham số của RPC phải được truyền đủ')
   assert.doesNotMatch(db, /export async function fetchAllCommentsForAdmin/,
     'hàm cũ phải bị gỡ khỏi db.js, không để hai đường đọc song song')
+})
+
+/* ================= TỔNG QUAN + PHÍM TẮT (P2) ================= */
+test('mục Tổng quan trả lời ba câu: còn gì phải làm · chờ bao lâu · đã thu bao nhiêu', async () => {
+  const html = await render({ ...base, tab: 'overview', pickInterval: 4 })
+  assert.match(html, /class="adm-ov"/, 'thiếu ba tấm thẻ tóm tắt')
+  assert.match(html, /Waiting for you/, 'thiếu thẻ "còn gì phải làm"')
+  assert.match(html, /Oldest request/, 'thiếu thẻ "bài chờ lâu nhất"')
+  assert.match(html, /Money received/, 'thiếu thẻ doanh thu')
+  /* Mỗi con số phải bấm được và dẫn sang đúng danh sách — con số đứng một mình
+     thì admin vẫn phải tự tìm chỗ sửa. */
+  assert.match(html, /class="adm-ov-num"/, 'số liệu phải là nút dẫn sang mục tương ứng')
+  assert.match(html, /adm-ov-money/, 'doanh thu phải có chỗ riêng, không lẫn vào số đơn')
+
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /onClick=\{\(\) => goTab\('pending'\)\}/, 'thẻ "chờ duyệt" phải dẫn sang mục Chờ duyệt')
+  assert.match(src, /const oldestPending = useMemo/, 'tuổi bài chờ lâu nhất phải tính từ dữ liệu thật')
+})
+
+test('bốn phím j/k/a/d và Enter có trong bảng quản trị, in ra chỗ dùng, và không cướp phím khi đang gõ', async () => {
+  const html = await render({ ...base, tab: 'pending' })
+  assert.match(html, /<kbd>j<\/kbd><kbd>k<\/kbd>/, 'hai phím đi lại phải được vẽ thành viên phím')
+  assert.match(html, /moves between rows/, 'thiếu câu giải thích phím đi lại')
+  assert.match(html, /approves/, 'thiếu câu giải thích phím duyệt')
+  assert.match(html, /denies/, 'thiếu câu giải thích phím từ chối')
+  assert.match(html, /opens the editor/, 'thiếu câu giải thích phím Enter')
+
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  /* Đang gõ trong ô nhập thì phím tắt phải im — nếu không, gõ chữ "d" trong ô
+     tìm kiếm là mở hộp từ chối. */
+  assert.match(src, /const typing = el\?\..*isContentEditable[\s\S]{0,400}if \(typing\) \{/,
+    'phím tắt phải nhường bàn phím cho ô nhập')
+  /* Hộp xác nhận đang mở thì cả nhóm phím của trang im (bảng phía sau vẫn còn). */
+  assert.match(src, /if \(modalRef\.current\) return/, 'phím tắt phải im khi hộp xác nhận đang mở')
+  assert.match(src, /e\.key === 'j' \|\| e\.key === 'ArrowDown'/, 'j hoặc ↓ phải đi xuống')
+  assert.match(src, /e\.key === 'Enter'/, 'Enter phải mở khung sửa')
+  /* a/d chỉ có nghĩa với hàng đang chờ: duyệt một bài đã xong là vô nghĩa, từ
+     chối một bài đã duyệt là phá việc. */
+  assert.match(src, /const canApprove = !!cursorRow && cursorRow\.status === 'pending'/,
+    'a/d phải giới hạn ở hàng đang chờ')
+  /* Mục không có danh sách request thì không có con trỏ. */
+  assert.match(src, /const isRequestList = !\['overview', 'media', 'comments', 'log', 'orders'\]\.includes\(tab\)/,
+    'mục Đơn hàng / Bình luận / Videos không có con trỏ bàn phím')
+})
+
+test('con trỏ bàn phím tự về -1 khi danh sách đổi (không cần effect đồng bộ)', async () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /const listKey = `\$\{tab\}\|\$\{q\}\|\$\{sortKey\}\|\$\{kindF\}\|\$\{ostF\}\|\$\{pg\.page\}`/,
+    'khoá danh sách phải gồm mục + từ khoá + cách xếp + loại + trạng thái đơn + trang')
+  assert.match(src, /const cursor = cur\.key === listKey \? cur\.i : -1/,
+    'đổi danh sách là con trỏ phải rời đi, không trỏ vào hàng khác nghĩa')
+})
+
+test('sparkline dựng được một mình: svg ẩn với trình đọc màn hình, câu tóm tắt thì đọc được', async () => {
+  await render({ ...base, tab: 'overview' })
+  const mod = await server.ssrLoadModule('/src/components/Sparkline.jsx')
+  const { I18nProvider } = await server.ssrLoadModule('/src/lib/i18n.jsx')
+  const one = (props) => renderToStaticMarkup(
+    createElement(I18nProvider, null, createElement(mod.default, props)))
+  const html = one({ values: [0, 3, 1, 0, 5, 2, 1], label: 'Visits' })
+  assert.match(html, /class="adm-spark"/, 'thiếu khối sparkline')
+  assert.match(html, /aria-hidden="true"/, 'hình vẽ phải ẩn với trình đọc màn hình')
+  assert.match(html, /class="sr-only"/, 'phải có câu tóm tắt thay cho hình')
+  assert.match(html, /Visits/, 'câu tóm tắt phải nói đây là số liệu gì')
+  assert.match(html, /total/, 'câu tóm tắt phải có tổng')
+
+  /* Dãy rỗng: vẫn phải là một hình tử tế (đường phẳng đáy), không phải svg
+     rỗng — ô số liệu trống trông như lỗi tải dữ liệu. */
+  const empty = one({ values: [], label: 'Visits' })
+  assert.match(empty, /adm-spark-line/, 'dãy rỗng vẫn phải vẽ đường phẳng')
+})
+
+test('?focus=<id> mở thẳng một bài, kể cả khi bài nằm ở trang khác', async () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /const \[focusId, setFocusId\] = useState\(init\.focus\)/,
+    'focus phải đọc từ địa chỉ lúc dựng')
+  assert.match(src, /const idx = shown\.findIndex\(r => r\.id === focusId\)/,
+    'phải tìm bài trong danh sách đã lọc, không chỉ trang đang nhìn')
+  assert.match(src, /if \(want !== pg\.page\) \{ pg\.setPage\(want\); return undefined \}/,
+    'bài ở trang khác thì phải lật sang trang đó trước')
+  assert.match(src, /setReveal\(\{ id: focusId, n: 1 \}\)/, 'đến nơi thì mở khung sửa của đúng bài đó')
+  assert.match(src, /if \(idx < 0\) \{ setFocusId\(''\); return undefined \}/,
+    'bài đã bị xoá thì bỏ qua, không dựng khung sửa rỗng')
+  assert.match(src, /setFocusId\(''\)\n\s*\}, 0\)/, 'mở MỘT lần: đọc xong là quên, F5 không mở lại')
+})
+
+test('có bài mới thì nói ra, không để danh sách tự nhảy dưới tay người đang soát', async () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /const seenRef = useRef\(null\)/, 'phải nhớ danh sách đã thấy để biết cái gì mới')
+  assert.match(src, /if \(r\.status === 'pending' && !seenRef\.current\.has\(r\.id\)\) n \+= 1/,
+    'chỉ đếm bài đang chờ — bài đã duyệt không phải việc mới')
+  assert.match(src, /className="adm-fresh" role="status"/, 'dải "có bài mới" phải có vùng thông báo')
+  assert.match(src, /setFresh\(0\); setSortKey\('newest'\); goTab\('pending'\)/,
+    'nút "Xem" phải dẫn thẳng tới hàng đợi xếp mới nhất trước')
+  assert.match(src, /fresh > 0 && isRequestList/, 'dải này chỉ có nghĩa ở mục có danh sách request')
+})
+
+test('lúc chờ số liệu, ô funnel giữ chỗ bằng khung xám thay vì một câu chữ', async () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /adm-funnel-stat is-loading/, 'thiếu khung chờ giữ chỗ')
+  assert.match(src, /className="sk adm-sk-num"/, 'khung chờ phải dùng chung vệt shimmer của app (class .sk)')
+  const css = readFileSync(`${root}src/index.css`, 'utf8')
+  assert.match(css, /\.adm-sk-num \{ height: 20px/, 'khung chờ phải có chiều cao xấp xỉ con số thật')
 })

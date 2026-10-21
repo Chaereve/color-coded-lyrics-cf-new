@@ -3876,6 +3876,85 @@ html[data-section="spin"] .bgfx { display: none; }
 /* Dòng phím tắt: đứng cuối hàng khi còn chỗ, tự xuống hàng khi hết — trước
    đây nó `nowrap` và nằm cùng hàng với nhãn "chọn cả trang", nên trên màn hẹp
    hai thứ chồng lên nhau (đúng kiểu "ô chữ đè nhau" trong ảnh người dùng gửi). */
+/* ================= TỔNG QUAN (mục mới, đứng đầu bảng quản trị) ============= */
+/* Cửa sổ 7/30 ngày: hai nút, cái đang chọn sáng — chỉ có hai lựa chọn nên một
+   ô select là thừa một cú bấm. */
+.adm-funnel-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.adm-range { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface-3); }
+.adm-range-btn { padding: 3px 9px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--txt-3); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.adm-range-btn:hover { color: var(--txt); }
+.adm-range-btn.on { background: var(--panel); color: var(--txt); box-shadow: 0 1px 2px rgb(0 0 0 / 25%); }
+.adm-range-btn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+
+/* Khung chờ của ô số liệu: cùng vệt shimmer với mọi chỗ tải khác trong app
+   (class `.sk`), chỉ khác kích thước — đúng chiều cao dòng chữ và sparkline để
+   số về không làm trang nhảy. */
+.adm-sk-txt { height: 9px; width: 58%; }
+.adm-sk-num { height: 20px; width: 44%; margin-top: 2px; }
+.adm-sk-spark { height: 26px; width: 100%; border-radius: 4px; }
+.adm-funnel-stat.is-loading { gap: 6px; }
+
+/* SPARKLINE: màu lấy từ `--sc` của khối cha để năm sự kiện dùng chung một
+   component mà vẫn khác tông. `preserveAspectRatio="none"` cho đường co giãn
+   theo bề rộng ô; nét dùng `vector-effect` để không bị dày lên khi co lại. */
+.adm-spark { display: block; width: 100%; }
+.adm-spark svg { display: block; width: 100%; height: 26px; overflow: visible; }
+.adm-spark-line { fill: none; stroke: var(--sc, var(--a-2)); stroke-width: 1.5;
+  stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.adm-spark-area { fill: color-mix(in srgb, var(--sc, var(--a-2)) 16%, transparent); stroke: none; }
+.adm-spark-dot { fill: var(--sc, var(--a-2)); }
+
+/* TỈ LỆ CHUYỂN ĐỔI: một hàng ô nhỏ dưới funnel. Số là mono + tabular để ba ô
+   cạnh nhau không nhảy ngang khi con số đổi từ 9,9% sang 10,0%. */
+.adm-conv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
+.adm-conv-item { display: grid; gap: 2px; min-width: 0; padding: 8px 10px;
+  border: 1px dashed var(--line); border-radius: var(--r-sm); }
+.adm-conv-item span { overflow: hidden; color: var(--txt-3); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.adm-conv-item b { color: var(--txt); font-family: var(--mono); font-size: 15px; font-weight: 650;
+  font-variant-numeric: tabular-nums; }
+.adm-conv-item small { color: var(--txt-3); font-size: 10px; }
+@media (max-width: 620px) {
+  .adm-conv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-funnel-acts { justify-content: flex-start; }
+}
+
+/* BA TẤM THẺ TÓM TẮT: còn gì phải làm · chờ bao lâu · tiền đã nhận. Mỗi con
+   số là một nút — bấm là sang đúng danh sách đã lọc. */
+.adm-ov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.adm-ov-card { display: grid; gap: 8px; align-content: start; padding: 13px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.adm-ov-card h3 { margin: 0; color: var(--txt-3); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; }
+.adm-ov-num { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; text-align: left;
+  border: 1px solid transparent; border-radius: var(--r-sm); background: var(--panel);
+  font-family: inherit; color: inherit; cursor: pointer; }
+.adm-ov-num:hover { border-color: var(--line-2); background: var(--surface-3); }
+.adm-ov-num b { color: var(--sc); font-family: var(--mono); font-size: 20px; font-weight: 650;
+  font-variant-numeric: tabular-nums; }
+.adm-ov-num span { color: var(--txt-2); font-size: 11.5px; }
+.adm-ov-lead { margin: 0; color: var(--txt); font-size: 13px; line-height: 1.45; }
+.adm-ov-money { font-family: var(--mono); font-size: 20px; font-weight: 650; color: var(--paid);
+  font-variant-numeric: tabular-nums; }
+.adm-ov-sub { margin: 0; color: var(--txt-3); font-size: 11px; }
+.adm-ov-warn { margin: 0; color: var(--pending); font-size: 11.5px; font-weight: 600; }
+.adm-ov-card .btn { justify-self: start; }
+@media (max-width: 900px) { .adm-ov { grid-template-columns: 1fr; } }
+
+/* CÓ BÀI MỚI: một dải mỏng ngay trên bảng, không phải toast ở góc màn hình —
+   nó nói về CHÍNH cái bảng bên dưới, nên phải đứng cạnh bảng. */
+.adm-fresh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--a-2) 40%, var(--line));
+  border-radius: var(--r-sm); background: color-mix(in srgb, var(--a-2) 10%, var(--panel)); }
+.adm-fresh-txt { flex: 1 1 auto; min-width: 0; color: var(--txt); font-size: 12px; }
+
+/* HÀNG DƯỚI CON TRỎ BÀN PHÍM: viền sáng + nền nhẹ, khác hẳn nền "đang chọn"
+   của chế độ chọn nhiều (hai thứ khác nhau, không được trông giống nhau). */
+.adm-req.cursor { border-color: color-mix(in srgb, var(--a-2) 55%, transparent);
+  background: color-mix(in srgb, var(--a-2) 7%, var(--panel)); outline: none; }
+.adm-req.cursor:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
 /* TUỔI CỦA MỘT YÊU CẦU: chip nhỏ nằm cùng dòng với người gửi / giờ / số vote.
    Chưa quá nhịp chốt thì nó chỉ là chữ mờ; quá nhịp thì đổi sang tông "trễ"
    (`--pending`) — đọc được bằng mắt thường trước khi đọc con số. */
