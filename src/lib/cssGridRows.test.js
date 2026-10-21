@@ -85,6 +85,23 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
 
   /* Trạng thái KHOÁ không được dùng viền đứt của bản cũ: trên một vách ngăn
      dọc, nét đứt đọc ra thành "ô nhập liệu" chứ không phải "không bấm được". */
+  /* ĐÃ BỎ PHIẾU (bản B, vòng 6). Ảnh chụp chủ dự án gửi: nền `--a-soft` 16% +
+     vách sáng 1px + chấm 6px = ba tín hiệu cho một sự thật, và cột rỗng thì
+     đọc ra thành một khối nặng hơn cả tên bài. Nay đúng MỘT tầng: nền 7%, vách
+     2px, không chấm — cộng một pill nhỏ cho số suất của chính mình. */
+  const on = ruleOf('.row.req > .votebtn.on')
+  assert.match(on, /background:\s*color-mix\(in oklab, var\(--a\) 7%/, 'nền 7% — đủ để đọc "đang chọn", không thành khối')
+  assert.doesNotMatch(on, /a-soft/, 'không quay lại nền 16% của bản cũ')
+  assert.match(on, /border-left:\s*2px solid var\(--a-2\)/, 'vách dày 2px là tín hiệu chính, thay cho vách 1px + chấm')
+  assert.match(on, /padding-left:\s*9px/, 'vách dày thêm 1px thì bớt 1px đệm, để cột số không nhảy khi bấm')
+  assert.match(on, /border-radius:\s*0/, 'cột chạm hai mép, bo góc là hở góc')
+  assert.match(css, /\.row\.req > \.votebtn\.on::before \{[^}]*content:\s*none/,
+    'chấm "đã bấm" ở đầu vách phải bị gỡ — nó đọc ra thành "có thông báo mới"')
+  assert.match(ruleOf('.row.req > .votebtn.on .mine'), /border-radius:\s*var\(--r-pill\)/,
+    'số suất của mình là một pill nhỏ, không phải tầng chữ thứ ba')
+  assert.match(css, /\.row\.req > \.votebtn\.on:hover:not\(:disabled\) \{[^}]*var\(--a\) 11%/,
+    'rê chuột trên hàng đã vote đậm nền lên, không xoá mất dấu đã chọn')
+
   assert.match(css, /\.row\.req > \.votebtn\.locked \{[^}]*border-style:\s*none/,
     'cột bị khoá tắt viền đứt, chìm bằng màu chữ thay vì bằng nét')
   assert.match(css, /\.row\.req > \.votebtn\.locked b \{[^}]*var\(--txt-3\)/,

@@ -1000,10 +1000,22 @@ select {
   letter-spacing: .07em; text-transform: uppercase; color: var(--txt-3); }
 .row.req > .votebtn:hover:not(:disabled) { background: var(--hover); color: var(--a-2); }
 .row.req > .votebtn:hover:not(:disabled) span { color: var(--a-2); }
-/* Đang chọn: tô nền cả cột, không bo góc (cột chạm hai mép, bo là hở góc). */
-.row.req > .votebtn.on { border-radius: 0; background: var(--a-soft);
-  box-shadow: none; border-left-color: var(--a-2); }
+/* ĐÃ BỎ PHIẾU — bản B (vòng 6). Ảnh chụp chủ dự án gửi cho thấy bản cũ tô cả
+   cột bằng `--a-soft` (16%), kèm vách sáng 1px và một chấm 6px ở đầu vách:
+   BA tín hiệu cho MỘT sự thật, nên không tín hiệu nào còn đọc ra là điểm nhấn —
+   cả cột thành một khối tím nặng hơn cả tên bài, mà cột thì rỗng.
+
+   Bản B giữ đúng một tầng: nền 7% (vẫn đủ để đọc "ô này đang được chọn", nhưng
+   không thành khối), vách ngăn dày 2px thay cho 1px + chấm, và chấm bị gỡ hẳn.
+   Vách dày thêm 1px ăn vào đệm trái, nên đệm trái bớt 1px để số phiếu không
+   xê dịch giữa hàng đã vote và hàng chưa vote — lệch một pixel ở đây là cả cột
+   số nhảy khi bấm. */
+.row.req > .votebtn.on { border-radius: 0; background: color-mix(in oklab, var(--a) 7%, transparent);
+  box-shadow: none; border-left: 2px solid var(--a-2); padding-left: 9px; }
 .row.req > .votebtn.on b { color: var(--a-2); }
+/* Rê chuột trên hàng đã vote vẫn phải thấy phản hồi, mà không xoá mất dấu "đã
+   chọn": đậm nền lên một nhịp thay vì đổi sang nền hover xám. */
+.row.req > .votebtn.on:hover:not(:disabled) { background: color-mix(in oklab, var(--a) 11%, transparent); }
 /* Khoá (bài đã vào dây chuyền): cột vẫn đứng đó nhưng chìm hẳn — số xám, con
    trỏ thường. Không dùng `border-style: dashed` của bản cũ vì vách ngăn đứt
    nét đọc ra thành "ô nhập liệu", không phải "không bấm được". */
@@ -1082,11 +1094,21 @@ select {
 
 
 
-/* Suất của chính mình (×2) đứng dưới số, cùng cột. */
+/* Suất của chính mình (×3) đứng dưới số, cùng cột. Ba tầng chữ trong một cột
+   104px là chỗ ồn nhất của hàng: số · nhãn · số suất, mà dòng thứ ba lại đúng
+   màu nhấn nên nó thành tầng nổi thứ hai. Nay nó là một PILL nhỏ — cùng họ với
+   nhãn PAID / ×N trong hàng — nên nó đọc ra là "phụ chú của con số", không
+   phải con số thứ hai. */
 .row.req > .votebtn .mine { padding-left: 0; }
-/* Chấm "đã bấm" từng neo ở góc hộp; ở cột thì nó nằm trên vách ngăn, đúng chỗ
-   mắt nhìn sang để đọc số. */
-.row.req > .votebtn.on::before { top: 6px; right: auto; left: -3px; }
+.row.req > .votebtn.on .mine {
+  margin-top: 3px; padding: 1px 6px; border-radius: var(--r-pill); font-weight: 600;
+  background: color-mix(in oklab, var(--a-2) 12%, transparent); }
+/* CHẤM "ĐÃ BẤM" — ĐÃ GỠ. Nó từng neo ở góc hộp nút, rồi được dời lên đầu vách
+   ngăn của cột. Ở đó nó lơ lửng cách đáy hàng cả chục pixel và đọc ra thành
+   "có thông báo mới" chứ không phải "bạn đã chọn ô này" — vách 2px đã nói việc
+   đó rồi. Luật `content: none` thay vì xoá cả khai báo: `.votebtn.on::before`
+   gốc vẫn dùng ở những nút phiếu NGOÀI hàng request. */
+.row.req > .votebtn.on::before { content: none; }
 
 .icon-btn {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: var(--radius); cursor: pointer;
@@ -4937,6 +4959,8 @@ body { overflow-x: hidden; }
   .row.req { padding: 0 0 0 var(--sp-3); }
   .row.req .body { padding: 7px 0; }
   .row.req > .votebtn { min-width: 72px; padding: 0 6px; margin-left: var(--sp-2); }
+  /* Bản hẹp: vách 2px cũng ăn 1px, giữ đệm trái 5px để cột số không nhảy. */
+  .row.req > .votebtn.on { padding-left: 5px; }
   .row.req > .votebtn b { font-size: var(--fs-title); }
   .row .title { font-size: var(--fs-body); }
   /* Màn hẹp: tên bài + tên tác giả không đủ chỗ cho một dòng. Cắt bằng dấu ba
