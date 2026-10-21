@@ -970,7 +970,17 @@ select {
    không chạm được hai mép, vách ngăn lơ lửng và mất luôn cảm giác "cột". Đệm
    dọc đi theo phần chữ, cột chạm trọn chiều cao. */
 .row.req { align-items: stretch; padding: 0 0 0 var(--sp-4); }
-.row.req .body { align-self: center; padding: var(--sp-3) 0; }
+.row.req .body {
+  align-self: center; padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
+  /* KHOẢNG GIỮA HAI DÒNG: 2px → 6px. Khi cụm ba nút rời khỏi dòng tiêu đề,
+     hộp chữ của dòng đó thấp đi ~7px, và hàng tự co lại theo — hai dòng chữ
+     dính vào nhau (ảnh chụp chủ dự án gửi: "ô hẹp quá nên khoảng cách giữa
+     các dòng bị dính"). Nới ĐÚNG khoảng giữa hai dòng, không nới line-height:
+     chữ vẫn sát nhau trong từng dòng, chỉ hai dòng thở ra.
+     Đệm phải 12px: dòng tiêu đề giờ có nút neo mép phải, mà mép phải của cột
+     chữ chính là vách ngăn của cột phiếu — không chừa thì nút dán vào vách. */
+  gap: 6px;
+}
 /* Nút xoá (chỉ có ở request của chính mình) đứng SÁT vách, không đẩy cột ra. */
 .row.req > .icon-btn { align-self: center; margin-right: var(--sp-2); }
 
@@ -1003,38 +1013,47 @@ select {
 .row.req > .votebtn.locked:hover { background: none; }
 .row.req > .votebtn.locked:hover span { color: var(--txt-3); }
 /* ===== NÚT NGHE — hành động DUY NHẤT của một hàng =========================
-   Chuông theo dõi và nút chia sẻ đã bị gỡ khỏi sản phẩm (chủ dự án chốt:
-   một hàng request không cần thêm hành động nào khác ngoài "nghe bài"). Còn
-   lại một nút, nên nó phải đọc ra là MỘT NÚT: có viền, có nền, có mũi play.
-   Bản trước để nó là chuỗi chữ xám không viền nằm ngang hàng với những thứ
-   chỉ là thông tin — người dùng phải đoán xem chỗ nào bấm được.
+   Chuông theo dõi và nút chia sẻ đã bị gỡ khỏi sản phẩm, nên hàng request chỉ
+   còn một việc bấm được: nghe bài. Nó vẫn phải NHÌN RA LÀ NÚT, nhưng lần đầu
+   làm bằng viền xám 1px + nền xám thì chủ dự án đọc đúng hai chữ: "thô" và
+   "vô duyên" — viền xám là ngôn ngữ của ô nhập liệu, còn cái nút thì dán ngay
+   sau tên bài trong khi nửa bên phải hàng trống hoác.
 
-   BA SỐ ĐO, mỗi số có lý do:
-   1) cao 24px — cùng cỡ một nút phụ khác trong app (nút trong dòng meta,
-      nút admin), đủ dày để có viền mà không thành một khối.
-   2) `margin-block: -4px` — hộp 24px cao hơn dòng chữ tiêu đề (15px × 1.15
-      ≈ 17px). Để nguyên thì chính cái nút kéo dòng tiêu đề cao lên, và chữ
-      trôi lơ lửng phía trên — đúng hiện tượng "chữ chưa ở giữa ô" mà chủ dự
-      án chỉ ra. Lề âm bù đúng phần chênh 6,75px, nên nút vẫn 24px mà dòng
-      chữ giữ nguyên chiều cao của nó.
-   3) mũi play mang màu nhấn, chữ màu xám sáng — thứ nhận ra ngay là biểu
-      tượng, nên nó là thứ duy nhất được tô màu. */
+   Bốn quyết định:
+   1) PILL NHẠT MÀU NHẤN, không viền — cùng họ với hai nhãn PAID / Full Album
+      trong chính hàng này, nên mắt đọc ra "mức phụ, bấm được" mà không cần
+      một khung kẻ.
+   2) `margin-left: auto` — neo MÉP PHẢI cột chữ, thẳng cột với vách ngăn của
+      cột phiếu ở mọi hàng. Đây là thứ chữa cái "vô duyên": nút đứng ở rìa
+      hàng như một hành động, không lơ lửng cạnh tên bài.
+   3) cao 22px + `margin-block: -4px` — hộp 22px trong dòng chữ tiêu đề 17px;
+      để nguyên thì chính cái nút kéo dòng đó cao lên và chữ trôi lơ lửng
+      phía trên (hiện tượng "chữ chưa ở giữa ô"). Lề âm bù phần chênh nên nút
+      vẫn đủ dày mà dòng chữ giữ nguyên chiều cao của nó.
+   4) chữ và mũi play cùng màu nhấn: màu là thứ nói "bấm được" rẻ nhất. */
 .row .title .watchbtn {
-  display: inline-flex; align-items: center; gap: 6px; flex: none;
-  height: 24px; padding: 0 9px; margin-block: -4px;
-  border: 1px solid var(--line-2); border-radius: var(--r-sm);
-  background: var(--surface-2); color: var(--txt-2);
-  font-family: var(--font); font-size: 11.5px; font-weight: 600;
-  letter-spacing: .1px; text-decoration: none; white-space: nowrap;
+  /* `margin-left: auto` = neo MÉP PHẢI cột chữ, thẳng cột với vách phiếu ở mọi
+     hàng. Thiếu nó thì cái nút dán ngay sau tên bài và cả một khoảng trống
+     nằm bên phải — đúng cái "vô duyên" trong ảnh chụp. */
+  margin-left: auto; margin-block: -4px;
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  height: 22px; padding: 0 10px 0 8px;
+  /* BỎ VIỀN, ĐỔI SANG PILL NHẠT MÀU NHẤN. Viền xám 1px + nền xám là ngôn ngữ
+     của ô nhập liệu / nút hành chính; đặt cạnh tên bài nó đọc ra "thô". Pill
+     nhạt thì cùng họ với hai nhãn PAID / Full Album trong chính hàng này —
+     mắt đã biết đó là "thứ bấm được, mức phụ". */
+  border: 0; border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--a-2) 14%, transparent);
+  color: var(--a-2);
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  letter-spacing: .2px; text-decoration: none; white-space: nowrap;
   cursor: pointer;
-  transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
-              border-color var(--t-1) var(--e-soft);
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
 }
-.row .title .watchbtn svg { flex: none; color: var(--a-2); }
-.row .title .watchbtn:hover { color: var(--txt); background: var(--hover-2); border-color: color-mix(in oklab, var(--line-2) 55%, var(--txt-3)); }
-.row .title .watchbtn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
-/* Máy cảm ứng: giữ hộp 24px (một nút 40px trong dòng tiêu đề sẽ đội cả hàng
-   lên) nhưng nới VÙNG CHẠM bằng pseudo — mắt thấy 24px, ngón tay được 40px. */
+.row .title .watchbtn svg { flex: none; }
+.row .title .watchbtn:hover {
+  background: color-mix(in oklab, var(--a-2) 26%, transparent); color: var(--txt); }
+.row .title .watchbtn:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 @media (pointer: coarse) {
   .row .title .watchbtn { position: relative; }
   .row .title .watchbtn::before {
@@ -4918,7 +4937,9 @@ body { overflow-x: hidden; }
   /* Hàng của bảng yêu cầu giữ nguyên hình dáng cột ở bản hẹp: đệm dọc nằm ở
      `.body`, cột vẫn chạm hai mép. Chỉ hẹp cột lại để chừa chỗ cho tên bài. */
   .row.req { padding: 0 0 0 var(--sp-3); }
-  .row.req .body { padding: 7px 0; }
+  /* Bản hẹp: đệm dọc 7px (giữ mật độ), nhưng vẫn chừa mép phải — cột phiếu
+     vẫn có vách ngăn ở đó, và nút nghe neo đúng vào mép này. */
+  .row.req .body { padding: 7px var(--sp-2) 7px 0; }
   .row.req > .votebtn { min-width: 72px; padding: 0 6px; margin-left: var(--sp-2); }
   .row.req > .votebtn b { font-size: var(--fs-title); }
   .row .title { font-size: var(--fs-body); }

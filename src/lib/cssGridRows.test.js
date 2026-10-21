@@ -62,7 +62,13 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
   assert.match(row, /align-items:\s*stretch/, 'hàng phải giãn để cột chạm hai mép')
   assert.match(row, /padding:\s*0/, 'đệm dọc của hàng phải về 0, nếu không cột bị hụt vào trong')
   const body = rulesWith('.row.req .body').join(' ')
-  assert.match(body, /padding:\s*var\(--sp-3\) 0/, 'đệm dọc dời về phần chữ — đó là chỗ duy nhất còn đệm')
+  assert.match(body, /padding:\s*var\(--sp-3\) var\(--sp-3\) var\(--sp-3\) 0/,
+    'đệm dọc dời về phần chữ, và chừa 12px mép phải để nút nghe không dán vào vách phiếu')
+  /* HAI DÒNG PHẢI THỞ. Khi cụm ba nút rời dòng tiêu đề, hộp chữ của dòng đó
+     thấp đi ~7px và hàng tự co — hai dòng dính vào nhau (ảnh chụp chủ dự án:
+     "ô hẹp quá nên khoảng cách giữa các dòng bị dính"). Khoảng nới nằm ở GAP,
+     không phải line-height: chữ vẫn sát trong từng dòng. */
+  assert.match(body, /gap:\s*6px/, 'khoảng giữa hai dòng là 6px — 2px thì hai dòng dính')
 
   const btn = ruleOf('.row.req > .votebtn')
   assert.match(btn, /flex-direction:\s*column/, 'số và nhãn phải xếp dọc trong cột')
@@ -105,18 +111,22 @@ test('nút nghe: một nút thật trên dòng tiêu đề, không đội dòng 
 
   const b = ruleOf('.row .title .watchbtn')
   assert.match(b, /display:\s*inline-flex/, 'nút là flex một hàng: icon + chữ')
-  assert.match(b, /height:\s*24px/, 'cao 24px — cỡ một nút phụ khác trong app')
+  assert.match(b, /height:\s*22px/, 'cao 22px — cỡ một nhãn phụ, không phải một khối')
   assert.match(b, /margin-block:\s*-4px/,
-    'lề âm bù phần chênh so với dòng chữ: hộp 24px mà không bù là chữ trôi lên trên')
-  assert.match(b, /border:\s*1px solid var\(--line-2\)/, 'có viền mới đọc ra là nút')
-  assert.match(b, /background:\s*var\(--surface-2\)/, 'nền nhấc khỏi mặt hàng một nấc, không phải nền trong suốt')
+    'lề âm bù phần chênh so với dòng chữ: hộp 22px mà không bù là chữ trôi lên trên')
+  /* NEO MÉP PHẢI là thứ chữa cái "vô duyên": thiếu nó cái nút dán ngay sau
+     tên bài và nửa bên phải hàng trống hoác. */
+  assert.match(b, /margin-left:\s*auto/, 'nút phải neo mép phải cột chữ, thẳng cột với vách phiếu')
+  assert.match(b, /border:\s*0/, 'không viền: viền xám 1px là ngôn ngữ của ô nhập liệu, đặt cạnh tên bài là "thô"')
+  assert.match(b, /border-radius:\s*var\(--r-pill\)/, 'pill — cùng họ với nhãn PAID / Full Album trong hàng')
+  assert.match(b, /background:\s*color-mix\(in oklab, var\(--a-2\)/,
+    'nền là màu nhấn pha loãng: đọc ra "bấm được" mà không thành một khung kẻ')
+  assert.match(b, /color:\s*var\(--a-2\)/, 'chữ cùng màu nhấn với nền — một tín hiệu, không hai')
   assert.match(b, /font-weight:\s*600/, 'nét 600: đây là nút, không phải một mẩu thông tin')
-  assert.match(b, /font-size:\s*11\.5px/, 'vẫn là cỡ chữ phụ — nổi bật bằng hình, không bằng cỡ')
+  assert.match(b, /font-size:\s*11px/, 'cỡ chữ phụ nhỏ nhất trong hàng — nổi bật bằng màu, không bằng cỡ')
   assert.match(b, /text-decoration:\s*none/, 'nút không gạch chân kiểu link chữ')
-  assert.match(ruleOf('.row .title .watchbtn svg'), /color:\s*var\(--a-2\)/,
-    'mũi play mang màu nhấn — thứ nhận ra ngay là biểu tượng')
-  assert.match(rulesWith('.row .title .watchbtn:hover').join(' '), /background:\s*var\(--hover-2\)/,
-    'rê vào phải đổi nền, không chỉ đổi màu chữ')
+  assert.match(rulesWith('.row .title .watchbtn:hover').join(' '), /color-mix\(in oklab, var\(--a-2\)/,
+    'rê vào phải đậm nền lên, không chỉ đổi màu chữ')
   assert.match(rulesWith('.row .title .watchbtn:focus-visible').join(' '), /outline:\s*2px solid/,
     'bàn phím Tab tới phải thấy vòng focus')
 
