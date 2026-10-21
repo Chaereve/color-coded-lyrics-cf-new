@@ -24,16 +24,8 @@ import { MILESTONES } from '../lib/db'
 
    Component không đọc context (nhãn truyền từ ngoài) nên render được một mình
    trong test — xem src/components/Progress.test.js. */
-/* Kẹp giá trị ở MỘT chỗ và xuất ra ngoài: hàng request in con số % ngay trong
-   dòng meta (biến thể `edge` bên dưới giấu số đi), nên hai nơi phải đọc cùng
-   một con số đã kẹp — in `r.progress` trần ở một chỗ là mở lại đúng lỗi
-   "NaN%" mà component này sinh ra để dẹp. */
-export function pctValue(pct) {
-  return Math.max(0, Math.min(100, Math.round(Number(pct) || 0)))
-}
-
-export default function Progress({ pct, label, wide = false, edge = false }) {
-  const v = pctValue(pct)
+export default function Progress({ pct, label, wide = false }) {
+  const v = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)))
   /* 100% là một TRẠNG THÁI, không phải một con số nữa: ba mốc Layout/Lyrics/Edit
      đã tick hết. Vạch đổi màu ngay tại đây — màu là việc của CSS (`.prog-full`),
      không phải một prop, vì mỗi chỗ gọi tự chọn một màu chính là cách thanh tiến
@@ -47,15 +39,8 @@ export default function Progress({ pct, label, wide = false, edge = false }) {
   let sum = 0
   for (const m of MILESTONES.slice(0, -1)) { sum += m.pct; marks.push(sum) }
   const stages = MILESTONES.map(m => `${m.label} ${m.pct}%`).join(' · ')
-  /* BIẾN THỂ `edge` (phương án C, chủ dự án chốt 21/10/2026): vạch không còn
-     là dòng thứ ba trong hàng mà là ĐƯỜNG ĐÁY của cả hàng — 2px, chạy hết bề
-     ngang. Con số % chuyển vào dòng meta (xem App.jsx), nên ở đây `edge` giấu
-     `prog-num` đi đúng như `wide` đã làm, chỉ khác chỗ đặt. Lý do phải có biến
-     thể chứ không sửa thẳng: khối Up next và hàng quản trị vẫn cần thanh nằm
-     trong dòng chữ của chúng — sửa `.prog` là cả hai nơi đó đổi theo.
-     Vẫn giữ nguyên role/aria: vạch đổi chỗ, không đổi nghĩa. */
   return (
-    <div className={`prog${wide ? ' prog-wide' : ''}${edge ? ' prog-edge' : ''}${full ? ' prog-full' : ''}`}
+    <div className={`prog${wide ? ' prog-wide' : ''}${full ? ' prog-full' : ''}`}
       role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}
       aria-label={label} title={stages}>
       {/* KHÔNG vẽ vạch khi 0%. Trước đây vạch luôn được dựng và luôn có
@@ -68,7 +53,7 @@ export default function Progress({ pct, label, wide = false, edge = false }) {
         {marks.map(p => <b key={p} className="prog-mile" style={{ '--m': `${p}%` }} />)}
       </span>
       {/* Nhãn đã nằm ở aria-label; `%` chỉ là chữ để mắt đọc, không đọc lại. */}
-      {!wide && !edge && <b className="prog-num">{v}<span aria-hidden="true">%</span></b>}
+      {!wide && <b className="prog-num">{v}<span aria-hidden="true">%</span></b>}
     </div>
   )
 }

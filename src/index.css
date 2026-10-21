@@ -750,7 +750,20 @@ select {
    hover đậm hơn một chút thay vì đổi sang màu khác. */
 .row.paid { background: rgba(215,166,63,.045); }
 .row.paid:hover { background: rgba(215,166,63,.075); }
-.row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
+/* SỐ THỨ TỰ CỦA HÀNG — canh vào ĐƯỜNG CHỮ CỦA TÊN BÀI, không canh giữa hàng.
+   Bản trước để số canh giữa cả hàng (`.row` là flex `align-items: center`), mà
+   hàng thì hai dòng: kết quả là con số rơi xuống ngang dòng meta, đứng cách xa
+   cái tên mà nó đang đánh số — nhìn như một nhãn lạc. Nay nó neo vào dòng đầu.
+
+   Đệm trên tính từ chính hai thang chữ, không viết cứng: hiệu đường-chữ của
+   tiêu đề và của số, chia đôi. Đổi cỡ chữ ở thang là số tự canh lại.
+   `tabular-nums` để 9 và 10 không nhích mép phải khi danh sách dài thêm; bề
+   rộng 24px đủ cho ba chữ số. */
+.row .idx { width: 24px; flex: none; text-align: right; font-family: var(--mono);
+  font-size: var(--fs-meta); font-variant-numeric: tabular-nums;
+  line-height: 1.15; color: var(--txt-3);
+  align-self: flex-start;
+  padding-top: calc((var(--fs-title) * 1.15 - var(--fs-meta) * 1.15) / 2); }
 .row .body { flex: 1; min-width: 0; align-self: center; }
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
@@ -894,34 +907,21 @@ select {
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
-/* ---- BIẾN THỂ "ĐƯỜNG ĐÁY" (phương án C) --------------------------------
-   Trong hàng request, thanh tiến độ không còn là dòng thứ ba: nó là một vệt
-   2px chạy hết bề ngang ĐÁY hàng, neo vào `.row` (đã `position: relative`).
-   Ba hệ quả, cả ba đều là thứ đang cần:
+/* ---- TIẾN ĐỘ GỌN TRONG DÒNG META (phương án A) -------------------------
+   Hàng request in thanh tiến độ ngay trong dòng meta, cạnh giờ đăng. Ở ngữ
+   cảnh đó nó là CHI TIẾT PHỤ của một dòng chữ, không phải một khối riêng:
+   rộng tối đa 96px (thanh gốc 220px là cỡ của một khối đứng một mình), khe
+   hẹp lại, và bề rộng chừa sẵn cho con số co theo cỡ chữ mới.
 
-     1. MỌI hàng cao bằng nhau. Trước đây hàng "đang làm" cao hơn hẳn vì mang
-        thêm một dòng — đúng lý do chủ dự án đọc danh sách ra là "ko cách đều".
-     2. Vạch dài hết hàng nên đọc ra "mức đầy của cả hàng", không phải một
-        thanh 220px lơ lửng cạnh dòng chữ.
-     3. Không đẩy gì xuống: đệm dọc của hàng giữ nguyên, vệt vẽ đè lên đường
-        kẻ đáy sẵn có (cùng chỗ, cùng 1px gốc).
-
-   Bề rộng có `max-width: none` để đè luật `.prog { max-width: 220px }` ở trên
-   — luật đó viết cho thanh nằm TRONG dòng chữ, còn ở đây nó là đường đáy. */
-.prog.prog-edge { position: absolute; left: 0; right: 0; bottom: 0;
-  display: block; max-width: none; height: 2px; margin: 0; gap: 0; }
-/* Rãnh bo tròn là đúng cho một thanh nằm giữa dòng chữ; ở đáy hàng thì hai đầu
-   bo tròn đọc ra thành "hai cái que" — đường đáy phải phẳng, chạm hai mép. */
-.prog.prog-edge .prog-track { height: 2px; border-radius: 0; background: var(--surface-3); }
-.prog.prog-edge .prog-track > i { border-radius: 0; }
-/* Vạch mốc: ở 2px chúng là vết cắt trong lòng đường, không phải vạch chia của
-   một thanh ba khúc — hạ xuống mức gần như không thấy. */
-.prog.prog-edge .prog-mile { background: rgba(10,12,16,.55); }
-/* Con số % trong dòng meta: mono để hàng không nhảy khi tiến độ đổi một chữ
-   số, và lấy màu trạng thái của chính hàng (`--sc` đặt trên `.row`) thay vì
-   một màu vàng thứ hai. */
-.meta-pct { font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-size: var(--fs-cap); font-weight: 500; color: var(--sc, var(--progress)); }
+   Vì sao phải là luật theo NGỮ CẢNH (`.row .meta .prog`) chứ không sửa
+   `.prog`: cùng component này còn được khối Up next và bảng quản trị dùng —
+   hai chỗ đó thanh tiến độ nằm trên dòng riêng của nó, ép về 96px là bóp
+   nghẹt đúng chỗ cần đọc rõ nhất. */
+.row .meta .prog { max-width: 96px; margin: 0; gap: 6px; }
+.row .meta .prog .prog-num { min-width: 24px; }
+/* Link nghe nằm trong dòng meta thì không cần lề trên — lề đó viết cho lúc nó
+   còn là một dòng riêng dưới cùng của hàng. */
+.row .meta .watch { margin-top: 0; }
 
 .watch { display: inline-block; margin-top: 2px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }

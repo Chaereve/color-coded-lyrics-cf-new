@@ -29,7 +29,7 @@ import { nextTicket, stillLatest } from './lib/latestOnly'
 import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
-import Progress, { pctValue } from './components/Progress'
+import Progress from './components/Progress'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
@@ -311,13 +311,16 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
           <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
           <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
           <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
-          {/* Tiến độ là CHỮ trong dòng meta, không phải một dòng riêng (phương
-              án C). Nhờ vậy mọi hàng đều đúng hai dòng và cao bằng nhau, kể cả
-              hàng đang làm — trước đây chính hàng này cao hơn ba dòng nên cả
-              danh sách đọc ra lệch nhịp. Vạch màu nằm ở đáy hàng (cuối khối
-              `.row`), cùng một con số đã kẹp ở `pctValue`. */}
+          {/* TIẾN ĐỘ NẰM TRONG DÒNG META (phương án A, chủ dự án chốt
+              21/10/2026). Trước đây thanh tiến độ là một DÒNG THỨ BA trong
+              `.body`, nên riêng hàng "đang làm" cao hơn hẳn các hàng khác và
+              cả danh sách đọc ra lệch nhịp. Nay nó là một phần tử của dòng meta
+              — hàng nào cũng đúng hai dòng, cao bằng nhau. Thanh bị CSS thu về
+              96px trong ngữ cảnh này (`.row .meta .prog`), còn khối Up next và
+              bảng quản trị vẫn dùng thanh đầy đủ của chúng. */}
           {r.status === 'in_progress' && (
-            <><span className="dot" aria-hidden="true" /><span className="meta-pct">{pctValue(r.progress)}%</span></>
+            <><span className="dot" aria-hidden="true" />
+              <Progress pct={r.progress} label={t('progress.label')} /></>
           )}
           {r.status === 'denied' && r.deny_reason && (
             <>
@@ -334,8 +337,15 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
               không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
           {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
           {onShare && <ShareBtn onShare={() => onShare(r)} />}
+          {/* Link nghe cũng ở TRONG dòng meta: đó là mảnh thứ ba từng bị đẩy
+              xuống dưới, làm hàng "đã xong" cũng cao hơn hai hàng còn lại. */}
+          {watchUrl && (
+            <>
+              <span className="dot" aria-hidden="true" />
+              <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>
+            </>
+          )}
         </div>
-        {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
@@ -346,12 +356,6 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
         <b key={r.votes} className="tick">{r.votes}</b><span>{t('row.vote')}</span>
         {myCount > 0 && <em className="mine" title={t('row.mine', { n: myCount })}>×{myCount}</em>}
       </button>
-      {/* ĐƯỜNG ĐÁY: vạch tiến độ chạy hết bề ngang hàng, cao 2px. Nằm trong
-          `.row` (đã `position: relative`) chứ không trong `.body`, nên nó không
-          đẩy dòng chữ nào xuống — đó chính là điểm của phương án này. */}
-      {r.status === 'in_progress' && (
-        <Progress pct={r.progress} label={t('progress.label')} edge />
-      )}
       {showDelete && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
           onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
