@@ -69,8 +69,14 @@ test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolu
 
 test('nhịp cụm nút phải thống nhất giữa dòng lẻ và cả cụm', () => {
   const row = ruleOf('.row')
-  assert.match(row, /gap:\s*12px/, '.row gap phải 12px như cam kết trong HUONG-DAN')
-  assert.match(row, /padding:\s*11px 14px/, '.row cách mép phải 14px')
+  /* Gap và đệm hàng nay lấy từ thang mật độ (`--sp-*`) thay vì số viết tay,
+     nên luật ở đây đọc đúng TÊN NẤC chứ không đọc con số: `--sp-3` = 12px
+     (khe, giữ nguyên cam kết cũ) và `--sp-3`/`--sp-4` = 12px/16px (đệm,
+     nới 1px mỗi bên ở Gói 2 để hàng cao 50px thay vì 44px). Đổi giá trị của
+     nấc thì phải đổi cả chỗ này — đó chính là mục đích: một chỗ khai, một
+     chỗ chốt. */
+  assert.match(row, /gap:\s*var\(--sp-3\)/, '.row gap phải là nấc --sp-3 (= 12px) như cam kết trong HUONG-DAN')
+  assert.match(row, /padding:\s*var\(--sp-3\) var\(--sp-4\)/, '.row đệm --sp-3/--sp-4 (= 12px 16px)')
   const bell = rulesWith('.grow > .rowact')
   assert.ok(bell.some((b) => /margin:\s*0 14px 0 12px/.test(b)),
     'chuông cụm: 12px từ mũi tên, 14px từ mép phải — đúng bằng .row')

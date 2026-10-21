@@ -119,12 +119,39 @@
 
   /* thang góc bo: control nhỏ 6, khối 8, nổi/modal 12, logo splash 16.
      Trước đây 3/5/6/7/8/10/12/14 lẫn lộn nên nhìn kỹ là thấy "lệch tay". */
-  --r-sm: 4px;
+  --r-sm: 6px;
   --r-pill: 999px;
-  --radius: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+  --radius: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
+     Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
+     17 chỗ dùng chữ 10px và 50 chỗ dùng 11,5px — mắt không đọc ra một nhịp,
+     chỉ thấy "chỗ này hơi chật". Hai thang dưới đây thay cho đám số lẻ đó.
+     MỌI kích thước chữ/khe mới đều phải lấy từ đây; thêm một số px rời là
+     mở lại đúng vấn đề mà thang này sinh ra để đóng.
+
+     Bảy nấc chữ, cách nhau đủ để mắt phân biệt:
+       11 (nhãn nhỏ, mono, caption) · 12.5 (meta) · 14 (thân bài) ·
+       15 (tên bài trong hàng) · 17 (tên khối) · 18 (tiêu đề khối) ·
+       25 (h1). Sàn 11px: 10px trên nền tối là ngưỡng mỏi mắt, nhất là với
+       dấu thanh tiếng Việt — 11px vẫn đọc được ở khoảng cách 60cm.
+     Năm nấc khe: 4 · 8 · 12 · 24 (và 16 là bậc giữa cho khối lớn). */
+  --fs-cap:   11px;
+  --fs-meta:  12.5px;
+  --fs-body:  14px;
+  --fs-title: 15px;
+  --fs-lead:  17px;
+  --fs-h2:    18px;
+  --fs-h1:    25px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
 
   /* bóng: một bộ duy nhất, càng cao càng loãng */
   --sh-1: 0 1px 2px rgba(0,0,0,.45);
@@ -183,7 +210,11 @@ body {
   background: var(--bg);
   color: var(--txt);
   font-family: var(--font);
-  font-size: 14px; line-height: 1.5;
+  /* 1,55 chứ không phải 1,5: dấu thanh tiếng Việt (ế ộ ữ) vươn lên trên và
+     xuống dưới đường chữ, nên ở 14px dòng 1,5 hai dòng liền nhau vẫn chạm
+     nhau ở những chỗ nhiều dấu. +0,05 không đổi bố cục, chỉ trả lại khoảng
+     thở cho phần dấu. */
+  font-size: var(--fs-body); line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'kern' 1, 'liga' 1;
@@ -342,9 +373,9 @@ button { font-family: inherit; }
    --sh-1 cho chiều sâu thay vì ô phẳng. Transition bằng token, không .13s magic. */
 .btn {
   position: relative; overflow: hidden;
-  padding: 7px 14px; border-radius: var(--r-md); cursor: pointer;
+  padding: var(--sp-2) var(--sp-4); border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--line-2); background: var(--surface-2);
-  color: var(--txt); font-size: 13px; font-weight: 600; letter-spacing: .1px; white-space: nowrap;
+  color: var(--txt); font-size: 13.5px; font-weight: 600; letter-spacing: .1px; white-space: nowrap;
   box-shadow: var(--sh-1), var(--ring);
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), box-shadow var(--t-2) var(--e-soft),
@@ -462,8 +493,8 @@ button { font-family: inherit; }
    app đều dùng đúng một kiểu như nhau — mắt không biết "mục mới bắt đầu ở
    đây". Đường tóc tách khối mà không cần thêm một cái hộp nào. */
 .section-title {
-  display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
-  font-family: var(--display); font-size: 16.5px; font-weight: 700; letter-spacing: .1px;
+  display: flex; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-3);
+  font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; letter-spacing: .1px;
   color: var(--txt);
   animation: rise .42s var(--e-out) both;
 }
@@ -578,9 +609,10 @@ select {
    KHÔNG đổi độ đậm khi đang chọn: chữ đậm lên là cả hàng nhích một nhịp mỗi
    lần bấm, mà "đang chọn" ở đây đã có hai tín hiệu khác (chữ trắng + vạch đầy
    màu) nên không cần tín hiệu thứ ba đánh đổi bằng rung hình. */
-.fchip { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+.fchip { flex: none; display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
   border: 0; border-radius: var(--radius) var(--radius) 0 0; background: none;
-  color: var(--txt-2); font: 500 12.5px/1 var(--font); white-space: nowrap; cursor: pointer;
+  color: var(--txt-2); font-family: var(--font); font-size: var(--fs-meta); font-weight: 500;
+  line-height: 1; white-space: nowrap; cursor: pointer;
   transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft); }
 /* ---- BỐN NHỊP RIÊNG CHO PC (màn ≥900px, chuột) -------------------------
    Đặt TRƯỚC khối `@media (pointer: coarse)` bên dưới, và đây là chủ ý: một
@@ -700,7 +732,7 @@ select {
 /* ---- danh sách request ---- */
 .list { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden;
   background: var(--panel); box-shadow: var(--sh-1), var(--ring); }
-.row { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line);
+.row { position: relative; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line);
   transition: background var(--t-1) var(--e-soft); }
 .row:last-child { border-bottom: 0; }
 /* vạch màu trạng thái chạy dọc mép trái, lớn dần từ tâm — hover có lý do
@@ -723,9 +755,9 @@ select {
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
-.row .title { font-size: 14.5px; font-weight: 600; letter-spacing: .1px; margin-bottom: 4px; line-height: 1.45; }
+.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: var(--sp-1); line-height: 1.45; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
-.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
+.meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
    Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau bằng dấu chấm giữa
    là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh — vạch mảnh đọc
@@ -769,7 +801,7 @@ select {
    kiểu "nhãn chồng/cụt" người dùng nhìn ra. Về `inline-block` thì chữ nằm ngay
    trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
 .pill.dup { display: inline-block; vertical-align: bottom; }
-.pill { padding: 3px 8px; border-radius: var(--r-pill); font-size: 10.5px;
+.pill { padding: var(--sp-1) 9px; border-radius: var(--r-pill); font-size: var(--fs-cap);
   letter-spacing: .2px; border: 1px solid var(--line-2); color: var(--txt-2); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
@@ -897,7 +929,7 @@ select {
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
    Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
    cột tổng vote, nút mũi tên tròn. Bấm là bung ra đủ request (mở/rút mượt). */
-.grow { position: relative; margin: 10px 12px; border: 1px solid var(--line);
+.grow { position: relative; margin: var(--sp-3); border: 1px solid var(--line);
   border-radius: var(--r-md); overflow: hidden;
   background: var(--surface);
   box-shadow: var(--sh-1);
@@ -906,8 +938,8 @@ select {
 .list > .grow:last-child { margin-bottom: 12px; }
 .grow:hover { border-color: rgba(169,164,255,.6); }
 .grow.open { border-color: var(--a-2); box-shadow: 0 10px 28px -16px var(--a-glow); }
-.grow-head { position: relative; display: flex; align-items: center; gap: 12px;
-  width: 100%; padding: 12px 14px;
+.grow-head { position: relative; display: flex; align-items: center; gap: var(--sp-3);
+  width: 100%; padding: var(--sp-3) var(--sp-4);
   border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
   background: none; }
 .grow-head .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono);
@@ -920,17 +952,17 @@ select {
   font-size: 11px; font-weight: 700; letter-spacing: .2px; color: #fff;
   background: linear-gradient(90deg, var(--a), var(--a-dim));
   box-shadow: 0 2px 10px -4px var(--a-glow); }
-.grow-head .title { display: block; font-size: 15.5px; font-weight: 700; letter-spacing: .1px;
-  margin-bottom: 3px; }
+.grow-head .title { display: block; font-size: var(--fs-lead); font-weight: 700; letter-spacing: .1px;
+  margin-bottom: var(--sp-1); }
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
-.grow-head .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 12px; color: var(--txt-3); }
+.grow-head .meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+  font-size: var(--fs-meta); color: var(--txt-3); }
 /* cột tổng vote bên phải — con số mono lớn màu accent */
 .grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
   min-width: 44px; }
-.grow-stat b { font-family: var(--mono); font-size: 19px; font-weight: 600; line-height: 1.1;
+.grow-stat b { font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1.1;
   color: var(--a-2); }
-.grow-stat span { font-size: 10.5px; color: var(--txt-3); }
+.grow-stat span { font-size: var(--fs-cap); color: var(--txt-3); }
 /* mũi tên là một chip tròn — mục chạm rõ ràng, xoay 180° khi mở */
 .grow-arrow { flex: none; width: 30px; height: 30px; display: grid; place-items: center;
   border: 1px solid var(--line-2); border-radius: 50%; background: var(--surface-2);
@@ -1008,7 +1040,7 @@ select {
   .pager { animation: none }
 }
 
-.card { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px; margin-bottom: 14px;
+.card { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-4); margin-bottom: var(--sp-4);
   box-shadow: var(--ring); }
 .card h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .card h4 .dotc { width: 6px; height: 6px; border-radius: 50%; background: var(--a-2); }
@@ -1936,9 +1968,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 
 .side-item {
   position: relative; z-index: 1; display: flex; align-items: center; gap: var(--side-gap); width: 100%;
-  height: 36px; padding: 0 var(--side-ix); border: 0; border-radius: var(--radius);
+  height: 40px; padding: 0 var(--side-ix); border: 0; border-radius: var(--radius);
   background: none; cursor: pointer; color: var(--txt-2); text-decoration: none;
-  font-family: inherit; font-size: 13.5px; font-weight: 500; letter-spacing: .1px; text-align: left;
+  font-family: inherit; font-size: 14px; font-weight: 500; letter-spacing: .1px; text-align: left;
   transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
 }
 /* Không có animation vào cho từng mục: sidebar đứng yên suốt phiên, bốn mục
@@ -2026,15 +2058,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 }
 
 /* ================= ĐẦU TRANG NỘI DUNG ================= */
-.mainhead { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.mainhead { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-5); }
 .mainhead-tx { flex: 1; min-width: 0; }
-.mainhead-t { margin: 0; font-family: var(--display); font-weight: 700; font-size: 21px;
+.mainhead-t { margin: 0; font-family: var(--display); font-weight: 700; font-size: var(--fs-h1);
   letter-spacing: .1px; line-height: 1.2; text-wrap: balance; }
 /* Dòng phụ: tiêu đề một mình ở góc trên bên trái để lại một khoảng trống
    không rõ chức năng, còn người mới vào thì không biết trang này để làm gì.
    Một dòng, chữ nhỏ, màu nhạt nhất trong thang — đủ định hướng, không tranh
    chỗ với tiêu đề và không lặp lại số liệu của dải thống kê ngay dưới. */
-.mainhead-sub { margin: 3px 0 0; color: var(--txt-3); font-size: 12.5px; line-height: 1.4; }
+.mainhead-sub { margin: var(--sp-1) 0 0; color: var(--txt-3); font-size: var(--fs-meta); line-height: 1.45; }
 
 /* ---- khối "Vote của bạn", đặt ngay dưới thanh Up next ----
    Hàng trên: tổng + nút. Hàng dưới: bốn ô cùng cỡ (free / purchased /
@@ -3619,13 +3651,13 @@ html[data-section="spin"] .bgfx { display: none; }
    cột nội dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
 .fbar {
   animation: rise .42s var(--e-out) .05s both;
-  display: grid; gap: 9px;
-  padding: 10px 12px; margin: 0 0 12px;
+  display: grid; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4); margin: 0 0 var(--sp-4);
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel);
   transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
 }
-.fbar-top { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.fbar-top { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 .fbar-top > .searchwrap { flex: 0 1 270px; min-width: 168px; }
 .fbar .search { width: 100%; max-width: none; }
 .fbar-side { flex: none; display: flex; align-items: center; gap: 8px; }
@@ -3654,7 +3686,7 @@ html[data-section="spin"] .bgfx { display: none; }
    hết còn hơn giấu sau một dải cuộn ngang) — khe 1px mà xuống dòng thì hai
    hàng dán vào nhau. */
 .fchips.kinds { flex: 1 1 auto; gap: 1px; row-gap: 4px; }
-.fchip.fkind { padding: 6px 10px; }
+.fchip.fkind { padding: var(--sp-2) var(--sp-3); }
 .fchip .kswatch { flex: none; width: 9px; height: 9px; border-radius: 2px;
   background: var(--c, var(--txt-3)); opacity: .42;
   transition: opacity var(--t-1) var(--e-soft); }
@@ -4788,9 +4820,9 @@ body { overflow-x: hidden; }
 
 @media (max-width: 899px) {
   .main { padding: 18px 14px 72px; max-width: 100%; }
-  .mainhead { margin-bottom: 16px; gap: 10px; }
-  .mainhead-t { font-size: 18px; }
-  .mainhead-sub { font-size: 12px; max-width: none; }
+  .mainhead { margin-bottom: var(--sp-4); gap: var(--sp-3); }
+  .mainhead-t { font-size: 20px; }
+  .mainhead-sub { font-size: var(--fs-cap); max-width: none; }
   .stats { gap: 1px; margin-bottom: 16px; }
   .stat { min-height: 56px; padding: 9px 10px; }
   .stat b { font-size: 15px; }
@@ -4815,15 +4847,15 @@ body { overflow-x: hidden; }
   .stat { border-right: 0; border-bottom: 1px solid var(--line); }
   .stats .stat:nth-child(odd) { border-right: 1px solid var(--line); }
   .stats .stat:nth-last-child(-n+2) { border-bottom: 0; }
-  .row { padding: 10px 10px; gap: 8px; }
-  .row .title { font-size: 13.5px; }
-  .meta { font-size: 11px; gap: 6px; }
+  .row { padding: var(--sp-3); gap: var(--sp-2); }
+  .row .title { font-size: var(--fs-body); }
+  .meta { font-size: var(--fs-cap); gap: var(--sp-2); }
   .votebtn { padding: 6px 9px; min-height: 36px; }
-  .grow { margin: 8px 0; }
-  .grow-head { padding: 10px; }
+  .grow { margin: var(--sp-2) 0; }
+  .grow-head { padding: var(--sp-3); }
   .grow-stat b { font-size: 16px; }
-  .fbar { padding: 9px 10px; gap: 8px; }
-  .fbar-top { gap: 8px; }
+  .fbar { padding: var(--sp-3); gap: var(--sp-2); }
+  .fbar-top { gap: var(--sp-2); }
   .fbar-top > .searchwrap { flex: 1 1 100%; min-width: 0; }
   .fbar-side { width: 100%; justify-content: space-between; }
   .fmore { flex: 1 1 auto; justify-content: center; min-height: 40px; }
@@ -4854,10 +4886,10 @@ body { overflow-x: hidden; }
 
 @media (max-width: 380px) {
   .main { padding: 12px 8px 72px; }
-  .mainhead-t { font-size: 16.5px; }
+  .mainhead-t { font-size: 18px; }
   .stat { padding: 8px; }
   .stat b { font-size: 14px; }
-  .row .title { font-size: 13px; }
+  .row .title { font-size: 14px; }
   .votebtn b { font-size: 13px; }
   .fchip { padding: 6px 8px; font-size: 11.5px; }
   .lb-table th, .lb-table td { padding: 7px 6px; font-size: 12px; }

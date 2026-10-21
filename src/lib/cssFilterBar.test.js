@@ -58,7 +58,11 @@ test('.fbar nằm TRONG DÒNG — không dính, không nổi trên danh sách kh
     'thanh lọc không được dùng nền mờ (đó là nguyên nhân chữ chồng lên nhau)')
   /* Mép thanh phải TRÙNG mép danh sách: lề âm làm thanh thò ra ngoài cột nội
      dung, và đó là một nửa của cảm giác "thanh này không thuộc trang". */
-  assert.doesNotMatch(bar, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')
+  /* `var(--sp-4)` cũng chứa chuỗi "-4" nên phải bóc var() ra TRƯỚC khi dò dấu
+     trừ: từ Gói 2 lề lấy từ thang `--sp-*`, và luật cũ đọc tên nấc thành một
+     số âm — báo đỏ trong khi lề vẫn dương. Chỉ số âm viết tay mới là lỗi. */
+  const marginDigits = bar.replace(/var\([^)]*\)/g, '')
+  assert.doesNotMatch(marginDigits, /margin:[^;]*-\d/, 'thanh không được tràn ra ngoài cột nội dung')
 })
 
 test('lọc status giữ một hàng — hết chỗ thì cuộn ngang, không gãy thành hai hàng', () => {
