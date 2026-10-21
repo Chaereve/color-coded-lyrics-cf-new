@@ -10,7 +10,7 @@ import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import LoadErr from './LoadErr'
-import { statusColor, statusLabel } from '../lib/meta'
+import { statusColorOf, statusLabel } from '../lib/meta'
 
 /* =========================================================
    TRANG CÁ NHÂN CÔNG KHAI — mở từ tên người gửi / tên tác giả bình luận
@@ -186,7 +186,7 @@ export default function PublicProfile({ userId, viewerId = null, onBack, fetcher
                   <span className="public-deny">{r.deny_reason}</span>
                 )}
               </span>
-              <em className="public-state" style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</em>
+              <em className="public-state" style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</em>
             </div>
           ))}
         </div>

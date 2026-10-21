@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
-import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
+import { KIND_META, isPicked, kindCls, statusColorOf, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf, fetchAdminActions, fetchRequestHistory, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, conversionRates, FUNNEL_CONVERSIONS, FUNNEL_EVENT_KEYS, seriesByDay, votesPerRequest } from '../lib/funnelSummary.js'
 import Sparkline from './Sparkline'
@@ -231,7 +231,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         ) : (
           <>
             {expired && <span className="status s-denied" title={t('adm.expiredBody')}>{t('expiry.label')}</span>}
-            {!expired && <span className={`status s-${r.status}`} style={{ '--c': statusColor(r.status) }}>{statusLabel(r, t)}</span>}
+            {!expired && <span className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</span>}
             {/* Nhịp chốt bài đọc từ CÙNG nguồn với dòng "Next pick" ở trang
                 chủ (`settings.pick.interval_days`). Viết cứng `n: 4` ở đây là
                 cách lời giải thích lệch khỏi lịch thật ngay khi admin đổi nhịp

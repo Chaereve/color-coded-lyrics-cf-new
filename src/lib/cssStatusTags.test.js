@@ -136,3 +136,52 @@ test('hover nhuộm MÉP TRÁI bằng màu trạng thái, nền vẫn xám', () 
   assert.match(bare, /transparent 120px\)\s*,\s*var\(--hover\)/,
     'màn hẹp phải thu ánh màu về 120px (và vẫn giữ nền xám hover)')
 })
+
+/* =========================================================
+   "IN QUEUE" VÀ "UP NEXT" PHẢI KHÁC MÀU
+   ---------------------------------------------------------
+   Chủ dự án: "màu của up next vs in queue đang quá giống nhau". Đúng, và lý do
+   nằm ở tầng dữ liệu: cả hai đều là `status === 'queued'`, nên chỗ nào gọi
+   `statusColor(r.status)` là ra cùng một sắc. Nhãn đã tách từ trước
+   (`statusLabel` trả "Up next" cho bài đã chốt) nhưng MÀU thì chưa tách theo.
+   Bài này chốt: màu đi theo cặp với nhãn, và mọi chỗ vẽ nhãn đi qua một hàm.
+   ========================================================= */
+test('Up next có sắc riêng, không dùng chung --queued với In queue', async () => {
+  const { statusColorOf } = await import('./meta.js')
+  const picked = { status: 'queued', picked_at: '2026-10-01T00:00:00Z' }
+  const waiting = { status: 'queued', picked_at: null }
+  assert.equal(statusColorOf(picked), 'var(--upnext)', 'bài đã chốt vào Up next phải mang màu upnext')
+  assert.equal(statusColorOf(waiting), 'var(--queued)', 'bài còn trong hàng giữ màu queued')
+  /* Hai token phải thật sự khác nhau — nếu ai đó đặt chúng bằng nhau thì phép
+     kiểm trên vẫn xanh mà màn hình lại y như cũ. */
+  const tok = (name) => bare.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1]
+  const queued = tok('queued')
+  const upnext = tok('upnext')
+  assert.ok(queued && upnext, 'thiếu token --queued hoặc --upnext')
+  assert.notEqual(queued.toLowerCase(), upnext.toLowerCase(),
+    'hai bậc khác nhau của dây chuyền không được dùng chung một mã màu')
+})
+
+test('mọi nhãn trạng thái lấy màu qua statusColorOf, không tự tra theo chuỗi', () => {
+  const files = ['src/App.jsx', 'src/components/AdminPanel.jsx', 'src/components/PublicProfile.jsx']
+  for (const f of files) {
+    const src = readFileSync(`${root}${f}`, 'utf8')
+    assert.doesNotMatch(src, /statusColor\(/, 
+      `${f} còn gọi statusColor(...) trực tiếp — đó là chỗ làm Up next trùng màu In queue`)
+    assert.match(src, /statusColorOf\(/, `${f} phải lấy màu qua statusColorOf`)
+  }
+  /* Chip lọc: Queue và Up next là hai mục khác nhau thì hai màu khác nhau. */
+  assert.match(app, /\{ k: 'picked',\s+c: 'var\(--upnext\)'/,
+    'chip "Up next" phải mang màu upnext, cùng màu với nhãn trên hàng')
+  /* Nhãn Up next trong .tags cũng vậy — cùng một hàng, cùng một sắc. */
+  const upnext = ruleOf('.pill.upnext')
+  assert.match(upnext, /color:\s*var\(--upnext\)/)
+  assert.match(upnext, /border:\s*0/, 'nhãn Up next theo khuôn pill mềm của tem PAID: không viền')
+  /* Hộp thư cũng vậy: tin "đã chốt vào Up next" và tin "đã duyệt" là hai bước
+     khác nhau, không được cùng một màu. */
+  const notes = readFileSync(`${root}src/components/Notifications.jsx`, 'utf8')
+  assert.match(notes, /picked:\s*'var\(--upnext\)'/,
+    'tin "picked" trong hộp thư phải mang màu upnext')
+  assert.match(notes, /approved:\s*'var\(--queued\)'/,
+    'tin "approved" vẫn là bước vào hàng, giữ màu queued')
+})

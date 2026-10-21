@@ -31,7 +31,11 @@ const MAX_PER_GROUP = 12
    ngoài bảng và trong thông báo phải một màu, không tự bày bảng màu mới. */
 const TONE = {
   done: 'var(--done)', expired: 'var(--denied)', denied: 'var(--denied)',
-  picked: 'var(--queued)', started: 'var(--progress)', progress: 'var(--progress)',
+  /* `picked` = bài đã được chốt vào Up next, nên nó mang `--upnext` (tím) chứ
+     không phải `--queued` (xanh lạnh): trong hộp thư, tin "đã chốt" và tin
+     "đã duyệt" từng cùng một màu, dù đó là hai bước khác nhau. */
+  picked: 'var(--upnext)',
+  started: 'var(--progress)', progress: 'var(--progress)',
   approved: 'var(--queued)',
 }
 

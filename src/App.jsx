@@ -34,7 +34,7 @@ const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
-import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
@@ -173,7 +173,9 @@ const sectionTransition = createSectionTransition({ reduced: REDUCED })
        mặt — vạch ngăn của nó cũng phải biến mất theo (xem chỗ dựng dải). */
 const FILTERS = [
   { k: 'queued',      c: 'var(--queued)',   ax: 'pipe' },
-  { k: 'picked',      c: 'var(--queued)',   ax: 'pipe' },
+  /* Chip "Up next" mang đúng màu của nhãn Up next trên hàng — trước đây hai
+     chip Queue và Up next cùng `--queued`, nên chúng trông như một mục. */
+  { k: 'picked',      c: 'var(--upnext)',   ax: 'pipe' },
   { k: 'in_progress', c: 'var(--progress)', ax: 'pipe' },
   { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
   { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
@@ -267,7 +269,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
-  const sm = { c: statusColor(r.status) }
+  const sm = { c: statusColorOf(r) }
   /* Đã vào dây chuyền (chốt vào Up next HOẶC đang làm) thì khóa vote, kể cả
      rút lại: bài sắp/đang được làm mà vẫn nhận phiếu thì lá phiếu không còn
      nghĩa gì. Trước đây chỉ khóa theo isPicked nên một bài in_progress thiếu
@@ -2101,7 +2103,7 @@ function AppInner() {
                             )}
                           </h3>
                           <div className="sub">
-                            <span className={`status s-${rep.status}`} style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
+                            <span className={`status s-${rep.status}`} style={{ '--c': statusColorOf(rep) }}>{statusLabel(rep, t)}</span>
                             <span className={`kind ${kindCls(rep.kind)}`} title={rep.kind}>{kindShort(rep.kind)}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
@@ -2119,7 +2121,7 @@ function AppInner() {
                             <ul className="now-members">
                               {g.rows.map(rr => (
                                 <li key={rr.id}>
-                                  <span className={`status s-${rr.status}`} style={{ '--c': statusColor(rr.status) }}>{statusLabel(rr, t)}</span>
+                                  <span className={`status s-${rr.status}`} style={{ '--c': statusColorOf(rr) }}>{statusLabel(rr, t)}</span>
                                   {rr.is_paid && <span className="pill gold">PAID</span>}
                                   <span>{rr.votes} {t('now.votes')}</span>
                                 </li>

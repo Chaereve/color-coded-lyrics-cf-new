@@ -54,6 +54,20 @@ export const inChain = (r) => isPicked(r) || r?.status === 'in_progress'
 export const statusLabel = (r, t) =>
   (isPicked(r) && r.status === 'queued' ? t('now.next') : t(`status.${r.status}`))
 
+/* MÀU của nhãn trạng thái — đi theo CẶP với `statusLabel`.
+   Chủ dự án: "màu của up next vs in queue đang quá giống nhau". Đúng, và lý do
+   rất cụ thể: cả hai đều là `status === 'queued'`, nên `statusColor(r.status)`
+   trả về cùng một sắc. Nhưng "đang chờ tới lượt" và "đã được chọn vào Up
+   next" là hai bậc khác nhau của dây chuyền — giờ mỗi bậc một sắc
+   (`--queued` xanh lạnh, `--upnext` tím).
+
+   Hàm này nhận CẢ DÒNG, không nhận chuỗi trạng thái: chỉ có dòng mới biết nó
+   đã được chốt hay chưa (`picked_at`). Mọi chỗ vẽ nhãn trạng thái phải đi qua
+   đây, không được gọi `statusColor(r.status)` trực tiếp — đó đúng là chỗ đã
+   làm hai nhãn trùng màu. */
+export const statusColorOf = (r) =>
+  (isPicked(r) && r?.status === 'queued' ? 'var(--upnext)' : statusColor(r?.status))
+
 /* Cần truyền hàm t vào để dịch */
 export const timeAgo = (iso, t) => {
   const s = (Date.now() - new Date(iso).getTime()) / 1000

@@ -78,9 +78,16 @@
   --a-soft: rgba(77,64,240,.16);
   --a-glow: rgba(77,64,240,.45);
 
-  /* mau trang thai — chi dung cho cham tron nho */
+  /* mau trang thai — chi dung cho cham tron nho.
+     Năm sắc này là một DẢI ĐI LÊN: xám (chờ duyệt) → xanh lạnh (trong hàng) →
+     tím (đã chốt) → hổ phách (đang làm) → xanh lá (xong); đỏ dành riêng cho
+     từ chối. Chủ dự án chỉ ra rằng "In queue" và "Up next" đang giống hệt nhau
+     về màu — đúng, vì cả hai cùng trỏ vào `--queued`. Nhưng chúng là hai bậc
+     khác nhau của dây chuyền ("đang chờ tới lượt" và "đã được chọn"), nên mỗi
+     bậc có sắc riêng. */
   --pending:  #8d95a3;
-  --queued:   #8f94ff;
+  --queued:   #5f8fd6;
+  --upnext:   #c07dff;
   --progress: #e0a93e;
   --done:     #4cba88;
   --denied:   #e26e69;
@@ -3266,11 +3273,14 @@ html[data-section="spin"] .bgfx { display: none; }
    giờ hiện ra; giữ lại chỉ để người sau sửa nhầm chỗ. */
 
 /* ---- nhãn Up next trên dòng request / danh sách vote ----
-   cùng khuôn với .pill.gold: chữ + viền + nền rất nhạt theo màu queued */
+   Cùng khuôn với tem PAID: chữ màu + nền rất nhạt, KHÔNG viền. Màu là
+   `--upnext` (tím), không phải `--queued` (xanh lạnh) nữa — nhãn này nằm ngay
+   cạnh nhãn trạng thái "Up next" của cùng một hàng, nên hai chỗ phải cùng một
+   sắc; và sắc đó phải khác "In queue". */
 .pill.upnext {
-  color: var(--queued);
-  border-color: rgba(143,148,255,.45);
-  background: rgba(143,148,255,.12);
+  color: var(--upnext);
+  border: 0;
+  background: color-mix(in oklab, var(--upnext) 13%, transparent);
   margin-left: 4px;
 }
 .row.paid .pill.upnext { margin-left: 6px; }
@@ -3880,14 +3890,14 @@ html[data-section="spin"] .bgfx { display: none; }
      · dải loại bài: Ô VUÔNG 9×9px bo 2px. Loại bài là một NHÃN dán trên hàng
        (`.kind` cũng là một thẻ có góc bo), nên dấu của nó mang đúng góc bo đó.
        Khác hình còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau
-       và dùng hai bảng màu có vài sắc na ná nhau (`--queued` #8f94ff với
+       và dùng hai bảng màu có vài sắc na ná nhau (`--upnext` #c07dff với
        `--k-ccl` #ab8fe0, `--done` #4cba88 với `--k-album` #4fb0ad`).
 
    Màu chữ: khi CHỌN, chữ mang màu CỦA CHÍNH LOẠI ĐÓ — khác dải trạng thái
-   (ở đó mục đang chọn dùng chữ trắng). Lý do: một màu trạng thái được nhiều
-   mục chia nhau (Queue và Up next cùng `--queued`), còn màu loại bài là DANH
-   TÍNH của riêng một mục — và tô chữ bằng đúng màu đó là nối thẳng được với
-   thẻ loại bài trên hàng request (thẻ cũng lấy màu đó cho cả chữ lẫn viền).
+   (ở đó mục đang chọn dùng chữ trắng). Lý do: một màu trạng thái có thể được
+   nhiều mục chia nhau, còn màu loại bài là DANH TÍNH của riêng một mục — và tô
+   chữ bằng đúng màu đó là nối thẳng được với thẻ loại bài trên hàng request
+   (thẻ cũng lấy màu đó cho cả chữ lẫn viền).
 
    Khe 1px + đệm 10px: giống hệt dải chế độ xem, để hai hàng đọc ra là hai anh
    em của cùng một thanh lọc. */
