@@ -291,7 +291,10 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
   }, [r.votes])
 
   return (
-    <div className={`row${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
+    /* `req` = hàng của BẢNG YÊU CẦU (khác hàng đơn mua trong mục "Của tôi").
+       Chỉ hàng này mới có cột phiếu bên phải (phương án F), nên hình dáng của
+       nó phải là một lớp riêng — sửa `.row` trần là hàng đơn mua đổi theo. */
+    <div className={`row req${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
       style={{ '--sc': sm.c, '--i': Math.min(n, 12) }}>
       <div className="body">
         <div className="title">

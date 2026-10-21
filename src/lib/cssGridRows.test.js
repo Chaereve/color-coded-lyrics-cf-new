@@ -58,6 +58,45 @@ test('.grow: mỗi quy tắc chọn con trực tiếp đều chốt cả hàng l
   }
 })
 
+/* PHƯƠNG ÁN F — CỘT PHIẾU BÊN PHẢI.
+   ---------------------------------------------------------
+   Lỗi mà ảnh chụp thật cho thấy: nội dung dòng phụ hết ở giữa hàng, nút vote
+   là một hộp nhỏ canh giữa mép phải, nên mỗi hàng có một khoảng trống ~40% bề
+   ngang và cái nút lơ lửng trong đó. Cách sửa là ĐÓNG KHUNG cột phải. Bốn vế
+   phải còn đủ, thiếu vế nào là quay lại đúng trạng thái cũ:
+
+     1. hàng giãn hết chiều cao  → `align-items: stretch` trên `.row.req`;
+     2. cột chạm hai mép         → đệm dọc dời về `.body`, hàng `padding: 0`;
+     3. vách ngăn dọc            → `border-left` trên cột, không phải viền hộp;
+     4. số phiếu là chữ lớn      → `--fs-lead`, nhãn về cỡ caption in hoa. */
+test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
+  const row = ruleOf('.row.req')
+  assert.match(row, /align-items:\s*stretch/, 'hàng phải giãn để cột chạm hai mép')
+  assert.match(row, /padding:\s*0/, 'đệm dọc của hàng phải về 0, nếu không cột bị hụt vào trong')
+  const body = rulesWith('.row.req .body').join(' ')
+  assert.match(body, /padding:\s*var\(--sp-3\) 0/, 'đệm dọc dời về phần chữ — đó là chỗ duy nhất còn đệm')
+
+  const btn = ruleOf('.row.req > .votebtn')
+  assert.match(btn, /flex-direction:\s*column/, 'số và nhãn phải xếp dọc trong cột')
+  assert.match(btn, /border-left:\s*1px solid var\(--line\)/, 'vách ngăn là đường kẻ trái của cột')
+  assert.match(btn, /border:\s*0/, 'không giữ viền hộp của nút cũ — viền + vách là hai khung chồng nhau')
+  assert.match(btn, /border-radius:\s*0/, 'cột chạm hai mép thì không được bo góc')
+  assert.match(btn, /align-self:\s*stretch/, 'cột cao đúng bằng hàng')
+
+  const num = rulesWith('.row.req > .votebtn b').join(' ')
+  assert.match(num, /font-size:\s*var\(--fs-lead\)/, 'số phiếu phải lấy từ thang chữ, không viết cỡ rời')
+  const lbl = rulesWith('.row.req > .votebtn span').join(' ')
+  assert.match(lbl, /text-transform:\s*uppercase/, 'nhãn là đơn vị của con số: chữ nhỏ in hoa')
+  assert.match(lbl, /letter-spacing/, 'chữ in hoa cỡ nhỏ phải giãn chữ mới đọc được')
+
+  /* Trạng thái KHOÁ không được dùng viền đứt của bản cũ: trên một vách ngăn
+     dọc, nét đứt đọc ra thành "ô nhập liệu" chứ không phải "không bấm được". */
+  assert.match(css, /\.row\.req > \.votebtn\.locked \{[^}]*border-style:\s*none/,
+    'cột bị khoá tắt viền đứt, chìm bằng màu chữ thay vì bằng nét')
+  assert.match(css, /\.row\.req > \.votebtn\.locked b \{[^}]*var\(--txt-3\)/,
+    'số phiếu của bài đã khoá phải chìm về màu xám')
+})
+
 test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolute', () => {
   assert.match(ruleOf('.grow'), /display:\s*grid/)
   assert.ok(!rulesWith('.grow > .rowact').some((b) => /position:\s*absolute/.test(b)),

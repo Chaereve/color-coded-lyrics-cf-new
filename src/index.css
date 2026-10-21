@@ -960,6 +960,59 @@ select {
 .votebtn.locked { border-style: dashed; }
 .votebtn.locked:disabled { opacity: .55; }
 
+/* ===== CỘT PHIẾU BÊN PHẢI (phương án F, chủ dự án chốt 21/10/2026) =======
+   Vấn đề của bản trước, nhìn từ ảnh chụp thật: nội dung dòng phụ kết thúc ở
+   giữa hàng, còn nút vote là một cái hộp nhỏ canh giữa mép phải. Kết quả là
+   mỗi hàng có một khoảng trống ~40% bề ngang và cái nút lơ lửng giữa khoảng
+   trống đó, không thẳng với dòng chữ nào.
+
+   Cách sửa: cột phải được ĐÓNG KHUNG. Hàng cao bao nhiêu thì cột cao đúng
+   bấy nhiêu (`align-items: stretch`), có vách ngăn dọc ở mép trái, số phiếu in
+   lớn bằng chữ mono, và CẢ CỘT là nút bấm. Cột phải thôi là chỗ trống, nó
+   thành một phần của thiết kế — và là vùng bấm rộng nhất trong hàng.
+
+   Vì sao đệm của hàng chuyển sang `.body`: nếu hàng còn đệm trên/dưới thì cột
+   không chạm được hai mép, vách ngăn lơ lửng và mất luôn cảm giác "cột". Đệm
+   dọc đi theo phần chữ, cột chạm trọn chiều cao. */
+.row.req { align-items: stretch; padding: 0 0 0 var(--sp-4); }
+.row.req .body { align-self: center; padding: var(--sp-3) 0; }
+/* Nút xoá (chỉ có ở request của chính mình) đứng SÁT vách, không đẩy cột ra. */
+.row.req > .icon-btn { align-self: center; margin-right: var(--sp-2); }
+
+.row.req > .votebtn {
+  flex-direction: column; justify-content: center; gap: 1px;
+  align-self: stretch; height: auto; min-width: 92px; padding: 0 10px;
+  /* Bỏ hết viền của "hộp nút", chỉ giữ vách ngăn dọc bên trái. Khe giữa chữ và
+     vách do `gap` của `.row` lo (12px) — thêm lề nữa là thành 24px. */
+  border: 0; border-left: 1px solid var(--line); border-radius: 0; background: none;
+}
+/* Số phiếu là thứ TO NHẤT trong hàng bên phải — đây là con số người ta vào
+   bảng để xem, và ở cột riêng thì nó xứng đáng cỡ đó. */
+.row.req > .votebtn b { font-size: var(--fs-lead); line-height: 1.1; }
+/* Nhãn "vote" thu về cỡ caption in hoa: nó là đơn vị của con số, không phải
+   một lời mời bấm. */
+.row.req > .votebtn span { font-size: 10px; font-weight: 500;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--txt-3); }
+.row.req > .votebtn:hover:not(:disabled) { background: var(--hover); color: var(--a-2); }
+.row.req > .votebtn:hover:not(:disabled) span { color: var(--a-2); }
+/* Đang chọn: tô nền cả cột, không bo góc (cột chạm hai mép, bo là hở góc). */
+.row.req > .votebtn.on { border-radius: 0; background: var(--a-soft);
+  box-shadow: none; border-left-color: var(--a-2); }
+.row.req > .votebtn.on b { color: var(--a-2); }
+/* Khoá (bài đã vào dây chuyền): cột vẫn đứng đó nhưng chìm hẳn — số xám, con
+   trỏ thường. Không dùng `border-style: dashed` của bản cũ vì vách ngăn đứt
+   nét đọc ra thành "ô nhập liệu", không phải "không bấm được". */
+.row.req > .votebtn.locked { border-style: none; border-left: 1px solid var(--line); }
+.row.req > .votebtn.locked:disabled { opacity: 1; cursor: default; }
+.row.req > .votebtn.locked b { color: var(--txt-3); }
+.row.req > .votebtn.locked:hover { background: none; }
+.row.req > .votebtn.locked:hover span { color: var(--txt-3); }
+/* Suất của chính mình (×2) đứng dưới số, cùng cột. */
+.row.req > .votebtn .mine { padding-left: 0; }
+/* Chấm "đã bấm" từng neo ở góc hộp; ở cột thì nó nằm trên vách ngăn, đúng chỗ
+   mắt nhìn sang để đọc số. */
+.row.req > .votebtn.on::before { top: 6px; right: auto; left: -3px; }
+
 .icon-btn {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid transparent; background: none; color: var(--txt-3);
@@ -1021,6 +1074,9 @@ select {
 .grow.open .grow-rows { grid-template-rows: 1fr; }
 .grow.open .grow-rows-in { visibility: visible; transition-delay: 0s; }
 .grow-rows-in > .row { padding-left: 16px; padding-right: 14px; background: rgba(0,0,0,.22); }
+/* Hàng trong cụm cũng có cột phiếu: đệm phải phải về 0, nếu không cột bị hụt
+   vào trong và vách ngăn đứng lơ lửng cách mép. */
+.grow-rows-in > .row.req { padding-right: 0; }
 .grow-rows-in > .row:last-child { border-bottom: 0; }
 
 /* =========================================================
@@ -3450,7 +3506,11 @@ html[data-section="spin"] .bgfx { display: none; }
   /* giu dung mot nhip o ban hep: 8px giua cac nut, 10px t mép phai */
   .grow > .rowact { margin: 0 10px 0 8px }
   .grow-rows-in > .row { padding-right: 10px }
+  .grow-rows-in > .row.req { padding-right: 0 }
   .votebtn { padding-left: 8px; padding-right: 8px; }
+  /* cột phiếu đã có đệm riêng ở trên — luật này viết cho nút dạng hộp ngày
+     trước, không được đè lên cột. */
+  .row.req > .votebtn { padding: 0 6px; }
   .standing { margin-left: 0; }
 }
 
@@ -4886,6 +4946,12 @@ body { overflow-x: hidden; }
   .stats .stat:nth-child(odd) { border-right: 1px solid var(--line); }
   .stats .stat:nth-last-child(-n+2) { border-bottom: 0; }
   .row { padding: 7px var(--sp-3); gap: var(--sp-2); }
+  /* Hàng của bảng yêu cầu giữ nguyên hình dáng cột ở bản hẹp: đệm dọc nằm ở
+     `.body`, cột vẫn chạm hai mép. Chỉ hẹp cột lại để chừa chỗ cho tên bài. */
+  .row.req { padding: 0 0 0 var(--sp-3); }
+  .row.req .body { padding: 7px 0; }
+  .row.req > .votebtn { min-width: 72px; padding: 0 6px; margin-left: var(--sp-2); }
+  .row.req > .votebtn b { font-size: var(--fs-title); }
   .row .title { font-size: var(--fs-body); }
   .meta { font-size: var(--fs-cap); gap: var(--sp-2); }
   .votebtn { padding: 6px 9px; min-height: 36px; }
