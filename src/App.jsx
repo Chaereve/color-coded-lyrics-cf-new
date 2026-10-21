@@ -330,18 +330,36 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
                 là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
                 theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
             {!isPicked(r) && followed && <Standing st={st} />}
-            {/* Chuông nằm CUỐI dòng meta, không phải một ô nút ở mép phải: hàng
-                tĩnh thì chỉ có chữ, quyền theo dõi hiện lên khi rê. Dòng trong cụm
-                không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
-            {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
-              {onShare && <ShareBtn onShare={() => onShare(r)} />}
             </div>
           {/* Thanh tiến độ: một KHỐI, nên nó đứng cạnh `.meta` chứ không nằm
               trong — đây là chỗ từng làm hàng "đang làm" cao gần gấp đôi. */}
           {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
-          {/* Link nghe là mảnh thứ ba từng bị đẩy xuống dưới thành dòng riêng,
-              làm hàng "đã xong" cao hơn hai hàng còn lại. Nay nó ở cùng dòng. */}
-          {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
+          {/* CỤM HÀNH ĐỘNG PHỤ — theo dõi · chia sẻ · nghe.
+              Ba thứ này từng nằm rải rác: chuông và nút chia sẻ là hai ô 18px
+              ẨN cho tới khi rê vào hàng, còn link nghe là chữ tím sáng đứng
+              ngay trong dòng meta. Ba kiểu hiển thị khác nhau cho ba hành động
+              cùng loại, và hai trong ba thì không nhìn thấy.
+
+              Nay chúng là MỘT cụm: cùng một hàng, cùng độ cao chạm, đứng sát
+              mép phải của cột chữ — ngay cạnh vách ngăn của cột phiếu.
+              `margin-left: auto` đẩy cụm sang phải nên nó THẲNG CỘT với vách
+              phiếu ở mọi hàng, kể cả hàng có dòng chữ ngắn. Trước đây mỗi hàng
+              cụm nút nằm ở một chỗ khác nhau tuỳ độ dài dòng chữ.
+              Dòng trong cụm KHÔNG có chuông (theo dõi là chuyện của cả bài) —
+              chỉ còn nút chia sẻ, cụm tự co lại đúng một ô. */}
+          {(onWatch || onShare || watchUrl) && (
+            <span className="acts">
+              {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
+              {onShare && <ShareBtn onShare={() => onShare(r)} />}
+              {watchUrl && (
+                <a className="act-link" href={watchUrl} target="_blank" rel="noreferrer"
+                  title={t('row.watch')}>
+                  <Icon name="play" size={11} />
+                  <span className="act-link-tx">{t('row.watchShort')}</span>
+                </a>
+              )}
+            </span>
+          )}
         </div>
       </div>
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}

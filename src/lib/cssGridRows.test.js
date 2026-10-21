@@ -97,6 +97,33 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
     'số phiếu của bài đã khoá phải chìm về màu xám')
 })
 
+/* CỤM HÀNH ĐỘNG PHỤ — theo dõi · chia sẻ · nghe.
+   ---------------------------------------------------------
+   Ba hành động này từng có ba kiểu hiển thị trong cùng một hàng: hai ô 18px
+   ẨN tới khi rê, và một dòng chữ tím sáng. Nay chúng là một cụm nhìn thấy
+   được, cùng chiều cao chạm, neo mép phải cột chữ để thẳng cột với vách phiếu.
+   Bốn vế dưới phải còn đủ — thiếu vế nào là cụm trôi lại theo độ dài dòng chữ
+   hoặc biến mất khỏi tầm mắt người dùng. */
+test('cụm hành động phụ: hiện sẵn, cùng cỡ, neo mép phải', () => {
+  const acts = ruleOf('.row.req .acts')
+  assert.match(acts, /margin-left:\s*auto/, 'cụm phải bị đẩy sang mép phải — nếu không nó trôi theo độ dài dòng chữ')
+  assert.match(acts, /display:\s*flex/)
+
+  const buttons = rulesWith('.row.req .acts .rowact').join(' ')
+  assert.match(buttons, /width:\s*24px/, 'ô bấm 24px — cùng cỡ với chip nghe, không còn 18px ẩn')
+  assert.match(buttons, /height:\s*24px/)
+  assert.match(buttons, /pointer-events:\s*auto/, 'nút hiện sẵn thì phải bấm được ngay, không đợi rê')
+  assert.match(buttons, /opacity:\s*\.8/, 'hiện sẵn nhưng chìm — chỉ là hành động phụ')
+
+  const link = ruleOf('.row.req .acts .act-link')
+  assert.match(link, /height:\s*24px/, 'chip nghe cùng chiều cao với hai ô icon, nếu không ba thứ lệch hàng')
+  assert.match(link, /border-radius:\s*var\(--r-sm\)/, 'chip theo bo góc của nút, không bo tròn kiểu nhãn')
+  assert.ok(/text-decoration:\s*none/.test(link), 'chip không gạch chân kiểu link chữ')
+  /* Nhãn dài "Watch on YouTube" đứng cạnh hai icon là chiếm nửa dòng; máy hẹp
+     phải thu về ô icon. */
+  assert.match(css, /\.row\.req \.acts \.act-link-tx \{ display:\s*none/, 'máy hẹp phải ẩn chữ của chip nghe')
+})
+
 test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolute', () => {
   assert.match(ruleOf('.grow'), /display:\s*grid/)
   assert.ok(!rulesWith('.grow > .rowact').some((b) => /position:\s*absolute/.test(b)),
@@ -205,20 +232,32 @@ test('hàng trong cụm không còn ô ghost giữ chỗ', () => {
   assert.match(btn, /export default function FollowBtn\(\{ on = false, onToggle \}\)/,
     'FollowBtn chỉ còn hai prop — không có `hidden`/`collapse` vì không còn ô giữ chỗ')
   const rowFn = between(app, 'function RequestRow(', NEXT_FN)
+  /* `.sub` có hai `</div>` lồng nhau (`.meta` đóng trước) nên mốc so sánh lấy
+     theo chính comment của cụm hành động, không đếm thẻ đóng. */
   const grpFn = between(app, 'function RequestGroup(', NEXT_FN)
   assert.match(rowFn, /\{onWatch && <FollowBtn/,
     'RequestRow chỉ dựng chuông khi dòng đó thật sự có quyền bật/tắt theo dõi')
-  /* "bellAt < indexOf('votebtn')" KHONG du: dat chuong ngay TRUOC nut vote cung
-     thoat (no van nam ben trai chu `votebtn`). Do bang cach tim phan tu <div
-     className="meta"> va bao chuông phải rơi vao trong no. */
+  /* ĐỔI HỢP ĐỒNG (bố cục F, chủ dự án chốt 21/10/2026): chuông KHÔNG còn là mục
+     cuối của dòng chữ. Nó cùng nút chia sẻ và chip nghe tạo thành một CỤM
+     HÀNH ĐỘNG ở mép phải cột chữ (`.sub > .acts`), hiện sẵn thay vì ẩn tới khi
+     rê. Lý do đổi: ba hành động cùng loại mà ba kiểu hiển thị (hai ô 18px ẩn,
+     một dòng chữ tím sáng) thì người dùng không thấy được hai trong ba, và chỗ
+     đứng của chúng trôi theo độ dài dòng chữ.
+     Vẫn phải chốt: chuông nằm TRONG `.acts`, `.acts` nằm trong `.sub`, và
+     KHÔNG nằm trong `.meta` (hộp chữ thuần). */
+  const subOpen = rowFn.indexOf('<div className="sub">')
+  const actsOpen = rowFn.indexOf('<span className="acts">')
   const metaOpen = rowFn.indexOf('<div className="meta">')
   const metaClose = rowFn.indexOf('</div>', metaOpen)
-  assert.ok(metaOpen >= 0 && metaClose > metaOpen, 'RequestRow phải còn <div className="meta">')
   const bellAt = rowFn.indexOf('{onWatch && <FollowBtn')
-  assert.ok(bellAt > metaOpen && bellAt < metaClose,
-    'chuông phải nằm TRONG dòng meta của hàng lẻ — đưa nó ra cụm nút mép phải là quay lại thiết kế cũ')
-  assert.ok(bellAt > rowFn.indexOf('<Standing st={st} />'),
-    'chuông phải là MỤC CUỐI của dòng meta — đưa nó lên trước Standing là đổi nhịp chữ')
+  assert.ok(subOpen >= 0 && actsOpen > subOpen, 'phải còn dòng phụ `.sub` và cụm `.acts` trong đó')
+  assert.ok(bellAt > actsOpen,
+    'chuông phải nằm TRONG cụm hành động `.acts`, không đứng lẻ trong dòng chữ')
+  assert.ok(metaOpen >= 0 && metaClose > metaOpen, 'RequestRow phải còn <div className="meta">')
+  assert.ok(!(bellAt > metaOpen && bellAt < metaClose),
+    'chuông không được nằm trong `.meta` — hộp đó là chữ thuần, nút nằm trong là lý do hàng cao lệch')
+  assert.ok(actsOpen > rowFn.indexOf('<Standing st={st} />'),
+    'cụm hành động phải đứng SAU phần chữ — đưa lên trước Standing là đổi nhịp đọc')
   /* doi chieu tren THEO THE <FollowBtn .../>, khong tren ca ham: `aria-hidden`
      cua svg/spans trong hang cung co chu "hidden=" va lam assert nay luc nao cung
      do (mau test xanh gia nguoc lai: bao bao loi). `[^>]*` cung khong dung vi

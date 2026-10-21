@@ -489,6 +489,11 @@ const S = {
 
   /* dong request */
   'row.watch': 'Watch on YouTube',
+  /* Nhãn NGẮN cho chip nghe trong cụm hành động của một hàng: "Watch on
+     YouTube" dài 18 ký tự, đứng cạnh hai ô icon thì nó thành nửa dòng chữ và
+     đẩy cụm về sát cột phiếu. Tên nền tảng là đủ nghĩa; câu đầy đủ vẫn nằm ở
+     `title` (tooltip) và ở thông báo, nơi có chỗ cho nó. */
+  'row.watchShort': 'YouTube',
   'row.vote': 'vote',
   'row.cantVote': 'Voting is closed for this request',
   'row.voteLocked': 'Already picked. Voting is closed.',
