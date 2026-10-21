@@ -57,6 +57,15 @@ test('Progress kẹp giá trị rác về 0..100 và báo đúng cho trình đ�
     assert.match(wide, /class="prog prog-wide"/)
     assert.doesNotMatch(wide, /--sc/, 'màu vạch là việc của CSS, không phải của chỗ gọi')
     assert.doesNotMatch(wide, /prog-num/, 'đã có .steps-pct in số rồi thì thanh không in lại')
+    /* BIẾN THỂ "ĐƯỜNG ĐÁY" (phương án C): giấu con số (nó đã nằm trong dòng
+       meta của hàng), chỉ còn vạch — nhưng vẫn là một progressbar đầy đủ nghĩa
+       cho trình đọc màn hình, vì đổi chỗ vẽ không được đổi nghĩa. */
+    const edge = draw({ pct: 47, label: 'Build progress', edge: true })
+    assert.match(edge, /class="prog prog-edge"/)
+    assert.doesNotMatch(edge, /prog-num/, 'số % đã in trong dòng meta — vạch không in lại')
+    assert.match(edge, /aria-valuenow="47"/)
+    assert.match(edge, /--w:47%/)
+
     const full = draw({ pct: 100, label: 'Build progress' })
     assert.match(full, /class="prog prog-full"/, 'tick hết mốc là một trạng thái, phải đánh dấu được')
 
@@ -101,7 +110,9 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   assert.match(css, /\.prog \{[^}]*max-width:\s*220px/,
     'khối vạch + số không được rộng quá 220px (cột danh sách chỉ ~740px)')
   const numRule = css.match(/\.prog-num \{[^}]*\}/)[0]
-  assert.match(numRule, /font-size:\s*10\.5px/, 'số là chú thích, không phải biển báo')
+  /* Cỡ số đi theo thang chữ chung (Gói 2): 11px là SÀN của thang, và mọi con
+     số nhỏ trong app phải lấy từ đó — không còn 10,5px viết tay. */
+  assert.match(numRule, /font-size:\s*var\(--fs-cap\)/, 'số là chú thích, không phải biển báo')
   assert.match(numRule, /font-weight:\s*500/, 'số không được in đậm — nó là thứ to tiếng nhất trong hàng')
   assert.match(numRule, /var\(--txt-2\)/, 'số pha với xám để không hét lên bằng màu bão hoà')
   assert.match(css, /\.prog-track > i\s*\{[^}]*width:\s*var\(--w, 0%\)/)
@@ -125,6 +136,18 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
     'ai tắt hiệu ứng thì thanh đứng yên')
   assert.match(css, /\.prog-full \{ --sc: var\(--done\); \}/,
     'tick hết mốc thì --sc đổi sang màu xong')
+  /* BIẾN THỂ ĐƯỜNG ĐÁY: phải neo vào đáy hàng và phải phẳng hai đầu. Bo tròn
+     ở đáy hàng đọc ra thành "hai cái que" thay vì một đường chạm hai mép. */
+  const edgeRule = css.match(/\.prog\.prog-edge \{([^}]*)\}/)[1]
+  assert.match(edgeRule, /position:\s*absolute/, 'vạch đáy phải nổi, không đẩy dòng chữ xuống')
+  assert.match(edgeRule, /left:\s*0/, 'chạm mép trái')
+  assert.match(edgeRule, /right:\s*0/, 'chạm mép phải')
+  assert.match(edgeRule, /bottom:\s*0/, 'nằm ở đáy hàng')
+  assert.match(edgeRule, /max-width:\s*none/, 'luật 220px viết cho thanh nằm trong dòng chữ, không áp cho đường đáy')
+  assert.match(css, /\.prog\.prog-edge \.prog-track \{[^}]*border-radius:\s*0/,
+    'đường đáy phải phẳng hai đầu')
+  assert.match(css, /\.meta-pct \{[^}]*tabular-nums/,
+    'số % trong meta phải đứng yên khi tiến độ đổi chữ số')
   assert.match(src.get('src/components/Progress.jsx'), /prog-full/,
     'component phải thật sự đánh dấu trạng thái đã tick hết mốc')
   /* Bảng quản trị và trang chủ phải tô GIỐNG nhau: không truyền màu trạng thái
@@ -136,6 +159,12 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
 
   /* Ba chỗ dùng: hàng request, khối Up next, hàng admin. */
   assert.match(src.get('src/App.jsx'), /<Progress pct=\{r\.progress\}/)
+  /* Hàng request dùng biến thể `edge`, và con số đọc qua `pctValue` chứ không
+     in thẳng `r.progress` — in trần là mở lại lỗi "NaN%" ở đúng chỗ khó thấy
+     nhất (một hàng lẫn trong danh sách). */
+  assert.match(src.get('src/App.jsx'), /<Progress pct=\{r\.progress\} label=\{t\('progress\.label'\)\} edge \/>/,
+    'hàng request phải vẽ vạch ở đáy, không vẽ dòng thứ ba')
+  assert.match(src.get('src/App.jsx'), /pctValue\(r\.progress\)/, 'số % trong meta phải đi qua pctValue')
   assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/)
   assert.match(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*wide/)
 })

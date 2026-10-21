@@ -894,6 +894,35 @@ select {
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
+/* ---- BIẾN THỂ "ĐƯỜNG ĐÁY" (phương án C) --------------------------------
+   Trong hàng request, thanh tiến độ không còn là dòng thứ ba: nó là một vệt
+   2px chạy hết bề ngang ĐÁY hàng, neo vào `.row` (đã `position: relative`).
+   Ba hệ quả, cả ba đều là thứ đang cần:
+
+     1. MỌI hàng cao bằng nhau. Trước đây hàng "đang làm" cao hơn hẳn vì mang
+        thêm một dòng — đúng lý do chủ dự án đọc danh sách ra là "ko cách đều".
+     2. Vạch dài hết hàng nên đọc ra "mức đầy của cả hàng", không phải một
+        thanh 220px lơ lửng cạnh dòng chữ.
+     3. Không đẩy gì xuống: đệm dọc của hàng giữ nguyên, vệt vẽ đè lên đường
+        kẻ đáy sẵn có (cùng chỗ, cùng 1px gốc).
+
+   Bề rộng có `max-width: none` để đè luật `.prog { max-width: 220px }` ở trên
+   — luật đó viết cho thanh nằm TRONG dòng chữ, còn ở đây nó là đường đáy. */
+.prog.prog-edge { position: absolute; left: 0; right: 0; bottom: 0;
+  display: block; max-width: none; height: 2px; margin: 0; gap: 0; }
+/* Rãnh bo tròn là đúng cho một thanh nằm giữa dòng chữ; ở đáy hàng thì hai đầu
+   bo tròn đọc ra thành "hai cái que" — đường đáy phải phẳng, chạm hai mép. */
+.prog.prog-edge .prog-track { height: 2px; border-radius: 0; background: var(--surface-3); }
+.prog.prog-edge .prog-track > i { border-radius: 0; }
+/* Vạch mốc: ở 2px chúng là vết cắt trong lòng đường, không phải vạch chia của
+   một thanh ba khúc — hạ xuống mức gần như không thấy. */
+.prog.prog-edge .prog-mile { background: rgba(10,12,16,.55); }
+/* Con số % trong dòng meta: mono để hàng không nhảy khi tiến độ đổi một chữ
+   số, và lấy màu trạng thái của chính hàng (`--sc` đặt trên `.row`) thay vì
+   một màu vàng thứ hai. */
+.meta-pct { font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-cap); font-weight: 500; color: var(--sc, var(--progress)); }
+
 .watch { display: inline-block; margin-top: 2px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
 
