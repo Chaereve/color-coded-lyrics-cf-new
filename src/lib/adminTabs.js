@@ -8,7 +8,7 @@
    Thứ tự trong mảng là thứ tự trên màn hình: việc gấp nhất đứng trước.
    ========================================================= */
 
-export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments']
+export const ADMIN_TABS = ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log']
 
 /* =========================================================
    MỖI MỤC MỘT DÒNG KHAI — nguồn duy nhất cho dải số liệu
@@ -29,6 +29,10 @@ export const ADMIN_TAB_META = [
   { k: 'done',    label: 'adm.done',    tone: 'var(--done)',     count: 'done' },
   { k: 'media',   label: 'adm.media',   tone: 'var(--a-2)',      count: 'media' },
   { k: 'comments', label: 'adm.comments', tone: 'var(--a-2)',    count: 'comments' },
+  /* Nhật ký đứng CUỐI: nó là chỗ tra cứu khi cần, không phải việc phải làm
+     hôm nay — nên nó không được chen trước hàng đợi. Màu `--queued` là tông
+     duy nhất còn lại trong bảng màu trạng thái. */
+  { k: 'log',      label: 'adm.log',      tone: 'var(--queued)',  count: 'log' },
 ]
 
 /* Đọc mục đang mở từ địa chỉ. Chỉ nhận giá trị có thật — một `?tab=abc` gõ tay

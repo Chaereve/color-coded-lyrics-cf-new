@@ -9,8 +9,12 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ADMIN_ORDER_STATES, ADMIN_TABS, ADMIN_TAB_META, adminQuery, adminTabPath, readAdminTab, readAdminView } from './adminTabs.js'
 
-test('bảy mục, đúng thứ tự ưu tiên: việc gấp nhất đứng trước', () => {
-  assert.deepEqual(ADMIN_TABS, ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments'])
+test('tám mục, đúng thứ tự ưu tiên: việc gấp nhất đứng trước, nhật ký đứng cuối', () => {
+  assert.deepEqual(ADMIN_TABS,
+    ['pending', 'active', 'expired', 'orders', 'done', 'media', 'comments', 'log'])
+  /* Nhật ký là chỗ TRA CỨU, không phải việc phải làm hôm nay — nó không được
+     chen trước hàng đợi duyệt bài. */
+  assert.equal(ADMIN_TABS.at(-1), 'log')
 })
 
 test('đọc mục từ địa chỉ: chỉ nhận mục có thật', () => {

@@ -20,6 +20,9 @@ import { fileURLToPath } from 'node:url'
 const dir = fileURLToPath(new URL('../migrations/', import.meta.url))
 const file = readdirSync(dir).find(name => name.startsWith('20261212_'))
 const sql = file ? readFileSync(dir + file, 'utf8') : ''
+const auditFile = readdirSync(dir).find(name => name.startsWith('20261213_'))
+const auditSql = auditFile ? readFileSync(dir + auditFile, 'utf8') : ''
+const auditCode = auditSql.replace(/--.*$/gm, ' ')
 /* Bản không chú thích: phần đầu tệp nhắc tới DROP/TRUNCATE để nói rằng nó
    KHÔNG làm những việc đó — soi nguyên văn là bắt nhầm tài liệu. */
 const code = sql.replace(/--.*$/gm, ' ')
@@ -82,4 +85,57 @@ test('trần 200 dòng và không có câu lệnh phá dữ liệu', () => {
   assert.doesNotMatch(code, /drop table|truncate|delete from public\.(requests|orders|request_comments)\s*;/i,
     'migration chỉ được thêm hàm, không được xoá dữ liệu')
   assert.match(sql, /notify pgrst, 'reload schema'/, 'thiếu reload schema cache của PostgREST')
+})
+
+/* ---------------- 20261213: nhật ký + sửa request đầy đủ ---------------- */
+
+test('migration 20261213 có bảng nhật ký, trigger và RPC sửa request', () => {
+  assert.ok(auditFile, 'thiếu migration 20261213_admin_actions_and_request_edit.sql')
+  assert.match(auditSql, /create table if not exists public\.admin_actions/, 'thiếu bảng nhật ký')
+  /* Ghi bằng trigger, không phải bằng cách nhớ gọi hàm log trong từng RPC:
+     mọi đường đi (web, RPC, SQL tay) đều phải để lại dấu. */
+  assert.match(auditSql, /create trigger requests_admin_audit[\s\S]{0,160}log_admin_action\(\)/,
+    'thiếu trigger trên bảng requests')
+  assert.match(auditSql, /create trigger orders_admin_audit[\s\S]{0,160}log_admin_order\(\)/,
+    'thiếu trigger trên bảng orders')
+  assert.match(auditSql, /create or replace function public\.admin_actions_page\(p_limit int default 20, p_offset int default 0\)/,
+    'chữ ký admin_actions_page lệch khỏi thứ src/lib/db.js gọi')
+  assert.match(auditSql, /create or replace function public\.admin_request_edit\(\s*p_id uuid,\s*p_kind text default null,\s*p_note text default null,\s*p_is_paid boolean default null,\s*p_requester text default null\s*\)/,
+    'chữ ký admin_request_edit lệch khỏi thứ src/lib/db.js gọi')
+})
+
+test('nhật ký: chỉ admin đọc được, và KHÔNG ai chèn tay được một dòng', () => {
+  assert.match(auditSql, /alter table public\.admin_actions enable row level security/)
+  assert.match(auditSql, /create policy admin_actions_read on public\.admin_actions\s*\n?\s*for select to authenticated using \(public\.is_admin\(\)\)/,
+    'policy đọc phải giới hạn ở admin')
+  /* Không có policy INSERT/UPDATE/DELETE: dòng nhật ký chỉ đi vào qua trigger
+     security definer, nên client không đổ tội cho người khác được. */
+  assert.doesNotMatch(auditCode, /create policy \w+ on public\.admin_actions\s+(for )?(insert|update|delete|all)/i,
+    'không được mở đường ghi trực tiếp vào nhật ký')
+  assert.match(auditSql, /revoke all on public\.admin_actions from anon, authenticated/,
+    'thu hồi quyền mặc định trước khi cấp đúng quyền đọc')
+})
+
+test('nhật ký chỉ ghi khi NGƯỜI GỌI là admin — người dùng tự sửa bài không làm đầy nhật ký', () => {
+  const bodies = auditCode.split('create or replace function').slice(1)
+  const byName = Object.fromEntries(bodies.map(b => [b.match(/public\.(\w+)/)?.[1], b]))
+  for (const name of ['log_admin_action', 'log_admin_order']) {
+    assert.match(byName[name] || '', /if auth\.uid\(\) is null or not public\.is_admin\(\) then/,
+      `${name}: thiếu chốt "chỉ ghi khi admin"`)
+  }
+  /* Hàm trigger không được cấp cho client: gọi tay được là ghi được dòng giả. */
+  for (const name of ['log_admin_action', 'log_admin_order']) {
+    assert.match(auditSql, new RegExp(`revoke all on function public\\.${name}\\(\\) from public, anon, authenticated`),
+      `${name}: không được cấp execute cho client`)
+  }
+})
+
+test('admin_request_edit chỉ nhận bốn loại bài có thật và không đụng status/tiến độ', () => {
+  assert.match(auditSql, /p_kind not in \('Color Coded Lyrics', 'Full Album', '1 Hour Loop', 'Short'\)/,
+    'danh sách loại bài phải khớp KIND_META')
+  const body = auditCode.split('create or replace function public.admin_request_edit')[1] || ''
+  assert.doesNotMatch(body, /status\s*=|progress\s*=|picked_at\s*=/,
+    'ba thứ đó có đường riêng; sửa ở đây là mở đường thứ hai lệch luật')
+  assert.match(auditSql, /revoke all on function public\.admin_request_edit\(uuid, text, text, boolean, text\) from public, anon;/)
+  assert.match(auditSql, /grant execute on function public\.admin_request_edit\(uuid, text, text, boolean, text\) to authenticated;/)
 })

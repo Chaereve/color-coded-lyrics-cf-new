@@ -28,7 +28,7 @@ import Icon from './Icon'
 export default function ConfirmDialog({
   open, title, body, confirmLabel, cancelLabel, tone = 'danger',
   reasonLabel, reasonPh, reason = '', onReason, onConfirm, onClose,
-  videoLabel, videoUrl = '', onVideoUrl,
+  videoLabel, videoUrl = '', onVideoUrl, presets = [],
 }) {
   const { t } = useI18n()
   const { mounted, closing } = useModalExit(open)
@@ -97,11 +97,27 @@ export default function ConfirmDialog({
         {body && <p className="dlg-body" id="dlg-body">{body}</p>}
 
         {reasonLabel && (
-          <label className="dlg-field">
-            <span>{reasonLabel}</span>
-            <textarea ref={reasonRef} value={reason} maxLength={200} rows={2}
+          <div className="dlg-field">
+            <label htmlFor="dlg-reason">{reasonLabel}</label>
+            {/* LÝ DO CÓ SẴN: gõ tay mỗi lần cho cùng một lý do ("trùng bài")
+                vừa chậm vừa sinh ra mười cách viết khác nhau của cùng một
+                chuyện — người nhận request đọc không hiểu. Chip chỉ ĐIỀN vào
+                ô, không gửi ngay: vẫn sửa được, vẫn thêm được phần riêng. */}
+            {presets.length > 0 && (
+              <div className="dlg-presets" role="group" aria-label={reasonLabel}>
+                {presets.map(p => (
+                  <button key={p.value} type="button"
+                    className={`chip${reason === p.value ? ' on' : ''}`}
+                    aria-pressed={reason === p.value}
+                    onClick={() => onReason?.(p.value)}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea id="dlg-reason" ref={reasonRef} value={reason} maxLength={200} rows={2}
               placeholder={reasonPh || ''} onChange={e => onReason?.(e.target.value)} />
-          </label>
+          </div>
         )}
 
         {videoLabel && (

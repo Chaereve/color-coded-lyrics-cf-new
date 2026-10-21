@@ -1470,6 +1470,66 @@ export async function adminUpdateMany(ids = [], patch = {}) {
   return uniq.length
 }
 
+/* SỬA ĐẦY ĐỦ MỘT REQUEST — bốn trường mà `admin_update` không nhận: loại bài,
+   ghi chú, cờ đã trả phí, tên người gửi. Trước đây sửa sai loại bài là phải
+   xoá rồi tạo lại: mất vote và mất lịch sử.
+   `null` = giữ nguyên, đúng quy ước của admin_update. */
+export async function adminEditRequest(id, patch = {}) {
+  if (!hasSupabase) {
+    wr(LS.rows, demoRows().map(r => {
+      if (r.id !== id) return r
+      return {
+        ...r,
+        kind: patch.kind ?? r.kind,
+        note: patch.note === undefined ? r.note : String(patch.note || '').trim().slice(0, 300),
+        is_paid: patch.is_paid ?? r.is_paid,
+        requester: patch.requester == null ? r.requester : (String(patch.requester).trim() || r.requester),
+      }
+    }))
+    return
+  }
+  const { error } = await supabase.rpc('admin_request_edit', {
+    p_id: id,
+    p_kind: patch.kind ?? null,
+    p_note: patch.note === undefined ? null : String(patch.note || '').trim(),
+    p_is_paid: patch.is_paid ?? null,
+    p_requester: patch.requester == null ? null : String(patch.requester).trim(),
+  })
+  if (error) throw rpcError(error)
+}
+
+/* =========================================================
+   NHẬT KÝ THAO TÁC QUẢN TRỊ — một trang, đọc từ database
+   ---------------------------------------------------------
+   Bảng `admin_actions` (migration 20261213) được ghi bằng TRIGGER, nên mọi
+   đường đi (nút trên web, RPC, SQL tay) đều để lại dấu. Ở đây chỉ đọc.
+   RPC chưa có (frontend mới hơn database) thì trả trang rỗng kèm cờ
+   `missingSchema` để màn hình nói đúng "cần chạy migration", thay vì hiện một
+   khung lỗi đỏ cho một tính năng chỉ-đọc.
+   ========================================================= */
+export async function fetchAdminActions({ page = 1, perPage = 20 } = {}) {
+  const limit = Math.max(1, Math.min(100, Math.trunc(Number(perPage)) || 20))
+  const wanted = Math.max(1, Math.trunc(Number(page)) || 1)
+  const offset = (wanted - 1) * limit
+  const empty = { rows: [], total: 0, pages: 1, page: 1, perPage: limit, from: 0, to: 0 }
+  if (!hasSupabase) return { ...empty, missingSchema: false }
+
+  const { data, error } = await supabase.rpc('admin_actions_page', { p_limit: limit, p_offset: offset })
+  if (error) {
+    if (isMissingRpc(error)) return { ...empty, missingSchema: true }
+    throw rpcError(error)
+  }
+  const payload = data && typeof data === 'object' ? data : {}
+  const rows = Array.isArray(payload.rows) ? payload.rows : []
+  const total = Number.isFinite(+payload.total) ? +payload.total : rows.length
+  const pages = Math.max(1, Math.ceil(total / limit))
+  const current = Math.min(wanted, pages)
+  if (rows.length === 0 && total > 0 && wanted > pages) {
+    return fetchAdminActions({ page: pages, perPage: limit })
+  }
+  return { rows, total, pages, page: current, perPage: limit, from: total === 0 ? 0 : offset + 1, to: offset + rows.length, missingSchema: false }
+}
+
 /* Duyệt / từ chối NHIỀU request trong một lượt. `admin_review` đã là nơi duy
    nhất quyết định chuyện gì xảy ra với một dòng (status, deny_reason,
    video_url, updated_at) — bản nhiều-dòng gọi lại chính hàm đó trong một

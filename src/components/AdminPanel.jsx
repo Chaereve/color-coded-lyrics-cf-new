@@ -3,7 +3,7 @@ import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
-import { MILESTONES, progressOf, fetchAdminComments, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
+import { MILESTONES, progressOf, fetchAdminComments, fetchAdminActions, adminDeleteComment, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, FUNNEL_EVENT_KEYS } from '../lib/funnelSummary.js'
 import { allTermsIn, creditText, groupKey, voteTotals } from '../lib/board'
 import { copyText } from '../lib/clipboard'
@@ -16,6 +16,8 @@ import { here, putUrl } from '../lib/history'
 import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
 import { ADMIN_COMMENTS_PER_PAGE } from '../lib/adminComments.js'
+import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
+import { ageChip } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
 import { sfx } from '../lib/sfx'
 import Pager from './Pager'
@@ -57,6 +59,20 @@ function EmptyState({ title, body, filtered, q, t, onClear }) {
   )
 }
 
+/* LÝ DO TỪ CHỐI CÓ SẴN — bốn chuyện thật sự xảy ra, không phải bốn câu ví dụ.
+   Người nhận request đọc lý do để biết phải làm gì khác đi; "trùng bài" và
+   "trùng bài rồi" là hai câu nói cùng một chuyện, và cả hai đều không nói
+   được bài trùng là bài nào. Chip chỉ điền vào ô, admin vẫn thêm được phần
+   riêng của mình ở sau.
+   Giá trị là CHUỖI ĐÃ DỊCH tại chỗ dùng (t()), nên đổi từ điển là đổi luôn
+   lý do gửi cho người dùng. */
+const denyPresets = (t) => [
+  { label: t('adm.denyPreset.dup'), value: t('adm.denyPreset.dup'), },
+  { label: t('adm.denyPreset.kind'), value: t('adm.denyPreset.kind') },
+  { label: t('adm.denyPreset.link'), value: t('adm.denyPreset.link') },
+  { label: t('adm.denyPreset.later'), value: t('adm.denyPreset.later') },
+]
+
 /* =========================================================
    Ô TÌM KIẾM — một khuôn cho hai mục
    ---------------------------------------------------------
@@ -85,7 +101,7 @@ function SearchBox({ t, q, setQ, inputRef, placeholder }) {
 }
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
-  select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire }) {
+  onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire }) {
   const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
@@ -101,14 +117,23 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
   const [title, setTitle] = useState(r.title)
+  /* Ba trường mà `admin_update` không nhận (loại bài, ghi chú, cờ đã trả phí):
+     sửa sai loại bài từng phải xoá rồi tạo lại — mất vote và mất lịch sử. */
+  const [kind, setKind] = useState(r.kind)
+  const [note, setNote] = useState(r.note || '')
+  const [paid, setPaid] = useState(!!r.is_paid)
   const [open, setOpen] = useState(false)
   /* mo form la nap lai ten hien tai (tranh giu ten cu sau khi da luu) */
   const toggleOpen = () => {
     setArtist(r.artist); setTitle(r.title)
+    setKind(r.kind); setNote(r.note || ''); setPaid(!!r.is_paid)
     setOpen(o => !o)
   }
   const songClean = { artist: artist.trim(), title: title.trim() }
   const songChanged = songClean.artist !== r.artist || songClean.title !== r.title
+  const noteClean = note.trim().slice(0, 300)
+  const extrasChanged = kind !== r.kind || noteClean !== (r.note || '') || paid !== !!r.is_paid
+  const age = ageChip(r, pickInterval)
   const pct = progressOf(r)
   const picked = isPicked(r)
 
@@ -138,6 +163,15 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           {timeAgo(r.created_at, t)}
           <span className="dot dot-inline" aria-hidden="true" />
           {r.votes} {t('adm.votesShort')}
+          {/* CHỜ BAO LÂU: một bài nằm ba tuần trông y hệt một bài vừa gửi sáng
+              nay, vì chỉ có ô sắp xếp "Waiting longest" — mà phải tự chọn nó.
+              Quá nhịp chốt bài thì chip đổi màu và nói ra con số nhịp. */}
+          {age && (
+            <span className={`pill adm-age${age.overdue ? ' stale' : ''}`}
+              title={t('adm.ageTitle', { d: age.days, n: age.interval })}>
+              {age.days === 0 ? t('time.now') : t('adm.ageDays', { d: age.days })}
+            </span>
+          )}
         </small>
         {/* bài này còn request trùng: vote của cả bài đã được cộng dồn khi xếp hạng */}
         {dup && dup.n > 1 && (
@@ -171,7 +205,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             <button className="btn btn-sm btn-no"
               onClick={async () => {
                 const r2 = await ask({
-                  title: t('dlg.denyTitle'), body: t('dlg.denyBody'),
+                  title: t('dlg.denyTitle'), body: t('dlg.denyBody'), presets: denyPresets(t),
                   reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
                 })
                 if (r2) onReview(r.id, false, r2.reason, r2.videoUrl)
@@ -218,6 +252,26 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               disabled={!songClean.artist || !songClean.title || !songChanged}
               onClick={() => onUpdate(r.id, { artist: songClean.artist, title: songClean.title })}>
               {t('adm.saveSong')}
+            </button>
+          </div>
+          {/* LOẠI BÀI · GHI CHÚ · CỜ ĐÃ TRẢ PHÍ — ba trường mà khung sửa cũ
+              không có. Một nút Lưu riêng vì đây là đường RPC riêng
+              (admin_request_edit): trộn nó vào nút "Lưu tên" là hai thứ khác
+              nhau nằm sau một cái nút. */}
+          <div className="inline-form adm-edit-extra">
+            <select className="sel" value={kind} aria-label={t('adm.kind')}
+              onChange={e => setKind(e.target.value)}>
+              {Object.keys(KIND_META).map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+            <input value={note} maxLength={300} placeholder={t('adm.notePh')}
+              aria-label={t('adm.notePh')} onChange={e => setNote(e.target.value)} />
+            <label className="switch adm-edit-paid">
+              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
+              <span>{t('adm.paidFlag')}</span>
+            </label>
+            <button type="button" className="btn btn-sm" disabled={!extrasChanged}
+              onClick={() => onEdit?.(r.id, { kind, note: noteClean, is_paid: paid })}>
+              {t('adm.saveExtras')}
             </button>
           </div>
           <div className="inline-form">
@@ -284,7 +338,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
    ========================================================= */
 export default function AdminPanel({
   tab, onTab, rows, orders, media = [],
-  onReview, onUpdate, onDelete, onExpire, onOrder, onPick, onBulk,
+  onReview, onUpdate, onDelete, onExpire, onOrder, onPick, onBulk, onEdit,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
   pickInterval = 4,
 }) {
@@ -488,6 +542,15 @@ export default function AdminPanel({
   const [commentTotal, setCommentTotal] = useState(0)
   const [commentPage, setCommentPage] = useState(1)
   const [loadingComments, setLoadingComments] = useState(false)
+  /* NHẬT KÝ THAO TÁC — đọc theo trang, cùng khuôn với bình luận. `logMissing`
+     là trạng thái "RPC chưa có" (database chưa chạy migration 20261213): nói
+     ra việc cần làm thay vì một khung lỗi đỏ cho một tính năng chỉ-đọc. */
+  const [logRows, setLogRows] = useState([])
+  const [logTotal, setLogTotal] = useState(0)
+  const [logPage, setLogPage] = useState(1)
+  const [logLoading, setLogLoading] = useState(false)
+  const [logError, setLogError] = useState('')
+  const [logMissing, setLogMissing] = useState(false)
   /* Metric funnel chỉ tải khi trang admin đã được mở, một RPC duy nhất; nút
      Làm mới là cách cập nhật tường minh — tuyệt đối không polling / cron. */
   const [funnelRows, setFunnelRows] = useState([])
@@ -545,6 +608,28 @@ export default function AdminPanel({
     return () => clearTimeout(id)
   }, [loadAdminComments])
 
+  const loadLog = useCallback((page = 1) => {
+    setLogLoading(true)
+    setLogError('')
+    return fetchAdminActions({ page, perPage: ADMIN_ACTIONS_PER_PAGE }).then(res => {
+      setLogRows(res.rows || [])
+      setLogTotal(res.total || 0)
+      setLogPage(res.page || 1)
+      setLogMissing(!!res.missingSchema)
+    }).catch(error => {
+      setLogError(errMsg(t, error))
+    }).finally(() => {
+      setLogLoading(false)
+    })
+  }, [t])
+
+  /* Đọc một lần khi mở trang (dải số liệu có ô Nhật ký), rồi chỉ tải lại khi
+     admin bấm Làm mới hoặc đổi trang. Không polling: nhật ký là để tra cứu. */
+  useEffect(() => {
+    const id = setTimeout(() => loadLog(1), 0)
+    return () => clearTimeout(id)
+  }, [loadLog])
+
   /* Gõ từ khoá: hoãn 280ms rồi tìm ở database (lọc + đếm + cắt trang trong
      một RPC). Tìm trong 20 dòng đang hiện là tìm sai — câu trả lời phải tính
      trên toàn bộ bình luận, không phải trên trang đang nhìn. */
@@ -585,6 +670,7 @@ export default function AdminPanel({
   const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF) && matchOrder(o)))
     : tab === 'media' ? base
     : tab === 'comments' ? adminComments
+    : tab === 'log' ? logRows
       : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
   const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
@@ -614,7 +700,7 @@ export default function AdminPanel({
     }
     if (action === 'deny') {
       const r2 = await ask({
-        title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: t('dlg.denyBody'),
+        title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: t('dlg.denyBody'), presets: denyPresets(t),
         reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
       })
       if (!r2) return
@@ -631,8 +717,8 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.length, comments: commentTotal,
-  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, commentTotal])
+    done: others.length, media: media.length, comments: commentTotal, log: logTotal,
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, commentTotal, logTotal])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -764,8 +850,12 @@ export default function AdminPanel({
           <span className="adm-h2-n">{t('adm.showing', {
             /* Bình luận: `n` là số thẻ ĐANG HIỆN, `total` là tổng khớp bộ lọc ở
                database — nên dòng này nói thật "đang xem 20 trong 1.240". */
-            n: tab === 'media' ? media.length : tab === 'comments' ? adminComments.length : pg.items.length,
-            total: tab === 'media' ? media.length : tab === 'comments' ? commentTotal : shown.length,
+            n: tab === 'media' ? media.length
+              : tab === 'comments' ? adminComments.length
+                : tab === 'log' ? logRows.length : pg.items.length,
+            total: tab === 'media' ? media.length
+              : tab === 'comments' ? commentTotal
+                : tab === 'log' ? logTotal : shown.length,
           })}</span>
         </h2>
 
@@ -782,6 +872,15 @@ export default function AdminPanel({
                 {loadingComments ? t('adm.loading') : t('adm.refresh')}
               </button>
             </div>
+          </div>
+        ) : tab === 'log' ? (
+          /* Nhật ký chỉ để ĐỌC: không tìm, không xoá, không sửa. Một nút làm
+             mới là đủ — và nó nói rõ việc cần làm khi database chưa có bảng. */
+          <div className="adm-bar adm-bar-end">
+            <button type="button" className="btn btn-sm" onClick={() => loadLog(logPage)}
+              disabled={logLoading}>
+              {logLoading ? t('adm.loading') : t('adm.refresh')}
+            </button>
           </div>
         ) : tab === 'media' ? (
           /* Mục Videos không có gì để tìm hay xếp thứ tự, nhưng vẫn cần ĐÚNG MỘT
@@ -865,7 +964,7 @@ export default function AdminPanel({
 
         {/* DÒNG ĐẾM + CHỌN CẢ TRANG: hai thứ cùng trả lời "tôi đang nhìn gì và
             đang chọn gì", nên nằm chung một hàng. */}
-        {tab !== 'media' && (
+        {tab !== 'media' && tab !== 'log' && (
           <div className="adm-note">
             {pickMode && pageIds.length > 0 && (
               <label className="adm-all">
@@ -883,7 +982,7 @@ export default function AdminPanel({
         )}
         {/* Vùng thông báo: đổi bộ lọc là con số đổi, nhưng mắt thường không
             được báo. Chỉ trình đọc màn hình đọc dòng này. */}
-        {!['media', 'comments'].includes(tab) && (
+        {!['media', 'comments', 'log'].includes(tab) && (
           <p className="sr-only" role="status">{t('adm.resultCount', { n: shown.length })}</p>
         )}
 
@@ -941,6 +1040,50 @@ export default function AdminPanel({
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        ) : tab === 'log' ? (
+          <div className="adm-log" aria-busy={logLoading || undefined}>
+            {logError && <p role="alert" className="comment-error">{logError}</p>}
+            {logMissing ? (
+              <div className="empty">
+                <b>{t('adm.logMissing')}</b>
+                <p>{t('adm.logMissingBody')}</p>
+              </div>
+            ) : logRows.length === 0 ? (
+              <div className="empty">
+                <b>{logLoading ? t('adm.loading') : t('adm.logEmpty')}</b>
+                <p>{t('adm.logEmptyBody')}</p>
+              </div>
+            ) : (
+              logRows.map(row => {
+                const a = describeAction(row)
+                return (
+                  <div className="adm-log-row" key={a.id}>
+                    <div className="adm-log-what">
+                      <b>{t(a.labelKey)}</b>
+                      {a.subject && <span className="adm-log-subject">{a.subject}</span>}
+                      {/* ĐÃ ĐỔI GÌ: cặp cũ → mới, chỉ những trường có nhãn.
+                          Không có phần này thì dòng nhật ký chỉ nói "đã sửa",
+                          mà "sửa cái gì" mới là câu cần trả lời. */}
+                      {a.fields.length > 0 && (
+                        <small className="adm-log-fields">
+                          {a.fields.map(f => (
+                            <span key={f.key} className="adm-log-field">
+                              {t(f.fieldKey)}: {shortValue(f.from, t)} → {shortValue(f.to, t)}
+                            </span>
+                          ))}
+                        </small>
+                      )}
+                    </div>
+                    <small className="adm-log-meta">
+                      {a.actor}
+                      <span className="dot dot-inline" aria-hidden="true" />
+                      {a.at ? timeAgo(a.at, t) : ''}
+                    </small>
+                  </div>
+                )
+              })
             )}
           </div>
         ) : tab === 'media' ? (
@@ -1003,7 +1146,8 @@ export default function AdminPanel({
                 /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
                 songRows={rows.filter(x => groupKey(x) === groupKey(r))}
-                onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick} />
+                onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick}
+                onEdit={onEdit} />
             ))
         )}
 
@@ -1057,8 +1201,20 @@ export default function AdminPanel({
             scrollTo={listRef}
           />
         )}
+        {/* Nhật ký phân trang ở database, cùng khuôn với bình luận. */}
+        {tab === 'log' && !logMissing && (
+          <Pager
+            page={logPage}
+            pages={Math.max(1, Math.ceil(logTotal / ADMIN_ACTIONS_PER_PAGE))}
+            from={logTotal === 0 ? 0 : (logPage - 1) * ADMIN_ACTIONS_PER_PAGE + 1}
+            to={Math.min(logPage * ADMIN_ACTIONS_PER_PAGE, logTotal)}
+            total={logTotal}
+            onChange={(n) => loadLog(n)}
+            scrollTo={listRef}
+          />
+        )}
         {/* tab media và comments tự quản lý hoặc cuộn dọc nên không cắt trang bằng Pager này */}
-        {!['media', 'comments'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
+        {!['media', 'comments', 'log'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
     </section>
   )

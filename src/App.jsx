@@ -68,7 +68,7 @@ import {
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
-  adminReviewMany, adminDeleteMany, adminPickMany,
+  adminReviewMany, adminDeleteMany, adminPickMany, adminEditRequest,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
 } from './lib/db'
 
@@ -1724,6 +1724,17 @@ function AppInner() {
     }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
+  /* Sửa loại bài / ghi chú / cờ đã trả phí — đường RPC riêng
+     (admin_request_edit). Trước đây sửa sai loại bài là phải xoá rồi tạo lại. */
+  const doAdminEdit = async (id, patch) => {
+    try {
+      const target = rows.find(r => r.id === id)
+      if (target) selfActRef.current = new Set([groupKey(target)])
+      await adminEditRequest(id, patch)
+      await loadBoard(user)
+      flash('ok', t('toast.updated'))
+    } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
+  }
   const doAdminExpire = async (id) => {
     try { await adminExpireRequest(id); await loadBoard(user); flash('ok', t('toast.removed')) }
     catch (e) { flash('err', errMsg(t, e)) }
@@ -2614,7 +2625,7 @@ function AppInner() {
                 tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
                 rows={rows} orders={orders} media={featuredRows}
                 onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onExpire={doAdminExpire} onOrder={doOrder}
-                onPick={doAdminPick} onBulk={doBulk}
+                onPick={doAdminPick} onBulk={doBulk} onEdit={doAdminEdit}
                 onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
                 onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
                 onMediaViewHome={viewMediaHome}

@@ -741,3 +741,28 @@ không có lệnh phá dữ liệu), `src/lib/adminOrders.test.js`,
 `src/lib/adminComments.test.js`, và các ca SSR mới trong
 `src/components/AdminPanel.test.js`. Migration đã được chạy thử trên PGlite
 (fold, tìm nhiều từ, tổng/trang, bốn hàm bulk, trần 200).
+
+## 20261213 — Nhật ký thao tác quản trị + sửa request đầy đủ
+
+Additive, một transaction, **rerunnable** (`create table if not exists`,
+`create or replace function`, `drop trigger if exists`), không thuộc fresh-install
+bundle. Không `create or replace` trên hàm đang chạy nào — `admin_review`,
+`admin_update`, `admin_pick_group`, `delete_my_request` giữ nguyên.
+
+| File | Vai trò |
+| --- | --- |
+| `20261213_admin_actions_and_request_edit.sql` | Bảng `admin_actions` (RLS bật, **chỉ** policy đọc cho admin, không policy ghi) + trigger `requests_admin_audit` (AFTER UPDATE OR DELETE trên `requests`) và `orders_admin_audit` (AFTER UPDATE trên `orders`), cả hai chỉ ghi khi `auth.uid()` là admin; `detail` mang từng cặp cũ → mới. `admin_actions_page(p_limit, p_offset)` trả `{ total, rows }` kèm tên admin. `admin_request_edit(p_id, p_kind, p_note, p_is_paid, p_requester)` — bốn trường khung sửa cũ không có, kiểm `kind` thuộc bốn loại có thật, ghi chú ≤ 300 ký tự; **không** đụng `status`/`progress`/`picked_at`. |
+| `supabase/rollback/20261213_admin_actions_and_request_edit.sql` | Drop ba hàm + hai trigger; giữ bảng `admin_actions` (dữ liệu lịch sử, xoá là mất — rollback chỉ gỡ phần GHI). |
+
+Vì sao trigger chứ không phải gọi hàm log trong từng RPC: mọi đường đi (nút
+trên web, RPC, SQL tay trong Dashboard) đều để lại dấu, không phải nhớ. Và vì
+`auth.uid()` phải là admin, người dùng tự sửa request của mình không làm đầy
+nhật ký quản trị — nhật ký trả lời "admin đã làm gì", không phải "bảng đã đổi gì".
+
+Tab mới **Activity log** đứng cuối dải số liệu (chỗ tra cứu, không phải việc
+phải làm hôm nay), phân trang 20 dòng, đọc qua RPC; client nhận PGRST202 thì
+hiện "cần chạy migration" thay vì một khung lỗi đỏ. Test:
+`supabase/tests/adminBulk.test.js` (bảng/trigger/chữ ký/quyền/không policy ghi),
+`src/lib/adminLog.test.js`, `src/lib/adminAge.test.js`. Đã chạy thử trên PGlite:
+chạy hai lần liên tiếp, ghi đúng khi admin sửa và **không** ghi khi user
+thường sửa, chặn `kind` lạ, non-admin không đọc được và không chèn được dòng.
