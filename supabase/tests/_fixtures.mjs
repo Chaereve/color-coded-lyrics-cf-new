@@ -27,6 +27,16 @@ export const POST_20261125 = [
   '20261204_mystery_odds',
   '20261210_vote_back',
   '20261211_achievements_v3',
+  /* Vòng nâng cấp bảng quản trị + gỡ bình luận: 20261216 drop bảng
+     `request_comments`, nên nó phải nằm trong danh sách NÀY — danh sách mà
+     migrationDeploy dùng để khẳng định "đã áp đúng những gì còn thiếu". Thiếu
+     một cái tên ở đây thì test không báo lỗi migration, nó chỉ báo pending
+     lệch — đúng thứ đã xảy ra khi thêm 5 bản mới mà quên cập nhật fixture. */
+  '20261212_admin_bulk_and_comments_page',
+  '20261213_admin_actions_and_request_edit',
+  '20261214_request_history',
+  '20261215_notify_requester_review',
+  '20261216_remove_comments',
 ]
 
 const SCAFFOLD = `
