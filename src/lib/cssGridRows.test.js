@@ -62,8 +62,8 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
   assert.match(row, /align-items:\s*stretch/, 'hàng phải giãn để cột chạm hai mép')
   assert.match(row, /padding:\s*0/, 'đệm dọc của hàng phải về 0, nếu không cột bị hụt vào trong')
   const body = rulesWith('.row.req .body').join(' ')
-  assert.match(body, /padding:\s*var\(--sp-3\) var\(--sp-3\) var\(--sp-3\) 0/,
-    'đệm dọc dời về phần chữ, và chừa 12px mép phải để nút nghe không dán vào vách phiếu')
+  assert.match(body, /padding:\s*var\(--sp-3\) 0/,
+    'đệm dọc nằm ở phần chữ; mép phải do CHÍNH nút nghe lo bằng lề của nó')
   /* HAI DÒNG PHẢI THỞ. Khi cụm ba nút rời dòng tiêu đề, hộp chữ của dòng đó
      thấp đi ~7px và hàng tự co — hai dòng dính vào nhau (ảnh chụp chủ dự án:
      "ô hẹp quá nên khoảng cách giữa các dòng bị dính"). Khoảng nới nằm ở GAP,
@@ -95,28 +95,40 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
    ---------------------------------------------------------
    Bản trước nó là một chuỗi chữ xám không viền, đứng cạnh hai ô icon, và cả
    cụm nằm lẫn trong dòng phụ. Chủ dự án chốt: bỏ theo dõi + chia sẻ, và nút
-   nghe phải NỔI BẬT (viền + nền + mũi play). Ba vế dưới phải cùng còn, thiếu
-   vế nào là lỗi cũ quay lại:
-     1. nằm trên DÒNG TIÊU ĐỀ, sau tên bài, trước `.meta`;
-     2. đọc ra là nút — viền, nền, chữ đậm hơn dòng phụ;
-     3. không kéo dòng tiêu đề cao lên (lề âm bù phần chênh). */
-test('nút nghe: một nút thật trên dòng tiêu đề, không đội dòng chữ', () => {
-  const titleOpen = app.indexOf('<div className="title">')
-  const watchAt = app.indexOf('<a className="watchbtn"')
-  const titleClose = app.indexOf('</div>', watchAt)
-  const metaOpen = app.indexOf('<div className="meta">')
-  assert.ok(titleOpen >= 0 && watchAt > titleOpen, 'nút nghe phải nằm trong dòng tiêu đề')
-  assert.ok(watchAt < titleClose, 'nút phải đóng TRƯỚC khi dòng tiêu đề đóng')
-  assert.ok(metaOpen > watchAt, 'nút phải đứng TRƯỚC dòng phụ — rơi xuống dưới là bảy thứ chen nhau')
+   nghe phải NỔI BẬT. Ba lần chỉnh tiếp theo vẫn giữ nó TRONG dòng tiêu đề, và
+   lần nào ảnh chụp cũng lộ cùng một lỗi (chủ dự án: "vị trí vẫn còn kì cục"):
+   nút lửng lơ ở nửa trên bên phải, dưới nó là khoảng trống. Vòng này đổi hẳn
+   chỗ đứng:
 
-  const b = ruleOf('.row .title .watchbtn')
+     1. nó là ANH EM của `.body`, đứng sau khối chữ và TRƯỚC cột phiếu — một
+        cột mảnh trong vùng hành động của hàng, không phải một nhãn trong tên
+        bài. Đây là vế quan trọng nhất: đặt lại vào `.title` là lỗi cũ quay lại.
+     2. `align-self: center` — canh giữa theo chiều dọc cả hàng, nên nó không
+        còn lệch lên trên so với khối chữ.
+     3. vẫn đọc ra là nút: pill màu nhấn, không viền xám. */
+test('nút nghe: đứng riêng trước cột phiếu, canh giữa hàng', () => {
+  const bodyClose = app.indexOf('</div>\n      {/* NÚT NGHE')
+  const watchAt = app.indexOf('<a className="watchbtn"')
+  const voteAt = app.indexOf('<button className={`votebtn')
+  const titleAt = app.indexOf('<div className="title">')
+  assert.ok(watchAt > 0 && voteAt > watchAt, 'nút nghe phải đứng TRƯỚC cột phiếu')
+  /* Không còn nằm trong khối tiêu đề: mép đóng của `.title` phải trước nút. */
+  const titleClose = app.indexOf('</div>', app.indexOf('<span className="tag', titleAt) > 0 ? app.indexOf('<span className="tag', titleAt) : titleAt)
+  assert.ok(titleClose > 0 && titleClose < watchAt,
+    'nút nghe KHÔNG được nằm trong dòng tiêu đề nữa — đó là cái làm nó "kì cục"')
+  assert.ok(bodyClose > 0, 'phải thấy chú thích đánh dấu chỗ nút đứng sau khối chữ')
+
+  const b = ruleOf('.row.req > .watchbtn')
   assert.match(b, /display:\s*inline-flex/, 'nút là flex một hàng: icon + chữ')
   assert.match(b, /height:\s*22px/, 'cao 22px — cỡ một nhãn phụ, không phải một khối')
-  assert.match(b, /margin-block:\s*-4px/,
-    'lề âm bù phần chênh so với dòng chữ: hộp 22px mà không bù là chữ trôi lên trên')
-  /* NEO MÉP PHẢI là thứ chữa cái "vô duyên": thiếu nó cái nút dán ngay sau
-     tên bài và nửa bên phải hàng trống hoác. */
-  assert.match(b, /margin-left:\s*auto/, 'nút phải neo mép phải cột chữ, thẳng cột với vách phiếu')
+  assert.match(b, /align-self:\s*center/, 'canh giữa theo chiều dọc cả hàng')
+  assert.match(b, /flex:\s*none/, 'cột nút không được co lại khi tên bài dài')
+  assert.doesNotMatch(b, /margin-right|margin-left|margin:/,
+    'không lề riêng: `gap` 12px của `.row` lo cả khe tới khối chữ và khe tới vách phiếu')
+  assert.doesNotMatch(b, /margin-left:\s*auto/,
+    'không neo mép phải nữa: nút đứng trong cột của chính nó, không phải trong khối chữ')
+  assert.doesNotMatch(b, /margin-block:\s*-4px/,
+    'không cần lề âm bù dòng nữa — nút không còn nằm trong dòng chữ')
   assert.match(b, /border:\s*0/, 'không viền: viền xám 1px là ngôn ngữ của ô nhập liệu, đặt cạnh tên bài là "thô"')
   assert.match(b, /border-radius:\s*var\(--r-pill\)/, 'pill — cùng họ với nhãn PAID / Full Album trong hàng')
   assert.match(b, /background:\s*color-mix\(in oklab, var\(--a-2\)/,
@@ -125,14 +137,14 @@ test('nút nghe: một nút thật trên dòng tiêu đề, không đội dòng 
   assert.match(b, /font-weight:\s*600/, 'nét 600: đây là nút, không phải một mẩu thông tin')
   assert.match(b, /font-size:\s*11px/, 'cỡ chữ phụ nhỏ nhất trong hàng — nổi bật bằng màu, không bằng cỡ')
   assert.match(b, /text-decoration:\s*none/, 'nút không gạch chân kiểu link chữ')
-  assert.match(rulesWith('.row .title .watchbtn:hover').join(' '), /color-mix\(in oklab, var\(--a-2\)/,
+  assert.match(rulesWith('.row.req > .watchbtn:hover').join(' '), /color-mix\(in oklab, var\(--a-2\)/,
     'rê vào phải đậm nền lên, không chỉ đổi màu chữ')
-  assert.match(rulesWith('.row .title .watchbtn:focus-visible').join(' '), /outline:\s*2px solid/,
+  assert.match(rulesWith('.row.req > .watchbtn:focus-visible').join(' '), /outline:\s*2px solid/,
     'bàn phím Tab tới phải thấy vòng focus')
 
   /* Máy cảm ứng: hộp 24px là quá nhỏ cho ngón tay, nhưng nới hộp lên 40px là
      đội cả dòng tiêu đề. Nới VÙNG CHẠM bằng pseudo — hình không đổi một pixel. */
-  assert.match(css, /\.row \.title \.watchbtn::before \{[^}]*inset:\s*-8px/,
+  assert.match(css, /\.row\.req > \.watchbtn::before \{[^}]*inset:\s*-9px/,
     'máy cảm ứng phải nới vùng chạm quanh nút bằng pseudo-element')
 })
 

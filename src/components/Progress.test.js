@@ -129,9 +129,12 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
     'tick hết mốc thì --sc đổi sang màu xong')
   /* HÀNG REQUEST KHÔNG CÒN DÙNG THANH NÀY (vòng 4). Chủ dự án nhìn ảnh chụp và
      chốt: một yêu cầu có đúng ba việc có tên, nên ba nhịp (`.nhip`, xem
-     `Steps.jsx`) trả lời "đang ở đâu" thẳng hơn "47%". Thanh phần trăm vẫn còn
-     nguyên ở khối Up next và bảng quản trị — nơi có chỗ cho nó — nên bài này
-     canh đúng ranh giới đó: hàng thì ba nhịp, hai chỗ kia thì thanh. */
+     `Steps.jsx`) trả lời "đang ở đâu" thẳng hơn "47%". KHỐI UP NEXT CŨNG VẬY
+     (vòng 5): chủ dự án yêu cầu "trên phần up next tinh chỉnh cho đồng bộ với
+     đổi mới vừa qua" — cùng một bài mà hàng request đọc bằng ba vạch, còn Up
+     next đọc bằng thanh 220px + "47%" thì đó là hai ngôn ngữ cho một dữ liệu,
+     trên cùng một trang. Nay cả hai chỗ dùng `Steps`. Thanh phần trăm chỉ còn
+     lại ở bảng quản trị — nơi có trọn một cột cho nó. */
   /* Bỏ chú thích trước khi soát: chính chú thích giải thích việc xoá luật cũ
      có nhắc tên `.row .sub .prog`, soát cả chú thích là tự bắt lỗi mình. */
   const cssBare = css.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -145,17 +148,26 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   assert.ok(metaAt > 0 && nhipAt > metaAt, 'ba nhịp là chi tiết của dòng phụ, phải đứng trong .meta')
   assert.match(app, /r\.status === 'in_progress' &&[\s\S]{0,300}<Steps pct=\{r\.progress\}/,
     'ba nhịp chỉ hiện khi hàng đang làm — hàng chờ chưa có gì để đếm')
-  /* Nút nghe KHÔNG được rơi xuống dòng phụ: đó là lý do nó được đưa lên dòng
-     tiêu đề (dòng phụ đã có trạng thái · loại · người gửi · giờ · ba nhịp).
-     Chuông theo dõi và nút chia sẻ từng đứng cạnh nó đã bị gỡ khỏi sản phẩm;
-     giờ nút này là hành động duy nhất của một hàng. */
+  /* Nút nghe KHÔNG được rơi xuống dòng phụ (`.meta` đã có trạng thái · loại ·
+     người gửi · giờ · ba nhịp), và cũng KHÔNG nằm trong dòng tiêu đề nữa:
+     đứng trong dòng chữ thì nó lửng lơ ở nửa trên bên phải — chủ dự án gọi là
+     "kì cục" ba lần liền. Nay nó là anh em của khối chữ, trước cột phiếu. */
   const watchAt = app.indexOf('<a className="watchbtn"')
-  const titleAt = app.indexOf('<div className="title">')
-  assert.ok(titleAt > 0 && watchAt > titleAt && watchAt < metaAt,
-    'nút nghe nằm ở dòng tiêu đề, trước dòng phụ')
+  const voteAt = app.indexOf('<button className={`votebtn')
+  assert.ok(watchAt > metaAt && watchAt < voteAt,
+    'nút nghe đứng sau khối chữ và trước cột phiếu — vùng hành động của hàng')
+  assert.ok(app.indexOf('<div className="title">') < watchAt &&
+    app.indexOf('</div>', app.indexOf('<div className="title">')) < watchAt,
+    'nút nghe không còn nằm trong dòng tiêu đề')
   assert.doesNotMatch(app, /pctValue|prog-edge/, 'tàn dư của phương án C phải sạch')
-  assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/,
-    'khối Up next vẫn dùng thanh — chỗ đó có trọn một dòng cho nó')
+  /* Up next đổi sang ba nhịp ở vòng 5 cho đồng bộ với hàng request. */
+  assert.doesNotMatch(app, /<Progress pct=\{rep\.progress\}/,
+    'Up next không vẽ thanh riêng nữa — cùng dữ liệu thì cùng một hình')
+  const nowAt = app.indexOf('className="now-item"')
+  const nowSteps = app.indexOf('<Steps pct={rep.progress}', nowAt)
+  const metaAfterNow = app.indexOf('<div className="meta">', nowAt)
+  assert.ok(nowSteps > 0 && metaAfterNow > 0,
+    'Up next phải có ba nhịp nằm trong dòng phụ .meta của nó')
   assert.match(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*wide/)
 
   /* BA NHỊP — hình học và nghĩa. Tên lớp là `.nhip` chứ không phải `.steps`:

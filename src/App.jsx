@@ -26,7 +26,6 @@ import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
-import Progress from './components/Progress'
 import Steps from './components/Steps'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
@@ -292,12 +291,11 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
     <div className={`row req${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
       style={{ '--sc': sm.c, '--i': Math.min(n, 12) }}>
       <div className="body">
-        {/* DÒNG TIÊU ĐỀ = tên bài + nhãn + CỤM HÀNH ĐỘNG, tất cả trên một
-            hàng, cụm nút neo mép phải. Trước đây cụm nút nằm ở dòng phụ, cạnh
-            trạng thái — dòng đó đã có sẵn trạng thái, loại bài, người gửi, giờ,
-            ba nhịp tiến độ, nên thêm ba nút nữa là bảy thứ chen nhau và không
-            cỡ nào làm nó gọn được. Đưa lên dòng tiêu đề thì hai dòng tự cân:
-            trên là "bài gì + làm được gì", dưới là "đang ở đâu". */}
+        {/* DÒNG TIÊU ĐỀ = tên bài + nhãn. Hành động KHÔNG nằm ở đây nữa: đặt
+            nó lên dòng này thì nó đứng lệch lên trên, ngang tầm tên bài, trong
+            khi nửa dưới bên phải trống — chủ dự án đọc đúng là "kì cục". Nút
+            nghe giờ là ANH EM của khối chữ, canh giữa theo chiều dọc cả hàng
+            (xem chú thích ngay dưới `.body`). */}
         <div className="title">
           <span className="tx2">{r.title} <span className="artist">— {r.artist}</span></span>
           {/* Nhãn nằm trong .tags: hộp này tự xuống dòng và giữ khoảng cách
@@ -307,19 +305,6 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               {r.is_paid && <span className="pill gold">PAID</span>}
               {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
             </span>
-          )}
-          {/* NÚT NGHE — hành động DUY NHẤT còn lại của một hàng, nên nó phải
-              ĐỌC RA LÀ MỘT NÚT: có viền, có nền, có mũi play. Bản trước để nó
-              là một chuỗi chữ xám không viền, ngang hàng với những thứ chỉ là
-              thông tin (trạng thái, giờ) — người dùng phải đoán xem chỗ nào
-              bấm được. Chuông theo dõi và nút chia sẻ đã bị gỡ khỏi sản phẩm,
-              nên chỗ này không còn phải nhường cho ai: một nút, một nghĩa. */}
-          {watchUrl && (
-            <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer"
-              title={t('row.watch')}>
-              <Icon name="play" size={12} />
-              <span>{t('row.watchShort')}</span>
-            </a>
           )}
         </div>
         {/* DÒNG PHỤ = một hàng chữ mô tả "đang ở đâu": trạng thái · loại bài
@@ -350,6 +335,19 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
           </div>
         </div>
       </div>
+      {/* NÚT NGHE — việc DUY NHẤT bấm được trong hàng, nên nó đứng riêng
+          thành một cột mảnh ngay trước cột phiếu, canh giữa theo chiều dọc.
+          Trước đây nó nằm trong dòng tiêu đề và neo mép phải: nút lửng lơ ở
+          trên, nửa dưới trống, và cách vách phiếu một quãng không đều — chủ dự
+          án gọi đúng là "kì cục". Đứng giữa hàng thì nó thuộc về CẢ HÀNG, như
+          một hành động ở cuối dòng, chứ không phải một nhãn dán vào tên bài. */}
+      {watchUrl && (
+        <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer"
+          title={t('row.watch')}>
+          <Icon name="play" size={12} />
+          <span>{t('row.watchShort')}</span>
+        </a>
+      )}
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
         disabled={!votable}
@@ -2098,11 +2096,16 @@ function AppInner() {
                             <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
                             <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
                             <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
+                            {/* BA NHỊP, không phải thanh phần trăm: cùng một bài
+                                đứng ở hàng request (ba vạch 16×3px + "n/3") và ở
+                                đây phải đọc ra cùng một hình. Trước đây khối này
+                                vẽ một thanh 220px kèm "47%" — hai ngôn ngữ cho
+                                cùng một dữ liệu, cùng trên một trang. */}
+                            {working && (
+                              <><span className="dot" aria-hidden="true" />
+                                <Steps pct={rep.progress} label={t('progress.label')} /></>
+                            )}
                           </div>
-                          {/* Số phần trăm chỉ nằm MỘT chỗ: trong thanh, sát mép
-                              phải. Trước đây nó nằm trong dòng meta rồi lặp
-                              lại lần nữa bằng một cái vạch trần bên dưới. */}
-                          {working && <Progress pct={rep.progress} label={t('progress.label')} />}
                           {g.rows.length > 1 && (
                             <ul className="now-members">
                               {g.rows.map(rr => (
