@@ -16,7 +16,7 @@
   padding: 14px 16px 16px;
   background: var(--surface);
   border: 1px solid var(--line-2);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   box-shadow: 0 12px 32px rgb(0 0 0 / .22);
   overflow: hidden; isolation: isolate;
 }

@@ -317,11 +317,14 @@ export const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title)) || b
    xếp cả bảng); nếu danh sách này nằm rải rác ở hai chỗ thì thêm một cách xếp
    là mở ra đúng loại lỗi "dán link vào thì mất".
      newest   — mới gửi trước (mặc định)
+     oldest   — cũ nhất trước: câu hỏi của người xếp hàng chờ lâu nhất
      top      — nhiều phiếu trước; CHỈ bài đang xin phiếu, như tab cũ
-     oldest   — chờ lâu nhất trước: câu hỏi của người xếp hàng
      requests — nhiều người cùng xin một bài nhất trước
-     az       — tên bài A→Z (bỏ dấu, nên "Đ" nằm cùng chỗ với "D") */
-export const SORTS = ['newest', 'top', 'oldest', 'requests', 'az']
+     az       — tên bài A→Z (bỏ dấu, nên "Đ" nằm cùng chỗ với "D")
+     Thứ tự trong mảng là thứ tự trong menu, và hai cách xếp ĐỐI NHAU
+     (newest / oldest) đứng cạnh nhau — người dùng đổi chiều thời gian là
+     thấy ngay hai mục kề nhau, không phải lục xuống cuối danh sách. */
+export const SORTS = ['newest', 'oldest', 'top', 'requests', 'az']
 
 /* Danh sách Up next: đang làm trước, rồi tới hàng chốt sớm hơn. */
 export const byPickOrder = (a, b) =>

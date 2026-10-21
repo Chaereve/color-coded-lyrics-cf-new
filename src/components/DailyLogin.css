@@ -1,4 +1,4 @@
-.daily-rewards { margin-bottom: 22px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 12px 32px rgb(0 0 0 / .22); }
+.daily-rewards { margin-bottom: 22px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 12px 32px rgb(0 0 0 / .22); }
 .daily-login-page { max-width: 720px; }
 .daily-login-page.has-side { max-width: 960px; }
 .daily-rewards-head { display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in oklab, var(--a) 5%, transparent), transparent); }
@@ -96,7 +96,7 @@ button.check-in-day:disabled { cursor: default; }
   display: flex; flex-direction: column; gap: 12px;
   padding: 16px;
   border: 1px solid color-mix(in oklab, var(--line-2) 72%, transparent);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   background:
     linear-gradient(170deg, color-mix(in oklab, var(--a) 8%, transparent), transparent 46%),
     color-mix(in oklab, var(--surface-2) 88%, transparent);

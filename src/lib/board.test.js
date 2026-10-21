@@ -654,7 +654,7 @@ test('az: tên bài A→Z, bỏ dấu nên Đ nằm cùng chỗ với D', () => 
 })
 
 test('cả năm cách xếp đều tìm được bài đang chờ duyệt, không chỉ newest', () => {
-  assert.deepEqual(SORTS, ['newest', 'top', 'oldest', 'requests', 'az'])
+  assert.deepEqual(SORTS, ['newest', 'oldest', 'top', 'requests', 'az'])
   for (const f of SORTS) {
     const pub = [req('aespa', 'Whiplash', 3)]
     /* `rows` có thêm một bài pending: các cách xếp đều phải quét cả rows khi

@@ -145,18 +145,18 @@
   --hover:     rgba(255,255,255,.055);
   --hover-2:   rgba(255,255,255,.085);
 
-  /* thang góc bo: control nhỏ 6, khối 8, nổi/modal 12, logo splash 16.
-     Trước đây 3/5/6/7/8/10/12/14 lẫn lộn nên nhìn kỹ là thấy "lệch tay". */
+  /* THANG GÓC BO — bốn bậc, không phải sáu:
+       6  tem nhỏ (thẻ thể loại, phím tắt, chip trong khối)
+       8  nút, ô nhập, mục menu
+       10 khối: danh sách, thanh lọc, card
+       14 lớp nổi và khung lớn: modal, hộp đăng nhập, logo splash
+     Càng nhiều bậc thì khối này càng dễ "tròn hơn khối bên cạnh" mà không ai
+     cố ý — đó đúng là thứ làm giao diện đọc ra kiểu máy vẽ. */
   --r-sm: 6px;
-  --r-pill: 999px;
   --radius: 8px;
   --r-md: 10px;
-  /* Bốn bậc, không phải sáu: 6 (tem nhỏ) · 8 (nút, ô nhập) · 10 (khối) ·
-     12 (khung lớn). Bản trước có sáu bậc tới 18px — càng nhiều bậc thì các
-     khối càng dễ "tròn hơn khối bên cạnh" mà không ai cố ý, và đó đúng là
-     thứ làm giao diện đọc ra kiểu máy vẽ. */
-  --r-lg: 12px;
-  --r-xl: 14px;
+  --r-lg: 14px;
+  --r-pill: 999px;
 
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
@@ -277,7 +277,7 @@ button { font-family: inherit; }
 .splash-mark { position: relative; display: grid; place-items: center;
   animation: rise .36s var(--e-out) both; }
 .applogo.lg-splash {
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   box-shadow: 0 16px 44px -18px var(--a-glow), inset 0 0 0 1px rgba(255,255,255,.06);
 }
 .applogo.lg-splash::after {
@@ -1699,7 +1699,7 @@ img { max-width: 100%; }
    đúng width/height ghi trên thẻ <img> trong Sidebar.jsx). Dòng 22px cũ ở đây
    đã bị luật sau ghi đè hoàn toàn — gỡ để không còn hai chỗ nói hai cỡ khác nhau. */
 .applogo.lg-foot   { width: 28px; height: 28px; border-radius: var(--radius); }
-.applogo.lg-splash { width: 64px; height: 64px; border-radius: var(--r-xl); }
+.applogo.lg-splash { width: 64px; height: 64px; border-radius: var(--r-lg); }
 .applogo.lg-gate   { width: 52px; height: 52px; border-radius: var(--r-lg); }
 
 /* ================= THANH TOÁN ================= */
@@ -4502,7 +4502,7 @@ body {
 /* =========================================================
    PUBLIC PROFILE
    ========================================================= */
-.public-profile { max-width: 820px; margin: 0 auto; padding: 28px; border: 1px solid var(--line); border-radius: var(--r-xl); background: var(--panel); box-shadow: 0 16px 40px rgba(0,0,0,.2); }
+.public-profile { max-width: 820px; margin: 0 auto; padding: 28px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); box-shadow: 0 16px 40px rgba(0,0,0,.2); }
 .profile-back { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--txt-3); cursor: pointer; font: inherit; text-decoration: none; font-size: 13px; font-weight: 500; transition: color var(--t-1) var(--e-soft); }
 .profile-back:hover { color: var(--a-2); }
 .public-profile-head { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
