@@ -151,8 +151,12 @@
   --r-pill: 999px;
   --radius: 8px;
   --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
+  /* Bốn bậc, không phải sáu: 6 (tem nhỏ) · 8 (nút, ô nhập) · 10 (khối) ·
+     12 (khung lớn). Bản trước có sáu bậc tới 18px — càng nhiều bậc thì các
+     khối càng dễ "tròn hơn khối bên cạnh" mà không ai cố ý, và đó đúng là
+     thứ làm giao diện đọc ra kiểu máy vẽ. */
+  --r-lg: 12px;
+  --r-xl: 14px;
 
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
@@ -587,38 +591,11 @@ select {
 }
 .sel { max-width: 170px; cursor: pointer; }
 
-/* ---- THANH LỌC — DẢI CHẾ ĐỘ XEM (vòng 15) ------------------------------
-   Bản cũ là bảy VIÊN THUỐC giống hệt nhau, mỗi viên ba thứ trang trí — chấm
-   tròn màu, nhãn, huy hiệu số bo tròn — tất cả lồng trong một rãnh cũng bo
-   tròn. Chủ dự án gọi đúng tên nó: "phần hiện status xấu quá", "nhìn AI".
-
-   Bốn thứ làm hàng đó đọc ra "do máy sinh", và cách sửa từng thứ:
-
-     1. HAI LỚP BO TRÒN LỒNG NHAU (rãnh thuốc + chip thuốc). Mỗi lớp là một
-        quyết định trang trí không mang thông tin nào.
-        → BỎ RÃNH: các mục nằm thẳng trên mặt thanh lọc.
-     2. CHẤM TRÒN + HUY HIỆU SỐ. Chấm tròn là khuôn mẫu của mọi bảng điều
-        khiển máy sinh; con số thì bị nhốt thêm một viên thuốc nữa — bốn lớp
-        bo tròn trên một hàng.
-        → Màu đi vào một VẠCH ĐỨNG 3×15px (đọc ra "chặng", không ra "đèn
-        báo"), còn con số chỉ là số: mono, không nền, không huy hiệu.
-     3. BẢY THỨ GIỐNG HỆT NHAU. Bốn giai đoạn của dây chuyền và hai cách nhìn
-        bảng bị dàn cùng cỡ, cùng khuôn, xen kẽ nhau — mắt không biết đang ở
-        trục nào (bản cũ để "In progress" đứng SAU "Top voted").
-        → HAI NHÓM, MỘT VẠCH NGĂN: giai đoạn theo ĐÚNG thứ tự dây chuyền
-        (Queue · Up next · In progress · Done), rồi mới tới chế độ xem
-        (Newest · Top voted) và bài đang theo dõi.
-     4. TRẠNG THÁI CHỌN TÔ NỀN. Một viên thuốc phết màu nhạt là thứ ai cũng
-        vẽ được.
-        → Chọn = KIỂU CHỮ + VẠCH: chữ trắng, vạch đầy màu và cao thêm, con số
-        mang màu của chính mục đó. Không tô nền.
-
-   Vì sao vẫn giữ màu: màu ở đây là DỮ LIỆU (giai đoạn nào đang có việc),
-   không phải trang trí — vạch lấy đúng màu chấm trạng thái trên hàng request
-   (xem STATUS_META), nên liếc dải lọc là biết bảng đang có gì.
-
-   Máy hẹp: dải CUỘN NGANG — xuống dòng thì thanh lọc cao gấp ba và đẩy danh
-   sách xuống dưới màn hình đầu. */
+/* ---- THANH LỌC --------------------------------------------------------
+   Bản cũ là một dải chip: bốn giai đoạn + hai chế độ xem + bài đang theo dõi
+   dàn cùng một hàng, mỗi mục mang chấm màu và huy hiệu số. Nay thanh lọc chỉ
+   còn ba điều khiển — ô tìm, Status, Type — cộng một menu sắp xếp; phần luật
+   của chúng nằm ở khối .fb-* cuối tệp, một nguồn duy nhất. */
 /* ---- KÍNH LÚP + KHOẢNG CHỪA TRONG Ô TÌM KIẾM ---------------------------
    LỖI CŨ: thiếu `top` nên phần tử absolute rơi về điểm tĩnh đầu tiên của hộp
    (góc trên-trái), tức là icon nằm lệch lên trên và lòi ra ngoài viền ô nhập.
@@ -1254,11 +1231,7 @@ select {
 .card h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .card h4 .dotc { width: 6px; height: 6px; border-radius: 50%; background: var(--a-2); }
 
-.vote-status { display: flex; flex-direction: column; gap: 8px; }
 .vs-mini { margin-bottom: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.vs-row { display: flex; align-items: center; justify-content: space-between; }
-.vs-row span { font-size: 12.5px; color: var(--txt-2); }
-.vs-row b { font-family: var(--mono); font-size: 13px; }
 .vs-bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .vs-bar > i { display: block; height: 100%; background: var(--a-2); }
 
@@ -1317,7 +1290,7 @@ select {
 .dlg-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .dlg-presets .chip { padding: 4px 9px; font: inherit; font-size: 11.5px; line-height: 1.1;
   color: var(--txt-2); background: var(--surface-2); border: 1px solid var(--line-2);
-  border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  border-radius: var(--radius); cursor: pointer; white-space: nowrap; }
 .dlg-presets .chip:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
 .dlg-presets .chip.on { color: var(--a-2); border-color: color-mix(in srgb, var(--a-2) 55%, transparent);
   background: color-mix(in srgb, var(--a-2) 12%, var(--surface-2)); }
@@ -1515,11 +1488,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .buy-checkout-info b { display: block; font-size: 15px; font-weight: 600; }
 .buy-checkout-info span { font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
 .buy-checkout .btn { margin-left: auto; }
-.buyone { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); }
-.buyone-info { min-width: 100px; flex: 1 1 120px; }
-.buyone-rate { font-family: var(--mono); font-size: 14px; font-weight: 600; }
-.buyone-rate span { font-size: 11.5px; font-weight: 400; color: var(--txt-3); }
-.buyone-sub { font-size: 11.5px; color: var(--txt-3); margin-top: 2px; }
 .qty { display: flex; align-items: center; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
 .qty button { width: 28px; height: 28px; border: 0; background: var(--surface-2); color: var(--txt-2); cursor: pointer; font-size: 14px; font-family: inherit; }
 .qty button:hover { background: var(--hover-2); color: var(--txt); }
@@ -1552,7 +1520,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .prof-head-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 /* Lối ra khi ảnh động vượt trần dung lượng: đứng ngay dưới câu báo lỗi, cùng
    một cột chữ với khối hồ sơ — không phải một nút nổi ở đâu khác. */
-.prof-still { margin-top: 8px; }
 @media (max-width: 620px) {
   .prof-card { padding: 13px 13px 15px; }
   /* máy hẹp: ảnh đại diện và hai nút xếp dọc, không còn chỗ cho hàng ngang */
@@ -1568,7 +1535,6 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .vm-song > span { color: var(--txt-2); }
 .vm-sub { margin-top: 5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); }
 .vm-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.vm-limits { margin-top: 8px; font-size: 11.5px; color: var(--txt-3); font-family: var(--mono); }
 .msg > div + div { margin-top: 4px; }
 
 /* ---- khung chỉnh ảnh đại diện ---- */
@@ -2767,10 +2733,10 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-rule { margin: 4px 0 0; font-size: 11.5px; line-height: 1.35; color: var(--txt-3); max-width: 46ch }
 
 /* nhóm nút sắp xếp dạng viên thuốc — một lựa chọn, một chỗ sáng */
-.lb-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
+.lb-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--radius);
   background: rgba(255,255,255,.02) }
 .lb-segb { display: inline-flex; align-items: center; justify-content: center;
-  padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
+  padding: 5px 12px; border: 0; border-radius: var(--r-sm); cursor: pointer;
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
 .lb-segb:hover { color: var(--txt-2) }
@@ -2786,10 +2752,10 @@ html[data-section="spin"] .bgfx { display: none; }
    bản đó bị chê "khó nhìn" vì chữ xám 11.5px trên nền tối với gạch chân 2px
    mảnh gần như vô hình, muốn thấy đang chọn gì phải dí mắt vào. */
 .lb-bar-ctl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
-.lb-tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--r-pill);
+.lb-tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: var(--radius);
   background: rgba(255,255,255,.02) }
 .lb-tab { display: inline-flex; align-items: center; justify-content: center;
-  padding: 5px 12px; border: 0; border-radius: var(--r-pill); cursor: pointer;
+  padding: 5px 12px; border: 0; border-radius: var(--r-sm); cursor: pointer;
   background: none; color: var(--txt-3); font: 600 12px/1.2 var(--font); letter-spacing: .1px;
   transition: color var(--t-1) var(--e-soft), background var(--t-2) var(--e-out),
     box-shadow var(--t-2) var(--e-out), transform var(--t-1) var(--e-out) }
@@ -3298,7 +3264,7 @@ html[data-section="spin"] .bgfx { display: none; }
   box-shadow: 0 14px 36px rgb(0 0 0 / 34%), 0 2px 8px rgb(0 0 0 / 18%); }
 .calc-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px 0; }
 .calc-row + .calc-row { border-top: 1px solid var(--line); }
-.calc-row dt { margin: 1px 0 0; color: var(--a-2); font-size: 9px; font-weight: 800; letter-spacing: .09em; line-height: 1.5; text-transform: uppercase; }
+.calc-row dt { margin: 1px 0 0; color: var(--txt-3); font-size: 11px; font-weight: 500; line-height: 1.5; }
 .calc-row dd { margin: 0; color: var(--txt-2); font-size: 11.5px; line-height: 1.5; text-wrap: pretty; }
 @media (max-width: 480px) {
   .calc-row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px; padding: 9px 0; }
@@ -3805,7 +3771,7 @@ html[data-section="spin"] .bgfx { display: none; }
 @keyframes vmPop { 0% { opacity: .55; transform: scale(.96) } 100% { opacity: 1; transform: none } }
 .vm-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 6px; margin-top: 10px; }
 .vm-preset { min-width: 0; height: 34px; padding: 0 8px; cursor: pointer;
-  border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2);
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2);
   color: var(--txt-2); font: 500 12.5px/1 var(--mono); }
 .vm-preset:hover { color: var(--txt); border-color: var(--line-2); background: var(--surface-3); }
 .vm-preset.on { color: var(--txt); border-color: var(--a-dim); background: var(--a-soft); }
@@ -3892,9 +3858,9 @@ html[data-section="spin"] .bgfx { display: none; }
 /* Cửa sổ 7/30 ngày: hai nút, cái đang chọn sáng — chỉ có hai lựa chọn nên một
    ô select là thừa một cú bấm. */
 .adm-funnel-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.adm-range { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 999px;
+.adm-range { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--surface-3); }
-.adm-range-btn { padding: 3px 9px; border: 0; border-radius: 999px; background: transparent;
+.adm-range-btn { padding: 3px 9px; border: 0; border-radius: 5px; background: transparent;
   color: var(--txt-3); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .adm-range-btn:hover { color: var(--txt); }
 .adm-range-btn.on { background: var(--panel); color: var(--txt); box-shadow: 0 1px 2px rgb(0 0 0 / 25%); }
@@ -3937,8 +3903,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm-ov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .adm-ov-card { display: grid; gap: 8px; align-content: start; padding: 13px 14px;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
-.adm-ov-card h3 { margin: 0; color: var(--txt-3); font-size: 10.5px; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase; }
+.adm-ov-card h3 { margin: 0; color: var(--txt-3); font-size: 11.5px; font-weight: 600; }
 .adm-ov-num { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; text-align: left;
   border: 1px solid transparent; border-radius: var(--r-sm); background: var(--panel);
   font-family: inherit; color: inherit; cursor: pointer; }
@@ -3970,8 +3935,7 @@ html[data-section="spin"] .bgfx { display: none; }
    việc-để-làm phía trên — lịch sử là để tra, không phải để làm. */
 .adm-hist { display: grid; gap: 4px; margin-top: 4px; padding: 9px 10px;
   border: 1px dashed var(--line); border-radius: var(--r-sm); background: var(--surface-2); }
-.adm-hist-h { color: var(--txt-3); font-size: 10.5px; font-weight: 600;
-  letter-spacing: .05em; text-transform: uppercase; }
+.adm-hist-h { color: var(--txt-3); font-size: 11.5px; font-weight: 600; }
 .adm-hist .adm-log-row { padding: 5px 0; border-top: 1px solid var(--line); }
 .adm-hist .adm-log-row:first-of-type { border-top: 0; }
 .adm-hist-muted { color: var(--txt-3); font-size: 11.5px; }
@@ -4112,7 +4076,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .kindpicks { display: flex; flex-wrap: wrap; gap: 7px; min-width: 0; }
 .kchip {
   display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
-  border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--surface-2); color: var(--txt-2);
   font: 500 12.5px/1 var(--font); font-family: inherit; cursor: pointer;
   transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft),
@@ -4130,7 +4094,7 @@ html[data-section="spin"] .bgfx { display: none; }
    một lời mời, không phải một ô nhập đang chờ bị bỏ trống. */
 .note-add {
   display: inline-flex; align-items: center; gap: 7px; align-self: start;
-  padding: 8px 13px; border: 1px dashed var(--line-2); border-radius: var(--r-pill);
+  padding: 8px 13px; border: 1px dashed var(--line-2); border-radius: var(--radius);
   background: none; color: var(--txt-3); font: 500 12.5px/1 var(--font);
   cursor: pointer; transition: color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
 }
@@ -4385,15 +4349,13 @@ html[data-section="spin"] .bgfx { display: none; }
 .weekly-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .weekly-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; min-width: 0; overflow: hidden; color: var(--txt); text-decoration: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .weekly-card:hover, .weekly-card:focus-visible { border-color: var(--a-2); }
-.weekly-card small { color: var(--a-2); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; font-weight: 700; }
+.weekly-card small { color: var(--a-2); font-size: 11px; font-weight: 600; }
 /* Tuần qua nhìn lại (T7): một dòng tóm tắt + nút Save card, tách với hai
    thẻ highlight bằng một vạch mảnh — không phải thẻ thứ ba cùng hàng. */
 .weekly-recap { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .weekly-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .weekly-card span { color: var(--txt-3); font-size: 12px; }
 @media (max-width: 560px) { .weekly-grid { grid-template-columns: 1fr; } }
-.reveal-title { flex-wrap: wrap; }
-.reveal-kicker { display: inline-flex; align-items: center; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--a-2) 55%, transparent); border-radius: 999px; color: var(--a-2); font-size: 10px; letter-spacing: .08em; line-height: 1; text-transform: uppercase; }
 /* Keep the accessible detail in the DOM, but let the Up next block breathe. */
 .nowbar .visually-quiet { display: none; }
 
@@ -4551,9 +4513,9 @@ body {
 
 .profile-share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
 .profile-share-row .profile-share { margin-top: 0; }
-.profile-share { min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
+.profile-share { min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
 .profile-share:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
-.card-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
+.card-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2); color: var(--txt-2); font: 600 12px/1.2 var(--font); cursor: pointer; transition: border-color var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), opacity var(--t-1) var(--e-soft); }
 .card-btn:hover { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft); }
 .card-btn[disabled] { opacity: .6; cursor: default; }
 
@@ -4587,7 +4549,7 @@ body {
 .public-request-link b { font-size: 13px; font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .public-request-link:hover b { color: var(--a-2); }
 .public-request-link small { color: var(--txt-3); font-size: 11.5px; }
-.public-state { flex-shrink: 0; font-size: 10.5px; font-style: normal; font-family: var(--mono); font-weight: 600; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); border: 0; color: var(--txt-2); background: color-mix(in oklab, currentColor 10%, transparent); }
+.public-state { flex-shrink: 0; font-size: 11px; font-style: normal; font-weight: 600; padding: 3px 8px; border-radius: var(--r-sm); border: 0; color: var(--txt-2); background: color-mix(in oklab, currentColor 10%, transparent); }
 /* ===== KHỐI "CHỈ BẠN THẤY" =====
    Hàng chờ duyệt / bị từ chối không nằm trên bảng, nên khối này phải TRÔNG KHÁC
    khối "Recent requests" ngay từ khung: viền đứt (không phải viền liền), nền
@@ -4637,7 +4599,7 @@ body {
 .achievement-head h2 svg { color: var(--a-2); }
 .achievement-head-side { display: flex; align-items: center; gap: 10px; }
 .achievement-count { color: var(--txt-3); font: 600 11px var(--mono); }
-.achievement-all-btn { padding: 4px 10px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface-2); color: var(--a-2); font: 600 11.5px var(--font); cursor: pointer; transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft); }
+.achievement-all-btn { padding: 4px 10px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2); color: var(--a-2); font: 600 11.5px var(--font); cursor: pointer; transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft); }
 .achievement-all-btn:hover { background: var(--a-soft); border-color: var(--a-2); }
 
 .achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -4650,7 +4612,7 @@ body {
 .achievement-copy small { color: var(--txt-2); font-size: 11px; }
 .achievement-copy span { color: var(--txt-2); font-size: 10.5px; }
 .achievement-copy em { color: var(--txt-3); font-style: normal; }
-.achievement-card > strong { align-self: center; color: var(--txt-3); font: 600 9.5px var(--mono); text-transform: uppercase; }
+.achievement-card > strong { align-self: center; color: var(--txt-3); font: 600 10.5px var(--font); }
 .achievement-card.earned > strong { color: var(--done); }
 @media (max-width: 620px) { .achievement-grid { grid-template-columns: 1fr; } }
 
@@ -4746,19 +4708,6 @@ body {
 /* =========================================================
    ADMIN COMMENTS MODERATION
    ========================================================= */
-.adm-comments-list { display: grid; gap: 10px; margin-top: 14px; }
-.adm-comment-card { padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); display: grid; gap: 10px; }
-.adm-comment-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.adm-comment-user { display: flex; align-items: center; gap: 10px; }
-.adm-comment-av { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-.adm-comment-av.ph { display: grid; place-items: center; background: var(--a-soft); color: var(--a-2); font: 700 13px var(--mono); }
-.adm-comment-user b { display: block; font-size: 13px; color: var(--txt); }
-.adm-comment-user small { display: block; font-size: 11px; color: var(--txt-3); }
-.adm-comment-target { display: flex; align-items: center; gap: 8px; }
-.adm-comment-song { font: 600 12px var(--font); color: var(--txt-2); background: var(--surface-2); padding: 3px 8px; border-radius: var(--r-sm); }
-.adm-comment-reply-lbl { font: 600 10px var(--mono); color: var(--a-2); background: var(--a-soft); padding: 2px 6px; border-radius: var(--r-pill); }
-.adm-comment-body { font-size: 13px; line-height: 1.5; color: var(--txt); padding: 8px 12px; background: var(--surface); border-radius: var(--r-sm); border-left: 3px solid var(--a-2); }
-.adm-comment-foot { display: flex; justify-content: flex-end; }
 
 .requester-link { color: inherit; text-decoration: none; }
 .requester-link:hover { color: var(--a-2); text-decoration: underline; }
@@ -4854,7 +4803,6 @@ body { overflow-x: hidden; }
   .modal-body { max-height: min(78dvh, 640px); overflow-y: auto; }
   .field-row { grid-template-columns: 1fr; gap: 10px; }
   .packs { grid-template-columns: 1fr; gap: 10px; }
-  .buyone { gap: 10px; padding: 10px; }
   .buyone-total { margin-left: 0; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
   .prof-card { padding: 12px; }
   .prof-av { gap: 10px; }
@@ -5105,7 +5053,7 @@ img, video, iframe { max-width: 100%; }
 .fb-clr:disabled { opacity: .35; cursor: default; }
 .fb-list { list-style: none; margin: 0; padding: 4px; max-height: 236px; overflow: auto; }
 .fb-body { padding: 4px 0 6px; max-height: 60vh; overflow: auto; }
-.fb-body h3 { margin: 8px 12px 4px; font: 600 11px/1 var(--font); letter-spacing: .02em; color: var(--txt-3); text-transform: uppercase; }
+.fb-body h3 { margin: 8px 12px 4px; font: 600 11.5px/1 var(--font); color: var(--txt-3); }
 .fb-opt {
   display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px;
   border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-2);
