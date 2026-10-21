@@ -215,9 +215,34 @@ test('bảng màu: trạng thái bão hoà cao, thẻ thể loại trầm', () =
   for (const k of kinds) {
     assert.ok(sat(hexOf(k)) < 0.55, `--${k} phải hạ bão hoà: nó là metadata, không phải trạng thái`)
   }
-  for (const s of ['queued', 'done', 'denied', 'paid']) {
-    assert.ok(sat(hexOf(s)) > 0.85, `--${s} phải bão hoà cao: nó mang nghĩa`)
+  for (const s of ['queued', 'upnext', 'progress', 'denied']) {
+    assert.ok(sat(hexOf(s)) > 0.65, `--${s} phải bão hoà cao: nó mang nghĩa`)
   }
+  /* CÙNG HỌ MÀU NHẤN: mọi sắc trạng thái (trừ xám chờ duyệt và mint "xong")
+     phải nằm trong cung indigo→tím của `--a` #4d40f0, hoặc là bổ sắc của nó.
+     Đây là vế chủ dự án yêu cầu: đề xuất màu phải đồng bộ với accent trang. */
+  const hue = (h) => {
+    const [r, g, b] = rgb(h).map(v => v)
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
+    if (!d) return 0
+    let x
+    if (mx === r) x = ((g - b) / d) % 6
+    else if (mx === g) x = (b - r) / d + 2
+    else x = (r - g) / d + 4
+    return ((x * 60) % 360 + 360) % 360
+  }
+  const accentHue = hue('4d40f0')
+  const near = (h, target, span) => {
+    const d = Math.abs(((h - target + 540) % 360) - 180)
+    return d <= span
+  }
+  for (const s of ['queued', 'upnext']) {
+    assert.ok(near(hue(hexOf(s)), accentHue, 45),
+      `--${s} phải nằm trong họ màu nhấn (±45°), nếu không nó là một thế giới màu khác`)
+  }
+  /* "Đang làm" là BỔ SẮC có chủ đích: đúng một trạng thái được phép nổi khỏi họ. */
+  assert.ok(near(hue(hexOf('progress')), (accentHue + 180) % 360, 45),
+    '--progress phải là bổ sắc của màu nhấn — đó là lý do nó nổi mà không phá họ')
   /* Nhãn trạng thái: chữ pha 62% với xám để neon ở cỡ 12,5px không nhấp nháy. */
   assert.match(ruleOf('.status'), /color:\s*color-mix\(in oklab, var\(--c, var\(--txt-2\)\) 62%/,
     'chữ nhãn trạng thái phải pha xám, không dùng neon nguyên chất ở cỡ chữ nhỏ')

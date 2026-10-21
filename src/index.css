@@ -78,42 +78,47 @@
   --a-soft: rgba(77,64,240,.16);
   --a-glow: rgba(77,64,240,.45);
 
-  /* ===== MÀU TRẠNG THÁI — BẢNG NEON (vòng 9) =============================
-     Nguyên tắc của cả bảng: ĐỘ BÃO HOÀ DÀNH CHO THỨ CÓ NGHĨA.
-     Trạng thái và tem PAID mang nghĩa (bài đang ở đâu, có trả phí hay không)
-     nên chúng được phép chói. Thẻ thể loại chỉ là metadata — nhìn nó không ai
-     ra quyết định gì — nên nó trầm (xem bốn token `--k-*` bên dưới).
+  /* ===== MÀU TRẠNG THÁI — SINH RA TỪ MÀU NHẤN (vòng 10) ================
+     Chủ dự án: "đề xuất màu phải đồng bộ với color accent của trang". Đây là
+     quy tắc đúng, và bảng trước đã vi phạm: một dải tím-xanh-cam-lime-hồng
+     không liên quan gì tới màu nhấn `--a` #4d40f0 / `--a-2` #a9a4ff, nên trên
+     màn hình có hai thế giới màu đánh nhau.
 
-     Bộ sắc là một DẢI ĐI LÊN, mỗi bậc một họ màu, không bậc nào trùng họ:
-       xám     chờ duyệt      — chưa có gì xảy ra, không cần màu
-       cyan    trong hàng     — mát, "đang xếp chỗ"
-       tím     đã chốt        — khác hẳn bậc trước, và khác màu nhấn `--a-2`
-       hổ phách đang làm      — nóng, "đang chạy"
-       lime    xong           — đầu cuối của dải
-       hồng đỏ từ chối        — chỉ dùng cho đúng một nghĩa: bị loại
-     Chờ duyệt cố ý KHÔNG có màu: nó là "chưa bắt đầu", cho nó một sắc chói
-     là nói dối rằng có chuyện gì đang diễn ra. */
-  --pending:  #98a2b3;
-  --queued:   #57f4ff;
-  --upnext:   #d98cff;
-  --progress: #ffb020;
-  --done:     #a3ff2e;
-  --denied:   #ff1770;
-  /* Tem PAID: vàng acid là sắc DUY NHẤT không nằm trên dải trạng thái, nên nó
-     không bao giờ bị đọc lẫn thành một bậc của dây chuyền. */
-  --paid:     #e5ff38;
+     Nay mọi sắc trạng thái đều NẰM TRONG HỌ CỦA MÀU NHẤN (indigo, hue ~245°),
+     hoặc là bổ sắc có chủ đích:
 
-  /* ===== THẺ THỂ LOẠI — TRẦM (vòng 9) ==================================
-     Bốn sắc dưới đây là bản HẠ BÃO HOÀ của bốn bộ tag trong đề xuất CRT. Giữ
-     nguyên hệ màu để bảng vẫn "cùng một thế giới", nhưng chroma thấp hơn hẳn
-     trạng thái — nhờ vậy thẻ loại đứng cạnh nhãn trạng thái mà không tranh.
-     Đây cũng là cách tránh bốn cặp trùng màu đã thấy khi để nguyên bản gốc:
-     magenta-tag ≈ hồng "từ chối", toxic-green-tag ≈ lime "xong",
-     cobalt-tag ≈ cyan "trong hàng", aqua-tag ≈ cyan "đang làm". */
-  --k-ccl:   #c9c6ee;
-  --k-album: #9fdfd0;
-  --k-loop:  #dfb2a0;
-  --k-short: #d8a8cb;
+       xám-indigo  chờ duyệt   — nhánh bão hoà thấp của chính họ nhấn
+       xanh-indigo trong hàng  — lệch 20° về phía xanh, vẫn trong họ
+       tím         đã chốt     — lệch 30° về phía hồng, vẫn trong họ
+       hổ phách    đang làm    — BỔ SẮC của indigo, dùng cho đúng một trạng
+                                 thái "đang chạy" nên nó nổi mà không phá họ
+       mint        xong        — lệch ~160°, đầu cuối của dải, hơi lạnh để
+                                 không thành lime chói
+       hồng        từ chối     — chỉ dùng cho đúng một nghĩa: bị loại
+     Chờ duyệt cố ý KHÔNG có màu: nó là "chưa bắt đầu", cho nó một sắc là nói
+     dối rằng có chuyện gì đang diễn ra. */
+  --pending:  #8b90ab;
+  --queued:   #8fa9ff;
+  --upnext:   #b18cff;
+  --progress: #ff9f43;
+  --done:     #45e0a8;
+  --denied:   #ff6b8a;
+  /* Tem PAID: vàng kim dịu, KHÔNG phải vàng acid. Vàng acid là sắc duy nhất
+     không thuộc họ nhấn mà lại chói nhất màn hình — nó kéo mắt khỏi tên bài.
+     Vàng kim vẫn đọc ra "trả phí" mà vẫn ngồi được cạnh indigo. */
+  --paid:     #f2d95e;
+
+  /* ===== THẺ THỂ LOẠI — TRẦM, CÙNG HỌ ==================================
+     Bốn sắc dưới đây là bản HẠ BÃO HOÀ của cùng hệ nhấn: CCL là nhánh tím nhạt
+     của `--a-2`, Album là teal lạnh, Loop là cát ấm, Short là mauve. Chroma
+     thấp hơn hẳn trạng thái — thẻ loại là metadata, đứng cạnh nhãn trạng thái
+     mà không tranh. Đây cũng là cách tránh các cặp trùng màu đã thấy khi dùng
+     bảng CRT gốc (magenta-tag ≈ hồng "từ chối", lime-tag ≈ "xong", cobalt ≈
+     "trong hàng"). */
+  --k-ccl:   #b6b3e6;
+  --k-album: #8fc7c0;
+  --k-loop:  #d8b08f;
+  --k-short: #cf9fbf;
 
   /* mặt kính: nền tối + blur phía sau.  Ban to (stats, danh sách, modal,
      sidebar) dùng bản trong suốt này để vệt gradient của nền lọt nhẹ qua,
@@ -3910,9 +3915,10 @@ html[data-section="spin"] .bgfx { display: none; }
      · dải loại bài: Ô VUÔNG 9×9px bo 2px. Loại bài là một NHÃN dán trên hàng
        (`.kind` cũng là một thẻ có góc bo), nên dấu của nó mang đúng góc bo đó.
        Khác hình còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau
-       và hai bảng màu có vài sắc na ná nhau — nay cố ý tách bằng CHROMA:
-       trạng thái bão hoà cao, thẻ loại hạ bão hoà (`--done` #a3ff2e với
-       `--k-album` #8fe3cf, `--upnext` #d98cff với `--k-ccl` #c9c6ee`).
+       và hai bảng màu có vài sắc na ná nhau — nay cả hai cùng họ nhấn và cố ý
+       tách bằng CHROMA: trạng thái bão hoà cao, thẻ loại hạ bão hoà
+       (`--done` #45e0a8 với `--k-album` #8fc7c0, `--upnext` #b18cff với
+       `--k-ccl` #b6b3e6`).
 
    Màu chữ: khi CHỌN, chữ mang màu CỦA CHÍNH LOẠI ĐÓ — khác dải trạng thái
    (ở đó mục đang chọn dùng chữ trắng). Lý do: một màu trạng thái có thể được
