@@ -119,7 +119,7 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
     'danh sách dây chuyền phải lọc bằng inChain, không phải isPicked')
   assert.match(app, /const picked = useMemo\(\(\) => chainRows\(pub\), \[pub\]\)/,
     'App.jsx phải lấy dây chuyền từ chainRows — tự lọc lại là hai tập khác nhau')
-  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet \}\)/,
+  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter, statusFilters, kindFilters, q \}\)/,
     'bảng phải lọc bằng filterBoard: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]

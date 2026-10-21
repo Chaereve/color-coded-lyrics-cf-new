@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { safeHttpUrl } from '../lib/safeUrl'
 import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { isPicked, timeAgo } from '../lib/meta'
 import { groupNotices, ownNotices, otherNotices, unreadCount } from '../lib/watch'
-import Standing from './Standing'
 
 /* =========================================================
    NOTIFICATIONS — chuông + bảng thông báo
@@ -20,8 +19,10 @@ import Standing from './Standing'
    In progress → Out. Người đọc hỏi "bài của mình đang ở đâu", chứ không hỏi
    "event type là gì".
 
-   Cài đặt (tắt loại tin, bỏ theo dõi) nằm sau nút răng cưa trong cùng bảng —
-   vẫn một chỗ, không phải mở thêm mục nào khác.
+   KHÔNG còn tab cài đặt. Bốn công tắc cũ (tự theo dõi bài của mình · nhắc
+   sát giờ chốt · tiến độ · mốc vote) đều xoay quanh việc THEO DÕI BÀI của
+   người khác, mà tầng đó đã bị gỡ khỏi sản phẩm. Tin về request của chính
+   mình là tin bắt buộc, không có gì để tắt — nên cái răng cưa cũng đi theo.
    ========================================================= */
 
 const MAX_PER_GROUP = 12
@@ -29,25 +30,16 @@ const MAX_PER_GROUP = 12
 /* Màu của dòng tin lấy đúng màu trạng thái ngoài bảng: cùng một bài thì
    ngoài bảng và trong thông báo phải một màu, không tự bày bảng màu mới. */
 const TONE = {
-  near: 'var(--paid)', lead: 'var(--done)', done: 'var(--done)', expired: 'var(--denied)', denied: 'var(--denied)',
+  done: 'var(--done)', expired: 'var(--denied)', denied: 'var(--denied)',
   picked: 'var(--queued)', started: 'var(--progress)', progress: 'var(--progress)',
-  approved: 'var(--queued)', votes: 'var(--a-2)',
+  approved: 'var(--queued)',
 }
 
-const PREF_ROWS = [
-  ['auto', 'nt.p.auto', 'nt.p.autoNote'],
-  ['near', 'nt.p.near', 'nt.p.nearNote'],
-  ['progress', 'nt.p.progress', 'nt.p.progressNote'],
-  ['votes', 'nt.p.votes', 'nt.p.votesNote'],
-]
-
 export default function Notifications({
-  open = false, notices = [], rowsByKey, rank, prefs,
-  startTab = 'list', onToggle, onOpenNotice, onReadAll, onDrop, onBrowse, onVote,
-  onBuy = null, onPrefs, onClose,
+  open = false, notices = [], rowsByKey,
+  onToggle, onOpenNotice, onReadAll, onDrop, onBrowse, onVote, onClose,
 }) {
   const { t } = useI18n()
-  const [tab, setTab] = useState(startTab)
   const box = useRef(null)
   const pop = useRef(null)
   const bell = useRef(null)
@@ -139,31 +131,6 @@ export default function Notifications({
       {open && (
         <div className="nt-pop" id="nt-panel" role="dialog" aria-label={t('nt.title')}
           ref={pop} tabIndex={-1}>
-          {tab === 'prefs' ? (
-            <>
-              <header className="nt-head">
-                <button type="button" className="nt-back" onClick={() => setTab('list')} aria-label={t('nt.back')}>
-                  <Icon name="prev" size={14} />{t('nt.backShort')}
-                </button>
-                <span className="nt-hbtns">
-                  <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
-                </span>
-              </header>
-              <div className="nt-list nt-prefs">
-                {PREF_ROWS.map(([k, name, note]) => (
-                  <label className="nt-pref" key={k}>
-                    <Check checked={!!prefs?.[k]}
-                      onChange={e => onPrefs?.({ [k]: e.target.checked })} />
-                    <span className="nt-pref-tx">
-                      <b>{t(name)}</b>
-                      <small>{t(note)}</small>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
               <header className="nt-head">
                 <h2 className="nt-h2">{t('nt.title')}</h2>
                 {unread > 0 && <span className="nt-count">{unread}</span>}
@@ -171,10 +138,6 @@ export default function Notifications({
                   {unread > 0 && (
                     <button type="button" className="lnk" onClick={onReadAll}>{t('nt.markAll')}</button>
                   )}
-                  <button type="button" className="icon-btn" aria-label={t('nt.settings')} title={t('nt.settings')}
-                    onClick={() => setTab('prefs')}>
-                    <Icon name="settings" size={15} />
-                  </button>
                   <button type="button" className="icon-btn" aria-label={t('btn.close')} onClick={onClose}><Icon name="close" size={15} /></button>
                 </span>
               </header>
@@ -185,9 +148,6 @@ export default function Notifications({
                   <p>{t('nt.emptyBody')}</p>
                   <span className="nt-empty-acts">
                     <button type="button" className="btn btn-sm" onClick={onBrowse}>{t('nt.browse')}</button>
-                    {/* khong co tin nao thi day la noi duy nhat de cai gi se
-                        duoc bao — dung bat nguoi ta di tim trong menu */}
-                    <button type="button" className="btn btn-sm" onClick={() => setTab('prefs')}>{t('nt.settings')}</button>
                   </span>
                 </div>
               ) : (
@@ -213,19 +173,15 @@ export default function Notifications({
                         )}
                       </div>
                       {g.items.map(n => (
-                        <Item key={n.id} n={n} st={rank?.get(n.key)} row={rowsByKey?.get(n.key) || null}
+                        <Item key={n.id} n={n} row={rowsByKey?.get(n.key) || null}
                           grp={t(`nt.grp.${g.id}`)}
-                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote}
-                          onBuy={onBuy} />
+                          t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote} />
                       ))}
                     </section>
                     )
                   })}
                 </div>
               )}
-
-            </>
-          )}
         </div>
       )}
     </div>
@@ -257,7 +213,6 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
                 nam o nhan nhom ngay tren dau) */}
             {tag !== grp && <><em style={{ color: c }}>{tag}</em><span className="dot" aria-hidden="true" /></>}
             <span>{timeAgo(n.at, t)}</span>
-            <Standing st={st} />
           </span>
         </span>
       </button>
@@ -265,16 +220,6 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
         {votable && (
           <button type="button" className="btn btn-sm nt-vote" onClick={() => onVote?.(row)}>
             {t('nt.vote')}
-          </button>
-        )}
-        {/* Mua thêm vote CHỈ hiện ở tin "sát nút" — tin duy nhất mà con số
-            "còn 2 vote nữa" vừa đọc được vừa làm được gì đó ngay. Nút cố ý
-            để LẶNG (viền xám như nút Watch, không tô vàng như nút Vote):
-            người đọc trả tiền khi họ muốn, không phải vì có nút vàng hét lên. */}
-        {n.type === 'near' && onBuy && (
-          <button type="button" className="btn btn-sm" title={t('nt.buyWhy', { n: n.gap ?? 0 })}
-            onClick={() => onBuy(row)}>
-            {t('nt.buyVotes')}
           </button>
         )}
         {url && (

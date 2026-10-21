@@ -535,7 +535,7 @@ button { font-family: inherit; }
    (ActionModal: "đây là yêu cầu trả phí", MediaAdmin: "ẩn khỏi trang chủ") và
    `.step` (3 mốc tiến độ của AdminPanel) trước khi sửa.
    Toàn bộ phân loại nằm TRONG `:where()`: đặc tính của cả selector vẫn bằng
-   `input` trần (0,0,1) để quy tắc cục bộ (`.nt-pref input`, `.qty input`) còn đè
+   `input` trần (0,0,1) để quy tắc cục bộ (`.qty input`) còn đè
    được — viết `:not()` thuận sẽ nâng đặc tính lên 0,6,1 và tự tay làm vô hiệu
    chính những quy tắc reset mà các popover đã phải viết. */
 input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [hidden])), select, textarea {
@@ -3350,12 +3350,6 @@ html[data-section="spin"] .bgfx { display: none; }
   font-size: 11.5px; color: var(--txt-3); transition: color var(--t-1) var(--e-soft);
 }
 .lnk:hover { color: var(--a-2); }
-.nt-back {
-  display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0;
-  cursor: pointer; color: var(--txt-2); font: inherit; font-size: 12.5px; font-weight: 600;
-}
-.nt-back span { color: var(--txt-3); font-size: 17px; line-height: 1 }
-.nt-back:hover { color: var(--a-2) }
 
 /* min-height:0 la that quan trong: flex item o chieu doc co min-height:auto
    nen khong co no thi danh sach khong co lai -> panel vet qua max-height va
@@ -3425,43 +3419,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-empty-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 2px }
 
 
-/* ---- bang cai dat: chi 4 cong tac, khong them dau be ---- */
-.nt-prefs { padding: 4px 0 6px; }
-/* `label` toan cuc co margin-bottom:5px — o day cac hang tu ke nhau, khoang
-   do da co phan tach lo, nen 5px nua la thua: reset ve 0. */
-.nt-pref {
-  display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 11px 12px;
-  --chk: var(--a-2);
-  cursor: pointer; border-bottom: 1px solid var(--line);
-  transition: background var(--t-1) var(--e-soft);
-}
-.nt-prefs .nt-pref:last-child { border-bottom: 0 }
-.nt-pref:hover { background: var(--hover) }
-/* hộp tick lệch lên 1px cho thẳng hàng chữ đầu dòng */
-.nt-pref .chk { margin-top: 1px }
-.nt-pref-tx { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
-.nt-pref-tx b { font-size: 12.5px; font-weight: 600; color: var(--txt) }
-.nt-pref-tx small { font-size: 11.5px; line-height: 1.5; color: var(--txt-3) }
-/* o kiem duoc bat = dang cho phep noi them, cho them mot cai cham mau de
-   nhin bang qua cung biet cong tac nao dang on */
-.nt-pref:has(input:checked) .nt-pref-tx b { color: var(--a-2) }
-
-/* ---- "con 2 vote nua la toi luot chot" ---- */
-.standing {
-  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: var(--r-pill);
-  border: 1px solid var(--line-2); background: var(--surface-2);
-  font-family: var(--font); font-size: 10.5px; letter-spacing: .2px;
-  color: var(--txt-2); white-space: nowrap; cursor: help;
-}
-.standing b { font-weight: 600 }
-.standing.is-lead { color: var(--done); border-color: rgba(79,203,143,.42); background: rgba(79,203,143,.1) }
-.standing.is-hot { color: var(--paid); border-color: rgba(215,166,63,.45); background: rgba(215,166,63,.12) }
-.standing.is-near { color: var(--a-2); border-color: rgba(169,164,255,.4); background: var(--a-soft) }
-.standing.is-muted { color: var(--txt-3) }
-/* Phần "sớm nhất bao lâu" mờ và nhỏ hơn phần hạng: nó là SUY RA từ lịch chốt
-   chứ không phải số liệu đọc thẳng từ database, nên không được trông như một
-   lời hứa ngang hàng với con số vote. */
-.standing-eta { font-style: normal; font-size: 10px; color: var(--txt-3) }
+/* Tab cài đặt + dòng "còn 2 vote nữa là tới lượt" đã bị gỡ cùng tầng theo dõi.
+   Bốn công tắc cũ chỉ có nghĩa với bài của NGƯỜI KHÁC, còn `.standing` là bản
+   dịch của phép xếp hạng `pickLadder` — cả hai đi cùng một quyết định. Xoá
+   luôn CSS: để lại là ma, và lần sau ai đó dựng lại đúng cái đã bỏ.
+   `.nt-back` (nút lùi của tab cài đặt) cũng đi theo. */
 
 
 /* Tấm chắn của bảng thông báo: chỉ có nghĩa ở máy hẹp (bảng trải kín đáy màn
@@ -3521,7 +3483,6 @@ html[data-section="spin"] .bgfx { display: none; }
   /* cột phiếu đã có đệm riêng ở trên — luật này viết cho nút dạng hộp ngày
      trước, không được đè lên cột. */
   .row.req > .votebtn { padding: 0 6px; }
-  .standing { margin-left: 0; }
 }
 
 /* tin vừa bấm từ hộp thư: bài sáng lên một nhịp rồi dịu lại, đủ để mắt bắt

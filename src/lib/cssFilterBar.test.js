@@ -271,16 +271,18 @@ test('dây chuyền không bị cắt: bốn giai đoạn đứng liền nhau, �
      pipe → view → you, và trong nhóm pipe là thứ tự việc chạy. */
   const order = [...app.matchAll(/\{\s*k:\s*'(\w+)',\s*c:[^,]+,\s*ax:\s*'(\w+)'\s*\}/g)]
     .map(m => ({ k: m[1], ax: m[2] }))
-  assert.deepEqual(order.map(x => x.k), ['queued', 'picked', 'in_progress', 'completed', 'newest', 'top', 'watch'],
+  /* Tầng theo dõi đã bị gỡ nên nhóm `you` (tab "Following") cũng đi theo:
+     còn đúng hai nhóm — dây chuyền sản xuất và hai cách xem. */
+  assert.deepEqual(order.map(x => x.k), ['queued', 'picked', 'in_progress', 'completed', 'newest', 'top'],
     'thứ tự mục lọc đã đổi khỏi thứ tự dây chuyền')
-  assert.deepEqual([...new Set(order.map(x => x.ax))], ['pipe', 'view', 'you'],
-    'ba nhóm phải đứng liền nhau, không xen kẽ')
+  assert.deepEqual([...new Set(order.map(x => x.ax))], ['pipe', 'view'],
+    'hai nhóm phải đứng liền nhau, không xen kẽ')
   /* Vạch ngăn chỉ mọc ở mục ĐẦU của một nhóm mới, và nhóm vắng mặt thì vạch
      ngăn của nó biến mất theo — không để lại một vạch lẻ giữa hai mục. */
   assert.match(app, /i > 0 && f\.ax !== list\[i - 1\]\.ax && <span className="dot"/,
     'vạch ngăn giữa hai nhóm phải theo nhóm, không viết cứng vào JSX')
-  assert.match(app, /FILTERS\.filter\(f => f\.ax !== 'you' \|\| watchedSet\.size > 0\)/,
-    'nhóm "đang theo dõi" chỉ hiện khi có bài được theo dõi')
+  assert.doesNotMatch(app, /watchedSet/,
+    'tab "Following" đã bị gỡ — không được còn điều kiện hiện nó dựa trên watchedSet')
   assert.ok(has('.fchips .dot', /align-self:\s*center/),
     'vạch ngăn phải tự canh giữa hàng (dùng lại lớp .dot của dòng meta)')
 })

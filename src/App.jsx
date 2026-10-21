@@ -46,9 +46,8 @@ import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
-  DEFAULT_PREFS, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
-  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, savePrefs, saveWatched,
-  snapOf, songAttr, syncOwnRequests, toastOf, watchedKeys, withoutDismissed,
+  diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
+  mergeInbox, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
@@ -180,7 +179,6 @@ const FILTERS = [
   { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
   { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
   { k: 'top',         c: 'var(--a-2)',      ax: 'view' },
-  { k: 'watch',       c: 'var(--a-2)',      ax: 'you' },
 ]
 const FILTER_KEYS = FILTERS.map(f => f.k)
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
@@ -519,10 +517,9 @@ function AppInner() {
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
   const [hallVideo, setHallVideo] = useState(null)
 
-  /* ------- theo dõi + hộp thư (prototype: localStorage, xem lib/watch.js) -------
-     `watched` là danh sách BÀI (khóa = groupKey), không phải danh sách dòng:
-     một bài bị nhiều người gửi lẻ vẫn chỉ có một mục theo dõi. */
-  const [watched, setWatched] = useState([])
+  /* ------- hộp thư (prototype: localStorage, xem lib/watch.js) -------
+     Tầng "theo dõi bài" đã bị gỡ cùng chuông trên hàng request, nên hộp thư
+     chỉ còn tin về request CỦA CHÍNH MÌNH và tin từ database. */
   const [notices, setNotices] = useState([])
   /* uid đã nạp xong hộp thư. Không có cờ này thì effect lưu chạy trên mảng
      rỗng của khung hình đầu (user vừa có, notices chưa đọc từ localStorage)
@@ -530,7 +527,6 @@ function AppInner() {
      giữ. Lần vào sau chỉ còn tin database kéo lại. */
   const [inboxUid, setInboxUid] = useState(null)
   const dismissedRef = useRef(new Set())
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS)
   const [hlSong, setHlSong] = useState(null)
   /* Hộp thông báo mở tại chỗ dưới chuông. Một dòng tin BẤM LÀ NHẢY tới hàng
      request của bài đó (xem `openNotice`) — giữa bảng và tin không còn đặt một
@@ -541,13 +537,6 @@ function AppInner() {
      Dùng để chặn tự-thông-báo cho mình: lượt bảng đổi ngay sau đó sẽ bỏ qua các
      khoá này khi sinh tin — admin đứng ngay chỗ thay đổi, không cần toast/badge. */
   const selfActRef = useRef(null)
-  /* Ba `rows`/`prefs`/`off` cần đọc đúng giá trền hiện tại từ những callback
-     không đăng ký deps (`load`, `loadBoard`); ref là cách ngắn nhất để không
-     bất cử mỗi lúc đểy cả `load` chạy lại. */
-  const watchedRef = useRef([])
-  const prefsRef = useRef(DEFAULT_PREFS)
-  const offRef = useRef([])
-  const watchedSet = useMemo(() => watchedKeys(watched), [watched])
 
   const [section, setSection] = useState(() => sectionOf(window.location.pathname))
   /* TRANG CÁ NHÂN CÔNG KHAI là một mục trong state, không phải thứ đọc lại từ
@@ -670,16 +659,14 @@ function AppInner() {
     go(k)
   }, [user, go, onProfile])
 
-  /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
-     tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
+  /* Nhảy tới bài: về bảng chung (bỏ hết bộ lọc đang bật), làm sáng hàng 2,6
+     giây rồi tự tắt. Không còn tab "Following" nào để nhảy vào — tab đó đi
+     cùng tầng theo dõi đã bị gỡ. */
   const jumpToSong = useCallback((target) => {
     const key = typeof target === 'string' ? target : (target?.key || groupKey(target || {}))
     if (!key) return
     go('board'); setKindFilter('all'); setKindFilters([]); setStatusFilters([]); setQ('')
-    /* tab "Following" la noi duy nhat con hien bai pending/bi tu choi; bai
-       chua theo doi thi nhay ve bang chung lo, de hien "khong co ket qua" con
-       hon la nhay vao mot tab trong sach cua nguoi khac */
-    setFilter(watchedSet.has(key) ? 'watch' : 'newest')
+    setFilter('newest')
     /* XOÁ cả hai bộ lọc nhiều-chọn: chúng THẮNG `filter` trong `filterBoard`,
        nên một chip `Queued` còn bật từ lần lọc trước sẽ giấu đúng cái bài mà
        tin thông báo vừa bảo "bấm vào đây để xem". Cùng một họ lỗi với
@@ -691,7 +678,7 @@ function AppInner() {
       el?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'center' })
     }, 90))
     setTimeout(() => setHlSong(s => (s === key ? null : s)), 2600)
-  }, [go, watchedSet])
+  }, [go])
 
   /* ---------------- trang cá nhân công khai + đi tới một bài ----------------
      Ba hàm này là NỘI DUNG của context `lib/nav.js`: mọi link nội bộ gọi
@@ -1010,19 +997,6 @@ function AppInner() {
     return () => clearTimeout(t)
   }, [section, pick, loadPick])
 
-  /* TỰ THEO DÕI bài của mình — cái người dùng cần nhất mà bản đầu quên:
-     đã gửi request thì phải biết nó được duyệt hay chưa, không phải đi tìm
-     cái chuông ẩn dưới hover. Gọi từ `load`/`loadBoard` (nơi dữ liệu vừa về)
-     chứ không phải một effect riêng — khỏi vòng render thừa. */
-  const applyOwnFollows = (rowsNext) => {
-    const u = currentUserId.current
-    if (!u || !rowsNext?.length) return
-    const res = syncOwnRequests(rowsNext, u, watchedRef.current, prefsRef.current, Date.now(), offRef.current)
-    if (!res) return
-    setWatched(res.list)
-    saveWatched(u, res.list)
-  }
-
   const load = useCallback(async (u = user) => {
     if (!u) return
     const version = ++balanceVersion.current
@@ -1039,7 +1013,7 @@ function AppInner() {
        của nó cũ hơn số liệu đang có trên màn hình. */
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
-    if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
+    if (r.status === 'fulfilled') setRows(r.value)
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
     // GIU NGUYEN trang thai truoc do — khong spread vs.value ke ca free_used,
@@ -1081,7 +1055,7 @@ function AppInner() {
     const [r, v, vs, ach, rk, act, vv, achievementReqs] = results
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
-    if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
+    if (r.status === 'fulfilled') setRows(r.value)
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
     // do, khong de so du thoi diem cu de len so moi.
@@ -1266,14 +1240,11 @@ function AppInner() {
   useEffect(() => {
     snapRef.current = null
     if (!uid) {
-      setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS)
+      setNotices([])
       setInboxUid(null)
       dismissedRef.current = new Set()
       return
     }
-    const w = loadWatched(uid)
-    const off = loadOff(uid)
-    setWatched(w); watchedRef.current = w
     const dismissed = loadDismissed(uid)
     dismissedRef.current = dismissed
     /* Đọc hộp thư TRƯỚC khi effect lưu chạy. Cờ inboxUid chỉ bật ở render
@@ -1289,21 +1260,8 @@ function AppInner() {
       if (!live || !dbInbox.length) return
       setNotices(current => mergeInbox(current, dbInbox, loadDismissed(uid)))
     }).catch(() => {})
-    const pf = loadPrefs(uid)
-    setPrefs(pf); prefsRef.current = pf
-    offRef.current = off
-    /* ?f=watch còn sót trong URL của lần trước: không có gì để xem thì
-       trở về hàng đợi, để tab "Following" không bị chọn mà trang trống */
-    if (!w.length) setFilter(f => (f === 'watch' ? 'queued' : f))
     return () => { live = false }
   }, [uid])
-
-  /* Hạng của từng bài so với đợt chót kế tiếp — một lần tính cho cả
-     bảng, dùng chung cho dòng request, thẻ cụm, hộp thông báo và cả lúc
-     so sánh sinh tin. `pick` đi kèm để mỗi mục tự mang theo sàn thời gian tới
-     lượt (pickEta trong lib/watch.js): nhờ vậy mọi chỗ đã có `st` đều hiện
-     được "bao giờ" mà không phải luồn thêm prop qua từng tầng. */
-  const { rank: standings } = useMemo(() => pickLadder(rows, pick), [rows, pick])
 
   /* Bảng thông báo cần biết "dòng nào là của bài này" để gắn nút Vote / Xem
      video ngay trong dòng: lấy bài của mình trước, rồi tới dòng nhiều vote
@@ -1319,15 +1277,6 @@ function AppInner() {
     }
     return m
   }, [rows, uid])
-
-  /* Pham vi bao tin = dang theo doi + bai CHINH MINH DA BO PHIEU. Result
-     cuoc chot phai toi tay nguoi da vote, ke ca khi ho chang bam chuong nao.
-     `myVotes` danh theo request_id nen phai doi ra key cua bai. */
-  const votedSet = useMemo(() => {
-    const set = new Set()
-    if (myVotes?.size) for (const r of rows) if (myVotes.get(r.id)) set.add(groupKey(r))
-    return set
-  }, [myVotes, rows])
 
   /* Bấm một tin = đưa người ta ĐẾN dòng request của bài đó trên bảng rồi làm
      sáng hàng — không mở hộp thoại "This song" nữa: hộp thoại lặp lại đúng những
@@ -1351,11 +1300,13 @@ function AppInner() {
        lần thao tác hỏng không rò sang lượt bảng đổi sau. */
     const selfAct = selfActRef.current
     selfActRef.current = null
-    const next = snapOf(rows, uid, standings)
+    const next = snapOf(rows, uid)
     const prev = snapRef.current
     snapRef.current = next
-    if (!prev || !watchedSet.size) return
-    const found = diffNotices({ prev, next, watched: watchedSet, voted: votedSet, prefs, cycle: pick?.last_pick_at || '' })
+    /* Chỉ cần snapshot trước đó: phạm vi báo tin là "bài CỦA MÌNH", mà cờ đó
+       đã nằm sẵn trong từng mục của snapshot. */
+    if (!prev) return
+    const found = diffNotices({ prev, next })
       .filter(n => !selfAct?.has(n.key) && !isDismissed(dismissedRef.current, n))
     if (!found.length) return
     setNotices(box => pushNotices(box, found))
@@ -1366,8 +1317,7 @@ function AppInner() {
     const vars = { song, pct: first.pct ?? 0, votes: first.votes ?? 0, n: first.gap ?? n }
     /* Tone của toast và tone của TIẾNG phải là một: tin trả tiền (bài vừa được
        chốt) kêu tiếng ấm hơn tin thường, tin bị từ chối kêu tiếng lỗi. */
-    const tone = first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err'
-      : first.type === 'near' ? 'gold' : 'ok'
+    const tone = first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err' : 'ok'
     sfx.notify(tone)
     push({
       tone,
@@ -1379,20 +1329,11 @@ function AppInner() {
         ? { label: t('nt.title'), onClick: () => setBellOpen(true) }
         : { label: t('nt.open'), onClick: () => openNotice(first) },
     })
-  }, [rows, standings, watchedSet, votedSet, prefs, uid, pick, push, t, openNotice])
+  }, [rows, uid, push, t, openNotice])
 
   /* Lưu hộp thư + tuỳ chọn ở một chỗ: viết ngay trong updater của
      setNotices thì không được — updater phải thuần. */
   useEffect(() => { if (uid && inboxUid === uid) saveInbox(uid, notices) }, [uid, inboxUid, notices])
-  useEffect(() => { prefsRef.current = prefs; if (uid) savePrefs(uid, prefs) }, [uid, prefs])
-  useEffect(() => { watchedRef.current = watched }, [watched])
-
-  /* Không còn nút theo dõi nào trên giao diện (xem chú thích ở `RequestRow`),
-     nên không còn chỗ nào gọi `toggleWatched`. Danh sách `watched` vẫn được
-     NẠP từ localStorage: bộ lọc "Following" và các tin trong hộp thư dựa trên
-     nó vẫn hoạt động với những bài người dùng đã theo dõi từ trước. */
-
-  const doSetPrefs = (patch) => setPrefs(p => ({ ...p, ...patch }))
 
   const doDropNotice = (id) => {
     const dropped = notices.find(n => n.id === id)
@@ -1474,10 +1415,9 @@ function AppInner() {
     completed: songCount(pub.filter(r => r.status === 'completed')),
     pending: rows.filter(r => r.status === 'pending').length,
     expired: rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)).length,
-    watch: new Set(rows.filter(r => watchedSet.has(groupKey(r))).map(groupKey)).size,
     mine: rows.filter(r => r.user_id === user?.id).length,
     orders: orders.filter(o => o.status === 'awaiting').length,
-  }), [pub, pickedGroups, rows, orders, user, watchedSet])
+  }), [pub, pickedGroups, rows, orders, user])
 
   /* LỌC nằm trong `filterBoard` (lib/board.js) — cùng chỗ với luật gom cụm và
      sắp xếp, để mọi đường vào bảng (chip lọc, link "This week", Recent requests
@@ -1485,8 +1425,8 @@ function AppInner() {
      không có trong deps vì nó chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ
      `?k=`; thứ thật sự lọc là `kindFilters`. */
   const visible = useMemo(
-    () => filterBoard({ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet }),
-    [pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet])
+    () => filterBoard({ pub, picked, rows, filter, statusFilters, kindFilters, q }),
+    [pub, picked, rows, filter, statusFilters, kindFilters, q])
 
   const featured = useMemo(() => {
     const m = media.find(x => !x.is_hidden && x.kind === 'featured')
@@ -1629,8 +1569,6 @@ function AppInner() {
   const doSubmit = async (form, paid, useBonus = false) => {
     if (!user) { setModal(false); setAuthPrompt(true); return }
     const row = await addRequest(form, user, paid, useBonus)
-    /* vua gui xong là theo dõi liọn, khỏi phải chờ lần nạp bảng kế tiếp */
-    if (row) applyOwnFollows([{ ...row, user_id: row.user_id || user.id }])
     sfx.submit()
     const song = `${form.artist.trim()} — ${form.title.trim()}`
     push({
@@ -1985,8 +1923,8 @@ function AppInner() {
             </span>
           )}
           <Notifications
-            open={bellOpen} notices={notices} rank={standings}
-            rowsByKey={rowsByKey} prefs={prefs}
+            open={bellOpen} notices={notices}
+            rowsByKey={rowsByKey}
             onToggle={() => setBellOpen(o => !o)}
             onClose={() => setBellOpen(false)}
             onOpenNotice={openNotice}
@@ -1994,8 +1932,6 @@ function AppInner() {
             onDrop={doDropNotice}
             onBrowse={() => { setBellOpen(false); go('board') }}
             onVote={(r) => { setBellOpen(false); openVote(r) }}
-            onBuy={() => { setBellOpen(false); openModal('buy') }}
-            onPrefs={doSetPrefs}
           />
           {/* LỐI VÀO MÀN ĐĂNG NHẬP, NGAY CẠNH CHUÔNG. Mọi việc cần tài khoản
               (vote, gửi request, About me) đều tự mở cửa sổ này; nhưng một
@@ -2187,10 +2123,10 @@ function AppInner() {
                 <div className="now-foot">
                   <div className="now-rule">
                     <span>{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
-                    {/* Cách tính cho TOÀN BỘ dây chuyền: nhịp chốt, thứ tự chốt,
-                        và vì sao con số chờ là SÀN (at least) chứ không phải hẹn.
-                        Một note dùng chung cho đếm ngược + standing + ETA — ba con
-                        số cùng một phép tính, không giải thích ba lần. */}
+                    {/* Cách tính cho TOÀN BỘ dây chuyền: nhịp chốt và thứ tự
+                        chốt — hai con số cùng một phép tính, giải thích một lần.
+                        Dòng "còn N vote nữa" và sàn thời gian đã bị gỡ cùng tầng
+                        theo dõi, nên note này không còn phải gánh chúng. */}
                     <CalcNote items={[
                       { label: t('now.calcOrderLbl'), text: t('now.calcOrder') },
                       { label: t('now.calcWaitLbl'), text: t('now.calcWait', { n: pick?.interval_days || 4 }) },
@@ -2291,7 +2227,7 @@ function AppInner() {
                         index.css). Vạch ngăn chỉ mọc lên ở mục đầu tiên của
                         một nhóm MỚI, và nhóm "đang theo dõi" vắng mặt thì vạch
                         ngăn của nó cũng không được ở lại một mình. */}
-                    {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
+                    {FILTERS.map((f, i, list) => (
                       <Fragment key={f.k}>
                         {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
                         <button type="button" className={`fchip${(STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
@@ -2395,7 +2331,7 @@ function AppInner() {
                       : (
                         <div className="empty">
                           <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
-                          <b>{filter === 'watch' ? t('nt.none') : t('board.empty')}</b>
+                          <b>{t('board.empty')}</b>
                           <small>{t('board.emptyHint')}</small>
                         </div>
                       ))

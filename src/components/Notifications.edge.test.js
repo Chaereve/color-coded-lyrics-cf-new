@@ -45,10 +45,10 @@ const cases = [
   ['`at` là null', { open: true, notices: [notice({ at: null })] }],
   ['title null, votes null', { open: true, notices: [notice({ title: null, artist: undefined, votes: null })] }],
   ['nhóm need, rowsByKey rỗng', {
-    open: true, notices: [notice({ type: 'near' })], rowsByKey: new Map(), rank: new Map(),
+    open: true, notices: [notice()], rowsByKey: new Map(),
   }],
   ['row không có status', {
-    open: true, notices: [notice({ type: 'lead' })],
+    open: true, notices: [notice({ type: 'picked' })],
     rowsByKey: new Map([['k', { id: 'r', artist: 'Y', title: 'X', votes: 3 }]]),
   }],
   ['mọi callback đều vắng mặt', { open: true, notices: [notice()], rowsByKey: new Map() }],
@@ -56,7 +56,6 @@ const cases = [
     open: true,
     notices: Array.from({ length: 1000 }, (_, i) => notice({ id: `i${i}`, key: `k${i}`, at: AT + i })),
   }],
-  ['tab cài đặt mà prefs null', { open: true, startTab: 'prefs', prefs: null, notices: [] }],
 ]
 
 for (const [name, props] of cases) {

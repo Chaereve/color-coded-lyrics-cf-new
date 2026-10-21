@@ -466,8 +466,8 @@ test('lọc bảng: `top` loại bài đã xong và bài đang làm — link t�
   assert.equal(filterBoard({ pub, rows, filter: 'newest', q: 'Get Up' })[0].id, done.id)
 })
 
-test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy cả bài chưa duyệt', () => {
-  const { pub, rows, pending, pop, done, next } = boardRows()
+test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc', () => {
+  const { pub, rows, pop, done } = boardRows()
   const ids = (out) => out.map(r => r.id).sort()
   assert.deepEqual(
     ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: ['queued', 'completed'] })),
@@ -475,10 +475,15 @@ test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy c
     '`queued` là chờ vote chưa được chốt — Moonlight Sunrise đã có picked_at nên không thuộc về nó')
   assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: [...STAGES] })), ids(pub),
     'chọn cả bốn giai đoạn thì bằng cả bảng')
-  /* Đang theo dõi một bài chưa duyệt: tab Following lấy từ `rows`, không `pub`. */
-  const watched = new Set([groupKey(pending)])
-  assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'watch', watchedSet: watched })), ids([pending]))
-  assert.deepEqual(filterBoard({ pub, rows, filter: 'watch', watchedSet: new Set() }), [])
+  /* Tầng "theo dõi bài" đã bị gỡ: không còn tab `watch`, và bộ lọc cũng không
+     nhận `watchedSet` nữa. Chốt để nó không quay lại bằng một nhánh `if`. */
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'watch' }), filterBoard({ pub, rows, filter: 'newest' }),
+    '`watch` không còn là một tab: rơi vào nó thì phải bằng bảng chung, không phải trang trống')
+})
+
+test('filterBoard không còn tham số `watchedSet`', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('./board.js', import.meta.url), 'utf8')
+  assert.ok(!/watchedSet/.test(src), 'board.js không được giữ tàn dư của tầng theo dõi')
 })
 
 test('lọc bảng: "Start production" không đẩy request khỏi filter "Up next"', () => {

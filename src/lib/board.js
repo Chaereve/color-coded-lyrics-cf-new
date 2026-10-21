@@ -502,7 +502,7 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
 export function filterBoard(opts = {}) {
   const {
     pub = [], rows = [], filter = 'queued',
-    statusFilters = [], kindFilters = [], q = '', watchedSet = new Set(),
+    statusFilters = [], kindFilters = [], q = '',
   } = opts
   const picked = opts.picked || chainRows(pub)
   const t = (q ?? '').trim()
@@ -527,7 +527,6 @@ export function filterBoard(opts = {}) {
   else if (filter === 'completed') base = base.filter(r => r.status === 'completed')
   /* `newest` và `top` giữ tập nền rồi mới lọc tiếp ở hai dòng dưới. */
   if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
-  if (filter === 'watch') base = real(rows).filter(r => watchedSet.has(groupKey(r)))
   if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
   if (t) base = base.filter(r => searchHit(r, t))
   return base

@@ -300,7 +300,6 @@ const S = {
   'filter.top': 'Top voted',
   'filter.in_progress': 'In progress',
   'filter.completed': 'Done',
-  'filter.watch': 'Following',
 
   /* ---------------- THEO DÕI + THÔNG BÁO ----------------
      Chuông, bảng thông báo, vị trí trên hàng chờ. Sửa chữ tại đây là đủ mọi
@@ -311,9 +310,6 @@ const S = {
   'nt.liveUnread': 'Unread notifications: {n}',
   'nt.title': 'Notifications',
   'nt.markAll': 'Mark all read',
-  'nt.settings': 'Notification settings',
-  'nt.back': 'Back to notifications',
-  'nt.backShort': 'Notifications',
   'nt.browse': 'Browse the board',
   'nt.emptyTitle': 'Nothing yet',
   'nt.emptyBody': 'Tap the bell on a song to get its news here. Songs you request are followed automatically.',
@@ -325,11 +321,8 @@ const S = {
   /* Nút mua vote nằm ngay trong tin "sát nút": lúc bài của mình chỉ còn vài
      phiếu nữa là dẫn đầu là lúc DUY NHẤT câu "mua thêm vote" trả lời đúng
      một câu hỏi đang có sẵn trong đầu người đọc. */
-  'nt.buyVotes': 'Get votes',
-  'nt.buyWhy': 'Only {n} to lead the queue. More votes push it up now.',
   'nt.multi': '{n} new notifications',
   'nt.multiBody': 'First one: {song}.',
-  'nt.none': 'You are not following any song yet.',
 
   'nt.grp.need': 'Needs your votes',
   'nt.grp.upnext': 'Up next',
@@ -351,15 +344,12 @@ const S = {
   'nt.tag.votes': 'Votes',
   /* Chu cau tin NGAN, khong lap lai ten bai: hang tin nao cung co ten bai in
      dam o dong tren. Toast la noi duy nhat khong co dong do -> nt.toast. */
-  'nt.n.near': 'Only {n} to lead the queue.',
-  'nt.n.lead': 'First in line \u2014 that is the next video.',
   'nt.n.approved': 'Approved, open for votes.',
   'nt.n.started': 'Moved into production.',
   'nt.n.picked': 'Picked for Up next. Voting is closed.',
   'nt.n.done': 'The video is up \u2014 go watch it.',
   'nt.n.denied': 'The request was denied.',
   'nt.n.progress': 'Progress is at {pct}%.',
-  'nt.n.votes': 'Reached {votes} votes.',
   'nt.toast': '{song} — {msg}',
 
   /* 4 cong tac trong tab cai dat. Ban truoc ("Close calls", "Vote milestones")
@@ -371,28 +361,11 @@ const S = {
        - chu thich = MOT cau van thuan, <dieu gi gay ra tin> + <ap dung cho bai
          nao>, khong ngoa ngu ("heads-up", "hit send", "climbs", "slips past");
        - duoi 60 ky tu de khong bi bung 2 dong trong bang 420px. */
-  'nt.p.auto': 'Tell me about my requests',
-  'nt.p.autoNote': 'Every step of a song you sent: approved, up next, done, denied.',
-  'nt.p.near': 'Tell me when a song is almost picked',
-  'nt.p.nearNote': 'One notice when a song needs 3 votes or fewer to go first.',
-  'nt.p.progress': 'Tell me about video progress',
-  'nt.p.progressNote': 'Each time the progress % goes up on a song you follow.',
-  'nt.p.votes': 'Tell me when votes go up',
-  'nt.p.votesNote': 'Every 5 votes on a song you follow or voted for.',
 
   /* Pill trang thai nam trong dong tin: cung van "ai do can gi / con cach dau bao
      xa", va dung dung duoc so nhieu (n = 1 hay n = 9 deu doc duoc). */
-  'standing.lead': 'top of the queue',
-  'standing.near': 'needs {n} to lead',
-  'standing.rank': '#{n} in line',
-  'standing.paidAhead': 'behind a paid request',
-  'standing.rule': 'Only one song is picked at a time: paid first, then most votes, then oldest request.',
   /* "Sớm nhất khoảng …" — đây là SÀN thời gian, không phải lời hứa: bài khác
      vote nhiều hơn chỉ có thể đẩy nó MUỘN hơn, không bao giờ sớm hơn. */
-  'standing.etaDays': 'at least {n} days',
-  'standing.etaWeeks': 'at least {n} weeks',
-  'standing.etaMonths': 'at least {n} months',
-  'standing.etaWhy': 'Earliest {d} days from now: the next pick, then {c} more cycles at one song per cycle. More votes for another song can push it later, never earlier.',
 
   /* chuong da thanh affordance an nen tooltip la thu duy nhat giai thich no:
      noi ro "alert" va pham vi ca bai, khong goi chung la "follow" */

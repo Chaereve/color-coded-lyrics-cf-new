@@ -49,7 +49,8 @@ test('trong popover, mọi khối cùng một khoảng lùi 12px (bản desktop)
   assert.equal(pop.l, 0, '.nt-pop phải bỏ trống mép ngang cho các khối tự lo')
   assert.equal(pop.r, 0, '.nt-pop phải bỏ trống mép ngang cho các khối tự lo')
 
-  for (const sel of ['.nt-head', '.nt-grp-h', '.nt-pref', '.nt-empty']) {
+  /* `.nt-pref` (hàng công tắc của tab cài đặt) đã bị gỡ cùng tầng theo dõi. */
+  for (const sel of ['.nt-head', '.nt-grp-h', '.nt-empty']) {
     const p = padXY(block(sel))
     assert.equal(p.l, PITCH, `${sel}: mép trái phải ${PITCH}px như header`)
     assert.equal(p.r, PITCH, `${sel}: mép phải phải ${PITCH}px như header`)
