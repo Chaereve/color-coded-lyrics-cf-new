@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
 import Progress from './Progress'
-import { KIND_META, isPicked, kindCls, statusColorOf, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
+import { KIND_META, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf, fetchAdminActions, fetchRequestHistory, fetchFunnelSummary, hasSupabase } from '../lib/db'
 import { aggregateFunnel, conversionRates, FUNNEL_CONVERSIONS, FUNNEL_EVENT_KEYS, seriesByDay, votesPerRequest } from '../lib/funnelSummary.js'
 import Sparkline from './Sparkline'
@@ -172,7 +172,9 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           {picked && <span className="pill upnext">{t('adm.picked')}</span>}
         </h3>
         <small>
-          <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>{' '}
+          {/* Tên NGẮN + title, giống hệt hàng trên bảng công khai: cùng một
+              bài thì nhãn loại phải đọc ra cùng một chữ ở mọi nơi. */}
+          <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span>{' '}
           {r.requester}
           <span className="dot dot-inline" aria-hidden="true" />
           {timeAgo(r.created_at, t)}

@@ -203,7 +203,10 @@ export default function PublicProfile({ userId, viewerId = null, onBack, fetcher
                   <b>{r.title}</b><small>{r.artist}</small>
                 </a>
               </span>
-              <em className="public-state">{statusLabel(r, t)}</em>
+              {/* Nhãn ở đây cũng phải mang màu trạng thái như dòng ngay trên
+                  nó: thiếu `--c` là nó rơi về xám, cùng một bài mà hàng công
+                  khai xám còn hàng riêng tư mang màu — hai chỗ lệch nhau. */}
+              <em className="public-state" style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</em>
             </div>
           ))}
         </div>

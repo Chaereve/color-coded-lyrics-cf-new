@@ -106,6 +106,11 @@
   --done:     #34d399;
   --denied:   #fb7185;
   --paid:     #fbbf24;
+  /* CẢNH BÁO KHÔNG PHẢI TRẠNG THÁI. `--progress` giờ trùng `--a-2`, nên nếu
+     một dòng cảnh báo trong form lấy `--progress` thì nó ra màu nhấn — đọc như
+     một liên kết chứ không như "cẩn thận". Tách riêng một sắc hổ phách dịu
+     cho mọi chỗ muốn nói "để ý đấy" mà không phải một giai đoạn của request. */
+  --warn:     #f5a524;
 
   /* ===== THẺ THỂ LOẠI — màu ĐẬM, không phải màu nhạt ====================
      Vẫn là tầng thấp hơn trạng thái, nhưng hạ xuống bằng ĐỘ ĐẬM (màu sâu hơn)
@@ -413,12 +418,12 @@ button { font-family: inherit; }
 }
 .btn-primary:hover { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 45%), var(--a-dim); border-color: var(--a-dim); }
 .btn-gold { background: none; border-color: var(--paid); color: var(--paid); font-weight: 600; }
-.btn-gold:hover { background: rgba(215,166,63,.12); border-color: var(--paid); }
+.btn-gold:hover { background: color-mix(in oklab, var(--paid) 12%, transparent); border-color: var(--paid); }
 .btn-sm { padding: 4px 9px; font-size: 12px; }
-.btn-ok { border-color: rgba(76,186,136,.5); color: var(--done); }
-.btn-ok:hover { background: rgba(76,186,136,.1); border-color: var(--done); }
-.btn-no { border-color: rgba(226,110,105,.45); color: var(--denied); }
-.btn-no:hover { background: rgba(226,110,105,.1); border-color: var(--denied); }
+.btn-ok { border-color: color-mix(in oklab, var(--done) 50%, transparent); color: var(--done); }
+.btn-ok:hover { background: color-mix(in oklab, var(--done) 10%, transparent); border-color: var(--done); }
+.btn-no { border-color: color-mix(in oklab, var(--denied) 45%, transparent); color: var(--denied); }
+.btn-no:hover { background: color-mix(in oklab, var(--denied) 10%, transparent); border-color: var(--denied); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .dotbadge {
@@ -922,8 +927,14 @@ select {
    kiểu "nhãn chồng/cụt" người dùng nhìn ra. Về `inline-block` thì chữ nằm ngay
    trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
 .pill.dup { display: inline-block; vertical-align: bottom; }
+/* MỌI NHÃN DÙNG CHUNG MỘT NGÔN NGỮ: nền pha nhạt, KHÔNG viền.
+   Trước đây nhãn mặc định có viền xám 1px + nền trong khi tem PAID / thẻ thể
+   loại / nhãn Up next lại không viền — trên một hàng có ba kiểu nhãn khác nhau.
+   Nền lấy `currentColor` để nhãn nào cũng tự đúng màu của nó (`.pill.pending`
+   ra nền xám-xanh, `.pill.completed` ra nền mint…). */
 .pill { padding: var(--sp-1) 9px; border-radius: var(--r-pill); font-size: var(--fs-cap);
-  letter-spacing: .2px; border: 1px solid var(--line-2); color: var(--txt-2); }
+  letter-spacing: .2px; border: 0; color: var(--txt-2);
+  background: color-mix(in oklab, currentColor 10%, transparent); }
 .pill.pending    { color: var(--pending); }
 .pill.queued     { color: var(--queued); }
 .pill.in_progress{ color: var(--progress); }
@@ -1472,8 +1483,8 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .hint { margin-top: 8px; font-size: 11.5px; color: var(--txt-3); }
 .msg { margin-top: 11px; padding: 9px 11px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.55; border: 1px solid var(--line-2); }
-.msg.ok   { border-color: rgba(76,186,136,.4); color: #86d0a8; }
-.msg.err  { border-color: rgba(226,110,105,.4); color: #eb9a97; }
+.msg.ok   { border-color: color-mix(in oklab, var(--done) 40%, transparent); color: var(--done); }
+.msg.err  { border-color: color-mix(in oklab, var(--denied) 40%, transparent); color: var(--denied); }
 /* Lỗi thì RUNG một nhịp: 3px ngang, 300ms, chạy đúng lúc dòng lỗi xuất hiện —
    đủ để mắt bắt được "vừa hỏng", không đủ để thành trò hề. Chỉ chạy ở lần mount
    đầu của thông báo, cùng lắm là một lần cho mỗi lần gửi. Biên độ nhỏ vì trên
@@ -1552,7 +1563,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .pack:hover { border-color: #3c4550; }
 .pack:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
 .pack:disabled { opacity: .55; cursor: wait; }
-.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid rgba(215,166,63,.45); color: var(--paid); font-size: 10px; white-space: nowrap; }
+.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid color-mix(in oklab, var(--paid) 45%, transparent); color: var(--paid); font-size: 10px; white-space: nowrap; }
 .pack b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .pack .u { font-size: 11.5px; color: var(--txt-3); margin-bottom: 6px; }
 .pack .p { font-family: var(--mono); font-size: 14px; font-weight: 600; }
@@ -1580,7 +1591,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
    lên nhau ở hai chỗ trong tệp (một tím, một vàng), lớp dưới không bao giờ hiện
    mà vẫn nằm đó chờ người sau sửa nhầm. */
 .pack.best {
-  background: rgba(215,166,63,.055);
+  background: color-mix(in oklab, var(--paid) 5.5%, transparent);
   border-color: var(--paid);
   box-shadow: 0 8px 26px -14px var(--paid);
 }
@@ -1589,7 +1600,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 /* viên thuốc "−48%" phải tự co theo chữ và nằm giữa: để block full-width là
    thành một dải màu chạy ngang thẻ, lệch với phần còn lại căn giữa */
 .pack-save { width: fit-content; margin: 6px auto 0; padding: 1px 7px;
-  border-radius: var(--r-pill); background: rgba(76,186,136,.12); }
+  border-radius: var(--r-pill); background: color-mix(in oklab, var(--done) 12%, transparent); }
 @media (hover: hover) {
   .pack { transition: border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out),
               box-shadow var(--t-2) var(--e-soft); }
@@ -1733,7 +1744,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 .adm-req { flex-wrap: wrap; }
 .adm-edit { flex: 1 1 100%; min-width: 0; }
 /* cụm trùng bài trong bảng admin: hạng tính theo tổng vote của cả bài */
-.pill.dup { color: var(--a-2); border-color: rgba(169,164,255,.35); background: var(--a-soft); }
+.pill.dup { color: var(--a-2); background: color-mix(in oklab, var(--a-2) 13%, transparent); }
 
 /* ---- CHỌN NHIỀU TRONG BẢNG ADMIN -----------------------------------------
    Ô chọn đứng trước nội dung hàng; hàng đang chọn được nhuộm nền nhấn để mắt
@@ -1769,7 +1780,7 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 }
 .step:hover { border-color: #3c4550; color: var(--txt); }
 .step em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3); }
-.step.on { border-color: rgba(76,186,136,.5); color: var(--done); }
+.step.on { border-color: color-mix(in oklab, var(--done) 50%, transparent); color: var(--done); }
 .step.on em { color: var(--done); }
 .steps-pct { margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 600; }
 
@@ -1875,7 +1886,7 @@ img { max-width: 100%; }
 .pay-v.mono { font-family: var(--mono); }
 .copy { flex: 0 0 auto; padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid var(--line-2); background: none; color: var(--txt-3); font-size: 11px; font-family: inherit; transition: .13s; }
 .copy:hover { color: var(--txt); border-color: var(--a-2); }
-.copy.done { color: var(--done); border-color: rgba(76,186,136,.45); }
+.copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 45%, transparent); }
 .pay-qr { text-align: center; flex: 0 0 auto; }
 .qr-canvas { display: block; border-radius: var(--r-sm); background: #fff; padding: 7px; width: 156px !important; height: 156px !important; }
 .pay-qr-cap { margin-top: 7px; font-size: 11px; color: var(--txt-3); }
@@ -2338,7 +2349,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   padding: 0 var(--side-ix); border: 0; border-radius: var(--radius); background: none; cursor: pointer;
   color: var(--txt-3); font-family: inherit; font-size: 13px; text-align: left;
   transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.side-out:hover { color: var(--denied); background: rgba(226,110,105,.08); }
+.side-out:hover { color: var(--denied); background: color-mix(in oklab, var(--denied) 8%, transparent); }
 .side-out:hover .sico { opacity: 1; transform: translateX(2px); }
 .side-copy { height: 22px; margin-top: 4px; padding: 0 var(--side-ix); display: flex; align-items: center;
   font-family: var(--mono); font-size: 10px; letter-spacing: .4px; color: var(--txt-3); }
@@ -2760,7 +2771,7 @@ html[data-section="spin"] .bgfx { display: none; }
     /* xanh nhạt --a-2: vệt phụ mé phải trên */
     radial-gradient(46% 38% at 78% 22%, rgba(169,164,255,.16), rgba(169,164,255,0) 70%),
     /* vàng --paid: nhắc màu thứ ba, gần như không thấy */
-    radial-gradient(42% 34% at 56% 88%, rgba(215,166,63,.08), rgba(215,166,63,0) 72%),
+    radial-gradient(42% 34% at 56% 88%, color-mix(in oklab, var(--paid) 8%, transparent), transparent 72%),
     /* ultramarine của logo: vệt chính, chếch trên trái */
     radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(77,64,240,0) 68%);
   animation: auroraDrift 36s ease-in-out infinite alternate; }
@@ -2929,7 +2940,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .lb-pod { position: relative; overflow: hidden; padding: 20px 14px 16px; text-align: center;
   background: var(--panel-2); animation: podIn .55s var(--e-pop) both; animation-delay: calc(var(--i, 0) * 90ms) }
 @keyframes podIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
-.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, rgba(215,166,63,.12), rgba(0,0,0,0) 60%), var(--panel-2) }
+.lb-pod.p1 { padding-top: 26px; background: linear-gradient(180deg, color-mix(in oklab, var(--paid) 12%, transparent), transparent 60%), var(--panel-2) }
 .lb-pod.p2 { background: linear-gradient(180deg, rgba(173,181,189,.08), rgba(0,0,0,0) 60%), var(--panel-2) }
 .lb-pod.p3 { background: linear-gradient(180deg, rgba(179,129,79,.09), rgba(0,0,0,0) 60%), var(--panel-2) }
 /* ánh kim quét một lần trên hai thẻ đầu: phần thưởng, không phải trang trí */
@@ -3211,7 +3222,9 @@ html[data-section="spin"] .bgfx { display: none; }
   transition: transform .34s var(--e-out) }
 .stat:hover::after { transform: scaleX(1) }
 
-.pill.gold { background: rgba(215,166,63,.1) }
+/* (Bản ghi đè `.pill.gold { background: rgba(215,166,63,.1) }` từng nằm ở đây
+   và ĐÈ MẤT tem PAID khai báo ở trên: cùng độ ưu tiên, bản sau thắng, nên tem
+   vẫn là vàng cũ 10% không viền. Đã xoá — một khai báo chết mà lại thắng. */
 
 /* link "xem video": mũi tên nhích ra khi rê */
 .watch { position: relative; transition: color var(--t-1) var(--e-soft) }
@@ -3325,7 +3338,7 @@ html[data-section="spin"] .bgfx { display: none; }
    một lời gợi ý kèm một nút), nhưng đổi sắc: hai dải có thể đứng cạnh nhau, và
    lúc đó người dùng phải phân biệt được cái nào là "bài này có rồi", cái nào
    là "để tôi điền giúp ô bên cạnh". */
-.split-note { border-left-color: var(--queued); background: color-mix(in srgb, var(--queued) 10%, transparent); }
+.split-note { border-left-color: var(--upnext); background: color-mix(in srgb, var(--upnext) 10%, transparent); }
 
 /* Chú thích của hàng chip: MỘT dòng, không khung, không nền — nó thuộc về hàng
    chip ngay trên chứ không phải một khối thứ hai trong form. Nhãn màu đứng
@@ -3363,17 +3376,18 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (max-width: 620px) { .now-split { white-space: normal; } }
 .now-n { font-family: var(--mono); font-size: 12px; font-weight: 700; line-height: 20px; min-width: 20px;
   padding: 0 6px; text-align: center; border-radius: var(--r-pill);
-  color: var(--queued); background: color-mix(in srgb, var(--queued) 18%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--queued) 34%, transparent); }
+  /* số suất đã chốt → màu Up next, không phải màu "trong hàng"; và bỏ vòng
+     `inset` — nó là chiếc viền thứ hai mà mọi nhãn khác đã bỏ. */
+  color: var(--upnext); background: color-mix(in oklab, var(--upnext) 16%, transparent); }
 
 /* đếm ngược: nhãn nhỏ + số mono, căn phải */
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
 .pick-cd span { font-size: 11px; color: var(--txt-3); }
-.pick-cd b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--queued); letter-spacing: .02em; }
+.pick-cd b { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--upnext); letter-spacing: .02em; }
 /* Đã tới mốc chốt mà lượt chốt chưa xong: đổi màu + một chấm nhịp, KHÔNG
    nhấp nháy. Một đồng hồ nhấp nháy vô hạn ở góc màn hình kéo mắt khỏi danh
    sách mỗi 1,6 giây; "quá mốc" đọc được bằng màu và con số là đủ. */
-.pick-cd.over b { color: var(--a-2); }
+.pick-cd.over b { color: var(--warn); }
 .pick-cd.over b::after { content: ''; display: inline-block; width: 6px; height: 6px;
   margin-left: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 
@@ -3388,7 +3402,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .nowbar .now-item h3 { margin: 0 0 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
 .nowbar .now-item.now-group { padding-bottom: 11px; }
-.nowbar .now-item .pill.group { font-family: var(--mono); font-size: var(--fs-cap); font-weight: 700; line-height: 18px; min-width: 22px; text-align: center; padding: 0 7px; border-radius: var(--r-pill); color: var(--queued); background: color-mix(in oklab, var(--queued) 16%, transparent); }
+.nowbar .now-item .pill.group { font-family: var(--mono); font-size: var(--fs-cap); font-weight: 700; line-height: 18px; min-width: 22px; text-align: center; padding: 0 7px; border-radius: var(--r-pill); color: var(--a-2); background: color-mix(in oklab, var(--a-2) 13%, transparent); }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
 .now-members li { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--txt-3); flex-wrap: wrap; }
 .now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
@@ -3580,8 +3594,8 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3) }
 .nt-meta em { font-style: normal; font-family: var(--font); font-weight: 600; letter-spacing: .2px }
 .nt-acts { display: flex; align-items: center; gap: 5px; flex: none; padding: 8px 0 8px 0 }
-.nt-vote { color: var(--paid); border-color: rgba(215,166,63,.4) }
-.nt-vote:hover { background: rgba(215,166,63,.14) }
+.nt-vote { color: var(--paid); border-color: color-mix(in oklab, var(--paid) 40%, transparent) }
+.nt-vote:hover { background: color-mix(in oklab, var(--paid) 14%, transparent) }
 
 .nt-empty { padding: 26px 12px 28px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; min-height: 210px }
 .nt-empty b { font-family: var(--display); font-size: 13px }
@@ -3847,7 +3861,7 @@ html[data-section="spin"] .bgfx { display: none; }
    bật toast. Toast nằm ở góc màn hình còn mắt đang ở giữa bảng; nhãn nút đổi
    ngay dưới ngón tay là phản hồi đúng chỗ, và bảng admin vốn đã có tiếng là
    nhiều thông báo nổi. */
-.adm-copy.done { color: var(--done); border-color: rgba(76,186,136,.4); }
+.adm-copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 40%, transparent); }
 
 /* =========================================================================
    VÒNG 8 — NHÃN, THANH LỌC, HỘP VOTE, VÀ BẢNG ADMIN THÀNH TRANG RIÊNG
@@ -4207,7 +4221,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm-ov-money { font-family: var(--mono); font-size: 20px; font-weight: 650; color: var(--paid);
   font-variant-numeric: tabular-nums; }
 .adm-ov-sub { margin: 0; color: var(--txt-3); font-size: 11px; }
-.adm-ov-warn { margin: 0; color: var(--pending); font-size: 11.5px; font-weight: 600; }
+.adm-ov-warn { margin: 0; color: var(--warn); font-size: 11.5px; font-weight: 600; }
 .adm-ov-card .btn { justify-self: start; }
 @media (max-width: 900px) { .adm-ov { grid-template-columns: 1fr; } }
 
@@ -4242,9 +4256,8 @@ html[data-section="spin"] .bgfx { display: none; }
 /* TUỔI CỦA MỘT YÊU CẦU: chip nhỏ nằm cùng dòng với người gửi / giờ / số vote.
    Chưa quá nhịp chốt thì nó chỉ là chữ mờ; quá nhịp thì đổi sang tông "trễ"
    (`--pending`) — đọc được bằng mắt thường trước khi đọc con số. */
-.pill.adm-age { color: var(--txt-3); background: var(--surface-2); border: 1px solid var(--line); }
-.pill.adm-age.stale { color: var(--pending); border-color: color-mix(in srgb, var(--pending) 45%, transparent);
-  background: color-mix(in srgb, var(--pending) 12%, var(--surface-2)); font-weight: 600; }
+.pill.adm-age { color: var(--txt-3); background: color-mix(in oklab, var(--txt-3) 10%, transparent); }
+.pill.adm-age.stale { color: var(--warn); background: color-mix(in oklab, var(--warn) 13%, transparent); font-weight: 600; }
 
 /* NHẬT KÝ THAO TÁC: một dòng một việc — việc gì (đậm) · bài nào · đổi gì ·
    ai làm, lúc nào. Cột phải cố định để mắt quét được "ai" mà không phải đọc
@@ -4407,7 +4420,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .fin input { padding-right: 52px; }
 .fhint { margin: 5px 0 0; font-size: 11px; line-height: 1.5; color: var(--txt-3); }
 .ferr { margin: 5px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--denied); }
-.ferr.warn { color: var(--progress); }
+.ferr.warn { color: var(--warn); }
 /* Link đã nhận ra: cùng chỗ với gợi ý, chỉ đổi màu — một dòng chữ, hai trạng
    thái, không thêm dòng nào vào form. */
 .fhint.ok { color: var(--done) }
@@ -4445,7 +4458,7 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 /* Ô đang sai: viền đỏ + một vạch mảnh bên trái. Viền một mình đủ để mắt thấy
    nhưng không đủ để thấy khi đang nhìn giữa form. */
-.field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: rgba(226,110,105,.6); }
+.field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: color-mix(in oklab, var(--denied) 60%, transparent); }
 .field input[aria-invalid="true"]:focus { border-color: var(--denied); }
 
 /* Bảng nội quy: đánh số bằng vòng tròn để mỗi điều là một mục đọc được, thay
@@ -4886,7 +4899,7 @@ body {
 .public-request-link b { font-size: 13px; font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .public-request-link:hover b { color: var(--a-2); }
 .public-request-link small { color: var(--txt-3); font-size: 11.5px; }
-.public-state { flex-shrink: 0; font-size: 10.5px; font-style: normal; font-family: var(--mono); font-weight: 600; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); border: 1px solid var(--line-2); color: var(--txt-2); background: var(--surface); }
+.public-state { flex-shrink: 0; font-size: 10.5px; font-style: normal; font-family: var(--mono); font-weight: 600; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-pill); border: 0; color: var(--txt-2); background: color-mix(in oklab, currentColor 10%, transparent); }
 /* ===== KHỐI "CHỈ BẠN THẤY" =====
    Hàng chờ duyệt / bị từ chối không nằm trên bảng, nên khối này phải TRÔNG KHÁC
    khối "Recent requests" ngay từ khung: viền đứt (không phải viền liền), nền
@@ -4907,8 +4920,7 @@ body {
 /* Nhãn trạng thái trong khối riêng mang màu của chính nó (--c do JSX đặt) —
    cùng một màu với vòng đứt / chấm đèn trên bảng. */
 .public-private .public-state { color: var(--c, var(--txt-2));
-  border-color: color-mix(in oklab, var(--c, var(--line-2)) 34%, transparent);
-  background: color-mix(in oklab, var(--c, var(--surface)) 11%, transparent); }
+  background: color-mix(in oklab, var(--c, var(--txt-2)) 13%, transparent); }
 
 @media (max-width: 620px) {
   .public-profile { padding: 18px 14px; border-radius: var(--r-lg); }

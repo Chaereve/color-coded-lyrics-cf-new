@@ -20,6 +20,7 @@ const css = readFileSync(`${root}/src/index.css`, 'utf8')
 const app = readFileSync(`${root}/src/App.jsx`, 'utf8')
 const meta = readFileSync(`${root}/src/lib/meta.js`, 'utf8')
 const admin = readFileSync(`${root}/src/components/AdminPanel.jsx`, 'utf8')
+const read = (rel) => readFileSync(`${root}/${rel}`, 'utf8')
 
 /* Bỏ chú thích trước khi soát: chính các chú thích giải thích việc đổi có nhắc
    lại tên lớp cũ, soát cả chú thích là tự bắt lỗi mình. */
@@ -234,4 +235,69 @@ test('bảng màu: sáu sắc gắt, tách hẳn nhau, và "đang làm" mang ch�
   /* Chữ nhãn: không pha xám quá tay. Nhãn pha 62% xám là lý do hàng trông bợt. */
   assert.match(ruleOf('.status'), /88%/,
     'chữ nhãn trạng thái chỉ được pha 12% xám — pha nhiều là mất màu')
+})
+
+/* =========================================================
+   ĐỒNG BỘ SAU KHI ĐỔI BẢNG MÀU.
+   Ba nhóm lỗi dưới đây đều là lỗi *cũ*, chỉ lộ ra khi cả bảng màu đổi: một quy
+   tắc viết tay còn sót, một khai báo chết đè lên khai báo mới, và một nơi lấy
+   màu nhấn cho thứ không phải màu nhấn. Khoá lại để lần đổi màu sau không phải
+   đi mò lại từ đầu.
+   ========================================================= */
+test('không còn mã màu viết tay của bảng màu cũ trong CSS', () => {
+  /* Ba bộ rgba cũ: xanh lá #4CBA88 (done cũ), đỏ #E26E69 (denied cũ), vàng
+     #D7A63F (paid cũ). Sau khi token đổi, chúng vẫn vẽ ra ba màu không còn tồn
+     tại ở đâu khác trên trang. */
+  const stale = [/rgba\(\s*76,\s*186,\s*136/, /rgba\(\s*226,\s*110,\s*105/, /rgba\(\s*215,\s*166,\s*63/]
+  for (const re of stale) {
+    const hit = css.split('\n').map((l, i) => [l, i + 1]).filter(([l]) => re.test(l) && !/^\s*(\/\*|\*)/.test(l))
+    assert.equal(hit.length, 0, `màu cũ còn sót ở dòng ${hit.map(h => h[1]).join(', ')} — dùng color-mix với token`)
+  }
+})
+
+test('mỗi nhãn trạng thái chỉ được khai báo nền MỘT lần', () => {
+  /* `.pill.gold` từng bị khai báo lại ở cuối file bằng rgba vàng cũ: cùng độ ưu
+     tiên, bản sau thắng — nên đổi token ở tem PAID không có tác dụng gì. */
+  const decls = [...css.matchAll(/^\.pill\.(gold|upnext)\s*\{([^}]*)\}/gm)]
+  const byCls = {}
+  for (const m of decls) {
+    if (!/background/.test(m[2])) continue
+    byCls[m[1]] = (byCls[m[1]] || 0) + 1
+  }
+  for (const [k, n] of Object.entries(byCls)) {
+    assert.equal(n, 1, `.pill.${k} khai báo nền ${n} lần — bản sau sẽ đè bản trước`)
+  }
+})
+
+test('không dùng --progress cho thứ không phải giai đoạn "đang làm"', () => {
+  /* --progress giờ TRÙNG --a-2. Nơi nào lấy nó để nói "chú ý" hay "đã pick" thì
+     ra đúng màu nút bấm, và hai ô thống kê cạnh nhau thành một màu. Cảnh báo
+     dùng --warn, suất đã chốt dùng --upnext. */
+  assert.doesNotMatch(ruleOf('.ferr.warn'), /--progress/, 'cảnh báo trong form không được mang màu nhấn')
+  assert.doesNotMatch(ruleOf('.pick-cd.over b'), /--a-2|--progress/, 'đồng hồ quá mốc là CẢNH BÁO, không phải nhấn')
+  assert.match(ruleOf('.pick-cd.over b'), /var\(--warn\)/, 'đồng hồ quá mốc phải dùng --warn')
+  assert.match(read('src/index.css'), /--warn:\s*#/, 'thiếu token --warn')
+  /* Ô thống kê "đã pick" không được mượn --a-2 (đã trùng --progress). */
+  const statPicked = app.split('\n').filter(l => /<Stat\s+c=/.test(l) && /stage\.picked/.test(l))
+  assert.equal(statPicked.length, 1, 'không tìm thấy ô thống kê "đã pick"')
+  assert.match(statPicked[0], /var\(--upnext\)/, 'ô "đã pick" phải mang màu Up next')
+  /* Tab admin "đã pick" cũng vậy. */
+  const tabs = read('src/lib/adminTabs.js')
+  const pickedTab = tabs.split('\n').find(l => /k: 'picked'/.test(l))
+  assert.match(pickedTab, /var\(--upnext\)/, 'tab admin "đã pick" phải mang màu Up next')
+})
+
+test('Up next và trang trí Up next mang --upnext, không mượn --queued', () => {
+  for (const sel of ['.now-n', '.pick-cd b']) {
+    assert.match(ruleOf(sel), /var\(--upnext\)/, `${sel} phải mang màu Up next`)
+  }
+})
+
+test('nhãn thể loại đọc ra cùng một chữ ở mọi nơi', () => {
+  /* Hàng công khai in tên ngắn ("CCL"), admin và tấm vote lại in tên đầy đủ
+     ("Color-coded lyrics") — cùng một bài, hai chữ khác nhau trên hai màn hình. */
+  for (const f of ['src/components/AdminPanel.jsx', 'src/components/ActionModal.jsx', 'src/components/VoteModal.jsx']) {
+    const txt = read(f)
+    assert.match(txt, /kindShort\(/, `${f} phải dùng kindShort cho nhãn thể loại`)
+  }
 })

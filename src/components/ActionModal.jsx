@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
 import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../lib/db'
-import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
+import { KIND_META, isPicked, kindCls, kindShort, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
@@ -821,7 +821,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
                   {r.title}{' '}
                   {r.is_paid && <span className="pill gold">PAID</span>}
                 </b>
-                <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span></small>
+                <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span></small>
               </div>
               <button className={`votebtn${mine > 0 ? ' on' : ''}`} onClick={() => onVote(r)}
                 title={t('row.openVote')}>

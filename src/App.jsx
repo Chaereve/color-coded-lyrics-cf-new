@@ -1975,7 +1975,10 @@ function AppInner() {
                   đoạn, nằm trong dãy này thì phá vỡ phép cộng — nhãn đó vẫn
                   hiện nguyên trên hàng (pill vàng) và trong bảng Admin. */}
               <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} why={t('stat.queuedWhy')} />
-              <Stat c="var(--a-2)" v={stage.picked} label={t('stat.picked')} why={t('stat.pickedWhy')} />
+              {/* Suất đã chốt mang màu Up next, không phải màu nhấn: `--a-2`
+                  giờ TRÙNG với `--progress`, để nguyên là hai ô cạnh nhau cùng
+                  một màu: "Up next 2" và "In progress 2" không phân biệt được. */}
+              <Stat c="var(--upnext)" v={stage.picked} label={t('stat.picked')} why={t('stat.pickedWhy')} />
               <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} why={t('stat.inProgressWhy')} />
               <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} why={t('stat.completedWhy')} />
             </div>

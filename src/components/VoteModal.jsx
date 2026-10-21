@@ -3,7 +3,7 @@ import Icon from './Icon'
 import { useModalExit } from '../lib/useModalExit'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { isPicked, kindCls } from '../lib/meta'
+import { isPicked, kindCls, kindShort } from '../lib/meta'
 import { warmCaptcha, warmFingerprint } from '../lib/spinShield.js'
 
 const MAX = 100
@@ -119,7 +119,7 @@ export default function VoteModal({
             <b>{req.title}</b>
             <span> — {req.artist}</span>
             <div className="vm-sub">
-              <span className={`kind ${kindCls(req.kind)}`}>{req.kind}</span>
+              <span className={`kind ${kindCls(req.kind)}`} title={req.kind}>{kindShort(req.kind)}</span>
               <span className="dot" aria-hidden="true" />
               <span>{t('vote.total', { n: req.votes })}</span>
               {myCount > 0 && <><span className="dot" aria-hidden="true" /><span>{t('vote.yours', { n: myCount })}</span></>}

@@ -8,9 +8,13 @@ import logoVietQR from '../assets/pay/vietqr.svg'
 import logoPaypal from '../assets/pay/paypal.svg'
 
 /* ============ Logo chính chủ của từng cổng thanh toán ============ */
+/* Trường `c` (màu nhấn của cổng) đã bỏ: không nơi nào đọc nó, mà bản cũ của
+   VietQR lại mượn `--queued` — một token TRẠNG THÁI — để tô một thương hiệu.
+   Đó đúng là kiểu rò rỉ khiến đổi bảng màu xong vẫn còn một chỗ xanh lạnh
+   không rõ vì sao. Logo là ảnh SVG chính chủ, màu đã nằm trong tệp. */
 const METHODS = [
-  { k: 'bank',   src: logoVietQR, nameKey: 'pay.bank',   alt: 'VietQR', c: 'var(--queued)' },
-  { k: 'paypal', src: logoPaypal, nameKey: 'pay.paypal', alt: 'PayPal', c: '#0070ba' },
+  { k: 'bank',   src: logoVietQR, nameKey: 'pay.bank',   alt: 'VietQR' },
+  { k: 'paypal', src: logoPaypal, nameKey: 'pay.paypal', alt: 'PayPal' },
 ]
 
 /* ---------- QR vẽ bằng canvas, hoạt động offline ---------- */
