@@ -268,7 +268,7 @@ function SignInPanel({ title, body, onSignIn }) {
 }
 
 /* ---------------- một dòng request ---------------- */
-function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
+function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
   followed = false, onWatch, onShare, hl = false, st = null }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
@@ -293,7 +293,6 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
   return (
     <div className={`row${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
       style={{ '--sc': sm.c, '--i': Math.min(n, 12) }}>
-      {i != null && <div className="idx">{i + 1}</div>}
       <div className="body">
         <div className="title">
           {r.title} <span className="artist">— {r.artist}</span>
@@ -359,7 +358,7 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
   )
 }
 
-function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
+function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
   followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
@@ -380,7 +379,6 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
       <button type="button" className="grow-head" aria-expanded={expanded}
         title={expanded ? t('group.hide') : t('group.showAll', { n: g.rows.length })}
         onClick={onToggle}>
-        {i != null && <span className="idx">{i + 1}</span>}
         <span className="body">
           <span className="grow-tags">
             <span className="grow-count">{t('group.requests', { n: g.rows.length })}</span>
@@ -401,7 +399,7 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
       <div className="grow-rows">
         <div className="grow-rows-in">
           {g.rows.map((r, k) => (
-            <RequestRow key={r.id} r={r} i={null} n={k}
+            <RequestRow key={r.id} r={r} n={k}
               showDelete={!!user && r.user_id === user.id}
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
@@ -2431,14 +2429,14 @@ function AppInner() {
                       ))
                   : pgBoard.items.map((e, i) => (e.type === 'group'
                     ? (
-                      <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
+                      <RequestGroup key={e.key} g={e}
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
                         followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
                         onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
                       )
                     : (
-                      <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i} user={viewer}
+                      <RequestRow key={e.r.id} r={e.r} n={i} user={viewer}
                         showDelete={!!user && e.r.user_id === user.id}
                         myCount={myVotes.get(e.r.id) || 0}
                         canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}

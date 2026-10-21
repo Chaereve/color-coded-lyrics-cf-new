@@ -755,20 +755,10 @@ select {
    hover đậm hơn một chút thay vì đổi sang màu khác. */
 .row.paid { background: rgba(215,166,63,.045); }
 .row.paid:hover { background: rgba(215,166,63,.075); }
-/* SỐ THỨ TỰ CỦA HÀNG — canh vào ĐƯỜNG CHỮ CỦA TÊN BÀI, không canh giữa hàng.
-   Bản trước để số canh giữa cả hàng (`.row` là flex `align-items: center`), mà
-   hàng thì hai dòng: kết quả là con số rơi xuống ngang dòng meta, đứng cách xa
-   cái tên mà nó đang đánh số — nhìn như một nhãn lạc. Nay nó neo vào dòng đầu.
-
-   Đệm trên tính từ chính hai thang chữ, không viết cứng: hiệu đường-chữ của
-   tiêu đề và của số, chia đôi. Đổi cỡ chữ ở thang là số tự canh lại.
-   `tabular-nums` để 9 và 10 không nhích mép phải khi danh sách dài thêm; bề
-   rộng 24px đủ cho ba chữ số. */
-.row .idx { width: 24px; flex: none; text-align: right; font-family: var(--mono);
-  font-size: var(--fs-meta); font-variant-numeric: tabular-nums;
-  line-height: 1.15; color: var(--txt-3);
-  align-self: flex-start;
-  padding-top: calc((var(--fs-title) * 1.15 - var(--fs-meta) * 1.15) / 2); }
+/* SỐ THỨ TỰ: đã bỏ. Danh sách này không phải bảng xếp hạng — con số chỉ
+   lặp lại đúng thứ tự vốn đã hiện ra bằng vị trí, mà lại chiếm một cột riêng
+   bên trái nên tên bài bị đẩy vào trong và mép trái của mọi hàng không còn
+   thẳng với tiêu đề khối. Bảng xếp hạng thật (tab Ranking) vẫn có số của nó. */
 .row .body { flex: 1; min-width: 0; align-self: center;
   /* Lưới hai dòng cố định: tiêu đề, rồi dòng phụ. `align-content: center` giữ
      cả khối chữ ở giữa ô; `gap` 2px là toàn bộ khoảng hở được phép có giữa hai
@@ -950,16 +940,18 @@ select {
 }
 .votebtn {
   /* Bề rộng tối thiểu để cột số phiếu thẳng hàng: không có nó thì "3 vote" và
-     "193 vote" rộng khác nhau và mép phải của cả danh sách so le từng hàng. */
-  position: relative; flex: none; display: flex; align-items: center; gap: 6px;
-  justify-content: center; min-width: 88px;
-  padding: 6px 12px; border-radius: var(--radius); cursor: pointer;
+     "193 vote" rộng khác nhau và mép phải của cả danh sách so le từng hàng.
+     Cao 34px + đệm ngang 12px: bằng đúng chiều cao hai dòng chữ cạnh nó, nên
+     nút đọc ra là một CHI TIẾT của hàng chứ không phải một cái hộp dán bên. */
+  position: relative; flex: none; display: flex; align-items: center; gap: 5px;
+  justify-content: center; min-width: 80px; height: 34px;
+  padding: 0 12px; border-radius: var(--radius); cursor: pointer;
   border: 1px solid var(--line-2); background: none; color: var(--txt-2);
   font-family: inherit; transition: .13s;
 }
 .votebtn:hover:not(:disabled) { border-color: var(--a-2); color: var(--txt); }
 .votebtn b { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--txt); }
-.votebtn span { font-size: 11.5px; }
+.votebtn span { font-size: var(--fs-cap); }
 .votebtn.on { border-color: var(--a-2); color: var(--a-2); background: var(--a-soft);
   box-shadow: 0 2px 12px -6px var(--a-glow); }
 .votebtn.on b { color: var(--a-2); }
@@ -992,8 +984,6 @@ select {
   width: 100%; padding: 8px var(--sp-4);
   border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
   background: none; }
-.grow-head .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono);
-  font-size: 12px; color: var(--txt-3); }
 /* thẻ trong nút bấm dùng span + block (không lồng div vào button) */
 .grow-head .body { display: block; flex: 1; min-width: 0; }
 .grow-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -1626,11 +1616,9 @@ img { max-width: 100%; }
   .pack.best b { font-size: 20px; }
   .buy-checkout .btn { width: 100%; margin-left: 0; }
   .search, .sel { max-width: none; flex: 1; }
-  .row .idx { display: none; }
   /* cụm trùng bài: bỏ số thứ tự, thẻ card ôm sát mép cho vừa màn hẹp */
   .grow { margin-left: 8px; margin-right: 8px; }
   .grow-head { padding: 10px 12px; gap: 10px; }
-  .grow-head .idx { display: none; }
   .grow-stat b { font-size: 17px; }
   /* lề trái của hàng trong cụm; lề PHẢI do khối thẻ ở dưới quyết định (10px,
      cùng nhịp với chấm chuông) — hai chỗ cùng khai một cạnh thì chỗ dưới
