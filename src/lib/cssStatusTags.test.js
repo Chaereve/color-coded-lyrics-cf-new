@@ -125,7 +125,7 @@ test('hover nhuộm MÉP TRÁI bằng màu trạng thái, nền vẫn xám', () 
     'nền xám hover giữ nguyên; nếu thay hẳn bằng màu trạng thái thì hàng đổi "chất liệu"')
   /* Hàng PAID giữ danh tính vàng của nó, màu trạng thái chỉ pha vào ánh mép. */
   const paid = ruleOf('.row.paid:hover')
-  assert.match(paid, /rgba\(215,166,63,\.075\)/,
+  assert.match(paid, /color-mix\(in oklab, var\(--paid\) 7%/,
     'hàng PAID khi rê vẫn là nền vàng — màu trạng thái không được thay nó')
   assert.match(paid, /linear-gradient\(90deg/,
     'nhưng vẫn có ánh mép trái')
@@ -184,4 +184,41 @@ test('mọi nhãn trạng thái lấy màu qua statusColorOf, không tự tra th
     'tin "picked" trong hộp thư phải mang màu upnext')
   assert.match(notes, /approved:\s*'var\(--queued\)'/,
     'tin "approved" vẫn là bước vào hàng, giữ màu queued')
+})
+
+/* =========================================================
+   BẢNG MÀU NEON — MỘT NGUYÊN TẮC
+   ---------------------------------------------------------
+   Độ bão hoà dành cho thứ CÓ NGHĨA (trạng thái, tem PAID); thẻ thể loại là
+   metadata nên trầm. Bài này chốt hai vế: các sắc trạng thái phải thật sự KHÁC
+   nhau (không chỉ khác tên), và bốn thẻ thể loại phải cùng một mức bão hoà
+   thấp — nếu ai đó "làm mới" bằng cách trả thẻ loại về màu bão hoà gốc thì hàng
+   lại có 9 sắc chói cạnh nhau.
+   ========================================================= */
+test('bảng màu: trạng thái bão hoà cao, thẻ thể loại trầm', () => {
+  const hexOf = (name) => bare.match(new RegExp(`--${name}:\\s*#([0-9a-f]{6})`, 'i'))?.[1]
+  const rgb = (h) => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+  const sat = (h) => {
+    const [r, g, b] = rgb(h)
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2
+    return mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1))
+  }
+  const statuses = ['pending', 'queued', 'upnext', 'progress', 'done', 'denied']
+  for (const s of statuses) assert.ok(hexOf(s), `thiếu token --${s}`)
+  /* Sáu sắc trạng thái phải khác nhau từng đôi một. */
+  const seen = new Set(statuses.map(s => hexOf(s).toLowerCase()))
+  assert.equal(seen.size, statuses.length, 'hai trạng thái đang dùng chung một mã màu')
+  /* Thẻ thể loại: bão hoà thấp hơn hẳn trạng thái. Ngưỡng 0,62 là mức cao nhất
+     của bốn token `--k-*` (mauve #d8a8cb); trạng thái thấp nhất là #ff1770 với
+     1,0 — chênh nhau đủ để mắt đọc ra hai tầng. */
+  const kinds = ['k-ccl', 'k-album', 'k-loop', 'k-short']
+  for (const k of kinds) {
+    assert.ok(sat(hexOf(k)) < 0.55, `--${k} phải hạ bão hoà: nó là metadata, không phải trạng thái`)
+  }
+  for (const s of ['queued', 'done', 'denied', 'paid']) {
+    assert.ok(sat(hexOf(s)) > 0.85, `--${s} phải bão hoà cao: nó mang nghĩa`)
+  }
+  /* Nhãn trạng thái: chữ pha 62% với xám để neon ở cỡ 12,5px không nhấp nháy. */
+  assert.match(ruleOf('.status'), /color:\s*color-mix\(in oklab, var\(--c, var\(--txt-2\)\) 62%/,
+    'chữ nhãn trạng thái phải pha xám, không dùng neon nguyên chất ở cỡ chữ nhỏ')
 })

@@ -78,26 +78,42 @@
   --a-soft: rgba(77,64,240,.16);
   --a-glow: rgba(77,64,240,.45);
 
-  /* mau trang thai — chi dung cho cham tron nho.
-     Năm sắc này là một DẢI ĐI LÊN: xám (chờ duyệt) → xanh lạnh (trong hàng) →
-     tím (đã chốt) → hổ phách (đang làm) → xanh lá (xong); đỏ dành riêng cho
-     từ chối. Chủ dự án chỉ ra rằng "In queue" và "Up next" đang giống hệt nhau
-     về màu — đúng, vì cả hai cùng trỏ vào `--queued`. Nhưng chúng là hai bậc
-     khác nhau của dây chuyền ("đang chờ tới lượt" và "đã được chọn"), nên mỗi
-     bậc có sắc riêng. */
-  --pending:  #8d95a3;
-  --queued:   #5f8fd6;
-  --upnext:   #c07dff;
-  --progress: #e0a93e;
-  --done:     #4cba88;
-  --denied:   #e26e69;
-  --paid:     #d7a63f;
+  /* ===== MÀU TRẠNG THÁI — BẢNG NEON (vòng 9) =============================
+     Nguyên tắc của cả bảng: ĐỘ BÃO HOÀ DÀNH CHO THỨ CÓ NGHĨA.
+     Trạng thái và tem PAID mang nghĩa (bài đang ở đâu, có trả phí hay không)
+     nên chúng được phép chói. Thẻ thể loại chỉ là metadata — nhìn nó không ai
+     ra quyết định gì — nên nó trầm (xem bốn token `--k-*` bên dưới).
 
-  /* loai request */
-  --k-ccl:   #ab8fe0;
-  --k-album: #4fb0ad;
-  --k-loop:  #d18b5f;
-  --k-short: #d1789d;
+     Bộ sắc là một DẢI ĐI LÊN, mỗi bậc một họ màu, không bậc nào trùng họ:
+       xám     chờ duyệt      — chưa có gì xảy ra, không cần màu
+       cyan    trong hàng     — mát, "đang xếp chỗ"
+       tím     đã chốt        — khác hẳn bậc trước, và khác màu nhấn `--a-2`
+       hổ phách đang làm      — nóng, "đang chạy"
+       lime    xong           — đầu cuối của dải
+       hồng đỏ từ chối        — chỉ dùng cho đúng một nghĩa: bị loại
+     Chờ duyệt cố ý KHÔNG có màu: nó là "chưa bắt đầu", cho nó một sắc chói
+     là nói dối rằng có chuyện gì đang diễn ra. */
+  --pending:  #98a2b3;
+  --queued:   #57f4ff;
+  --upnext:   #d98cff;
+  --progress: #ffb020;
+  --done:     #a3ff2e;
+  --denied:   #ff1770;
+  /* Tem PAID: vàng acid là sắc DUY NHẤT không nằm trên dải trạng thái, nên nó
+     không bao giờ bị đọc lẫn thành một bậc của dây chuyền. */
+  --paid:     #e5ff38;
+
+  /* ===== THẺ THỂ LOẠI — TRẦM (vòng 9) ==================================
+     Bốn sắc dưới đây là bản HẠ BÃO HOÀ của bốn bộ tag trong đề xuất CRT. Giữ
+     nguyên hệ màu để bảng vẫn "cùng một thế giới", nhưng chroma thấp hơn hẳn
+     trạng thái — nhờ vậy thẻ loại đứng cạnh nhãn trạng thái mà không tranh.
+     Đây cũng là cách tránh bốn cặp trùng màu đã thấy khi để nguyên bản gốc:
+     magenta-tag ≈ hồng "từ chối", toxic-green-tag ≈ lime "xong",
+     cobalt-tag ≈ cyan "trong hàng", aqua-tag ≈ cyan "đang làm". */
+  --k-ccl:   #c9c6ee;
+  --k-album: #9fdfd0;
+  --k-loop:  #dfb2a0;
+  --k-short: #d8a8cb;
 
   /* mặt kính: nền tối + blur phía sau.  Ban to (stats, danh sách, modal,
      sidebar) dùng bản trong suốt này để vệt gradient của nền lọt nhẹ qua,
@@ -763,8 +779,8 @@ select {
 .row:hover {
   background:
     linear-gradient(90deg,
-      color-mix(in oklab, var(--sc, var(--a)) 13%, transparent) 0,
-      color-mix(in oklab, var(--sc, var(--a)) 4%, transparent) 90px,
+      color-mix(in oklab, var(--sc, var(--a)) 9%, transparent) 0,
+      color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 90px,
       transparent 190px),
     var(--hover);
 }
@@ -775,7 +791,7 @@ select {
    trên màn hình thì hàng paid đổi hẳn tính cách khi rê chuột: vệt vàng biến
    mất, chỉ còn nền hover xám. Nay chỉ còn một cặp luật, cả hai đều phẳng, và
    hover đậm hơn một chút thay vì đổi sang màu khác. */
-.row.paid { background: rgba(215,166,63,.045); }
+.row.paid { background: color-mix(in oklab, var(--paid) 4%, transparent); }
 /* Hàng PAID: nền vàng của nó là DANH TÍNH (bài trả phí), nên màu trạng thái
    chỉ pha vào lớp ánh mép trái, không thay nền vàng. */
 .row.paid:hover {
@@ -784,7 +800,7 @@ select {
       color-mix(in oklab, var(--sc, var(--a)) 11%, transparent) 0,
       color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 90px,
       transparent 190px),
-    rgba(215,166,63,.075);
+    color-mix(in oklab, var(--paid) 7%, transparent);
 }
 /* SỐ THỨ TỰ: đã bỏ. Danh sách này không phải bảng xếp hạng — con số chỉ
    lặp lại đúng thứ tự vốn đã hiện ra bằng vị trí, mà lại chiếm một cột riêng
@@ -850,7 +866,11 @@ select {
    đổi hẳn sang bộ hình cấu trúc: rỗng / hở / đặc / đứt.
    Lớp `.s-<status>` do JSX đặt; đèn không có lớp đó (chỗ khác dùng `.status`
    mà không có trạng thái cụ thể) giữ nguyên chấm đặc như cũ. */
-.status { display: inline-flex; align-items: center; gap: 6px; color: var(--txt-2); }
+/* Chữ của nhãn trạng thái mang chính màu trạng thái nhưng pha 62% với xám:
+   neon nguyên chất ở cỡ 12,5px là một vệt sáng nhấp nháy khi cuộn, còn pha xám
+   thì mắt vẫn bắt được họ màu mà không bị chói. */
+.status { display: inline-flex; align-items: center; gap: 6px;
+  color: color-mix(in oklab, var(--c, var(--txt-2)) 62%, var(--txt-2)); }
 .status::before {
   content: ''; flex: none; box-sizing: border-box;
   width: 7px; height: 7px; border-radius: 50%;
@@ -3890,8 +3910,9 @@ html[data-section="spin"] .bgfx { display: none; }
      · dải loại bài: Ô VUÔNG 9×9px bo 2px. Loại bài là một NHÃN dán trên hàng
        (`.kind` cũng là một thẻ có góc bo), nên dấu của nó mang đúng góc bo đó.
        Khác hình còn để hai dải không lẫn vào nhau: chúng nằm hai hàng gần nhau
-       và dùng hai bảng màu có vài sắc na ná nhau (`--upnext` #c07dff với
-       `--k-ccl` #ab8fe0, `--done` #4cba88 với `--k-album` #4fb0ad`).
+       và hai bảng màu có vài sắc na ná nhau — nay cố ý tách bằng CHROMA:
+       trạng thái bão hoà cao, thẻ loại hạ bão hoà (`--done` #a3ff2e với
+       `--k-album` #8fe3cf, `--upnext` #d98cff với `--k-ccl` #c9c6ee`).
 
    Màu chữ: khi CHỌN, chữ mang màu CỦA CHÍNH LOẠI ĐÓ — khác dải trạng thái
    (ở đó mục đang chọn dùng chữ trắng). Lý do: một màu trạng thái có thể được
@@ -5097,8 +5118,8 @@ body { overflow-x: hidden; }
   .row:hover {
     background:
       linear-gradient(90deg,
-        color-mix(in oklab, var(--sc, var(--a)) 13%, transparent) 0,
-        color-mix(in oklab, var(--sc, var(--a)) 4%, transparent) 60px,
+        color-mix(in oklab, var(--sc, var(--a)) 9%, transparent) 0,
+        color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 60px,
         transparent 120px),
       var(--hover);
   }
@@ -5108,7 +5129,7 @@ body { overflow-x: hidden; }
         color-mix(in oklab, var(--sc, var(--a)) 11%, transparent) 0,
         color-mix(in oklab, var(--sc, var(--a)) 3%, transparent) 60px,
         transparent 120px),
-      rgba(215,166,63,.075);
+      color-mix(in oklab, var(--paid) 7%, transparent);
   }
   /* Bản hẹp: vách 2px cũng ăn 1px, giữ đệm trái 5px để cột số không nhảy. */
   .row.req > .votebtn.on { padding-left: 5px; }
