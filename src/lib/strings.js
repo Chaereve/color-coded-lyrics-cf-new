@@ -299,7 +299,7 @@ const S = {
   'filter.newest': 'Newest',
   'filter.top': 'Top voted',
   /* ba cách xếp thêm vào cùng menu Sort */
-  'filter.oldest': 'Longest waiting',
+  'filter.oldest': 'Oldest',
   'filter.requests': 'Most requested',
   'filter.az': 'Title A–Z',
   'filter.in_progress': 'In progress',
