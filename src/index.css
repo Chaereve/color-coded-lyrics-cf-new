@@ -751,7 +751,7 @@ select {
 .row.paid { background: rgba(215,166,63,.045); }
 .row.paid:hover { background: rgba(215,166,63,.075); }
 .row .idx { width: 20px; flex: none; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
-.row .body { flex: 1; min-width: 0; }
+.row .body { flex: 1; min-width: 0; align-self: center; }
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
@@ -863,7 +863,7 @@ select {
 
    Vạch không mất thông tin nào sau bốn lần siết đó: vẫn đúng hai mốc, vẫn số
    ở cuối, vẫn cỡ chữ mono có bề rộng chừa sẵn nên mép vạch không nhảy. */
-.prog { display: flex; align-items: center; gap: 8px; margin-top: 7px; max-width: 220px;
+.prog { display: flex; align-items: center; gap: var(--sp-2); margin-top: 4px; max-width: 220px;
   /* MÀU CỦA VẠCH do CSS quyết (không có prop màu): cùng một bài phải có cùng
      một màu vạch ở trang chủ và trong bảng quản trị. */
   --sc: var(--progress); }
@@ -888,13 +888,13 @@ select {
    Một luật màu duy nhất: bản cũ khai `color: var(--txt-2)` ở đây rồi bị luật
    `.prog .prog-num` đè ngay bên dưới — một khai báo chết. */
 .prog-num { min-width: 30px; text-align: right;
-  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+  font-family: var(--mono); font-size: var(--fs-cap); font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: color-mix(in oklab, var(--sc, var(--progress)) 72%, var(--txt-2)); }
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
-.watch { display: inline-block; margin-top: 6px; font-size: 12.5px; color: var(--a-2); text-decoration: none; }
+.watch { display: inline-block; margin-top: 4px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
 
 .votebtn .mine {
