@@ -195,34 +195,11 @@ test('mọi nhãn trạng thái lấy màu qua statusColorOf, không tự tra th
    thấp — nếu ai đó "làm mới" bằng cách trả thẻ loại về màu bão hoà gốc thì hàng
    lại có 9 sắc chói cạnh nhau.
    ========================================================= */
-test('bảng màu: trạng thái bão hoà cao, thẻ thể loại trầm', () => {
+test('bảng màu: sáu sắc gắt, tách hẳn nhau, và "đang làm" mang chính màu nhấn', () => {
   const hexOf = (name) => bare.match(new RegExp(`--${name}:\\s*#([0-9a-f]{6})`, 'i'))?.[1]
   const rgb = (h) => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
-  const sat = (h) => {
-    const [r, g, b] = rgb(h)
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2
-    return mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2 * l - 1))
-  }
-  const statuses = ['pending', 'queued', 'upnext', 'progress', 'done', 'denied']
-  for (const s of statuses) assert.ok(hexOf(s), `thiếu token --${s}`)
-  /* Sáu sắc trạng thái phải khác nhau từng đôi một. */
-  const seen = new Set(statuses.map(s => hexOf(s).toLowerCase()))
-  assert.equal(seen.size, statuses.length, 'hai trạng thái đang dùng chung một mã màu')
-  /* Thẻ thể loại: bão hoà thấp hơn hẳn trạng thái. Ngưỡng 0,62 là mức cao nhất
-     của bốn token `--k-*` (mauve #d8a8cb); trạng thái thấp nhất là #ff1770 với
-     1,0 — chênh nhau đủ để mắt đọc ra hai tầng. */
-  const kinds = ['k-ccl', 'k-album', 'k-loop', 'k-short']
-  for (const k of kinds) {
-    assert.ok(sat(hexOf(k)) < 0.55, `--${k} phải hạ bão hoà: nó là metadata, không phải trạng thái`)
-  }
-  for (const s of ['queued', 'upnext', 'progress', 'denied']) {
-    assert.ok(sat(hexOf(s)) > 0.65, `--${s} phải bão hoà cao: nó mang nghĩa`)
-  }
-  /* CÙNG HỌ MÀU NHẤN: mọi sắc trạng thái (trừ xám chờ duyệt và mint "xong")
-     phải nằm trong cung indigo→tím của `--a` #4d40f0, hoặc là bổ sắc của nó.
-     Đây là vế chủ dự án yêu cầu: đề xuất màu phải đồng bộ với accent trang. */
   const hue = (h) => {
-    const [r, g, b] = rgb(h).map(v => v)
+    const [r, g, b] = rgb(h)
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
     if (!d) return 0
     let x
@@ -231,19 +208,30 @@ test('bảng màu: trạng thái bão hoà cao, thẻ thể loại trầm', () =
     else x = (r - g) / d + 4
     return ((x * 60) % 360 + 360) % 360
   }
-  const accentHue = hue('4d40f0')
-  const near = (h, target, span) => {
-    const d = Math.abs(((h - target + 540) % 360) - 180)
-    return d <= span
+  const sep = (a, b) => Math.abs(((hue(a) - hue(b) + 540) % 360) - 180)
+
+  const statuses = ['pending', 'queued', 'upnext', 'progress', 'done', 'denied']
+  for (const s of statuses) assert.ok(hexOf(s), `thiếu token --${s}`)
+  const seen = new Set(statuses.map(s => hexOf(s).toLowerCase()))
+  assert.equal(seen.size, statuses.length, 'hai trạng thái đang dùng chung một mã màu')
+
+  /* TÁCH HẲN NHAU VỀ HUE. Đây là vế mà bản "hạ bão hoà" đã đánh mất: xanh nhạt
+     và tím nhạt cách nhau 20° thì ở cỡ 7px là một màu. Ngưỡng 25° loại đúng
+     kiểu đó ra. (Pending được miễn: nó là xám, cố ý gần như không có hue.) */
+  const strong = ['queued', 'upnext', 'progress', 'done', 'denied']
+  for (let i = 0; i < strong.length; i++) {
+    for (let j = i + 1; j < strong.length; j++) {
+      const a = hexOf(strong[i]), b = hexOf(strong[j])
+      assert.ok(sep(a, b) >= 25,
+        `--${strong[i]} và --${strong[j]} chỉ cách nhau ${sep(a, b).toFixed(0)}° hue — ở cỡ 7px là một màu`)
+    }
   }
-  for (const s of ['queued', 'upnext']) {
-    assert.ok(near(hue(hexOf(s)), accentHue, 45),
-      `--${s} phải nằm trong họ màu nhấn (±45°), nếu không nó là một thế giới màu khác`)
-  }
-  /* "Đang làm" là BỔ SẮC có chủ đích: đúng một trạng thái được phép nổi khỏi họ. */
-  assert.ok(near(hue(hexOf('progress')), (accentHue + 180) % 360, 45),
-    '--progress phải là bổ sắc của màu nhấn — đó là lý do nó nổi mà không phá họ')
-  /* Nhãn trạng thái: chữ pha 62% với xám để neon ở cỡ 12,5px không nhấp nháy. */
-  assert.match(ruleOf('.status'), /color:\s*color-mix\(in oklab, var\(--c, var\(--txt-2\)\) 62%/,
-    'chữ nhãn trạng thái phải pha xám, không dùng neon nguyên chất ở cỡ chữ nhỏ')
+  /* SỢI DÂY VỚI MÀU NHẤN, và nó là sợi dây NGHĨA: "đang làm" mang chính --a-2.
+     Không bẻ năm sắc còn lại về họ indigo nữa — đó là thứ làm bảng nhạt đi. */
+  const accent2 = bare.match(/--a-2:\s*#([0-9a-f]{6})/i)[1]
+  assert.equal(hexOf('progress').toLowerCase(), accent2.toLowerCase(),
+    'trạng thái "đang làm" phải mang đúng màu nhấn sáng của trang (--a-2)')
+  /* Chữ nhãn: không pha xám quá tay. Nhãn pha 62% xám là lý do hàng trông bợt. */
+  assert.match(ruleOf('.status'), /88%/,
+    'chữ nhãn trạng thái chỉ được pha 12% xám — pha nhiều là mất màu')
 })

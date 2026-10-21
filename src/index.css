@@ -78,47 +78,42 @@
   --a-soft: rgba(77,64,240,.16);
   --a-glow: rgba(77,64,240,.45);
 
-  /* ===== MÀU TRẠNG THÁI — SINH RA TỪ MÀU NHẤN (vòng 10) ================
-     Chủ dự án: "đề xuất màu phải đồng bộ với color accent của trang". Đây là
-     quy tắc đúng, và bảng trước đã vi phạm: một dải tím-xanh-cam-lime-hồng
-     không liên quan gì tới màu nhấn `--a` #4d40f0 / `--a-2` #a9a4ff, nên trên
-     màn hình có hai thế giới màu đánh nhau.
+  /* ===== MÀU TRẠNG THÁI (vòng 11 — bản GẮT) ==============================
+     Hai lần trước đều sai theo hai hướng ngược nhau: bảng neon để mỗi thẻ một
+     phong cách (không liên quan gì tới màu nhấn), rồi bản "đồng bộ màu nhấn"
+     lại hạ bão hoà quá tay — xanh nhạt, tím nhạt, chữ pha 62% xám — nên nó
+     nhìn ra "nhạt và chả liên quan gì" (đúng lời chủ dự án).
 
-     Nay mọi sắc trạng thái đều NẰM TRONG HỌ CỦA MÀU NHẤN (indigo, hue ~245°),
-     hoặc là bổ sắc có chủ đích:
+     Bản này giữ ĐÚNG MỘT sợi dây với màu nhấn, và sợi dây đó là *nghĩa* chứ
+     không phải sắc độ: TRẠNG THÁI "ĐANG LÀM" MANG CHÍNH MÀU NHẤN SÁNG của
+     trang (`--a-2` #a9a4ff). Trong cả app, màu nhấn nghĩa là "đang hoạt động,
+     bấm được"; trạng thái đang chạy cũng đúng nghĩa đó. Không cần bẻ màu của
+     năm trạng thái còn lại về họ indigo nữa.
 
-       xám-indigo  chờ duyệt   — nhánh bão hoà thấp của chính họ nhấn
-       xanh-indigo trong hàng  — lệch 20° về phía xanh, vẫn trong họ
-       tím         đã chốt     — lệch 30° về phía hồng, vẫn trong họ
-       hổ phách    đang làm    — BỔ SẮC của indigo, dùng cho đúng một trạng
-                                 thái "đang chạy" nên nó nổi mà không phá họ
-       mint        xong        — lệch ~160°, đầu cuối của dải, hơi lạnh để
-                                 không thành lime chói
-       hồng        từ chối     — chỉ dùng cho đúng một nghĩa: bị loại
-     Chờ duyệt cố ý KHÔNG có màu: nó là "chưa bắt đầu", cho nó một sắc là nói
-     dối rằng có chuyện gì đang diễn ra. */
-  --pending:  #8b90ab;
-  --queued:   #8fa9ff;
-  --upnext:   #b18cff;
-  --progress: #ff9f43;
-  --done:     #45e0a8;
-  --denied:   #ff6b8a;
-  /* Tem PAID: vàng kim dịu, KHÔNG phải vàng acid. Vàng acid là sắc duy nhất
-     không thuộc họ nhấn mà lại chói nhất màn hình — nó kéo mắt khỏi tên bài.
-     Vàng kim vẫn đọc ra "trả phí" mà vẫn ngồi được cạnh indigo. */
-  --paid:     #f2d95e;
+     Năm sắc còn lại thì để GẮT và TÁCH HẲN nhau về hue — đó là điều kiện để
+     đọc được ở cỡ 7px, và là thứ bản nhạt đã đánh mất:
+       xám xanh  chờ duyệt   #94a3b8  (bão hoà thấp, chủ ý: chưa có gì xảy ra)
+       xanh trời trong hàng   #38bdf8
+       hồng cánh đã chốt      #e879f9
+       tím nhấn  đang làm     #a9a4ff  ← chính --a-2
+       ngọc lục  xong         #34d399
+       hồng đào  từ chối      #fb7185
+     Tem PAID vàng kim #fbbf24: sắc duy nhất không nằm trong dải trạng thái. */
+  --pending:  #94a3b8;
+  --queued:   #38bdf8;
+  --upnext:   #e879f9;
+  --progress: #a9a4ff;
+  --done:     #34d399;
+  --denied:   #fb7185;
+  --paid:     #fbbf24;
 
-  /* ===== THẺ THỂ LOẠI — TRẦM, CÙNG HỌ ==================================
-     Bốn sắc dưới đây là bản HẠ BÃO HOÀ của cùng hệ nhấn: CCL là nhánh tím nhạt
-     của `--a-2`, Album là teal lạnh, Loop là cát ấm, Short là mauve. Chroma
-     thấp hơn hẳn trạng thái — thẻ loại là metadata, đứng cạnh nhãn trạng thái
-     mà không tranh. Đây cũng là cách tránh các cặp trùng màu đã thấy khi dùng
-     bảng CRT gốc (magenta-tag ≈ hồng "từ chối", lime-tag ≈ "xong", cobalt ≈
-     "trong hàng"). */
-  --k-ccl:   #b6b3e6;
-  --k-album: #8fc7c0;
-  --k-loop:  #d8b08f;
-  --k-short: #cf9fbf;
+  /* ===== THẺ THỂ LOẠI — màu ĐẬM, không phải màu nhạt ====================
+     Vẫn là tầng thấp hơn trạng thái, nhưng hạ xuống bằng ĐỘ ĐẬM (màu sâu hơn)
+     chứ không bằng cách pha xám — pha xám là thứ làm cả hàng trông bợt. */
+  --k-ccl:   #8b7cf0;
+  --k-album: #2fa89b;
+  --k-loop:  #c07a3e;
+  --k-short: #c25d94;
 
   /* mặt kính: nền tối + blur phía sau.  Ban to (stats, danh sách, modal,
      sidebar) dùng bản trong suốt này để vệt gradient của nền lọt nhẹ qua,
@@ -871,11 +866,11 @@ select {
    đổi hẳn sang bộ hình cấu trúc: rỗng / hở / đặc / đứt.
    Lớp `.s-<status>` do JSX đặt; đèn không có lớp đó (chỗ khác dùng `.status`
    mà không có trạng thái cụ thể) giữ nguyên chấm đặc như cũ. */
-/* Chữ của nhãn trạng thái mang chính màu trạng thái nhưng pha 62% với xám:
-   neon nguyên chất ở cỡ 12,5px là một vệt sáng nhấp nháy khi cuộn, còn pha xám
-   thì mắt vẫn bắt được họ màu mà không bị chói. */
+/* Chữ của nhãn trạng thái mang chính màu trạng thái, chỉ pha 12% xám để dịu
+   trên nền tối. Bản trước pha 62% — đó là một trong hai lý do cả hàng trông
+   bợt: một nhãn "Completed" màu xanh lá pha 62% xám thì gần như trắng xám. */
 .status { display: inline-flex; align-items: center; gap: 6px;
-  color: color-mix(in oklab, var(--c, var(--txt-2)) 62%, var(--txt-2)); }
+  color: color-mix(in oklab, var(--c, var(--txt-2)) 88%, var(--txt-2)); }
 .status::before {
   content: ''; flex: none; box-sizing: border-box;
   width: 7px; height: 7px; border-radius: 50%;
