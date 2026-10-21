@@ -755,9 +755,9 @@ select {
 /* Tiêu đề một hàng request. `line-height` nằm NGAY ĐÂY chứ không phải một luật
    rời phía dưới: tiêu đề hay xuống hai dòng (tên bài dài), và khi đó nhãn PAID
    đứng cạnh phải có đủ dòng để thở — chữ sát nhau thì nhãn dán vào dòng dưới. */
-.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 1px; line-height: 1.2; }
+.row .title { font-size: var(--fs-title); font-weight: 600; letter-spacing: .1px; margin-bottom: 0; line-height: 1.15; }
 .row .title .artist { color: var(--txt-2); font-weight: 400; }
-.meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); line-height: 1.25; color: var(--txt-3); }
+.meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-meta); line-height: 1.15; color: var(--txt-3); }
 /* Dấu phân cách nhóm thông tin: một VẠCH MẢNH 1×9px, không phải ký tự '·'.
    Một hàng request có 3-4 nhóm thông tin; mỗi nhóm cách nhau bằng dấu chấm giữa
    là đúng mẫu "lạm dụng dấu chấm giữa" của văn bản do máy sinh — vạch mảnh đọc
@@ -863,7 +863,7 @@ select {
 
    Vạch không mất thông tin nào sau bốn lần siết đó: vẫn đúng hai mốc, vẫn số
    ở cuối, vẫn cỡ chữ mono có bề rộng chừa sẵn nên mép vạch không nhảy. */
-.prog { display: flex; align-items: center; gap: var(--sp-2); margin-top: 4px; max-width: 220px;
+.prog { display: flex; align-items: center; gap: var(--sp-2); margin-top: 2px; max-width: 220px;
   /* MÀU CỦA VẠCH do CSS quyết (không có prop màu): cùng một bài phải có cùng
      một màu vạch ở trang chủ và trong bảng quản trị. */
   --sc: var(--progress); }
@@ -894,7 +894,7 @@ select {
 .prog-num span { margin-left: 1px; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .prog-track > i { transition: none } }
 
-.watch { display: inline-block; margin-top: 4px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
+.watch { display: inline-block; margin-top: 2px; font-size: var(--fs-meta); color: var(--a-2); text-decoration: none; }
 .watch:hover { text-decoration: underline; }
 
 .votebtn .mine {
@@ -953,10 +953,10 @@ select {
   background: linear-gradient(90deg, var(--a), var(--a-dim));
   box-shadow: 0 2px 10px -4px var(--a-glow); }
 .grow-head .title { display: block; font-size: var(--fs-lead); font-weight: 700; letter-spacing: .1px;
-  margin-bottom: 1px; line-height: 1.15; }
+  margin-bottom: 0; line-height: 1.1; }
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
 .grow-head .meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
-  font-size: var(--fs-meta); line-height: 1.25; color: var(--txt-3); }
+  font-size: var(--fs-meta); line-height: 1.15; color: var(--txt-3); }
 /* cột tổng vote bên phải — con số mono lớn màu accent */
 .grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
   min-width: 44px; }
@@ -3066,7 +3066,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-item:first-child { border-top: 0; padding-top: 0; }
 .nowbar .now-item h3 { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
-.nowbar .now-item .prog { margin-top: 4px; }
+.nowbar .now-item .prog { margin-top: 2px; }
 .nowbar .now-item.now-group { padding-bottom: 11px; }
 .nowbar .now-item .pill.group { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 16px; min-width: 18px; text-align: center; padding: 0 5px; border-radius: 8px; color: var(--queued); background: color-mix(in srgb, var(--queued) 16%, transparent); }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
