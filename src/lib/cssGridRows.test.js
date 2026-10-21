@@ -101,6 +101,14 @@ test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
     'số suất của mình là một pill nhỏ, không phải tầng chữ thứ ba')
   assert.match(css, /\.row\.req > \.votebtn\.on:hover:not\(:disabled\) \{[^}]*var\(--a\) 11%/,
     'rê chuột trên hàng đã vote đậm nền lên, không xoá mất dấu đã chọn')
+  /* Nhãn VOTE giữ xám khi rê chuột. Luật hover chung đổi mọi `span` sang màu
+     nhấn; trên hàng đã vote điều đó thành tín hiệu thứ tư và làm nhãn sáng hơn
+     cả con số — ảnh chụp chủ dự án gửi lộ đúng chỗ đó. */
+  assert.match(css, /\.row\.req > \.votebtn\.on:hover:not\(:disabled\) span \{[^}]*var\(--txt-3\)/,
+    'nhãn VOTE của hàng đã vote không được đổi sang màu nhấn khi rê chuột')
+  /* Ô cuối danh sách bo đúng góc dưới-phải của khung, không trông nhờ cắt. */
+  assert.match(css, /\.row:last-child > \.votebtn\.on \{[^}]*border-radius:\s*0 0 var\(--r-md\) 0/,
+    'ô phiếu đã vote ở hàng cuối phải bo theo góc khung danh sách')
 
   assert.match(css, /\.row\.req > \.votebtn\.locked \{[^}]*border-style:\s*none/,
     'cột bị khoá tắt viền đứt, chìm bằng màu chữ thay vì bằng nét')

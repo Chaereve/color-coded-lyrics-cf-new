@@ -1013,9 +1013,19 @@ select {
 .row.req > .votebtn.on { border-radius: 0; background: color-mix(in oklab, var(--a) 7%, transparent);
   box-shadow: none; border-left: 2px solid var(--a-2); padding-left: 9px; }
 .row.req > .votebtn.on b { color: var(--a-2); }
+/* Ô CUỐI DANH SÁCH. Khung `.list` đã `overflow: hidden` nên nền 7% tự được cắt
+   theo bo góc của khung — nhưng đó là cắt, không phải bo: ô vẫn mang hình chữ
+   nhật và chỉ trông tròn nhờ khung cha. Bo đúng góc dưới-phải của chính ô để
+   hình của nó và hình của khung là một, kể cả khi sau này có ai gỡ `overflow`. */
+.row:last-child > .votebtn.on { border-radius: 0 0 var(--r-md) 0; }
 /* Rê chuột trên hàng đã vote vẫn phải thấy phản hồi, mà không xoá mất dấu "đã
-   chọn": đậm nền lên một nhịp thay vì đổi sang nền hover xám. */
+   chọn": đậm nền lên một nhịp thay vì đổi sang nền hover xám.
+   Nhãn VOTE thì GIỮ XÁM. Luật hover chung đổi mọi `span` sang màu nhấn, và trên
+   hàng đã vote điều đó cộng thêm tín hiệu thứ tư (nền 11% + vách 2px + số tím +
+   nhãn tím) — ảnh chụp cho thấy nhãn bỗng sáng hơn cả số, đúng thứ tự ngược với
+   lúc không rê chuột. Dấu "đã chọn" đã có vách lo, nhãn không cần nhắc lại. */
 .row.req > .votebtn.on:hover:not(:disabled) { background: color-mix(in oklab, var(--a) 11%, transparent); }
+.row.req > .votebtn.on:hover:not(:disabled) span { color: var(--txt-3); }
 /* Khoá (bài đã vào dây chuyền): cột vẫn đứng đó nhưng chìm hẳn — số xám, con
    trỏ thường. Không dùng `border-style: dashed` của bản cũ vì vách ngăn đứt
    nét đọc ra thành "ô nhập liệu", không phải "không bấm được". */
