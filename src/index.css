@@ -3261,7 +3261,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .calc-rows { width: min(360px, 100%);
   margin: 7px 0 2px; padding: 7px 14px; border: 1px solid color-mix(in srgb, var(--a-2) 20%, var(--line));
   border-radius: 12px; background: color-mix(in srgb, var(--bg-2) 96%, #111 4%); color: var(--txt-2);
-  box-shadow: 0 14px 36px rgb(0 0 0 / 34%), 0 2px 8px rgb(0 0 0 / 18%); }
+  box-shadow: var(--sh-2), 0 2px 8px rgb(0 0 0 / 18%); }
 .calc-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px 0; }
 .calc-row + .calc-row { border-top: 1px solid var(--line); }
 .calc-row dt { margin: 1px 0 0; color: var(--txt-3); font-size: 11px; font-weight: 500; line-height: 1.5; }
@@ -3340,7 +3340,7 @@ html[data-section="spin"] .bgfx { display: none; }
      `--surface-2` o header dinh van nhin thay vi duoc — do la thong nhat cua
      app (modal/toast cung dac hon khoi phang). */
   background: var(--surface);
-  box-shadow: 0 24px 50px -22px rgba(0,0,0,.78), 0 0 0 1px rgba(255,255,255,.02) inset;
+  box-shadow: var(--sh-3), 0 0 0 1px rgba(255,255,255,.02) inset;
   overflow: hidden; animation: ntIn .2s var(--e-out) both;
   /* Bảng mọc RA TỪ NÚT CHUÔNG (gốc ở góc trên-phải), không phình từ giữa: mắt
      nối được cái vừa bấm với cái vừa hiện. Cùng họ với transitions.dev 05/17. */
@@ -5034,7 +5034,7 @@ img, video, iframe { max-width: 100%; }
 .fb-pop {
   position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 224px;
   border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-2);
-  box-shadow: 0 24px 60px -24px #000, 0 0 0 1px rgba(0, 0, 0, .45);
+  box-shadow: var(--sh-2), 0 0 0 1px rgba(0, 0, 0, .45);
   overflow: hidden; animation: fbIn .14s var(--e-out) both;
 }
 .fb-pop.fb-wide { left: 0; right: 0; width: auto; }
@@ -5087,7 +5087,7 @@ img, video, iframe { max-width: 100%; }
 .fb-menu {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; width: 200px; padding: 4px;
   border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-2);
-  box-shadow: 0 18px 44px -20px #000, 0 0 0 1px rgba(0, 0, 0, .45);
+  box-shadow: var(--sh-2), 0 0 0 1px rgba(0, 0, 0, .45);
   animation: fbIn .14s var(--e-out) both;
 }
 .fb-mh { display: flex; align-items: center; height: 24px; padding: 2px 8px 0;
