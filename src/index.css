@@ -3066,7 +3066,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .now-item:first-child { border-top: 0; padding-top: 0; }
 .nowbar .now-item h3 { margin: 0 0 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
-.nowbar .now-item .prog { margin-top: 7px; }
+.nowbar .now-item .prog { margin-top: 4px; }
 .nowbar .now-item.now-group { padding-bottom: 11px; }
 .nowbar .now-item .pill.group { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 16px; min-width: 18px; text-align: center; padding: 0 5px; border-radius: 8px; color: var(--queued); background: color-mix(in srgb, var(--queued) 16%, transparent); }
 .now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
