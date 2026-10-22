@@ -1505,6 +1505,7 @@ function AppInner() {
   }, [rows, votesLog])
   const weeklyHighlights = weekly.highlights
   const weekRecap = weekly.recap
+  const hasWeeklyRecap = weekRecap.windowVotes > 0 || weekRecap.completed.length > 0
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -2095,39 +2096,16 @@ function AppInner() {
             <MediaShowcase featured={featured} videos={latest} state={mediaState}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} onRetry={loadMedia} />
 
-            {(weeklyHighlights.top || weeklyHighlights.newcomer || weekRecap.completed.length > 0) && (
+            {(weeklyHighlights.top || weeklyHighlights.newcomer || hasWeeklyRecap || hallOfFame.length > 0) && (
               <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
-                <div className="now-head">
-                  <h2 className="lbl" id="weekly-title">This week</h2>
-                  <span className="now-split">Community highlights · last 7 days</span>
-                </div>
-                <div className="weekly-grid">
-                  {/* Cả hai thẻ đi qua `boardSearchUrl` (một chỗ dựng link, luôn
-                      kèm `f=newest`) và `spaLink` (đi trong app, không tải lại
-                      trang → không chạy lại màn chờ). Bản cũ tự ghép chuỗi bằng
-                      tay: thẻ "Most voted" giữ `f=top` — mà `top` cố ý loại bài
-                      đã xong/đã vào dây chuyền, nên bấm vào bài nổi nhất tuần
-                      (thường đúng là bài đang làm) ra danh sách RỖNG; thẻ "New this
-                      week" không kèm `f` nên rơi về bộ lọc đã lưu trong
-                      localStorage, cũng rỗng nếu lần trước đang xem Queue. */}
-                  {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
-                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
-                  </a>}
-                  {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
-                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
-                  </a>}
-                </div>
-                {/* Tuần qua nhìn lại (T7): dòng tóm tắt + nút Save card.
-                    Card recap đi cùng đường xuất blob với card hồ sơ
-                    (ShareCardButton + drawRecapCard) — không có bản sao
-                    "cách lưu card" thứ hai trong app. Không có gì đáng kể
-                    trong tuần thì dòng này ẩn — không hiển thị 0/0 vô nghĩa. */}
-                {(weekRecap.windowVotes > 0 || weekRecap.completed.length > 0) && (
-                  <div className="weekly-recap">
-                    <span className="now-split">
-                      {t('recap.summary', { votes: weekRecap.windowVotes, done: weekRecap.completed.length })}
-                    </span>
+                <div className="weekly-head">
+                  <div className="weekly-head-copy">
+                    <h2 className="lbl" id="weekly-title">This week</h2>
+                    <p className="weekly-sub">Community highlights · last 7 days</p>
+                  </div>
+                  {hasWeeklyRecap && (
                     <ShareCardButton
+                      className="weekly-save"
                       draw={drawRecapCard}
                       card={{
                         name: 'week-in-review',
@@ -2140,36 +2118,54 @@ function AppInner() {
                         completed: weekRecap.completed.map(c => ({ title: c.title, artist: c.artist })),
                         footer: t('card.footer'),
                       }} />
+                  )}
+                </div>
+                {(weeklyHighlights.top || weeklyHighlights.newcomer) && (
+                  <div className="weekly-grid">
+                    {/* Cả hai thẻ mở đúng bài trong bảng mà không tải lại trang;
+                        boardSearchUrl giữ mọi trạng thái và ghi rõ cách xếp mới nhất. */}
+                    {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
+                      <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
+                    </a>}
+                    {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
+                      <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
+                    </a>}
                   </div>
                 )}
-              </section>
-            )}
-
-            {hallOfFame.length > 0 && (
-              <section className="nowbar hall" data-reveal aria-labelledby="hall-title">
-                <div className="now-head">
-                  <h2 className="lbl" id="hall-title">Hall of Fame</h2>
-                  <span className="now-split">Completed videos</span>
-                </div>
-                <div className="hall-grid">
-                  {hallOfFame.map(r => {
-                    const reqTx = r.requesters && r.requesters.length > 1
-                      ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
-                      : r.requester
-                    return (
-                      <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
-                        <span className="hall-play" aria-hidden="true">▶</span>
-                        <span>
-                          <b>{r.title}</b>
-                          <small>
-                            {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
-                            {r.count > 1 ? ` (${r.count} requests)` : ''}
-                          </small>
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                {hallOfFame.length > 0 && (
+                  <section className="weekly-completed" aria-labelledby="hall-title">
+                    <div className="weekly-completed-head">
+                      <h3 id="hall-title">Hall of Fame</h3>
+                      <span className="weekly-completed-caption">Completed videos</span>
+                    </div>
+                    <div className="hall-grid">
+                      {hallOfFame.map(r => {
+                        const reqTx = r.requesters && r.requesters.length > 1
+                          ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
+                          : r.requester
+                        return (
+                          <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
+                            <span className="hall-play" aria-hidden="true">▶</span>
+                            <span>
+                              <b>{r.title}</b>
+                              <small>
+                                {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
+                                {r.count > 1 ? ` (${r.count} requests)` : ''}
+                              </small>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
+                {hasWeeklyRecap && (
+                  <div className="weekly-recap">
+                    <span className="now-split">
+                      {t('recap.summary', { votes: weekRecap.windowVotes, done: weekRecap.completed.length })}
+                    </span>
+                  </div>
+                )}
               </section>
             )}
 

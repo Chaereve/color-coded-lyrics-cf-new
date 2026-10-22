@@ -5618,3 +5618,37 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 @media (prefers-reduced-motion: reduce) {
   .shell, .side { transition: none }
 }
+
+/* THIS WEEK + HALL OF FAME: một panel thống nhất.
+   Hai điểm nổi bật giữ nguyên thẻ so sánh; video completed chuyển thành một
+   hàng ngang dưới hairline, còn Save card lên sát tiêu đề và recap nằm ở chân.
+   Như vậy hai khung ngoài không còn tách rời nhau, nhưng vẫn giữ rõ ba tầng. */
+.weekly-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.weekly-head-copy { min-width: 0; }
+.weekly-head .lbl { margin: 0; }
+.weekly-sub { margin: 5px 0 0; color: var(--txt-2); font-size: 13px; line-height: 1.45; }
+.weekly-save { flex: 0 0 auto; }
+.weekly-completed { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.weekly-completed-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.weekly-completed-head h3 { margin: 0; color: var(--txt); font: 600 13.5px/1.4 var(--font); }
+.weekly-completed-caption { color: var(--txt-3); font-size: 11.5px; }
+.weekly-completed .hall-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 0; }
+.weekly-completed .hall-card {
+  min-height: 44px; padding: 8px 10px; border-radius: 9px; box-shadow: none;
+  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+.weekly-completed .hall-card::before { display: none; }
+.weekly-completed .hall-card:hover,
+.weekly-completed .hall-card:focus-visible { box-shadow: none; }
+.weekly-completed .hall-card b,
+.weekly-completed .hall-card small { overflow: visible; text-overflow: clip; white-space: normal; }
+.weekly-completed .hall-card b { font-size: 13.5px; line-height: 1.4; }
+.weekly-completed .hall-card small { font-size: 11.5px; line-height: 1.45; }
+.weekly-recap { justify-content: flex-start; margin-top: 12px; padding-top: 10px; }
+.weekly-recap .now-split { color: var(--txt-2); font-size: 12.5px; }
+@media (max-width: 620px) {
+  .weekly-head { align-items: flex-start; }
+  .weekly-save { min-height: 34px; padding-inline: 10px; font-size: 11.5px; }
+  .weekly-completed { margin-top: 12px; padding-top: 11px; }
+  .weekly-recap { margin-top: 10px; padding-top: 9px; }
+}
