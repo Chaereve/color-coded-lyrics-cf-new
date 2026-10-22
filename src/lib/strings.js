@@ -93,7 +93,8 @@ const S = {
   'vp.legendPaid': ' purchased',
   'vp.legendBonus': ' bonus',
   'vp.legendOut': 'All {n} free votes used today',
-  'vp.paidReq': ' free paid request',
+  'vp.paidReq': ' free paid requests',
+  'vp.paidReqOne': ' free paid request',
   /* nhãn của ô trong BẢNG VOTE (ActionModal) */
   'vp.freePaid': 'Free paid request',
 
