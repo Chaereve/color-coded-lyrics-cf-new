@@ -786,7 +786,7 @@ function AppInner() {
     setKindFilters([])
     setKindFilter('all')
     setFilter('all')
-    setSort(null)
+    setSort('newest')
     setQ(query)
     pushUrl({ s: 'board' }, boardSearchUrl(song?.title, song?.artist))
     scrollToList()
@@ -2400,7 +2400,7 @@ function AppInner() {
                       cái pill mở nó, nên không phải tính toạ độ bằng JS. */}
                   <span className="fb-wrap">
                     <button type="button" className={`fb-fac${stagePick.length ? ' on' : ''}`}
-                      aria-haspopup="dialog" aria-expanded={fbTab === 'status'} aria-controls="fb-status"
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'status'} aria-controls={fbTab === 'status' ? 'fb-status' : undefined}
                       onClick={() => setFbTab(v => v === 'status' ? null : 'status')}>
                       <span className="k">{t('board.status')}</span>
                       {/* Chưa lọc thì pill CHỈ mang tên trường. In thêm "All"
@@ -2441,7 +2441,7 @@ function AppInner() {
 
                   <span className="fb-wrap">
                     <button type="button" className={`fb-fac${kindFilters.length ? ' on' : ''}`}
-                      aria-haspopup="dialog" aria-expanded={fbTab === 'kind'} aria-controls="fb-kind"
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'kind'} aria-controls={fbTab === 'kind' ? 'fb-kind' : undefined}
                       onClick={() => setFbTab(v => v === 'kind' ? null : 'kind')}>
                       <span className="k">{t('board.type')}</span>
                       {kindFilters.length > 0 && <span className="v">{kindText}</span>}
@@ -2480,7 +2480,7 @@ function AppInner() {
 
                   <span className="fb-wrap fb-wrap-end">
                     <button type="button" className={`fb-sort${sortKey ? ' on' : ''}`}
-                      aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls="fb-sort-menu"
+                      aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls={fbTab === 'sort' ? 'fb-sort-menu' : undefined}
                       aria-label={t('board.sortAria')}
                       onClick={() => setFbTab(v => v === 'sort' ? null : 'sort')}>
                       <Icon name="sort" size={13} className="si" />
@@ -2505,7 +2505,7 @@ function AppInner() {
 
                   {/* bố cục gọn: nút mở bảng lọc (Status + Type cùng một chỗ) */}
                   <button type="button" className={`fb-icon${fbActive ? ' on' : ''}`}
-                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls="fb-filters"
+                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls={fbTab === 'filters' ? 'fb-filters' : undefined}
                     aria-label={t('board.filters')}
                     onClick={() => setFbTab(v => v === 'filters' ? null : 'filters')}>
                     <Icon name="filter" size={17} />
