@@ -2282,8 +2282,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 .vp-leg i.s-bonus { background: var(--a-2); }
 .vp-leg b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--txt); }
 .vp-leg.is-out { color: var(--denied); }
-.vp-leg.is-mut { color: var(--txt-3); }
-.vp-req { display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+/* "Resets …" không phải một nguồn vote — nó là chuyện BAO GIỜ. Đứng lẫn giữa
+   hai mục thành phần thì đọc ra như mục thứ ba, nên đẩy về cuối hàng: bên
+   trái là "tôi có gì", bên phải là "khi nào làm mới". Nhạt hơn một bậc. */
+.vp-leg.is-mut { margin-left: auto; color: var(--txt-3); }
+.vp-req { display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--fs-meta); color: var(--txt-2); }
 .vp-req b { font-family: var(--mono); font-weight: 600; color: var(--paid); font-variant-numeric: tabular-nums; }
 
@@ -2501,7 +2504,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .vp-acts { width: 100%; }
   .vp-acts .btn { flex: 1 1 auto; text-align: center; min-height: 40px; }
   .vp-legend { gap: 8px 12px; }
-  .vp-req { margin-left: 0; }
+  /* Hàng chú thích đã hẹp: đẩy "Resets" sang phải chỉ tạo một khoảng trống
+     vô nghĩa ở giữa, nên cho nó xuống hàng tự nhiên. */
+  .vp-leg.is-mut { margin-left: 0; }
   /* Dải mục lục video trên điện thoại: thu về 96px và BỎ tên video — tên
      của video đang mở đã nằm ngay trên sân khấu, còn dải này là để chọn
      nhanh bằng mắt (viền sáng đánh dấu ô đang mở). Chiều cao tiết kiệm được
@@ -4788,7 +4793,9 @@ body { overflow-x: hidden; }
   .vp-acts { width: 100%; }
   .vp-acts .btn { flex: 1 1 auto; min-height: 40px; }
   .vp-legend { gap: 8px 12px; }
-  .vp-req { margin-left: 0; }
+  /* Hàng chú thích đã hẹp: đẩy "Resets" sang phải chỉ tạo một khoảng trống
+     vô nghĩa ở giữa, nên cho nó xuống hàng tự nhiên. */
+  .vp-leg.is-mut { margin-left: 0; }
   .nowbar { padding: 12px; }
   .nowbar .lbl { font-size: 16px; }
   .pick-main { gap: 12px; }

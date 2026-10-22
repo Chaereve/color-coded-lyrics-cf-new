@@ -2285,11 +2285,11 @@ function AppInner() {
                         <span className="vp-leg"><i className="s-bonus" /><b>{bonus}</b>{t('vp.legendBonus')}</span>
                       )}
                     </>}
-                <span className="vp-leg is-mut">{t('vp.reset')}</span>
                 {voteStatus.bonus_requests > 0 && (
                   <span className="vp-req"><b>{voteStatus.bonus_requests}</b>
                     {t(voteStatus.bonus_requests === 1 ? 'vp.paidReqOne' : 'vp.paidReq')}</span>
                 )}
+                <span className="vp-leg is-mut">{t('vp.reset')}</span>
               </div>
             </section>
 
