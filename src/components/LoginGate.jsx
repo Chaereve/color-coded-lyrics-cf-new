@@ -21,6 +21,12 @@ import { useI18n, errMsg } from '../lib/i18n.jsx'
    cái. Nút nào gọi `setAuthPrompt(true)` cũng chết cùng một kiểu.
 
    Nay nó là một modal thật, cùng khuôn với `VideoPreviewModal`:
+
+   HÌNH DÁNG (vòng sau, chủ dự án duyệt): thương hiệu lùi thành hàng nhỏ để tiêu
+   đề nói được VIỆC ("Sign in to vote and request"); ba quyền lợi xuống dải chân
+   thẻ, mỗi cái một dòng kèm icon đơn sắc; nút Google về đúng khai báo của
+   Google (viền trong #747775, chữ #1F1F1F, 14/20, cao 44px); bỏ quầng sáng và
+   hiệu ứng vào lần lượt. Xem chú thích .gate-panel trong index.css.
      · `position: fixed` phủ kín khung nhìn + nền tối mờ (`.gate-scrim`);
      · Esc, bấm ra ngoài, hoặc nút X đều đóng được — người dùng phải có
        đường thoát khỏi thứ mình không gọi ra;
@@ -85,6 +91,16 @@ export default function LoginGate({ onDemoLogin, onClose }) {
   /* Mở ra là con trỏ đứng sẵn ở việc duy nhất của cửa sổ này. */
   useEffect(() => { goRef.current?.focus?.() }, [])
 
+  /* Làm mờ nội dung trang phía sau. Không dựa vào `backdrop-filter` của lớp
+     phủ: máy nào bỏ thuộc tính đó (hệ điều hành bật giảm trong suốt, tắt tăng
+     tốc phần cứng) thì nền vẫn sắc và hộp thoại chìm nghỉm. Gắn class lên
+     <body>, CSS lo phần còn lại — xem mục "NỀN MỜ PHÍA SAU HỘP ĐĂNG NHẬP"
+     ở cuối index.css. */
+  useEffect(() => {
+    document.body.classList.add('gate-open')
+    return () => document.body.classList.remove('gate-open')
+  }, [])
+
   const needCap = !!TURNSTILE_SITE_KEY && capReady
 
   const go = async () => {
@@ -104,29 +120,48 @@ export default function LoginGate({ onDemoLogin, onClose }) {
 
   return (
     <div className="gate-scrim" role="presentation" onMouseDown={close}>
-      <div className="gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title" ref={panelRef}>
+      <div className="gate-panel" role="dialog" aria-modal="true" aria-labelledby="gate-title" ref={panelRef}>
         {onClose && (
           <button type="button" className="gate-x" onClick={onClose} aria-label={t('gate.close')} title={t('gate.close')}>
             <Icon name="close" size={15} />
           </button>
         )}
-        <span className="applogo lg-gate"><img src="/logo-192.png" alt="chaereve" width="62" height="62" /></span>
-        <h1 id="gate-title">Chaereve</h1>
-        <p>{t('gate.sub')}</p>
+        <div className="gate-body">
+          {/* Thương hiệu là một HÀNG NHỎ, không phải tiêu đề. Tiêu đề phải gọi
+              tên việc người ta đang làm — đó là câu duy nhất họ đọc. */}
+          <div className="gate-brand">
+            <img src="/logo-192.png" alt="" width="20" height="20" />
+            <span>{t('gate.brand')}</span>
+          </div>
+          <h1 id="gate-title">{t('gate.title')}</h1>
+          <p className="gate-sub">{t('gate.sub')}</p>
 
-        {TURNSTILE_SITE_KEY && <div ref={capBox} className="capwrap" />}
-        <button ref={goRef} type="button" className="btn-google" onClick={go} disabled={busy || (needCap && !capToken)}>
-          <GoogleIcon />
-          {busy ? t('gate.redirect') : t('gate.google')}
-        </button>
+          {TURNSTILE_SITE_KEY && <div ref={capBox} className="capwrap" />}
+          <button ref={goRef} type="button" className="btn-google" onClick={go} disabled={busy || (needCap && !capToken)}>
+            <GoogleIcon />
+            {busy ? t('gate.redirect') : t('gate.google')}
+          </button>
 
-        {err && <div className="msg err">{err}</div>}
-
-        <div className="gate-perks">
-          <span className="perk">{t('gate.perk1', { n: FREE_VOTES_PER_DAY })}</span>
-          <span className="perk">{t('gate.perk2', { n: MAX_REQUESTS_PER_HOUR })}</span>
-          <span className="perk">{t('gate.perk3')}</span>
+          {err && <div className="msg err">{err}</div>}
         </div>
+
+        {/* Dải chân thẻ: mỗi quyền lợi một DÒNG, một icon. Số đứng giữa câu chứ
+            không mở đầu dòng — hai dòng cùng mở bằng "3" đọc ra như cà lăm.
+            Icon là trang trí: câu chữ bên cạnh vẫn nói đủ nghĩa. */}
+        <ul className="gate-facts">
+          <li>
+            <Icon name="thumb" size={15} />
+            <span>{t('gate.factVoteA')} <b>{FREE_VOTES_PER_DAY}</b> {t('gate.factVoteB')}</span>
+          </li>
+          <li>
+            <Icon name="compose" size={15} />
+            <span>{t('gate.factReqA')} <b>{MAX_REQUESTS_PER_HOUR}</b> {t('gate.factReqB')}</span>
+          </li>
+          <li>
+            <Icon name="crown" size={15} />
+            <span>{t('gate.factPaid')}</span>
+          </li>
+        </ul>
       </div>
 
       <footer role="contentinfo" className="gate-credit">

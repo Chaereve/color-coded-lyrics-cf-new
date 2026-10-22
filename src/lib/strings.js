@@ -1003,12 +1003,21 @@ const S = {
   'pay.qrFail2': 'Use the details on the left.',
 
   /* man hinh dang nhap */
-  'gate.sub': 'Sign in with Google to request and vote.',
+  /* Thẻ đăng nhập. `gate.brand` là tên thương hiệu ở hàng nhỏ; `gate.title` là
+     tiêu đề của hộp thoại và phải gọi tên VIỆC, không phải tên sản phẩm. */
+  'gate.brand': 'Chaereve',
+  'gate.title': 'Sign in to vote and request',
+  'gate.sub': 'Your votes and requests stay with your account.',
   'gate.redirect': 'Redirecting…',
   'gate.google': 'Continue with Google',
-  'gate.perk1': '{n} free votes per day',
-  'gate.perk2': '{n} requests per hour',
-  'gate.perk3': 'Paid requests start first',
+  /* Ba quyền lợi ở dải chân thẻ. Con số đứng GIỮA câu (App.jsx dựng <b>), nên
+     mỗi câu tách làm hai mảnh quanh nó: hai dòng cùng mở đầu bằng "3" đọc ra
+     như cà lăm, và một chữ số trơ không có gì bên cạnh thành thứ to nhất dải. */
+  'gate.factVoteA': 'Vote',
+  'gate.factVoteB': 'times a day',
+  'gate.factReqA': 'Request',
+  'gate.factReqB': 'times an hour',
+  'gate.factPaid': 'Paid requests go first',
   /* Nút Đăng nhập ở đầu trang, cạnh chuông thông báo. Chữ ngắn vì nó đứng
      trong hàng tiêu đề — chỗ đắt nhất của trang. */
   'gate.signIn': 'Sign in',

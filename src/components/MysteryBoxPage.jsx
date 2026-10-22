@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import MysteryBox from './MysteryBox'
 import Icon from './Icon'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
@@ -222,7 +223,7 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
         </>
       )}
 
-      {oddsMounted && (
+      {oddsMounted && createPortal(
         <div className={`overlay${oddsOut}`}
           onMouseDown={e => { if (e.target === e.currentTarget) setOddsOpen(false) }}>
           <div ref={oddsRef} id="mystery-odds-dialog"
@@ -259,10 +260,11 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
               </ul>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {historyMounted && (
+      {historyMounted && createPortal(
         <div className={`overlay${historyOut}`}
           onMouseDown={e => { if (e.target === e.currentTarget) setHistoryOpen(false) }}>
           <div ref={historyRef} id="mystery-history-dialog"
@@ -274,7 +276,8 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
               onShift={delta => setViewMonth(shiftMonth(month, delta))}
               onClose={() => setHistoryOpen(false)} />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   )

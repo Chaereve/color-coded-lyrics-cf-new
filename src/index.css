@@ -346,58 +346,121 @@ button { font-family: inherit; }
 .gate-scrim {
   position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
   padding: 24px; overflow: auto;
-  background: rgba(6,7,9,.66);
-  backdrop-filter: blur(7px) saturate(120%); -webkit-backdrop-filter: blur(7px) saturate(120%);
+  background: rgba(6,7,9,.62);
   animation: fadeIn .18s var(--e-soft) both;
 }
 .gate-credit { position: fixed; bottom: 22px; left: 16px; right: 16px; text-align: center;
-  color: var(--txt-3); font-size: 11.5px; animation: rise .5s var(--e-out) .46s both; }
+  color: var(--txt-3); font-size: 11.5px; animation: fadeIn .4s var(--e-soft) .2s both; }
 
-.gate-card {
-  width: 100%; max-width: 370px; text-align: center; position: relative;
-  background: var(--float);
-  backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
-  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 36px 30px;
+/* THẺ ĐĂNG NHẬP — một hộp, hai phần: việc cần làm ở trên, quyền lợi ở dải chân.
+   ---------------------------------------------------------
+   Bản trước: logo 52px + tên thương hiệu làm <h1> + mô tả + nút + BA CHIP kẻ
+   viền 11px, cộng một quầng sáng sau thẻ và năm con vào lần lượt. Năm thứ tranh
+   nhau trên 370px, và cái <h1> lại nói tên sản phẩm thay vì nói việc người ta
+   đang làm.
+
+   Nay:
+   · thương hiệu lùi thành một hàng nhỏ (logo 20px + chữ giãn), nhường chỗ cho
+     <h1> gọi tên VIỆC: "Sign in to vote and request";
+   · quyền lợi xuống DẢI CHÂN — nền lõm nhẹ + một đường kẻ, tràn hết bề ngang
+     trong cùng bán kính bo, nên nó là một phần của thẻ chứ không phải hộp thứ
+     hai dán thêm;
+   · ba mục xếp THÀNH DÒNG, mỗi dòng một icon. Ba cột ở bề ngang này chỉ còn
+     ~108px mỗi cột, chữ "Vote 3 times a day" sẽ ngắt dòng và con số rơi xuống
+     cạnh icon — đúng lỗi đã thấy;
+   · icon dùng màu CHỮ (--txt-3), không tô ba màu bão hoà: ba icon xanh/lam/vàng
+     ở cỡ 14px đọc ra ba cái nhãn dán, không phải một dòng thông tin;
+   · bỏ quầng sáng và hiệu ứng vào lần lượt. Cửa sổ này có một việc. */
+.gate-panel {
+  position: relative; width: 100%; max-width: 412px; overflow: hidden;
+  background: linear-gradient(180deg, var(--surface-2), var(--float));
+  border: 1px solid var(--line-2); border-radius: var(--r-lg);
   box-shadow: var(--sh-3), var(--ring);
+  animation: popIn .34s var(--e-out) both;
 }
-/* Nút thoát nằm ở góc khối: cửa sổ này có thể do một cú bấm tình cờ gọi ra,
-   nên phải đóng được bằng một cú bấm khác (Esc và bấm ra ngoài cũng vậy). */
+/* chữ ký của app: vệt sáng 1px mờ dần hai đầu ở mép trên (như .votepanel) */
+.gate-panel::before {
+  content: ''; position: absolute; left: 16%; right: 16%; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--a-2), transparent);
+  opacity: .5; pointer-events: none;
+}
+.gate-body { padding: 22px 24px 18px; }
+
+/* Nút thoát: đường thoát phụ, nên nó là một icon trơn — không viền, không nền.
+   Cửa sổ này có thể do một cú bấm tình cờ gọi ra, nên phải đóng được bằng một
+   cú bấm khác (Esc và bấm ra ngoài cũng vậy). */
 .gate-x {
-  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+  position: absolute; top: 13px; right: 13px; width: 28px; height: 28px; z-index: 2;
   display: grid; place-items: center; padding: 0; cursor: pointer;
-  border: 1px solid var(--line-2); border-radius: var(--radius);
-  background: var(--surface-2); color: var(--txt-2);
-  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+  border: 0; border-radius: var(--r-sm); background: none; color: var(--txt-3);
+  transition: background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
 }
-.gate-x:hover { color: var(--txt); border-color: #3c4550; background: var(--surface-3); }
+.gate-x:hover { color: var(--txt); background: rgba(255,255,255,.055); }
 .gate-x:active { transform: scale(.94); }
 .gate-x:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-.gate-card h1 { font-family: var(--display); font-weight: 700; font-size: 18px; margin: 0 0 8px; letter-spacing: .2px; }
-.gate-card p { color: var(--txt-2); font-size: 13.5px; margin: 0 0 24px; line-height: 1.6; }
-.btn-google {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 9px;
-  padding: 10px; border-radius: var(--radius); cursor: pointer;
-  background: #fff; color: #24292f; border: 0; font-size: 13.5px; font-weight: 600;
-  transition: background .15s;
+
+.gate-brand { display: flex; align-items: center; gap: 9px; margin: 0 0 20px; padding-right: 34px; }
+.gate-brand img { width: 20px; height: 20px; border-radius: 5px; display: block; }
+.gate-brand span {
+  font-size: 12px; font-weight: 500; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--txt-2);
 }
-.btn-google:hover { background: #e9ebee; }
-.btn-google:disabled { opacity: .55; cursor: not-allowed; }
-/* khung Turnstile: can giua, co chieu cao san de card khong giat khi widget ve;
+
+.gate-panel h1 {
+  font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.3;
+  letter-spacing: -.018em; margin: 0; text-wrap: balance;
+}
+.gate-sub {
+  color: var(--txt-2); font-size: 13px; line-height: 1.6; margin: 8px 0 0; max-width: 34ch;
+  text-wrap: pretty;
+}
+
+/* Nút Google theo đúng khai báo của Google: nền #fff, viền trong #747775 (1px),
+   chữ #1F1F1F, cỡ 14/20, chữ Medium. Cao 44px — Google vẽ 40, nhưng 44 là cỡ
+   chạm tối thiểu và Google cho phép phóng to miễn logo không bị kéo giãn.
+   Bản trước: nền trắng KHÔNG viền, chữ #24292f (màu GitHub), 13.5px. */
+.btn-google {
+  width: 100%; height: 44px; margin-top: 20px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 12px; cursor: pointer; border: 0; border-radius: var(--radius);
+  background: #fff; color: #1f1f1f; box-shadow: inset 0 0 0 1px #747775;
+  /* longhand chứ không shorthand `font:` — shorthand chứa var() bị một số công
+     cụ (kể cả bộ kiểm thử jsdom) bỏ nguyên khai báo, và nút sẽ rơi về 16px/400 */
+  font-family: var(--font); font-size: 14px; line-height: 20px; font-weight: 500;
+  letter-spacing: .2px;
+  transition: background var(--t-1) var(--e-soft);
+}
+.btn-google:hover { background: #f4f5f6; }
+.btn-google:disabled { opacity: .6; cursor: not-allowed; }
+.btn-google:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+
+/* khung Turnstile: can giua, co chieu cao san de the khong giat khi widget ve;
    script bi chan thi div trong tu an */
 .capwrap { display: flex; justify-content: center; margin: 14px 0 2px; min-height: 65px; }
 .capwrap:empty { display: none; }
-.gate-perks { display: flex; gap: 6px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
-.perk { font-size: 11px; padding: 3px 8px; border-radius: var(--r-sm); border: 1px solid var(--line-2); color: var(--txt-2); }
 
-/* thẻ đăng nhập: logo → tiêu đề → mô tả → nút → perks vào lần lượt,
-   mỗi nhịp cách nhau một khoảng đủ thấy chứ không dồn cục */
-.gate-card > * { animation: rise .5s var(--e-out) both; }
-.gate-card > *:nth-child(1) { animation-delay: .04s; }
-.gate-card > *:nth-child(2) { animation-delay: .12s; }
-.gate-card > *:nth-child(3) { animation-delay: .2s; }
-.gate-card > *:nth-child(4) { animation-delay: .28s; }
-.gate-card > *:nth-child(5) { animation-delay: .36s; }
-.gate-card { animation: popIn .4s var(--e-out) both; }
+/* DẢI CHÂN — quyền lợi. Ba dòng, không cột: xem chú thích ở .gate-panel. */
+.gate-facts {
+  list-style: none; margin: 0; padding: 13px 24px 15px;
+  display: flex; flex-direction: column; gap: 9px;
+  border-top: 1px solid var(--line); background: rgba(255,255,255,.018);
+}
+.gate-facts li {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; line-height: 1.35; color: var(--txt-2);
+}
+.gate-facts li svg { flex: none; color: var(--txt-3); }
+/* con số dùng mono để nó là GIÁ TRỊ, không phải một chữ đậm to hơn câu */
+.gate-facts b {
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  color: var(--txt); font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 420px) {
+  .gate-body { padding: 20px 20px 16px; }
+  .gate-facts { padding: 12px 20px 14px; }
+  .gate-panel h1 { font-size: 18px; }
+}
 
 /* HỆ NÚT — bớt "thô": đệm rộng hơn cho chữ thở, bo --r-md đồng bộ khối,
    chữ 600 + thư chữ nhẹ cho chắc; một lớp sáng 1px trên mép (--ring) và bóng
@@ -1836,12 +1899,15 @@ img { max-width: 100%; }
 .modal { animation: popIn .3s var(--e-out) both; position: relative; }
 .modal::before { content: ''; position: absolute; left: 14%; right: 14%; top: 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--a-2), transparent); opacity: .7 }
+/* Nền của lớp phủ: chỉ còn màu tối. Việc LÀM MỜ nội dung phía sau đã do
+   `.shell`/`.side` đảm nhiệm (xem mục "NỀN MỜ PHÍA SAU" ở cuối tệp) — để
+   thêm `backdrop-filter` ở đây nữa là mờ hai lớp chồng lên nhau, nhìn bệt. */
 @supports (backdrop-filter: blur(4px)) {
-  .overlay { background: rgba(6,7,9,.6); backdrop-filter: blur(7px) saturate(120%); -webkit-backdrop-filter: blur(7px) saturate(120%);
-    transition: backdrop-filter .3s var(--e-soft), background-color .3s var(--e-soft) }
-  .overlay.out { backdrop-filter: blur(0px); background-color: rgba(6,7,9,0) }
+  .overlay { background: rgba(6,7,9,.6);
+    transition: background-color .3s var(--e-soft) }
+  .overlay.out { background-color: rgba(6,7,9,0) }
   @starting-style {
-    .overlay { backdrop-filter: blur(0px) saturate(100%); background: rgba(6,7,9,0) }
+    .overlay { background: rgba(6,7,9,0) }
   }
 }
 /* đóng: thu nhẹ về giữa + mờ dần (lib/useModalExit.js giữ DOM đủ lâu);
@@ -3080,7 +3146,7 @@ html[data-section="spin"] .bgfx { display: none; }
   .toast-bar, .lb-underline, .lb-pod-bar > i { animation: none }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .stats, .list, .nowbar, .votepanel, .lb, .modal, .side, .gate-card, .toast {
+  .stats, .list, .nowbar, .votepanel, .lb, .modal, .side, .gate-panel, .toast {
     backdrop-filter: none; -webkit-backdrop-filter: none;
     background: var(--bg-2) }
   .bgfx { display: none }
@@ -3575,8 +3641,8 @@ html[data-section="spin"] .bgfx { display: none; }
    .votepanel::before: một vệt sáng 1px mờ dần hai đầu, thay cho viền phẳng
    lì. Trước đây chỉ modal và votepanel có, nên sang Leaderboard / Daily
    Spin / Login thì mép trên "chết". */
-.stats, .lb, .daily-spin, .gate-card { position: relative; }
-.stats::before, .lb::before, .daily-spin::before, .gate-card::before {
+.stats, .lb, .daily-spin, .gate-panel { position: relative; }
+.stats::before, .lb::before, .daily-spin::before {
   content: ''; position: absolute; left: 14%; right: 14%; top: 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--a-2), transparent);
   opacity: .55; pointer-events: none;
@@ -3621,14 +3687,6 @@ html[data-section="spin"] .bgfx { display: none; }
 /* lỗi nạp: viền đỏ nhẹ để nó là MỘT việc cần xử lý, không phải một danh sách
    trống vô thưởng vô phạt */
 .load-err { border: 1px solid color-mix(in srgb, var(--denied) 42%, var(--line)); }
-
-/* 3) Login — ấn tượng đầu tiên: quầng nhấn rất loãng tỏa từ mép trên xuống,
-   nằm trong khối kính (z-index âm để dưới nội dung, trên nền khối). */
-.gate-card::after {
-  content: ''; position: absolute; left: -10%; right: -10%; top: 0; height: 55%;
-  background: radial-gradient(60% 80% at 50% 0%, var(--a-glow), transparent 70%);
-  opacity: .28; pointer-events: none; z-index: -1;
-}
 
 /* 4) Leaderboard — bục #1: viền + bóng vàng mềm quanh avatar để mắt neo đúng
    người dẫn đầu thay vì phải đọc số huy hiệu. */
@@ -4315,7 +4373,7 @@ html[data-section="spin"] .bgfx { display: none; }
    hoà vào nền đen. Đổi lại, giao diện YouTube không còn bị phủ — xem mục Vòng 28
    trong HUONG-DAN.md để biết đánh đổi. */
 .video-preview-scrim { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center;
-  padding: 34px 22px; background: rgba(3, 4, 7, .95); backdrop-filter: blur(6px);
+  padding: 34px 22px; background: rgba(3, 4, 7, .9);
   animation: vpFade .22s var(--e-soft) both; }
 @keyframes vpFade { from { opacity: 0 } to { opacity: 1 } }
 .video-preview-stage { display: flex; flex-direction: column; gap: 12px; width: min(960px, 100%);
@@ -4723,7 +4781,7 @@ body {
 
 .lb-rewards-scrim {
   position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
-  padding: 16px; background: rgba(4,5,9,.68); backdrop-filter: blur(6px);
+  padding: 16px; background: rgba(4,5,9,.68);
   animation: fadeIn .18s var(--e-soft) both;
 }
 .lb-rewards-modal {
@@ -5215,4 +5273,52 @@ img, video, iframe { max-width: 100%; }
   .fb-opt { height: 44px; }
   .fb-apply { height: 44px; }
   .fb-chip { height: 32px; }
+}
+
+/* =========================================================
+   NỀN MỜ PHÍA SAU HỘP ĐĂNG NHẬP
+   ---------------------------------------------------------
+   LỖI CHỦ DỰ ÁN BÁO (vòng này): "lúc hộp thoại login hiện lên thì nền đằng
+   sau mờ đi". Bản trước chỉ có `backdrop-filter` trên `.gate-scrim` — mà
+   thuộc tính đó KHÔNG phải lúc nào cũng vẽ: Chrome tự bỏ nó khi hệ điều
+   hành bật "giảm trong suốt", khi tắt tăng tốc phần cứng, hoặc khi lớp phủ
+   vừa mới được dựng trong cùng một khung hình. Kết quả là nền vẫn sắc nét,
+   hộp thoại như dán lên trang chứ không nổi lên trên.
+
+   Cách chắc chắn hơn: làm mờ CHÍNH nội dung trang. LoginGate gắn class
+   `gate-open` lên <body> khi mở và gỡ khi đóng (xem LoginGate.jsx).
+   Chỉ hai khối gốc của trang — `.shell` (nội dung) và `.side` (thanh bên) —
+   vì hộp đăng nhập và dòng bản quyền là ANH EM của chúng trong `#root`,
+   không nằm trong, nên không bị mờ theo.
+
+   Chú ý: `filter` trên `.shell` biến nó thành khối chứa cho mọi
+   `position: fixed` con (nút lên đầu trang, toast) — chấp nhận được, vì
+   trong lúc hộp đăng nhập mở thì những thứ đó nằm sau lớp phủ và bị khoá.
+   ========================================================= */
+.shell, .side {
+  transition: filter .24s var(--e-soft),
+              padding-left var(--t-side) var(--e-out);
+}
+
+/* MỌI LỚP PHỦ của app đều làm mờ nội dung phía sau — không chỉ hộp đăng nhập.
+   Viết bằng `:has()` trên <body> nên không phải sửa từng hộp: hộp nào còn
+   trong DOM là trang mờ, hộp nào gỡ khỏi DOM là trang nét lại. Hộp thêm sau
+   này chỉ cần dùng một trong các lớp phủ có sẵn là tự động có hiệu ứng.
+   Danh sách lớp phủ: `.gate-scrim` (đăng nhập), `.overlay` (mọi hộp thoại
+   dùng khuôn chung: yêu cầu, vote, xác nhận, hộp quà, chỉ số thành tích),
+   `.video-preview-scrim`, `.lb-rewards-scrim`.
+   `body.gate-open` giữ lại làm bậc thang dự phòng cho trình duyệt chưa có
+   `:has()` (xem LoginGate.jsx).
+   Ngăn kéo điều hướng trên điện thoại chỉ mờ phần nội dung: chính `.side`
+   đang là ngăn kéo nên phải giữ nét. */
+body:has(.gate-scrim, .overlay, .video-preview-scrim, .lb-rewards-scrim) .shell,
+body:has(.gate-scrim, .overlay, .video-preview-scrim, .lb-rewards-scrim) .side,
+body.gate-open .shell,
+body.gate-open .side { filter: blur(6px) saturate(.92); }
+
+body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
+
+/* Máy yếu / người dùng xin bớt chuyển động: đổi tức thì, không trượt. */
+@media (prefers-reduced-motion: reduce) {
+  .shell, .side { transition: none }
 }

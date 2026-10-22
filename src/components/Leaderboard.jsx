@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { useCountUp } from '../lib/motion'
@@ -131,7 +132,7 @@ function RewardsModal({ open, onClose }) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="lb-rewards-scrim" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
       <section ref={dialogRef} className="lb-rewards-modal" role="dialog" aria-modal="true" aria-labelledby="lb-rewards-title" tabIndex={-1}>
         <header className="lb-rewards-head">
@@ -167,7 +168,8 @@ function RewardsModal({ open, onClose }) {
           <small>{t('rank.rewards.note')}</small>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

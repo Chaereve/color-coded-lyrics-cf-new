@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon'
 import { ACHIEVEMENTS, evaluateAchievements } from '../lib/achievements.js'
 import { useI18n } from '../lib/i18n.jsx'
@@ -51,7 +52,7 @@ export default function AchievementIndex({ metrics = {} }) {
         ))}
       </div>
 
-      {showModal && (
+      {showModal && createPortal(
         <div className="overlay achievement-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal ach-modal" ref={achRef} role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
             <div className="modal-head">
@@ -84,7 +85,8 @@ export default function AchievementIndex({ metrics = {} }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   )
