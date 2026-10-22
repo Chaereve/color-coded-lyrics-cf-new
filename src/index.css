@@ -2239,8 +2239,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
    Hàng trên: tổng + nút. Hàng dưới: bốn ô cùng cỡ (free / purchased /
    vote bonus / free paid request) — không còn ô cao thấp lệch vì note. */
 .votepanel {
-  position: relative;
-  padding: 14px 16px 13px; margin: 4px 0 22px; overflow: hidden;
+  position: relative; display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px; margin: 4px 0 22px; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel);
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
@@ -2248,52 +2248,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 }
 .votepanel::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px;
   background: linear-gradient(90deg, transparent, var(--a-2), transparent); opacity: .55; }
-.vp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.vp-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .vp-main { min-width: 0; }
-.vp-label { font-size: var(--fs-cap); color: var(--txt-3); margin-bottom: 5px; }
-.vp-big { display: flex; align-items: baseline; gap: 7px; }
-.vp-big b { font-family: var(--mono); font-size: 25px; font-weight: 600; color: var(--txt);
-  line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.vp-big span { font-size: var(--fs-meta); color: var(--txt-2); }
-
-/* ---- Dải thành phần ---------------------------------------------------
-   Thay cho bốn ô kẻ viền. Mỗi nguồn vote là MỘT đoạn, độ dài đúng bằng số
-   phiếu của nguồn đó (flex-grow), nên đọc được tỉ lệ mà không cần thêm một
-   con số nào. Ba màu là ba màu đã có nghĩa trong app: xanh = phiếu ngày,
-   vàng = phiếu mua, tím nhạt = phiếu thưởng.
-   Hết phiếu thì dải thành một rãnh gạch đứt: chỗ trống phải đọc ra là TRỐNG,
-   không phải một thanh đầy màu. */
-.vp-meter { display: flex; gap: 3px; height: 5px; margin: 13px 0 0; }
-.vp-meter > i { display: block; min-width: 3px; border-radius: var(--r-pill); }
-.vp-meter .s-free { background: var(--done); }
-.vp-meter .s-paid { background: var(--paid); }
-.vp-meter .s-bonus { background: var(--a-2); }
-.vp-meter.is-out > i { flex: 1;
-  background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px); }
-
-/* ---- Dòng chú thích: chỉ liệt kê nguồn đang CÓ (số 0 không cần chỗ) ---- */
-.vp-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  margin-top: 9px; min-height: 18px; }
-.vp-leg { display: inline-flex; align-items: center; gap: 6px;
-  font-size: var(--fs-meta); color: var(--txt-2); }
-.vp-leg i { flex: none; width: 6px; height: 6px; border-radius: 2px; }
-.vp-leg i.s-free { background: var(--done); }
-.vp-leg i.s-paid { background: var(--paid); }
-.vp-leg i.s-bonus { background: var(--a-2); }
-.vp-leg b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--txt); }
-.vp-leg.is-out { color: var(--denied); }
-.vp-leg.is-mut { color: var(--txt-3); }
-.vp-req { display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
-  font-size: var(--fs-meta); color: var(--txt-2); }
-.vp-req b { font-family: var(--mono); font-weight: 600; color: var(--paid); font-variant-numeric: tabular-nums; }
-
-.vp-acts { display: flex; gap: 7px; flex-wrap: wrap; }
-
-/* ---- Bảng số liệu của BẢNG VOTE (ActionModal) ---------------------------
-   Bốn ô kẻ viền vẫn còn đúng chỗ ở đây: trong một hộp thoại, người dùng
-   đang CÂN NHẮC tiêu phiếu nên cần thấy từng nguồn thành một ô riêng, có
-   nhãn riêng. Ở trang chủ thì không — đó là lý do khối .votepanel phía
-   trên đã bỏ bốn ô này mà chỉ giữ dải thành phần. */
+.vp-label { font-size: 12px; color: var(--txt-3); margin-bottom: 3px; }
+.vp-big { display: flex; align-items: baseline; gap: 6px; }
+.vp-big b { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--txt); line-height: 1.1;
+  font-variant-numeric: tabular-nums; }
+.vp-big span { font-size: 12px; color: var(--txt-3); }
 .vp-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .vp-cell {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0;
@@ -2309,11 +2270,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 .vp-cell.is-empty .vp-v { color: var(--denied); }
 .vp-cell.is-paid .vp-v { color: var(--paid); }
 .vp-cell.is-bonus .vp-v { color: var(--a-2); }
-.vp-acts .btn { padding: 7px 13px; font-size: var(--fs-meta); }
-/* Hết phiếu: "Buy votes" thành nút chính, tô đặc — lúc đó nó mới là việc
-   người dùng làm được. Chữ tối trên nền vàng để đủ tương phản (11,6:1). */
-.btn-gold.on { background: var(--paid); border-color: var(--paid); color: #1a1408; }
-.btn-gold.on:hover:not(:disabled) { background: color-mix(in oklab, var(--paid) 86%, #fff); border-color: var(--paid); }
+.vp-acts { display: flex; gap: 7px; flex-wrap: wrap; }
 
 /* ================= "PICK" — video nổi bật + video mới ================= */
 /* Sân khấu giữa trang + hai nút ‹ › xoay video; bấm sân khấu là sang
@@ -2495,13 +2452,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .stat span { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     display: block; }
   .mainhead-t { font-size: 18px; line-height: 1.25; text-wrap: balance; }
-  .votepanel { padding: 12px; }
-  /* Hàng nút xuống dưới con số và chia đều bề ngang: ba nút nhãn ngắn mà xếp
-     ngang với khối số ở màn hẹp thì nút cuối bị đẩy xuống một mình. */
+  .votepanel { gap: 12px; }
+  .vp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vp-acts { width: 100%; }
-  .vp-acts .btn { flex: 1 1 auto; text-align: center; min-height: 40px; }
-  .vp-legend { gap: 8px 12px; }
-  .vp-req { margin-left: 0; }
+  .vp-acts .btn { flex: 1; text-align: center; }
   /* Dải mục lục video trên điện thoại: thu về 96px và BỎ tên video — tên
      của video đang mở đã nằm ngay trên sân khấu, còn dải này là để chọn
      nhanh bằng mắt (viền sáng đánh dấu ô đang mở). Chiều cao tiết kiệm được
@@ -4784,11 +4738,10 @@ body { overflow-x: hidden; }
   .stats { gap: 1px; margin-bottom: 16px; }
   .stat { min-height: 56px; padding: 9px 10px; }
   .stat b { font-size: 15px; }
-  .votepanel { padding: 12px; }
+  .votepanel { gap: 12px; padding: 12px; }
+  .vp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vp-acts { width: 100%; }
   .vp-acts .btn { flex: 1 1 auto; min-height: 40px; }
-  .vp-legend { gap: 8px 12px; }
-  .vp-req { margin-left: 0; }
   .nowbar { padding: 12px; }
   .nowbar .lbl { font-size: 16px; }
   .pick-main { gap: 12px; }

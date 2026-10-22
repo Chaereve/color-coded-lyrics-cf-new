@@ -1480,10 +1480,6 @@ function AppInner() {
 
   const freeLeft = Math.max(0, voteStatus.free_limit - voteStatus.free_used)
   const votesLeft = freeLeft + voteStatus.credits
-  /* Hai nguồn của `credits` tách riêng chỉ để vẽ dải thành phần ở bảng vote:
-     người dùng thấy được bao nhiêu phiếu là phiếu mua, bao nhiêu là thưởng. */
-  const purchased = voteStatus.purchased ?? 0
-  const bonus = voteStatus.bonus ?? 0
 
   const myOrders = useMemo(
     () => orders.filter(o => !hasSupabase || o.user_id === user?.id),
@@ -2233,18 +2229,8 @@ function AppInner() {
               </div>
             }
 
-            {/* ---- YOUR VOTES ----------------------------------------------------
-                Ba khối thông tin cũ (bốn ô kẻ viền bằng nhau + một dòng "3 / 3")
-                nói CÙNG một chuyện: tổng số vote đã in ở trên, rồi ô "Free today"
-                in lại đúng con số đó, còn ba ô kia là ba số 0 to bằng ô có nghĩa.
-                Nay: MỘT con số, MỘT dải thành phần (mỗi đoạn một nguồn vote, tỉ
-                lệ thật), MỘT dòng chú thích chỉ liệt kê nguồn đang CÓ. Nguồn nào
-                bằng 0 thì không hiện — số 0 không cần chỗ.
-                Nút: chỉ MỘT nút chính. Khi hết vote, nút chính đổi sang "Buy
-                votes" vì đó mới là việc người dùng làm được lúc đó; "Vote now"
-                vẫn bấm được (nó mở bảng mua) nhưng không còn là điểm nhấn. */}
             <section className="votepanel" data-reveal data-glow>
-              <div className="vp-head">
+              <div className="vp-top">
                 <div className="vp-main">
                   <div className="vp-label">{t('vp.yourVotes')}</div>
                   <div className="vp-big">
@@ -2253,42 +2239,33 @@ function AppInner() {
                   </div>
                 </div>
                 <div className="vp-acts">
-                  <button className={`btn${votesLeft > 0 ? ' btn-primary' : ''}`}
-                    onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
+                  <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
                   <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
-                  <button className={`btn btn-gold${votesLeft > 0 ? '' : ' on'}`}
-                    onClick={() => openModal('buy')}>{t('vp.buy')}</button>
+                  <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
                 </div>
               </div>
-              {/* Dải thành phần. `aria-hidden` vì mọi con số đã có bằng chữ ở
-                  dòng dưới — trình đọc màn hình không cần đọc lại một thanh màu. */}
-              <div className={`vp-meter${votesLeft > 0 ? '' : ' is-out'}`} aria-hidden="true">
-                {votesLeft > 0
-                  ? <>
-                      {freeLeft > 0 && <i className="s-free" style={{ flexGrow: freeLeft }} />}
-                      {purchased > 0 && <i className="s-paid" style={{ flexGrow: purchased }} />}
-                      {bonus > 0 && <i className="s-bonus" style={{ flexGrow: bonus }} />}
-                    </>
-                  : <i />}
-              </div>
-              <div className="vp-legend">
-                {votesLeft === 0
-                  ? <span className="vp-leg is-out">{t('vp.legendOut', { n: voteStatus.free_limit })}</span>
-                  : <>
-                      {freeLeft > 0 && (
-                        <span className="vp-leg"><i className="s-free" /><b>{freeLeft}</b>{t('vp.legendFree')}</span>
-                      )}
-                      {purchased > 0 && (
-                        <span className="vp-leg"><i className="s-paid" /><b>{purchased}</b>{t('vp.legendPaid')}</span>
-                      )}
-                      {bonus > 0 && (
-                        <span className="vp-leg"><i className="s-bonus" /><b>{bonus}</b>{t('vp.legendBonus')}</span>
-                      )}
-                    </>}
-                <span className="vp-leg is-mut">{t('vp.reset')}</span>
-                {voteStatus.bonus_requests > 0 && (
-                  <span className="vp-req"><b>{voteStatus.bonus_requests}</b>{t('vp.paidReq')}</span>
-                )}
+              <div className="vp-stats">
+                <div className={`vp-cell${freeLeft > 0 ? ' is-free' : ' is-empty'}`} title={t('vp.reset')}>
+                  <div className="vp-k">{t('vp.freeToday')}</div>
+                  <div className="vp-v">
+                    <Num v={freeLeft} /> / {voteStatus.free_limit}
+                  </div>
+                  <div className="vs-bar">
+                    <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
+                  </div>
+                </div>
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vote.purchased')}</div>
+                  <div className="vp-v"><Num v={voteStatus.purchased ?? 0} /></div>
+                </div>
+                <div className="vp-cell is-bonus" title={t('vp.bonusReset')}>
+                  <div className="vp-k">{t('vp.voteBonus')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus ?? 0} /></div>
+                </div>
+                <div className="vp-cell is-paid">
+                  <div className="vp-k">{t('vp.freePaid')}</div>
+                  <div className="vp-v"><Num v={voteStatus.bonus_requests ?? 0} /></div>
+                </div>
               </div>
             </section>
 

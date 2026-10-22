@@ -83,19 +83,13 @@ const S = {
   /* the so diem vote */
   'vp.yourVotes': 'Your votes',
   'vp.left': 'votes left',
+  'vp.freeToday': 'Free today',
   'vp.reset': 'Resets 00:00 GMT+7',
+  'vp.voteBonus': 'Vote bonus',
+  'vp.freePaid': 'Free paid request',
+  'vp.bonusReset': 'Resets end of October',
   'vp.goVote': 'Vote now',
   'vp.buy': 'Buy votes',
-  /* Dòng chú thích của bảng vote: số đứng TRƯỚC chữ (dựng bằng <b> trong
-     App.jsx), nên các chuỗi này chỉ là phần đuôi. Giữ khoảng trắng đầu để
-     "3" và "free today" không dính vào nhau. */
-  'vp.legendFree': ' free today',
-  'vp.legendPaid': ' purchased',
-  'vp.legendBonus': ' bonus',
-  'vp.legendOut': 'All {n} free votes used today',
-  'vp.paidReq': ' free paid request',
-  /* nhãn của ô trong BẢNG VOTE (ActionModal) */
-  'vp.freePaid': 'Free paid request',
 
   /* daily spin — short product copy; technical details stay in the guide/privacy page */
   'spin.demo': 'Demo · local data',
