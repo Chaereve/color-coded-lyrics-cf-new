@@ -162,8 +162,9 @@
      Bốn mã này LẤY TỪ DailySpin.css (rarity r0–r3 + nút SPIN). Khai ở đây
      thành token để (a) nền không tự bịa màu thứ năm, (b) sau này Daily Spin
      đổi màu thì chỉ sửa đúng bốn dòng này.
-     --mesh-tone là cửa DUY NHẤT chỉnh độ; blur phải đặt trên từng khối
-     (xem ghi chú ở khối .bgfx). */
+     --mesh-tone là cửa DUY NHẤT chỉnh độ. KHÔNG dùng filter blur cho bốn
+     khối này (xem ghi chú ở .bgfx-mesh): độ mềm nằm trong điểm dừng
+     gradient, blur trên khối phủ kín màn hình từng làm chết tiến trình vẽ. */
   --mesh-1: #5d22e1;
   --mesh-2: #3d05dd;
   --mesh-3: #dc94ef;
