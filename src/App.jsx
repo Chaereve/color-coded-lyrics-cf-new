@@ -20,7 +20,6 @@ import Pager from './components/Pager'
 import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
-import CalcNote from './components/CalcNote'
 import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
@@ -1426,7 +1425,17 @@ function AppInner() {
   /* Số bài đang chạy, đếm trên CHÍNH mảng dựng ra khối Up next (rep =
      in_progress nếu bài đó có dòng đang chạy) — nhờ vậy hai số nhỏ trong dòng
      chú thích luôn cộng đúng bằng con số lớn trên nắp khối. */
-  const working = useMemo(() => pickedGroups.filter(g => g.rep.status === 'in_progress').length, [pickedGroups])
+  /* KHỐI UP NEXT CHIA HAI VÙNG (bố cục "hai vùng", chủ dự án chốt).
+     Trái: bài ĐANG LÀM — nếu chưa có bài nào chạy thì là bài kế tiếp, để vùng
+     trái không bao giờ trống. Phải: phần còn lại của dây chuyền, theo đúng thứ
+     tự chốt. Số dòng chờ vẫn giới hạn bằng NOW_SHOW; phần dư nằm sau "View all"
+     như trước, nên khối không dài vô tận khi dây chuyền đông. */
+  const nowLead = useMemo(
+    () => pickedGroups.find(g => g.rep.status === 'in_progress') || pickedGroups[0] || null,
+    [pickedGroups])
+  const nowRest = useMemo(
+    () => pickedGroups.filter(g => g !== nowLead).slice(0, NOW_SHOW),
+    [pickedGroups, nowLead])
 
   const counts = useMemo(() => ({
     /* badge tab = số THẺ mà tab đó sắp hiện ra, không phải số dòng: bảng gom
@@ -2168,7 +2177,7 @@ function AppInner() {
                 Khối này luôn hiện để mốc giờ chốt tiếp theo không bao giờ
                 biến mất (kể cả khi chưa có request nào được chốt). ======= */}
             {
-              <div className={`nowbar${picked.some(r => r.status === 'in_progress') ? ' live' : ''}`}
+              <div className={`nowbar upnext${picked.some(r => r.status === 'in_progress') ? ' live' : ''}`}
                 data-reveal data-glow>
                 <span className="nbar" aria-hidden="true" />
                 <div className="now-head">
@@ -2178,11 +2187,6 @@ function AppInner() {
                   <h2 className="lbl">
                     {t('now.next')}
                     {pickedGroups.length > 0 && <span className="now-n">{pickedGroups.length}</span>}
-                    {pickedGroups.length > 0 && (
-                      <span className="now-split visually-quiet">
-                        {t('now.split', { a: working, b: pickedGroups.length - working })}
-                      </span>
-                    )}
                   </h2>
                   <Countdown pick={pick} />
                 </div>
@@ -2190,67 +2194,117 @@ function AppInner() {
                 {pickedGroups.length === 0 ? (
                   <h3 className="now-empty">{t('now.noPick')}</h3>
                 ) : (
-                  <div className="now-list">
-                    {pickedGroups.slice(0, NOW_SHOW).map((g, i) => {
-                      const rep = g.rep
-                      const working = rep.status === 'in_progress'
-                      return (
-                        <div className={`now-item${g.rows.length > 1 ? ' now-group' : ''}`} key={g.key} style={{ '--i': i }}>
-                          <h3>
-                            <span className="tx">{g.title} <span>— {g.artist}</span></span>
-                            {(g.paid || g.rows.length > 1) && (
-                              <span className="tags">
-                                {g.paid && <span className="pill gold">PAID</span>}
-                                {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
-                              </span>
-                            )}
-                          </h3>
-                          <div className="sub">
-                            <span className={`status s-${rep.status}`} style={{ '--c': statusColorOf(rep) }}>{statusLabel(rep, t)}</span>
-                            <span className={`kind ${kindCls(rep.kind)}`} title={rep.kind}>{kindShort(rep.kind)}</span>
-                            <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
-                            <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
-                            {/* BA NHỊP, không phải thanh phần trăm: cùng một bài
-                                đứng ở hàng request (ba vạch 16×3px + "n/3") và ở
-                                đây phải đọc ra cùng một hình. Trước đây khối này
-                                vẽ một thanh 220px kèm "47%" — hai ngôn ngữ cho
-                                cùng một dữ liệu, cùng trên một trang. */}
-                            {working && (
-                              <><span className="dot" aria-hidden="true" />
-                                <Steps pct={rep.progress} label={t('progress.label')} /></>
-                            )}
-                          </div>
-                          {g.rows.length > 1 && (
-                            <ul className="now-members">
-                              {g.rows.map(rr => (
-                                <li key={rr.id}>
-                                  <span className={`status s-${rr.status}`} style={{ '--c': statusColorOf(rr) }}>{statusLabel(rr, t)}</span>
-                                  {rr.is_paid && <span className="pill gold">PAID</span>}
-                                  <span>{rr.votes} {t('now.votes')}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                  <div className={`now-body${nowRest.length ? '' : ' solo'}`}>
+                    {/* ---- TRÁI: bài đang làm (hoặc bài kế tiếp) ----
+                        Đây là câu trả lời cho câu hỏi duy nhất khối này tồn tại
+                        để trả lời, nên nó là chữ TO NHẤT của khối và nhãn trạng
+                        thái của nó là một chip tô màu — không phải một dòng chữ
+                        xám lẫn vào các dòng khác. */}
+                    {nowLead && (
+                      <div className={`now-work${nowLead.rep.status === 'in_progress' ? ' live' : ''}`}>
+                        {/* `.now-item` là tên lớp mà bộ kiểm thử tiến độ dùng để
+                            xác định "dòng của Up next"; nó cũng là dòng mang
+                            dòng phụ `.meta` có ba nhịp. */}
+                        {(() => {
+                          const rep = nowLead.rep
+                          return (
+                            <div className="now-item">
+                              <div className={`now-lab${rep.status === 'in_progress' ? ' live' : ''}`}>
+                                <span className={`status s-${rep.status}`} style={{ '--c': statusColorOf(rep) }}>{statusLabel(rep, t)}</span>
+                              </div>
+                              <h3 className="now-work-t">
+                                <span className="tx">{nowLead.title}</span>
+                                <span className="ar">— {nowLead.artist}</span>
+                                {(nowLead.paid || nowLead.rows.length > 1) && (
+                                  <span className="tags">
+                                    {nowLead.paid && <span className="pill gold">PAID</span>}
+                                    {nowLead.rows.length > 1 && <span className="pill group">×{nowLead.rows.length}</span>}
+                                  </span>
+                                )}
+                              </h3>
+                              <div className="meta">
+                                {/* BA NHỊP, không phải thanh phần trăm: cùng một bài
+                                    đứng ở hàng request (ba vạch 16×3px + "n/3") và ở
+                                    đây phải đọc ra cùng một hình. */}
+                                {rep.status === 'in_progress' && (
+                                  <Steps pct={rep.progress} label={t('progress.label')} />
+                                )}
+                                <span className={`kind ${kindCls(rep.kind)}`} title={rep.kind}>{kindShort(rep.kind)}</span>
+                                <span className="dot" aria-hidden="true" />
+                                <span className="now-votes"><b>{nowLead.votes}</b> {t('now.votes')}</span>
+                                <span className="dot" aria-hidden="true" />
+                                <span className="now-when">{t('now.pickedAgo', { t: timeAgo(rep.picked_at, t) })}</span>
+                              </div>
+                              {nowLead.rows.length > 1 && (
+                                <ul className="now-members">
+                                  {nowLead.rows.map(rr => (
+                                    <li key={rr.id}>
+                                      <span className={`status s-${rr.status}`} style={{ '--c': statusColorOf(rr) }}>{statusLabel(rr, t)}</span>
+                                      {rr.is_paid && <span className="pill gold">PAID</span>}
+                                      <span>{rr.votes} {t('now.votes')}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+
+                    {/* ---- PHẢI: phần còn lại của dây chuyền ----
+                        Số thứ tự ở lề là THỨ TỰ CHỐT thật (picked_at tăng dần),
+                        không phải số trang trí: người gửi cần biết bài mình đứng
+                        thứ mấy. Vote và mốc chốt nằm CÙNG DÒNG PHỤ với chip loại
+                        bài — y như vùng trái. Trước đây chúng là một cột riêng ở
+                        lề phải, và cột đó ăn mất ~90px nên tên bài dài bị cắt
+                        thành "Moonlight …": mất tên bài để giữ một con số. */}
+                    {nowRest.length > 0 && (
+                      <div className="now-wait">
+                        <div className="now-lab">
+                          <span className="status s-queued" style={{ '--c': 'var(--upnext)' }}>{t('now.waiting', { n: pickedGroups.length - 1 })}</span>
                         </div>
-                      )
-                    })}
+                        <ol className="now-q">
+                          {nowRest.map((g, i) => (
+                            <li className="now-qrow" key={g.key}>
+                              <span className="now-rank" aria-hidden="true">{i + 1}</span>
+                              <div className="now-qmain">
+                                <h3>
+                                  <span className="tx">{g.title}</span>
+                                  <span className="ar">— {g.artist}</span>
+                                </h3>
+                                <div className="now-qmeta">
+                                  <span className={`kind ${kindCls(g.rep.kind)}`} title={g.rep.kind}>{kindShort(g.rep.kind)}</span>
+                                  {(g.paid || g.rows.length > 1) && (
+                                    <span className="tags">
+                                      {g.paid && <span className="pill gold">PAID</span>}
+                                      {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
+                                    </span>
+                                  )}
+                                  <span className="dot" aria-hidden="true" />
+                                  <span className="now-votes"><b>{g.votes}</b> {t('now.votes')}</span>
+                                  <span className="dot" aria-hidden="true" />
+                                  <span className="now-when">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
+                                </div>
+                              </div>
+
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="now-foot">
+                  {/* Chân khối chỉ còn ĐÚNG MỘT câu: nhịp chốt. Nút "cách tính"
+                      và bảng ba dòng của nó đã được gỡ theo yêu cầu (chủ dự án
+                      chỉ vào bảng đó và nói "bỏ"). Câu quy tắc giữ lại vì nó là
+                      thông tin, không phải phần giải thích mở rộng. */}
                   <div className="now-rule">
                     <span>{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
-                    {/* Cách tính cho TOÀN BỘ dây chuyền: nhịp chốt và thứ tự
-                        chốt — hai con số cùng một phép tính, giải thích một lần.
-                        Dòng "còn N vote nữa" và sàn thời gian đã bị gỡ cùng tầng
-                        theo dõi, nên note này không còn phải gánh chúng. */}
-                    <CalcNote items={[
-                      { label: t('now.calcOrderLbl'), text: t('now.calcOrder') },
-                      { label: t('now.calcWaitLbl'), text: t('now.calcWait', { n: pick?.interval_days || 4 }) },
-                      { label: t('now.calcNoteLbl'), text: t('now.calcNote') },
-                    ]} />
                   </div>
-                  {pickedGroups.length > NOW_SHOW && (
+                  {pickedGroups.length > NOW_SHOW + 1 && (
                     <button type="button" className="btn btn-sm now-more" onClick={showAllPicked}>
                       {t('now.more', { n: pickedGroups.length })}
                     </button>

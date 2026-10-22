@@ -2088,20 +2088,49 @@ where = 'bài trả phí'
    hàm sau reset mất việc hàm trước vừa làm, và nhãn nút thì nói láo. */
 where = 'click-path'
 {
-  /* (9a) Dòng "How this is calculated" — mở/đóng thuần details, không state.
-     Lời hứa: bấm vào thì thấy cách tính; bấm lần hai thì thu lại. */
+  /* (9a) Bảng "cách tính" đã bị gỡ khỏi chân khối Up next (chủ dự án yêu cầu:
+     chỉ vào bảng ba dòng và nói "bỏ"). Chân khối chỉ còn MỘT câu quy tắc.
+     Kiểm sự VẮNG MẶT: không còn details.calc, nhưng câu quy tắc vẫn còn — nếu
+     ai đó gỡ luôn cả câu thì đây là chỗ báo. */
   const calc = q('.now-foot details.calc')
-  check('click-path 9a: Up next có dòng cách tính mở ra được', !!calc && !!calc.querySelector('summary'))
-  if (calc) {
-    const sum = calc.querySelector('summary')
-    check('click-path 9a: ban đầu dòng cách tính đang ĐÓNG', !calc.open)
-    await click(sum)
-    const rows = [...calc.querySelectorAll('.calc-row')]
-    check('click-path 9a: bấm tóm tắt thì MỞ và có 3 dòng giải thích ngắn',
-      calc.open && rows.length === 3 && rows.every(row => row.querySelector('dt')?.textContent && row.querySelector('dd')?.textContent?.trim().length > 12),
-      `${rows.length} dòng: ${rows.map(row => row.textContent.trim()).join(' · ').slice(0, 90)}`)
-    await click(sum)
-    check('click-path 9a: bấm lần hai thì ĐÓNG lại', !calc.open)
+  check('click-path 9a: khối Up next KHÔNG còn bảng "cách tính"', !calc)
+  check('click-path 9a: chân khối vẫn còn câu quy tắc chốt bài',
+    !!q('.now-foot .now-rule')?.textContent?.trim())
+
+  /* (9c) Tab Buy votes: ba gói phải là ba HÀNG của một bảng (đủ cột để so giá
+     theo cột), và chọn phương thức thanh toán là có NGAY hóa đơn điền sẵn số
+     tiền của gói đang chọn. Đây là chỗ dễ hỏng câm: bảng có thể render đủ hàng
+     mà cột giá rỗng, hoặc hóa đơn mở ra với số 0 vì chưa có đơn nào. */
+  where = 'click-path · Buy votes'
+  {
+    const buyBtn = qa('button').find(b => /^buy votes$/i.test((b.textContent || '').trim()))
+    check('click-path 9c: có lối vào tab Buy votes', !!buyBtn)
+    if (buyBtn) {
+      await click(buyBtn)
+      const opened = await waitFor(() => !!q('.pk-row'), 3000)
+      await tick(200)
+      check('click-path 9c: ba gói là ba hàng của một bảng, không còn ba thẻ .pack',
+        opened && qa('.pk-row').length === 3 && !q('.pack'),
+        `${qa('.pk-row').length} hàng · thẻ .pack=${!!q('.pack')}`)
+      const per = qa('.pk-per span').map(e => (e.textContent || '').trim())
+      const price = qa('.pk-price b').map(e => (e.textContent || '').trim())
+      check('click-path 9c: mỗi hàng có đủ giá mỗi vote và tổng tiền để so theo cột',
+        per.length === 3 && price.length === 3 && per.every(Boolean) && price.every(Boolean),
+        `${per.join(' / ')} · ${price.join(' / ')}`)
+      const tile = qa('.paytile')[0]
+      if (tile) {
+        await click(tile); await tick(260)
+        const amt = (q('.iv-amt')?.textContent || '').replace(/\s+/g, '')
+        check('click-path 9c: chọn phương thức là có hóa đơn điền sẵn đúng số tiền của gói đang chọn',
+          /78\.000/.test(amt) && !!q('.iv-qr'),
+          `số tiền=${amt || '(trống)'} · qr=${!!q('.iv-qr')}`)
+        check('click-path 9c: mỗi dòng của hóa đơn có nút chép riêng',
+          qa('.iv-row').length >= 4 && qa('.iv-copy').length === qa('.iv-row').length,
+          `${qa('.iv-row').length} dòng · ${qa('.iv-copy').length} nút chép`)
+        const close = q('.modal .x')
+        if (close) { await click(close); await tick(220) }
+      }
+    }
   }
 
   /* (9b) Dòng "{n} shown" phải đếm ĐÚNG tập đang thấy, và "Clear filters"

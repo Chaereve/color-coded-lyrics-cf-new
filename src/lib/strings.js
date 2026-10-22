@@ -400,7 +400,7 @@ const S = {
   /* Quan he giua khoi Up next va tab In progress — noi mot cau thay vi de nguoi
      doc tu doan vi sao mot bai nam o ca hai cho. */
   /* Hai giai đoạn của dây chuyền, cộng lại đúng bằng con số trên nắp khối */
-  'now.split': '{a} in progress · {b} picked, not started',
+  'now.waiting': 'Waiting · {n}',
   'now.nextPickLbl': 'Next pick in',
   'now.nextPick': '{d}d {h}h {m}m',
   'now.pickSoon': 'any moment…',
@@ -411,13 +411,6 @@ const S = {
      Ba dòng NHÃN + MỘT CÂU mỗi dòng: người hỏi đọc hết trong 5 giây, không
      phải một đoạn văn 90 chữ. Ba dòng = ba sự thật, không sự thật nào lặp lại
      ở dòng khác (nhịp chốt nằm ở dòng pickRule, không nhắc lại trong panel). */
-  'calc.how': 'How this is calculated',
-  'now.calcOrderLbl': 'Pick order',
-  'now.calcOrder': 'Paid first, then most votes; ties go to the oldest.',
-  'now.calcWaitLbl': 'Your wait',
-  'now.calcWait': 'Earliest possible: next pick + {n} days for each song ahead.',
-  'now.calcNoteLbl': 'Good to know',
-  'now.calcNote': 'Other songs gaining votes can push you later — never earlier.',
   'now.pickedAgo': 'picked {t}',
   'now.more': 'View all {n} →',
 
@@ -965,19 +958,25 @@ const S = {
   'vote.buyMore': 'Buy more votes',
 
   /* mua vote */
+  /* Ba gói là BA HÀNG của một bảng: tiêu đề cột dùng chung cho cả bảng nên
+     nhãn đặt theo cột ("Pack / Per vote / Price"), không theo từng ô. */
   'buy.packs': 'Vote packs',
-  'buy.lead': 'Pick a pack — pay in the next step.',
+  'buy.colPack': 'Pack',
+  'buy.colPer': 'Per vote',
+  'buy.colPrice': 'Price',
+  'buy.lead': 'Choose a pack.',
   'buy.best': 'Best value',
   'buy.unit': 'votes',
-  'buy.order': 'Buy',
-  'buy.single': 'Or any number',
-  'buy.perVote': '/ vote',
-  'buy.each': '{v} each',
+  'buy.order': 'Buy {n} votes',
+  'buy.total': 'Total',
+  'buy.foot': 'Payment is set up in the next step — nothing is charged now.',
+  'buy.single': 'Custom amount',
+  'buy.eachVote': 'per vote',
+  'buy.less': 'Fewer votes',
+  'buy.more': 'More votes',
+  'buy.qty': 'Number of votes',
   'buy.created': 'Order {label} created for {amt}. Send the payment using the details below.',
   'buy.payment': 'Payment',
-  'buy.payNote1': 'Transfer with your ',
-  'buy.payNoteB': 'Google account name',
-  'buy.payNote2': ' as the note.',
   'buy.yourOrders': 'Your orders',
   'buy.noOrders': 'No orders yet.',
   'buy.noOrdersBody': 'Pick a package above — your orders appear here the moment you create one.',
@@ -997,8 +996,17 @@ const S = {
   'pay.content': 'Transfer note',
   'pay.memo': 'Note',
   'pay.copy': 'Copy',
+  'pay.copied': 'Copied',
   'pay.scanBank': 'Scan with your banking app',
   'pay.scanPaypal': 'Scan or open the link',
+  /* Hóa đơn: ba nhãn của tờ giấy chuyển tiền, một câu nhắc và một câu chốt.
+     `pay.invoice` gọi tên VIỆC của tờ giấy, `pay.awaiting` là trạng thái thật
+     của đơn đang chờ tiền — không phải nhãn trang trí. */
+  'pay.invoice': 'Transfer invoice',
+  'pay.awaiting': 'Awaiting transfer',
+  'pay.details': 'Payment details',
+  'pay.exact': 'Send the exact amount — we match it by the content.',
+  'pay.afterPay': 'Pay, then come back — the order updates by itself.',
   'pay.qrFail1': 'The QR code could not be generated.',
   'pay.qrFail2': 'Use the details on the left.',
 

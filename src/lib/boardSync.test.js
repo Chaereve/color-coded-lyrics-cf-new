@@ -125,10 +125,16 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]
   assert.equal(nowN, 'pickedGroups.length', 'số trên nắp khối Up next phải là số bài đã chốt')
-  assert.match(app, /const working = useMemo\(\(\) => pickedGroups\.filter\(g => g\.rep\.status === 'in_progress'\)\.length/,
-    'số bài đang chạy phải đếm trên chính pickedGroups (rep = in_progress nếu bài có dòng đang chạy)')
-  assert.match(app, /t\('now\.split', \{ a: working, b: pickedGroups\.length - working \}\)/,
-    'dòng tách phải lấy hai phần bù nhau của CÙNG một con số, không phải hai phép đếm rời')
+  /* Vòng này khối Up next đổi sang hai vùng (đang làm / đang chờ), nên "dòng
+     tách giai đoạn" cũ không còn — con số bù nhau được kiểm ở chỗ khác: vùng
+     trái lấy bài đang làm TỪ pickedGroups, vùng phải lấy phần còn lại của đúng
+     mảng đó, và dòng "Waiting · n" đếm bằng tổng trừ một. */
+  assert.match(app, /const nowLead = useMemo\(/,
+    'khối Up next phải tách bài đang làm (vùng trái) khỏi phần chờ (vùng phải)')
+  assert.match(app, /const nowRest = useMemo\(\s*\(\) => pickedGroups\.filter\(g => g !== nowLead\)\.slice\(0, NOW_SHOW\)/,
+    'phần chờ phải lấy từ CÙNG mảng pickedGroups, không phải một phép đếm rời')
+  assert.match(app, /t\('now\.waiting', \{ n: pickedGroups\.length - 1 \}\)/,
+    'số bài đang chờ = tổng số bài trừ bài đang làm — hai số phải bù nhau')
 })
 
 test('nhãn trạng thái chỉ có một hàm, dùng chung ba nơi', () => {

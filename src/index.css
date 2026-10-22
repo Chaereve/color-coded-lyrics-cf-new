@@ -1466,100 +1466,160 @@ label { display: block; font-size: 12.5px; color: var(--txt-2); margin-bottom: 5
 @keyframes chkRing { 0% { opacity: .55; transform: scale(1) } 100% { opacity: 0; transform: scale(1.75) } }
 
 /* ---- gói vote: cả thẻ là một nút, không nút Buy lồng bên trong ---- */
-.packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
-.pack {
-  position: relative; display: flex; flex-direction: column; align-items: center;
-  width: 100%; padding: 14px 12px 12px; text-align: center;
-  border: 1px solid var(--line-2); border-radius: var(--r-md);
-  background: var(--panel-2); color: inherit; font: inherit; cursor: pointer;
-  appearance: none; -webkit-appearance: none;
+/* ---- BẢNG GÓI VOTE (tab Buy votes) ----
+   Ba gói là ba HÀNG của một bảng, không phải ba thẻ đứng cạnh nhau.
+   Bản cũ: mỗi thẻ sáu dòng chữ xếp dọc, cờ "Best value" đặt ở `top:-8px` nên
+   cắt ngang đường viền của chính thẻ, và vì thẻ "best" có số vote to hơn 4px
+   nên BA CỘT TIỀN LỆCH NHAU — muốn so giá phải đọc lần lượt từng thẻ.
+   Bảng dùng MỘT lưới cho dòng tiêu đề, ba hàng gói và hàng số lẻ, nên mọi con
+   số tiền rơi vào đúng một cột dọc: so giá bằng mắt, không phải bằng trí nhớ.
+   Chỉ dùng token sẵn có: --line cho đường kẻ, --paid cho "đang chọn"/"best". */
+.pk {
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel-2); overflow: hidden;
 }
-.pack:hover { border-color: #3c4550; }
-.pack:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-.pack:disabled { opacity: .55; cursor: wait; }
-.pack-flag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); padding: 1px 7px; border-radius: var(--r-sm); background: #12161b; border: 1px solid color-mix(in oklab, var(--paid) 45%, transparent); color: var(--paid); font-size: 10px; white-space: nowrap; }
-.pack b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1.1; }
-.pack .u { font-size: 11.5px; color: var(--txt-3); margin-bottom: 6px; }
-.pack .p { font-family: var(--mono); font-size: 14px; font-weight: 600; }
-.pack .p small { display: block; font-size: 11.5px; font-weight: 400; color: var(--txt-3); margin-top: 2px; }
-.pack-unit { display: block; margin-top: 4px; font-size: 11px; color: var(--txt-3); }
-.pack-save { margin-top: 6px; font-size: 11px; color: var(--done); font-family: var(--mono); }
-.pack.on {
-  border-color: var(--a-2);
-  box-shadow: 0 0 0 1px var(--a-2);
-  background: var(--a-soft);
+/* lưới chung: ô chọn · tên gói · mỗi vote · giá */
+.pk-head, .pk-row {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) 66px 82px;
+  align-items: center; column-gap: 12px;
 }
-.pack.best.on {
-  border-color: var(--paid);
-  box-shadow: 0 0 0 1px var(--paid), 0 8px 26px -14px var(--paid);
+.pk-head {
+  padding: 8px 14px; border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel-2) 70%, #000 12%);
 }
-/* ---- Gói 4: làm rõ "gói nào lời nhất" trong bảng giá vote ----
-   Ba thẻ trước đây bằng vai nhau: viền cùng một màu, gói tốt nhất chỉ thêm
-   lá cờ 10px — mắt quét ngang không kịp thấy đâu là deal. Nhấn mạnh `.best`
-   bằng nền + bóng vàng và con số to hơn; hai thẻ còn lại lùi về vai "tham
-   khảo". KHÔNG thêm token (màu vàng đã có --paid, nền đã có --a-soft), KHÔNG
-   đổi số cột của .packs (modal đang ổn định), phần chuyển động chỉ opacity/
-   transform và luôn có nhánh giảm-chuyển-động + cảm ứng. */
-/* Thẻ "đáng mua nhất": nổi bằng BA thứ đo được — viền vàng, bóng vàng rất mờ,
-   và con số to hơn. Nền là MỘT sắc vàng nhạt phẳng: bản cũ để hai gradient xếp
-   lên nhau ở hai chỗ trong tệp (một tím, một vàng), lớp dưới không bao giờ hiện
-   mà vẫn nằm đó chờ người sau sửa nhầm. */
-.pack.best {
-  background: color-mix(in oklab, var(--paid) 5.5%, transparent);
-  border-color: var(--paid);
-  box-shadow: 0 8px 26px -14px var(--paid);
+.pk-head span { font-size: var(--fs-cap); font-weight: 500; color: var(--txt-3); letter-spacing: .01em; }
+.pk-h-name { grid-column: 2; }
+.pk-h-per  { grid-column: 3; text-align: right; }
+.pk-h-price{ grid-column: 4; text-align: right; }
+
+.pk-row {
+  width: 100%; padding: 11px 14px; border: 0; border-top: 1px solid var(--line);
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: background var(--t-1) var(--e-soft);
 }
-.pack.best b { color: var(--paid); font-size: 26px; }
-.pack.best .p { color: var(--txt); }
-/* viên thuốc "−48%" phải tự co theo chữ và nằm giữa: để block full-width là
-   thành một dải màu chạy ngang thẻ, lệch với phần còn lại căn giữa */
-.pack-save { width: fit-content; margin: 6px auto 0; padding: 1px 7px;
-  border-radius: var(--r-pill); background: color-mix(in oklab, var(--done) 12%, transparent); }
-@media (hover: hover) {
-  .pack { transition: border-color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out),
-              box-shadow var(--t-2) var(--e-soft); }
-  .pack:hover { transform: translateY(-2px); }
-  .pack.best:hover { box-shadow: 0 12px 30px -14px var(--paid); }
+.pk-row:first-of-type { border-top: 0; }
+.pk-row:hover { background: rgba(255, 255, 255, .022); }
+.pk-row:focus-visible { outline: 2px solid var(--a-2); outline-offset: -2px; z-index: 1; }
+.pk-row:disabled { opacity: .55; cursor: wait; }
+/* đang chọn = thanh vàng 2px ở mép trái + nền 3,5%: một tín hiệu, một chỗ.
+   Bản cũ tô cả thẻ bằng --a-soft, đọc thành "một khối màu khác" chứ không phải
+   "hàng này đang được chọn". */
+.pk-row.on {
+  background: color-mix(in oklab, var(--paid) 3.5%, transparent);
+  box-shadow: inset 2px 0 0 var(--paid);
 }
-@media (hover: none) {
-  /* cảm ứng không có hover: không nhấc thẻ, giữ bóng best cố định */
-  .pack:hover { transform: none; }
-  .pack.best:hover { box-shadow: 0 8px 26px -14px var(--paid); }
+
+.pk-chk {
+  grid-column: 1; width: 17px; height: 17px; border-radius: 50%;
+  border: 1.5px solid var(--line-2); display: grid; place-items: center;
+  font-size: 10px; line-height: 1; color: transparent;
+  transition: border-color var(--t-1) var(--e-soft);
 }
-@media (prefers-reduced-motion: reduce) { .pack, .pack:hover { transform: none; } }
-@media (max-width: 899px) { .pack.best b { font-size: 24px; } }
+.pk-row:hover .pk-chk { border-color: #46525f; }
+.pk-row.on .pk-chk { border-color: var(--paid); background: var(--paid); color: #0b0e13; font-weight: 700; }
+.pk-row.on .pk-chk::after { content: "✓"; }
+
+/* tên gói: SỐ là phần nổi nhất của hàng, đơn vị lùi lại — mắt bắt số trước */
+.pk-name { grid-column: 2; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pk-name b { font-size: var(--fs-title); font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.pk-name b span { font-size: var(--fs-cap); font-weight: 400; color: var(--txt-3); letter-spacing: 0; }
+.pk-name em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--paid); }
+
+/* cột "mỗi vote": giá trên, mức giảm dưới — hai cột số, không phải hai câu */
+.pk-per {
+  grid-column: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; line-height: 1.35;
+}
+.pk-per span { font-size: var(--fs-meta); color: var(--txt-2); }
+.pk-per i { font-style: normal; font-size: var(--fs-cap); color: var(--done); }
+
+/* cột "giá": USD là số chính, VND là dòng phụ CÙNG cột — tiền của cả bảng
+   xếp thành một đường thẳng đứng */
+.pk-price {
+  grid-column: 4; display: flex; flex-direction: column; align-items: flex-end;
+  gap: 1px; line-height: 1.35; font-variant-numeric: tabular-nums;
+}
+.pk-price b { font-family: var(--mono); font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+.pk-price small { font-size: 11px; color: var(--txt-3); }
+
+@media (prefers-reduced-motion: reduce) { .pk-row, .pk-chk { transition: none; } }
 
 .buy-sec { display: grid; gap: 10px; }
 .buy-sec + .buy-sec, .buy-shop + .buy-sec, .buy-shop + .msg { margin-top: 18px; }
-.buy-shop { display: grid; gap: 12px; }
-.buy-lead { margin: 0; font-size: 13px; color: var(--txt-2); line-height: 1.45; }
+.buy-shop { display: grid; gap: 8px; }
+.buy-lead { margin: 0; font-size: var(--fs-meta); color: var(--txt-3); line-height: 1.5; }
+
+/* Số lẻ là lựa chọn thứ tư của CÙNG bảng: cùng cột giá (82px, sát mép phải),
+   cùng độ dày viền với khung bảng. Trước đây nó là một cái hộp trông y hệt
+   một thẻ gói nữa nằm dưới ba thẻ. */
 .buy-custom {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;
-  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 82px;
+  align-items: center; column-gap: 12px;
+  padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--panel-2); cursor: pointer; text-align: left; color: inherit;
+  transition: background var(--t-1) var(--e-soft);
 }
-.buy-custom.on { border-color: var(--a-2); box-shadow: 0 0 0 1px var(--a-2); background: var(--a-soft); }
-.buy-custom-k { display: flex; flex-direction: column; gap: 2px; min-width: 120px; flex: 1 1 140px;
-  font-size: 13px; font-weight: 600; }
-.buy-custom-k small { font-size: 11.5px; font-weight: 400; color: var(--txt-3); }
+.buy-custom:hover { background: rgba(255, 255, 255, .022); }
+.buy-custom.on {
+  border-color: color-mix(in oklab, var(--paid) 55%, var(--line));
+  background: color-mix(in oklab, var(--paid) 3.5%, transparent);
+}
+.buy-custom-k { display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  font-size: 13px; font-weight: 600; color: var(--txt-2); }
+.buy-custom-k small { font-size: var(--fs-cap); font-weight: 400; color: var(--txt-3); }
+.buy-custom-price { grid-column: 3; display: flex; flex-direction: column; align-items: flex-end;
+  gap: 1px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.buy-custom-price b { font-family: var(--mono); font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+.buy-custom-price small { font-size: 11px; color: var(--txt-3); }
+
+/* Tổng tiền và nút mua ở CÙNG một khối — thanh toán là một hành động. Nền tối
+   hơn bảng một bậc để tách khỏi phần chọn gói. */
 .buy-checkout {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md);
-  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  margin-top: 2px; padding: 11px 12px 11px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
 }
-.buy-checkout-info { flex: 1; min-width: 0; }
-.buy-checkout-info b { display: block; font-size: 15px; font-weight: 600; }
-.buy-checkout-info span { font-family: var(--mono); font-size: 12px; color: var(--txt-3); }
-.buy-checkout .btn { margin-left: auto; }
+.buy-sum { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.buy-sum-k { font-size: var(--fs-cap); color: var(--txt-3); }
+.buy-sum-v { font-size: 13px; color: var(--txt-2); }
+.buy-sum-v b { font-size: 13px; font-weight: 600; color: var(--txt); }
+.buy-sum-v em { font-style: normal; color: var(--txt-3); }
+/* Nút mua là hành động CHÍNH của cả tab nên dùng vàng đặc; viền vàng để dành
+   cho hành động phụ ở những chỗ khác. */
+.buy-checkout .btn-gold {
+  flex: none; background: var(--paid); border-color: var(--paid);
+  color: #1a1408; font-weight: 600;
+}
+.buy-checkout .btn-gold:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--paid) 86%, #fff); border-color: var(--paid);
+  color: #1a1408;
+}
+.buy-foot { margin: 1px 2px 0; font-size: 11px; line-height: 1.6; color: var(--txt-3); }
+
+/* Trong tab này, trạng thái rỗng là MỘT HÀNG cùng nhịp với các hàng khác — không
+   phải khối 200px giữa hộp với biểu tượng to. `.empty` là class dùng chung của
+   trang nên chỉ đổi trong phạm vi .buy-sec. */
+.buy-sec .empty {
+  flex-direction: row; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  text-align: left; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+.buy-sec .empty-ico {
+  flex: none; width: 26px; height: 26px; margin: 0; border-radius: 6px;
+  border: 0; background: var(--surface-2);
+}
+.buy-sec .empty-tx { min-width: 0; }
+.buy-sec .empty-tx b { display: block; font-size: var(--fs-meta); }
+.buy-sec .empty-tx small { display: block; margin-top: 2px; max-width: none; font-size: 11.5px; }
+/* dòng hỗ trợ trong tab: chữ, không phải một cái hộp trông như ô nhập */
+.buy-sec .support { padding: 0; border: 0; border-radius: 0; margin-bottom: 9px; }
+
 .qty { display: flex; align-items: center; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
-.qty button { width: 28px; height: 28px; border: 0; background: var(--surface-2); color: var(--txt-2); cursor: pointer; font-size: 14px; font-family: inherit; }
+.qty button { width: 26px; height: 26px; border: 0; background: transparent; color: var(--txt-2); cursor: pointer; font-size: 14px; font-family: inherit; }
 .qty button:hover { background: var(--hover-2); color: var(--txt); }
-.qty input { width: 46px; border: 0; border-radius: 0; text-align: center; background: none; padding: 5px 0; font-family: var(--mono); font-size: 13px; }
+.qty input { width: 34px; border: 0; border-radius: 0; text-align: center; background: none; padding: 4px 0; font-family: var(--mono); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
 .qty input:focus { outline: none; }
 .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.buyone-total { margin-left: auto; text-align: right; }
-.buyone-total b { display: block; font-family: var(--mono); font-size: 15px; font-weight: 600; }
-.buyone-total span { font-size: 11.5px; color: var(--txt-3); }
 
 /* ---- hồ sơ người dùng ---- */
 .prof-av { display: flex; align-items: flex-start; gap: 14px; }
@@ -1766,51 +1826,129 @@ img { max-width: 100%; }
 .applogo.lg-gate   { width: 52px; height: 52px; border-radius: var(--r-lg); }
 
 /* ================= THANH TOÁN ================= */
-.pay-note { font-size: 12.5px; color: var(--txt-2); line-height: 1.55; margin-bottom: 11px; padding: 9px 11px; border-radius: var(--radius); border: 1px solid var(--line-2); }
-.paygrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.paytile {
-  position: relative; cursor: pointer; overflow: hidden;
-  display: grid; place-items: center; height: 50px; padding: 8px 10px;
-  background: #fff; border: 1px solid #d8dee6; border-radius: var(--radius);
-  transition: border-color .13s;
-}
-.paytile:hover { border-color: #9fb0c4; }
-.paytile-logo { display: block; width: auto; max-width: 100%; object-fit: contain; }
-.paytile.bank   .paytile-logo { height: 18px; }
-.paytile.paypal .paytile-logo { height: 16px; }
-.paytile.on { border-color: var(--tc); }
-.paytile.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--tc); }
-.paytile.bank   { --tc: #ed2132; }
-.paytile.paypal { --tc: #003087; }
+/* ---- CHỌN PHƯƠNG THỨC THANH TOÁN + HÓA ĐƠN ----
+   Chọn phương thức là có NGAY một tờ hóa đơn đọc từ trên xuống: số tiền (to
+   nhất) → quét mã / các dòng cần chép → câu chốt. Luồng thanh toán không đổi:
+   vẫn là chuyển khoản hoặc PayPal như trước, số tiền vẫn lấy từ đơn đang chờ.
 
-.pay-panel { margin-top: 10px; padding: 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); }
-.pay-grid { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
-.pay-info { flex: 1; min-width: 220px; display: flex; flex-direction: column; }
-.pay-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-.pay-row:last-child { border-bottom: 0; }
-.pay-k { font-size: 11.5px; color: var(--txt-3); width: 96px; flex: 0 0 96px; }
-.pay-v { flex: 1; min-width: 0; font-size: 13px; word-break: break-all; }
-.pay-v.mono { font-family: var(--mono); }
-.copy { flex: 0 0 auto; padding: 3px 8px; border-radius: var(--r-sm); cursor: pointer; border: 1px solid var(--line-2); background: none; color: var(--txt-3); font-size: 11px; font-family: inherit; transition: .13s; }
-.copy:hover { color: var(--txt); border-color: var(--a-2); }
-.copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 45%, transparent); }
-.pay-qr { text-align: center; flex: 0 0 auto; }
-.qr-canvas { display: block; border-radius: var(--r-sm); background: #fff; padding: 7px; width: 156px !important; height: 156px !important; }
-.pay-qr-cap { margin-top: 7px; font-size: 11px; color: var(--txt-3); }
-.pay-tip { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--txt-3); line-height: 1.6; }
-.pay-tip a { color: var(--a-2); text-decoration: none; }
-.pay-tip a:hover { text-decoration: underline; }
-.pay-hint { margin-top: 10px; font-size: 12px; color: var(--txt-3); text-align: center; padding: 11px; border: 1px solid var(--line); border-radius: var(--radius); }
+   Ô phương thức: logo thương hiệu phải nằm trên nền trắng (dấu PayPal là chữ
+   xanh đậm, đặt thẳng lên nền tối là mất chữ), nên tấm trắng thu lại thành một
+   ô cao 26px bên trong thẻ thay vì cả cái nút sáng chưng giữa hộp tối. */
+.paygrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.paytile {
+  position: relative; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 9px 9px 8px; border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--panel-2); color: inherit; font: inherit;
+  transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft);
+}
+.paytile:hover { border-color: #3c4550; }
+.paytile:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.paytile-box {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
+  border-radius: 5px; background: #fff;
+}
+.paytile-logo { display: block; width: auto; max-width: 100%; object-fit: contain; }
+.paytile.bank   .paytile-logo { height: 13px; }
+.paytile.paypal .paytile-logo { height: 12px; }
+.paytile-name { font-size: var(--fs-cap); color: var(--txt-3); }
+/* đang chọn = viền sáng hơn + dấu ✓ ở góc, không tô nền: nền màu trong hộp tối
+   đọc thành "một khối khác" chứ không phải "đang chọn" */
+.paytile.on { border-color: color-mix(in oklab, var(--a-2) 70%, var(--line-2)); background: var(--panel-2); }
+.paytile.on .paytile-name { color: var(--txt); }
+.paytile-tick {
+  position: absolute; top: 6px; right: 6px; display: grid; place-items: center;
+  width: 15px; height: 15px; border-radius: 50%; background: var(--a-2);
+  color: #0b0e13; line-height: 1;
+}
+
+/* ---------- tờ hóa đơn ---------- */
+.iv {
+  margin-top: 9px; border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--panel-2); overflow: hidden;
+}
+.iv-head { padding: 11px 14px 12px; border-bottom: 1px solid var(--line); }
+.iv-htop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.iv-title { font-size: var(--fs-cap); font-weight: 500; color: var(--txt-3); letter-spacing: .01em; }
+/* trạng thái "đang chờ tiền" dùng --queued (màu của trạng thái chờ), không
+   mượn --paid (màu tiền) cũng không mượn --done (màu đã xong) */
+.iv-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-cap); color: var(--queued); white-space: nowrap; }
+.iv-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--queued); }
+.iv-status.draft { color: var(--txt-3); }
+.iv-sum { display: flex; align-items: baseline; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.iv-amt { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.iv-amt-sub { font-size: var(--fs-cap); color: var(--txt-3); }
+
+.iv-body { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; padding: 12px 14px 13px; align-items: start; }
+.iv-qr { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.iv-qr .qr-canvas { width: 108px !important; height: 108px !important; padding: 6px; }
+.iv-qr-cap { font-size: 10.5px; line-height: 1.45; color: var(--txt-3); text-align: center; }
+
+.iv-rows { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.iv-row {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr) 22px; align-items: center;
+  column-gap: 8px; padding: 3px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--line) 60%, transparent);
+}
+.iv-row:last-child { border-bottom: 0; }
+.iv-k { font-size: var(--fs-cap); color: var(--txt-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iv-v { font-size: var(--fs-meta); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iv-v.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.iv-copy {
+  display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 1px solid transparent; border-radius: 5px; background: none; color: var(--txt-3);
+  cursor: pointer;
+  transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+}
+.iv-copy:hover { color: var(--txt); background: var(--hover-2); border-color: var(--line-2); }
+.iv-copy:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
+.iv-copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 40%, transparent); }
+
+.iv-foot {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 9px 14px 10px; border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel-2) 60%, #000 10%);
+}
+.iv-foot span { font-size: 10.5px; line-height: 1.5; color: var(--txt-3); }
+.iv-go {
+  padding: 5px 10px; border: 1px solid var(--line-2); border-radius: var(--radius);
+  background: var(--surface-2); font-size: 11px; font-weight: 600; color: var(--txt);
+  text-decoration: none; white-space: nowrap;
+}
+.iv-go:hover { border-color: #3c4550; background: var(--hover-2); }
+
+.pay-hint {
+  margin-top: 9px; padding: 11px 13px; border: 1px dashed var(--line-2);
+  border-radius: var(--r-md); font-size: 11.5px; line-height: 1.6; color: var(--txt-3);
+}
 .qr-fail { width: 156px; height: 156px; display: grid; place-items: center; text-align: center; border: 1px solid var(--line-2); border-radius: var(--r-sm); font-size: 11px; color: var(--txt-3); line-height: 1.55; padding: 10px; }
 
 /* ================= MÀN HÌNH HẸP ================= */
 @media (max-width: 620px) {
   .field-row { grid-template-columns: 1fr; }
-  .packs { gap: 6px; }
-  .pack { padding: 10px 6px 10px; }
-  .pack b { font-size: 18px; }
-  .pack.best b { font-size: 20px; }
-  .buy-checkout .btn { width: 100%; margin-left: 0; }
+  /* máy hẹp: bảng gói giữ nguyên cột giá (tiền vẫn phải thẳng cột), chỉ đưa
+     cột "mỗi vote" xuống dưới tên gói — hàng cao thêm 2px nhưng không có chữ
+     nào bị bẻ đôi */
+  .pk-head { display: none; }
+  .pk-row {
+    grid-template-columns: 17px minmax(0, 1fr) auto;
+    grid-template-areas: "chk name price" "chk per price";
+    row-gap: 2px; padding: 12px 13px;
+  }
+  .pk-chk { grid-area: chk; align-self: center; }
+  .pk-name { grid-area: name; }
+  .pk-per { grid-area: per; flex-direction: row; align-items: baseline; gap: 6px; justify-content: flex-start; }
+  .pk-price { grid-area: price; align-self: center; }
+  .buy-custom {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name price" "qty price";
+    row-gap: 8px; padding: 12px 13px;
+  }
+  .buy-custom-k { grid-area: name; }
+  .buy-custom .qty { grid-area: qty; justify-self: start; }
+  .buy-custom-price { grid-area: price; align-self: center; }
+  .buy-checkout { flex-direction: column; align-items: stretch; gap: 10px; }
+  .buy-checkout .btn { width: 100%; margin-left: 0; padding: 10px 15px; }
   .search, .sel { max-width: none; flex: 1; }
   /* cụm trùng bài: bỏ số thứ tự, thẻ card ôm sát mép cho vừa màn hẹp */
   .grow { margin-left: 8px; margin-right: 8px; }
@@ -1827,10 +1965,15 @@ img { max-width: 100%; }
   .toolbar { flex-wrap: nowrap; }
   .foot-legal { text-align: left; }
   .paygrid { gap: 6px; }
-  .paytile { height: 44px; padding: 7px; }
-  .pay-grid { flex-direction: column; align-items: center; }
-  .pay-info { width: 100%; }
-  .pay-k { width: 84px; flex: 0 0 84px; }
+  .paytile { padding: 8px 7px 7px; }
+  /* máy hẹp: QR lên trên, các dòng chi tiết xuống dưới, cùng một cột — hóa đơn
+     vẫn đọc đúng thứ tự trên xuống */
+  .iv-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .iv-qr { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+  .iv-qr .qr-canvas { width: 92px !important; height: 92px !important; }
+  .iv-qr-cap { text-align: left; max-width: 130px; }
+  .iv-row { grid-template-columns: 92px minmax(0, 1fr) 22px; padding: 5px 0; }
+  .iv-foot { flex-direction: column; align-items: flex-start; gap: 7px; }
 }
 
 /* =========================================================
@@ -1870,7 +2013,7 @@ img { max-width: 100%; }
    lời bằng màu viền/nền, còn mọi nút đều lún xuống khi bấm. Nhấc-cả-lên ở mọi
    nút là mẫu chuyển động phổ biến nhất của giao diện do máy sinh: chỗ nào cũng
    nhún thì không chỗ nào là chính. */
-.btn, .tab, .votebtn, .kchip, .copy, .icon-btn, .sfxbtn, .mtab,
+.btn, .tab, .votebtn, .kchip, .icon-btn, .sfxbtn, .mtab,
 .side-item, .side-row, .side-user, .pvrow {
   transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft),
               color var(--t-1) var(--e-soft), transform var(--t-1) var(--e-out);
@@ -3190,11 +3333,6 @@ html[data-section="spin"] .bgfx { display: none; }
 /* (nhịp chuyển của .kchip nằm trong luật đầy đủ của nó ở khối form request —
    trước đây khai lại ở đây nữa, cùng danh sách chỉ khác thứ tự.) */
 
-/* gói vote: thẻ nhấc lên + viền sáng theo màu gói */
-.pack { transition: border-color var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out),
-  box-shadow var(--t-2) var(--e-soft) }
-.pack:hover { transform: translateY(-2px); box-shadow: var(--sh-2) }
-
 /* nút vote đã bấm: một chấm sáng nhỏ báo "phần của bạn nằm ở đây" */
 .votebtn.on::before { content: ''; position: absolute; top: -2px; right: -2px; width: 6px; height: 6px;
   border-radius: 50%; background: var(--a-2); box-shadow: 0 0 8px var(--a-glow);
@@ -3223,8 +3361,7 @@ html[data-section="spin"] .bgfx { display: none; }
     background: var(--surface-2); }
   .grow:hover { border-color: rgba(169,164,255,.35); }
   .stat:hover::after { transform: scaleX(0) }
-  .pack:hover, .kchip:hover, .to-top:hover { transform: none; box-shadow: none }
-  .pack:hover { box-shadow: none }
+  .kchip:hover, .to-top:hover { transform: none; box-shadow: none }
   .lb-table tbody tr:hover { background: none }
   .lb-table tbody tr.me:hover { background: linear-gradient(90deg, var(--a-soft), transparent 65%) }
   .side-brand:hover .applogo { transform: none; box-shadow: none }
@@ -3318,20 +3455,204 @@ html[data-section="spin"] .bgfx { display: none; }
 }
 
 /* =========================================================
-   UP NEXT v2 — danh sách request đã chốt + đếm ngược ở góc
+   UP NEXT v3 — HAI VÙNG: đang làm / đang chờ
+   ---------------------------------------------------------
+   VÌ SAO ĐỔI (chủ dự án: "tinh chỉnh để những thứ cần thiết nổi bật hơn").
+   Bố cục cũ là một danh sách dồn về lề trái: thẻ rộng 874px mà nội dung chỉ
+   chiếm chừng một phần ba, nửa phải bỏ trống; trong mỗi dòng, tên bài và tên
+   ca sĩ cùng màu cùng độ đậm, nên thứ đậm nhất lại là tem PAID và nhãn trạng
+   thái.
+
+   Nay khối trả lời đúng ba câu, theo đúng thứ tự quan trọng:
+     1. ĐANG LÀM BÀI NÀO → vùng trái, chữ 21px, nhãn trạng thái là chip tô màu;
+     2. CÒN NHỮNG BÀI NÀO, THỨ TỰ RA SAO → vùng phải, danh sách có số thứ tự;
+     3. BAO GIỜ CHỐT BÀI KẾ TIẾP → số đếm ngược ở góc phải, to hơn trước.
+   Chỉ ba thứ đó được to/đậm; loại bài, mốc chốt, vote đều lùi về một bậc.
+
+   Phạm vi: `.nowbar` còn dùng cho "This week" và "Hall of Fame", nên mọi luật
+   bố cục ở đây khoá bằng `.nowbar.upnext`. Hai khối kia giữ nguyên.
    ========================================================= */
-.now-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.nowbar .now-head .lbl { display: flex; align-items: center; gap: 7px; margin: 0; }
-/* Dòng tách giai đoạn cạnh con số trên nắp khối Up next: nói rõ con số đó gồm
-   bao nhiêu việc đang chạy và bao nhiêu việc chờ tới lượt — hai số nhỏ này là
-   hai ô thống kê phía trên, nên mắt nối được mà không phải đoán. */
-.now-split { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
-@media (max-width: 620px) { .now-split { white-space: normal; } }
-.now-n { font-family: var(--mono); font-size: 12px; font-weight: 700; line-height: 20px; min-width: 20px;
-  padding: 0 6px; text-align: center; border-radius: var(--r-pill);
-  /* số suất đã chốt → màu Up next, không phải màu "trong hàng"; và bỏ vòng
-     `inset` — nó là chiếc viền thứ hai mà mọi nhãn khác đã bỏ. */
-  color: var(--upnext); background: color-mix(in oklab, var(--upnext) 16%, transparent); }
+.nowbar.upnext {
+  padding: 0; overflow: hidden;
+  /* ĐỒNG BỘ VẬT LIỆU VỚI TRANG. Hai khối anh em ngay trên ("This week", "Hall
+     of Fame") và mọi thẻ khác đều là: nền --panel, viền 1px --line, bo 10px.
+     Bản trước của khối này tự đổi sang nền sáng hơn + bỏ viền + bo 16px, nên nó
+     đọc ra như một vật liệu khác dán lên trang — đúng chỗ chủ dự án gọi là
+     "chưa đồng bộ với trang".
+     Giữ nguyên vật liệu đó; thứ làm nó khác là HAI chi tiết, không phải nền:
+     · một nét màu 1px dọc mép trên (màu giai đoạn, mờ hai đầu) — dấu hiệu
+       "khối này đang chạy", thứ hai khối kia không có;
+     · dải đầu và dải chân tối/sáng hơn thân đúng một bậc, để thẻ có ba phần
+       mà không phải kẻ thêm đường nào. */
+  background: var(--panel);
+  box-shadow: var(--sh-1), var(--ring);
+}
+/* Dải nhấn 2px ở mép trái là dấu hiệu của chiếc hộp cũ (và "This week" cũng
+   đang dùng nó). Ở tấm mềm này, màu giai đoạn đã nằm trong nền, nên bỏ hẳn. */
+.nowbar.upnext > .nbar { display: none; }
+/* vệt sáng chạy vô hạn: một lớp chuyển động trên khối tĩnh, kéo mắt khỏi danh
+   sách mỗi 7,5 giây. Bỏ ở khối này; hai khối kia không đụng. */
+.nowbar.upnext::before {
+  content: ''; left: 0; right: 0; top: 0; bottom: auto; width: auto; height: 1px;
+  animation: none; transform: none;
+  background: linear-gradient(90deg,
+    transparent 1%,
+    color-mix(in srgb, var(--progress) 85%, transparent) 16%,
+    color-mix(in srgb, var(--a-2) 42%, transparent) 48%,
+    transparent 80%);
+}
+/* `[data-glow]` gắn vệt sáng bám chuột cho khối lớn; thẻ danh sách này không
+   cần, và nét nhấn ở mép trên đã là điểm nhấn duy nhất. */
+.nowbar.upnext:hover { border-color: var(--line); }
+.nowbar.upnext .now-head { display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 14px 20px 13px; margin: 0;
+  /* ĐẦU THẺ TÁCH HẲN KHỎI NỘI DUNG bằng một đường kẻ 1px chạy hết bề ngang
+     (chủ dự án yêu cầu). Nền đầu thẻ sáng hơn thân đúng một bậc, nên đường kẻ
+     chỉ còn là chỗ "gấp" của hai tờ giấy, không phải một khung thứ hai. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 120%);
+  border-bottom: 1px solid var(--line); }
+.nowbar.upnext .lbl { gap: 8px; }
+/* `.now-item` ở đây chỉ còn là dòng nội dung bên trong vùng trái — bỏ đệm và
+   đường kẻ của bố cục danh sách cũ, vì vùng trái đã có khung riêng. */
+.nowbar.upnext .now-item { padding: 0; border: 0; }
+
+/* --- đếm ngược: con số là thông tin, nhãn chỉ để biết nó là gì --- */
+.nowbar.upnext .pick-cd { flex-direction: row; align-items: baseline; gap: 6px; }
+/* Nhãn và số là MỘT cụm thông tin, nên chỉ chênh nhau nửa bậc: 11.5px / 13px.
+   Bản trước để 12.5 / 15 — số đậm nhảy lên ngang cỡ tên bài, và vì nó in bằng
+   mono nên trông còn to hơn cả tiêu đề khối bên cạnh. */
+.nowbar.upnext .pick-cd span { font-size: 11.5px; }
+.nowbar.upnext .pick-cd b { font-size: var(--fs-meta); font-weight: 600; letter-spacing: .01em; }
+
+/* --- hai vùng --- */
+.nowbar.upnext .now-body { position: relative; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* Đường chia chỉ dài 70% chiều cao và mờ ở hai đầu — một nét "được vẽ", không
+   phải một cái khung chia ô. */
+.nowbar.upnext .now-body::before {
+  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: var(--line); pointer-events: none;
+}
+.nowbar.upnext .now-body.solo { grid-template-columns: minmax(0, 1fr); }
+
+/* vùng trái: bài đang làm */
+.nowbar.upnext .now-work { padding: 15px 20px 17px; }
+
+/* =========================================================
+   NHÃN CỦA MỖI VÙNG — một khuôn duy nhất cho cả hai bên
+   ---------------------------------------------------------
+   Bản trước: bên trái là một CHIP có nền + viền, bên phải là dòng chữ trơn. Hai
+   thứ khác loại đứng cạnh nhau thì không bao giờ thẳng hàng, và cái chip biến
+   nửa thẻ thành một ô được bôi màu — đúng chỗ "quá xấu".
+   Nay hai bên dùng CÙNG một khuôn: chấm màu + chữ nhỏ. Khác biệt chỉ còn ở MÀU
+   của chấm và chữ (tím cho việc đang chạy, xám cho việc đang chờ), nên hai cột
+   thẳng hàng tuyệt đối mà vẫn phân cấp được.
+   ========================================================= */
+.nowbar.upnext .now-lab { display: flex; align-items: center; gap: 7px;
+  min-height: 18px; margin-bottom: 9px;
+  font-size: var(--fs-cap); font-weight: 600; letter-spacing: .05em;
+  color: var(--txt-3); }
+/* Bên trong nhãn là chính `.status` của bảng — cùng một hình cho cùng một giai
+   đoạn (vòng rỗng cho "đang chờ", vòng khuyết xoay cho "đang làm"), nên khối
+   này không dựng hình trạng thái thứ hai. Ở đây chỉ đổi cỡ chữ và khoảng chữ. */
+.nowbar.upnext .now-lab .status { font-size: var(--fs-cap); font-weight: 600;
+  letter-spacing: .05em; }
+.nowbar.upnext .now-lab.live .status { font-weight: 600; }
+/* Nhãn trạng thái của bài đang làm: một CHIP tô màu, không phải dòng chữ xám.
+   Đây là thứ phân biệt "đang làm" với "đang chờ" mà không phải đọc chữ. */
+.nowbar.upnext .now-work-top .status { padding: 3px 10px 3px 8px; border-radius: var(--r-pill);
+  font-size: var(--fs-cap); font-weight: 600;
+  background: color-mix(in oklab, var(--c, var(--txt-2)) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c, var(--txt-2)) 58%, transparent); }
+.nowbar.upnext .now-work-t { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 0; font-family: var(--display); font-size: var(--fs-lead); font-weight: 700;
+  line-height: 1.25; letter-spacing: -.015em; color: var(--txt); }
+.nowbar.upnext .now-work-t .ar { font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
+  letter-spacing: 0; color: var(--txt-2); }
+/* Bậc cỡ chữ của riêng khối này — dùng token của trang, không đặt số lẻ:
+     19px  tiêu đề khối
+     17px  tên bài đang làm        (--fs-lead)
+     15px  tên bài trong hàng chờ   (--fs-title, đúng cỡ một hàng request)
+     14px  nghệ sĩ của bài đang làm (--fs-body)
+     12.5px mọi thông tin phụ       (--fs-meta)
+     11px  nhãn nhóm, số thứ tự     (--fs-cap) */
+.nowbar.upnext .now-work .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 12px; font-size: var(--fs-meta); color: var(--txt-2); }
+
+/* vote và mốc chốt: cùng một kiểu ở cả hai vùng, để mắt so sánh được
+   "bài này 3 vote, bài kia 27 vote" mà không phải đọc lại nhãn */
+.nowbar.upnext .now-votes { font-size: var(--fs-meta); color: var(--txt-2); white-space: nowrap;
+  font-variant-numeric: tabular-nums; }
+.nowbar.upnext .now-votes b { font-family: var(--mono); font-size: var(--fs-body); font-weight: 600; color: var(--txt); }
+.nowbar.upnext .now-when { font-size: var(--fs-meta); color: var(--txt-2); white-space: nowrap; opacity: .9; }
+
+/* vùng phải: phần còn lại của dây chuyền */
+.nowbar.upnext .now-wait { padding: 2px 20px 12px; }
+/* Vùng chờ lùi một bậc: tiêu đề mảnh hơn (đã 500), thông tin phụ mờ hơn, và các
+   hàng cách nhau bằng một đường kẻ rất nhẹ — đủ để đếm hàng, không tranh sáng
+   với vùng đang chạy. */
+.nowbar.upnext .now-qrow + .now-qrow { border-top: 1px solid rgba(255, 255, 255, .045); }
+.nowbar.upnext .now-wait { padding: 15px 20px 14px; }
+.nowbar.upnext .now-q { list-style: none; margin: 0; padding: 0; }
+.nowbar.upnext .now-qrow { display: grid; grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 11px; align-items: baseline; padding: 8px 0; }
+.nowbar.upnext .now-qrow:first-child { padding-top: 0; }
+/* số thứ tự = thứ tự chốt thật (picked_at tăng dần), không phải số trang trí */
+.nowbar.upnext .now-rank { font-family: var(--mono); font-size: var(--fs-cap);
+  font-weight: 500; color: var(--txt-3); }
+.nowbar.upnext .now-qmain { min-width: 0; }
+.nowbar.upnext .now-qrow h3 { display: flex; align-items: baseline; gap: 6px; flex-wrap: nowrap;
+  margin: 0; font-family: var(--display); font-size: var(--fs-title); font-weight: 500;
+  letter-spacing: .1px; line-height: 1.25; color: var(--txt); }
+/* Tên dài thì cắt bằng dấu ba chấm, KHÔNG đẩy nghệ sĩ xuống dòng thứ hai: bản
+   trước để hàng bị ngắt thành "Moonlight Sunrise" / "— TWICE", và con số thứ
+   tự nằm lơ lửng giữa hai dòng, trông như lỗi. */
+.nowbar.upnext .now-qrow h3 .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowbar.upnext .now-qrow h3 .ar { flex: none; font-family: var(--font); font-size: var(--fs-body); font-weight: 400;
+  letter-spacing: 0; color: var(--txt-3); opacity: .92; }
+.nowbar.upnext .now-qmeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 6px; }
+.nowbar.upnext .now-qmeta .now-votes,
+.nowbar.upnext .now-qmeta .now-when { color: var(--txt-3); }
+.nowbar.upnext .now-qmeta .now-votes b { color: var(--txt-2); }
+.nowbar.upnext .now-qmeta .kind { opacity: .85; }
+/* dòng phụ của hàng chờ và của bài đang làm dùng CHUNG một cỡ chữ và một kiểu
+   dấu phân cách — trước đây mỗi bên một kiểu, nên mắt thấy hai hệ thống. */
+/* chip loại bài: nền đặc hơn và chữ sáng hơn chip mặc định của bảng — trên nền
+   thẻ sẫm, chip 13% màu gốc đọc ra như một vết mờ. */
+.nowbar.upnext .kind { font-size: var(--fs-cap); padding: 3px 8px;
+  background: color-mix(in oklab, currentColor 20%, transparent); }
+.nowbar.upnext .pill.gold { font-size: 10px; padding: 3px 8px 3px 7px;
+  background: color-mix(in oklab, var(--paid) 20%, transparent); }
+
+
+/* thành viên của một bài gửi nhiều lần: gạch liền, không nét đứt — cả app dùng
+   đường tóc liền, nét đứt đọc ra như bản nháp */
+.nowbar.upnext .now-members { list-style: none; margin: 10px 0 0; padding: 0 0 0 2px;
+  display: flex; flex-direction: column; gap: 5px; }
+.nowbar.upnext .now-members li { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: var(--fs-meta); color: var(--txt-2); }
+.now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
+/* Danh sách thành viên trong Up next: tem PAID ở đây bé hơn, nên ngôi sao cũng
+   phải bé theo — để 8px là nó thành ký tự to nhất dòng. */
+.now-members .pill.gold::before { font-size: 7px; margin-right: 3px; }
+.nowbar.upnext .now-empty { margin: 0; padding: 4px 18px 16px; color: var(--txt-2); font-weight: 400; }
+
+.nowbar.upnext .now-foot { display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin: 0; padding: 11px 20px 12px; border-top: 0;
+  /* dải chân tối hơn thân một bậc: thẻ có "đế" mà không cần đường kẻ thứ tư */
+  background: rgba(0, 0, 0, .16); }
+/* Nút "cách tính" phải đứng CÙNG DÒNG với câu quy tắc: `.calc` mặc định
+   `flex: 0 0 100%` (để panel mở ra được trải ngang), nhưng ở đây nó chỉ là một
+   chấm 24px — chiếm trọn dòng thì chân khối cao thêm 26px vô ích.
+   Panel `.calc-rows` vẫn tự xuống dòng vì nó rộng 360px. */
+.nowbar.upnext .now-rule .calc { flex: 0 0 auto; }
+.now-rule { display: flex; flex: 1 1 70%; min-width: 0; flex-wrap: wrap; align-items: center; column-gap: 4px;
+  font-size: 11.5px; color: var(--txt-2); line-height: 1.5; }
+/* Bảng "cách tính" của khối Up next đã được gỡ (chủ dự án yêu cầu), nên toàn
+   bộ hệ .calc / .calc-rows / .calc-row ở đây cũng đi theo: để lại là CSS trỏ
+   vào một thẻ không còn trong DOM. */
+.now-more { margin-left: auto; }
 
 /* đếm ngược: nhãn nhỏ + số mono, căn phải */
 .pick-cd { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin: 0; text-align: right; }
@@ -3344,59 +3665,35 @@ html[data-section="spin"] .bgfx { display: none; }
 .pick-cd.over b::after { content: ''; display: inline-block; width: 6px; height: 6px;
   margin-left: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 
-.now-list { display: flex; flex-direction: column; }
-.now-item { padding: 9px 0; border-top: 1px solid var(--line); }
-.now-item:first-child { border-top: 0; padding-top: 0; }
-/* UP NEXT ĐỒNG BỘ VỚI HÀNG REQUEST (vòng 5). Khối này và hàng request nói về
-   cùng một bài, nằm cạnh nhau trên cùng một trang, nên hai chỗ phải cùng một
-   ngôn ngữ hình: tiêu đề 15px (đã có), cách dòng phụ đúng 6px như `.body`, và
-   nhãn `×N` là một pill cùng họ với PAID — trước đây nó là một ô chữ mono bo
-   8px, đọc ra như một con số kỹ thuật chứ không phải một nhãn. */
-.nowbar .now-item h3 { margin: 0 0 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.nowbar .now-item h3 > span:first-of-type { color: var(--txt-2); font-weight: 400; }
-.nowbar .now-item.now-group { padding-bottom: 11px; }
-.nowbar .now-item .pill.group { font-family: var(--mono); font-size: var(--fs-cap); font-weight: 700; line-height: 18px; min-width: 22px; text-align: center; padding: 0 7px; border-radius: var(--r-pill); color: var(--a-2); background: color-mix(in oklab, var(--a-2) 13%, transparent); }
-.now-members { list-style: none; margin: 7px 0 0; padding: 7px 0 0; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
-.now-members li { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--txt-3); flex-wrap: wrap; }
-.now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
-/* Danh sách thành viên trong Up next: tem PAID ở đây bé hơn, nên ngôi sao cũng
-   phải bé theo — để 8px là nó thành ký tự to nhất dòng. */
-.now-members .pill.gold::before { font-size: 7px; margin-right: 3px; }
-.nowbar .now-empty { margin: 0; color: var(--txt-2); font-weight: 400; }
-
-.now-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.now-rule { display: flex; flex: 1 1 70%; min-width: 0; flex-wrap: wrap; align-items: center; column-gap: 4px;
-  font-size: 11.5px; color: var(--txt-3); line-height: 1.5; }
-/* ===== CALC NOTE — popover “cách tính” (components/CalcNote.jsx) =====
-   Chấm info vẫn gọn trong dòng Up next; mở ra là panel gọn có nhãn/câu, không
-   còn đoạn văn trải ngang. details/summary thuần, không state/animation. */
-.calc { display: block; flex: 0 0 100%; min-width: 0; margin: 0; }
-.calc summary { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
-  border: 1px solid transparent; border-radius: 50%; background: none; color: var(--txt-3); cursor: pointer;
-  list-style: none; transition: color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft); }
-.calc summary::-webkit-details-marker { display: none; }
-.calc summary:hover, .calc[open] summary { color: var(--a-2); background: color-mix(in srgb, var(--a-2) 9%, transparent); border-color: color-mix(in srgb, var(--a-2) 22%, transparent); }
-.calc summary:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
-.calc-rows { width: min(360px, 100%);
-  margin: 7px 0 2px; padding: 7px 14px; border: 1px solid color-mix(in srgb, var(--a-2) 20%, var(--line));
-  border-radius: 12px; background: color-mix(in srgb, var(--bg-2) 96%, #111 4%); color: var(--txt-2);
-  box-shadow: var(--sh-2), 0 2px 8px rgb(0 0 0 / 18%); }
-.calc-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px 0; }
-.calc-row + .calc-row { border-top: 1px solid var(--line); }
-.calc-row dt { margin: 1px 0 0; color: var(--txt-3); font-size: 11px; font-weight: 500; line-height: 1.5; }
-.calc-row dd { margin: 0; color: var(--txt-2); font-size: 11.5px; line-height: 1.5; text-wrap: pretty; }
-@media (max-width: 480px) {
-  .calc-row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px; padding: 9px 0; }
-}
-@media (prefers-reduced-motion: reduce) { .calc summary { transition: none; } }
-/* Định nghĩa của khối này, đặt ngay dưới tiêu đề: mục Up next và tab In progress
-   nói cùng một dây chuyền, người đọc không phải tự suy ra. */
-.now-more { margin-left: auto; }
+/* Số suất đã chốt → màu Up next, không phải màu "trong hàng"; bỏ vòng `inset`
+   — nó là chiếc viền thứ hai mà mọi nhãn khác đã bỏ. */
+.now-n { font-family: var(--mono); font-size: 12px; font-weight: 700; line-height: 20px; min-width: 20px;
+  padding: 0 6px; text-align: center; border-radius: var(--r-pill);
+  color: var(--upnext); background: color-mix(in oklab, var(--upnext) 16%, transparent); }
+/* Dòng phụ cạnh tiêu đề của "This week" / "Hall of Fame" — khối Up next không
+   còn dùng nó (con số trên huy hiệu đã nói cùng một điều). */
+.now-split { font-size: 11.5px; color: var(--txt-3); white-space: nowrap; }
+@media (max-width: 620px) { .now-split { white-space: normal; } }
 
 @media (max-width: 620px) {
-  .now-head { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .pick-cd { text-align: left; flex-direction: row; gap: 6px; align-items: baseline; }
+  /* hai vùng xếp dọc: bài đang làm lên trước, dây chuyền xuống dưới — không bóp
+     cột phải xuống còn ~150px cho chữ tự ngắt dòng */
+  .nowbar.upnext .now-body { grid-template-columns: minmax(0, 1fr); }
+  /* đường chia dọc chỉ có nghĩa khi hai vùng nằm CẠNH nhau; xếp dọc thì nó
+     thành một vệt kẻ giữa thẻ, vô nghĩa */
+  .nowbar.upnext .now-body::before { content: none; }
+  .nowbar.upnext .now-work { border-right: 0; border-bottom: 1px solid var(--line); padding: 13px 14px 14px; }
+  .nowbar.upnext .now-head { padding: 11px 14px 10px; }
+  .nowbar.upnext .lbl { font-size: var(--fs-lead); }
+  .nowbar.upnext .pick-cd { flex-direction: row; align-items: baseline; gap: 6px; }
+  .nowbar.upnext .now-work-t { font-size: 18px; }
+  .nowbar.upnext .now-wait { padding: 4px 14px 8px; }
+  /* Điện thoại: cột phải (vote + mốc chốt) rộng chừng 150px, để nguyên là nó
+     bóp cột tên bài còn ~180px và tên tự ngắt dòng giữa từ. Cho nó xuống dưới
+     tên, nằm ngang. */
+  .nowbar.upnext .now-qrow { grid-template-columns: 22px minmax(0, 1fr); column-gap: 10px; row-gap: 5px; }
+  .nowbar.upnext .now-work .meta { gap: 8px; row-gap: 6px; }
+  .nowbar.upnext .now-foot { padding: 9px 14px 11px; }
   .now-more { width: 100%; text-align: center; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .now-item { animation: none; } }
@@ -4918,8 +5215,7 @@ body { overflow-x: hidden; }
   .modal { max-width: 100%; width: 100%; border-radius: var(--r-lg) var(--r-lg) 0 0; max-height: min(92dvh, 740px); overflow: hidden; }
   .modal-body { max-height: min(78dvh, 640px); overflow-y: auto; }
   .field-row { grid-template-columns: 1fr; gap: 10px; }
-  .packs { grid-template-columns: 1fr; gap: 10px; }
-  .buyone-total { margin-left: 0; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+  .pk-name b { font-size: var(--fs-body); }
   .prof-card { padding: 12px; }
   .prof-av { gap: 10px; }
   .public-profile { padding: 14px 12px; }

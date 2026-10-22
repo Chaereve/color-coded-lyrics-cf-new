@@ -47,39 +47,80 @@ function CopyRow({ k, v, mono }) {
     setDone(true); setTimeout(() => setDone(false), 1600)
   }
   return (
-    <div className="pay-row">
-      <span className="pay-k">{k}</span>
-      <span className={`pay-v${mono ? ' mono' : ''}`}>{v}</span>
-      <button type="button" className={`copy${done ? ' done' : ''}`} onClick={copy}>
-        {done ? <Icon name="check" size={14} /> : t('pay.copy')}
+    <div className="iv-row">
+      <span className="iv-k">{k}</span>
+      <span className={`iv-v${mono ? ' mono' : ''}`}>{v}</span>
+      <button type="button" className={`iv-copy${done ? ' done' : ''}`}
+        onClick={copy} aria-label={t('pay.copy')} title={done ? t('pay.copied') : t('pay.copy')}>
+        <Icon name={done ? 'check' : 'copy'} size={13} />
       </button>
     </div>
   )
 }
 
-export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content = '' }) {
+export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content = '', awaiting = false }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(null)
   const desc = cleanContent(content)
   const active = METHODS.find(m => m.k === open)
+  /* Chọn phương thức là có NGAY tờ hóa đơn, không phải một bảng chi tiết rời
+     rạc: số tiền là thứ to nhất, mã QR nằm cạnh các dòng cần chép.
+
+     Số tiền do ActionModal quyết định: có đơn đang chờ thì lấy đúng số của đơn
+     (`awaiting` → chờ tiền), chưa có đơn thì lấy gói đang chọn (`draft`). Hai
+     trạng thái này KHÁC nhau về ý nghĩa nên nhãn cũng khác — không dán chữ
+     "Awaiting transfer" lên một tờ giấy chưa có đơn nào. Luồng thanh toán
+     (chuyển khoản / PayPal, nội dung, payload QR) không đổi. */
+  const isPaypal = active?.k === 'paypal'
+  const amount = isPaypal ? amountUsd : amountVnd
+  const hasAmount = amount > 0
 
   return (
     <div className="pay">
       <div className="paygrid">
         {METHODS.map(({ k, src, nameKey, alt }) => (
           <button key={k} type="button"
-            className={`paytile${open === k ? ' on' : ''} ${k}`}
+            className={`paytile ${k}${open === k ? ' on' : ''}`}
             onClick={() => setOpen(o => (o === k ? null : k))}
-            aria-pressed={open === k} aria-label={t(nameKey)} title={t(nameKey)}>
-            <img className="paytile-logo" src={src} alt={alt} />
+            aria-pressed={open === k}>
+            <span className="paytile-box"><img className="paytile-logo" src={src} alt={alt} /></span>
+            <small className="paytile-name">{t(nameKey)}</small>
+            {open === k && <span className="paytile-tick" aria-hidden="true"><Icon name="check" size={10} /></span>}
           </button>
         ))}
       </div>
 
-      {active && (
-        <div className="pay-panel">
-          <div className="pay-grid">
-            <div className="pay-info">
+      {active ? (
+        <div className="iv">
+          <div className="iv-head">
+            <div className="iv-htop">
+              <span className="iv-title">{t('pay.invoice')}</span>
+              <span className={`iv-status${awaiting ? '' : ' draft'}`}>
+                {awaiting && <i aria-hidden="true" />}
+                {awaiting ? t('pay.awaiting') : t('pay.details')}
+              </span>
+            </div>
+            <div className="iv-sum">
+              <span className="iv-amt">
+                {hasAmount ? (isPaypal ? usd(amountUsd) : vnd(amountVnd)) : '—'}
+              </span>
+              {hasAmount && (
+                <span className="iv-amt-sub">≈ {isPaypal ? vnd(amountVnd) : usd(amountUsd)}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="iv-body">
+            <div className="iv-qr">
+              {isPaypal
+                ? <QR text={paypalPayload(amountUsd)} color="#003087" />
+                : <QR text={vietQRPayload(amountVnd, desc)} />}
+              <span className="iv-qr-cap">
+                {isPaypal ? t('pay.scanPaypal') : t('pay.scanBank')}
+              </span>
+            </div>
+
+            <div className="iv-rows">
               {active.k === 'bank' && <>
                 <CopyRow k={t('pay.bankName')} v={PAYMENT.bank.bankName} />
                 <CopyRow k={t('pay.accNo')} v={PAYMENT.bank.accountNumber} mono />
@@ -89,32 +130,27 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 <CopyRow k="PayPal.me" v={`paypal.me/${PAYMENT.paypal.username}`} />
                 <CopyRow k={t('pay.email')} v={PAYMENT.paypal.email} />
               </>}
-
-              {active.k === 'paypal'
-                ? (amountUsd > 0 && <CopyRow k={t('pay.amount')} v={usd(amountUsd)} mono />)
-                : (amountVnd > 0 && <CopyRow k={t('pay.amount')} v={vnd(amountVnd)} mono />)}
-              {desc && <CopyRow k={active.k === 'paypal' ? t('pay.memo') : t('pay.content')} v={desc} mono />}
-            </div>
-
-            <div className="pay-qr">
-              {active.k === 'bank'   && <QR text={vietQRPayload(amountVnd, desc)} />}
-              {active.k === 'paypal' && <QR text={paypalPayload(amountUsd)} color="#003087" />}
-              <div className="pay-qr-cap">
-                {active.k === 'bank' ? t('pay.scanBank') : t('pay.scanPaypal')}
-              </div>
+              {hasAmount && <CopyRow k={t('pay.amount')} v={isPaypal ? usd(amountUsd) : vnd(amountVnd)} mono />}
+              {desc && <CopyRow k={isPaypal ? t('pay.memo') : t('pay.content')} v={desc} />}
             </div>
           </div>
 
-          {active.k === 'paypal' && (
-            <div className="pay-tip">
-              <a href={paypalPayload(amountUsd)} target="_blank" rel="noreferrer">paypal.me/{PAYMENT.paypal.username}</a>
-              {amountUsd > 0 && <span> · {usd(amountUsd)}</span>}
-            </div>
-          )}
+          <div className="iv-foot">
+            {isPaypal ? (
+              <>
+                <a className="iv-go" href={paypalPayload(amountUsd)} target="_blank" rel="noreferrer">
+                  paypal.me/{PAYMENT.paypal.username}
+                </a>
+                <span>{t('pay.afterPay')}</span>
+              </>
+            ) : (
+              <span>{t('pay.exact')}</span>
+            )}
+          </div>
         </div>
+      ) : (
+        <div className="pay-hint">{t('pay.hint')}</div>
       )}
-
-      {!active && <div className="pay-hint">{t('pay.hint')}</div>}
     </div>
   )
 }
