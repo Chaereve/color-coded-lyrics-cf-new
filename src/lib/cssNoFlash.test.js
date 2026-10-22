@@ -37,8 +37,8 @@ const ruleBody = (src, selector) => {
 test('nền của <html> được khai báo trong index.css (khung vẽ không còn trắng)', () => {
   const body = ruleBody(css, 'html')
   assert.ok(body !== null, 'không tìm thấy luật `html { … }` trong index.css')
-  assert.match(body, /background\s*:\s*var\(--mesh-base\)/,
-    'luật `html` phải đặt `background: var(--mesh-base)` — thiếu dòng này thì mọi khe hở khi chuyển cảnh lộ khung vẽ TRẮNG của trình duyệt')
+  assert.match(body, /background\s*:\s*var\(--bg\)/,
+    'luật `html` phải đặt `background: var(--bg)` — thiếu dòng này thì mọi khe hở khi chuyển cảnh lộ khung vẽ TRẮNG của trình duyệt')
 })
 
 test('index.html tự tô nền trước khi CSS tải xong, và cùng màu với --bg', () => {
@@ -46,10 +46,10 @@ test('index.html tự tô nền trước khi CSS tải xong, và cùng màu vớ
   assert.ok(inline, 'index.html phải có khối <style> nội tuyến cho khung hình đầu tiên')
   const m = inline[1].match(/html\s*\{[^}]*background\s*:\s*(#[0-9a-fA-F]{3,8})/)
   assert.ok(m, 'khối <style> nội tuyến phải đặt nền cho `html` bằng một mã màu cụ thể (không dùng biến — biến chưa tồn tại ở thời điểm đó)')
-  const token = css.match(/--mesh-base\s*:\s*(#[0-9a-fA-F]{3,8})/)
-  assert.ok(token, 'không tìm thấy token `--mesh-base` trong :root')
+  const token = css.match(/--bg\s*:\s*(#[0-9a-fA-F]{3,8})/)
+  assert.ok(token, 'không tìm thấy token `--bg` trong :root')
   assert.equal(m[1].toLowerCase(), token[1].toLowerCase(),
-    `màu nền đầu tiên (${m[1]}) phải trùng token --mesh-base (${token[1]}) — lệch nhau là đổi màu nền xong vẫn thấy một nháy màu cũ`)
+    `màu nền đầu tiên (${m[1]}) phải trùng token --bg (${token[1]}) — lệch nhau là đổi màu nền xong vẫn thấy một nháy màu cũ`)
 })
 
 test('lớp phủ của View Transitions cũng được tô nền trang', () => {

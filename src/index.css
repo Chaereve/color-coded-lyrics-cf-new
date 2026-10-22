@@ -158,20 +158,6 @@
   --r-lg: 14px;
   --r-pill: 999px;
 
-  /* ===== NỀN MESH (bảng màu Daily Spin) ================================
-     Bốn mã này LẤY TỪ DailySpin.css (rarity r0–r3 + nút SPIN). Khai ở đây
-     thành token để (a) nền không tự bịa màu thứ năm, (b) sau này Daily Spin
-     đổi màu thì chỉ sửa đúng bốn dòng này.
-     --mesh-tone là cửa DUY NHẤT chỉnh độ. KHÔNG dùng filter blur cho bốn
-     khối này (xem ghi chú ở .bgfx-mesh): độ mềm nằm trong điểm dừng
-     gradient, blur trên khối phủ kín màn hình từng làm chết tiến trình vẽ. */
-  --mesh-1: #5d22e1;
-  --mesh-2: #3d05dd;
-  --mesh-3: #dc94ef;
-  --mesh-4: #fcb0f3;
-  --mesh-base: #06040e;
-  --mesh-tone: .3;
-
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
      17 chỗ dùng chữ 10px và 50 chỗ dùng 11,5px — mắt không đọc ra một nhịp,
@@ -242,25 +228,18 @@ html {
      ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang.
      (index.html có sẵn một bản sao y hệt nội tuyến trong <head>: nó phải có mặt
      TRƯỚC khi tệp CSS tải xong để khung hình đầu tiên không trắng. Hai chỗ cùng
-     một màu — sửa màu nền thì sửa cả hai.)
-     Màu này là --mesh-base, KHÔNG phải --bg: khung vẽ phải liền một màu với
-     lớp nền phía trên nó, nếu không mép màn hình lộ ra một sắc khác. */
-  background: var(--mesh-base);
+     một màu — sửa màu nền thì sửa cả hai.) */
+  background: var(--bg);
   /* lề cuộn chừa sẵn: dữ liệu về làm thanh cuộn xuất hiện là cả trang
      giật ngang một cái, rất dễ thấy trên khối danh sách */
   scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 body {
-  /* TRONG SUỐT — và đây là chỗ từng làm cả lớp nền biến mất.
-     .bgfx nằm ở z-index -1 (một lớp fixed, không phải con của body về mặt
-     ngăn xếp). Theo thứ tự vẽ của CSS, lớp có z-index âm được vẽ NGAY SAU
-     nền của thẻ gốc (html) nhưng TRƯỚC nền của các khối trong luồng — mà
-     body chính là một khối trong luồng. Nên chỉ cần body có một màu đặc là
-     nó vẽ đè lên toàn bộ mesh, mesh vẫn chạy, vẫn tốn CPU, và người dùng
-     thấy một màu phẳng. Mọi lần chỉnh màu nền đều "không đổi" vì lý do này.
-     Màu gốc giờ nằm ở html (xem `html { background: ... }`). */
-  background: transparent;
+  /* Một màu phẳng, hết. Mọi vệt loang nằm trong .bgfx — một lớp fixed tĩnh.
+     Không dùng background-attachment: fixed ở đây: nó bắt trình duyệt vẽ
+     lại gradient theo từng khung cuộn, đúng thứ gây lỗi nền trước đây. */
+  background: var(--bg);
   color: var(--txt);
   font-family: var(--font);
   /* Chữ TO hơn nhưng dòng PHẢI siết lại, không nới ra: tăng cỡ chữ mà giữ
@@ -2598,134 +2577,53 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 }
 
 /* =========================================================
-   NỀN TRANG — MESH TÍM/HỒNG CỦA DAILY SPIN
-   ---------------------------------------------------------
-   Bốn khối sáng, mỗi khối một bậc trong bảng màu của trang quay số
-   (#3D05DD · #5D22E1 · #DC94EF · #FCB0F3), trộn `screen` để màu CỘNG sáng
-   như ánh sáng thật thay vì chồng lên nhau như sơn.
-
-   BA ĐIỀU DỄ SAI, đã chốt bằng số:
-     1. ĐỘ MỜ: đây là câu trả lời cho "nhạt quá không thấy gì" của bản v36.
-        Bản đó giảm HAI lần (alpha lõi .42 × opacity .45 = .19). Nay chỉ còn
-        MỘT cửa chỉnh: --mesh-tone .4. Đừng hạ alpha lõi để "bớt đậm" —
-        hạ ở đây là hạ hai lần.
-     2. ĐỘ MỀM nằm ở ĐIỂM DỪNG GRADIENT (0 → 16 → 52 → 92%), không ở
-        filter blur. Một khối phủ gần kín khung hình mà mang filter blur là
-        texture cỡ màn hình phải làm nhoè lại liên tục — xem ghi chú dài ở
-        .bgfx-mesh bên dưới, đó là lỗi đã làm trang trắng/đen thật.
-     3. KHUNG: lớp fixed `inset: 0`, `z-index: -1`, không `100dvh` (thanh
-        địa chỉ mobile đổi chiều cao → nền giật).
-
-   Chuyển động: một chu kỳ 96s trên cả nhóm, chỉ đổi transform.
+   NỀN LOANG — tĩnh, vẽ một lần
    ========================================================= */
+/* Nền gồm HAI lớp: một tấm gradient tĩnh raster đúng một lần, và một lớp
+   aurora trôi rất chậm BẰNG TRANSFORM trên tấm tràn mép (inset âm nên mép
+   không bao giờ lọt vào khung nhìn). Chỉ animate transform + opacity —
+   compositor lo hết, gradient không bao giờ phải vẽ lại giữa chừng.
+
+   Cố tình không dùng: filter: blur() + mix-blend-mode trên lớp fixed (bộ
+   đôi gây xé mảng/nhấp nháy khi cuộn), và height: 100dvh (đổi theo thanh
+   địa chỉ mobile làm nền giật — inset: 0 thì luôn kín màn hình).
+
+   Cùng tông màu cũ (ultramarine logo + --a-2 + vàng --paid), chỉ khác
+   hiệu ứng: trước đứng yên, giờ aurora thở chậm 36s một nhịp. */
 .bgfx {
   position: fixed; inset: 0;
   z-index: -1; pointer-events: none; overflow: hidden;
-  background: var(--mesh-base);
+  /* nền gốc tĩnh: tối dần về mép — giữ mắt vào giữa trang */
+  background:
+    radial-gradient(120% 78% at 50% -6%, rgba(0,0,0,0) 38%, rgba(5,6,8,.66) 100%),
+    radial-gradient(140% 100% at 50% -20%, #141821 0%, var(--bg) 45%, #090a0d 100%);
 }
-/* Daily Spin có nền riêng — tắt nền dùng chung ở đó (trước khi trang lazy
-   tải xong cũng vậy, nên luật này phải nằm ở tệp chính). */
+/* Daily Spin uses the same neutral theme, but no shared gradient or grain.
+   Kept in the main stylesheet: this also applies before the lazy page loads. */
 html[data-section="spin"] .bgfx { display: none; }
 
-/* CHỈ MỘT thứ chuyển động trong cả lớp nền: chính nhóm này, và chỉ bằng
-   transform. Bốn khối con đứng yên tuyệt đối.
-   ---------------------------------------------------------------
-   Vì sao phải viết lại như vậy (lỗi thật, không phải phòng xa): bản trước
-   cho TỪNG khối tự trôi, mỗi khối lại mang filter: blur(78px) và
-   mix-blend-mode: screen, mà khối thì phủ 46–96% khung hình. Mỗi khung hình
-   trình duyệt phải làm nhoè lại bốn texture cỡ màn hình — trên GPU yếu việc
-   này giết tiến trình vẽ (GPU process), và lúc đó cả trang đứng ở một màu
-   nền phẳng, không có chữ, không có thanh bên. Đúng cái người dùng thấy.
-   Nay: trình duyệt raster nhóm đúng một lần, sau đó chỉ dịch/zoom lớp đã
-   raster — chi phí mỗi khung hình gần bằng không.
-   Độ "nhoè" không mất: nó đến từ các điểm dừng gradient (0 → 16 → 52 →
-   92%), vốn đã là một đường cong mềm; bỏ filter blur đi thì ảnh ra gần như
-   trùng khít. */
-.bgfx-mesh {
-  position: absolute; inset: 0; opacity: var(--mesh-tone);
-  animation: meshDrift 96s ease-in-out infinite alternate;
+/* aurora: 3 vệt cùng tông thương hiệu, tràn mép 25% để transform thoải mái */
+.bgfx-aurora { position: absolute; inset: -25%; will-change: transform;
+  background:
+    /* xanh nhạt --a-2: vệt phụ mé phải trên */
+    radial-gradient(46% 38% at 78% 22%, rgba(169,164,255,.16), rgba(169,164,255,0) 70%),
+    /* vàng --paid: nhắc màu thứ ba, gần như không thấy.
+       Dùng token chứ không viết lại mã màu: bản gốc viết tay #D7A63F, một mã
+       đã chết cùng bảng màu cũ — bộ kiểm cssStatusTags bắt đúng chỗ đó. */
+    radial-gradient(42% 34% at 56% 88%,
+      color-mix(in oklab, var(--paid) 8%, transparent),
+      color-mix(in oklab, var(--paid) 0%, transparent) 72%),
+    /* ultramarine của logo: vệt chính, chếch trên trái */
+    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(77,64,240,0) 68%);
+  animation: auroraDrift 36s ease-in-out infinite alternate; }
+@keyframes auroraDrift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.07); }
 }
-.bgfx-mesh i {
-  position: absolute; display: block; border-radius: 50%; pointer-events: none;
-  mix-blend-mode: screen;
-}
-/* Bốn khối màu. Điểm dừng KHÔNG chia đều — chúng rơi theo một đường
-   Gauss (alpha = e mũ -4,2·t², làm tròn từng nấc):
-      t   0%  12%  24%  36%  48%  60%  72%  84%  100%
-      a  100%  94%  79%  58%  38%  22%  11%   5%    0
-   Đây chính là "blur" mà chủ dự án muốn, làm bằng gradient thay vì filter:
-   tâm gần như đặc rồi tan RẤT chậm ở đoạn đầu (tới 36% vẫn còn 58%) — nên
-   không có mép, không có "đĩa" — nhưng đuôi vẫn chạm 0 ở 100% nên bốn khối
-   vẫn nở ra phủ kín khung. Bản cũ chia đều 0/16/52/92 rồi nối thẳng về
-   trong suốt: đó là một đường gãy, và mắt đọc ra đúng một cạnh.
-   Vì sao không dùng filter: blur trên khối phủ gần kín màn hình là texture
-   cỡ màn hình phải làm nhoè lại mỗi khung hình — xem ghi chú ở .bgfx-mesh. */
-.bgfx-mesh i:nth-child(1) {
-  left: -26%; top: -34%; width: 96%; height: 112%;
-  background: radial-gradient(circle at 50% 50%,
-    var(--mesh-1) 0%,
-    color-mix(in oklab, var(--mesh-1) 94%, transparent) 12%,
-    color-mix(in oklab, var(--mesh-1) 79%, transparent) 24%,
-    color-mix(in oklab, var(--mesh-1) 58%, transparent) 36%,
-    color-mix(in oklab, var(--mesh-1) 38%, transparent) 48%,
-    color-mix(in oklab, var(--mesh-1) 22%, transparent) 60%,
-    color-mix(in oklab, var(--mesh-1) 11%, transparent) 72%,
-    color-mix(in oklab, var(--mesh-1) 5%, transparent) 84%,
-    transparent 100%);
-}
-.bgfx-mesh i:nth-child(2) {
-  left: 46%; top: -18%; width: 88%; height: 124%;
-  background: radial-gradient(circle at 50% 50%,
-    var(--mesh-2) 0%,
-    color-mix(in oklab, var(--mesh-2) 94%, transparent) 12%,
-    color-mix(in oklab, var(--mesh-2) 79%, transparent) 24%,
-    color-mix(in oklab, var(--mesh-2) 58%, transparent) 36%,
-    color-mix(in oklab, var(--mesh-2) 38%, transparent) 48%,
-    color-mix(in oklab, var(--mesh-2) 22%, transparent) 60%,
-    color-mix(in oklab, var(--mesh-2) 11%, transparent) 72%,
-    color-mix(in oklab, var(--mesh-2) 5%, transparent) 84%,
-    transparent 100%);
-}
-.bgfx-mesh i:nth-child(3) {
-  left: -16%; bottom: -40%; width: 96%; height: 96%;
-  background: radial-gradient(circle at 50% 50%,
-    var(--mesh-3) 0%,
-    color-mix(in oklab, var(--mesh-3) 58%, transparent) 12%,
-    color-mix(in oklab, var(--mesh-3) 49%, transparent) 24%,
-    color-mix(in oklab, var(--mesh-3) 36%, transparent) 36%,
-    color-mix(in oklab, var(--mesh-3) 24%, transparent) 48%,
-    color-mix(in oklab, var(--mesh-3) 14%, transparent) 60%,
-    color-mix(in oklab, var(--mesh-3) 7%, transparent) 72%,
-    color-mix(in oklab, var(--mesh-3) 3%, transparent) 84%,
-    transparent 100%);
-}
-.bgfx-mesh i:nth-child(4) {
-  /* Khối hồng để LỆCH RA NGOÀI khung: chỉ phần đuôi gradient tràn vào góc
-     trên phải. Đặt trọn trong khung thì nó thành một cái đĩa hồng lơ lửng,
-     đúng thứ "AI quá" mà chủ dự án đã loại. */
-  left: 64%; top: -34%; width: 72%; height: 66%;
-  background: radial-gradient(circle at 50% 50%,
-    var(--mesh-4) 0%,
-    color-mix(in oklab, var(--mesh-4) 52%, transparent) 12%,
-    color-mix(in oklab, var(--mesh-4) 43%, transparent) 24%,
-    color-mix(in oklab, var(--mesh-4) 32%, transparent) 36%,
-    color-mix(in oklab, var(--mesh-4) 21%, transparent) 48%,
-    color-mix(in oklab, var(--mesh-4) 12%, transparent) 60%,
-    color-mix(in oklab, var(--mesh-4) 6%, transparent) 72%,
-    color-mix(in oklab, var(--mesh-4) 3%, transparent) 84%,
-    transparent 100%);
-}
-@keyframes meshDrift {
-  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
-  to   { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
-}
-
-/* Lớp tối hình tròn: viền đậm, giữa trong — chữ trên nền màu vẫn đủ tương
-   phản, và mắt được giữ ở giữa trang. */
-.bgfx-veil {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(116% 90% at 50% 40%, transparent 46%, rgba(5,3,12,.46) 100%);
-}
+/* hạt nhiễu mịn: opacity thuần, KHÔNG mix-blend-mode (blend trên lớp fixed
+   là một nguồn nhấp nháy trên Safari/Chrome mobile). */
+.bgfx-grain { position: absolute; inset: 0; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
 /* ---- vệt sáng bám chuột trên các khối lớn ---- */
 [data-glow] { position: relative; }
@@ -3121,7 +3019,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* ---- tôn trọng lựa chọn giảm chuyển động / giảm trong suốt ---- */
 @media (prefers-reduced-motion: reduce) {
-  .bgfx-mesh { animation: none; }
+  .bgfx-aurora { animation: none; }
   .nowbar::before, .hall-card::before, .weekly-card::before,
   .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
   .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }
@@ -4518,8 +4416,22 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (max-width: 620px) { .streak-pill { width: 28px; height: 28px; } }
 .streak-pill svg { color: var(--a-2); flex: 0 0 auto; }
 
-/* Nền do .bgfx vẽ (mesh tím/hồng). <html> chỉ cần ĐÚNG màu gốc, để một
-   khung hình trước khi CSS tải xong hoặc vùng quá cuộn không loé trắng. */
+/* Calm background direction: content owns the contrast; the page background
+   should not compete with cards or request rows. */
+.bgfx { background: radial-gradient(900px 520px at 50% -12%, #151923 0%, var(--bg) 62%, #08090c 100%); }
+.bgfx-aurora { opacity: .22; animation: none; }
+.bgfx-grain { opacity: .018; }
+
+/* Background v2: one stable paint layer. Avoid fixed negative stacking contexts
+   and backdrop-composited aurora on mobile/browser route transitions. */
+html, body { background: #0b0d12; }
+body {
+  background:
+    radial-gradient(900px 520px at 50% -110px, rgba(77,64,240,.13), transparent 70%),
+    linear-gradient(180deg, #10131b 0%, #0b0d12 38%, #090a0e 100%);
+  background-attachment: scroll;
+}
+.bgfx { display: none; }
 
 /* Filter drawer polish on phones: an intentional compact panel, not a tall
    stack of loose controls. */
