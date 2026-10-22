@@ -170,12 +170,6 @@
   --mesh-4: #fcb0f3;
   --mesh-base: #06040e;
   --mesh-tone: .4;
-  /* Bán kính làm nhoè từng khối. Không cần lớn: gradient đã tắt rất chậm
-     (xem các điểm dừng bên dưới) nên 24px là quá đủ để không còn thấy mép
-     khối nào. Trước đây để 78px trên bốn khối phủ gần kín màn hình — mỗi
-     khối là một texture khổng lồ phải raster lại khi trôi, và trên máy yếu
-     đó là đúng kiểu việc làm trình duyệt bỏ vẽ cả trang. */
-  --mesh-blur: 24px;
 
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
@@ -2604,18 +2598,17 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 
    BA ĐIỀU DỄ SAI, đã chốt bằng số:
      1. ĐỘ MỜ: đây là câu trả lời cho "nhạt quá không thấy gì" của bản v36.
-        Bản đó giảm HAI lần (alpha lõi .42 × opacity .45 = .19). Nay alpha
-        lõi giữ .82–.96 và chỉ còn MỘT cửa chỉnh: --mesh-tone .4. Blur làm
-        loãng đỉnh màu, nên lõi phải đậm hơn bản không blur để bù lại.
-     2. BLUR: `filter: blur(78px)` đặt trên TỪNG khối, không đặt trên lớp
-        cha. Đặt trên cha thì mỗi khung hình animation phải blur lại cả
-        lớp; đặt trên con thì trình duyệt raster khối một lần rồi chỉ
-        transform — vẫn mượt.
+        Bản đó giảm HAI lần (alpha lõi .42 × opacity .45 = .19). Nay chỉ còn
+        MỘT cửa chỉnh: --mesh-tone .4. Đừng hạ alpha lõi để "bớt đậm" —
+        hạ ở đây là hạ hai lần.
+     2. ĐỘ MỀM nằm ở ĐIỂM DỪNG GRADIENT (0 → 16 → 52 → 92%), không ở
+        filter blur. Một khối phủ gần kín khung hình mà mang filter blur là
+        texture cỡ màn hình phải làm nhoè lại liên tục — xem ghi chú dài ở
+        .bgfx-mesh bên dưới, đó là lỗi đã làm trang trắng/đen thật.
      3. KHUNG: lớp fixed `inset: 0`, `z-index: -1`, không `100dvh` (thanh
         địa chỉ mobile đổi chiều cao → nền giật).
 
-   Chuyển động: bốn chu kỳ lệch nhau (44s · 47s · 61s · 83s) nên hình
-   không bao giờ lặp lại đúng như cũ; chỉ đổi transform.
+   Chuyển động: một chu kỳ 96s trên cả nhóm, chỉ đổi transform.
    ========================================================= */
 .bgfx {
   position: fixed; inset: 0;
@@ -2626,15 +2619,27 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
    tải xong cũng vậy, nên luật này phải nằm ở tệp chính). */
 html[data-section="spin"] .bgfx { display: none; }
 
-.bgfx-mesh { position: absolute; inset: 0; opacity: var(--mesh-tone); }
+/* CHỈ MỘT thứ chuyển động trong cả lớp nền: chính nhóm này, và chỉ bằng
+   transform. Bốn khối con đứng yên tuyệt đối.
+   ---------------------------------------------------------------
+   Vì sao phải viết lại như vậy (lỗi thật, không phải phòng xa): bản trước
+   cho TỪNG khối tự trôi, mỗi khối lại mang filter: blur(78px) và
+   mix-blend-mode: screen, mà khối thì phủ 46–96% khung hình. Mỗi khung hình
+   trình duyệt phải làm nhoè lại bốn texture cỡ màn hình — trên GPU yếu việc
+   này giết tiến trình vẽ (GPU process), và lúc đó cả trang đứng ở một màu
+   nền phẳng, không có chữ, không có thanh bên. Đúng cái người dùng thấy.
+   Nay: trình duyệt raster nhóm đúng một lần, sau đó chỉ dịch/zoom lớp đã
+   raster — chi phí mỗi khung hình gần bằng không.
+   Độ "nhoè" không mất: nó đến từ các điểm dừng gradient (0 → 16 → 52 →
+   92%), vốn đã là một đường cong mềm; bỏ filter blur đi thì ảnh ra gần như
+   trùng khít. */
+.bgfx-mesh {
+  position: absolute; inset: 0; opacity: var(--mesh-tone);
+  animation: meshDrift 96s ease-in-out infinite alternate;
+}
 .bgfx-mesh i {
   position: absolute; display: block; border-radius: 50%; pointer-events: none;
   mix-blend-mode: screen;
-  /* Blur đặt trên TỪNG khối, không đặt trên lớp cha: đặt trên cha thì mỗi
-     khung hình animation phải làm nhoè lại cả lớp; đặt trên con thì trình
-     duyệt raster một lần rồi chỉ transform. Bán kính để nhỏ (xem
-     --mesh-blur) vì độ mềm đã nằm sẵn trong các điểm dừng gradient. */
-  filter: blur(var(--mesh-blur));
 }
 /* Bốn khối màu. Hình học lấy từ bản P1 đã chốt (v38) nhưng KÉO RỘNG bán
    kính điểm dừng: bản gốc để lõi sáng nhỏ rồi tắt nhanh ở 72%, nên ở mức
@@ -2649,7 +2654,6 @@ html[data-section="spin"] .bgfx { display: none; }
     color-mix(in oklab, var(--mesh-1) 62%, transparent) 16%,
     color-mix(in oklab, var(--mesh-1) 26%, transparent) 52%,
     transparent 92%);
-  animation: meshDriftA 44s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(2) {
   left: 46%; top: -18%; width: 88%; height: 124%;
@@ -2658,7 +2662,6 @@ html[data-section="spin"] .bgfx { display: none; }
     color-mix(in oklab, var(--mesh-2) 56%, transparent) 18%,
     color-mix(in oklab, var(--mesh-2) 22%, transparent) 54%,
     transparent 94%);
-  animation: meshDriftB 61s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(3) {
   left: -16%; bottom: -40%; width: 96%; height: 96%;
@@ -2667,7 +2670,6 @@ html[data-section="spin"] .bgfx { display: none; }
     color-mix(in oklab, var(--mesh-3) 36%, transparent) 20%,
     color-mix(in oklab, var(--mesh-3) 14%, transparent) 56%,
     transparent 90%);
-  animation: meshDriftC 83s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(4) {
   /* Khối hồng để LỆCH RA NGOÀI khung: chỉ phần đuôi gradient tràn vào góc
@@ -2679,14 +2681,11 @@ html[data-section="spin"] .bgfx { display: none; }
     color-mix(in oklab, var(--mesh-4) 26%, transparent) 18%,
     color-mix(in oklab, var(--mesh-4) 9%, transparent) 52%,
     transparent 90%);
-  animation: meshDriftB 47s ease-in-out infinite alternate-reverse;
 }
-@keyframes meshDriftA { from { transform: translate3d(-4%, -3%, 0) scale(1); }
-                        to   { transform: translate3d(7%, 6%, 0) scale(1.14); } }
-@keyframes meshDriftB { from { transform: translate3d(5%, -2%, 0) scale(1.08); }
-                        to   { transform: translate3d(-6%, 7%, 0) scale(.94); } }
-@keyframes meshDriftC { from { transform: translate3d(3%, 5%, 0) scale(1.02); }
-                        to   { transform: translate3d(-5%, -6%, 0) scale(1.16); } }
+@keyframes meshDrift {
+  from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  to   { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+}
 
 /* Lớp tối hình tròn: viền đậm, giữa trong — chữ trên nền màu vẫn đủ tương
    phản, và mắt được giữ ở giữa trang. */
@@ -3089,7 +3088,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* ---- tôn trọng lựa chọn giảm chuyển động / giảm trong suốt ---- */
 @media (prefers-reduced-motion: reduce) {
-  .bgfx-mesh i { animation: none; }
+  .bgfx-mesh { animation: none; }
   .nowbar::before, .hall-card::before, .weekly-card::before,
   .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
   .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }

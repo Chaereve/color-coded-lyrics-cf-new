@@ -42,7 +42,7 @@ test('nền chỉ có MỘT nguồn sự thật: không còn luật .bgfx thứ 
   /* Hai tên cũ đã chết hẳn — để lại là mầm "sửa một chỗ, bốn chỗ nói câu cũ". */
   assert.doesNotMatch(css, /\.bgfx-aurora|\.bgfx-grain|auroraDrift/,
     'tàn dư của nền aurora cũ phải bị xoá')
-  assert.equal(bodies('.bgfx-mesh').length, 1, '.bgfx-mesh phải có đúng một khối')
+  one('.bgfx-mesh', /animation:\s*meshDrift/)   // bản giảm chuyển động được phép nhắc lại tên này
   assert.equal(bodies('.bgfx-veil').length, 1, 'lớp tối viền phải có đúng một khối')
 })
 
@@ -58,29 +58,34 @@ test('độ đậm đi qua ĐÚNG một biến, và đủ đậm để còn th�
   assert.match(css, /--mesh-tone:\s*\.4\s*;/, 'mức đã chốt với chủ dự án là 40%')
 })
 
-test('blur đặt trên TỪNG khối, không đặt trên lớp cha', () => {
-  /* Đặt trên cha thì mỗi khung hình animation phải blur lại cả lớp; đặt trên
-     con thì trình duyệt raster một lần rồi chỉ transform. */
-  assert.match(one('.bgfx-mesh i', /filter:/), /filter:\s*blur\(var\(--mesh-blur\)\)/)
-  assert.doesNotMatch(one('.bgfx-mesh', /opacity:/), /filter:/,
-    'không đặt filter trên lớp cha (mỗi khung hình sẽ phải blur lại)')
-  assert.match(css, /--mesh-blur:\s*\d+px/, 'bán kính blur phải là token')
+test('nền KHÔNG dùng filter blur và chỉ có MỘT thứ chuyển động', () => {
+  /* Sự cố thật: mỗi khối tự trôi, mỗi khối mang filter blur 78px + mix-blend
+     screen, khối phủ 46–96% khung hình. Mỗi khung hình là bốn texture cỡ màn
+     hình phải làm nhoè lại; trên GPU yếu tiến trình vẽ chết và cả trang đứng
+     ở một màu phẳng — người dùng thấy "trang đen", "sandbox không khởi động".
+     Chốt: không filter trên bất kỳ khối nào, và animation chỉ nằm trên NHÓM,
+     chỉ dùng transform. Độ mềm lo bằng điểm dừng gradient. */
+  const bgRules = css.match(/\.bgfx[^{]*\{[^}]*\}/g) || []
+  for (const r of bgRules) assert.doesNotMatch(r, /filter:/, 'lớp nền không được dùng filter')
+  for (const body of bodies('.bgfx-mesh i')) {
+    assert.doesNotMatch(body, /animation:/, 'khối con phải đứng yên')
+  }
+  assert.match(one('.bgfx-mesh', /opacity:/), /animation:\s*meshDrift\s/, 'chỉ nhóm được trôi')
+  const kf = css.match(/@keyframes meshDrift\s*\{([^@]*)\}/)
+  assert.ok(kf, 'phải có keyframes meshDrift')
+  assert.doesNotMatch(kf[1], /filter|box-shadow/, 'chuyển động chỉ được là transform')
+  assert.match(kf[1], /transform:/)
 })
 
-test('blur phải NHỎ — chặn lại đúng cái từng làm nền thành một khoảng đen', () => {
-  /* Sự cố thật: bốn khối phủ 46–96% khung hình, mỗi khối filter blur 78px,
-     cộng mix-blend-mode screen và animation transform liên tục. Mỗi khối là
-     một texture rất lớn phải raster lại; trên GPU yếu trình duyệt bỏ vẽ cả
-     lớp nền. Độ mềm giờ nằm trong điểm dừng gradient (tắt dần tới 88–94%),
-     nên bán kính blur chỉ cần nhỏ. */
-  const blur = Number(css.match(/--mesh-blur:\s*(\d+)px/)[1])
-  assert.ok(blur <= 32, `blur ${blur}px là quá nặng cho bốn khối phủ gần kín màn hình`)
-  /* Bốn khối phải có ĐÚNG bốn bộ điểm dừng, đều kéo dài qua nửa bán kính —
-     nếu ai đó rút ngắn lại thì nền trở về "bốn đốm trên nền đen". */
+test('khối phải trải rộng: gradient tắt dần tới ≥80% bán kính', () => {
+  /* Lỗi gốc của "trang đen": lõi sáng nhỏ rồi tắt ở 72% → ở mức 40% chỉ còn
+     bốn đốm trên nền đen. Điểm dừng phải kéo ra gần mép thì bốn khối mới nối
+     thành một mảng sáng phủ khung. */
   const stops = [...css.matchAll(/radial-gradient\(circle at 50% 50%,[\s\S]*?transparent (\d+)%\)/g)]
     .map((m) => Number(m[1]))
   assert.equal(stops.length, 4, 'bốn khối, bốn gradient')
   for (const end of stops) assert.ok(end >= 80, `gradient phải tắt dần tới ≥80% (đang ${end}%)`)
+  assert.match(css, /--mesh-tone:\s*\.4\s*;/, 'mức đã chốt với chủ dự án là 40%')
 })
 
 test('bảng màu lấy đúng bốn mã của Daily Spin, không tự bịa màu thứ năm', () => {
@@ -109,7 +114,7 @@ test('khung nền: fixed, kín màn hình, không 100dvh; body chỉ mang màu g
 test('Daily Spin vẫn có nền riêng; giảm chuyển động vẫn tắt được', () => {
   assert.match(css, /html\[data-section="spin"\] \.bgfx\s*\{[^}]*display:\s*none/,
     'trang quay số ẩn nền dùng chung (chạy cả trước khi trang lazy tải)')
-  assert.match(css, /prefers-reduced-motion[\s\S]{0,400}\.bgfx-mesh i \{ animation: none/,
+  assert.match(css, /prefers-reduced-motion[\s\S]{0,400}\.bgfx-mesh \{ animation: none/,
     'giảm chuyển động: dừng trôi, giữ màu')
 })
 
