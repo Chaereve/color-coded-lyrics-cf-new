@@ -170,7 +170,12 @@
   --mesh-4: #fcb0f3;
   --mesh-base: #06040e;
   --mesh-tone: .4;
-  --mesh-blur: 78px;
+  /* Bán kính làm nhoè từng khối. Không cần lớn: gradient đã tắt rất chậm
+     (xem các điểm dừng bên dưới) nên 24px là quá đủ để không còn thấy mép
+     khối nào. Trước đây để 78px trên bốn khối phủ gần kín màn hình — mỗi
+     khối là một texture khổng lồ phải raster lại khi trôi, và trên máy yếu
+     đó là đúng kiểu việc làm trình duyệt bỏ vẽ cả trang. */
+  --mesh-blur: 24px;
 
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
@@ -2623,28 +2628,57 @@ html[data-section="spin"] .bgfx { display: none; }
 
 .bgfx-mesh { position: absolute; inset: 0; opacity: var(--mesh-tone); }
 .bgfx-mesh i {
-  position: absolute; display: block; border-radius: 50%;
-  mix-blend-mode: screen; will-change: transform;
+  position: absolute; display: block; border-radius: 50%; pointer-events: none;
+  mix-blend-mode: screen;
+  /* Blur đặt trên TỪNG khối, không đặt trên lớp cha: đặt trên cha thì mỗi
+     khung hình animation phải làm nhoè lại cả lớp; đặt trên con thì trình
+     duyệt raster một lần rồi chỉ transform. Bán kính để nhỏ (xem
+     --mesh-blur) vì độ mềm đã nằm sẵn trong các điểm dừng gradient. */
   filter: blur(var(--mesh-blur));
 }
+/* Bốn khối màu. Hình học lấy từ bản P1 đã chốt (v38) nhưng KÉO RỘNG bán
+   kính điểm dừng: bản gốc để lõi sáng nhỏ rồi tắt nhanh ở 72%, nên ở mức
+   40% cả trang chỉ còn là một khoảng đen với bốn đốm mờ. Kéo điểm dừng ra
+   gần mép biến bốn đốm thành bốn mảng sáng nối nhau — cùng bảng màu, cùng
+   vị trí, chỉ khác chỗ màu tắt dần. Nhờ vậy màu phủ kín khung mà KHÔNG phải
+   nâng --mesh-tone (mức 40% chủ dự án đã chốt vẫn giữ nguyên). */
 .bgfx-mesh i:nth-child(1) {
-  left: -18%; top: -28%; width: 74%; height: 88%;
-  background: radial-gradient(circle, var(--mesh-1) 0%, color-mix(in oklab, var(--mesh-1) 40%, transparent) 38%, transparent 72%);
+  left: -26%; top: -34%; width: 96%; height: 112%;
+  background: radial-gradient(circle at 50% 50%,
+    var(--mesh-1) 0%,
+    color-mix(in oklab, var(--mesh-1) 62%, transparent) 16%,
+    color-mix(in oklab, var(--mesh-1) 26%, transparent) 52%,
+    transparent 92%);
   animation: meshDriftA 44s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(2) {
-  right: -22%; top: -32%; width: 66%; height: 80%;
-  background: radial-gradient(circle, var(--mesh-3) 0%, color-mix(in oklab, var(--mesh-3) 30%, transparent) 40%, transparent 74%);
+  left: 46%; top: -18%; width: 88%; height: 124%;
+  background: radial-gradient(circle at 50% 50%,
+    var(--mesh-2) 0%,
+    color-mix(in oklab, var(--mesh-2) 56%, transparent) 18%,
+    color-mix(in oklab, var(--mesh-2) 22%, transparent) 54%,
+    transparent 94%);
   animation: meshDriftB 61s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(3) {
-  left: 24%; bottom: -44%; width: 78%; height: 90%;
-  background: radial-gradient(circle, var(--mesh-2) 0%, color-mix(in oklab, var(--mesh-2) 22%, transparent) 42%, transparent 76%);
+  left: -16%; bottom: -40%; width: 96%; height: 96%;
+  background: radial-gradient(circle at 50% 50%,
+    var(--mesh-3) 0%,
+    color-mix(in oklab, var(--mesh-3) 36%, transparent) 20%,
+    color-mix(in oklab, var(--mesh-3) 14%, transparent) 56%,
+    transparent 90%);
   animation: meshDriftC 83s ease-in-out infinite alternate;
 }
 .bgfx-mesh i:nth-child(4) {
-  left: 40%; top: 0%; width: 34%; height: 44%;
-  background: radial-gradient(circle, var(--mesh-4) 0%, transparent 70%);
+  /* Khối hồng để LỆCH RA NGOÀI khung: chỉ phần đuôi gradient tràn vào góc
+     trên phải. Đặt trọn trong khung thì nó thành một cái đĩa hồng lơ lửng,
+     đúng thứ "AI quá" mà chủ dự án đã loại. */
+  left: 64%; top: -34%; width: 72%; height: 66%;
+  background: radial-gradient(circle at 50% 50%,
+    var(--mesh-4) 0%,
+    color-mix(in oklab, var(--mesh-4) 26%, transparent) 18%,
+    color-mix(in oklab, var(--mesh-4) 9%, transparent) 52%,
+    transparent 90%);
   animation: meshDriftB 47s ease-in-out infinite alternate-reverse;
 }
 @keyframes meshDriftA { from { transform: translate3d(-4%, -3%, 0) scale(1); }
@@ -2658,7 +2692,7 @@ html[data-section="spin"] .bgfx { display: none; }
    phản, và mắt được giữ ở giữa trang. */
 .bgfx-veil {
   position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(116% 90% at 50% 40%, transparent 42%, rgba(5,3,12,.62) 100%);
+  background: radial-gradient(116% 90% at 50% 40%, transparent 46%, rgba(5,3,12,.46) 100%);
 }
 
 /* ---- vệt sáng bám chuột trên các khối lớn ---- */

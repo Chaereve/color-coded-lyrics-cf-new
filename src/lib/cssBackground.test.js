@@ -51,8 +51,10 @@ test('độ đậm đi qua ĐÚNG một biến, và đủ đậm để còn th�
   assert.match(mesh, /opacity:\s*var\(--mesh-tone\)/, 'cả nhóm màu qua một cửa opacity duy nhất')
   /* Lỗi v36: hạ alpha lõi XUỐNG .42 rồi nhân thêm opacity .45 → .19, mất hút.
      Nay lõi giữ alpha .82–.96 và bù lại phần bị blur làm loãng. */
-  const alphas = [...css.matchAll(/radial-gradient\(circle, var\(--mesh-\d\) 0%/g)]
+  const alphas = [...css.matchAll(/radial-gradient\(circle at 50% 50%,\s*var\(--mesh-\d\) 0%/g)]
   assert.ok(alphas.length >= 3, 'các khối màu phải là gradient tròn quanh một token')
+  /* Lõi phải đặc (1.0) — mọi độ trong suốt nằm ở các điểm dừng phía ngoài. */
+  assert.doesNotMatch(css, /radial-gradient\(circle at 50% 50%,\s*color-mix/, 'điểm dừng đầu phải là màu gốc đặc')
   assert.match(css, /--mesh-tone:\s*\.4\s*;/, 'mức đã chốt với chủ dự án là 40%')
 })
 
@@ -63,6 +65,22 @@ test('blur đặt trên TỪNG khối, không đặt trên lớp cha', () => {
   assert.doesNotMatch(one('.bgfx-mesh', /opacity:/), /filter:/,
     'không đặt filter trên lớp cha (mỗi khung hình sẽ phải blur lại)')
   assert.match(css, /--mesh-blur:\s*\d+px/, 'bán kính blur phải là token')
+})
+
+test('blur phải NHỎ — chặn lại đúng cái từng làm nền thành một khoảng đen', () => {
+  /* Sự cố thật: bốn khối phủ 46–96% khung hình, mỗi khối filter blur 78px,
+     cộng mix-blend-mode screen và animation transform liên tục. Mỗi khối là
+     một texture rất lớn phải raster lại; trên GPU yếu trình duyệt bỏ vẽ cả
+     lớp nền. Độ mềm giờ nằm trong điểm dừng gradient (tắt dần tới 88–94%),
+     nên bán kính blur chỉ cần nhỏ. */
+  const blur = Number(css.match(/--mesh-blur:\s*(\d+)px/)[1])
+  assert.ok(blur <= 32, `blur ${blur}px là quá nặng cho bốn khối phủ gần kín màn hình`)
+  /* Bốn khối phải có ĐÚNG bốn bộ điểm dừng, đều kéo dài qua nửa bán kính —
+     nếu ai đó rút ngắn lại thì nền trở về "bốn đốm trên nền đen". */
+  const stops = [...css.matchAll(/radial-gradient\(circle at 50% 50%,[\s\S]*?transparent (\d+)%\)/g)]
+    .map((m) => Number(m[1]))
+  assert.equal(stops.length, 4, 'bốn khối, bốn gradient')
+  for (const end of stops) assert.ok(end >= 80, `gradient phải tắt dần tới ≥80% (đang ${end}%)`)
 })
 
 test('bảng màu lấy đúng bốn mã của Daily Spin, không tự bịa màu thứ năm', () => {
