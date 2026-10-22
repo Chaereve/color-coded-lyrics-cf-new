@@ -158,6 +158,20 @@
   --r-lg: 14px;
   --r-pill: 999px;
 
+  /* ===== NỀN MESH (bảng màu Daily Spin) ================================
+     Bốn mã này LẤY TỪ DailySpin.css (rarity r0–r3 + nút SPIN). Khai ở đây
+     thành token để (a) nền không tự bịa màu thứ năm, (b) sau này Daily Spin
+     đổi màu thì chỉ sửa đúng bốn dòng này.
+     --mesh-tone là cửa DUY NHẤT chỉnh độ; blur phải đặt trên từng khối
+     (xem ghi chú ở khối .bgfx). */
+  --mesh-1: #5d22e1;
+  --mesh-2: #3d05dd;
+  --mesh-3: #dc94ef;
+  --mesh-4: #fcb0f3;
+  --mesh-base: #06040e;
+  --mesh-tone: .4;
+  --mesh-blur: 78px;
+
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
      17 chỗ dùng chữ 10px và 50 chỗ dùng 11,5px — mắt không đọc ra một nhịp,
@@ -236,10 +250,10 @@ html {
   scroll-behavior: smooth;
 }
 body {
-  /* Một màu phẳng, hết. Mọi vệt loang nằm trong .bgfx — một lớp fixed tĩnh.
+  /* Một màu phẳng, hết — mọi vệt màu nằm trong .bgfx (một lớp fixed).
      Không dùng background-attachment: fixed ở đây: nó bắt trình duyệt vẽ
-     lại gradient theo từng khung cuộn, đúng thứ gây lỗi nền trước đây. */
-  background: var(--bg);
+     lại gradient theo từng khung cuộn, đúng thứ từng gây lỗi nền. */
+  background: var(--mesh-base);
   color: var(--txt);
   font-family: var(--font);
   /* Chữ TO hơn nhưng dòng PHẢI siết lại, không nới ra: tăng cỡ chữ mà giữ
@@ -2570,8 +2584,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .playbtn.sm { opacity: .92; transform: none; }
   .side-user:hover .avatar { transform: none; }
   .playbtn, .pick-flag, .pick-nav { backdrop-filter: none; -webkit-backdrop-filter: none; }
-  /* hạt nhiễu phủ cả màn hình: tắt hẳn khi không có chuột cho nhẹ máy */
-  .bgfx-grain { display: none; }
   /* ngăn kéo sidebar đặc luôn, khỏi blur theo từng khung trượt */
   .side { backdrop-filter: none; -webkit-backdrop-filter: none; background: #0e1116; }
   /* modal mở là transient nhưng blur cả nền trên máy yếu vẫn khựng — giữ lớp tối */
@@ -2579,49 +2591,75 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
 }
 
 /* =========================================================
-   NỀN LOANG — tĩnh, vẽ một lần
+   NỀN TRANG — MESH TÍM/HỒNG CỦA DAILY SPIN
+   ---------------------------------------------------------
+   Bốn khối sáng, mỗi khối một bậc trong bảng màu của trang quay số
+   (#3D05DD · #5D22E1 · #DC94EF · #FCB0F3), trộn `screen` để màu CỘNG sáng
+   như ánh sáng thật thay vì chồng lên nhau như sơn.
+
+   BA ĐIỀU DỄ SAI, đã chốt bằng số:
+     1. ĐỘ MỜ: đây là câu trả lời cho "nhạt quá không thấy gì" của bản v36.
+        Bản đó giảm HAI lần (alpha lõi .42 × opacity .45 = .19). Nay alpha
+        lõi giữ .82–.96 và chỉ còn MỘT cửa chỉnh: --mesh-tone .4. Blur làm
+        loãng đỉnh màu, nên lõi phải đậm hơn bản không blur để bù lại.
+     2. BLUR: `filter: blur(78px)` đặt trên TỪNG khối, không đặt trên lớp
+        cha. Đặt trên cha thì mỗi khung hình animation phải blur lại cả
+        lớp; đặt trên con thì trình duyệt raster khối một lần rồi chỉ
+        transform — vẫn mượt.
+     3. KHUNG: lớp fixed `inset: 0`, `z-index: -1`, không `100dvh` (thanh
+        địa chỉ mobile đổi chiều cao → nền giật).
+
+   Chuyển động: bốn chu kỳ lệch nhau (44s · 47s · 61s · 83s) nên hình
+   không bao giờ lặp lại đúng như cũ; chỉ đổi transform.
    ========================================================= */
-/* Nền gồm HAI lớp: một tấm gradient tĩnh raster đúng một lần, và một lớp
-   aurora trôi rất chậm BẰNG TRANSFORM trên tấm tràn mép (inset âm nên mép
-   không bao giờ lọt vào khung nhìn). Chỉ animate transform + opacity —
-   compositor lo hết, gradient không bao giờ phải vẽ lại giữa chừng.
-
-   Cố tình không dùng: filter: blur() + mix-blend-mode trên lớp fixed (bộ
-   đôi gây xé mảng/nhấp nháy khi cuộn), và height: 100dvh (đổi theo thanh
-   địa chỉ mobile làm nền giật — inset: 0 thì luôn kín màn hình).
-
-   Cùng tông màu cũ (ultramarine logo + --a-2 + vàng --paid), chỉ khác
-   hiệu ứng: trước đứng yên, giờ aurora thở chậm 36s một nhịp. */
 .bgfx {
   position: fixed; inset: 0;
   z-index: -1; pointer-events: none; overflow: hidden;
-  /* nền gốc tĩnh: tối dần về mép — giữ mắt vào giữa trang */
-  background:
-    radial-gradient(120% 78% at 50% -6%, rgba(0,0,0,0) 38%, rgba(5,6,8,.66) 100%),
-    radial-gradient(140% 100% at 50% -20%, #141821 0%, var(--bg) 45%, #090a0d 100%);
+  background: var(--mesh-base);
 }
-/* Daily Spin uses the same neutral theme, but no shared gradient or grain.
-   Kept in the main stylesheet: this also applies before the lazy page loads. */
+/* Daily Spin có nền riêng — tắt nền dùng chung ở đó (trước khi trang lazy
+   tải xong cũng vậy, nên luật này phải nằm ở tệp chính). */
 html[data-section="spin"] .bgfx { display: none; }
 
-/* aurora: 3 vệt cùng tông thương hiệu, tràn mép 25% để transform thoải mái */
-.bgfx-aurora { position: absolute; inset: -25%; will-change: transform;
-  background:
-    /* xanh nhạt --a-2: vệt phụ mé phải trên */
-    radial-gradient(46% 38% at 78% 22%, rgba(169,164,255,.16), rgba(169,164,255,0) 70%),
-    /* vàng --paid: nhắc màu thứ ba, gần như không thấy */
-    radial-gradient(42% 34% at 56% 88%, color-mix(in oklab, var(--paid) 8%, transparent), transparent 72%),
-    /* ultramarine của logo: vệt chính, chếch trên trái */
-    radial-gradient(56% 46% at 24% 12%, rgba(58,48,246,.32), rgba(77,64,240,0) 68%);
-  animation: auroraDrift 36s ease-in-out infinite alternate; }
-@keyframes auroraDrift {
-  from { transform: translate3d(-3%, -2%, 0) scale(1); }
-  to   { transform: translate3d(3%, 2%, 0) scale(1.07); }
+.bgfx-mesh { position: absolute; inset: 0; opacity: var(--mesh-tone); }
+.bgfx-mesh i {
+  position: absolute; display: block; border-radius: 50%;
+  mix-blend-mode: screen; will-change: transform;
+  filter: blur(var(--mesh-blur));
 }
-/* hạt nhiễu mịn: opacity thuần, KHÔNG mix-blend-mode (blend trên lớp fixed
-   là một nguồn nhấp nháy trên Safari/Chrome mobile). */
-.bgfx-grain { position: absolute; inset: 0; opacity: .05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.bgfx-mesh i:nth-child(1) {
+  left: -18%; top: -28%; width: 74%; height: 88%;
+  background: radial-gradient(circle, var(--mesh-1) 0%, color-mix(in oklab, var(--mesh-1) 40%, transparent) 38%, transparent 72%);
+  animation: meshDriftA 44s ease-in-out infinite alternate;
+}
+.bgfx-mesh i:nth-child(2) {
+  right: -22%; top: -32%; width: 66%; height: 80%;
+  background: radial-gradient(circle, var(--mesh-3) 0%, color-mix(in oklab, var(--mesh-3) 30%, transparent) 40%, transparent 74%);
+  animation: meshDriftB 61s ease-in-out infinite alternate;
+}
+.bgfx-mesh i:nth-child(3) {
+  left: 24%; bottom: -44%; width: 78%; height: 90%;
+  background: radial-gradient(circle, var(--mesh-2) 0%, color-mix(in oklab, var(--mesh-2) 22%, transparent) 42%, transparent 76%);
+  animation: meshDriftC 83s ease-in-out infinite alternate;
+}
+.bgfx-mesh i:nth-child(4) {
+  left: 40%; top: 0%; width: 34%; height: 44%;
+  background: radial-gradient(circle, var(--mesh-4) 0%, transparent 70%);
+  animation: meshDriftB 47s ease-in-out infinite alternate-reverse;
+}
+@keyframes meshDriftA { from { transform: translate3d(-4%, -3%, 0) scale(1); }
+                        to   { transform: translate3d(7%, 6%, 0) scale(1.14); } }
+@keyframes meshDriftB { from { transform: translate3d(5%, -2%, 0) scale(1.08); }
+                        to   { transform: translate3d(-6%, 7%, 0) scale(.94); } }
+@keyframes meshDriftC { from { transform: translate3d(3%, 5%, 0) scale(1.02); }
+                        to   { transform: translate3d(-5%, -6%, 0) scale(1.16); } }
+
+/* Lớp tối hình tròn: viền đậm, giữa trong — chữ trên nền màu vẫn đủ tương
+   phản, và mắt được giữ ở giữa trang. */
+.bgfx-veil {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(116% 90% at 50% 40%, transparent 42%, rgba(5,3,12,.62) 100%);
+}
 
 /* ---- vệt sáng bám chuột trên các khối lớn ---- */
 [data-glow] { position: relative; }
@@ -3017,7 +3055,7 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* ---- tôn trọng lựa chọn giảm chuyển động / giảm trong suốt ---- */
 @media (prefers-reduced-motion: reduce) {
-  .bgfx-aurora { animation: none; }
+  .bgfx-mesh i { animation: none; }
   .nowbar::before, .hall-card::before, .weekly-card::before,
   .lb-pod.p1::after, .lb-pod.p2::after { animation: none; opacity: 0 }
   .nowbar.live .prog-track > i::after { animation: none; opacity: 0 }
@@ -4414,22 +4452,9 @@ html[data-section="spin"] .bgfx { display: none; }
 @media (max-width: 620px) { .streak-pill { width: 28px; height: 28px; } }
 .streak-pill svg { color: var(--a-2); flex: 0 0 auto; }
 
-/* Calm background direction: content owns the contrast; the page background
-   should not compete with cards or request rows. */
-.bgfx { background: radial-gradient(900px 520px at 50% -12%, #151923 0%, var(--bg) 62%, #08090c 100%); }
-.bgfx-aurora { opacity: .22; animation: none; }
-.bgfx-grain { opacity: .018; }
-
-/* Background v2: one stable paint layer. Avoid fixed negative stacking contexts
-   and backdrop-composited aurora on mobile/browser route transitions. */
-html, body { background: #0b0d12; }
-body {
-  background:
-    radial-gradient(900px 520px at 50% -110px, rgba(77,64,240,.13), transparent 70%),
-    linear-gradient(180deg, #10131b 0%, #0b0d12 38%, #090a0e 100%);
-  background-attachment: scroll;
-}
-.bgfx { display: none; }
+/* Nền do .bgfx vẽ (mesh tím/hồng). <html> chỉ cần ĐÚNG màu gốc, để một
+   khung hình trước khi CSS tải xong hoặc vùng quá cuộn không loé trắng. */
+html { background: var(--mesh-base); }
 
 /* Filter drawer polish on phones: an intentional compact panel, not a tall
    stack of loose controls. */
