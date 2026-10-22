@@ -2425,7 +2425,7 @@ function AppInner() {
                   <span className="fb-gap" aria-hidden="true" />
 
                   <span className="fb-wrap fb-wrap-end">
-                    <button type="button" className="fb-sort"
+                    <button type="button" className={`fb-sort${sortKey ? ' on' : ''}`}
                       aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls="fb-sort-menu"
                       aria-label={t('board.sortAria')}
                       onClick={() => setFbTab(v => v === 'sort' ? null : 'sort')}>

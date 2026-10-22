@@ -5031,6 +5031,12 @@ img, video, iframe { max-width: 100%; }
 .fb-fac .car, .fb-sort .car { flex: none; color: var(--txt-3); transition: transform var(--t-1) var(--e-soft); }
 .fb-fac[aria-expanded="true"] .car, .fb-sort[aria-expanded="true"] .car { transform: rotate(180deg); }
 .fb-sort .si { flex: none; color: var(--txt-3); }
+/* ĐANG CÓ CÁCH XẾP RIÊNG (khác thứ tự gốc của chặng). Ở bố cục gọn nhãn của
+   nút bị cắt, còn lại mỗi cái icon — không có dấu này thì bấm xong menu đóng
+   mà màn hình không đổi gì, người dùng tưởng cú bấm không ăn. Cùng một nét
+   viền nhấn với pill lọc đang bật, không tô nền, không thêm chữ. */
+.fb-sort.on { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--a-2) 55%, transparent); }
+.fb-sort.on .si { color: var(--a-2); }
 
 /* Khối neo của mỗi facet: bảng chọn nằm ngay dưới chính cái pill mở nó. */
 .fb-wrap { position: relative; flex: none; display: inline-flex; min-width: 0; }
