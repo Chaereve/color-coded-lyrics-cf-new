@@ -38,7 +38,10 @@ function requestLog() {
       server.middlewares.use((req, res, next) => {
         const started = Date.now()
         res.on('finish', () => {
-          const url = (req.url || '').split('?')[0]
+          /* Giữ NGUYÊN query: Vite ping lại `/` bằng `?t=<mốc>` sau khi mất
+             websocket HMR — thấy tham số đó trong log là biết ngay trang đang
+             tự nạp lại theo vòng lặp, không phải người dùng bấm F5. */
+          const url = (req.url || '')
           console.log(`[ccl-req] ${res.statusCode} ${req.method} ${url} ${Date.now() - started}ms`)
         })
         next()
@@ -47,8 +50,50 @@ function requestLog() {
   }
 }
 
+/* BẢNG CHẨN ĐOÁN — CHỈ Ở CHẾ ĐỘ DEV, không lọt vào bản build.
+   ---------------------------------------------------------------
+   Vì sao cần: trang có thể trắng/đen mà console không có gì để đọc (người
+   dùng không mở DevTools), hoặc lỗi nằm trong một promise bị nuốt. Bảng này
+   in thẳng ra ba con số quyết định hướng chữa:
+     · khối trong #root — 0 nghĩa là React không dựng được gì (lỗi runtime);
+     · .splash còn đó — app đang kẹt ở màn chờ, không phải trang trắng;
+     · số lỗi JS — kèm nguyên văn dòng đầu tiên.
+   Đây KHÔNG phải "màn hình lỗi" thay cho app (thứ chủ dự án đã bác): nó là
+   một dải chữ nhỏ ở góc, chỉ tồn tại khi chạy `vite`, và không che nội dung. */
+function devProbe() {
+  return {
+    name: 'ccl-dev-probe',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      const probe = `<script>
+(function () {
+  var errs = [];
+  window.addEventListener('error', function (e) { errs.push(String((e.error && e.error.message) || e.message)) });
+  window.addEventListener('unhandledrejection', function (e) { errs.push('promise: ' + String((e.reason && e.reason.message) || e.reason)) });
+  function tick() {
+    var root = document.getElementById('root');
+    var kids = root ? root.children.length : -1;
+    var splash = document.querySelector('.splash');
+    var el = document.getElementById('ccl-probe');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ccl-probe';
+      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;font:11px/1.45 ui-monospace,monospace;color:#cfe3ff;background:rgba(6,8,14,.92);border:1px solid rgba(140,170,255,.35);border-radius:6px;padding:5px 8px;max-width:70vw;white-space:pre-wrap;pointer-events:none';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent = 'root:' + kids + ' splash:' + (splash ? (splash.className.indexOf('hide') >= 0 ? 'hidden' : 'ON') : 'no') +
+      ' err:' + errs.length + (errs.length ? '\\n' + errs.slice(0, 2).join('\\n') : '');
+  }
+  setInterval(tick, 800); setTimeout(tick, 300);
+})();
+</script>`
+      return html.replace('</body>', probe + '\n  </body>')
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), requestLog()],
+  plugins: [react(), requestLog(), devProbe()],
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -67,6 +112,9 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: true,
     cors: true,
+    /* Bản build tĩnh cũng không cho cache HTML: tệp JS/CSS có hash trong tên
+       nên cache chúng là vô hại, còn HTML thì phải luôn mới. */
+    headers: { 'Cache-Control': 'no-store' },
   },
   optimizeDeps: {
     include: [
