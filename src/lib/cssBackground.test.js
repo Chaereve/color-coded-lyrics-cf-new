@@ -55,7 +55,6 @@ test('độ đậm đi qua ĐÚNG một biến, và đủ đậm để còn th�
   assert.ok(alphas.length >= 3, 'các khối màu phải là gradient tròn quanh một token')
   /* Lõi phải đặc (1.0) — mọi độ trong suốt nằm ở các điểm dừng phía ngoài. */
   assert.doesNotMatch(css, /radial-gradient\(circle at 50% 50%,\s*color-mix/, 'điểm dừng đầu phải là màu gốc đặc')
-  assert.match(css, /--mesh-tone:\s*\.4\s*;/, 'mức đã chốt với chủ dự án là 40%')
 })
 
 test('nền KHÔNG dùng filter blur và chỉ có MỘT thứ chuyển động', () => {
@@ -77,15 +76,27 @@ test('nền KHÔNG dùng filter blur và chỉ có MỘT thứ chuyển động'
   assert.match(kf[1], /transform:/)
 })
 
-test('khối phải trải rộng: gradient tắt dần tới ≥80% bán kính', () => {
-  /* Lỗi gốc của "trang đen": lõi sáng nhỏ rồi tắt ở 72% → ở mức 40% chỉ còn
-     bốn đốm trên nền đen. Điểm dừng phải kéo ra gần mép thì bốn khối mới nối
-     thành một mảng sáng phủ khung. */
-  const stops = [...css.matchAll(/radial-gradient\(circle at 50% 50%,[\s\S]*?transparent (\d+)%\)/g)]
-    .map((m) => Number(m[1]))
-  assert.equal(stops.length, 4, 'bốn khối, bốn gradient')
-  for (const end of stops) assert.ok(end >= 80, `gradient phải tắt dần tới ≥80% (đang ${end}%)`)
-  assert.match(css, /--mesh-tone:\s*\.4\s*;/, 'mức đã chốt với chủ dự án là 40%')
+test('điểm dừng gradient rơi theo đường Gauss — "blur" làm bằng gradient', () => {
+  /* Lỗi gốc của "trang đen": lõi sáng nhỏ rồi tắt ở 72% → ở mức thấp chỉ
+     còn bốn đốm trên nền đen. Lỗi thứ hai, ngược lại: chia đều rồi nối
+     thẳng về trong suốt thì mắt đọc ra một CẠNH — đúng "chưa blur".
+     Nên điểm dừng phải (a) phủ tới 100% bán kính, và (b) cong: đoạn đầu
+     tàn rất chậm, đoạn cuối mới rơi nhanh. */
+  const perBlock = [...css.matchAll(/radial-gradient\(circle at 50% 50%,([\s\S]*?transparent 100%\))/g)]
+    .map((m) => m[1].trim())
+  assert.equal(perBlock.length, 4, 'bốn khối, bốn gradient')
+  for (const stops of perBlock) {
+    /* Nấc đầu viết `var(--mesh-N) 0%` — con số đó là VỊ TRÍ, màu là đặc 100%. */
+    const tail = stops.slice(stops.indexOf(',') + 1)
+    const alphas = [100, ...[...tail.matchAll(/var\(--mesh-\d\)\s*(\d+)%/g)].map((m) => Number(m[1]))]
+    assert.ok(alphas.length >= 7, `mỗi gradient phải đủ nhiều nấc để cong (đang ${alphas.length})`)
+    assert.ok(alphas[0] >= 90, 'tâm phải gần đặc')
+    for (let i = 1; i < alphas.length; i++) {
+      assert.ok(alphas[i] <= alphas[i - 1], 'alpha phải giảm dần, không được gợn')
+    }
+    const mid = alphas[Math.floor((alphas.length - 1) / 2)]
+    assert.ok(mid >= 25, `nửa đường vẫn phải còn ≥25% (đang ${mid}%) — rơi sớm là ra "đĩa"`)
+  }
 })
 
 test('bảng màu lấy đúng bốn mã của Daily Spin, không tự bịa màu thứ năm', () => {

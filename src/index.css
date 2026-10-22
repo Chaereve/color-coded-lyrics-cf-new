@@ -170,7 +170,7 @@
   --mesh-3: #dc94ef;
   --mesh-4: #fcb0f3;
   --mesh-base: #06040e;
-  --mesh-tone: .4;
+  --mesh-tone: .3;
 
   /* ===== THANG MẬT ĐỘ (Gói 2 — "thoáng vừa") ==========================
      Trước bản này, toàn tệp có 37 cỡ chữ và 27 cỡ khe khác nhau, trong đó
@@ -2649,35 +2649,55 @@ html[data-section="spin"] .bgfx { display: none; }
   position: absolute; display: block; border-radius: 50%; pointer-events: none;
   mix-blend-mode: screen;
 }
-/* Bốn khối màu. Hình học lấy từ bản P1 đã chốt (v38) nhưng KÉO RỘNG bán
-   kính điểm dừng: bản gốc để lõi sáng nhỏ rồi tắt nhanh ở 72%, nên ở mức
-   40% cả trang chỉ còn là một khoảng đen với bốn đốm mờ. Kéo điểm dừng ra
-   gần mép biến bốn đốm thành bốn mảng sáng nối nhau — cùng bảng màu, cùng
-   vị trí, chỉ khác chỗ màu tắt dần. Nhờ vậy màu phủ kín khung mà KHÔNG phải
-   nâng --mesh-tone (mức 40% chủ dự án đã chốt vẫn giữ nguyên). */
+/* Bốn khối màu. Điểm dừng KHÔNG chia đều — chúng rơi theo một đường
+   Gauss (alpha = e mũ -4,2·t², làm tròn từng nấc):
+      t   0%  12%  24%  36%  48%  60%  72%  84%  100%
+      a  100%  94%  79%  58%  38%  22%  11%   5%    0
+   Đây chính là "blur" mà chủ dự án muốn, làm bằng gradient thay vì filter:
+   tâm gần như đặc rồi tan RẤT chậm ở đoạn đầu (tới 36% vẫn còn 58%) — nên
+   không có mép, không có "đĩa" — nhưng đuôi vẫn chạm 0 ở 100% nên bốn khối
+   vẫn nở ra phủ kín khung. Bản cũ chia đều 0/16/52/92 rồi nối thẳng về
+   trong suốt: đó là một đường gãy, và mắt đọc ra đúng một cạnh.
+   Vì sao không dùng filter: blur trên khối phủ gần kín màn hình là texture
+   cỡ màn hình phải làm nhoè lại mỗi khung hình — xem ghi chú ở .bgfx-mesh. */
 .bgfx-mesh i:nth-child(1) {
   left: -26%; top: -34%; width: 96%; height: 112%;
   background: radial-gradient(circle at 50% 50%,
     var(--mesh-1) 0%,
-    color-mix(in oklab, var(--mesh-1) 62%, transparent) 16%,
-    color-mix(in oklab, var(--mesh-1) 26%, transparent) 52%,
-    transparent 92%);
+    color-mix(in oklab, var(--mesh-1) 94%, transparent) 12%,
+    color-mix(in oklab, var(--mesh-1) 79%, transparent) 24%,
+    color-mix(in oklab, var(--mesh-1) 58%, transparent) 36%,
+    color-mix(in oklab, var(--mesh-1) 38%, transparent) 48%,
+    color-mix(in oklab, var(--mesh-1) 22%, transparent) 60%,
+    color-mix(in oklab, var(--mesh-1) 11%, transparent) 72%,
+    color-mix(in oklab, var(--mesh-1) 5%, transparent) 84%,
+    transparent 100%);
 }
 .bgfx-mesh i:nth-child(2) {
   left: 46%; top: -18%; width: 88%; height: 124%;
   background: radial-gradient(circle at 50% 50%,
     var(--mesh-2) 0%,
-    color-mix(in oklab, var(--mesh-2) 56%, transparent) 18%,
-    color-mix(in oklab, var(--mesh-2) 22%, transparent) 54%,
-    transparent 94%);
+    color-mix(in oklab, var(--mesh-2) 94%, transparent) 12%,
+    color-mix(in oklab, var(--mesh-2) 79%, transparent) 24%,
+    color-mix(in oklab, var(--mesh-2) 58%, transparent) 36%,
+    color-mix(in oklab, var(--mesh-2) 38%, transparent) 48%,
+    color-mix(in oklab, var(--mesh-2) 22%, transparent) 60%,
+    color-mix(in oklab, var(--mesh-2) 11%, transparent) 72%,
+    color-mix(in oklab, var(--mesh-2) 5%, transparent) 84%,
+    transparent 100%);
 }
 .bgfx-mesh i:nth-child(3) {
   left: -16%; bottom: -40%; width: 96%; height: 96%;
   background: radial-gradient(circle at 50% 50%,
     var(--mesh-3) 0%,
-    color-mix(in oklab, var(--mesh-3) 36%, transparent) 20%,
-    color-mix(in oklab, var(--mesh-3) 14%, transparent) 56%,
-    transparent 90%);
+    color-mix(in oklab, var(--mesh-3) 58%, transparent) 12%,
+    color-mix(in oklab, var(--mesh-3) 49%, transparent) 24%,
+    color-mix(in oklab, var(--mesh-3) 36%, transparent) 36%,
+    color-mix(in oklab, var(--mesh-3) 24%, transparent) 48%,
+    color-mix(in oklab, var(--mesh-3) 14%, transparent) 60%,
+    color-mix(in oklab, var(--mesh-3) 7%, transparent) 72%,
+    color-mix(in oklab, var(--mesh-3) 3%, transparent) 84%,
+    transparent 100%);
 }
 .bgfx-mesh i:nth-child(4) {
   /* Khối hồng để LỆCH RA NGOÀI khung: chỉ phần đuôi gradient tràn vào góc
@@ -2686,9 +2706,14 @@ html[data-section="spin"] .bgfx { display: none; }
   left: 64%; top: -34%; width: 72%; height: 66%;
   background: radial-gradient(circle at 50% 50%,
     var(--mesh-4) 0%,
-    color-mix(in oklab, var(--mesh-4) 26%, transparent) 18%,
-    color-mix(in oklab, var(--mesh-4) 9%, transparent) 52%,
-    transparent 90%);
+    color-mix(in oklab, var(--mesh-4) 52%, transparent) 12%,
+    color-mix(in oklab, var(--mesh-4) 43%, transparent) 24%,
+    color-mix(in oklab, var(--mesh-4) 32%, transparent) 36%,
+    color-mix(in oklab, var(--mesh-4) 21%, transparent) 48%,
+    color-mix(in oklab, var(--mesh-4) 12%, transparent) 60%,
+    color-mix(in oklab, var(--mesh-4) 6%, transparent) 72%,
+    color-mix(in oklab, var(--mesh-4) 3%, transparent) 84%,
+    transparent 100%);
 }
 @keyframes meshDrift {
   from { transform: translate3d(-2%, -1.5%, 0) scale(1); }
