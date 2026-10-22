@@ -107,7 +107,8 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
   }
   assert.match(lineOf('in_progress'), /pickedGroups\.length/,
     'badge tab In progress phải bằng số thẻ tab đó liệt kê — cùng tập với Up next')
-  assert.match(boardSrc, /filter === 'in_progress'\) base = picked/,
+  /* `filter` (chặng) và `sort` (cách xếp) là hai trục riêng — xem filterBoard. */
+  assert.match(boardSrc, /stage === 'in_progress'\) base = picked/,
     'tab In progress liệt kê CẢ dây chuyền đã chốt (chủ dự án chốt 19/09), không chỉ bài đang chạy')
   /* Dây chuyền = đã chốt HOẶC đang làm. Thiếu vế thứ hai thì một bài
      in_progress mà không có picked_at (admin tick mốc trên request chưa chốt)
@@ -119,8 +120,8 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
     'danh sách dây chuyền phải lọc bằng inChain, không phải isPicked')
   assert.match(app, /const picked = useMemo\(\(\) => chainRows\(pub\), \[pub\]\)/,
     'App.jsx phải lấy dây chuyền từ chainRows — tự lọc lại là hai tập khác nhau')
-  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter, statusFilters, kindFilters, q \}\)/,
-    'bảng phải lọc bằng filterBoard: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
+  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q \}\)/,
+    'bảng phải lọc bằng filterBoard, và phải truyền CẢ chặng lẫn cách xếp: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]
   assert.equal(nowN, 'pickedGroups.length', 'số trên nắp khối Up next phải là số bài đã chốt')

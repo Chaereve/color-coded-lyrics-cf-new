@@ -533,17 +533,27 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
    ========================================================= */
 export function filterBoard(opts = {}) {
   const {
-    pub = [], rows = [], filter = 'queued',
+    pub = [], rows = [], filter = 'queued', sort = null,
     statusFilters = [], kindFilters = [], q = '',
   } = opts
   const picked = opts.picked || chainRows(pub)
   const t = (q ?? '').trim()
   let base = real(pub)
+  /* HAI TRỤC ĐỘC LẬP. `filter` là CHẶNG (queued/picked/in_progress/completed)
+     hoặc 'all'; `sort` là cách xếp. Trước đây cả hai dùng chung một tham số
+     nên chọn cái này là mất cái kia. Giá trị sort còn nằm trong `filter` là
+     đường tương thích cho link cũ (`?f=top`) và cho các chỗ gọi chưa đổi.
+     `hasStage` = có giới hạn theo chặng hay không: hai luật bên dưới (tìm
+     quét cả `rows`, và "Most voted" bỏ bài đã xong) chỉ đúng khi KHÔNG giới
+     hạn chặng — áp chúng lên một chặng đã lọc thì danh sách rỗng. */
+  const sortMode = SORTS.includes(sort) ? sort : (SORTS.includes(filter) ? filter : null)
+  const stage = SORTS.includes(filter) ? 'all' : filter
+  const hasStage = statusFilters.length > 0 || STAGES.includes(stage)
   /* Đang ở một CÁCH XẾP (không phải một chặng) thì tìm kiếm phải quét cả
      `rows`, nên bài đang chờ duyệt / bị từ chối vẫn tìm ra — bản trước chỉ
      làm vậy cho `newest`, còn `top` thì không, nên cùng một từ khoá cho hai
      kết quả khác nhau tuỳ cái đang bật. */
-  if (SORTS.includes(filter) && t && rows?.length) {
+  if (!hasStage && t && rows?.length) {
     base = real(rows).filter(r => r.status !== 'denied')
   } else if (statusFilters.length) {
     /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối
@@ -558,11 +568,11 @@ export function filterBoard(opts = {}) {
       ? inChain(r)
       : s === 'queued' ? r.status === 'queued' && !r.picked_at
       : s === 'completed' && r.status === 'completed'))
-  } else if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
-  else if (filter === 'picked' || filter === 'in_progress') base = picked
-  else if (filter === 'completed') base = base.filter(r => r.status === 'completed')
+  } else if (stage === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
+  else if (stage === 'picked' || stage === 'in_progress') base = picked
+  else if (stage === 'completed') base = base.filter(r => r.status === 'completed')
   /* `newest` và `top` giữ tập nền rồi mới lọc tiếp ở hai dòng dưới. */
-  if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
+  if (!hasStage && sortMode === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
   if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
   if (t) base = base.filter(r => searchHit(r, t))
   return base

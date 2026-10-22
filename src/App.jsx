@@ -143,8 +143,14 @@ const readSavedBoard = () => {
 const readBoard = () => {
   const p = new URLSearchParams(window.location.search)
   const saved = readSavedBoard()
+  /* Link cũ mang CÁCH XẾP trong `f` (`?f=top`, `?f=newest`): đọc ra thành
+     sort + chặng "cả bảng" thay vì bỏ đi. Từ nay `f` chỉ nói chặng, `s` nói
+     cách xếp, nên hai thứ không giành nhau một ô nhớ nữa. */
+  const fRaw = pickBoardParam(p.get('f'), saved.f, FILTER_KEYS, 'queued')
+  const legacySort = SORTS.includes(fRaw) ? fRaw : null
   return {
-    f: pickBoardParam(p.get('f'), saved.f, FILTER_KEYS, 'queued'),
+    f: legacySort ? 'all' : fRaw,
+    s: legacySort || pickBoardParam(p.get('s'), saved.s, SORTS, null),
     k: pickBoardParam(p.get('k'), saved.k, KIND_KEYS, 'all'),
     q: p.get('q') || '',
   }
@@ -174,7 +180,9 @@ const sectionTransition = createSectionTransition({ reduced: REDUCED })
 /* Giá trị hợp lệ cho `?f=`: bốn CHẶNG của dây chuyền + năm CÁCH XẾP. Danh
    sách chặng nằm ở board.js (STAGES), cách xếp cũng vậy (SORTS) — ở đây chỉ
    là phép cộng của hai nguồn đó, không có bảng thứ ba để lệch. */
-const FILTER_KEYS = [...STAGES, ...SORTS]
+/* 'all' = xem cả bảng (không giới hạn chặng); SORTS còn trong danh sách chỉ
+   để đọc được link cũ — xem readBoard. */
+const FILTER_KEYS = [...STAGES, 'all', ...SORTS]
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
 /* Bốn chặng của dây chuyền, đúng thứ tự công việc: bảng chọn Status dựng từ
    STAGES, không trộn hai "cách nhìn" (newest/top) vào cùng dải như bản cũ. */
@@ -576,6 +584,18 @@ function AppInner() {
   }, [section])
   const [board] = useState(readBoard)
   const [filter, setFilter] = useState(board.f)
+  /* Trục XẾP riêng, không còn nằm chung ô nhớ với trục LỌC. null = "theo thứ
+     tự gốc của chặng đang xem" (hàng chờ: paid rồi tới phiếu). */
+  const [sort, setSort] = useState(board.s)
+  /* Hai TRỤC ĐỘC LẬP, tính một lần ở đây:
+     · `stage`  — chặng đang giới hạn ('all' = cả bảng);
+     · `sortMode` — cách xếp thật sự dùng. `sort` rỗng thì lấy thứ tự gốc
+       của chặng (hàng chờ: paid rồi tới phiếu); riêng "cả bảng" thì mặc
+       định là mới nhất, đúng thứ tự mà trước đây `filter='newest'` cho.
+     Trước đây chỉ có MỘT ô nhớ cho cả hai, nên chọn sort là mất bộ lọc và
+     ngược lại — không thể xài hai thứ cùng lúc. */
+  const boardStage = STAGES.includes(filter) ? filter : 'all'
+  const sortMode = sort || (boardStage === 'all' ? 'newest' : boardStage)
   const [statusFilters, setStatusFilters] = useState(() => STAGES.includes(board.f) ? [board.f] : [])
   const [kindFilter, setKindFilter] = useState(board.k)
   const [kindFilters, setKindFilters] = useState(() => board.k !== 'all' ? [board.k] : [])
@@ -675,7 +695,7 @@ function AppInner() {
     const key = typeof target === 'string' ? target : (target?.key || groupKey(target || {}))
     if (!key) return
     go('board'); setKindFilter('all'); setKindFilters([]); setStatusFilters([]); setQ('')
-    setFilter('newest')
+    setFilter('all'); setSort(null)
     /* XOÁ cả hai bộ lọc nhiều-chọn: chúng THẮNG `filter` trong `filterBoard`,
        nên một chip `Queued` còn bật từ lần lọc trước sẽ giấu đúng cái bài mà
        tin thông báo vừa bảo "bấm vào đây để xem". Cùng một họ lỗi với
@@ -709,7 +729,8 @@ function AppInner() {
      có ăn không. Nên cuộn tới THANH LỌC: chỗ đó thấy được từ khoá vừa đặt, dòng
      "đang xem n/mục", và danh sách nằm ngay bên dưới.
      Chờ một nhịp (rAF + 60ms) vì danh sách được dựng lại từ bộ lọc vừa đổi —
-     cuộn ngay là cuộn vào cái danh sách CŨ, và `.list` mang `key={filter}` nên
+     cuộn ngay là cuộn vào cái danh sách CŨ, và `.list` mang key theo chặng + cách
+     xếp nên đổi cách nhìn là node đó bị thay bằng node khác.
      đổi cách nhìn là node đó bị thay bằng node khác. */
   const scrollToList = useCallback(() => {
     requestAnimationFrame(() => setTimeout(() => {
@@ -765,7 +786,8 @@ function AppInner() {
     setStatusFilters([])
     setKindFilters([])
     setKindFilter('all')
-    setFilter('newest')
+    setFilter('all')
+    setSort(null)
     setQ(query)
     pushUrl({ s: 'board' }, boardSearchUrl(song?.title, song?.artist))
     scrollToList()
@@ -794,7 +816,7 @@ function AppInner() {
          đổi địa chỉ mà màn hình đứng yên. */
       setProfileId(readProfileId())
       const b = readBoard()
-      setFilter(b.f); setStatusFilters(STAGES.includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
+      setFilter(b.f); setSort(b.s); setStatusFilters(STAGES.includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -814,6 +836,7 @@ function AppInner() {
       if (profileRef.current || new URLSearchParams(window.location.search).has('profile')) return
       const p = new URLSearchParams()
       if (filter !== 'queued') p.set('f', filter)
+      if (sort) p.set('s', sort)
       if (kindFilter !== 'all') p.set('k', kindFilter)
       if (q.trim()) p.set('q', q.trim())
       const qs = p.toString()
@@ -823,11 +846,11 @@ function AppInner() {
       }
       /* Ghi cùng lúc với URL, cùng một nhịp hoãn 320ms: hai lần ghi tách rời
          nhau thì có lúc URL nói một đằng, bộ nhớ nói một nẻo. */
-      try { localStorage.setItem(BOARD_KEY, JSON.stringify({ f: filter, k: kindFilter })) }
+      try { localStorage.setItem(BOARD_KEY, JSON.stringify({ f: filter, s: sort, k: kindFilter })) }
       catch { /* chặn storage thì bộ lọc chỉ sống trong phiên này */ }
     }, 320)
     return () => clearTimeout(id)
-  }, [section, filter, kindFilter, q])
+  }, [section, filter, sort, kindFilter, q])
 
   /* Nút "lên đầu trang" biết mình nên hiện khi nào nhờ IntersectionObserver
      trên mốc đầu nội dung, với ngưỡng 520px nằm ở rootMargin. Cách cũ là
@@ -1434,8 +1457,8 @@ function AppInner() {
      không có trong deps vì nó chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ
      `?k=`; thứ thật sự lọc là `kindFilters`. */
   const visible = useMemo(
-    () => filterBoard({ pub, picked, rows, filter, statusFilters, kindFilters, q }),
-    [pub, picked, rows, filter, statusFilters, kindFilters, q])
+    () => filterBoard({ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q }),
+    [pub, picked, rows, boardStage, sortMode, statusFilters, kindFilters, q])
 
   const featured = useMemo(() => {
     const m = media.find(x => !x.is_hidden && x.kind === 'featured')
@@ -1494,26 +1517,25 @@ function AppInner() {
   /* Cụm trùng bài: hạng của cụm tính bằng TỔNG vote của cả bài nên một bài
      bị nhiều người gửi lẻ không còn tụt hạng do vote bị xé nhỏ. Phân trang
      theo cụm để một cụm không bị xé làm đôi giữa hai trang. */
-  const boardItems = useMemo(() => buildBoardItems(visible, filter), [visible, filter])
-  const pgBoard = usePager(boardItems, PER_PAGE, [filter, kindFilter, q])
+  const boardItems = useMemo(() => buildBoardItems(visible, sortMode), [visible, sortMode])
+  const pgBoard = usePager(boardItems, PER_PAGE, [boardStage, sortMode, kindFilter, q])
 
   /* =====================================================================
      THANH LỌC — giá trị hiển thị và các thao tác
      ---------------------------------------------------------------------
-     `filter` mang hai nghĩa cùng lúc trong mô hình dữ liệu: một chặng của dây
-     chuyền (queued/picked/in_progress/completed) HOẶC một cách nhìn cả bảng
-     (newest/top). Bảng chọn Status vì vậy đọc trạng thái từ `statusFilters`,
-     và khi nó rỗng thì lấy chặng đang nằm trong `filter` — nếu không, mặc
-     định `filter === 'queued'` (chỉ hàng chờ) sẽ hiện ra thành "All" trong khi
-     danh sách thật ra đang chỉ có Queue. */
+     Hai trục, hai ô nhớ: `filter` là CHẶNG của dây chuyền (hoặc 'all'), `sort`
+     là cách xếp. Bảng chọn Status đọc trạng thái từ `statusFilters`, và khi
+     nó rỗng thì lấy chặng trong `filter` — nếu không, mặc định chặng `queued`
+     (chỉ hàng chờ) sẽ hiện ra thành "All" trong khi danh sách thật ra đang
+     chỉ có Queue. */
   const stagePick = statusFilters.length
     ? statusFilters
-    : (STAGES.includes(filter) ? [filter] : [])
-  /* Đang ở một CHẶNG (queued/picked/…) thì menu Sort không có mục nào được
-     chọn — bấm một cách xếp sẽ dọn chặng, đúng luật của pickSort. Nên nút
-     Sort cũng KHÔNG được in một cách xếp nào: đang xem Queue (xếp theo PAID
-     rồi tới phiếu) mà nút ghi "Newest" là nói sai về danh sách đang nhìn. */
-  const sortKey = SORTS.includes(filter) ? filter : null
+    : (STAGES.includes(boardStage) ? [boardStage] : [])
+  /* Nút Sort in ĐÚNG cách xếp đang dùng, và chỉ in khi người dùng đã chọn
+     một cách xếp. Chưa chọn thì nút chỉ mang tên trường ("Sort"): danh sách
+     đang theo thứ tự gốc của chặng (hàng chờ: paid rồi tới phiếu), in
+     "Newest" lên đó là nói sai về thứ tự đang nhìn. */
+  const sortKey = sort
   const fbActive = statusFilters.length + kindFilters.length + (q.trim() ? 1 : 0)
   const stageText = !stagePick.length ? t('board.allStages')
     : stagePick.length === 1 ? t(`filter.${stagePick[0]}`)
@@ -1526,15 +1548,18 @@ function AppInner() {
      chặng vừa bỏ là danh sách vẫn lọc y như cũ trong khi ô đã trống — người
      bấm thấy "không có gì thay đổi". */
   const removeStage = (k) => {
-    const next = statusFilters.filter(x => x !== k)
+    /* Lọc trên `stagePick` chứ không phải `statusFilters`: chặng mặc định
+       (queued) không nằm trong mảng, bỏ nó phải rơi về "cả bảng" chứ không
+       phải ở lại yên. */
+    const next = stagePick.filter(x => x !== k)
     setStatusFilters(next)
-    setFilter(next.length === 1 ? next[0] : 'newest')
+    setFilter(next.length === 1 ? next[0] : 'all')
   }
   const toggleStage = (k) => {
     if (stagePick.includes(k)) return removeStage(k)
-    const next = [...statusFilters, k]
+    const next = [...stagePick, k]
     setStatusFilters(next)
-    setFilter(next.length === 1 ? next[0] : 'newest')
+    setFilter(next.length === 1 ? next[0] : 'all')
   }
   /* `kindFilters` là thứ lọc thật; `kindFilter` chỉ là bản sao MỘT lựa chọn cho
      địa chỉ `?k=` và bộ lọc đã lưu, nên phải đổi theo. */
@@ -1543,12 +1568,12 @@ function AppInner() {
     setKindFilters(next)
     setKindFilter(next.length === 1 ? next[0] : 'all')
   }
-  /* Sort là MỘT lựa chọn và là một trục khác với Status, nên chọn sort thì dọn
-     chặng đang chọn — hai trục cùng ghi vào `filter` mà để cả hai thì cái sau
-     ghi đè cái trước một cách âm thầm. */
-  const pickSort = (k) => { setStatusFilters([]); setFilter(k); setFbTab(null) }
+  /* Sort là trục RIÊNG: chọn cách xếp không đụng tới chặng đang lọc, nên
+     "đang lọc Queued + xếp A→Z" là một trạng thái dùng được. */
+  const pickSort = (k) => { setSort(k); setFbTab(null) }
+  /* Xoá hết = trả về đúng trạng thái mở đầu: cả bảng, chưa chọn cách xếp. */
   const clearAll = () => {
-    setStatusFilters([]); setFilter('newest'); setKindFilters([]); setKindFilter('all'); setQ(''); setFbTab(null)
+    setStatusFilters([]); setFilter('all'); setSort(null); setKindFilters([]); setKindFilter('all'); setQ(''); setFbTab(null)
   }
 
   /* Đóng bảng chọn khi bấm ra ngoài hoặc Esc. `pointerdown` chứ không `click`:
@@ -1583,7 +1608,7 @@ function AppInner() {
 
   /* Cụm nào đang mở — tự thu hết khi đổi bộ lọc/tìm kiếm (cùng nhịp reset
      trang của usePager, không dùng effect để khỏi render thừa). */
-  const gkey = `${filter}|${kindFilter}|${q.trim()}`
+  const gkey = `${boardStage}|${sort ?? ''}|${kindFilter}|${q.trim()}`
   const [expSt, setExpSt] = useState({ key: gkey, open: {} })
   const openGroups = expSt.key === gkey ? expSt.open : {}
   const toggleGroup = (k) => setExpSt(s => {
@@ -1596,8 +1621,9 @@ function AppInner() {
   /* nút "View all" trong khối Up next: mở tab Up next của danh sách và cuộn tới */
   const showAllPicked = useCallback(() => {
     /* `setStatusFilters([])` là bắt buộc: bộ lọc nhiều-chọn THẮNG `filter`,
-       nên không dọn nó thì bấm "View all" đổi `filter` mà danh sách đứng yên. */
-    setFilter('picked'); setStatusFilters([]); setKindFilter('all'); setKindFilters([]); setQ('')
+       nên không dọn nó thì bấm "View all" đổi `filter` mà danh sách đứng yên.
+       Cách xếp cũng trả về mặc định — "View all" là để xem thứ tự làm việc. */
+    setFilter('picked'); setSort(null); setStatusFilters([]); setKindFilter('all'); setKindFilters([]); setQ('')
     requestAnimationFrame(() => {
       setTimeout(() => listRef.current?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'start' }), 60)
     })
@@ -2335,7 +2361,7 @@ function AppInner() {
                           <b>{t('board.status')}</b>
                           <span className="fb-num">{stagePick.length ? `${stagePick.length}/${STAGES.length}` : ''}</span>
                           <button type="button" className="fb-clr" disabled={!stagePick.length}
-                            onClick={() => { setStatusFilters([]); setFilter('newest') }}>{t('board.clear')}</button>
+                            onClick={() => { setStatusFilters([]); setFilter('all') }}>{t('board.clear')}</button>
                         </div>
                         <ul className="fb-list">
                           {STAGES.map(k => (
@@ -2520,7 +2546,7 @@ function AppInner() {
                 )}
               </div>
 
-              <div className="list" data-glow key={filter} ref={listRef}>
+              <div className="list" data-glow key={`${boardStage}|${sort ?? ""}`} ref={listRef}>
                 {boardItems.length === 0
                   /* Ba trạng thái, ba câu trả lời (xem khối ListSkeleton):
                      đang tải / lỗi có nút thử lại / trống thật sự. */
