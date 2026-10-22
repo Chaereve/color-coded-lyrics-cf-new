@@ -20,8 +20,35 @@ import react from '@vitejs/plugin-react'
 
    3. `headers: no-store` cho mọi phản hồi của dev server: HTML không bao giờ
       được lấy từ cache. HTML cũ + hash mới = lại 504 ở trên. */
+/* Nhật ký yêu cầu của dev server — chỉ để CHẨN ĐOÁN, không ảnh hưởng gì tới
+   ứng dụng. Mỗi dòng là một yêu cầu thật của trình duyệt kèm mã trả về, nên
+   khi khung preview trắng/đen chỉ cần nhìn log là biết ngay:
+     · KHÔNG có dòng `GET / 200`  → trình duyệt không hề chạm tới server
+                                    (lỗi proxy/cổng, không phải lỗi app);
+     · có `GET / 200` nhưng sau đó là 4xx/5xx ở một module → thiếu file/504;
+     · có `GET / 200` rồi im lặng, không module nào được hỏi → HTML đã về
+                                    nhưng trình duyệt không chạy được script
+                                    (CSP, kiểu MIME, hoặc JS lỗi cú pháp).
+   Ba tình huống đó cần ba cách chữa khác nhau, nên đừng đoán. */
+function requestLog() {
+  return {
+    name: 'ccl-request-log',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const started = Date.now()
+        res.on('finish', () => {
+          const url = (req.url || '').split('?')[0]
+          console.log(`[ccl-req] ${res.statusCode} ${req.method} ${url} ${Date.now() - started}ms`)
+        })
+        next()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), requestLog()],
   server: {
     host: '0.0.0.0',
     port: 5173,
