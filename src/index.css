@@ -241,18 +241,25 @@ html {
      ấy. Đặt nền ở đây thì mọi khe hở đều là màu nền của trang.
      (index.html có sẵn một bản sao y hệt nội tuyến trong <head>: nó phải có mặt
      TRƯỚC khi tệp CSS tải xong để khung hình đầu tiên không trắng. Hai chỗ cùng
-     một màu — sửa màu nền thì sửa cả hai.) */
-  background: var(--bg);
+     một màu — sửa màu nền thì sửa cả hai.)
+     Màu này là --mesh-base, KHÔNG phải --bg: khung vẽ phải liền một màu với
+     lớp nền phía trên nó, nếu không mép màn hình lộ ra một sắc khác. */
+  background: var(--mesh-base);
   /* lề cuộn chừa sẵn: dữ liệu về làm thanh cuộn xuất hiện là cả trang
      giật ngang một cái, rất dễ thấy trên khối danh sách */
   scrollbar-gutter: stable;
   scroll-behavior: smooth;
 }
 body {
-  /* Một màu phẳng, hết — mọi vệt màu nằm trong .bgfx (một lớp fixed).
-     Không dùng background-attachment: fixed ở đây: nó bắt trình duyệt vẽ
-     lại gradient theo từng khung cuộn, đúng thứ từng gây lỗi nền. */
-  background: var(--mesh-base);
+  /* TRONG SUỐT — và đây là chỗ từng làm cả lớp nền biến mất.
+     .bgfx nằm ở z-index -1 (một lớp fixed, không phải con của body về mặt
+     ngăn xếp). Theo thứ tự vẽ của CSS, lớp có z-index âm được vẽ NGAY SAU
+     nền của thẻ gốc (html) nhưng TRƯỚC nền của các khối trong luồng — mà
+     body chính là một khối trong luồng. Nên chỉ cần body có một màu đặc là
+     nó vẽ đè lên toàn bộ mesh, mesh vẫn chạy, vẫn tốn CPU, và người dùng
+     thấy một màu phẳng. Mọi lần chỉnh màu nền đều "không đổi" vì lý do này.
+     Màu gốc giờ nằm ở html (xem `html { background: ... }`). */
+  background: transparent;
   color: var(--txt);
   font-family: var(--font);
   /* Chữ TO hơn nhưng dòng PHẢI siết lại, không nới ra: tăng cỡ chữ mà giữ
@@ -4487,7 +4494,6 @@ html[data-section="spin"] .bgfx { display: none; }
 
 /* Nền do .bgfx vẽ (mesh tím/hồng). <html> chỉ cần ĐÚNG màu gốc, để một
    khung hình trước khi CSS tải xong hoặc vùng quá cuộn không loé trắng. */
-html { background: var(--mesh-base); }
 
 /* Filter drawer polish on phones: an intentional compact panel, not a tall
    stack of loose controls. */

@@ -104,11 +104,17 @@ test('khung nền: fixed, kín màn hình, không 100dvh; body chỉ mang màu g
   assert.match(bgfx, /inset:\s*0/)
   assert.match(bgfx, /z-index:\s*-1/)
   assert.doesNotMatch(bgfx, /100dvh|100vh/, 'chiều cao theo viewport làm nền giật trên mobile')
-  /* body không được vẽ gradient thứ hai — nếu có, hai lớp màu chồng nhau và
-     "đổi độ đậm" lại thành chuyện của hai chỗ. */
+  /* ĐÂY LÀ LỖI ĐÃ LÀM "NỀN KHÔNG BAO GIỜ ĐỔI".
+     .bgfx nằm ở z-index -1. Theo thứ tự vẽ của CSS, lớp z-index âm được vẽ
+     sau nền của <html> nhưng TRƯỚC nền của khối trong luồng — và body là
+     một khối trong luồng. Chỉ cần body có một màu đặc là nó phủ kín mesh;
+     mesh vẫn chạy, vẫn tốn GPU, người dùng chỉ thấy một màu phẳng. Nên
+     body phải TRONG SUỐT, còn màu gốc nằm ở html. */
   const body = one('body', /background:/)
-  assert.match(body, /background:\s*var\(--mesh-base\)/)
-  assert.doesNotMatch(body, /radial-gradient|linear-gradient/, 'body chỉ là màu phẳng')
+  assert.match(body, /background:\s*transparent/, 'body phải trong suốt, nếu không nó che mất .bgfx (z-index -1)')
+  assert.doesNotMatch(body, /background:\s*(var\(--|#|rgb)/, 'body không được tự tô màu nền')
+  assert.match(one('html', /background:/), /background:\s*var\(--mesh-base\)/,
+    'màu gốc của khung vẽ nằm ở html')
 })
 
 test('Daily Spin vẫn có nền riêng; giảm chuyển động vẫn tắt được', () => {
