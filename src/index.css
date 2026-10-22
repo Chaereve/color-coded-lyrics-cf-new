@@ -2504,9 +2504,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([ta
   .vp-acts { width: 100%; }
   .vp-acts .btn { flex: 1 1 auto; text-align: center; min-height: 40px; }
   .vp-legend { gap: 8px 12px; }
-  /* Hàng chú thích đã hẹp: đẩy "Resets" sang phải chỉ tạo một khoảng trống
-     vô nghĩa ở giữa, nên cho nó xuống hàng tự nhiên. */
-  .vp-leg.is-mut { margin-left: 0; }
+  /* Hàng chú thích đã hẹp: ép "Resets" xuống một dòng riêng (flex-basis 100%)
+     thay vì để nó chen vào giữa các mục thành phần. Ở bề ngang này, canh
+     phải một mục duy nhất chỉ tạo ra một khoảng trống vô nghĩa. */
+  .vp-leg.is-mut { flex-basis: 100%; margin-left: 0; }
   /* Dải mục lục video trên điện thoại: thu về 96px và BỎ tên video — tên
      của video đang mở đã nằm ngay trên sân khấu, còn dải này là để chọn
      nhanh bằng mắt (viền sáng đánh dấu ô đang mở). Chiều cao tiết kiệm được
@@ -4793,9 +4794,10 @@ body { overflow-x: hidden; }
   .vp-acts { width: 100%; }
   .vp-acts .btn { flex: 1 1 auto; min-height: 40px; }
   .vp-legend { gap: 8px 12px; }
-  /* Hàng chú thích đã hẹp: đẩy "Resets" sang phải chỉ tạo một khoảng trống
-     vô nghĩa ở giữa, nên cho nó xuống hàng tự nhiên. */
-  .vp-leg.is-mut { margin-left: 0; }
+  /* Hàng chú thích đã hẹp: ép "Resets" xuống một dòng riêng (flex-basis 100%)
+     thay vì để nó chen vào giữa các mục thành phần. Ở bề ngang này, canh
+     phải một mục duy nhất chỉ tạo ra một khoảng trống vô nghĩa. */
+  .vp-leg.is-mut { flex-basis: 100%; margin-left: 0; }
   .nowbar { padding: 12px; }
   .nowbar .lbl { font-size: 16px; }
   .pick-main { gap: 12px; }
