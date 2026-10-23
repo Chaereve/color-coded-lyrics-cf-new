@@ -1,11 +1,11 @@
 /* Khoá định tuyến Pages Functions công khai.
    File này CỐ Ý nằm ở worker/ chứ không nằm dưới functions/: Pages biến MỌI
    file .js trong functions/ thành một route công khai, nên nhét test vào đó là
-   tự tạo endpoint lạ trên production. Chốt 3 API route + archive SSR, không thừa.
+   tự tạo endpoint lạ trên production. Chốt đúng 6 API route + archive SSR.
    Test "_worker.js" khoá việc Pages bỏ Functions khi output có file đó.
    Ba điều được khoá ở đây:
-     1. functions/ chỉ có đúng 3 route API + 1 archive SSR.
-     2. Ba API route trả JSON đúng mã/khoá lỗi như bản Workers.
+     1. functions/ chỉ có đúng 6 route API + 1 archive SSR.
+     2. Các API route trả phản hồi đúng mã/khoá lỗi như bản Workers.
      3. _routes.json + _redirects cấu hình đúng cho Functions và SPA. */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,10 +16,12 @@ import { onRequest as health } from '../functions/api/daily-spin/health.js'
 import { onRequest as spin } from '../functions/api/daily-spin/spin.js'
 import { onRequest as vote } from '../functions/api/vote/cast.js'
 import { onRequest as mystery } from '../functions/api/mystery/open.js'
+import { onRequest as driveFind } from '../functions/api/drive-video/find.js'
+import { onRequest as driveStream } from '../functions/api/drive-video/stream.js'
 import { onRequest as archive } from '../functions/archive.js'
 
 const SITE = 'https://chaereve.pages.dev'
-const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast', '/api/mystery/open']
+const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast', '/api/mystery/open', '/api/drive-video/find', '/api/drive-video/stream']
 const FUNCTION_ROUTES = [...API_ROUTES, '/archive']
 const hex64 = c => c.repeat(64)
 const post = (path, body) => new Request(SITE + path, {
@@ -46,17 +48,17 @@ test('không ship _worker.js bảo trì — nó nuốt /api/vote/cast', () => {
   }
 })
 
-test('functions/ chỉ chứa đúng 3 API route và archive SSR — file lạ sẽ thành endpoint công khai', () => {
+test('functions/ chỉ chứa đúng 6 API route và archive SSR — file lạ sẽ thành endpoint công khai', () => {
   const dir = new URL('../functions/', import.meta.url)
   const js = readdirSync(dir, { recursive: true })
     .filter(f => String(f).endsWith('.js'))
     .map(f => String(f).replace(/\\/g, '/'))
     .sort()
-  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/mystery/open.js', 'api/vote/cast.js', 'archive.js'])
+  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/drive-video/find.js', 'api/drive-video/stream.js', 'api/mystery/open.js', 'api/vote/cast.js', 'archive.js'])
 })
 
 test('mọi route Pages đều export đúng onRequest (sai tên là Pages bỏ qua file)', () => {
-  for (const fn of [health, spin, vote, mystery, archive]) assert.equal(typeof fn, 'function')
+  for (const fn of [health, spin, vote, mystery, driveFind, driveStream, archive]) assert.equal(typeof fn, 'function')
 })
 
 test('health thiếu binding vẫn 200 JSON { ok, shield:false, gate:false } — không phải HTML', async () => {
@@ -126,6 +128,9 @@ test('Workers và Pages trả đồng nhất status + body cho cùng một reque
     ['/api/daily-spin/health', () => new Request(SITE + '/api/daily-spin/health'), health],
     ['/api/daily-spin/spin', () => new Request(SITE + '/api/daily-spin/spin'), spin],
     ['/api/vote/cast', () => new Request(SITE + '/api/vote/cast'), vote],
+    ['/api/mystery/open', () => new Request(SITE + '/api/mystery/open'), mystery],
+    ['/api/drive-video/find', () => new Request(SITE + '/api/drive-video/find?artist=IVE&title=Looks%20Can%20Kill'), driveFind],
+    ['/api/drive-video/stream', () => new Request(SITE + '/api/drive-video/stream?artist=IVE&title=Looks%20Can%20Kill'), driveStream],
     ['/api/daily-spin/spin', () => post('/api/daily-spin/spin', 'rac'), spin],
     ['/api/vote/cast', () => post('/api/vote/cast', { delta: 0 }), vote],
   ]
@@ -342,7 +347,7 @@ test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store',
   }
 })
 
-test('mọi response của 3 route API đều no-store — cả Pages lẫn Workers', async () => {
+test('mọi response của các route API đều no-store — cả Pages lẫn Workers', async () => {
   /* _headers không chắc phủ được response do Function sinh ra (doc Cloudflare
      cảnh báo riêng), nên header phải đi ra từ CHÍNH code dựng response.
      Đây là chỗ duy nhất kiểm chứng được điều đó trước khi deploy. */
@@ -354,6 +359,8 @@ test('mọi response của 3 route API đều no-store — cả Pages lẫn Work
     ['spin 503', () => post('/api/daily-spin/spin', goodSpinBody()), spin],
     ['vote 400', () => post('/api/vote/cast', { delta: 'nhieu' }), vote],
     ['vote 503', () => post('/api/vote/cast', goodVoteBody()), vote],
+    ['Drive finder 503', () => new Request(SITE + '/api/drive-video/find?artist=IVE&title=Looks%20Can%20Kill'), driveFind],
+    ['Drive stream 503', () => new Request(SITE + '/api/drive-video/stream?artist=IVE&title=Looks%20Can%20Kill'), driveStream],
   ]
   for (const [name, make, pagesHandler] of cases) {
     const pages = await pagesHandler({ request: make(), env })

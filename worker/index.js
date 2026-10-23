@@ -37,6 +37,7 @@
                              cho Turnstile/KV ở đây thật sự có giá trị.
    ========================================================= */
 import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './shield.js'
+import { driveVideoFindRoute, driveVideoStreamRoute } from './driveVideo.js'
 
 /* D1 is preferred; retain KV only as a rollout fallback while Pages bindings
    are being configured. Once RATE_SHIELD is present all shield writes go to D1. */
@@ -298,6 +299,8 @@ export default {
     if (pathname === '/api/daily-spin/spin') return spinRoute(request, env)
     if (pathname === '/api/vote/cast') return voteRoute(request, env)
     if (pathname === '/api/mystery/open') return mysteryRoute(request, env)
+    if (pathname === '/api/drive-video/find') return driveVideoFindRoute(request, env)
+    if (pathname === '/api/drive-video/stream') return driveVideoStreamRoute(request, env)
     // Mọi đường dẫn còn lại: file tĩnh của app (SPA fallback do cấu hình assets lo).
     if (pathname.startsWith('/api/')) return deny('err.spinRequest', 404)
     return env.ASSETS.fetch(request)

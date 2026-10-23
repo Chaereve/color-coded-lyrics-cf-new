@@ -741,6 +741,7 @@ const S = {
   'recap.statDone': 'songs completed',
   'recap.statTop': 'top song votes',
   'preview.close': 'Close preview',
+  'preview.loading': 'Finding the 30-second clip…',
   'preview.thirty': '30-second preview',
   'preview.open': 'Open full video on YouTube',
   /* MỐC 30 GIÂY — nói ra con số thay vì để người xem tự đoán vì sao khung dừng.
@@ -753,6 +754,7 @@ const S = {
   'preview.scrub': 'Preview position',
   'preview.ended': 'That’s the end of the preview',
   'preview.endedNote': 'You’ve watched the first {total} seconds. The whole video is on YouTube.',
+  'preview.driveEndedNote': 'You’ve watched the full 30-second clip.',
   'preview.replay': 'Watch the preview again',
   /* Link của bài đã xong không phải YouTube cũng không phải file video:
      hộp vẫn mở, nói ra lý do, và để nút bên dưới mở ở tab mới. */
