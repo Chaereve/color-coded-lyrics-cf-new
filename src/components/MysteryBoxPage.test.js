@@ -51,6 +51,16 @@ test('the standalone page renders its own shell and waits for data server-side',
   })
 })
 
+test('Daily Box header keeps its reset timer in the same layout after opening', () => {
+  const page = readFileSync(new URL('./MysteryBoxPage.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('./MysteryBox.css', import.meta.url), 'utf8')
+  const header = page.match(/<header className="mystery-page-head">([\s\S]*?)<\/header>/)?.[1]
+  assert.ok(header, 'header markup exists')
+  assert.match(header, /className="mystery-page-reset"/, 'reset timer stays in the header')
+  assert.doesNotMatch(header, /opened/, 'header visibility does not depend on the opened state')
+  assert.doesNotMatch(css, /mystery-page-head:not\(:has\(/, 'header does not recenter after opening')
+})
+
 test('the card: locked points to check-in, ready offers the box, opened shows the committed result', async () => {
   await withVite(async server => {
     const { MysteryBox } = await server.ssrLoadModule('/src/components/MysteryBox.jsx')

@@ -182,12 +182,10 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
             </button>
           </div>
         )}
-        {(!mystery || !mystery.opened) && (
-          <div className="mystery-page-reset" title={t('spin.ruleReset')}>
-            <span>{t('spin.resetIn')}</span>
-            <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
-          </div>
-        )}
+        <div className="mystery-page-reset" title={t('spin.ruleReset')}>
+          <span>{t('spin.resetIn')}</span>
+          <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
+        </div>
       </header>
 
       {error && (

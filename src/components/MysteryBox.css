@@ -24,7 +24,6 @@
   flex-wrap: nowrap; margin: 0; padding: 0 1px 12px;
   background: none; border: 0; border-bottom: 1px solid var(--line); box-shadow: none;
 }
-.mystery-page-head:not(:has(.mystery-page-reset)) { justify-content: center; }
 .mystery-page-acts {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 1px;
   min-width: 0; padding: 0; border: 1px solid var(--line-2);
@@ -454,7 +453,6 @@
   .mystery-page { padding: 10px; border-radius: var(--r-lg); }
   .box-stage { height: clamp(260px, 78vw, 340px); border-radius: 14px; }
   .mystery-page-head { align-items: stretch; flex-direction: column; gap: 8px; }
-  .mystery-page-head:not(:has(.mystery-page-reset)) { align-items: center; }
   .mystery-page-acts { align-self: flex-start; }
   .mystery-page-reset {
     width: 100%; justify-content: flex-end; margin-left: 0;
