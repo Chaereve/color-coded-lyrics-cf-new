@@ -25,7 +25,7 @@
   background: none; border: 0; border-bottom: 1px solid var(--line); box-shadow: none;
 }
 .mystery-page-acts {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 1px;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0;
   min-width: 0; padding: 0; border: 1px solid var(--line-2);
   border-radius: 9px; background: var(--surface-2);
 }
@@ -33,8 +33,9 @@
 .mystery-page-acts > .mystery-history-btn {
   width: auto; min-height: 40px; display: inline-flex; align-items: center;
   justify-content: center; gap: 7px; padding: 6px 12px;
-  border: 0; border-radius: 8px; color: var(--txt); background: transparent;
+  border: 0; border-radius: 0; color: var(--txt); background: transparent;
 }
+.mystery-page-acts > .mystery-odds-btn { border-radius: 8px 0 0 8px; }
 .mystery-page-acts > .mystery-history-btn {
   border-left: 1px solid var(--line-2); border-radius: 0 8px 8px 0;
 }

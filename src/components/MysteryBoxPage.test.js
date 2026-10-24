@@ -61,6 +61,13 @@ test('Daily Box header keeps its reset timer in the same layout after opening', 
   assert.doesNotMatch(css, /mystery-page-head:not\(:has\(/, 'header does not recenter after opening')
 })
 
+test('Prizes and This month form a flush segmented control with outer-only corners', () => {
+  const css = readFileSync(new URL('./MysteryBox.css', import.meta.url), 'utf8')
+  assert.match(css, /\.mystery-page-acts\s*\{[^}]*gap:\s*0/)
+  assert.match(css, /\.mystery-page-acts > \.mystery-odds-btn\s*\{[^}]*border-radius:\s*8px 0 0 8px/)
+  assert.match(css, /\.mystery-page-acts > \.mystery-history-btn\s*\{[^}]*border-left:[^;]+; border-radius:\s*0 8px 8px 0/)
+})
+
 test('the card: locked points to check-in, ready offers the box, opened shows the committed result', async () => {
   await withVite(async server => {
     const { MysteryBox } = await server.ssrLoadModule('/src/components/MysteryBox.jsx')
