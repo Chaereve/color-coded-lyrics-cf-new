@@ -1168,7 +1168,8 @@ function AppInner() {
       fetchActivityDays(u.id), fetchMyAchievementRequests(u.id), fetchRecentVotes({ firstPageOnly: true }),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, od, , act, achievementReqs, vv] = results
+    // Skip loadMedia and loadPick before the activity, achievement-request, and recent-vote results.
+    const [r, v, vs, ach, rk, od, , , act, achievementReqs, vv] = results
     /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
        để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
     /* Lượt cũ (đã có lượt nạp mới hơn bắt đầu) thì KHÔNG ghi gì cả: số liệu
