@@ -300,7 +300,7 @@ for (const vp of viewports) {
   if (guest) {
     check(`${vp.name}: khách chưa đăng nhập thấy lời mời đăng nhập, không trắng màn`, true)
     await page.locator('.signin-panel-btn').first().click()
-    await page.waitForSelector('.gate-card', { timeout: 10_000 })
+    await page.waitForSelector('.gate-panel', { timeout: 10_000 })
     check(`${vp.name}: bấm nút đăng nhập mở được cửa sổ (không kẹt)`, true)
     await page.locator('.btn-google').first().click()
   } else {
@@ -330,9 +330,9 @@ for (const vp of viewports) {
   check(`${vp.name}: có nút điểm danh`, (await claim.count()) === 1)
   if (await claim.count()) {
     await claim.click()
-    await page.waitForTimeout(700)
-    check(`${vp.name}: điểm danh xong nút chuyển trạng thái đã-điểm-danh`,
-      (await page.locator('.daily-claim.btn-ok').count()) === 1)
+    await page.waitForSelector('.check-in-day.is-today.is-checked:disabled', { timeout: 5_000 })
+    check(`${vp.name}: điểm danh được ghi vào lịch và nút nhận biến mất`,
+      (await page.locator('.daily-claim').count()) === 0)
   }
   check(`${vp.name}: không có lỗi console / exception`, errors.length === 0,
     errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài của runner)` : ''))
@@ -365,7 +365,7 @@ for (const vp of viewports) {
       try { await page.waitForSelector(r.anchor, { timeout: 12_000 }) } catch {
         if (await page.locator('.signin-panel-btn').count()) {
           await page.locator('.signin-panel-btn').first().click()
-          await page.waitForSelector('.gate-card', { timeout: 10_000 })
+          await page.waitForSelector('.gate-panel', { timeout: 10_000 })
           await page.locator('.btn-google').first().click()
           await page.waitForSelector(r.anchor, { timeout: 15_000 })
         } else throw new Error(`không thấy ${r.anchor}`)
