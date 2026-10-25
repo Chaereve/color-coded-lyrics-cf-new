@@ -532,7 +532,7 @@ export async function fetchMyVotes(uid) {
    vẫn được tính là "nhận hôm nay" cả trong demo.
    ========================================================= */
 export const VOTES_LOOKBACK_DAYS = 31
-export async function fetchRecentVotes() {
+export async function fetchRecentVotes({ firstPageOnly = false } = {}) {
   const since = Date.now() - VOTES_LOOKBACK_DAYS * 86400000
   if (!hasSupabase) {
     const out = []
@@ -553,12 +553,20 @@ export async function fetchRecentVotes() {
     return out
   }
   // RPC has a 10k SQL cap, but PostgREST caps each response at 1000 rows.
-  // Votes are ordered newest-first, so the first page always carries the full
-  // current-week window. Preserve it if an older follow-up page times out;
-  // otherwise one slow month-history page would erase the "Most voted" card.
-  return fetchAvailablePages((from, size) => readQuery(() =>
+  // Votes are ordered newest-first, so the first page contains the complete
+  // rolling 7-day window needed by the homepage card. Don't make that card wait
+  // for older month-history pages; the ranking view asks for the full history.
+  const fetchPage = (from, size) => readQuery(() =>
     supabase.rpc('votes_received', { p_since: new Date(since).toISOString() })
-      .range(from, from + size - 1)), 1000, 10000)
+      .range(from, from + size - 1))
+  if (firstPageOnly) {
+    const { data, error } = await fetchPage(0, 1000)
+    if (error) throw error
+    return Array.isArray(data) ? data : []
+  }
+  // If an older page fails, retain the newest page rather than discarding the
+  // current-week events along with incomplete month history.
+  return fetchAvailablePages(fetchPage, 1000, 10000)
 }
 
 /* Chia so du thanh hai loai: vote da mua (khong het han) va bonus tu vong
