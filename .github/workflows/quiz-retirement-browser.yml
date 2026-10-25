@@ -81,6 +81,13 @@ jobs:
           TARGET=$(grep -v '^[[:space:]]*#' .github/live-smoke-target 2>/dev/null | grep -m1 -v '^[[:space:]]*$' | tr -d ' \r' || true)
           if [ -n "$LIVE_URL" ]; then
             echo "live_url truyền qua dispatch: $LIVE_URL (ưu tiên hơn tệp)"
+          elif [ "$GITHUB_REF_NAME" = "arena/92d15269-color-coded-lyrics-cf-new" ]; then
+            # Trên PR phải kiểm tra đúng bundle của branch preview, không phải
+            # production đang chạy commit cũ. Sau merge vào main, nhánh main
+            # tiếp tục smoke URL production lấy từ live-smoke-target.
+            TARGET=https://arena-92d15269-color-coded-l.chaereve.pages.dev
+            echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
+            echo "live smoke sẽ mở branch preview $TARGET"
           elif [ -n "$TARGET" ]; then
             echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
             echo "live smoke sẽ mở $TARGET (đọc từ .github/live-smoke-target)"
