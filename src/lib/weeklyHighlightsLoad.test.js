@@ -19,6 +19,8 @@ test('signed-in initial board load fetches and publishes received vote events', 
   const load = between('const load = useCallback', 'const loadBoard = useCallback')
   assert.match(load, /fetchRecentVotes\(\{ firstPageOnly: true \}\)/,
     'signed-in initial load must fetch the newest RPC page without waiting for older history')
+  assert.match(load, /const \[r, v, vs, ach, rk, od, , , act, achievementReqs, vv\] = results/,
+    'skip both loadMedia and loadPick so votesLog receives the recent-votes result, not achievement requests')
   assert.match(load, /vv\.status === 'fulfilled' && Array\.isArray\(vv\.value\) && vv\.value\.length > 0\) setVotesLog\(vv\.value\)/,
     'publish non-empty vote rows while preserving the current card on an empty refresh')
 })
