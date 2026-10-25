@@ -28,9 +28,9 @@ export const POST_20261125 = [
   '20261210_vote_back',
   '20261211_achievements_v3',
   /* Các migration sau 20261211 được giữ đúng thứ tự deploy ở đây, gồm bản sửa
-     map dấu phát sinh khi áp dụng 20261212, gỡ bình luận 20261216 và ba bản
-     bảo mật 20261217. Thiếu tên sẽ làm Postgres deployment tests báo pending
-     lệch so với danh sách migrations thực tế. */
+     map dấu phát sinh khi áp dụng 20261212, gỡ bình luận 20261216, các bản
+     bảo mật 20261217 và RPC vote mới nhất 20261218. Thiếu tên sẽ làm Postgres
+     deployment tests báo pending lệch so với danh sách migrations thực tế. */
   '20261212_admin_bulk_and_comments_page',
   '20261212_admin_fold_translation_fix',
   '20261213_admin_actions_and_request_edit',
@@ -40,6 +40,7 @@ export const POST_20261125 = [
   '20261217_private_denial_reasons',
   '20261217_protect_paid_request_orders',
   '20261217_rpc_least_privilege',
+  '20261218_votes_received_recent_first',
 ]
 
 const SCAFFOLD = `

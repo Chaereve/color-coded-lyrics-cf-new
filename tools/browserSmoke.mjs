@@ -246,11 +246,16 @@ if (live) {
          rendered card together so a quiet RPC failure cannot hide Most voted. */
       if (vp.name === 'desktop-1280') {
         const voteResponses = []
+        const voteRequests = []
+        const captureVoteRequest = request => {
+          if (request.url().includes('/rest/v1/rpc/votes_received')) voteRequests.push(request)
+        }
         const captureVotes = response => {
           if (response.url().includes('/rest/v1/rpc/votes_received')) voteResponses.push(response)
         }
+        page.on('request', captureVoteRequest)
         page.on('response', captureVotes)
-        await page.goto(`${live}/`, { waitUntil: 'load', timeout: 60_000 })
+        await page.goto(`${live}/?weekly-smoke=${Date.now()}`, { waitUntil: 'load', timeout: 60_000 })
         /* The public load awaits every page of the votes RPC before publishing
            rows, so the New card is a reliable signal that pagination finished. */
         await page.waitForFunction(
@@ -270,10 +275,11 @@ if (live) {
           return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
         })
         check('live desktop: votes_received RPC trả lời được', Boolean(votesResponse?.ok()),
-          `HTTP ${votesResponse?.status() ?? 'no response'} · ${voteRows.length} phiếu/${votePages.length} trang`)
+          `requests=${voteRequests.length} · HTTP ${votesResponse?.status() ?? 'no response'} · ${voteRows.length} phiếu/${votePages.length} trang`)
         check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',
-          recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted'),
+          Boolean(votesResponse?.ok()) && (recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted')),
           `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'}`)
+        page.off('request', captureVoteRequest)
         page.off('response', captureVotes)
       }
       await page.screenshot({ path: join(outDir, `live-${vp.name}.png`), fullPage: true })
