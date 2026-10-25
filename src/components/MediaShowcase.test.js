@@ -91,12 +91,18 @@ test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn
   assert.match(html, /class="pick-side"/)
   assert.match(css, /\.pick-showcase \.pick-side\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none/,
     'không được chặn chiều ngang dải bằng max-width nhỏ hơn khung showcase')
+  assert.match(css, /flex:\s*0 0 clamp\(232px, 20vw, 300px\)/,
+    'thẻ phải gọn, không phình thành ba thẻ khổng lồ trên màn rộng')
+  assert.match(css, /\.pick-showcase \.pvlist\s*\{[^}]*scrollbar-width:\s*none/,
+    'ẩn thanh cuộn thô; fade là tín hiệu cuộn')
+  assert.match(css, /-webkit-line-clamp:\s*2/,
+    'mọi tiêu đề dừng ở hai dòng để thẻ giữ cùng chiều cao')
   assert.match(componentSource, /scrollWidth - strip\.clientWidth/,
     'dải phải đo phần còn cuộn được thay vì luôn hiện fade')
   assert.match(componentSource, /strip\.addEventListener\('scroll', measure/,
     'fade phải được cập nhật khi người dùng kéo dải')
   assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
-  assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.86\)/,
+  assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.96\)/,
     'fade hai cạnh phải tối dần ra trong suốt')
 })
