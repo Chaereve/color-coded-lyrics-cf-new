@@ -148,3 +148,14 @@ test('.toast-x vẫn là control duy nhất để đóng toast (đừng xoá mà
     .map((f) => readFileSync(f, 'utf8')).join('\n')
   assert.match(jsx, /className="toast-x"/, 'mất nút × rồi thì bỏ luôn hợp đồng 30px ở trên')
 })
+
+test('sidebar thu gọn: logo, icon điều hướng và âm thanh chung một trục giữa', () => {
+  assert.match(cssRaw, /\.side\.min \.side-brand \.applogo\.lg-nav\s*\{[^}]*margin-inline:\s*auto/,
+    'logo phải được canh giữa trong sidebar hẹp')
+  assert.match(cssRaw, /\.side\.min \.side-cta \.cta-ico,[\s\S]*?\.side\.min \.side-out \.sico\s*\{[^}]*margin-inline:\s*auto/,
+    'icon của nút gửi, menu và đăng xuất phải chung trục')
+  assert.match(cssRaw, /\.side\.min \.side-row \.sfxwrap\s*\{[^}]*justify-content:\s*center/,
+    'nút âm thanh phải nằm giữa hàng')
+  assert.match(cssRaw, /\.side\.min \.side-row \.sfxbtn\s*\{[^}]*width:\s*32px;\s*height:\s*32px/,
+    'nút âm thanh phải giữ cùng kích thước ô icon desktop thu gọn')
+})

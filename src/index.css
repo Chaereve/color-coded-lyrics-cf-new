@@ -5849,7 +5849,22 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 .pick-showcase .pick-watch:hover { border-color: var(--a-2); background: var(--a-soft); color: var(--a-2); }
 .pick-showcase .pick-watch svg { flex: none; }
 
-.pick-showcase .pick-side { display: block; width: 100%; max-width: 940px; min-width: 0; margin-top: 14px; }
+.pick-showcase .pick-side {
+  position: relative; display: block; width: 100%; max-width: none; min-width: 0; margin-top: 14px;
+}
+.pick-showcase .pick-side::before,
+.pick-showcase .pick-side::after {
+  content: ''; position: absolute; z-index: 3; top: 2px; bottom: 8px; width: 42px;
+  pointer-events: none; opacity: 0; transition: opacity var(--t-2) var(--e-soft);
+}
+.pick-showcase .pick-side::before {
+  left: 1px; background: linear-gradient(90deg, rgba(8, 10, 15, .86), rgba(8, 10, 15, 0));
+}
+.pick-showcase .pick-side::after {
+  right: 1px; background: linear-gradient(270deg, rgba(8, 10, 15, .86), rgba(8, 10, 15, 0));
+}
+.pick-showcase .pick-side.fade-left::before,
+.pick-showcase .pick-side.fade-right::after { opacity: 1; }
 .pick-showcase .pvlist {
   display: flex; align-items: stretch; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
   padding: 2px 1px 8px; scroll-snap-type: x proximity; scrollbar-width: thin;
@@ -5916,7 +5931,9 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   .pick-showcase .pv-thumb,
   .pick-showcase .pv-tx b,
   .pick-showcase .pick-nav,
-  .pick-showcase .pick-watch { transition: none; }
+  .pick-showcase .pick-watch,
+  .pick-showcase .pick-side::before,
+  .pick-showcase .pick-side::after { transition: none; }
   .pick-showcase .mthumb > img { transition: none !important; }
 }
 
@@ -6113,6 +6130,13 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   .side.min .side-out { justify-content: center; padding-inline: 0; gap: 0; }
   .side.min .side-cta { background: color-mix(in srgb, var(--a-2) 10%, transparent); border-color: transparent; }
   .side.min .side-cta:hover { background: color-mix(in srgb, var(--a-2) 16%, transparent); }
+  .side.min .side-brand .applogo.lg-nav { margin-inline: auto; }
+  .side.min .side-cta .cta-ico,
+  .side.min .side-item .sico,
+  .side.min .side-out .sico { margin-inline: auto; }
+  .side.min .side-row .sfxwrap { display: flex; width: 100%; justify-content: center; }
+  .side.min .side-row .sfxbtn { width: 32px; height: 32px; margin-inline: auto; }
+  .side.min .side-foot .side-user .avatar { margin-inline: auto; }
   .side.min .side-item.on::before { left: 0; }
   .side.min .side-ind { display: none; }
   .side.min .side-foot { padding: 10px 8px 12px; }

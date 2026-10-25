@@ -68,6 +68,11 @@ test('thanh lọc chỉ còn BA điều khiển, dải chip cũ đã bị gỡ h
      mình đã chọn gì là việc thừa. */
   assert.match(app, /className="v">\{stageText\}/, 'pill Status phải in giá trị đang chọn')
   assert.match(app, /className="v">\{kindText\}/, 'pill Type phải in giá trị đang chọn')
+  const filterIcon = app.indexOf('className={`fb-icon${fbActive')
+  const clearButton = app.indexOf('className="fb-clear" hidden')
+  const sortButton = app.indexOf('className={`fb-sort${sortKey')
+  assert.ok(filterIcon >= 0 && filterIcon < clearButton && clearButton < sortButton,
+    'thứ tự trong thanh phải là Bộ lọc → Xóa tất cả → Sắp xếp')
 })
 
 test('bảng chọn neo ngay dưới chính cái pill mở nó', () => {

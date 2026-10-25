@@ -2614,6 +2614,19 @@ function AppInner() {
 
                   <span className="fb-gap" aria-hidden="true" />
 
+                  {/* bố cục gọn: nút mở bảng lọc (Status + Type cùng một chỗ) */}
+                  <button type="button" className={`fb-icon${fbActive ? ' on' : ''}`}
+                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls={fbTab === 'filters' ? 'fb-filters' : undefined}
+                    aria-label={t('board.filters')}
+                    onClick={() => setFbTab(v => v === 'filters' ? null : 'filters')}>
+                    <Icon name="filter" size={17} />
+                    {fbActive > 0 && <i className="fb-dot" aria-hidden="true" />}
+                  </button>
+
+                  <button type="button" className="fb-clear" hidden={!fbActive} onClick={clearAll}>
+                    {t('board.clearAll')}
+                  </button>
+
                   <span className="fb-wrap fb-wrap-end">
                     <button type="button" className={`fb-sort${sortKey ? ' on' : ''}`}
                       aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls={fbTab === 'sort' ? 'fb-sort-menu' : undefined}
@@ -2638,19 +2651,6 @@ function AppInner() {
                       </div>
                     )}
                   </span>
-
-                  {/* bố cục gọn: nút mở bảng lọc (Status + Type cùng một chỗ) */}
-                  <button type="button" className={`fb-icon${fbActive ? ' on' : ''}`}
-                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls={fbTab === 'filters' ? 'fb-filters' : undefined}
-                    aria-label={t('board.filters')}
-                    onClick={() => setFbTab(v => v === 'filters' ? null : 'filters')}>
-                    <Icon name="filter" size={17} />
-                    {fbActive > 0 && <i className="fb-dot" aria-hidden="true" />}
-                  </button>
-
-                  <button type="button" className="fb-clear" hidden={!fbActive} onClick={clearAll}>
-                    {t('board.clearAll')}
-                  </button>
                 </div>
 
                 {/* Dải chip "đang lọc" — CHỈ ở bố cục gọn, nơi Status/Type nằm

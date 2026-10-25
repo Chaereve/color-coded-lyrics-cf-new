@@ -12,12 +12,15 @@
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
+const componentSource = readFileSync(new URL('./MediaShowcase.jsx', import.meta.url), 'utf8')
+const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 let server
 
 async function render (props) {
@@ -81,4 +84,19 @@ test('đã có video: dựng showcase 16:9, nút YouTube, dải chọn và đi�
   assert.match(html, /aria-pressed="true"/)
   assert.match(html, /pick-nav next/)
   assert.doesNotMatch(html, /class="playbtn/)
+})
+
+test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn', async () => {
+  const html = await render({ videos: [V('aaa', 'Song A — Artist'), V('bbb', 'Song B — Artist')], state: 'ready' })
+  assert.match(html, /class="pick-side"/)
+  assert.match(css, /\.pick-showcase \.pick-side\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none/,
+    'không được chặn chiều ngang dải bằng max-width nhỏ hơn khung showcase')
+  assert.match(componentSource, /scrollWidth - strip\.clientWidth/,
+    'dải phải đo phần còn cuộn được thay vì luôn hiện fade')
+  assert.match(componentSource, /strip\.addEventListener\('scroll', measure/,
+    'fade phải được cập nhật khi người dùng kéo dải')
+  assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
+  assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
+  assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.86\)/,
+    'fade hai cạnh phải tối dần ra trong suốt')
 })
