@@ -17,8 +17,17 @@ const between = (start, end) => {
 
 test('signed-in initial board load fetches and publishes received vote events', () => {
   const load = between('const load = useCallback', 'const loadBoard = useCallback')
-  assert.match(load, /fetchRecentVotes\(\)/,
-    'signed-in initial load must fetch the public recent-vote RPC too')
+  assert.match(load, /fetchRecentVotes\(\{ firstPageOnly: true \}\)/,
+    'signed-in initial load must fetch the newest RPC page without waiting for older history')
   assert.match(load, /vv\.status === 'fulfilled' && Array\.isArray\(vv\.value\)\) setVotesLog\(vv\.value\)/,
     'publish successful vote rows so weeklyHighlights can render Most voted')
+})
+
+test('public initial load uses only the recent page; full month history is fetched on ranking', () => {
+  const loadPublic = between('const loadPublic = useCallback', 'useEffect(() => { if (!user) loadPublic()')
+  assert.match(loadPublic, /fetchRecentVotes\(\{ firstPageOnly: true \}\)/,
+    'homepage must not wait on an older PostgREST page')
+  const rankingLoad = between('if (section !== \'ranking\') return undefined', '/* NÚT "THỬ LẠI"')
+  assert.match(rankingLoad, /fetchRecentVotes\(\)/,
+    'ranking should still load complete month history on demand')
 })

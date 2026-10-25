@@ -1171,7 +1171,7 @@ function AppInner() {
     const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
-      fetchActivityDays(u.id), fetchMyAchievementRequests(u.id), fetchRecentVotes(),
+      fetchActivityDays(u.id), fetchMyAchievementRequests(u.id), fetchRecentVotes({ firstPageOnly: true }),
     ])
     if (u.id !== currentUserId.current) return results
     const [r, v, vs, ach, rk, od, , act, achievementReqs, vv] = results
@@ -1264,7 +1264,7 @@ function AppInner() {
      "Thử lại" và hai sự kiện bên dưới cùng dùng một đường nạp này. */
   const loadPublic = useCallback(async () => {
     const seq = nextTicket(dataSeq)
-    const [r, rk, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchRecentVotes()])
+    const [r, rk, vv] = await Promise.allSettled([fetchRequests(), fetchRanking(), fetchRecentVotes({ firstPageOnly: true })])
     /* Cùng luật với hai đường nạp trên: nút "Thử lại" bấm hai lần thì lượt cũ
        về sau không được dựng lại bảng bằng dữ liệu cũ hơn. */
     if (!stillLatest(dataSeq, seq)) return { r, rk }
@@ -1276,6 +1276,18 @@ function AppInner() {
   }, [noteBoard])
 
   useEffect(() => { if (!user) loadPublic() }, [user, loadPublic])
+
+  /* Trang chủ chỉ cần vote mới để dựng thẻ tuần — trang Leaderboard mới cần
+     toàn bộ lịch sử tháng. Tải đủ các trang khi người xem thật sự mở ranking,
+     để trang chủ không bị giữ lại bởi một trang RPC cũ bị treo. */
+  useEffect(() => {
+    if (section !== 'ranking') return undefined
+    let active = true
+    fetchRecentVotes().then(votes => {
+      if (active && Array.isArray(votes)) setVotesLog(votes)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [section])
 
   /* NÚT "THỬ LẠI" VÀ MỌI LỐI TỰ PHỤC HỒI ĐỀU ĐI QUA ĐÂY: đúng đường nạp của
      người đang xem (có tài khoản thì cả bảng lẫn dữ liệu riêng, khách thì ba
