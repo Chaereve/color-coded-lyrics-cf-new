@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchAllPages } from './pagedQuery.js'
+import { fetchAllPages, fetchAvailablePages } from './pagedQuery.js'
 
 test('fetchAllPages continues past the initial 200-row page and stops at the short page', async () => {
   const all = Array.from({ length: 450 }, (_, id) => ({ id }))
@@ -37,4 +37,22 @@ test('fetchAllPages collects every row when PostgREST caps each page at 1000', a
 test('fetchAllPages propagates a page error rather than returning partial history', async () => {
   await assert.rejects(() => fetchAllPages(async () => ({ data: null, error: new Error('page failed') })),
     /page failed/)
+})
+
+test('fetchAvailablePages keeps the recent first page when an older page fails', async () => {
+  const recent = Array.from({ length: 1000 }, (_, id) => ({ id }))
+  const offsets = []
+  const result = await fetchAvailablePages(async (offset, size) => {
+    offsets.push(offset)
+    if (offset === 0) return { data: recent.slice(0, size), error: null }
+    return { data: null, error: new Error('older page timed out') }
+  }, 1000, 10000)
+
+  assert.deepEqual(result, recent)
+  assert.deepEqual(offsets, [0, 1000])
+})
+
+test('fetchAvailablePages still rejects when its first page fails', async () => {
+  await assert.rejects(() => fetchAvailablePages(async () => ({ data: null, error: new Error('first page failed') })),
+    /first page failed/)
 })
