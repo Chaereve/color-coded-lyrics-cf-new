@@ -8,7 +8,7 @@ import { TURNSTILE_SITE_KEY } from './turnstile'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
 import { groupKey } from './board'
 import { rankDemo } from './ranking.js'
-import { fetchAllPages } from './pagedQuery.js'
+import { fetchAllPages, fetchAvailablePages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
 import { streakStats } from './streak.js'
 import { withRetry } from './retry.js'
@@ -552,11 +552,13 @@ export async function fetchRecentVotes() {
     }
     return out
   }
-  // RPC has a 10k SQL cap, but PostgREST caps each response at 1000 rows;
-  // page through it so older votes cannot hide this week's votes.
-  return fetchAllPages((from, size) => readQuery(() =>
+  // RPC has a 10k SQL cap, but PostgREST caps each response at 1000 rows.
+  // Votes are ordered newest-first, so the first page always carries the full
+  // current-week window. Preserve it if an older follow-up page times out;
+  // otherwise one slow month-history page would erase the "Most voted" card.
+  return fetchAvailablePages((from, size) => readQuery(() =>
     supabase.rpc('votes_received', { p_since: new Date(since).toISOString() })
-      .range(from, from + size - 1)), 1000)
+      .range(from, from + size - 1)), 1000, 10000)
 }
 
 /* Chia so du thanh hai loai: vote da mua (khong het han) va bonus tu vong
