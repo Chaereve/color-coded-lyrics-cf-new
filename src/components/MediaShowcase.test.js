@@ -103,6 +103,10 @@ test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn
     'fade phải được cập nhật khi người dùng kéo dải')
   assert.match(componentSource, /behavior:\s*'auto'/,
     'chọn video phải căn dải ngay, không để thẻ/fade chạy theo trễ sau video')
+  assert.match(componentSource, /useIsoLayoutEffect\(\(\) => \{[\s\S]*?strip\.scrollTo/,
+    'căn dải đồng bộ trước khi vẽ frame mới để không lóe vị trí video cũ')
+  assert.match(componentSource, /\}, \[at, n, cur\?\.key \?\? cur\?\.id\]\)/,
+    'phải căn lại nếu danh sách đổi thứ tự nhưng vị trí số vẫn như cũ')
   assert.doesNotMatch(componentSource, /behavior:\s*reduce\s*\?\s*'auto'\s*:\s*'smooth'/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
