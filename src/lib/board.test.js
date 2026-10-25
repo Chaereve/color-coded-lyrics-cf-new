@@ -664,3 +664,23 @@ test('cả năm cách xếp đều tìm được bài đang chờ duyệt, khôn
       `cách xếp ${f} làm mất bài chờ duyệt`)
   }
 })
+
+test('Most voted stays detectable when the RPC page is ordered newest-first and old events fill the 1000-row cap', () => {
+  const now = Date.now()
+  const day = 86400000
+  const requests = [
+    { id: 'top', title: 'AtsnstA', artist: 'HANDONG', status: 'queued', created_at: new Date(now - 40 * day).toISOString() },
+    { id: 'new', title: 'Petal', artist: 'Ariana grande', status: 'queued', created_at: new Date(now - 2 * day).toISOString() },
+  ]
+  const votesLog = [
+    ...Array.from({ length: 120 }, () => ({ request_id: 'top', created_at: new Date(now - day).toISOString() })),
+    ...Array.from({ length: 25 }, () => ({ request_id: 'new', created_at: new Date(now - day).toISOString() })),
+    ...Array.from({ length: 855 }, () => ({ request_id: 'older', created_at: new Date(now - 10 * day).toISOString() })),
+  ]
+
+  assert.equal(votesLog.length, 1000, 'reproduce the REST response cap exactly')
+  const highlights = weeklyHighlights(requests, now, votesLog)
+  assert.equal(highlights.top?.title, 'AtsnstA')
+  assert.equal(highlights.top?.votes, 120)
+  assert.equal(highlights.newcomer?.title, 'Petal')
+})

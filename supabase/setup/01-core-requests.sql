@@ -140,7 +140,7 @@ create index if not exists votes_created_idx on public.votes (created_at);
 --     BAO GIHO user_id, nen khong lo nguoi nao da vote bai nao.
 --     p_since la moc do client gui (luon ~ "hom nay - 31 ngay"); ham cat tran
 --     10.000 hang de mot project lon khong tra ve payload khong lo cho moi lan
---     tai bang.
+--     tai bang. Sap xep moi nhat truoc de REST cap 1.000 hang van co vote tuan nay.
 -- =========================================================
 create or replace function public.votes_received(p_since timestamptz)
 returns table (request_id uuid, created_at timestamptz)
@@ -149,7 +149,7 @@ language sql security definer set search_path = public as $$
     from public.votes v
    where v.created_at >= p_since
      and v.created_at < greatest(p_since, now())
-   order by v.created_at
+   order by v.created_at desc, v.id desc
    limit 10000
 $$;
 revoke all on function public.votes_received(timestamptz) from public, anon, authenticated;

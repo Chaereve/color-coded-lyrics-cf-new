@@ -245,24 +245,65 @@ if (live) {
       /* This week depends on the public votes_received RPC. Check the data and
          rendered card together so a quiet RPC failure cannot hide Most voted. */
       if (vp.name === 'desktop-1280') {
-        const votesResponsePromise = page.waitForResponse(
-          response => response.url().includes('/rest/v1/rpc/votes_received'),
-          { timeout: 15_000 },
-        ).catch(() => null)
-        await page.goto(`${live}/`, { waitUntil: 'load', timeout: 60_000 })
-        const votesResponse = await votesResponsePromise
-        const voteRows = votesResponse?.ok()
-          ? await votesResponse.json().catch(() => null)
-          : null
-        await page.locator('.weekly-card small').first().waitFor({ timeout: 20_000 }).catch(() => {})
-        await page.waitForTimeout(500)
+        const voteResponses = []
+        const voteRequests = []
+        const voteFailures = []
+        const isVotesRpc = request => request.url().includes('/rest/v1/rpc/votes_received')
+        const captureVoteRequest = request => {
+          if (isVotesRpc(request)) voteRequests.push(request)
+        }
+        const captureVotes = response => {
+          if (response.url().includes('/rest/v1/rpc/votes_received')) voteResponses.push(response)
+        }
+        const captureVoteFailure = request => {
+          if (isVotesRpc(request)) voteFailures.push(request.failure()?.errorText || 'request failed')
+        }
+        page.on('request', captureVoteRequest)
+        page.on('response', captureVotes)
+        page.on('requestfailed', captureVoteFailure)
+        await page.goto(`${live}/?weekly-smoke=${Date.now()}`, { waitUntil: 'load', timeout: 60_000 })
+        /* The public load awaits every page of the votes RPC before publishing
+           rows, so the New card is a reliable signal that pagination finished. */
+        await page.waitForFunction(
+          "Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'New this week')",
+          null, { timeout: 20_000 },
+        ).catch(() => {})
+        /* A rendered "New this week" card is not proof that the RPC response
+           event has fired (the card can already be present during a fast SPA
+           transition). Await each tracked request itself, with a finite bound,
+           before deciding the RPC has no response. */
+        const requestResponses = await Promise.all(voteRequests.map(async request => {
+          let timer
+          try {
+            return await Promise.race([
+              request.response(),
+              new Promise(resolve => { timer = setTimeout(() => resolve(null), 25_000) }),
+            ])
+          } catch { return null } finally { clearTimeout(timer) }
+        }))
+        for (const response of requestResponses) {
+          if (response && !voteResponses.some(existing => existing.request() === response.request())) voteResponses.push(response)
+        }
+        const votePages = await Promise.all(voteResponses.map(async response => ({
+          response,
+          rows: response.ok() ? await response.json().catch(() => null) : null,
+        })))
+        const voteRows = votePages.flatMap(({ rows }) => Array.isArray(rows) ? rows : [])
+        const votesResponse = votePages.find(({ response }) => response.ok())?.response || votePages[0]?.response || null
+        await page.waitForTimeout(200)
         const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
-        const hasRecentVotes = Array.isArray(voteRows) && voteRows.length > 0
+        const recentVoteRows = voteRows.filter(row => {
+          const at = Date.parse(row?.created_at)
+          return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
+        })
         check('live desktop: votes_received RPC trả lời được', Boolean(votesResponse?.ok()),
-          `HTTP ${votesResponse?.status() ?? 'no response'} · ${Array.isArray(voteRows) ? voteRows.length : 0} phiếu`)
-        check('live desktop: có phiếu gần đây thì hiện Most voted',
-          !hasRecentVotes || weeklyLabels.some(label => label.trim() === 'Most voted'),
-          `recent=${Array.isArray(voteRows) ? voteRows.length : 'unavailable'} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'}`)
+          `requests=${voteRequests.length} · HTTP ${votesResponse?.status() ?? (voteFailures.length ? `failed: ${voteFailures[0]}` : 'no response after 25s')} · ${voteRows.length} phiếu/${votePages.length} trang`)
+        check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',
+          Boolean(votesResponse?.ok()) && (recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted')),
+          `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'}`)
+        page.off('request', captureVoteRequest)
+        page.off('response', captureVotes)
+        page.off('requestfailed', captureVoteFailure)
       }
       await page.screenshot({ path: join(outDir, `live-${vp.name}.png`), fullPage: true })
       await context.close()

@@ -55,6 +55,7 @@ on:
       - 'arena/c7f9fc9b-color-coded-lyrics-cf-new'
       - 'arena/2e2d250a-color-coded-lyrics-cf-new'
       - 'arena/af29eec6-color-coded-lyrics-cf-new'
+      - 'arena/92d15269-color-coded-lyrics-cf-new'
 
 permissions:
   contents: read
@@ -80,6 +81,11 @@ jobs:
           TARGET=$(grep -v '^[[:space:]]*#' .github/live-smoke-target 2>/dev/null | grep -m1 -v '^[[:space:]]*$' | tr -d ' \r' || true)
           if [ -n "$LIVE_URL" ]; then
             echo "live_url truyền qua dispatch: $LIVE_URL (ưu tiên hơn tệp)"
+          elif [ "$GITHUB_REF_NAME" = "arena/92d15269-color-coded-lyrics-cf-new" ]; then
+            # PR preview đang chạy chế độ demo (không có VITE_SUPABASE_*), còn
+            # production vẫn là commit cũ nên không thể dùng nó để kiểm bản PR.
+            # Sau merge vào main, production live smoke bên dưới mới có ý nghĩa.
+            echo "bỏ live smoke cho PR: preview là demo, production chưa có commit này"
           elif [ -n "$TARGET" ]; then
             echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
             echo "live smoke sẽ mở $TARGET (đọc từ .github/live-smoke-target)"

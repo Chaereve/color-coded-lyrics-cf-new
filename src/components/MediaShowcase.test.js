@@ -101,10 +101,28 @@ test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn
     'dải phải đo phần còn cuộn được thay vì luôn hiện fade')
   assert.match(componentSource, /strip\.addEventListener\('scroll', measure/,
     'fade phải được cập nhật khi người dùng kéo dải')
+  assert.match(componentSource, /behavior:\s*'auto'/,
+    'chọn video phải căn dải ngay, không để thẻ/fade chạy theo trễ sau video')
+  assert.match(componentSource, /useIsoLayoutEffect\(\(\) => \{[\s\S]*?strip\.scrollTo/,
+    'căn dải đồng bộ trước khi vẽ frame mới để không lóe vị trí video cũ')
+  assert.match(componentSource, /\}, \[at, n, cur\?\.key \?\? cur\?\.id\]\)/,
+    'phải căn lại nếu danh sách đổi thứ tự nhưng vị trí số vẫn như cũ')
+  assert.doesNotMatch(componentSource, /behavior:\s*reduce\s*\?\s*'auto'\s*:\s*'smooth'/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
   assert.match(css, /\.pick-showcase \.pick-side::before,[\s\S]*?transition:\s*none/,
     'fade phải xuất hiện ngay khi cuộn, không chờ animation opacity')
   assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.96\)/,
     'fade hai cạnh phải tối dần ra trong suốt')
+})
+
+test('đổi video không chạy fade opacity hoặc animation vào ảnh/chữ', () => {
+  assert.match(css, /\.pick-showcase \.pick-stage\s*\{[^}]*animation:\s*none;[^}]*transition:\s*none;/,
+    'sân khấu video không được fade lại mỗi khi key đổi')
+  assert.match(css, /\.pick-showcase \.mthumb > img\s*\{[^}]*opacity:\s*1 !important;[^}]*transition:\s*none !important;/,
+    'ảnh video hiện ngay khi tải xong, không chạy transition opacity')
+  assert.match(css, /\.pick-copy\s*\{[^}]*animation:\s*none;/,
+    'tiêu đề không được trễ sau khi đổi video')
+  assert.match(css, /\.pick-showcase \.pick-watch\s*\{[^}]*animation:\s*none;/,
+    'nút mở video không được trễ sau khi đổi video')
 })

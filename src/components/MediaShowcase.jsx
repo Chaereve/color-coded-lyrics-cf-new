@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import LoadErr from './LoadErr'
@@ -57,6 +57,7 @@ const Chev = ({ dir }) => (
 )
 
 const ytLink = (v) => v.url || (v.id ? `https://youtu.be/${v.id}` : null)
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export default function MediaShowcase({ featured = null, videos = [], canEdit, onAdd, limit = 20, state = 'ready', onRetry }) {
   const { t } = useI18n()
@@ -79,15 +80,16 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
      thì mắt phải thấy nó ở đâu đó, không bị bỏ lại ngoài rìa dải. */
   const stripRef = useRef(null)
   const [stripEdges, setStripEdges] = useState({ left: false, right: false })
-  useEffect(() => {
+  useIsoLayoutEffect(() => {
     const strip = stripRef.current
     const el = strip?.querySelector('.pvrow.on')
     if (!el) return
     const left = el.offsetLeft - (strip.clientWidth - el.clientWidth) / 2
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    try { strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' }) }
+    /* The selected video changes immediately; a smooth rail scroll made the
+       highlight/fade trail behind that selection. Reposition in the same frame. */
+    try { strip.scrollTo({ left: Math.max(0, left), behavior: 'auto' }) }
     catch { strip.scrollLeft = Math.max(0, left) }
-  }, [at, n])
+  }, [at, n, cur?.key ?? cur?.id])
 
   /* Dark edge fades appear only while there is more rail to reveal. Re-measure
      after scrolling and resizing so the fade follows the active edge. */

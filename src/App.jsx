@@ -1171,10 +1171,10 @@ function AppInner() {
     const seq = nextTicket(dataSeq)
     const results = await Promise.allSettled([
       fetchRequests(), fetchMyVotes(u.id), fetchVoteStatus(), claimAchievements(), fetchRanking(), fetchOrders(u), loadMedia(), loadPick(),
-      fetchActivityDays(u.id), fetchMyAchievementRequests(u.id),
+      fetchActivityDays(u.id), fetchMyAchievementRequests(u.id), fetchRecentVotes(),
     ])
     if (u.id !== currentUserId.current) return results
-    const [r, v, vs, ach, rk, od, , act, achievementReqs] = results
+    const [r, v, vs, ach, rk, od, , act, achievementReqs, vv] = results
     /* Bảng là thứ người dùng nhìn đầu tiên: nói ra lần nạp này được hay hỏng
        để khối danh sách hiện đúng thứ (đang tải / lỗi có nút / trống thật). */
     /* Lượt cũ (đã có lượt nạp mới hơn bắt đầu) thì KHÔNG ghi gì cả: số liệu
@@ -1201,6 +1201,10 @@ function AppInner() {
     if (od.status === 'fulfilled') setOrders(od.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
+    /* Người đã đăng nhập đi qua `load`, không đi qua `loadPublic`; nạp cùng
+       lịch sử vote nhận ở lượt đầu để thẻ Most voted xuất hiện ngay, không
+       phải chờ realtime hoặc một lần tải lại bảng sau đó. */
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
     return results
   }, [user, loadMedia, loadPick, noteBoard])
 
