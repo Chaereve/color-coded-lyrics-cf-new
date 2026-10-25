@@ -122,7 +122,7 @@ Luật:
   hết (ledger giữ `meta.requested`).
 - Không có cổng Turnstile riêng: RPC yêu cầu `p_gate_token` qua `edge_gate_ok`
   (chỉ Edge function cầm `EDGE_GATE_TOKEN` mới gọi được khi cổng được vũ khí hoá).
-- Mystery Box là **TRANG RIÊNG `/mystery-box`** (duyệt 2026-10, tách khỏi
+- Mystery Box là **TRANG RIÊNG `/daily-box`** (duyệt 2026-10, tách khỏi
   /daily-login): entry "Mystery Box" nằm cạnh Daily Login trong menu, route
   lazy-load riêng, gate check-in dẫn người chơi về `/daily-login` — hai tính
   năng tách bạch UI/route.

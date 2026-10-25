@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0c1016"><title>Request group · mockup</title>
+<style>
+:root{color-scheme:dark;--bg:#0c1016;--panel:#121821;--panel-hi:#171f2a;--line:#2a3442;--line-soft:#222b36;--text:#f2f5fa;--muted:#9ba8b8;--quiet:#718094;--violet:#a69bff;--violet-bg:#272642;--green:#49d8b0;--font:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}body{padding:clamp(22px,5vw,64px) 22px 40px;background:radial-gradient(ellipse at 50% -20%,rgba(95,85,226,.14),transparent 55%),var(--bg)}
+.page{width:min(100%,1080px);margin:0 auto}.eyebrow{display:flex;align-items:center;gap:9px;color:#aaa2ff;font-size:11px;font-weight:750;letter-spacing:.16em;text-transform:uppercase}.eyebrow:before{content:"";width:18px;height:2px;border-radius:2px;background:#8175ff}.intro{display:flex;align-items:end;justify-content:space-between;gap:18px;margin:12px 0 24px}.intro h1{margin:0;font-size:clamp(25px,4vw,34px);line-height:1.1;letter-spacing:-.035em}.intro p{margin:8px 0 0;color:var(--muted);font-size:14px}.preview-tag{flex:none;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#121821;color:#abb6c4;font-size:11px;font-weight:650;letter-spacing:.04em}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 12px;color:var(--muted);font-size:12px}.toolbar strong{color:#dfe5ee;font-size:13px}.sort{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#111720;color:#c6ced9;font:inherit}
+.group{overflow:hidden;border:1px solid #383c5c;border-radius:15px;background:var(--panel);box-shadow:0 18px 45px rgba(0,0,0,.24),0 0 0 1px rgba(142,131,255,.025)}
+.group-summary{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 104px;align-items:stretch;min-height:112px;padding-left:20px;background:linear-gradient(105deg,rgba(110,99,255,.075),transparent 48%),var(--panel-hi)}
+.group-info{min-width:0;align-self:center;padding:17px 20px 17px 0}.group-labels{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px}.group-count{display:inline-block;padding:2px 9px;border:0;border-radius:999px;background:linear-gradient(90deg,#5848ed,#7668ff);box-shadow:0 2px 10px -4px rgba(116,101,255,.72);color:#fff;font-size:11px;font-weight:700;letter-spacing:.2px;line-height:1.35;white-space:nowrap}.kind-chip{display:inline-flex;align-items:center;gap:7px;min-height:25px;padding:0 10px;border:1px solid #34354f;border-radius:999px;background:#222337;color:#b9b1ff;font-size:11px;font-weight:700;letter-spacing:.025em}.group-title{margin:0;font-size:22px;line-height:1.2;letter-spacing:-.025em;font-weight:730}.group-title span{color:#aab4c2;font-weight:450}.group-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;color:var(--muted);font-size:12px}.group-meta .sep{color:#526071}
+.group-votes,.row-votes{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;border-left:1px solid var(--line-soft);font-variant-numeric:tabular-nums}.group-votes b{font-size:25px;line-height:1;color:var(--violet);font-weight:760}.group-votes span,.row-votes span{margin-top:6px;color:var(--quiet);font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}.group-votes .total-label{color:#858caa}
+.group-toggle{position:absolute;right:116px;top:50%;display:grid;place-items:center;width:30px;height:30px;margin-top:-15px;border:1px solid #424264;border-radius:50%;background:#24243b;color:#b9b2ff}.group-toggle svg{width:14px;height:14px}
+.request{display:grid;grid-template-columns:minmax(0,1fr) 140px 104px;min-height:100px;background:#111820}.request+.request{border-top:1px solid var(--line-soft)}.request-main{min-width:0;align-self:center;padding:16px 18px 16px 20px}.request-title{margin:0;font-size:17px;line-height:1.25;letter-spacing:-.012em;font-weight:680}.request-title span{color:#aab4c2;font-weight:450}.request-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;color:var(--muted);font-size:12px}.status{display:inline-flex;align-items:center;gap:7px;color:var(--green);font-weight:620}.status i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(73,216,176,.2)}.request-meta .kind-chip{min-height:21px;padding:0 9px;font-size:10px}.requester{color:#a6b1bf}.request-date{color:var(--quiet)}
+.watch-area{display:flex;align-items:center;justify-content:center;padding:10px 8px}.watch{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:34px;width:116px;border:1px solid #393850;border-radius:9px;background:#222238;color:#c2bbff;font-size:12px;font-weight:650;text-decoration:none}.watch svg{width:14px;height:14px;flex:none}.row-votes{background:rgba(7,11,16,.14)}.row-votes b{font-size:23px;line-height:1;color:var(--violet);font-weight:740}.row-votes .mine{margin-top:5px;padding:2px 8px;border-radius:999px;background:#25243a;color:#bbb3ff;font-size:10px;font-weight:700}
+.note{display:flex;align-items:center;gap:8px;margin:13px 2px 0;color:#778496;font-size:11px}.note svg{width:14px;height:14px;color:#9287ff;flex:none}
+@media(max-width:680px){body{padding:24px 12px}.intro{align-items:flex-start}.preview-tag{display:none}.toolbar{margin-bottom:10px}.group-summary{grid-template-columns:minmax(0,1fr) 78px;padding-left:15px;min-height:106px}.group-info{padding-right:10px}.group-title{font-size:19px}.group-meta{font-size:11px;gap:6px}.group-votes b{font-size:22px}.group-toggle{right:87px;width:26px;height:26px;margin-top:-13px}.request{grid-template-columns:minmax(0,1fr) 84px 70px;min-height:104px}.request-main{padding:14px 10px 14px 15px}.request-title{font-size:15px}.request-meta{gap:7px;font-size:11px;margin-top:8px}.requester{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.watch-area{padding:6px 4px}.watch{width:70px;min-height:34px;font-size:0;gap:0}.watch svg{width:16px;height:16px}.row-votes b{font-size:20px}.row-votes span{font-size:8px}.group-labels{gap:6px}.group-count{font-size:10px;padding:2px 8px}.kind-chip{font-size:10px;padding:0 8px}}
+@media(max-width:410px){.group-summary{grid-template-columns:minmax(0,1fr) 64px}.group-toggle{right:72px}.request{grid-template-columns:minmax(0,1fr) 56px 62px}.request-meta .request-date{display:none}.watch{width:42px}.group-meta .sep{display:none}}
+</style></head>
+<body>
+<main class="page">
+  <div class="eyebrow">Request board · design preview</div>
+  <header class="intro"><div><h1>Nhóm request trùng bài</h1><p>Hai request cùng bài, gom thành một cụm nhưng vẫn giữ thông tin và thao tác riêng từng request.</p></div><span class="preview-tag">MOCKUP · CHƯA ÁP DỤNG</span></header>
+  <div class="toolbar"><strong>Active requests <span style="color:#778496;font-weight:500">· 12 bài</span></strong><button class="sort" type="button">Newest <span aria-hidden="true">⌄</span></button></div>
+  <section class="group" aria-label="Nhóm gồm hai request cho Work của no na">
+    <div class="group-summary">
+      <div class="group-info">
+        <div class="group-labels"><span class="group-count">2 requests</span></div>
+        <h2 class="group-title">Work <span>— no na</span></h2>
+        <div class="group-meta"><span>khairulnizam azman, One Hundreds</span></div>
+      </div>
+      <button class="group-toggle" type="button" aria-label="Thu gọn nhóm"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4.5 9.5 3.5-3.5 3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="group-votes"><b>76</b><span class="total-label">Votes total</span></div>
+    </div>
+    <article class="request">
+      <div class="request-main"><h3 class="request-title">Work <span>— no na</span></h3><div class="request-meta"><span class="status"><i></i>Completed</span><span class="kind-chip">CCL</span><span class="requester">khairulnizam azman</span><span class="request-date">· 1mo ago</span></div></div>
+      <div class="watch-area"><a class="watch" href="#" aria-label="Watch on YouTube"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5.3 3.6 7 4.4-7 4.4V3.6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>YouTube</a></div>
+      <div class="row-votes"><b>49</b><span>Vote</span><small class="mine">×33</small></div>
+    </article>
+    <article class="request">
+      <div class="request-main"><h3 class="request-title">Work <span>— no na</span></h3><div class="request-meta"><span class="status"><i></i>Completed</span><span class="kind-chip">CCL</span><span class="requester">One Hundreds</span><span class="request-date">· 1mo ago</span></div></div>
+      <div class="watch-area"><a class="watch" href="#" aria-label="Watch on YouTube"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m5.3 3.6 7 4.4-7 4.4V3.6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>YouTube</a></div>
+      <div class="row-votes"><b>27</b><span>Vote</span><small class="mine">×2</small></div>
+    </article>
+  </section>
+  <p class="note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="currentColor"/><path d="M8 7v4M8 4.8v.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Mockup để duyệt trước. Chưa thay đổi giao diện thật của request nhóm.</p>
+</main>
+</body></html>

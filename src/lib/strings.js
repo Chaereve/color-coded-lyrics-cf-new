@@ -228,7 +228,6 @@ const S = {
   'spin.todaySpin': 'Today’s spin',
   'spin.goodLuck': 'Good luck…',
   'spin.ready': 'Win bonus votes',
-  'spin.nextIn': 'Next spin in {time}',
   'rar.common': 'Common',
   'rar.rare': 'Rare',
   'rar.epic': 'Epic',
@@ -499,6 +498,7 @@ const S = {
 
   /* cum request trung bai */
   'group.requests': '{n} requests',
+  'group.votesTotal': 'votes total',
   'group.showAll': 'Expand group',
   'group.hide': 'Collapse group',
 

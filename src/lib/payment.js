@@ -8,6 +8,7 @@
 export const SUPPORT = {
   telegram: 'ssochuz',
   telegramUrl: 'https://t.me/ssochuz',
+  kofiUrl: 'https://ko-fi.com/chaereve',
 }
 
 export const PAYMENT = {

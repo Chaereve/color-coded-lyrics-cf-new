@@ -116,13 +116,18 @@ test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn
     'fade hai cạnh phải tối dần ra trong suốt')
 })
 
-test('đổi video không chạy fade opacity hoặc animation vào ảnh/chữ', () => {
-  assert.match(css, /\.pick-showcase \.pick-stage\s*\{[^}]*animation:\s*none;[^}]*transition:\s*none;/,
-    'sân khấu video không được fade lại mỗi khi key đổi')
+test('chỉ sân khấu video latest update có transition vào; dải video không chạy animation đó', () => {
+  assert.match(css, /\.pick-showcase \.pick-stage\s*\{[^}]*animation:\s*latestHeroEnter[^;]*;[^}]*transition:\s*none;/,
+    'sân khấu video chính có chuyển cảnh ngắn khi đổi video')
+  assert.match(css, /@keyframes latestHeroEnter\s*\{[^}]*opacity:\s*\.55;[^}]*transform:\s*scale\(\.99\)/,
+    'chuyển cảnh chỉ fade/scale nhẹ trên sân khấu video')
+  const rail = css.match(/\.pick-showcase \.pvrow\s*\{[^}]*\}/)?.[0] || ''
+  assert.doesNotMatch(rail, /animation:\s*latestHeroEnter/,
+    'dãy Latest update không được dùng transition vào của video chính')
   assert.match(css, /\.pick-showcase \.mthumb > img\s*\{[^}]*opacity:\s*1 !important;[^}]*transition:\s*none !important;/,
-    'ảnh video hiện ngay khi tải xong, không chạy transition opacity')
+    'ảnh video hiện ngay khi tải xong, không chạy transition opacity riêng')
   assert.match(css, /\.pick-copy\s*\{[^}]*animation:\s*none;/,
-    'tiêu đề không được trễ sau khi đổi video')
+    'tiêu đề không có transition vào riêng')
   assert.match(css, /\.pick-showcase \.pick-watch\s*\{[^}]*animation:\s*none;/,
-    'nút mở video không được trễ sau khi đổi video')
+    'nút mở video không có transition vào riêng')
 })

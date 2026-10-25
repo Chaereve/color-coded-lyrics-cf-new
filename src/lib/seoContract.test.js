@@ -118,11 +118,13 @@ test('index.html có đúng một thẻ canonical tuyệt đối', () => {
 
 test('App.jsx cập nhật canonical mỗi lần đổi route — không chỉ đặt mỗi tiêu đề', () => {
   /* Thẻ trong index.html chỉ đúng cho `/`. SPA đổi đường dẫn bằng pushState,
-     nên nếu bỏ vế này thì /daily-spin, /ranking, /profile mang canonical của
+     nên nếu bỏ vế này thì /daily-spin, /leaderboard, /profile mang canonical của
      trang chủ và bị coi là nội dung trùng. Kiểm tra cả hai vế nằm cạnh nhau
      để không ai "dọn CSS/JS" rồi xoá mất một bên. */
   assert.match(app, /document\.title\s*=/, 'không còn chỗ đặt document.title')
   assert.match(app, /link\[rel="canonical"\]/, 'mất dòng cập nhật canonical theo route')
   assert.match(app, /window\.location\.origin/,
     'canonical phải dựng từ origin thật, không ghi cứng tên miền (repo có 3 đường deploy)')
+  assert.match(app, /profileId \? profileUrl\(profileId\) : ROUTES\[section\]/,
+    'hồ sơ công khai cần canonical riêng theo /u/<id>')
 })

@@ -100,18 +100,10 @@ const NAV_SUB = {
   spin: 'nav.spinSub', mine: 'nav.mineSub', admin: 'nav.adminSub',
 }
 
-const ROUTES = { board: '/', login: '/daily-login', mystery: '/mystery-box', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', mystery: '/daily-box', spin: '/daily-spin', ranking: '/leaderboard', mine: '/profile', admin: '/admin' }
 
-/* Đường dẫn của tính năng đã nghỉ hưu. `/quiz` từng là màn quiz âm nhạc và đã
-   bị gỡ khỏi sản phẩm; ai còn bookmark/link cũ (hoặc tab mở từ bundle cũ) được
-   đưa thẳng về lịch điểm danh — ở tầng Pages bằng 301 trong `_redirects`, còn ở
-   đây để một request lọt qua SPA cũng không dựng màn trắng. Bảng này là chỗ DUY
-   NHẤT trong mã còn nhắc tới đường dẫn cũ, và chỉ để chuyển hướng. */
-const RETIRED_PATHS = { '/quiz': '/daily-login' }
 const sectionOf = (path) => {
   const clean = path.replace(/\/+$/, '') || '/'
-  const target = RETIRED_PATHS[clean]
-  if (target) return Object.keys(ROUTES).find(k => ROUTES[k] === target) || 'login'
   return Object.keys(ROUTES).find(k => ROUTES[k] === clean) || 'board'
 }
 
@@ -120,8 +112,8 @@ const sectionOf = (path) => {
    state (xem `openProfile`/`closeProfile`), vì địa chỉ là bản sao chứ không
    phải nguồn sự thật: trong iframe bị sandbox `pushState` ném lỗi và không ghi
    được, mà người bấm vẫn phải tới được trang cá nhân.
-   Hai dạng được nhận: `/?profile=<id>` (dạng link hiện tại) và `/u/<id>`
-   (dạng cũ còn nằm trong lịch sử duyệt web / link đã dán ra ngoài). */
+   Link mới dùng `/u/<id>`; tham số `?profile=<id>` vẫn được đọc để giữ
+   tương thích với những URL cũ đã chia sẻ. */
 const readProfileId = () => {
   const path = window.location.pathname
   if (path.startsWith('/u/')) return decodeURIComponent(path.slice(3).replace(/\/+$/, '')) || null
@@ -523,7 +515,6 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
 function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
   hl = false }) {
   const { t } = useI18n()
-  const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
   const who = [...new Set(g.rows.map(r => r.requester))]
   const whoTx = who.slice(0, 2).join(', ') + (who.length > 2 ? ` +${who.length - 2}` : '')
@@ -536,7 +527,6 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
         <span className="body">
           <span className="grow-tags">
             <span className="grow-count">{t('group.requests', { n: g.rows.length })}</span>
-            {kinds.map(k => <span key={k} className={`kind ${kindCls(k)}`}>{k}</span>)}
           </span>
           <span className="title">{g.title} <span className="artist">— {g.artist}</span></span>
           <span className="meta">
@@ -545,9 +535,11 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
           </span>
         </span>
         <span className="grow-stat" aria-hidden="true">
-          <b>{g.votes}</b><span>{t('now.votes')}</span>
+          <b>{g.votes}</b><span>{t('group.votesTotal')}</span>
         </span>
-        <span className={`grow-arrow${expanded ? ' on' : ''}`} aria-hidden="true">▾</span>
+        <span className={`grow-arrow${expanded ? ' on' : ''}`} aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none"><path d="m4.5 6 3.5 3.5L11.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
       </button>
       <div className="grow-rows">
         <div className="grow-rows-in">
@@ -719,6 +711,11 @@ function AppInner() {
     return () => { delete document.documentElement.dataset.section }
   }, [section])
   const [board] = useState(readBoard)
+  /* Không ghi bộ lọc được khôi phục từ localStorage vào URL ngay khi mở trang.
+     Cờ chỉ bỏ qua effect đầu tiên nếu người dùng vào thẳng bảng; nếu họ đổi bộ
+     lọc trước khi debounce chạy, effect kế tiếp vẫn ghi URL như bình thường. */
+  const initialBoardUrlSync = useRef(section === 'board')
+  const initialBoardUrlState = useRef(board)
   const [filter, setFilter] = useState(board.f)
   /* Trục XẾP riêng, không còn nằm chung ô nhớ với trục LỌC. null = "theo thứ
      tự gốc của chặng đang xem" (hàng chờ: paid rồi tới phiếu). */
@@ -935,12 +932,6 @@ function AppInner() {
 
   useEffect(() => {
     const onPop = () => {
-      const clean = window.location.pathname.replace(/\/+$/, '') || '/'
-      /* Back/Forward rơi vào đường dẫn đã nghỉ hưu: mục hiển thị là màn còn
-         sống (sectionOf lo việc đó), nhưng địa chỉ phải được thay tại chỗ —
-         để nguyên `/quiz` trên address bar nghĩa là F5 vẫn quay lại đường dẫn
-         cũ, và bước Back kế tiếp lại rơi vào đó lần nữa. */
-      if (RETIRED_PATHS[clean]) putUrl(null, RETIRED_PATHS[clean] + window.location.search)
       setSection(sectionOf(window.location.pathname))
       /* Back/Forward trên trang quản trị: mục đang mở cũng nằm ở địa chỉ nên
          phải đọc lại cùng lúc với mục của trang — không thì địa chỉ nói
@@ -966,6 +957,15 @@ function AppInner() {
   useEffect(() => {
     if (section !== 'board') return
     const id = setTimeout(() => {
+      /* Nếu đây vẫn là lượt mở đầu và trạng thái chưa đổi, giữ URL gọn thay vì
+         serialize các tùy chọn khôi phục từ localStorage. So sánh trong timeout
+         để thao tác người dùng trước debounce vẫn đánh dấu URL cần cập nhật;
+         StrictMode cũng không tiêu cờ ở lượt effect bị cleanup. */
+      const first = initialBoardUrlSync.current
+      const saved = initialBoardUrlState.current
+      const untouchedInitial = first && filter === saved.f && sort === saved.s
+        && kindFilter === saved.k && q === saved.q
+      initialBoardUrlSync.current = false
       /* Hỏi LẠI lúc sắp ghi, không phải lúc hẹn giờ: trong 320ms chờ đó người
          dùng kịp bấm mở trang cá nhân, và ghi đè lúc ấy là XOÁ địa chỉ
          `/?profile=…` vừa mở — F5 hoặc dán link cho người khác sẽ rơi về bảng. */
@@ -977,7 +977,7 @@ function AppInner() {
       if (q.trim()) p.set('q', q.trim())
       const qs = p.toString()
       const next = ROUTES.board + (qs ? `?${qs}` : '')
-      if (next !== window.location.pathname + window.location.search) {
+      if (!untouchedInitial && next !== window.location.pathname + window.location.search) {
         putUrl({ s: 'board' }, next)
       }
       /* Ghi cùng lúc với URL, cùng một nhịp hoãn 320ms: hai lần ghi tách rời
@@ -1020,13 +1020,7 @@ function AppInner() {
 
   useEffect(() => {
     const clean = window.location.pathname.replace(/\/+$/, '') || '/'
-    /* Đường dẫn của tính năng đã nghỉ hưu đi trước: người dùng còn bookmark
-       được đưa về màn còn sống (`putUrl` = replace, không đẻ thêm một bước
-       Back đứng giữa hai lần chuyển hướng). */
-    const retired = RETIRED_PATHS[clean]
-    if (retired) {
-      putUrl(null, retired + window.location.search)
-    } else if (!Object.values(ROUTES).includes(clean) && !clean.startsWith('/u/')) {
+    if (!Object.values(ROUTES).includes(clean) && !clean.startsWith('/u/')) {
       putUrl(null, ROUTES.board + window.location.search)
     }
   }, [])
@@ -1204,7 +1198,7 @@ function AppInner() {
     /* Người đã đăng nhập đi qua `load`, không đi qua `loadPublic`; nạp cùng
        lịch sử vote nhận ở lượt đầu để thẻ Most voted xuất hiện ngay, không
        phải chờ realtime hoặc một lần tải lại bảng sau đó. */
-    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value) && vv.value.length > 0) setVotesLog(vv.value)
     return results
   }, [user, loadMedia, loadPick, noteBoard])
 
@@ -1245,9 +1239,9 @@ function AppInner() {
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
-    /* lỗi fetch phiếu thì giữ danh sách cũ — xoá đi thành ra số vote trong
-       mùa về 0 tạm thời, nhìn như bảng tự sửa sai. */
-    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
+    /* Lỗi fetch hoặc phản hồi rỗng tạm thời đều giữ log cũ: xoá nó làm số
+       vote trong mùa và thẻ Most voted tụt về 0 rồi hiện lại ở lượt kế tiếp. */
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value) && vv.value.length > 0) setVotesLog(vv.value)
     return results
   }, [user, noteBoard])
 
@@ -1271,7 +1265,7 @@ function AppInner() {
     noteBoard(r.status === 'fulfilled')
     if (r.status === 'fulfilled') setRows(r.value)
     if (rk.status === 'fulfilled') setRanking(rk.value)
-    if (vv.status === 'fulfilled' && Array.isArray(vv.value)) setVotesLog(vv.value)
+    if (vv.status === 'fulfilled' && Array.isArray(vv.value) && vv.value.length > 0) setVotesLog(vv.value)
     return { r, rk }
   }, [noteBoard])
 
@@ -1284,7 +1278,7 @@ function AppInner() {
     if (section !== 'ranking') return undefined
     let active = true
     fetchRecentVotes().then(votes => {
-      if (active && Array.isArray(votes)) setVotesLog(votes)
+      if (active && Array.isArray(votes) && votes.length > 0) setVotesLog(votes)
     }).catch(() => {})
     return () => { active = false }
   }, [section])
@@ -1396,14 +1390,14 @@ function AppInner() {
       : `${t(`nav.${section}`)} · Chaereve`
     /* Canonical đi cùng tiêu đề vì cả hai đều đổi theo route. Thẻ trong
        index.html chỉ đúng cho `/`, mà SPA đổi đường dẫn bằng pushState nên
-       không sửa lại thì /daily-spin, /ranking, /profile là ba "bản trùng"
+       không sửa lại thì /daily-spin, /leaderboard, /profile là ba "bản trùng"
        của cùng một trang trong mắt Google. Lấy origin THẬT thay vì ghi cứng
        tên miền: repo có ba đường deploy (Pages / Workers / Vercel). Không
        kèm query string — `/?f=done&q=abc` vẫn là một nội dung đó, để nguyên
        query là tự đẻ ra vô số canonical khác nhau cho cùng một trang. */
     const canonical = document.querySelector('link[rel="canonical"]')
-    if (canonical) canonical.href = new URL(ROUTES[section], window.location.origin).href
-  }, [section, t])
+    if (canonical) canonical.href = new URL(profileId ? profileUrl(profileId) : ROUTES[section], window.location.origin).href
+  }, [section, t, profileId])
 
   /* Bọc useCallback: `flash` được dùng bên trong nhiều useCallback khác
      (các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
@@ -2835,7 +2829,7 @@ function AppInner() {
           <>
             {/* Bảng xếp hạng cũng chỉ là một cách NHÌN cùng dữ liệu bảng, nên
                 lỗi nạp phải hiện ở đây luôn: không có nó thì người dùng mở
-                /ranking thấy một danh sách trống và không một lời giải. */}
+                /leaderboard thấy một danh sách trống và không một lời giải. */}
             {boardState === 'error' && <LoadErr onRetry={reloadBoard} />}
             <Leaderboard rows={fullRanking} allRows={rows} ranking={fullRanking} meId={viewer.id}
               votesLog={votesLog} loading={boardState === 'loading'} />

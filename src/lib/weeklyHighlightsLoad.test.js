@@ -19,15 +19,19 @@ test('signed-in initial board load fetches and publishes received vote events', 
   const load = between('const load = useCallback', 'const loadBoard = useCallback')
   assert.match(load, /fetchRecentVotes\(\{ firstPageOnly: true \}\)/,
     'signed-in initial load must fetch the newest RPC page without waiting for older history')
-  assert.match(load, /vv\.status === 'fulfilled' && Array\.isArray\(vv\.value\)\) setVotesLog\(vv\.value\)/,
-    'publish successful vote rows so weeklyHighlights can render Most voted')
+  assert.match(load, /vv\.status === 'fulfilled' && Array\.isArray\(vv\.value\) && vv\.value\.length > 0\) setVotesLog\(vv\.value\)/,
+    'publish non-empty vote rows while preserving the current card on an empty refresh')
 })
 
 test('public initial load uses only the recent page; full month history is fetched on ranking', () => {
   const loadPublic = between('const loadPublic = useCallback', 'useEffect(() => { if (!user) loadPublic()')
   assert.match(loadPublic, /fetchRecentVotes\(\{ firstPageOnly: true \}\)/,
     'homepage must not wait on an older PostgREST page')
+  assert.match(loadPublic, /vv\.value\.length > 0\) setVotesLog\(vv\.value\)/,
+    'an empty public refresh must not erase a currently visible weekly card')
   const rankingLoad = between('if (section !== \'ranking\') return undefined', '/* NÚT "THỬ LẠI"')
   assert.match(rankingLoad, /fetchRecentVotes\(\)/,
     'ranking should still load complete month history on demand')
+  assert.match(rankingLoad, /votes\.length > 0\) setVotesLog\(votes\)/,
+    'an empty ranking refresh must not erase the current vote log')
 })

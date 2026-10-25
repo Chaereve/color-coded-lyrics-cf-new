@@ -57,7 +57,7 @@
 
   <main>
   <h1>Privacy</h1>
-  <p class="upd">Last updated: 22/09/2026</p>
+  <p class="upd">Last updated: 25/10/2026</p>
 
   <p>This page collects the minimum needed to run a request board and a ranking. It states what
      we store, why, and what you can ask us to change.</p>
@@ -69,11 +69,11 @@
     <li><strong>Profile avatar</strong> — an optional static JPG, PNG or WebP image; animated GIF avatars are not supported</li>
     <li><strong>Email address</strong>, used to identify the account and contact you about account or order issues</li>
   </ul>
-  <p>We also store what you create: requests, votes, comments and replies, vote orders with
-     their payment status, achievement claims, and Daily Spin records (account, time, request ID,
-     reward and hashed browser, fingerprint and IP identifiers).</p>
-  <p>The site also records one activity date per account for each signed-in visit, request, vote,
-     comment or spin. A visit is the Vietnam calendar day you open the site while signed in; the
+  <p>We also store what you create: requests, votes, vote orders with their payment status,
+     achievement claims, Daily Spin records (account, time, request ID, reward and hashed browser,
+     fingerprint and IP identifiers), and Daily Box openings and results.</p>
+  <p>The site also records one activity date per account for each signed-in visit, request, vote
+     or spin. A visit is the Vietnam calendar day you open the site while signed in; the
      time of day is not stored, and a past day cannot be submitted by the browser. Raw activity
      dates are account-scoped; public profiles expose only aggregate current/longest streaks and
      unlocked streak milestones. Activity dates are used for streaks and achievements, not for
@@ -97,8 +97,8 @@
      email.</p>
 
   <h2>3. Third parties and service providers</h2>
-  <p>We do <strong>not sell, rent or trade</strong> your data. We use the following providers only
-     to operate features you request:</p>
+  <p>We do <strong>not sell, rent or trade</strong> your data. We use the following providers to
+     operate features you request, or link to them when you choose to visit an external service:</p>
   <ul>
     <li><strong>Google</strong> — sign-in and the name, email and profile picture you authorise</li>
     <li><strong>Supabase</strong> — database and authentication</li>
@@ -107,35 +107,39 @@
     <li><strong>FingerprintJS and Cloudflare Turnstile</strong> — only for Daily Spin abuse prevention when that gate is enabled</li>
     <li><strong>YouTube</strong> — embedded or linked lyric-video content when you open it</li>
     <li><strong>PayPal or your bank</strong> — payment destinations you choose; we do not receive card or banking credentials</li>
+    <li><strong><a href="https://ko-fi.com/chaereve" target="_blank" rel="noreferrer">Ko-fi</a></strong> — an optional external support page. If you open it, Ko-fi handles any information or transaction under its own privacy policy; Chaereve does not receive Ko-fi payment details.</li>
   </ul>
 
   <h2>4. What is public</h2>
   <p>Your display name and avatar appear next to your requests and on the leaderboard.
-     Song, artist, request type, link and note fields on a request, plus public comments and
-     replies, can be read by visitors so the board can work. Public profiles show approved
+     Song, artist, request type, link and note fields on a request can be read by visitors so the
+     board can work. Public profiles, reachable at <code>/u/&lt;user-id&gt;</code>, show approved
      request summaries, received-vote totals, aggregate streaks and streak milestones.
      <strong>Your email address, votes cast for other people, raw activity dates, raw spin rewards and
      browser/fingerprint/IP hashes are never shown publicly.</strong> Profile avatars are displayed
      as static images; animated GIF avatars are not accepted. You can change your display
      name and avatar at any time in your profile. Do not put private information in a request,
-     note or comment.</p>
+     note or other public field.</p>
 
   <h2>5. Payments</h2>
   <p>The page <strong>does not process cards and stores no financial details</strong>. You pay by
      your own bank transfer or PayPal, an admin confirms it manually, and we keep only the amount,
-     the vote count and the order status.</p>
+     the vote count and the order status. Optional support through Ko-fi takes place on Ko-fi's
+     external site and is not processed or recorded by Chaereve.</p>
 
   <h2>6. Retention</h2>
   <p>Data is kept while your account exists. When you ask us to delete it, the profile, requests,
-     votes, comments, achievement ledger rows and orders are removed permanently. Spin records
-     are kept for bonus accounting, duplicate-claim prevention and device limits. Deleting an
-     account removes its account association from those records, but does not restore already-used
-     device spins. Contact us with questions or a request concerning these device records.</p>
+     votes, achievement ledger rows and orders are removed permanently. Spin records are kept for
+     bonus accounting, duplicate-claim prevention and device limits; deleting an account removes its
+     account association from those records but does not restore already-used device spins. Daily Box
+     openings are retained to enforce the one-box-per-day limit and preserve committed results. They
+     are not automatically deleted with an account, so the associated account ID may remain. Contact
+     us with questions or a request concerning these records.</p>
 
   <h2>7. Your rights</h2>
   <ul>
-    <li><strong>View</strong> — requests and orders in "My requests", today’s rewards in "Daily Spin";
-        contact us for other stored records</li>
+    <li><strong>View</strong> — requests and orders in "My requests", today’s rewards in "Daily Spin",
+        and opening history in "Daily Box"; contact us for other stored records</li>
     <li><strong>Correct</strong> — name and avatar in your profile</li>
     <li><strong>Delete parts</strong> — remove your own requests, cancel unconfirmed orders</li>
     <li><strong>Delete everything</strong> — message us on Telegram</li>

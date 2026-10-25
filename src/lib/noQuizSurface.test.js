@@ -3,14 +3,12 @@
    -----------------------------------------------------------------------------
    Bốn lớp được khoá cùng lúc:
      1. mã nguồn giao diện: không tệp nào dưới `src/` còn nhắc tới đường dẫn cũ,
-        ngoại trừ ĐÚNG một dòng khai báo chuyển hướng trong App.jsx (đã bóc
-        comment trước khi đếm, nên comment không thể là chỗ trốn);
+        không có ngoại lệ cho redirect, vì `/quiz` không còn là alias;
      2. từ điển i18n: chỉ còn đúng sáu mã lỗi `err.dailyQuiz*` mà SQL còn raise
         (bắt buộc giữ bản dịch theo i18nKeys.test.js) — chúng là chuỗi chết,
         không màn nào gọi, và biến mất ở giai đoạn dọn DB;
      3. bề mặt tĩnh: index.html, sitemap.xml, manifest.webmanifest sạch tuyệt đối;
-        `_redirects` chỉ có đúng một rule 301 cho đường dẫn cũ, và nó phải đứng
-        trước SPA fallback;
+        `_redirects` không được khai báo `/quiz`;
      4. mã nguồn đã xoá: không còn controller/component/lib quiz, không ai import
         chúng, và bài test DB của quiz đã nằm trong quarantine.
    Chạy: npm test */
@@ -41,7 +39,7 @@ const LEGACY_ERROR_CODES = [
   'err.dailyQuizRetired', 'err.dailyQuizQuestion', 'err.dailyQuizOption',
 ]
 
-test('không tệp giao diện nào còn nhắc tới màn quiz, ngoài đúng một dòng chuyển hướng', () => {
+test('không tệp giao diện nào còn nhắc tới màn quiz hoặc alias cũ', () => {
   const src = walk(at('..')).filter(f => ['.js', '.jsx'].includes(extname(f)))
   const stripped = f => readFileSync(f, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, ' ')   // comment khối
@@ -53,12 +51,7 @@ test('không tệp giao diện nào còn nhắc tới màn quiz, ngoài đúng m
     const code = stripped(file)
     const hits = code.match(/quiz/i) || []
     if (!hits.length) continue
-    if (!/(^|\/)src\/App\.jsx$/.test(rel)) { offenders.push(`${rel} (${hits.length}×)`); continue }
-    /* App.jsx: sau khi bóc comment chỉ còn đúng bảng chuyển hướng được phép
-       nhắc đường dẫn cũ — và nó không được dựng JSX/route nào. */
-    assert.equal(hits.length, 1, `App.jsx chỉ được nhắc đường dẫn cũ ở bảng chuyển hướng, thấy ${hits.length} lần`)
-    assert.match(code, /const RETIRED_PATHS = \{ '\/quiz': '\/daily-login' \}/)
-    assert.doesNotMatch(code, /<DailyRewards|needQuiz|quiz:/, 'không dựng lại màn/mục quiz trong App')
+    offenders.push(`${rel} (${hits.length}×)`)
   }
   assert.deepEqual(offenders, [], `còn mã nhắc tới quiz: ${offenders.join(', ')}`)
 })
@@ -80,15 +73,11 @@ test('từ điển chỉ giữ sáu mã lỗi cũ của SQL, không còn câu ch
   }
 })
 
-test('bề mặt tĩnh không còn đường dẫn quiz: html, sitemap, manifest', () => {
+test('bề mặt tĩnh không còn đường dẫn quiz: html, sitemap, manifest, redirects', () => {
   for (const rel of ['index.html', 'public/sitemap.xml', 'public/manifest.webmanifest']) {
     assert.doesNotMatch(read(rel), /quiz/i, `${rel} còn nhắc quiz`)
   }
-  /* `_redirects` là chỗ DUY NHẤT được nhắc đường dẫn cũ, và nhắc để chuyển
-     hướng: đúng một rule, 301, đứng trước SPA fallback (dòng cuối). */
-  const rules = read('public/_redirects').split('\n')
-    .map(line => line.trim()).filter(line => line && !line.startsWith('#'))
-  assert.deepEqual(rules, ['/quiz    /daily-login   301', '/*    /index.html   200'])
+  assert.doesNotMatch(read('public/_redirects'), /^\/quiz(?:\s|$)/mi, 'không tạo redirect hoặc rule cho /quiz')
 })
 
 test('controller/component/lib quiz đã bị xoá và không ai import lại', () => {

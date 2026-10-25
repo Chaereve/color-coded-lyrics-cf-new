@@ -53,12 +53,15 @@ assert.ok(app && historySrc, 'phải đọc được App.jsx và lib/history.js'
 /* =========================================================
    1. DỰNG ĐỊA CHỈ — một cửa, và cửa đó phải đúng
    ========================================================= */
-test('profileUrl: dạng tham số, không phải /u/ — host tĩnh chỉ phục vụ index.html cho đúng "/"', () => {
-  assert.equal(profileUrl('abc-123'), '/?profile=abc-123')
-  assert.equal(profileUrl('a b&c'), '/?profile=a%20b%26c', 'id phải được encode')
-  /* Đọc lại được bằng chính URLSearchParams — link dán ra ngoài phải mở đúng chỗ. */
-  assert.equal(new URLSearchParams(profileUrl('abc-123').slice(2)).get('profile'), 'abc-123')
-  assert.equal(profileUrl(null), '/?profile=')
+test('profileUrl sinh /u/<id> và encode id cho link công khai', () => {
+  assert.equal(profileUrl('abc-123'), '/u/abc-123')
+  assert.equal(profileUrl('a b&c'), '/u/a%20b%26c', 'id phải được encode')
+  assert.equal(profileUrl(null), '/u/')
+})
+
+test('App nhận link /u/<id> mới và vẫn đọc query profile cũ', () => {
+  assert.match(app, /path\.startsWith\('\/u\/'\)/)
+  assert.match(app, /new URLSearchParams\(window\.location\.search\)\.get\('profile'\)/)
 })
 
 test('boardSearchUrl: mở cả trạng thái, xếp mới nhất, và từ khoá là "tên bài nghệ sĩ"', () => {
@@ -75,7 +78,7 @@ test('absolute: link chia sẻ phải là URL tuyệt đối', () => {
   globalThis.window = { location: { origin: 'https://chaereve.pages.dev' } }
   assert.equal(absolute(boardSearchUrl('Get Up', 'NewJeans')),
     'https://chaereve.pages.dev/?f=all&s=newest&q=Get+Up+NewJeans')
-  assert.equal(absolute(profileUrl('u1')), 'https://chaereve.pages.dev/?profile=u1')
+  assert.equal(absolute(profileUrl('u1')), 'https://chaereve.pages.dev/u/u1')
   /* Không ghép được thì trả về nguyên trạng chứ không ném — đây là hàm chạy
      trong handler bấm, ném là mất cả cú bấm. */
   globalThis.window = { location: {} }

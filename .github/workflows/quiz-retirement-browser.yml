@@ -2,7 +2,7 @@
 #
 # Vì sao cần workflow này: sandbox phát triển không có Chromium và không ra được
 # Internet ngoài allowlist, nên `npm run smoke` (jsdom) không trả lời được ba câu
-# hỏi cuối — /quiz có được 301 ở edge, có lỗi console thật không, và bố cục
+# hỏi cuối — aliases slug cũ có 301 đúng, có lỗi console thật không, và bố cục
 # mobile/desktop ra sao. Runner của GitHub thì có Chromium và có mạng.
 #
 # Job này CHỈ ĐỌC: dựng dist/ tại chỗ, mở app bằng Chromium, gọi HTTP tới URL
@@ -22,13 +22,13 @@
 # thái check `Cloudflare Pages` chỉ nói deploy đã chạy xong, không nói CDN đang trả
 # bản nào — thiếu dấu vết là job ĐỎ (dừng, chờ/deploy lại), không phải flaky. Vì
 # vậy `main` nằm trong danh sách push: mỗi lần merge tự có phép kiểm này.
-name: Quiz retirement — browser & edge check
+name: Slug routes — browser & edge check
 
 on:
   workflow_dispatch:
     inputs:
       edge_url:
-        description: 'URL đã deploy để kiểm tra edge (/quiz có 301 không)'
+        description: 'URL đã deploy để kiểm tra redirect slug cũ và route mới'
         required: false
         default: https://chaereve.pages.dev
       live_url:
@@ -113,7 +113,7 @@ jobs:
       # Bước này ngoài /quiz + /daily-login còn tải asset edge đang phục vụ và đối
       # chiếu dấu vết trong .github/edge-bundle-markers.txt: đỏ nghĩa là bản deploy
       # chưa lên CDN (hoặc đã lên nhưng là bundle cũ) → DỪNG, đừng chạy tiếp bước sau.
-      - name: Kiểm chứng bằng Chromium (desktop + mobile), edge /quiz và bundle đang phục vụ
+      - name: Kiểm chứng bằng Chromium (desktop + mobile), slug routes tại edge và bundle đang phục vụ
         if: env.EDGE_URL != ''
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
 

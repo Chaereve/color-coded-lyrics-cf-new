@@ -341,7 +341,7 @@ test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store',
     assert.match(cc(p) || '', /immutable/, `${p} có hash nội dung nên khai immutable được`)
   }
   assert.equal(cc('/api/*'), 'no-store', 'API chống farm không được cache')
-  for (const p of ['/', '/index.html', '/daily-login', '/quiz', '/daily-spin', '/ranking', '/profile']) {
+  for (const p of ['/', '/index.html', '/daily-login', '/daily-spin', '/daily-box', '/leaderboard', '/profile', '/u/*']) {
     assert.match(cc(p) || '', /must-revalidate/,
       `${p} là HTML: cache là người dùng kẹt ở bản cũ, không nhận bundle mới`)
   }

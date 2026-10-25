@@ -75,7 +75,7 @@
 
   <main>
   <h1>FAQ &amp; How It Works</h1>
-  <p class="upd">Last updated: 29/09/2026 · <a href="/">Back to the request board</a></p>
+  <p class="upd">Last updated: 25/10/2026 · <a href="/">Back to the request board</a></p>
 
   <p>This page explains how the request board works, in the order people usually ask.
      Every number here is the same one the app uses — nothing is rounded for marketing.</p>
@@ -135,17 +135,38 @@
 
   <h2>How does the Daily Spin work?</h2>
   <p><strong>2 free spins a day</strong> per account and per device, resetting at
-     <strong>00:00 (GMT+7)</strong>. The wheel has <strong>16 equal segments</strong>, and the
-     segment size you see is the real probability:</p>
+     <strong>00:00 (GMT+7)</strong>. The seven wheel segments are weighted, and each displayed
+     chance is the real probability. The same reward cannot appear more than twice in a row on
+     the same device.</p>
   <table>
-    <tr><th>Reward</th><th>Segments</th><th>Chance</th></tr>
-    <tr><td>+1 vote</td><td>9</td><td>56,25%</td></tr>
-    <tr><td>+2 votes</td><td>4</td><td>25%</td></tr>
-    <tr><td>+3 votes</td><td>2</td><td>12,5%</td></tr>
-    <tr><td>+5 votes</td><td>1</td><td>6,25%</td></tr>
+    <tr><th>Reward</th><th>Chance</th></tr>
+    <tr><td>+1 vote</td><td>30%</td></tr>
+    <tr><td>+2 votes</td><td>25%</td></tr>
+    <tr><td>+3 votes</td><td>20%</td></tr>
+    <tr><td>+5 votes</td><td>12%</td></tr>
+    <tr><td>+8 votes</td><td>8%</td></tr>
+    <tr><td>+10 votes</td><td>4%</td></tr>
+    <tr><td>+20 votes</td><td>1%</td></tr>
   </table>
   <p>Spin rewards go to a separate <strong>Bonus</strong> balance (spent before purchased
      votes). Spins are free — nothing is charged or deducted to play.</p>
+
+  <h2>How does the Daily Box work?</h2>
+  <p>Check in on <a href="/daily-login">Daily Login</a> to unlock one box for that Vietnam
+     calendar day. Each account can open one box per day; retrying an open returns the same
+     committed result instead of drawing again.</p>
+  <table>
+    <tr><th>Prize</th><th>Chance</th></tr>
+    <tr><td>Empty</td><td>70%</td></tr>
+    <tr><td>+1 vote</td><td>16%</td></tr>
+    <tr><td>+3 votes</td><td>8%</td></tr>
+    <tr><td>+5 votes</td><td>4%</td></tr>
+    <tr><td>+10 votes</td><td>1.5%</td></tr>
+    <tr><td>+1 free paid request</td><td>0.4%</td></tr>
+    <tr><td>+2 free paid requests</td><td>0.1%</td></tr>
+  </table>
+  <p>Bonus votes use the shared daily reward cap; free paid requests are tracked separately.
+     You can see the odds and your monthly opening history on the <a href="/daily-box">Daily Box</a> page.</p>
 
   <h2>How do you keep voting and spins fair?</h2>
   <p>All limits live in the database and in an edge shield, not in the interface: per-account
@@ -155,15 +176,17 @@
   <p>What we store and why is in the <a href="/privacy.html">Privacy</a> page.</p>
 
   <h2>Do I have to pay for anything?</h2>
-  <p>No. Requests, votes, spins, comments, streaks and the leaderboard are all usable for free
+  <p>No. Requests, votes, spins, streaks, Daily Box and the leaderboard are usable for free
      every day. Paying only buys convenience: more votes, or skipping the queue with a paid
      request.</p>
 
   </main>
   <footer>
-    Still stuck? Comment on the board or on the channel's videos — the admin reads both.<br />
-    <a href="/">Request board</a> · <a href="/daily-spin">Daily Spin</a> ·
-    <a href="/ranking">Leaderboard</a> · <a href="/privacy.html">Privacy</a>
+    Still stuck? Contact us on <a href="https://t.me/ssochuz" target="_blank" rel="noreferrer">Telegram</a>
+    or through the channel's videos.<br />
+    <a href="/">Request board</a> · <a href="/daily-login">Daily Login</a> ·
+    <a href="/daily-box">Daily Box</a> · <a href="/daily-spin">Daily Spin</a> ·
+    <a href="/leaderboard">Leaderboard</a> · <a href="/privacy.html">Privacy</a>
   </footer>
 </div>
 
@@ -217,7 +240,15 @@
       "name": "How does the Daily Spin work?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "2 free spins a day per account and per device, resetting at 00:00 (GMT+7). The wheel has 16 equal segments: +1 vote ×9 (56,25%), +2 votes ×4 (25%), +3 votes ×2 (12,5%), +5 votes ×1 (6,25%). Rewards go to a separate Bonus balance spent before purchased votes. Spins are free."
+        "text": "2 free spins a day per account and per device, resetting at 00:00 (GMT+7). The seven weighted rewards are +1 vote (30%), +2 (25%), +3 (20%), +5 (12%), +8 (8%), +10 (4%) and +20 (1%). The same reward cannot appear more than twice in a row on one device. Rewards go to a separate Bonus balance spent before purchased votes."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does the Daily Box work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Check in on Daily Login to unlock one box for that Vietnam calendar day. Each account can open one box per day, and retrying returns the committed result instead of drawing again. Prizes range from no reward to votes or free paid requests; the odds are shown on the Daily Box page. Bonus votes use the shared daily reward cap."
       }
     },
     {
@@ -233,7 +264,7 @@
       "name": "Do I have to pay for anything?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No. Requests, votes, spins, comments, streaks and the leaderboard are all usable for free every day. Paying only buys convenience: more votes, or skipping the queue with a paid request."
+        "text": "No. Requests, votes, spins, streaks, the Daily Box and the leaderboard are usable for free every day. Paying only buys convenience: more votes, or skipping the queue with a paid request."
       }
     }
   ]

@@ -20,7 +20,7 @@
   ],
   "shortcuts": [
     { "name": "Requests", "short_name": "Requests", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Leaderboard", "short_name": "Ranking", "url": "/ranking", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Leaderboard", "short_name": "Ranking", "url": "/leaderboard", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Your requests", "short_name": "You", "url": "/profile", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

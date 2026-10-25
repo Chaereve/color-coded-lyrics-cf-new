@@ -1501,18 +1501,21 @@ Mỗi mục có đường dẫn riêng, chia sẻ link được và nút Back/Fo
 | Mục | Đường dẫn | Tiêu đề tab |
 |---|---|---|
 | Bảng yêu cầu | `/` | Color Coded Lyrics — Request Board |
+| Điểm danh | `/daily-login` | Daily login · Chaereve |
+| Daily Box | `/daily-box` | Daily Box · Chaereve |
 | Daily Spin | `/daily-spin` | Daily Spin · Chaereve |
-| Xếp hạng | `/ranking` | Xếp hạng — Color Coded Lyrics |
+| Xếp hạng | `/leaderboard` | Xếp hạng — Color Coded Lyrics |
 | Của tôi | `/profile` | Của tôi — Color Coded Lyrics |
 | Bảng quản trị | `/admin` (thêm `?tab=…` để mở thẳng một mục) | Bảng quản trị — Color Coded Lyrics |
+| Hồ sơ công khai | `/u/<id>` | Chaereve — Request Page |
 
 Đổi đường dẫn thì sửa `ROUTES` ở đầu `src/App.jsx`:
 
 ```js
-const ROUTES = { board: '/', spin: '/daily-spin', ranking: '/ranking', mine: '/profile', admin: '/admin' }
+const ROUTES = { board: '/', login: '/daily-login', mystery: '/daily-box', spin: '/daily-spin', ranking: '/leaderboard', mine: '/profile', admin: '/admin' }
 ```
 
-Đường dẫn `/videos` cũ (mục Kênh đã bỏ) mở lên vẫn ra trang chủ, thanh địa chỉ tự sửa về `/`.
+`/ranking` và `/mystery-box` được giữ 301 sang `/leaderboard` và `/daily-box`; `/quiz` không có route hoặc redirect và rơi về trang chủ như đường dẫn không nhận diện. URL hồ sơ cũ `/?profile=<id>` vẫn được đọc, còn link mới là `/u/<id>`. `/videos` cũ (mục Kênh đã bỏ) mở lên vẫn ra trang chủ, thanh địa chỉ tự sửa về `/`.
 
 Dùng **đường dẫn thật** chứ không phải dấu `#`, nên link nhìn sạch và Google index được.
 Đổi lại là máy chủ phải biết trả `index.html` cho mọi đường dẫn lạ — việc này đã lo sẵn:
@@ -3204,9 +3207,8 @@ deploy:
 ### Trang cá nhân công khai
 
 Mở bằng cách bấm vào **tên người gửi** trên một hàng request, hoặc **tên tác giả** của một bình
-luận. Địa chỉ là `/?profile=<user-id>` — dạng **tham số**, không phải `/u/<id>`: host tĩnh chỉ
-phục vụ `index.html` cho đúng `/` (xem `public/_redirects`), nên một link `/u/…` dán ra ngoài là
-404. App vẫn **đọc** được `/u/<id>` cho những link cũ đã lỡ dán.
+luận. Link mới là `/u/<user-id>`; Cloudflare Pages trả SPA fallback `index.html` cho đường dẫn này
+(xem `public/_redirects`). App vẫn **đọc** `/?profile=<user-id>` để tương thích với những URL cũ đã chia sẻ.
 
 | Hiện | Không hiện |
 |---|---|

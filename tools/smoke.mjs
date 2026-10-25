@@ -866,7 +866,7 @@ if (voteBtn) {
 }
 
 /* ---------- 8. các mục còn lại ---------- */
-for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/ranking'], ['Của tôi', '/profile']]) {
+for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'], ['Xếp hạng', '/leaderboard'], ['Của tôi', '/profile']]) {
   where = name
   window.history.pushState({}, '', path)
   window.dispatchEvent(new window.Event('popstate'))
@@ -925,8 +925,8 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
       check('bấm This month: khoảng ngày có cho trình đọc màn hình, không in thường trực',
         /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(rangeText)
           && !/\d{2}\/\d{2} – \d{2}\/\d{2}/.test(pseg?.textContent || ''), rangeText)
-      check('đổi mùa không điều hướng — vẫn ở /ranking',
-        window.location.pathname === '/ranking', window.location.pathname)
+      check('đổi mùa không điều hướng — vẫn ở /leaderboard',
+        window.location.pathname === '/leaderboard', window.location.pathname)
       await click(pbtns[0])
       await waitFor(() => (q('.lb-rule')?.textContent || '') === ruleAll, 2000)
       check('bấm All time: bảng trở về đúng câu luật cũ, tooltip hết khoảng ngày',
@@ -1006,16 +1006,6 @@ if (q('.nt-btn')) {
   check('bấm lần nữa là bảng đóng', !q('#nt-panel'))
 }
 
-/* /quiz đã nghỉ hưu: gõ thẳng địa chỉ cũ phải được đưa về lịch điểm danh và
-   không dựng lại bất kỳ màn quiz nào. */
-where = 'đường dẫn cũ /quiz'
-window.history.pushState({}, '', '/quiz')
-window.dispatchEvent(new window.Event('popstate'))
-await waitFor(() => !!q('.daily-login-page'), 3000)
-await tick(140)
-check('/quiz chuyển hướng về Daily login', window.location.pathname === '/daily-login', window.location.pathname)
-check('/quiz không dựng lại màn quiz và không còn chữ quiz trên trang',
-  !q('.music-quiz-page') && !q('.daily-quiz') && !q('.daily-quiz-start') && !/quiz/i.test(text()))
 
 /* ---------- 9. trang quản trị ---------- */
 where = 'trang quản trị'
@@ -1080,7 +1070,7 @@ if (clearBtn) {
 
 /* Mục không có dòng phụ thì không được để lại thẻ rỗng: bảng xếp hạng là mục
    duy nhất như vậy (câu "ai gửi nhiều nhất, ai được làm xong" đã bị gỡ). */
-window.history.pushState({}, '', '/ranking')
+window.history.pushState({}, '', '/leaderboard')
 window.dispatchEvent(new window.Event('popstate'))
 await tick(150)
 check('bảng xếp hạng không có dòng phụ rỗng', !q('.mainhead-sub'),
@@ -1191,7 +1181,7 @@ const auditDom = (label) => {
 }
 
 for (const [label, path] of [['Trang chủ', '/'], ['Daily login', '/daily-login'], ['Daily Spin', '/daily-spin'],
-  ['Xếp hạng', '/ranking'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
+  ['Xếp hạng', '/leaderboard'], ['About me', '/profile'], ['Quản trị', '/admin']]) {
   where = `rà soát DOM · ${label}`
   window.history.pushState({}, '', path)
   window.dispatchEvent(new window.Event('popstate'))
@@ -1827,16 +1817,16 @@ where = 'bài trả phí'
   const person = q('.requester-link')
   check('bảng có tên người gửi bấm được', !!person, (q('.list')?.textContent || '').slice(0, 120))
   const personHref = person?.getAttribute('href') || ''
-  const uid = new URLSearchParams(personHref.replace(/^[^?]*\??/, '')).get('profile')
-  check('link người gửi là THẺ THẬT dạng ?profile=<id> (host tĩnh không phục vụ /u/)',
-    !!uid && personHref.startsWith('/?profile='), personHref)
+  const uid = personHref.startsWith('/u/') ? decodeURIComponent(personHref.slice(3)) : ''
+  check('link người gửi là THẺ THẬT dạng /u/<id>',
+    !!uid && personHref.startsWith('/u/'), personHref)
   await click(person)
   check('bấm tên người gửi: trang cá nhân mở ra',
     await waitFor(() => !!q('.public-profile-head'), 3000), text().slice(0, 140))
   check('mở trang cá nhân KHÔNG tải lại trang (không màn chờ)', !splashUp())
   check('trang cá nhân hiện thay cho danh sách bảng', !q('.list'))
-  check('địa chỉ mang đúng tham số profile', uid
-    && new URLSearchParams(window.location.search).get('profile') === uid, window.location.search)
+  check('địa chỉ mang đúng slug /u/<id>', uid
+    && decodeURIComponent(window.location.pathname.slice(3)) === uid, window.location.pathname)
   check('trang cá nhân có ba ô số liệu', qa('.public-stats > div').length === 3,
     `${qa('.public-stats > div').length} ô`)
   /* Chữ của trang này từng viết thẳng trong JSX (18 câu), nên nhãn hiện ra
@@ -1889,7 +1879,7 @@ where = 'bài trả phí'
   try {
 
   /* (3) BẤM MỘT BÀI ĐÃ XONG — đúng ca đã báo lỗi */
-  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/u/demo-user', () => !!q('.public-profile-head'))
   const doneLink = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
   check('trang của demo-user có bài ĐÃ XONG (Get Up) để bấm', !!doneLink,
     qa('.public-request-link').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
@@ -1927,7 +1917,7 @@ where = 'bài trả phí'
   await tick(420)                                // chờ nhịp ghi URL + localStorage (320ms)
   check('đã bật được lựa chọn Status + Type',
     onChips().some(c => STAGE.test(c)) && onChips().some(c => /Color Coded Lyrics/.test(c)), onChips().join(' | '))
-  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/u/demo-user', () => !!q('.public-profile-head'))
   const doneLink2 = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
   if (doneLink2) {
     await click(doneLink2)
@@ -1973,7 +1963,7 @@ where = 'bài trả phí'
   check('hàng request không dựng nút Comments đã gỡ', !q('.comments-toggle'))
 
   /* (7) BACK TO BOARD */
-  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/u/demo-user', () => !!q('.public-profile-head'))
   await click(q('.profile-back'))
   check('bấm "Back to board": về bảng, trang cá nhân đóng, không màn chờ',
     (await waitFor(() => !!q('.list') && !q('.public-profile'), 3000)) && !splashUp())
@@ -1988,7 +1978,7 @@ where = 'bài trả phí'
      nào khác là mục đó dựng thêm NGAY DƯỚI trang cá nhân.
      Ba phép kiểm: trang cá nhân đóng lại, mục vừa bấm dựng đúng khối của nó,
      và cả tài liệu chỉ còn MỘT trang. */
-  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+  await goto('/u/demo-user', () => !!q('.public-profile-head'))
   const spinTab = qa('.side-nav .side-item').find(a => /Daily Spin/i.test(a.textContent || ''))
   check('menu có mục Daily Spin để bấm sang', !!spinTab,
     qa('.side-nav .side-item').map(a => (a.textContent || '').trim()).join(' | ').slice(0, 160))
@@ -2009,18 +1999,15 @@ where = 'bài trả phí'
   for (const [label, route, selector] of [
     ['Daily login', '/daily-login', '.daily-login-page'],
   ]) {
-    await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
+    await goto('/u/demo-user', () => !!q('.public-profile-head'))
     await click(q(`.side-nav .side-item[href="${route}"]`))
     await waitFor(() => !!q(selector) && !q('.public-profile'), 3000)
     check(`bấm ${label} từ trang cá nhân: chỉ dựng đúng MỘT trang`,
       !!q(selector) && !q('.public-profile') && !q('.daily-spin') && qa('.daily-login-page').length === 1)
   }
-  /* Địa chỉ /quiz cũ, gõ thẳng từ trang cá nhân: về lịch điểm danh, không mở
-     lại màn quiz và cũng không để trang cá nhân dính lại. */
-  await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
-  await goto('/quiz', () => !!q('.daily-login-page'))
-  check('mở /quiz từ trang cá nhân: chỉ còn Daily login, không còn chữ quiz',
-    !q('.public-profile') && !q('.music-quiz-page') && !/quiz/i.test(text()))
+  /* Link hồ sơ mới dùng /u/<id>; tham số ?profile=<id> cũ vẫn được đọc. */
+  await goto('/?profile=legacy-user', () => !!q('.public-profile-head'))
+  check('URL profile cũ vẫn mở được để tương thích', !!q('.public-profile') && !q('.list'))
   /* Và quay lại bảng: danh sách phải về, không dính lại khối nào của mục trước. */
   await goto('/', () => items().length > 0)
   check('quay lại bảng: danh sách có hàng và không còn trang nào khác',
@@ -2321,8 +2308,10 @@ realLog('\n── daily quiz: dữ liệu còn nguyên, giao diện đã gỡ �
   const dbLib = rd('../src/lib/db.js')
   const calendarLib = rd('../src/lib/dailyLoginCalendar.js')
   const screenText = [rd('../src/components/DailyLogin.jsx'), rd('../src/components/DailyLoginCalendar.jsx')].join('\n')
-  check('quiz đã nghỉ hưu: /quiz chỉ còn là đường dẫn cũ chuyển về lịch điểm danh',
-    /RETIRED_PATHS = \{ '\/quiz': '\/daily-login' \}/.test(app)
+  const redirects = rd('../public/_redirects')
+  check('quiz đã nghỉ hưu: không có route UI hoặc redirect /quiz',
+    !/RETIRED_PATHS|\/quiz/i.test(app)
+    && !/^\/quiz(?:\s|$)/mi.test(redirects)
     && !/<DailyRewards|needQuiz/.test(app)
     && !/quiz/i.test(screenText))
   check('quiz đã nghỉ hưu: client chỉ còn gọi Calendar API, không còn cửa RPC nào của quiz',
