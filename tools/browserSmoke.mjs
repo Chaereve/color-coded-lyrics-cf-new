@@ -330,9 +330,9 @@ for (const vp of viewports) {
   check(`${vp.name}: có nút điểm danh`, (await claim.count()) === 1)
   if (await claim.count()) {
     await claim.click()
-    await page.waitForTimeout(700)
-    check(`${vp.name}: điểm danh xong nút chuyển trạng thái đã-điểm-danh`,
-      (await page.locator('.daily-claim.btn-ok').count()) === 1)
+    await page.waitForSelector('.check-in-day.is-today.is-checked:disabled', { timeout: 5_000 })
+    check(`${vp.name}: điểm danh được ghi vào lịch và nút nhận biến mất`,
+      (await page.locator('.daily-claim').count()) === 0)
   }
   check(`${vp.name}: không có lỗi console / exception`, errors.length === 0,
     errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài của runner)` : ''))
