@@ -193,6 +193,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
     busy.current = true
     ++readVersion.current // a stale status read must not overwrite the committed result
     setLoading(false); setPhase('requesting'); setError(''); setResult(null)
+    setOnSlot(-1)
     setActiveRequest(null)
     setWinSlot(-1); setDimBoard(false)
     sfx.spinGo()
@@ -257,64 +258,79 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   // the ring is still running. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
   const spent = !!status && !remaining && !pending
-  const nowReward = active ? SPIN_RING[onSlot] : (result ? result.reward : null)
-  const nowRarity = nowReward === null ? -1 : rarityOfReward(nowReward, rewards)
+  const nowReward = active && onSlot >= 0 ? SPIN_RING[onSlot] : (result ? result.reward : null)
+  const nowRarity = nowReward == null ? -1 : rarityOfReward(nowReward, rewards)
 
   return (
-    <section className="daily-spin" aria-label={t('spin.playLabel')}>
+    <section className="daily-spin arcade-spin" aria-label={t('spin.playLabel')}>
       <header className="spin-head">
         {/* H1 trang đã là "Daily Spin" — h2 chỉ cho a11y, không lặp chữ trên màn. */}
         <h2 className="sr-only">{t('spin.playLabel')}</h2>
-        <div className="spin-head-meta">
+        <div className="spin-head-status">
           {!hasSupabase && <span className="spin-demo" role="note">{t('spin.demo')}</span>}
-          <div className="spin-reset" title={t('spin.ruleReset')}>
-            <span>{t('spin.resetIn')}</span>
-            <b>{status ? spinCountdown(deadline - clock) : '--:--:--'}</b>
+          <div className="spin-remaining">
+            <span>{t('spin.available')}</span>
+            <b>{status ? remaining : '–'}<small> / {limit}</small></b>
+            <span className="spin-pips" aria-hidden="true">
+              {Array.from({ length: limit }, (_, i) => <i key={i} className={i < remaining ? 'on' : ''} />)}
+            </span>
           </div>
+        </div>
+        <div className="spin-reset">
+          <span className="spin-reset-label">{t('spin.resetIn')}</span>
+          <b>{status ? spinCountdown(deadline - clock) : '--:--:--'}</b>
         </div>
       </header>
 
-      {/* BOARD 7×5: 20 ô vuông quanh lõi chữ nhật — đèn chạy vòng quanh. */}
-      <div className={`spin-board${dimBoard ? ' dim' : ''}${active ? ' is-run' : ''}`}>
-        {SPIN_RING.map((reward, slot) => {
-          const [row, col] = spinRingSlot(slot)
-          const rarity = rarityOfReward(reward, rewards)
-          return (
-            <span key={slot} data-slot={slot} aria-hidden="true"
-              style={{ gridArea: `${row} / ${col}` }}
-              className={`spin-tile r${rarity}${onSlot === slot ? ' on' : ''}`
-                + `${(onSlot + 19) % 20 === slot ? ' t1' : ''}${(onSlot + 18) % 20 === slot ? ' t2' : ''}`
-                + `${winSlot === slot ? ' win' : ''}`}>
-              <CellIcon reward={reward} />
-              <b>+{reward}</b>
-              <small>{t('spin.reward', { n: reward }).replace(/^\+\d+\s*/, '')}</small>
-            </span>
-          )
-        })}
+      {/* 20-cell path and arcade controls share one responsive stage. */}
+      <div className="spin-main">
+        <div className={`spin-board${dimBoard ? ' dim' : ''}${active ? ' is-run' : ''}`}>
+          {SPIN_RING.map((reward, slot) => {
+            const [row, col] = spinRingSlot(slot)
+            const rarity = rarityOfReward(reward, rewards)
+            return (
+              <span key={slot} data-slot={slot} aria-hidden="true"
+                style={{ gridArea: `${row} / ${col}` }}
+                className={`spin-tile r${rarity}${onSlot === slot ? ' on' : ''}`
+                  + `${(onSlot + 19) % 20 === slot ? ' t1' : ''}${(onSlot + 18) % 20 === slot ? ' t2' : ''}`
+                  + `${winSlot === slot ? ' win' : ''}`}>
+                <CellIcon reward={reward} />
+                <b>+{reward}</b>
+                <small>{t('spin.reward', { n: reward }).replace(/^\+\d+\s*/, '')}</small>
+              </span>
+            )
+          })}
 
-        {/* LÕI: trạng thái + nút SPIN — vùng live duy nhất đọc toàn bộ nhịp. */}
-        <div className="spin-core">
-          <div aria-live="polite">
-            <div className="spin-core-k">{t('spin.todaySpin')}</div>
-            <div className={`spin-now${result ? ' pop' : ''}`} key={active ? onSlot : 'r'}>
-              {nowReward === null ? <Icon name="gift" size={38} className="spin-now-gift" /> : <b className={`r${nowRarity}`}>+{nowReward}</b>}
+          {/* Outcome display only; server still chooses the reward before the animation. */}
+          <div className="spin-core">
+            <div>
+              <div className="spin-core-k">{t('spin.todaySpin')}</div>
+              <div className={`spin-now${result ? ' pop' : ''}`} key={active ? onSlot : 'r'}>
+                {nowReward == null ? <Icon name="gift" size={30} className="spin-now-gift" /> : <b className={`r${nowRarity}`}>+{nowReward}</b>}
+              </div>
+              <div className={`spin-rar${nowRarity >= 0 ? ` r${nowRarity}` : ''}`}>
+                {nowReward == null ? '' : t(RARITY_KEYS[nowRarity])}
+              </div>
             </div>
-            <div className="spin-pn" key={`pn-${active ? onSlot : result ? result.reward : 'idle'}`}>
-              {result ? t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })
-                : active ? t('spin.goodLuck') : t('spin.ready')}
-            </div>
-            <div className={`spin-rar${nowRarity >= 0 ? ` r${nowRarity}` : ''}`}>
-              {nowReward === null ? '' : t(RARITY_KEYS[nowRarity])}
-            </div>
-            <button type="button" className="spin-cta" onClick={spin}
-              disabled={active || loading || !status || (!remaining && !pending)}>
-              {active ? t('spin.spinning')
-                : loading ? t('spin.loading')
-                : spent ? t('spin.nextIn', { time: spinCountdown(deadline - clock) })
-                : t('spin.action')}
-            </button>
           </div>
         </div>
+
+        <aside className="spin-controls">
+          <div className={`spin-control-status${result && !active ? ' is-result' : active ? ' is-active' : ''}`} role="status" aria-live="polite">
+            {loading ? t('spin.loading')
+              : result ? t(result.reward === 1 ? 'spin.wonOne' : 'spin.won', { n: result.reward })
+              : active ? t('spin.goodLuck') : t('spin.ready')}
+          </div>
+          <button type="button" className="spin-cta" onClick={spin}
+            disabled={active || loading || !status || (!remaining && !pending)}>
+            <Icon name={loading || active ? 'spin' : spent ? 'calendar' : 'play'} size={16}
+              className={`spin-cta-ico${loading || active ? ' is-spinning' : ''}`} />
+            <span>{active ? t('spin.spinning')
+              : loading ? t('spin.loading')
+              : spent ? t('spin.nextIn', { time: spinCountdown(deadline - clock) })
+              : t('spin.action')}</span>
+          </button>
+        </aside>
       </div>
 
       {pending && !active && <p className="spin-pending">{t('spin.pending')}</p>}
@@ -325,7 +341,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
         {/* Token trình duyệt hỏng thì "Try again" không bao giờ thoát được:
             cho người dùng tự cấp lại thay vì bắt liên hệ hỗ trợ. */}
         {deviceBroken && (
-          <button type="button" className="btn btn-sm" title={t('spin.deviceResetHint')}
+          <button type="button" className="btn btn-sm"
             disabled={active}
             onClick={() => { resetSpinDevice(); window.location.reload() }}>
             {t('spin.deviceReset')}
@@ -333,15 +349,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
         )}
       </div>}
 
-      {/* Dải dưới gọn: lượt còn lại · hôm nay được gì · link dùng votes. */}
       <aside className="spin-strip">
-        <div className="spin-remaining">
-          <span>{t('spin.available')}</span>
-          <b>{status ? remaining : '–'}<small> / {limit}</small></b>
-          <span className="spin-pips" aria-hidden="true">
-            {Array.from({ length: limit }, (_, i) => <i key={i} className={i < remaining ? 'on' : ''} />)}
-          </span>
-        </div>
         <div className="spin-history">
           <div className="spin-history-head">
             <h3>{t('spin.history')}</h3>
@@ -352,7 +360,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
           {history.length ? <ul>
             {history.map(item => <li key={item.request_id} className={`r${rarityOfReward(item.reward, rewards)}`}>
               <b>{t(item.reward === 1 ? 'spin.rewardOne' : 'spin.reward', { n: item.reward })}</b>
-              <time dateTime={item.created_at} title={t('spin.addedAt', { time: timeOf(item.created_at) })}>{timeOf(item.created_at)}</time>
+              <time dateTime={item.created_at}>{timeOf(item.created_at)}</time>
             </li>)}
           </ul> : <p>{t('spin.historyEmpty')}</p>}
         </div>

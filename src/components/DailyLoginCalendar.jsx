@@ -53,7 +53,6 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
   const { monthLabel, cells, checkedCount, currentMonth: isCurrent } = calendar
   const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7))
   const earliest = isCalendarDay(status.login?.first_day) ? monthOf(status.login.first_day) : currentMonth
-  const stats = status.login || {}
   const monthCount = checkedCount === null ? null : checkedCount
   const go = delta => setBrowsed(shiftMonth(month, delta))
 
@@ -81,12 +80,10 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         const label = `${cell.label} — ${t(`calendar.${cell.state}`)}`
         const className = `check-in-day is-${cell.state}${cell.isToday ? ' is-today' : ''}`
         const content = <><time dateTime={cell.day}>{cell.number}</time>
-          <span className="check-in-day-mark" aria-hidden="true">
-            {cell.state === 'checked' ? <Icon name="check" size={14} /> : cell.isToday ? <Icon name="calendar" size={13} /> : cell.state === 'missed' ? '—' : '·'}
-          </span>
+          <span className="check-in-day-mark" aria-hidden="true" />
           <span className="sr-only">{t(`calendar.${cell.state}`)}</span>
         </>
-        return <td key={cell.day} title={label}>{cell.isToday && isCurrent
+        return <td key={cell.day}>{cell.isToday && isCurrent
           ? <button type="button" className={className} data-day={cell.day} aria-current="date"
             aria-label={cell.state === 'checked' ? label : t('calendar.claimDay', { day: cell.label })}
             disabled={disabled || cell.state === 'checked'} onClick={onClaim}>{content}</button>
@@ -94,11 +91,6 @@ export default function DailyLoginCalendar({ status, disabled, onClaim, loadMont
         </td>
       })}</tr>)}</tbody>
     </table>
-    <div className="check-in-calendar-extra">
-      {t('calendar.best')} <b>{typeof stats.best_streak === 'number' ? stats.best_streak : '—'}</b>
-      {' · '}
-      {t('calendar.lifetime')} <b>{typeof stats.total_days === 'number' ? stats.total_days : '—'}</b>
-    </div>
     {!view?.available && <p className="check-in-calendar-unavailable" role="status">
       {t(cache[month] === undefined ? 'calendar.historyUnavailable' : 'calendar.historyFailed')}
     </p>}

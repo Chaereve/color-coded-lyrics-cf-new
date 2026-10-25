@@ -32,7 +32,8 @@ export const ADMIN_TAB_META = [
   /* ĐÃ PICK đứng ngay sau nhóm hàng đợi: nó trả lời "suất Up next đang do bài
      nào giữ". Tách khỏi Đang xử lý vì mục đó gộp cả bài chưa từng được chốt
      (in_progress mà không có picked_at) — hai câu hỏi khác nhau. */
-  { k: 'picked',  label: 'adm.pickedTab', tone: 'var(--a-2)',    count: 'picked' },
+  // "Đã pick" là suất đã chốt → màu Up next, không mượn màu nhấn (trùng --progress).
+  { k: 'picked',  label: 'adm.pickedTab', tone: 'var(--upnext)',  count: 'picked' },
   { k: 'orders',  label: 'adm.orders',  tone: 'var(--paid)',     count: 'orders' },
   { k: 'done',    label: 'adm.done',    tone: 'var(--done)',     count: 'done' },
   { k: 'media',   label: 'adm.media',   tone: 'var(--a-2)',      count: 'media' },

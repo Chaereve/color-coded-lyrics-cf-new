@@ -149,7 +149,40 @@ export default function VideoPreviewModal({ video, onClose }) {
   const [at, setAt] = useState(0)            /* vị trí đang phát, để vẽ */
   const [over, setOver] = useState(false)    /* đã chạm mốc 30 giây */
   const [blocked, setBlocked] = useState(false)  /* player báo không nhúng được */
+  const driveArtist = typeof video?.artist === 'string' ? video.artist.trim() : ''
+  const driveTitle = typeof video?.title === 'string' ? video.title.trim() : ''
+  const driveKey = JSON.stringify([video?.id ?? '', driveArtist, driveTitle])
+  const shouldLookupDrive = Boolean(video && driveArtist && driveTitle && !isVideoFile(url))
+  const [driveResult, setDriveResult] = useState(null)
+  const matchedDriveResult = driveResult?.key === driveKey ? driveResult : null
+  const driveSrc = matchedDriveResult?.status === 'ready' ? matchedDriveResult.src : ''
+  const driveLookup = !shouldLookupDrive ? 'missing' : matchedDriveResult?.status || 'loading'
+  const fileSrc = driveSrc || (isVideoFile(url) ? url : '')
   const videoRef = useRef(null)              /* thẻ <video> của nhánh file */
+
+  /* Tìm clip riêng tư trong Drive bằng tên quy ước. Backend chỉ trả URL cùng
+     origin sau khi xác minh đúng file trong folder; không đưa token/Drive URL
+     cho trình duyệt. Không thấy file thì giữ nhánh YouTube cũ. */
+  useEffect(() => {
+    if (!shouldLookupDrive) return undefined
+    const controller = new AbortController()
+    const params = new URLSearchParams({ artist: driveArtist, title: driveTitle })
+    fetch(`/api/drive-video/find?${params}`, { signal: controller.signal })
+      .then(async response => {
+        const result = await response.json().catch(() => null)
+        if (!response.ok || typeof result?.url !== 'string' || !result.url.startsWith('/api/drive-video/stream?')) {
+          throw new Error('clip_not_found')
+        }
+        return result.url
+      })
+      .then(source => {
+        if (!controller.signal.aborted) setDriveResult({ key: driveKey, status: 'ready', src: source })
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setDriveResult({ key: driveKey, status: 'missing', src: '' })
+      })
+    return () => controller.abort()
+  }, [shouldLookupDrive, driveArtist, driveTitle, driveKey])
 
   /* Esc để đóng + khoá cuộn nền + focus management: cùng luật với các hộp thoại khác của app. */
   useEffect(() => {
@@ -245,7 +278,7 @@ export default function VideoPreviewModal({ video, onClose }) {
 
   /* ---------- nghe player ---------- */
   useEffect(() => {
-    if (!id || over || blocked) return undefined
+    if (!id || fileSrc || driveLookup === 'loading' || over || blocked) return undefined
     const onMsg = (e) => {
       /* Hàng rào thật: chỉ nhận tin từ CHÍNH khung mình dựng. Không ai khác
          gửi được từ trong đó ra, nên đây là điều kiện mạnh hơn mọi danh sách
@@ -266,7 +299,7 @@ export default function VideoPreviewModal({ video, onClose }) {
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [id, over, blocked])
+  }, [id, fileSrc, driveLookup, over, blocked])
 
   /* ---------- vòng canh: bắt tay, đọc vị trí, cắt khi quá mốc ----------
      Mốc 30 giây đếm theo VỊ TRÍ CỦA VIDEO. Quảng cáo trước video (pre-roll) tự
@@ -278,7 +311,7 @@ export default function VideoPreviewModal({ video, onClose }) {
      tường vẫn cắt, và lúc đó tính cả quảng cáo — chấp nhận, vì cửa còn lại là
      "không bao giờ cắt". */
   useEffect(() => {
-    if (!id || over || blocked) return undefined
+    if (!id || fileSrc || driveLookup === 'loading' || over || blocked) return undefined
     const startedAt = Date.now()
     const iv = setInterval(() => {
       /* Player chỉ gửi sự kiện khi biết có người nghe, và lúc iframe vừa dựng
@@ -303,7 +336,7 @@ export default function VideoPreviewModal({ video, onClose }) {
         && late >= (PREVIEW_SECONDS + 2) * 1000) cut()
     }, 250)
     return () => clearInterval(iv)
-  }, [id, over, blocked, runId, send, cut])
+  }, [id, fileSrc, driveLookup, over, blocked, runId, send, cut])
 
   /* ---------- tua trên thanh thời gian (control của trang) ---------- */
   const barRef = useRef(null)
@@ -371,12 +404,12 @@ export default function VideoPreviewModal({ video, onClose }) {
       <div className="video-preview-end" aria-live="polite">
         <div className="video-preview-endbox">
           <b>{t('preview.ended')}</b>
-          <p>{t('preview.endedNote', { total: PREVIEW_SECONDS })}</p>
+          <p>{t(driveSrc ? 'preview.driveEndedNote' : 'preview.endedNote', { total: PREVIEW_SECONDS })}</p>
           <div className="video-preview-endacts">
             <button type="button" className="btn btn-sm" onClick={replay}>
               <Icon name="play" size={13} />{t('preview.replay')}
             </button>
-            {url && (
+            {url && !driveSrc && (
               <a className="btn btn-sm btn-primary" href={url} target="_blank" rel="noreferrer">
                 <Icon name="ext" size={13} />{t(id ? 'preview.open' : 'preview.openLink')}
               </a>
@@ -384,6 +417,31 @@ export default function VideoPreviewModal({ video, onClose }) {
           </div>
         </div>
       </div>
+    )
+  } else if (driveLookup === 'loading') {
+    body = <p className="video-preview-fallback" role="status">{t('preview.loading')}</p>
+  } else if (fileSrc) {
+    /* Clip Drive được proxy qua endpoint cùng origin; thẻ video và modal này là
+       player duy nhất. onTimeUpdate + onSeeking giữ nguyên trần 30 giây. */
+    body = (
+      <video
+        key={runId}
+        ref={videoRef}
+        className="video-preview-file"
+        src={fileSrc}
+        playsInline
+        controls
+        autoPlay
+        onTimeUpdate={(e) => {
+          const s = e.currentTarget.currentTime
+          atRef.current = keptTime(atRef.current, s)
+          setAt(s)
+          if (overCap(s)) { e.currentTarget.pause(); cut() }
+        }}
+        onSeeking={(e) => {
+          if (overCap(e.currentTarget.currentTime)) { e.currentTarget.pause(); cut() }
+        }}
+      />
     )
   } else if (blocked) {
     body = <p className="video-preview-fallback">{t('preview.noEmbed')}</p>
@@ -403,25 +461,6 @@ export default function VideoPreviewModal({ video, onClose }) {
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => send(handshake())}
           allowFullScreen
-        />
-      </>
-    )
-  } else if (isVideoFile(url)) {
-    /* File video không phải YouTube: cùng một luật 30 giây, nhưng thẻ <video>
-       tự báo vị trí nên không cần postMessage. Nhánh này cũng để chính player
-       vẽ điều khiển — ở đây là `controls` của trình duyệt, đúng tinh thần vòng
-       29 ("xài nút của youtube" = để player tự vẽ, không chèn nút của trang). */
-    body = (
-      <>
-        <video
-          ref={videoRef}
-          className="video-preview-file" src={url} playsInline controls
-          onTimeUpdate={(e) => {
-            const s = e.currentTarget.currentTime
-            atRef.current = keptTime(atRef.current, s)
-            setAt(s)
-            if (overCap(s)) { e.currentTarget.pause(); cut() }
-          }}
         />
       </>
     )
@@ -454,7 +493,7 @@ export default function VideoPreviewModal({ video, onClose }) {
                 phần xem trước dài bao nhiêu và cho tua nhanh trong phạm vi đó;
                 tua RA NGOÀI 30 giây thì vòng canh cắt. Hết phần xem trước thì
                 thẻ "hết" đã phủ kín khung nên vạch ẩn đi. */}
-            {id && !over && (
+            {id && !fileSrc && !over && (
               <div className="video-preview-timeline">
                 <span
                   ref={barRef}
@@ -494,7 +533,7 @@ export default function VideoPreviewModal({ video, onClose }) {
               <span>{t('preview.thirty')}</span>
             </div>
             {id && <b className="video-preview-count">{t('preview.counter', { s: secs, total: PREVIEW_SECONDS })}</b>}
-            {url && (
+            {url && !driveSrc && (
               <a className="video-preview-open" href={url} target="_blank" rel="noreferrer">
                 <Icon name="ext" size={12} />{t(id ? 'preview.open' : 'preview.openLink')}
               </a>

@@ -82,6 +82,9 @@ test('Toaster: vùng live có trước nội dung, tin đầu tiên nằm trong 
       'vùng live bị dựng lại cùng mẩu tin — trình đọc màn hình không đọc')
     assert.ok(live.contains(toast), 'mẩu tin nằm NGOÀI vùng live')
     assert.ok(/Đã lưu/.test(toast.textContent), toast.textContent)
+    assert.ok(toast.querySelector('.toast-dot'), 'toast cần chấm trạng thái thay icon')
+    assert.equal(toast.querySelector('.toast-ico'), null, 'không render icon trang trí')
+    assert.equal(toast.querySelector('.toast-bar'), null, 'không render progress line')
 
     /* (3) tin đi hết (bấm nút đóng): vùng live ở lại */
     await act(async () => { toast.querySelector('.toast-x').click() })

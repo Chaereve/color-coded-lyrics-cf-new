@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import MysteryBox from './MysteryBox'
 import Icon from './Icon'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
@@ -181,12 +182,10 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
             </button>
           </div>
         )}
-        {(!mystery || !mystery.opened) && (
-          <div className="mystery-page-reset" title={t('spin.ruleReset')}>
-            <span>{t('spin.resetIn')}</span>
-            <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
-          </div>
-        )}
+        <div className="mystery-page-reset">
+          <span>{t('spin.resetIn')}</span>
+          <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
+        </div>
       </header>
 
       {error && (
@@ -222,7 +221,7 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
         </>
       )}
 
-      {oddsMounted && (
+      {oddsMounted && createPortal(
         <div className={`overlay${oddsOut}`}
           onMouseDown={e => { if (e.target === e.currentTarget) setOddsOpen(false) }}>
           <div ref={oddsRef} id="mystery-odds-dialog"
@@ -252,17 +251,13 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
                   </li>
                 ))}
               </ul>
-              <ul className="mystery-rules">
-                <li>{t('mystery.ruleOnce')}</li>
-                <li>{t('mystery.ruleCap')}</li>
-                <li>{t('mystery.rulePaid')}</li>
-              </ul>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {historyMounted && (
+      {historyMounted && createPortal(
         <div className={`overlay${historyOut}`}
           onMouseDown={e => { if (e.target === e.currentTarget) setHistoryOpen(false) }}>
           <div ref={historyRef} id="mystery-history-dialog"
@@ -274,7 +269,8 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
               onShift={delta => setViewMonth(shiftMonth(month, delta))}
               onClose={() => setHistoryOpen(false)} />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   )

@@ -124,6 +124,13 @@ const SEED = [
   { kind: 'Full Album', artist: 'NewJeans', title: 'Get Up', requester: 'lyricscsc', status: 'completed', progress: 100, votes: 27, video_url: 'https://youtu.be/dQw4w9WgXcQ' },
   { kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', progress: 0, votes: 0 },
   { kind: 'Full Album', artist: 'IVE', title: 'IVE SWITCH', requester: 'ttokyeoni', status: 'queued', progress: 0, votes: 6 },
+  /* Hàng BỊ TỪ CHỐI của chính tài khoản demo (i = 6 ⇒ user_id 'demo-user'),
+     kèm lý do. Bảng công khai ẩn cả `pending` lẫn `denied`, nên hàng này chỉ
+     xuất hiện ở khối "chỉ bạn thấy" trên trang cá nhân của chủ — có nó thì
+     chỗ đó mới bấm thử được ở chế độ demo, thay vì phải tự tạo request rồi
+     vào admin từ chối mới thấy. */
+  { kind: 'Color Coded Lyrics', artist: 'Kep1er', title: 'Straight Line', requester: 'Demo User', status: 'denied', progress: 0, votes: 0,
+    deny_reason: 'Official lyrics video already exists on the channel.' },
 ]
 function demoRows() {
   const r = readData(LS.rows, null)
@@ -294,7 +301,37 @@ const publicRequestsOf = (rows) => (rows || [])
   .filter(r => r && r.status !== 'pending' && r.status !== 'denied')
   .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
-const publicProfileShape = (profile, rows) => {
+/* ===== PHẦN CHỈ CHỦ HỒ SƠ THẤY =====
+   Bốn quy tắc trên ẩn `pending`/`denied` khỏi mọi người — đúng, vì đó là
+   chuyện riêng của người gửi. Nhưng hệ quả là CHÍNH NGƯỜI GỬI cũng không có
+   chỗ nào xem lại: họ chỉ nhận một thông báo trong hộp thư, còn hàng thì biến
+   mất, kèm theo cả lý do từ chối. Chủ dự án gặp đúng chỗ đó ("trang t hàng
+   denied ko có xuất hiện").
+
+   Nay khi người xem LÀ chủ hồ sơ, hai loại hàng đó được trả về ở một mảng
+   RIÊNG (`privateRecent`), không trộn vào `recent`:
+     · `recent` là dữ liệu công khai — số đếm, thẻ bài, link `?q=` đều dựa vào
+       nó; trộn hàng riêng vào là link dẫn tới bảng rỗng (bảng vẫn ẩn chúng);
+     · UI vẽ `privateRecent` bằng hàng KHÔNG có link, trong một khối có nhãn
+       "chỉ bạn thấy" — để không ai tưởng đây là danh sách công khai.
+   Người ngoài xem hồ sơ thì mảng này luôn rỗng, và câu truy vấn cũng không
+   tải những hàng đó về. */
+const privateRequestsOf = (rows) => (rows || [])
+  .filter(r => r && (r.status === 'pending' || r.status === 'denied'))
+  .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+
+/* `deny_reason` is not granted as a readable table column. This SECURITY
+   DEFINER RPC returns only reasons the signed-in requester owns (or an admin
+   may review); keep the public request snapshot and browser cache reason-free. */
+async function attachVisibleDenialReasons(rows) {
+  if (!hasSupabase || !Array.isArray(rows) || rows.length === 0) return rows || []
+  const { data, error } = await supabase.rpc('get_visible_denial_reasons')
+  if (error || !Array.isArray(data)) return rows
+  const reasons = new Map(data.map(item => [item.id, item.deny_reason]))
+  return rows.map(row => ({ ...row, deny_reason: reasons.get(row.id) || null }))
+}
+
+const publicProfileShape = (profile, rows, ownerView = false) => {
   const visible = publicRequestsOf(rows)
   return {
     ...profile,
@@ -302,11 +339,16 @@ const publicProfileShape = (profile, rows) => {
     completed: visible.filter(r => r.status === 'completed').length,
     votes: visible.reduce((n, r) => n + Number(r.votes || 0), 0),
     recent: visible.slice(0, PUBLIC_RECENT),
+    privateRecent: ownerView ? privateRequestsOf(rows).slice(0, PUBLIC_RECENT) : [],
   }
 }
 
-export async function fetchPublicProfile(userId) {
+export async function fetchPublicProfile(userId, viewerId = null) {
   if (!userId) return null
+  /* Chủ hồ sơ = người đang xem. So sánh id ở ĐÂY chứ không hỏi thêm auth:
+     `viewerId` do App truyền xuống từ state đăng nhập, nên đường demo và đường
+     Supabase trả lời giống nhau, và hàm này vẫn thuần dữ liệu để test được. */
+  const ownerView = !!viewerId && viewerId === userId
   if (!hasSupabase) {
     const rows = demoRows().filter(r => r.user_id === userId)
     // Nếu không có rows, kiểm tra xem userId có phải là seed ID hợp lệ không
@@ -319,21 +361,26 @@ export async function fetchPublicProfile(userId) {
     // Lấy tên từ row đầu tiên, hoặc tạo tên mặc định cho seed IDs
     const name = rows[0]?.requester || (userId === 'demo-user' ? 'Demo User' : `User ${userId}`)
     return publicProfileShape(
-      { id: userId, name, avatar_url: null }, rows)
+      { id: userId, name, avatar_url: null }, rows, ownerView)
   }
   const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
     /* Hai `.neq` ở đây chỉ để KHÔNG TẢI về những hàng kiểu gì cũng bị bỏ;
        luật lọc thật nằm trong `publicRequestsOf` để cả hai đường (demo /
        Supabase) trả lời giống nhau. */
-    supabase.from('requests')
-      .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url')
-      .eq('user_id', userId).neq('status', 'pending').neq('status', 'denied')
-      .order('created_at', { ascending: false })
-      .limit(50),
+    (() => {
+      /* Chủ hồ sơ: tải CẢ hàng chờ duyệt / bị từ chối (kèm lý do) để chính họ
+         xem lại được; người ngoài: vẫn lọc ngay ở câu truy vấn. */
+      const q = supabase.from('requests')
+        .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid')
+        .eq('user_id', userId)
+      if (!ownerView) q.neq('status', 'pending').neq('status', 'denied')
+      return q.order('created_at', { ascending: false }).limit(50)
+    })(),
   ])
   if (pe) throw pe; if (re) throw re; if (!p) return null
-  return publicProfileShape(p, rs)
+  const privateRows = ownerView ? await attachVisibleDenialReasons(rs || []) : rs
+  return publicProfileShape(p, privateRows, ownerView)
 }
 
 /* ======================== READ ======================== */
@@ -413,17 +460,24 @@ export async function fetchRequests() {
   /* Lần nạp đầu của trang là thứ quyết định người dùng có thấy bảng hay
      không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js). */
   const { data, error } = await readQuery(() =>
-    supabase.from('requests').select('*')
+    supabase.from('requests')
+      .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
       .order('created_at', { ascending: false }).limit(800))
   if (!error) {
     cacheWrite(CACHE.rows, data)
-    return data
+    return attachVisibleDenialReasons(data)
   }
   /* A transient outage must not make previously loaded user data disappear.
      If the old browser snapshot exists, use it even while the owner repairs
      a missing schema object; never replace it with a fake empty board. */
   const cached = cacheRead(CACHE.rows)
-  if (Array.isArray(cached)) return cached
+  if (Array.isArray(cached)) {
+    /* Purge snapshots from versions that cached every column, including private
+       notes. Offline board data remains available without retaining the reason. */
+    const safeCached = cached.map(({ deny_reason: _privateReason, ...row }) => ({ ...row, deny_reason: null }))
+    cacheWrite(CACHE.rows, safeCached)
+    return safeCached
+  }
   throw error
 }
 

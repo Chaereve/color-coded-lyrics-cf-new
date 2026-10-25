@@ -38,11 +38,10 @@ export default function Progress({ pct, label, wide = false }) {
   const marks = []
   let sum = 0
   for (const m of MILESTONES.slice(0, -1)) { sum += m.pct; marks.push(sum) }
-  const stages = MILESTONES.map(m => `${m.label} ${m.pct}%`).join(' · ')
   return (
     <div className={`prog${wide ? ' prog-wide' : ''}${full ? ' prog-full' : ''}`}
       role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}
-      aria-label={label} title={stages}>
+      aria-label={label}>
       {/* KHÔNG vẽ vạch khi 0%. Trước đây vạch luôn được dựng và luôn có
          `min-width: 6px` (để 1% nhìn thấy được), nên ở 0% vẫn có một que màu
          nằm trong rãnh — trong khi con số ngay cạnh ghi "0%": hai chỗ nói

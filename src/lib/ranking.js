@@ -1,66 +1,12 @@
 import { isRewardEligibleRequest, requestWorkKey } from './requestEligibility.js'
 
-/* =========================================================
-   LUẬT XẾP HẠNG — một chỗ, một câu trả lời
-   ---------------------------------------------------------
-   Bảng xếp hạng trước đây tự sắp trong component, và chuỗi so sánh có một lỗi
-   thật: khi đang xếp theo `total_votes`, hai khoá phá hoà ĐẦU TIÊN đều là
-   chính `total_votes` — khoá thứ hai không bao giờ chạy, còn khoá thứ ba mới
-   tới lượt. Hệ quả: hai người bằng phiếu thì thứ tự rơi xuống so theo… tên,
-   trong khi một người có 12 bài đã xong đứng ngang hàng người có 1 bài. Người
-   xem không gọi được tên lỗi, chỉ thấy "bảng này xếp kỳ".
+/* Shared ranking helpers. The Leaderboard's fixed display order uses the
+   arithmetic mean of requests, completed requests, and votes (see
+   rankRowsByAverage below). `rankRows` remains available for existing callers
+   that intentionally need a single-metric ordering. */
 
-   Bản này gom luật vào một module thuần (không React, không mạng) để test
-   được bằng số, và khai rõ từng khoá phá hoà theo thứ tự:
-
-     1. `completed`    — số BÀI ĐÃ XONG (mặc định), nhiều hơn đứng trước
-     2. `total_votes`  — tổng phiếu mà các bài của người đó nhận được
-     3. `total`        — số BÀI đã gửi, nhiều hơn đứng trước
-
-   Mọi cách xếp dùng CÙNG một chuỗi phá hoà (trừ chính khoá đang xếp): bài đã
-   xong → tổng phiếu → số bài → tỉ lệ hoàn thành → tên. Ba điều đáng nói:
-
-   · SỐ BÀI, KHÔNG PHẢI SỐ DÒNG. Dữ liệu đếm theo bài (artist + title, đã
-     chuẩn hoá) — cùng luật với bảng request và với việc gộp cụm trùng. Trước
-     đây một bài do ba người gửi được tính là ba "request", nên gửi trùng là
-     một cách leo hạng: đúng thứ mà cả phần còn lại của app đang chống.
-   · KHOÁ PHÁ HOÀ KHÔNG BAO GIỜ TRÙNG KHOÁ CHÍNH. Xếp theo phiếu thì khoá phá
-     hoà đầu tiên là số bài đã xong, không phải phiếu (trùng khoá chính là
-     khoá chết).
-   · TỈ LỆ HOÀN THÀNH chỉ dùng khi số bài ĐÃ BẰNG NHAU. 6/6 thắng 6/30, nhưng
-     30 bài xong không bị 7/7 đè — số lượng thật vẫn là sự thật chính.
-   ========================================================= */
-
-/* =========================================================
-   KHÔNG CÒN "ĐIỂM" — ba con số THẬT, không con số nào tự đặt
-   ---------------------------------------------------------
-   Bản trước có một cột ĐIỂM: `điểm = 10 × số bài đã xong + tổng phiếu`. Con số
-   đó do chính bảng tự đặt ra, và trọng số 10 chẳng ứng với thứ gì trong sản
-   phẩm: không phải giá của một bài, không phải mốc phiếu nào, không xuất hiện ở
-   bất kỳ màn hình nào khác. Người xem muốn hiểu thứ tự phải tin vào một phép
-   nhân không giải thích được — đúng lý do bị gọi là "tiêu chí điểm kì lạ", và
-   cũng là lý do bảng phải có thêm một câu giải thích dài dưới tiêu đề.
-
-   Nay bảng chỉ xếp theo BA con số ĐẾM ĐƯỢC, mỗi con số trả lời một câu hỏi mà
-   người xem tự hỏi được:
-
-     · `completed`   — ai có nhiều bài được làm xong nhất  (MẶC ĐỊNH)
-     · `total_votes` — ai nhận được nhiều phiếu nhất
-     · `total`       — ai gửi nhiều bài nhất
-
-   Ba cách xếp này vốn đã có từ trước; việc bỏ cột điểm KHÔNG làm mất thông tin
-   nào, vì mọi đầu vào của nó (`completed`, `total_votes`) đều đã là một cột
-   riêng trong bảng và một cách xếp riêng. Bớt được một cột, một tab, và một
-   câu giải thích — cũng là bớt đúng cái "rối mắt" của trang.
-
-   Thứ tự mặc định là BÀI ĐÃ XONG, không phải số bài gửi: gửi nhiều mà không có
-   bài nào lên sóng thì không leo hạng — đúng thứ mà cả phần còn lại của app
-   đang bảo vệ (gom cụm trùng, bài bị từ chối không tính hạng).
-   ========================================================= */
-
-/* Bốn góc nhìn, mỗi góc một câu hỏi. `field` là khoá chính; `tone` là màu của
-   núm chọn (khớp màu chữ của cột tương ứng trong bảng); `minis` là hai con số
-   phụ in dưới bục — hai chỉ báo quan trọng nhất của góc nhìn đó. */
+/* Legacy single-metric ordering definitions; the Leaderboard no longer
+   exposes these as user-selectable controls. */
 export const RANK_SORTS = [
   { k: 'completed', field: 'completed', tone: 'var(--done)', minis: ['total_votes', 'total'] },
   { k: 'total_votes', field: 'total_votes', tone: 'var(--paid)', minis: ['completed', 'total'] },
@@ -166,5 +112,25 @@ export function rankRows(rows, sortKey = 'completed') {
       place: i + 1,
       rate: ratePct(p),
       share: max ? n(p?.[field]) / max : 0,
+    }))
+}
+
+/* Leaderboard's fixed overall ranking: the arithmetic mean of its three
+   visible measures. Keep the unrounded mean for ordering; presentation may
+   format it to two decimals. */
+export const averageRankScore = (p) => (
+  n(p?.total) + n(p?.completed) + n(p?.total_votes)
+) / 3
+
+export function rankRowsByAverage(rows) {
+  const list = (rows || []).map(p => ({ ...p, score: averageRankScore(p) }))
+  const max = list.reduce((m, p) => Math.max(m, p.score), 0)
+  return list
+    .sort((a, b) => (b.score - a.score) || tieBreak(a, b, 'score'))
+    .map((p, i) => ({
+      ...p,
+      place: i + 1,
+      rate: ratePct(p),
+      share: max ? p.score / max : 0,
     }))
 }

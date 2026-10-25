@@ -1,5 +1,14 @@
 # Theo dõi bài + thông báo — thiết kế cho bản thật
 
+> **CẬP NHẬT 2026-10-21 — TẦNG THEO DÕI ĐÃ BỊ GỠ KHỎI SẢN PHẨM.**
+> Chuông theo dõi và nút chia sẻ trên mỗi hàng request đã bị xoá theo yêu cầu
+> của chủ dự án; kéo theo: danh sách bài đang theo dõi, tab "Following", bốn
+> công tắc loại tin, `pickLadder`/`pickEta` (dòng "còn N vote nữa" và sàn thời
+> gian), và mọi tin sinh từ bài của NGƯỜI KHÁC. `src/lib/watch.js` bây giờ chỉ
+> còn: hộp thư + tin về request CỦA CHÍNH MÌNH + gộp tin từ database.
+> Tài liệu dưới đây giữ nguyên như bản thiết kế gốc để tra cứu lịch sử; phần
+> nói về theo dõi bài KHÔNG còn đúng với mã hiện tại.
+
 Ngày 2026-09-08 · trạng thái: **prototype trong trình duyệt đã chạy được**, phần database
 đã viết vào `supabase/schema.sql` (khối "THEO DÕI BÀI + THÔNG BÁO" ở cuối file, đúng thiết kế
 mục 3 + 4 dưới đây). **Chưa nối frontend**: `src/lib/watch.js` vẫn đọc localStorage cho tới khi

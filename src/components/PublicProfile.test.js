@@ -50,12 +50,12 @@ test('trang cá nhân công khai: lỗi có nút thử lại, không tồn tại
     /* Dựng lại hồ sơ trong CÙNG một root: `mount` tự tháo lượt trước (trong
        act) rồi mới dựng lượt mới — tháo ngoài act để lại việc bất đồng bộ
        chạy sau khi test kết thúc (bài học từ Comments.test.js). */
-    const mount = async (fetchers) => {
+    const mount = async (fetchers, viewerId = null, onDelete = null) => {
       if (root) { const old = root; root = null; await act(async () => old.unmount()) }
       root = createRoot(document.getElementById('app'))
       await act(async () => {
         root.render(h(I18nProvider, null, h(NotifyProvider, null,
-          h(PublicProfile, { userId: 'u1', onBack: () => {}, fetchers }))))
+          h(PublicProfile, { userId: 'u1', viewerId, onBack: () => {}, onDelete, fetchers }))))
       })
       await act(async () => { await new Promise(r => setTimeout(r, 0)) })
     }
@@ -123,6 +123,38 @@ test('trang cá nhân công khai: lỗi có nút thử lại, không tồn tại
     }
     assert.ok(!/\b(public|badge|name)\.[a-zA-Z]/.test(page), 'in khoá trần ra màn hình')
     assert.ok(!document.querySelector('[role="alert"]'))
+
+    /* (6) request riêng của chủ hồ sơ dùng cùng hàng với trang chủ. Lý do
+       không nằm inline, chỉ mở khi chủ bấm Denied; kể cả dữ liệu được trả về
+       nhầm cho người xem khác thì UI vẫn không render request riêng. */
+    const privateReason = 'Thông tin chỉ dành cho người gửi và quản trị viên.'
+    const PRIVATE = {
+      ...RICH,
+      recent: [],
+      privateRecent: [{ id: 'private-1', title: 'Bài riêng', artist: 'Ca sĩ C',
+        kind: 'Color Coded Lyrics', status: 'denied', deny_reason: privateReason,
+        created_at: '2026-10-23T10:00:00.000Z' }],
+    }
+    let deletedId = null
+    await mount({ profile: async () => PRIVATE, streak: async () => null }, 'u1', async id => { deletedId = id; return false })
+    assert.ok(await waitFor(() => !!document.querySelector('.public-private-request')), text())
+    assert.ok(document.querySelector('.public-private-request.row.req'), 'private request phải dùng hàng giống trang chủ')
+    assert.ok(!text().includes(privateReason), 'lý do không được hiển thị inline')
+    const denied = [...document.querySelectorAll('.deny-reason-trigger')]
+      .find(button => button.textContent.trim() === 'Denied')
+    assert.ok(denied, 'chủ hồ sơ phải có nút Denied để xem lý do')
+    await act(async () => denied.click())
+    assert.ok(document.querySelector('.deny-reason-popover')?.textContent.includes(privateReason))
+    const remove = document.querySelector('.public-private-request button[aria-label="Delete request"]')
+    assert.ok(remove, 'chủ phải có thể xoá request chưa xử lý để lấy lại suất gửi')
+    await act(async () => remove.click())
+    assert.equal(deletedId, 'private-1', 'nút xoá phải gọi callback đúng request')
+
+    await mount({ profile: async () => PRIVATE, streak: async () => null }, 'u2', async () => { throw new Error('không được gọi') })
+    assert.ok(await waitFor(() => !!document.querySelector('.public-profile')), text())
+    assert.ok(!document.querySelector('.public-private-request'), 'người xem hồ sơ khác không thấy request riêng')
+    assert.ok(!document.querySelector('button[aria-label="Delete request"]'), 'người xem khác không được xoá request')
+    assert.ok(!text().includes(privateReason), 'người xem hồ sơ khác không thấy lý do từ chối')
   } finally {
     if (root) await act(async () => root.unmount())
     await server.close()

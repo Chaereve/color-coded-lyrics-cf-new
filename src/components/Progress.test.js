@@ -101,7 +101,9 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
   assert.match(css, /\.prog \{[^}]*max-width:\s*220px/,
     'khối vạch + số không được rộng quá 220px (cột danh sách chỉ ~740px)')
   const numRule = css.match(/\.prog-num \{[^}]*\}/)[0]
-  assert.match(numRule, /font-size:\s*10\.5px/, 'số là chú thích, không phải biển báo')
+  /* Cỡ số đi theo thang chữ chung (Gói 2): 11px là SÀN của thang, và mọi con
+     số nhỏ trong app phải lấy từ đó — không còn 10,5px viết tay. */
+  assert.match(numRule, /font-size:\s*var\(--fs-cap\)/, 'số là chú thích, không phải biển báo')
   assert.match(numRule, /font-weight:\s*500/, 'số không được in đậm — nó là thứ to tiếng nhất trong hàng')
   assert.match(numRule, /var\(--txt-2\)/, 'số pha với xám để không hét lên bằng màu bão hoà')
   assert.match(css, /\.prog-track > i\s*\{[^}]*width:\s*var\(--w, 0%\)/)
@@ -125,17 +127,59 @@ test('không còn thanh tiến độ nào dựng bằng tay', () => {
     'ai tắt hiệu ứng thì thanh đứng yên')
   assert.match(css, /\.prog-full \{ --sc: var\(--done\); \}/,
     'tick hết mốc thì --sc đổi sang màu xong')
-  assert.match(src.get('src/components/Progress.jsx'), /prog-full/,
-    'component phải thật sự đánh dấu trạng thái đã tick hết mốc')
-  /* Bảng quản trị và trang chủ phải tô GIỐNG nhau: không truyền màu trạng thái
-     vào vạch nữa (cùng một bài từng có hai màu vạch ở hai màn hình). */
-  assert.doesNotMatch(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*color=/,
-    'bảng quản trị không được tự tô màu vạch khác trang chủ')
-  /* Dấu % đi cùng tông với con số, không phải một màu xám thứ ba. */
-  assert.match(css, /\.prog-num span \{[^}]*opacity:\s*\.55/)
-
-  /* Ba chỗ dùng: hàng request, khối Up next, hàng admin. */
-  assert.match(src.get('src/App.jsx'), /<Progress pct=\{r\.progress\}/)
-  assert.match(src.get('src/App.jsx'), /<Progress pct=\{rep\.progress\}/)
+  /* HÀNG REQUEST KHÔNG CÒN DÙNG THANH NÀY (vòng 4). Chủ dự án nhìn ảnh chụp và
+     chốt: một yêu cầu có đúng ba việc có tên, nên ba nhịp (`.nhip`, xem
+     `Steps.jsx`) trả lời "đang ở đâu" thẳng hơn "47%". KHỐI UP NEXT CŨNG VẬY
+     (vòng 5): chủ dự án yêu cầu "trên phần up next tinh chỉnh cho đồng bộ với
+     đổi mới vừa qua" — cùng một bài mà hàng request đọc bằng ba vạch, còn Up
+     next đọc bằng thanh 220px + "47%" thì đó là hai ngôn ngữ cho một dữ liệu,
+     trên cùng một trang. Nay cả hai chỗ dùng `Steps`. Thanh phần trăm chỉ còn
+     lại ở bảng quản trị — nơi có trọn một cột cho nó. */
+  /* Bỏ chú thích trước khi soát: chính chú thích giải thích việc xoá luật cũ
+     có nhắc tên `.row .sub .prog`, soát cả chú thích là tự bắt lỗi mình. */
+  const cssBare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.doesNotMatch(cssBare, /\.row[^{}]*\.prog/, 'thanh tiến độ không còn trong hàng request — ba nhịp đã thay chỗ')
+  const app = src.get('src/App.jsx')
+  assert.equal((app.match(/<Progress pct=\{r\.progress\}/g) || []).length, 0,
+    'hàng request không được vẽ thanh tiến độ nữa')
+  /* Ba nhịp phải nằm trong dòng phụ `.meta` và chỉ hiện với hàng đang làm. */
+  const metaAt = app.indexOf('<div className="meta">')
+  const nhipAt = app.indexOf('<Steps pct={r.progress}')
+  assert.ok(metaAt > 0 && nhipAt > metaAt, 'ba nhịp là chi tiết của dòng phụ, phải đứng trong .meta')
+  assert.match(app, /r\.status === 'in_progress' &&[\s\S]{0,300}<Steps pct=\{r\.progress\}/,
+    'ba nhịp chỉ hiện khi hàng đang làm — hàng chờ chưa có gì để đếm')
+  /* Nút nghe KHÔNG được rơi xuống dòng phụ (`.meta` đã có trạng thái · loại ·
+     người gửi · giờ · ba nhịp), và cũng KHÔNG nằm trong dòng tiêu đề nữa:
+     đứng trong dòng chữ thì nó lửng lơ ở nửa trên bên phải — chủ dự án gọi là
+     "kì cục" ba lần liền. Nay nó là anh em của khối chữ, trước cột phiếu. */
+  const watchAt = app.indexOf('<a className="watchbtn"')
+  const voteAt = app.indexOf('<button className={`votebtn')
+  assert.ok(watchAt > metaAt && watchAt < voteAt,
+    'nút nghe đứng sau khối chữ và trước cột phiếu — vùng hành động của hàng')
+  assert.ok(app.indexOf('<div className="title">') < watchAt &&
+    app.indexOf('</div>', app.indexOf('<div className="title">')) < watchAt,
+    'nút nghe không còn nằm trong dòng tiêu đề')
+  assert.doesNotMatch(app, /pctValue|prog-edge/, 'tàn dư của phương án C phải sạch')
+  /* Up next đổi sang ba nhịp ở vòng 5 cho đồng bộ với hàng request. */
+  assert.doesNotMatch(app, /<Progress pct=\{rep\.progress\}/,
+    'Up next không vẽ thanh riêng nữa — cùng dữ liệu thì cùng một hình')
+  const nowAt = app.indexOf('className="now-item"')
+  const nowSteps = app.indexOf('<Steps pct={rep.progress}', nowAt)
+  const metaAfterNow = app.indexOf('<div className="meta">', nowAt)
+  assert.ok(nowSteps > 0 && metaAfterNow > 0,
+    'Up next phải có ba nhịp nằm trong dòng phụ .meta của nó')
   assert.match(src.get('src/components/AdminPanel.jsx'), /<Progress pct=\{pct\}[^>]*wide/)
+
+  /* BA NHỊP — hình học và nghĩa. Tên lớp là `.nhip` chứ không phải `.steps`:
+     `.steps` đã là bộ nút mốc của panel quản trị (`margin-top: 9px`,
+     `flex-wrap`), đặt trùng tên là hai luật gộp vào một phần tử và dòng phụ
+     cao thêm 9px — đúng thứ vừa gỡ. */
+  assert.match(css, /\.nhip\s*\{[^}]*display:\s*inline-flex/, 'ba nhịp là một cụm nằm trong dòng chữ')
+  assert.match(css, /\.nhip-seg\s*\{[^}]*width:\s*16px/, 'mỗi vạch 16px — chi tiết phụ, không phải khối')
+  assert.match(css, /\.nhip-seg\s*\{[^}]*height:\s*3px/, 'vạch 3px: một nét, không phải một dải băng')
+  assert.match(css, /\.nhip-seg > i\s*\{[^}]*width:\s*var\(--w, 0%\)/, 'phần tô của mỗi vạch theo đúng tỉ lệ việc đó')
+  assert.match(css, /\.nhip-n\s*\{[^}]*tabular-nums/, 'số việc phải đứng yên khi tiến độ đổi')
+  assert.doesNotMatch(css, /^\.nhip[^{]*\{[^}]*margin-top/m, 'ba nhịp không được có lề trên — nó nằm trong dòng chữ, không phải một khối riêng')
+  /* `.meta` là hộp flex của CHỮ: chỉ được chứa thứ thẳng hàng với chữ. */
+  assert.doesNotMatch(css, /\.row \.meta \.prog/, 'thanh tiến độ (khối) không được quay lại hộp chữ .meta')
 })

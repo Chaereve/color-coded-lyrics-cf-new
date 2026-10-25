@@ -52,10 +52,10 @@ import { isRewardEligibleRequest, requestWorkKey } from './requestEligibility.js
 
 export const TZ = 'Asia/Ho_Chi_Minh'
 
-/* Ba góc nhìn thời gian. `all` là bảng cũ — toàn bộ thời gian, không cửa sổ.
-   Nhãn nút nằm trong từ điển (rank.period.*) và được gọi nguyên văn từng key
-   trong Leaderboard — không ghép động, vì họ key này không có tiền tố động. */
-export const PERIODS = [{ k: 'all' }, { k: 'week' }, { k: 'month' }]
+/* Hai lựa chọn trên Leaderboard: `all` và `month`. Bộ tính cửa sổ tuần vẫn
+   được giữ cho các phép tính thời gian khác, nhưng không còn là một kỳ trong
+   giao diện xếp hạng. */
+export const PERIODS = [{ k: 'all' }, { k: 'month' }]
 
 /* "Hôm nay" theo lịch Việt Nam, dạng 'YYYY-MM-DD'. `en-CA` vì nó là locale
    duy nhất in ra đúng thứ tự năm-tháng-ngày, không phải ngày/tháng kiểu Mỹ.
@@ -128,7 +128,7 @@ const sentAt = (r) => {
    Nhận danh sách phiếu thô (database: {request_id, created_at}; demo:
    {id, at}) và trả Map: request_id → số phiếu NHẬN trong [start, end).
    Phiếu rác (thiếu id, mốc không phải thời điểm) bị bỏ chứ không NaN.
-   Khối "This week" trang chủ và Leaderboard tuần/tháng đều gọi đúng hàm
+   Khối "This week" trang chủ và Leaderboard tháng đều gọi đúng hàm
    này — hai chỗ tự đọc trường phiếu là hai chỗ lệch nhau.
    ========================================================= */
 export function votesByRequest(votesLog, start, end) {

@@ -1,15 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useCountUp } from '../lib/motion'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
-import { useCountUp } from '../lib/motion'
 import { usePager } from '../lib/usePager'
-import { RANK_SORTS, rankRows } from '../lib/ranking.js'
+import { rankRowsByAverage } from '../lib/ranking.js'
 import { PERIODS, seasonRows, seasonWindow, seasonLabel } from '../lib/season.js'
 import Pager from './Pager'
 
 const PER_PAGE = 25
-
-const SORTS = RANK_SORTS
 
 const initials = (name) => (name || '?').trim()[0]?.toUpperCase() || '?'
 
@@ -19,189 +17,84 @@ function Face({ p, size = 'md' }) {
     : <span className={`lb-av ${size} ph`}>{initials(p.name)}</span>
 }
 
-const NUM_LABEL = { total: 'requests', completed: 'completed', total_votes: 'votes' }
-
-function PodiumFace({ p, place, max, sort, period = 'all' }) {
+function PodiumFace({ p, place, period = 'all' }) {
   const { t } = useI18n()
-  const n = useCountUp(p[sort.field], 620)
-  const pct = max ? Math.round((p[sort.field] / max) * 100) : 0
-  const minis = sort.minis
-  const reward = period === 'week'
-    ? (place === 1 ? t('rank.reward.w1') : place === 2 ? t('rank.reward.w2') : place === 3 ? t('rank.reward.w3') : null)
-    : period === 'month'
-      ? (place === 1 ? t('rank.reward.m1') : place === 2 ? t('rank.reward.m2') : place === 3 ? t('rank.reward.m3') : null)
-      : null
+  const average = useCountUp(p.score, 620)
+  const reward = period === 'month'
+    ? (place === 1 ? t('rank.reward.m1') : place === 2 ? t('rank.reward.m2') : place === 3 ? t('rank.reward.m3') : null)
+    : null
 
   return (
-    <div className={`lb-pod p${place}`} style={{ '--i': place - 1 }}>
-      <span className="lb-medal" aria-hidden="true">
-        <Icon name="star" size={16} />
-        <b>{place}</b>
-      </span>
-      <Face p={p} size="lg" />
-      <div className="lb-pod-name" title={p.name}>{p.name}</div>
-      <div className="lb-pod-num">
-        <b key={sort.k}>{n}</b>
-        <span>{t(`rank.${NUM_LABEL[sort.field]}`)}</span>
+    <article className={`lb-pod p${place}`} style={{ '--i': place - 1 }}>
+      <div className="lb-pod-person">
+        <span className="lb-pod-facewrap">
+          <Face p={p} size="lg" />
+          {place === 1 && <span className="lb-pod-crown" aria-hidden="true"><Icon name="crown" size={12} /></span>}
+        </span>
+        <span className="lb-pod-name-row">
+          <span className="lb-pod-name" title={p.name}>{p.name}</span>
+        </span>
+        <span className="lb-pod-num">
+          <b>{Number(average || 0).toFixed(2)}</b>
+          <span>{t('rank.averageScore')}</span>
+        </span>
+        {reward && <span className="lb-pod-reward"><Icon name="cup" size={11} /> {reward}</span>}
       </div>
-      <div className="lb-pod-bar"><i style={{ width: `${pct}%` }} /></div>
-      <div className="lb-pod-mini">
-        {minis.map(f => <span key={f}>{p[f] ?? 0} {t(`rank.${NUM_LABEL[f]}`)}</span>)}
-      </div>
-      {reward && (
-        <div className="lb-pod-reward" title={reward}>
-          <Icon name="cup" size={11} /> {reward}
-        </div>
-      )}
-    </div>
+      <div className="lb-pedestal" aria-hidden="true"><b>{place}</b></div>
+    </article>
   )
 }
 
-function PeriodSeg({ period, setPeriod, title }) {
+function PeriodSeg({ period, setPeriod }) {
   const { t } = useI18n()
   return (
-    <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')} title={title}>
+    <div className="lb-tabs lb-periodseg" role="group" aria-label={t('rank.periodLabel')}>
       {PERIODS.map((p) => (
         <button key={p.k} type="button" className={`lb-tab${period === p.k ? ' on' : ''}`}
           onClick={() => setPeriod(p.k)} aria-pressed={period === p.k}>
-          {p.k === 'all' ? t('rank.period.all') : p.k === 'week' ? t('rank.period.week') : t('rank.period.month')}
+          {p.k === 'all' ? t('rank.period.all') : t('rank.period.month')}
         </button>
       ))}
     </div>
   )
 }
 
-function RewardsModal({ open, onClose }) {
+function RankingsHeader({ period, setPeriod, showNotRanked = false, range = null }) {
   const { t } = useI18n()
-  const dialogRef = useRef(null)
-  const previousFocusRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return undefined
-
-    // Lưu element đang focus trước khi mở modal
-    previousFocusRef.current = document.activeElement
-
-    // Focus vào dialog khi mở
-    requestAnimationFrame(() => {
-      dialogRef.current?.focus()
-    })
-
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        onClose?.()
-        return
-      }
-
-      // Focus trap: giữ Tab/Shift+Tab bên trong dialog
-      if (e.key === 'Tab') {
-        const focusable = dialogRef.current?.querySelectorAll(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-        if (!focusable || focusable.length === 0) return
-
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault()
-            last.focus()
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault()
-            first.focus()
-          }
-        }
-      }
-    }
-
-    document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-      // Trả focus về trigger khi đóng
-      previousFocusRef.current?.focus()
-    }
-  }, [open, onClose])
-
-  if (!open) return null
-
   return (
-    <div className="lb-rewards-scrim" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
-      <section ref={dialogRef} className="lb-rewards-modal" role="dialog" aria-modal="true" aria-labelledby="lb-rewards-title" tabIndex={-1}>
-        <header className="lb-rewards-head">
-          <div>
-            <h3 id="lb-rewards-title"><Icon name="cup" size={14} /> {t('rank.rewards.title')}</h3>
-            <span>{t('rank.rewards.subtitle')}</span>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={t('btn.close')} title={t('btn.close')}>
-            <Icon name="close" size={16} />
-          </button>
-        </header>
-        <div className="lb-rewards-body">
-          <div className="lb-rewards-group">
-            <div className="lb-rewards-sub">{t('rank.rewards.weekTitle')}</div>
-            <p className="lb-rewards-desc">{t('rank.rewards.weekDesc')}</p>
-            <ul>
-              <li><b>1st</b> — {t('rank.reward.w1')}</li>
-              <li><b>2nd</b> — {t('rank.reward.w2')}</li>
-              <li><b>3rd</b> — {t('rank.reward.w3')}</li>
-            </ul>
-          </div>
-          <div className="lb-rewards-group">
-            <div className="lb-rewards-sub">{t('rank.rewards.monthTitle')}</div>
-            <p className="lb-rewards-desc">{t('rank.rewards.monthDesc')}</p>
-            <ul>
-              <li><b>1st</b> — {t('rank.reward.m1')}</li>
-              <li><b>2nd</b> — {t('rank.reward.m2')}</li>
-              <li><b>3rd</b> — {t('rank.reward.m3')}</li>
-            </ul>
-          </div>
-        </div>
-        <footer className="lb-rewards-foot">
-          <small>{t('rank.rewards.note')}</small>
-        </footer>
-      </section>
+    <div className="lb-list-head">
+      <div className="lb-list-heading">
+        <h3><Icon name="cup" size={14} />{t('rank.listTitle')}</h3>
+        {showNotRanked && <span className="lb-not-ranked">{t('rank.noMe')}</span>}
+      </div>
+      <PeriodSeg period={period} setPeriod={setPeriod} />
+      {range && <span className="sr-only">{range}</span>}
     </div>
   )
 }
 
 export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null, votesLog = [], loading = false }) {
   const { t } = useI18n()
-  const [sort, setSort] = useState(SORTS[0])
-  const [rewardsOpen, setRewardsOpen] = useState(false)
   const [period, setPeriod] = useState(PERIODS.some(p => p.k === initialPeriod) ? initialPeriod : 'all')
   const nowMs = useMemo(() => now ?? Date.now(), [now])
 
-  /* `votesLog` = phiếu nhận gần đây (db.js fetchRecentVotes): bảng mùa đếm
-     "vote nhận trong mùa" (luật trong seasonRows) nên cần mốc từng phiếu,
-     không chỉ tổng vote trên hàng request. */
+  /* `votesLog` = phiếu nhận gần đây (db.js fetchRecentVotes): bảng tháng đếm
+     "vote nhận trong tháng" nên cần mốc từng phiếu, không chỉ tổng vote trên
+     hàng request. Leaderboard hiện chỉ có All time và This month. */
   const view = useMemo(
     () => (period === 'all' ? (rows || []) : seasonRows(allRows, ranking, period, nowMs, votesLog)),
     [rows, allRows, ranking, period, nowMs, votesLog])
 
-  const ranked = useMemo(() => rankRows(view, sort.k), [view, sort.k])
+  const ranked = useMemo(() => rankRowsByAverage(view), [view])
 
-  const max = ranked[0] ? Number(ranked[0][sort.field]) || 0 : 0
   const podium = ranked.slice(0, 3)
-  const rest = ranked.slice(3)
-  const me = ranked.find(p => p.user_id === meId)
+  const meRanked = ranked.some(p => p.user_id === meId)
 
   const tableRef = useRef(null)
-  const pg = usePager(rest, PER_PAGE, [sort.k, period])
-
+  const pg = usePager(ranked, PER_PAGE, [period])
   const win = period === 'all' ? null : seasonWindow(period, nowMs)
   const range = win ? seasonLabel(period, nowMs) : null
-  const seasonTitle = [
-    range ? t('rank.range', { from: range.from, to: range.to }) : null,
-    t('rank.rangeTip'),
-    period === 'all' ? null : t('rank.votesNote'),
-  ].filter(Boolean).join(' · ')
+  const rangeLabel = range ? t('rank.range', { from: range.from, to: range.to }) : null
 
   /* ĐANG TẢI vs RỖNG THẬT. Bảng này chỉ là một cách NHÌN cùng dữ liệu của
      bảng request, nên khi bảng còn đang nạp (lần đầu, hoặc sau khi mất mạng
@@ -213,33 +106,19 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
 
   return (
     <div className="lb" data-reveal>
-      <div className="lb-bar">
-        <div className="lb-bar-tx">
-          <span className="lb-kicker">{t('rank.kicker')}</span>
-          <h2 className="lb-title">
-            {t('rank.title')}
-            <button type="button" className="lb-help" aria-label={t('rank.rewards.title')} title={t('rank.rewards.title')} onClick={() => setRewardsOpen(true)}>
-              ?
-            </button>
-          </h2>
-          {/* Rule is always shown so empty week still has context, but empty message replaces podium */}
-          <p className="lb-rule">
-            {period === 'all' ? t(`rank.rule.${sort.k}`) : t(`rank.periodRule.${sort.k}`)}
-          </p>
+      <h2 className="sr-only">{t('rank.title')}</h2>
+      <p className="lb-rule sr-only">
+        {period === 'all' ? t('rank.rule.average') : t('rank.periodRule.average')}
+      </p>
+      {!isEmpty && !showSkeleton && (
+        <div key={period} className={`lb-top c${Math.min(podium.length, 3)}`}>
+          {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
+            <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} period={period} />
+          ))}
         </div>
-        <div className="lb-bar-ctl">
-          <PeriodSeg period={period} setPeriod={setPeriod} title={seasonTitle} />
-          {/* Always show sort chips, even when empty, so user sees categories */}
-          <div className="lb-seg" role="group" aria-label={t('rank.sortLabel')}>
-            {SORTS.map((s, i) => (
-              <button key={s.k} type="button" className={`lb-segb${sort.k === s.k ? ' on' : ''}`}
-                style={{ '--c': s.tone, '--i': i }} onClick={() => setSort(s)} aria-pressed={sort.k === s.k}>
-                {t(`rank.sort.${s.k}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
+
+      <RankingsHeader period={period} setPeriod={setPeriod} showNotRanked={ranked.length > 0 && !meRanked} range={rangeLabel} />
 
       {isEmpty && (
         /* Khối rỗng theo khuôn chung (icon + giải thích + hành động): kỳ không
@@ -268,27 +147,20 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
         </div>
       )}
 
-      {!isEmpty && !showSkeleton && (
-        <div key={`top-${period}`} className={`lb-top c${Math.min(podium.length, 3)}`}>
-          {[podium[1], podium[0], podium[2]].filter(Boolean).map(p => (
-            <PodiumFace key={p.key || p.user_id || p.place} p={p} place={p.place} max={max} sort={sort} period={period} />
-          ))}
-        </div>
-      )}
-
-      {rest.length > 0 && (
-        <div key={`tbl-${period}`} className="lb-twrap">
+      {ranked.length > 0 && (
+        <div className="lb-twrap">
           <table className="lb-table" ref={tableRef}>
             <thead>
               <tr>
                 <th className="c-rk" scope="col">#</th>
                 <th scope="col">{t('rank.player')}</th>
+                <th className="num score-col" scope="col">{t('rank.averageScore')}</th>
                 <th className="num" scope="col">{t('rank.requests')}</th>
                 <th className="num hide-sm" scope="col">{t('rank.completed')}</th>
                 <th className="num" scope="col">{t('rank.votes')}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody key={period}>
               {pg.items.map((p, i) => (
                 <tr key={p.key || p.user_id || p.place} className={p.user_id === meId ? 'me' : ''} style={{ '--i': Math.min(i, 20) }}>
                   <td className="c-rk"><b>{p.place}</b></td>
@@ -300,6 +172,7 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
                     </span>
                     <i className="lb-underline" style={{ width: `${Math.round(p.share * 100)}%` }} aria-hidden="true" />
                   </td>
+                  <td className="num score-col"><b>{Number(p.score || 0).toFixed(2)}</b></td>
                   <td className="num">{p.total}</td>
                   <td className="num hide-sm">
                     <b>{p.completed}</b>
@@ -315,26 +188,6 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
 
       <Pager {...pg} onChange={pg.setPage} scrollTo={tableRef} />
 
-      {!isEmpty && !showSkeleton && <div className={`lb-me${me ? ' has' : ''}`}>
-        {me ? (
-          <>
-            <span className="lb-me-rk">{me.place}</span>
-            <Face p={me} />
-            <span className="lb-me-nm">{me.name}</span>
-            <span className="lb-me-stats">
-              <span>{t('rank.position', { n: me.place, total: ranked.length })}</span>
-              <span className="dot" aria-hidden="true" />
-              <span>{me.total} {t('rank.requests')}</span>
-              <span className="dot" aria-hidden="true" />
-              <span>{me.total_votes} {t('rank.votes')}</span>
-            </span>
-          </>
-        ) : (
-          <span className="lb-me-nm">{t('rank.noMe')}</span>
-        )}
-      </div>}
-
-      <RewardsModal open={rewardsOpen} onClose={() => setRewardsOpen(false)} />
     </div>
   )
 }

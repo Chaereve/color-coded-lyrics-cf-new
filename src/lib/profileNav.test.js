@@ -61,20 +61,20 @@ test('profileUrl: dạng tham số, không phải /u/ — host tĩnh chỉ phụ
   assert.equal(profileUrl(null), '/?profile=')
 })
 
-test('boardSearchUrl: LUÔN kèm f=newest, và từ khoá là "tên bài nghệ sĩ"', () => {
-  assert.equal(boardSearchUrl('Pop Off', 'LE SSERAFIM'), '/?f=newest&q=Pop+Off+LE+SSERAFIM')
+test('boardSearchUrl: mở cả trạng thái, xếp mới nhất, và từ khoá là "tên bài nghệ sĩ"', () => {
+  assert.equal(boardSearchUrl('Pop Off', 'LE SSERAFIM'), '/?f=all&s=newest&q=Pop+Off+LE+SSERAFIM')
   const p = new URLSearchParams(boardSearchUrl('Get Up', 'NewJeans').slice(2))
-  assert.equal(p.get('f'), 'newest',
-    'f phải là `newest`: `top` loại bài đã xong/đã vào dây chuyền nên link mở ra trang trống')
+  assert.equal(p.get('f'), 'all', 'f=all giữ được bài đã xong/đã vào dây chuyền')
+  assert.equal(p.get('s'), 'newest', 's=newest nói rõ cách xếp của bảng')
   assert.equal(p.get('q'), 'Get Up NewJeans')
-  assert.equal(boardSearchUrl(null, undefined), '/?f=newest', 'không có tên thì không đẻ ra `q=` rỗng')
+  assert.equal(boardSearchUrl(null, undefined), '/?f=all&s=newest', 'không có tên thì không đẻ ra `q=` rỗng')
   assert.equal(songQuery('  Pop   Off ', ' LE SSERAFIM'), 'Pop Off LE SSERAFIM')
 })
 
 test('absolute: link chia sẻ phải là URL tuyệt đối', () => {
   globalThis.window = { location: { origin: 'https://chaereve.pages.dev' } }
   assert.equal(absolute(boardSearchUrl('Get Up', 'NewJeans')),
-    'https://chaereve.pages.dev/?f=newest&q=Get+Up+NewJeans')
+    'https://chaereve.pages.dev/?f=all&s=newest&q=Get+Up+NewJeans')
   assert.equal(absolute(profileUrl('u1')), 'https://chaereve.pages.dev/?profile=u1')
   /* Không ghép được thì trả về nguyên trạng chứ không ném — đây là hàm chạy
      trong handler bấm, ném là mất cả cú bấm. */
@@ -204,7 +204,8 @@ test('mở một bài từ trang cá nhân phải dọn CẢ HAI bộ lọc nhi�
   assert.match(body, /setStatusFilters\(\[\]\)/, 'không dọn chip giai đoạn thì bài đã xong vẫn bị giấu')
   assert.match(body, /setKindFilters\(\[\]\)/, 'không dọn chip loại bài thì bài khác loại vẫn bị giấu')
   assert.match(body, /setKindFilter\('all'\)/, 'bản sao một-lựa-chọn (dùng cho ?k=) cũng phải về all')
-  assert.match(body, /setFilter\('newest'\)/, 'phải về cách nhìn thấy MỌI bài')
+  assert.match(body, /setFilter\('all'\)/, 'phải về chặng "cả bảng" — cách nhìn thấy MỌI bài')
+  assert.match(body, /setSort\('newest'\)/, 'đặt rõ cách xếp newest cho link xem mọi trạng thái')
   assert.match(body, /if \(!query\) return/, 'hàng thiếu tên bài thì đừng đẩy người ta vào danh sách rỗng')
   assert.match(body, /boardSearchUrl\(/, 'địa chỉ phải dựng bằng hàm dùng chung')
 })

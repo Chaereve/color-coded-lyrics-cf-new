@@ -9,9 +9,10 @@
   XOÁ đầu tiên khi "dọn CSS".
 
    Bối cảnh ra đời (quét 08/09/2026): `.toast-x` 22px là dấu × duy nhất để đóng
-   toast trên điện thoại; `.rowact` 18px là nút mảnh ở cuối dòng meta — cả hai
+   toast trên điện thoại, `.rowact` 18px là nút mảnh ở cuối dòng meta — cả hai
    đều là control thật, không phải biểu tượng trang trí, nên đều được nới lên
-   24–30px trong @media bản hẹp. Chạy: npm test */
+   24–30px trong @media bản hẹp. `.rowact` đã đi cùng hai tính năng bị gỡ; bảng
+   dưới chỉ còn những cặp số đang thật sự có trên giao diện. Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -50,12 +51,12 @@ const forCls = (cls) => rules.filter((r) => new RegExp(`\\.${esc(cls)}(?![\\w-])
 const sizedIn = (cls, where, w, h) => forCls(cls).some((r) => (where === 'media' ? r.media : !r.media)
   && size(r.body, 'width') === w && size(r.body, 'height') === h)
 
-/* [class, ban desktop, ban cam ung/hea hep, ly do] */
+/* [class, ban desktop, ban cam ung/hea hep, ly do]
+   Mục `.rowact` (chuông theo dõi + nút chia sẻ) đã bị gỡ cùng hai tính năng đó.
+   Nút nghe `.watchbtn` không vào bảng này vì hình của nó KHÔNG đổi giữa hai
+   bản: máy cảm ứng giữ hộp 24px và nới vùng chạm bằng pseudo-element, nên hợp
+   đồng của nó nằm ở cssGridRows.test.js (chỗ đọc được cả `inset`). */
 const CONTRACT = [
-  /* Nút mảnh cuối dòng meta (theo dõi + chia sẻ): 18px là dấu mờ, 24px là mục
-     tiêu chạm. Cả hai nút dùng CHUNG `.rowact` nên chỉ có một cặp số để canh —
-     thêm nút mảnh thứ ba thì nó tự thừa hưởng, không phải khai gì thêm. */
-  ['rowact', 18, 24, 'nút mảnh cuối dòng meta: 18px là dấu mờ, 24px là mục tiêu chạm'],
   ['toast-x', 22, 30, 'dấu × của toast là cách DUY NHẤT để đóng nó trên điện thoại'],
 ]
 

@@ -31,7 +31,7 @@ export default function StreakStrip({ days = null, stats = null, now = null }) {
 
   return (
     <div className="streak" role="group" aria-label={t('streak.label')}>
-      <span className="streak-flame" title={t('streak.how')} aria-hidden="true">
+      <span className="streak-flame" title={t('streak.label')} aria-hidden="true">
         <Icon name="flame" size={16} />
       </span>
       {s.current > 0
@@ -43,7 +43,7 @@ export default function StreakStrip({ days = null, stats = null, now = null }) {
           const got = s.earned.includes(m)
           return (
             <span key={m} className={`streak-mile${got ? ' got' : ''}`}
-              title={got ? t('streak.unlocked', { n: m }) : t('streak.locked', { n: m })}>
+              title={t('streak.milestone', { n: m })}>
               <Icon name="flame" size={11} />{m}
             </span>
           )

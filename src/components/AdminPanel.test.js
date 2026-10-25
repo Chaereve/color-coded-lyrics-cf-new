@@ -58,7 +58,8 @@ const orders = [
   { id: 'o1', kind: 'votes', qty: 10, amount_vnd: 20000, amount_usd: 1, status: 'awaiting', request_id: 'a1', created_at: '2026-09-03T00:00:00.000Z' },
 ]
 const media = [
-  { id: 'm1', kind: 'featured', title: 'Whiplash', url: 'https://youtu.be/x', position: 0, is_hidden: false, created_at: '2026-09-01T00:00:00.000Z' },
+  { id: 'm0', kind: 'featured', title: 'Legacy feature', url: 'https://youtu.be/y', position: 0, is_hidden: false, created_at: '2026-09-02T00:00:00.000Z' },
+  { id: 'm1', kind: 'video', title: 'Whiplash', url: 'https://youtu.be/x', position: 1, is_hidden: false, created_at: '2026-09-01T00:00:00.000Z' },
 ]
 
 const base = {
@@ -72,9 +73,15 @@ test('cả năm mục của trang quản trị đều dựng được (không s�
   for (const tab of ['overview', 'pending', 'active', 'expired', 'picked', 'orders', 'done', 'media', 'log']) {
     const html = await render({ ...base, tab })
     assert.ok(html.includes('class="adm-page"'), `mục ${tab}: thiếu khung .adm-page`)
-    assert.ok(html.includes('adm-kpis'), `mục ${tab}: thiếu dải số liệu`)
-    assert.ok(html.includes('aria-pressed'), `mục ${tab}: mục đang mở phải đọc được bằng aria-pressed`)
+    assert.ok(html.includes('adm-section-select'), `mục ${tab}: thiếu bộ chọn mục gọn`)
+    assert.ok(html.includes(`value="${tab}" selected=""`), `mục ${tab}: select phải phản ánh mục đang mở`)
   }
+})
+
+test('lý do từ chối trong bảng admin chỉ hiện khi bấm nhãn Denied', async () => {
+  const html = await render({ ...base, tab: 'done' })
+  assert.match(html, /deny-reason-trigger[^>]*>Denied<\/button>/, 'admin cần nút mở lý do')
+  assert.doesNotMatch(html, /trùng bài/, 'lý do không được render inline')
 })
 
 test('funnel 7/30 ngày chỉ đọc ở mục Tổng quan, tải tường minh qua đúng một RPC (không polling)', async () => {
@@ -119,10 +126,10 @@ test('trang không còn dấu vết của hộp thoại cũ', async () => {
 
 test('dải số liệu đếm ĐÚNG thứ mà từng mục sẽ liệt kê — và đếm một lần', async () => {
   const html = await render({ ...base, tab: 'pending' })
-  const kpi = html.match(/<div class="adm-kpis"[\s\S]*?<\/div><\/div>/)?.[0] ?? ''
-  const nums = [...kpi.matchAll(/<span class="v">(\d+)<\/span>/g)].map(m => m[1])
-  assert.deepEqual(nums, ['0', '2', '1', '0', '1', '1', '2', '1', '0'],
-    'tổng quan (không đếm) · chờ duyệt 2 · đang xử lý 1 · hết hạn 0 · đã pick 1 · đơn chờ 1 · đã xong/từ chối 2 · video 1 · nhật ký 0')
+  const sectionSelect = html.match(/<select id="adm-section-select"[\s\S]*?<\/select>/)?.[0] ?? ''
+  const nums = [...sectionSelect.matchAll(/·\s*(\d+)<\/option>/g)].map(m => m[1])
+  assert.deepEqual(nums, ['2', '1', '0', '1', '1', '2', '1', '0'],
+    'bộ chọn giữ số đếm của tám mục có hàng đợi; Overview không cần số 0 dư thừa')
 
   /* TIÊU ĐỀ MỤC ĐANG MỞ: dải số liệu là bộ CHUYỂN MỤC nên nó không thể vừa là
      tiêu đề; mà trang không có tiêu đề nào thì trình đọc màn hình chỉ nghe được
@@ -182,16 +189,24 @@ test('mục nào cũng xuất được CSV — kể cả Đơn hàng (lỗi cũ:
   assert.ok(pending.includes('adm-pickbtn'), 'mục có ô chọn thì vẫn phải có nút chọn nhiều')
 })
 
-test('dải số liệu đi theo đúng danh sách mục dùng chung (một nguồn, một thứ tự)', async () => {
+test('bộ chọn gọn đi theo đúng danh sách mục dùng chung (một nguồn, một thứ tự)', async () => {
   const { ADMIN_TAB_META } = await import('../lib/adminTabs.js')
   const html = await render({ ...base, tab: 'pending' })
-  const keys = [...html.matchAll(/<button type="button" class="adm-kpi[^"]*"/g)]
-  assert.equal(keys.length, ADMIN_TAB_META.length, 'số ô phải bằng số mục')
-  /* thứ tự ô trên màn hình = thứ tự trong ADMIN_TAB_META; nhãn lấy từ i18n
-     nên chỉ chốt được số lượng, màu và vị trí mục đang mở */
-  const tones = [...html.matchAll(/--sc:(var\(--[a-z0-9-]+\))/g)].map(m => m[1])
-  assert.deepEqual(tones.slice(0, ADMIN_TAB_META.length), ADMIN_TAB_META.map(m => m.tone))
-  assert.ok(/adm-kpi on/.test(html) || /class="adm-kpi on"/.test(html), 'mục đang mở phải được đánh dấu')
+  const sectionSelect = html.match(/<select id="adm-section-select"[\s\S]*?<\/select>/)?.[0] ?? ''
+  const keys = [...sectionSelect.matchAll(/<option value="([^"]+)"/g)].map(m => m[1])
+  assert.equal(keys.length, ADMIN_TAB_META.length, 'số lựa chọn phải bằng số mục')
+  assert.deepEqual(keys, ADMIN_TAB_META.map(m => m.k), 'thứ tự phải theo ADMIN_TAB_META')
+  assert.match(html, /<option value="pending" selected="">/, 'mục đang mở phải được chọn')
+  assert.match(html, /aria-label="Sections and their totals"/, 'select phải có tên truy cập')
+})
+
+test('đổi mục không chạy View Transition toàn trang; chỉ dùng fade ngắn, tôn trọng reduced motion', () => {
+  const panel = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  const css = readFileSync(`${root}src/index.css`, 'utf8')
+  assert.doesNotMatch(panel, /startViewTransition|flushSync/)
+  assert.doesNotMatch(css, /\.adm-page\s*\{[^}]*view-transition-name/)
+  assert.match(css, /\.adm-panel \.adm-req[\s\S]*?animation: adm-content-fade 140ms/)
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
 })
 
 test('hai phím tắt của trang được in ra chỗ dùng, và có vùng thông báo cho trình đọc màn hình', async () => {
@@ -208,8 +223,8 @@ test('hai phím tắt của trang được in ra chỗ dùng, và có vùng thô
     'lúc chạy thao tác hàng loạt, danh sách phải được đánh dấu đang bận')
 
   /* Ba luật CSS đi cùng: gợi ý phím tự ẩn trên thiết bị cảm ứng, ô tìm kiếm của
-     bảng quản trị chiếm trọn một hàng trên máy hẹp, và ô số liệu lẻ cuối cùng
-     kéo dài hết hàng thay vì để lại một lỗ hổng. */
+     bảng quản trị chiếm trọn một hàng trên máy hẹp, và bộ chọn mục có chiều
+     rộng giới hạn thay vì dựng lại một dải nhiều hàng. */
   const css = readFileSync(`${root}src/index.css`, 'utf8')
   assert.match(css, /@media \(pointer: coarse\) \{ \.adm-keys \{ display: none/,
     'máy không có bàn phím thì đừng hứa phím tắt')
@@ -219,8 +234,10 @@ test('hai phím tắt của trang được in ra chỗ dùng, và có vùng thô
     'phím tắt phải được vẽ thành viên phím')
   assert.match(css, /@media \(max-width: 620px\) \{[\s\S]{0,400}\.adm-bar \.searchwrap \{ flex: 1 1 100%/,
     'trên máy hẹp, ô tìm kiếm phải chiếm trọn một hàng')
-  assert.match(css, /\.adm-kpis > :last-child:nth-child\(odd\) \{ grid-column: 1 \/ -1/,
-    'năm ô số liệu trong hai cột để lại một hàng thừa nửa bên phải — ô lẻ cuối phải kéo dài hết hàng')
+  assert.match(css, /\.adm-section-switcher \.adm-section-select/,
+    'điều hướng phải dùng bộ chọn gọn, không trải thành lưới nhiều hàng')
+  assert.doesNotMatch(css, /\.adm-kpis > :last-child:nth-child\(odd\)/,
+    'không còn lưới tab cũ gây thêm hàng thừa')
 })
 
 test('nhịp chốt bài trong lời gợi ý lấy từ cấu hình, không viết cứng', async () => {
@@ -232,16 +249,19 @@ test('nhịp chốt bài trong lời gợi ý lấy từ cấu hình, không vi�
   assert.match(src, /pickInterval/, 'nhịp chốt bài phải đi vào từ prop')
 })
 
-test('mục Videos đưa sang bảng quản trị video, không lặp thanh công cụ của request', async () => {
+test('mục Videos chỉ quản lý Latest videos, legacy Featured không xuất hiện', async () => {
   const html = await render({ ...base, tab: 'media' })
   assert.ok(!html.includes('class="adm-bar"'), 'mục Videos có công cụ riêng, không dùng chung thanh tìm kiếm')
-  assert.ok(html.includes('Whiplash'), 'phải liệt kê được video đang có')
+  assert.ok(html.includes('Whiplash'), 'phải liệt kê được video mới nhất')
+  assert.ok(!html.includes('Legacy feature'), 'không hiển thị các mục Featured cũ')
+  assert.ok(!html.includes('Featured video'), 'không còn nhóm Featured')
+  assert.equal((html.match(/class="mgroup"/g) || []).length, 1, 'chỉ có một nhóm Latest videos')
 })
 
 test('trang rỗng vẫn dựng được (không có dữ liệu, không có mục nào được chọn)', async () => {
   const html = await render({ ...base, rows: [], orders: [], media: [], tab: null })
   assert.ok(html.includes('class="adm-page"'))
-  assert.ok(html.includes('adm-kpis'))
+  assert.ok(html.includes('adm-section-select'))
 })
 
 /* HAI LỖ HỔNG CỦA MỤC ĐƠN HÀNG VÀ BÌNH LUẬN (vòng 2026-12-12)

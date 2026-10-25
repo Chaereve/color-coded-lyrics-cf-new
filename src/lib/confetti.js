@@ -6,7 +6,21 @@
    server trả kết quả) — SSR không đụng document. Reduced-motion: ít hạt,
    rơi ngắn. Màu từ bảng brand (pink/purple) + trắng.
    ========================================================= */
-const COLORS = ['#FCB0F3', '#DC94EF', '#BC77EC', '#9D5BE8', '#7D3EE4', '#ffffff']
+/* Màu hạt lấy TỪ TOKEN, không viết tay: bảng màu đã đổi hai lần và cả hai lần
+   dải giấy này còn nằm lại ở ramp tím cũ — bung lên là thấy ngay nó không thuộc
+   trang. Đọc biến CSS lúc bung (trong burst, không phải lúc import) để nó luôn
+   khớp bảng màu hiện hành; fallback là đúng bộ đang dùng hôm nay. */
+const FALLBACK = ['#a9a4ff', '#e879f9', '#34d399', '#fbbf24', '#38bdf8', '#ffffff']
+const TOKENS = ['--a-2', '--upnext', '--done', '--paid', '--queued']
+let colors = null
+
+function hue() {
+  if (colors || typeof document === 'undefined') return colors || FALLBACK
+  const cs = getComputedStyle(document.documentElement)
+  colors = TOKENS.map((t, i) => cs.getPropertyValue(t).trim() || FALLBACK[i])
+  colors.push('#ffffff')
+  return colors
+}
 
 let canvas = null
 let ctx = null
@@ -67,6 +81,7 @@ export function confettiBurst(x, y, count = 80) {
     fit()
     window.addEventListener('resize', fit)
   }
+  const pal = hue()
   for (let i = 0; i < n; i++) {
     const angle = Math.random() * Math.PI * 2
     const speed = 3 + Math.random() * 8
@@ -78,7 +93,7 @@ export function confettiBurst(x, y, count = 80) {
       h: 3 + Math.random() * 4,
       rot: 0,
       spin: (Math.random() - 0.5) * 0.4,
-      color: COLORS[i % COLORS.length],
+      color: pal[i % pal.length],
       life: 90 + Math.random() * 50,
     })
   }

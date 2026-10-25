@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon'
 import { ACHIEVEMENTS, evaluateAchievements } from '../lib/achievements.js'
 import { useI18n } from '../lib/i18n.jsx'
@@ -22,8 +23,12 @@ export default function AchievementIndex({ metrics = {} }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [showModal])
 
-  /* Hiển thị tóm tắt 4 thành tựu đầu trên trang About me; xem toàn bộ qua popup */
-  const preview = items.slice(0, 4)
+  /* Giữ phần xem nhanh ngắn: 3 mốc chưa đạt gần hoàn thành nhất. Danh mục đủ
+     52 mốc, mô tả và phần thưởng vẫn ở popup "View all" bên dưới. */
+  const preview = useMemo(() => items
+        .filter(a => !a.earned && a.source !== 'leaderboard' && a.need > 0)
+    .sort((a, b) => (b.progress / b.need) - (a.progress / a.need) || a.need - b.need)
+    .slice(0, 3), [items])
   const earnedCount = items.filter(a => a.earned).length
 
   return (
@@ -37,21 +42,27 @@ export default function AchievementIndex({ metrics = {} }) {
           </button>
         </div>
       </div>
-      <div className="achievement-grid">
-        {preview.map(a => (
-          <article className={`achievement-card${a.earned ? ' earned' : ''}`} key={a.id}>
-            <span className="achievement-icon" aria-hidden="true"><Icon name={a.earned ? 'check' : 'star'} size={14} /></span>
-            <div className="achievement-copy">
-              <b>{t(a.title)}</b>
-              <small>{t(a.desc)}</small>
-              <span><em>{t('ach.reward')}:</em> {t(a.reward)}</span>
-            </div>
-            <strong>{a.earned ? t('ach.earned') : t('ach.locked')}</strong>
-          </article>
-        ))}
+      <div className="achievement-next-label">{t('ach.closest')}</div>
+      <div className="achievement-next-list" aria-label={t('ach.closest')}>
+        {preview.map(a => {
+          const percent = Math.min(100, Math.round((a.progress / a.need) * 100))
+          return (
+            <article className="achievement-next-row" key={a.id}>
+              <div className="achievement-next-title">
+                <b>{t(a.title)}</b>
+                <strong>{a.progress}/{a.need}</strong>
+              </div>
+              <div className="achievement-next-bar" role="progressbar" aria-label={t(a.title)}
+                aria-valuemin="0" aria-valuemax={a.need} aria-valuenow={a.progress}>
+                <i style={{ width: `${percent}%` }} />
+              </div>
+            </article>
+          )
+        })}
+        {preview.length === 0 && <div className="achievement-next-empty">{t('ach.noneClose')}</div>}
       </div>
 
-      {showModal && (
+      {showModal && createPortal(
         <div className="overlay achievement-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal ach-modal" ref={achRef} role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
             <div className="modal-head">
@@ -84,7 +95,8 @@ export default function AchievementIndex({ metrics = {} }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   )

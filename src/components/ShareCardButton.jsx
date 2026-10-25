@@ -53,7 +53,7 @@ export default function ShareCardButton({ card, className = '', draw = null }) {
 
   return (
     <button type="button" className={`card-btn${className ? ` ${className}` : ''}`}
-      onClick={onSave} disabled={busy} title={t('card.tip')}>
+      onClick={onSave} disabled={busy}>
       <Icon name="save" size={14} />
       {busy ? t('card.busy') : t('card.save')}
     </button>

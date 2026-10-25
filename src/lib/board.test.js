@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { allTermsIn, boardItems, chainRows, creditText, filterBoard, findDuplicate, fold, groupIds,
   groupKey, groupRows, parseRequestPrefill, pickBoardParam, searchHit, searchTerms, sortGroups,
-  sortRows, splitSong, STAGES, voteTotals, weeklyHighlights } from './board.js'
+  sortRows, SORTS, splitSong, STAGES, voteTotals, weeklyHighlights } from './board.js'
 
 const day = 86_400_000
 const now = Date.UTC(2026, 8, 7)
@@ -466,8 +466,8 @@ test('lọc bảng: `top` loại bài đã xong và bài đang làm — link t�
   assert.equal(filterBoard({ pub, rows, filter: 'newest', q: 'Get Up' })[0].id, done.id)
 })
 
-test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy cả bài chưa duyệt', () => {
-  const { pub, rows, pending, pop, done, next } = boardRows()
+test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc', () => {
+  const { pub, rows, pop, done } = boardRows()
   const ids = (out) => out.map(r => r.id).sort()
   assert.deepEqual(
     ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: ['queued', 'completed'] })),
@@ -475,10 +475,15 @@ test('lọc bảng: chọn NHIỀU giai đoạn cùng lúc, và `watch` thấy c
     '`queued` là chờ vote chưa được chốt — Moonlight Sunrise đã có picked_at nên không thuộc về nó')
   assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'queued', statusFilters: [...STAGES] })), ids(pub),
     'chọn cả bốn giai đoạn thì bằng cả bảng')
-  /* Đang theo dõi một bài chưa duyệt: tab Following lấy từ `rows`, không `pub`. */
-  const watched = new Set([groupKey(pending)])
-  assert.deepEqual(ids(filterBoard({ pub, rows, filter: 'watch', watchedSet: watched })), ids([pending]))
-  assert.deepEqual(filterBoard({ pub, rows, filter: 'watch', watchedSet: new Set() }), [])
+  /* Tầng "theo dõi bài" đã bị gỡ: không còn tab `watch`, và bộ lọc cũng không
+     nhận `watchedSet` nữa. Chốt để nó không quay lại bằng một nhánh `if`. */
+  assert.deepEqual(filterBoard({ pub, rows, filter: 'watch' }), filterBoard({ pub, rows, filter: 'newest' }),
+    '`watch` không còn là một tab: rơi vào nó thì phải bằng bảng chung, không phải trang trống')
+})
+
+test('filterBoard không còn tham số `watchedSet`', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('./board.js', import.meta.url), 'utf8')
+  assert.ok(!/watchedSet/.test(src), 'board.js không được giữ tàn dư của tầng theo dõi')
 })
 
 test('lọc bảng: "Start production" không đẩy request khỏi filter "Up next"', () => {
@@ -611,4 +616,51 @@ test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán',
   /* Không bao giờ trả về vế rỗng hay chữ thừa ở hai đầu. */
   const got = splitSong("  aespa   -   Whiplash  ")
   assert.deepEqual(got, { artist: 'aespa', title: 'Whiplash' })
+})
+
+/* --- BA CÁCH XẾP MỚI (vòng 30) ---------------------------------------------
+   Menu Sort từ hai mục thành năm. Mỗi cách xếp phải có một ca: thứ tự là thứ
+   người dùng nhìn ra ngay, mà không ảnh chụp nào bắt được một danh sách sai. */
+const titles = (items) => items.map(e => (e.type === 'group' ? e.title : e.r.title))
+
+test('oldest: bài chờ lâu nhất lên đầu, và cụm tính theo dòng CŨ nhất', () => {
+  const rows = [
+    req('aespa', 'Armageddon', 0, { created_at: '2026-03-01T00:00:00Z' }),
+    req('IVE', 'Blue', 9, { created_at: '2026-01-01T00:00:00Z' }),
+  ]
+  assert.deepEqual(titles(boardItems(rows, 'oldest')), ['Blue', 'Armageddon'])
+  /* Bài Blue có thêm một lượt xin HÔM NAY: dòng mới nhất là hôm nay, nhưng
+     người đầu tiên xin nó từ tháng 1 — vẫn phải đứng trước. */
+  const grouped = [
+    req('aespa', 'Armageddon', 5, { created_at: '2026-03-01T00:00:00Z' }),
+    req('IVE', 'Blue', 0, { created_at: '2026-01-01T00:00:00Z' }),
+    req('IVE', 'Blue', 0, { created_at: '2026-09-01T00:00:00Z' }),
+  ]
+  assert.equal(titles(boardItems(grouped, 'oldest'))[0], 'Blue')
+})
+
+test('requests: bài nhiều người cùng xin lên đầu, khác hẳn top theo phiếu', () => {
+  const rows = [
+    req('aespa', 'Armageddon', 40),
+    req('IVE', 'Blue', 1), req('IVE', 'Blue', 1), req('IVE', 'Blue', 1),
+  ]
+  assert.equal(titles(boardItems(rows, 'requests'))[0], 'Blue')
+  assert.equal(titles(boardItems(rows, 'top'))[0], 'Armageddon')
+})
+
+test('az: tên bài A→Z, bỏ dấu nên Đ nằm cùng chỗ với D', () => {
+  const rows = ['Cúc', 'Đào', 'Anh', 'Bình'].map((title, i) => req('x', title, i))
+  assert.deepEqual(titles(boardItems(rows, 'az')), ['Anh', 'Bình', 'Cúc', 'Đào'])
+})
+
+test('cả năm cách xếp đều tìm được bài đang chờ duyệt, không chỉ newest', () => {
+  assert.deepEqual(SORTS, ['newest', 'oldest', 'top', 'requests', 'az'])
+  for (const f of SORTS) {
+    const pub = [req('aespa', 'Whiplash', 3)]
+    /* `rows` có thêm một bài pending: các cách xếp đều phải quét cả rows khi
+       có từ khoá, nếu không cùng một từ khoá cho hai kết quả tuỳ mục đang bật. */
+    const rows = [...pub, req('aespa', 'Whiplash', 0, { status: 'pending' })]
+    assert.equal(filterBoard({ pub, rows, filter: f, q: 'whiplash' }).length, 2,
+      `cách xếp ${f} làm mất bài chờ duyệt`)
+  }
 })

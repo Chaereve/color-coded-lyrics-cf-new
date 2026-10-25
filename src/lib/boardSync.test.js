@@ -107,7 +107,8 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
   }
   assert.match(lineOf('in_progress'), /pickedGroups\.length/,
     'badge tab In progress phải bằng số thẻ tab đó liệt kê — cùng tập với Up next')
-  assert.match(boardSrc, /filter === 'in_progress'\) base = picked/,
+  /* `filter` (chặng) và `sort` (cách xếp) là hai trục riêng — xem filterBoard. */
+  assert.match(boardSrc, /stage === 'in_progress'\) base = picked/,
     'tab In progress liệt kê CẢ dây chuyền đã chốt (chủ dự án chốt 19/09), không chỉ bài đang chạy')
   /* Dây chuyền = đã chốt HOẶC đang làm. Thiếu vế thứ hai thì một bài
      in_progress mà không có picked_at (admin tick mốc trên request chưa chốt)
@@ -119,15 +120,21 @@ test('badge tab và khối Up next cùng lấy từ pickedGroups', () => {
     'danh sách dây chuyền phải lọc bằng inChain, không phải isPicked')
   assert.match(app, /const picked = useMemo\(\(\) => chainRows\(pub\), \[pub\]\)/,
     'App.jsx phải lấy dây chuyền từ chainRows — tự lọc lại là hai tập khác nhau')
-  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet \}\)/,
-    'bảng phải lọc bằng filterBoard: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
+  assert.match(app, /filterBoard\(\{ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q \}\)/,
+    'bảng phải lọc bằng filterBoard, và phải truyền CẢ chặng lẫn cách xếp: khối lọc nằm trong App.jsx thì không kiểm thử được bằng dữ liệu giả')
   /* Nắp khối Up next: con số lớn + dòng tách giai đoạn cộng đúng bằng nó */
   const nowN = app.match(/<span className="now-n"[^>]*>\{([^}]+)\}/)?.[1]
   assert.equal(nowN, 'pickedGroups.length', 'số trên nắp khối Up next phải là số bài đã chốt')
-  assert.match(app, /const working = useMemo\(\(\) => pickedGroups\.filter\(g => g\.rep\.status === 'in_progress'\)\.length/,
-    'số bài đang chạy phải đếm trên chính pickedGroups (rep = in_progress nếu bài có dòng đang chạy)')
-  assert.match(app, /t\('now\.split', \{ a: working, b: pickedGroups\.length - working \}\)/,
-    'dòng tách phải lấy hai phần bù nhau của CÙNG một con số, không phải hai phép đếm rời')
+  /* Vòng này khối Up next đổi sang hai vùng (đang làm / đang chờ), nên "dòng
+     tách giai đoạn" cũ không còn — con số bù nhau được kiểm ở chỗ khác: vùng
+     trái lấy bài đang làm TỪ pickedGroups, vùng phải lấy phần còn lại của đúng
+     mảng đó, và dòng "Waiting · n" đếm bằng tổng trừ một. */
+  assert.match(app, /const nowLead = useMemo\(/,
+    'khối Up next phải tách bài đang làm (vùng trái) khỏi phần chờ (vùng phải)')
+  assert.match(app, /const nowRest = useMemo\(\s*\(\) => pickedGroups\.filter\(g => g !== nowLead\)\.slice\(0, NOW_SHOW\)/,
+    'phần chờ phải lấy từ CÙNG mảng pickedGroups, không phải một phép đếm rời')
+  assert.match(app, /t\('now\.waiting', \{ n: pickedGroups\.length - 1 \}\)/,
+    'số bài đang chờ = tổng số bài trừ bài đang làm — hai số phải bù nhau')
 })
 
 test('nhãn trạng thái chỉ có một hàm, dùng chung ba nơi', () => {

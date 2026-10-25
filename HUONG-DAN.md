@@ -1325,12 +1325,11 @@ Muốn nhanh/chậm hơn thì sửa 3 biến `--t-*`; muốn đổi cảm giác 
 Toàn bộ trang dùng MỘT thang góc bo, khai báo ở `:root`:
 
 ```css
---r-sm:   4px;   /* badge, pill, chip, ký hiệu phím */
---radius: 6px;   /* input, nút, ô nhỏ trong sidebar */
---r-md:   8px;   /* khối: danh sách, thống kê, card, modal ảnh xem trước */
---r-lg:   12px;  /* lớp nổi: modal, hộp đăng nhập */
---r-xl:   16px;  /* logo trên màn chờ */
---r-pill: 999px; /* những thứ phải là viên thuốc */
+--r-sm:   6px;   /* tem nhỏ: thẻ thể loại, phím tắt, chip trong khối */
+--radius: 8px;   /* nút, ô nhập, mục menu */
+--r-md:   10px;  /* khối: danh sách, thanh lọc, thống kê, card */
+--r-lg:   14px;  /* lớp nổi, khung lớn: modal, hộp đăng nhập, logo splash */
+--r-pill: 999px; /* tem trạng thái / số đếm / thanh tiến độ — KHÔNG dùng cho nút */
 ```
 
 Trước đây các giá trị 3/5/6/7/8/10/12/14px lẫn lộn, mỗi khối một kiểu; đặt hai khối cạnh nhau là

@@ -309,6 +309,22 @@ export function creditText(song, maxNames = 8) {
 /* Nhiều vote hơn đứng trước; hoà vote thì bài mới hơn đứng trước. */
 export const byVotes = (a, b) => ((b.votes || 0) - (a.votes || 0)) || (ts(b.created_at) - ts(a.created_at))
 export const byNewest = (a, b) => ts(b.created_at) - ts(a.created_at)
+export const byOldest = (a, b) => ts(a.created_at) - ts(b.created_at)
+export const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title)) || byNewest(a, b)
+
+/* NĂM CÁCH XẾP — danh sách DUY NHẤT, dùng cho cả menu Sort lẫn chỗ đọc địa
+   chỉ `?f=`. `filter` mang hai nghĩa (một chặng của dây chuyền, hoặc một cách
+   xếp cả bảng); nếu danh sách này nằm rải rác ở hai chỗ thì thêm một cách xếp
+   là mở ra đúng loại lỗi "dán link vào thì mất".
+     newest   — mới gửi trước (mặc định)
+     oldest   — cũ nhất trước: câu hỏi của người xếp hàng chờ lâu nhất
+     top      — nhiều phiếu trước; CHỈ bài đang xin phiếu, như tab cũ
+     requests — nhiều người cùng xin một bài nhất trước
+     az       — tên bài A→Z (bỏ dấu, nên "Đ" nằm cùng chỗ với "D")
+     Thứ tự trong mảng là thứ tự trong menu, và hai cách xếp ĐỐI NHAU
+     (newest / oldest) đứng cạnh nhau — người dùng đổi chiều thời gian là
+     thấy ngay hai mục kề nhau, không phải lục xuống cuối danh sách. */
+export const SORTS = ['newest', 'oldest', 'top', 'requests', 'az']
 
 /* Danh sách Up next: đang làm trước, rồi tới hàng chốt sớm hơn. */
 export const byPickOrder = (a, b) =>
@@ -326,6 +342,12 @@ export function sortRows(rows, filter) {
   if (filter === 'in_progress') return out.sort((a, b) => (b.progress || 0) - (a.progress || 0) || byVotes(a, b))
   if (filter === 'newest') return out.sort(byNewest)
   if (filter === 'top') return out.sort(byVotes)
+  if (filter === 'oldest') return out.sort(byOldest)
+  if (filter === 'az') return out.sort(byTitle)
+  /* `requests` xếp theo SỐ DÒNG của cụm (một bài nhiều người xin) — đó là
+     chuyện của cả cụm, không phải của từng dòng, nên trong cụm chỉ cần dòng
+     mới nhất đứng đầu; sortGroups làm việc xếp cụm. */
+  if (filter === 'requests') return out.sort(byNewest)
   return out.sort((a, b) => ((b.is_paid ? 1 : 0) - (a.is_paid ? 1 : 0)) || byVotes(a, b))
 }
 
@@ -363,6 +385,16 @@ export function sortGroups(groups, filter) {
     || (b.votes - a.votes))
   if (filter === 'newest') return out.sort((a, b) => (b.newest - a.newest) || (b.votes - a.votes))
   if (filter === 'top') return out.sort((a, b) => (b.votes - a.votes) || (b.newest - a.newest))
+  /* Chờ lâu nhất: mốc của cụm là dòng CŨ NHẤT (người đầu tiên xin bài đó),
+     không phải dòng mới nhất — nếu lấy dòng mới nhất thì một bài nhận thêm
+     một lượt xin hôm nay sẽ nhảy xuống cuối hàng chờ. */
+  if (filter === 'oldest') return out.sort((a, b) =>
+    Math.min(...a.rows.map(r => ts(r.created_at))) - Math.min(...b.rows.map(r => ts(r.created_at)))
+    || (b.votes - a.votes))
+  if (filter === 'requests') return out.sort((a, b) =>
+    (b.rows.length - a.rows.length) || (b.votes - a.votes) || (b.newest - a.newest))
+  if (filter === 'az') return out.sort((a, b) =>
+    fold(a.title).localeCompare(fold(b.title)) || (b.votes - a.votes))
   return out.sort((a, b) => (b.paid - a.paid) || (b.votes - a.votes) || (b.newest - a.newest))
 }
 
@@ -501,13 +533,27 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
    ========================================================= */
 export function filterBoard(opts = {}) {
   const {
-    pub = [], rows = [], filter = 'queued',
-    statusFilters = [], kindFilters = [], q = '', watchedSet = new Set(),
+    pub = [], rows = [], filter = 'queued', sort = null,
+    statusFilters = [], kindFilters = [], q = '',
   } = opts
   const picked = opts.picked || chainRows(pub)
   const t = (q ?? '').trim()
   let base = real(pub)
-  if (filter === 'newest' && t && rows?.length) {
+  /* HAI TRỤC ĐỘC LẬP. `filter` là CHẶNG (queued/picked/in_progress/completed)
+     hoặc 'all'; `sort` là cách xếp. Trước đây cả hai dùng chung một tham số
+     nên chọn cái này là mất cái kia. Giá trị sort còn nằm trong `filter` là
+     đường tương thích cho link cũ (`?f=top`) và cho các chỗ gọi chưa đổi.
+     `hasStage` = có giới hạn theo chặng hay không: hai luật bên dưới (tìm
+     quét cả `rows`, và "Most voted" bỏ bài đã xong) chỉ đúng khi KHÔNG giới
+     hạn chặng — áp chúng lên một chặng đã lọc thì danh sách rỗng. */
+  const sortMode = SORTS.includes(sort) ? sort : (SORTS.includes(filter) ? filter : null)
+  const stage = SORTS.includes(filter) ? 'all' : filter
+  const hasStage = statusFilters.length > 0 || STAGES.includes(stage)
+  /* Đang ở một CÁCH XẾP (không phải một chặng) thì tìm kiếm phải quét cả
+     `rows`, nên bài đang chờ duyệt / bị từ chối vẫn tìm ra — bản trước chỉ
+     làm vậy cho `newest`, còn `top` thì không, nên cùng một từ khoá cho hai
+     kết quả khác nhau tuỳ cái đang bật. */
+  if (!hasStage && t && rows?.length) {
     base = real(rows).filter(r => r.status !== 'denied')
   } else if (statusFilters.length) {
     /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối
@@ -522,12 +568,11 @@ export function filterBoard(opts = {}) {
       ? inChain(r)
       : s === 'queued' ? r.status === 'queued' && !r.picked_at
       : s === 'completed' && r.status === 'completed'))
-  } else if (filter === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
-  else if (filter === 'picked' || filter === 'in_progress') base = picked
-  else if (filter === 'completed') base = base.filter(r => r.status === 'completed')
+  } else if (stage === 'queued') base = base.filter(r => r.status === 'queued' && !r.picked_at)
+  else if (stage === 'picked' || stage === 'in_progress') base = picked
+  else if (stage === 'completed') base = base.filter(r => r.status === 'completed')
   /* `newest` và `top` giữ tập nền rồi mới lọc tiếp ở hai dòng dưới. */
-  if (filter === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
-  if (filter === 'watch') base = real(rows).filter(r => watchedSet.has(groupKey(r)))
+  if (!hasStage && sortMode === 'top') base = base.filter(r => r.status !== 'completed' && !inChain(r))
   if (kindFilters.length) base = base.filter(r => kindFilters.includes(r.kind))
   if (t) base = base.filter(r => searchHit(r, t))
   return base

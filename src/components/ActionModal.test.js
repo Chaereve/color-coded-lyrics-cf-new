@@ -82,13 +82,27 @@ test('lần đầu mở modal: form bị chặn bằng bảng luật, không ph�
   assert.ok(!/Send request/.test(tx), 'le ra form phai an sau bang luat')
 })
 
+test('chip chọn loại dùng nhãn ngắn nhưng vẫn giữ tên đầy đủ cho trình đọc màn hình', async () => {
+  alreadyAgreed()
+  const html = await render({ ...base, live: false })
+  for (const [full, short] of [
+    ['Color Coded Lyrics', 'CCL'],
+    ['Full Album', 'Album'],
+    ['1 Hour Loop', '1H Loop'],
+    ['Short', 'Short'],
+  ]) {
+    assert.ok(html.includes(`aria-label="${full}"`), `thiếu tên truy cập đầy đủ: ${full}`)
+    assert.ok(html.includes(`<span>${short}</span>`), `thiếu nhãn chip ngắn: ${short}`)
+  }
+})
+
 test('thẻ XEM TRƯỚC dựng theo đúng việc đang gõ, và nói ra chỗ còn thiếu', async () => {
   alreadyAgreed()
   /* Form là BA BƯỚC, mỗi bước một màn: thẻ xem trước nằm ở bước 2 (đặt tên bài).
      Mở form với một ô đã có chữ thì rơi đúng vào bước 2 — đó cũng là đường đi
      thật của người dùng khi mở lại form từ nháp hoặc từ link mời. */
   const empty = plain(await render({ ...base, live: false }))
-  assert.match(empty, /Pick a type/, 'chưa có gì thì mở ở bước chọn loại')
+  assert.match(empty, /Type/, 'chưa có gì thì mở ở bước chọn loại')
   assert.ok(!/the song name…/.test(empty),
     'bước 1 không được chứa sẵn phần của bước 2')
   const half = plain(await render({ ...base, live: false, prefill: { artist: 'aespa' } }))

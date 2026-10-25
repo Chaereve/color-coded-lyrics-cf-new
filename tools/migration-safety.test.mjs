@@ -13,7 +13,7 @@ import {
   MIGRATIONS_DIR, SCHEMA_FILE, SETUP_DIR, DESTRUCTIVE_PATTERNS,
   collectMigrations, assertMigrationSafety, planPending, planLines, clipUntil, clipExcept, clipBatch,
   normalizeExcept, parseArgs, findDestructive, readQuarantine,
-  stripExplicitTransaction, applyMigration, stripSqlNoise,
+  stripExplicitTransaction, applyMigration, stripSqlNoise, plan,
   normalizePath, pathName, pathDir, classifyMigrationFile,
   bundleBaseline, baselineObjects, postBaselineObjects, bundleAheadOfBaseline,
 } from './migrate.mjs'
@@ -191,8 +191,11 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261127_login_streak_rewards', '20261128_achievements_v2',
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
-      '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
+      '20261212_admin_bulk_and_comments_page', '20261212_admin_fold_translation_fix',
+      '20261213_admin_actions_and_request_edit',
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
+      '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
+      '20261217_rpc_least_privilege'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -208,8 +211,11 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261127_login_streak_rewards', '20261128_achievements_v2',
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
-      '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
+      '20261212_admin_bulk_and_comments_page', '20261212_admin_fold_translation_fix',
+      '20261213_admin_actions_and_request_edit',
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
+      '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
+      '20261217_rpc_least_privilege'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -227,8 +233,11 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261126_reward_ledger', '20261127_login_streak_rewards', '20261128_achievements_v2',
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2', '20261203_mystery_month',
       '20261204_mystery_odds', '20261210_vote_back', '20261211_achievements_v3',
-      '20261212_admin_bulk_and_comments_page', '20261213_admin_actions_and_request_edit',
-      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments'])
+      '20261212_admin_bulk_and_comments_page', '20261212_admin_fold_translation_fix',
+      '20261213_admin_actions_and_request_edit',
+      '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
+      '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
+      '20261217_rpc_least_privilege'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -455,6 +464,27 @@ test('migration body and history commit together; body failure records no histor
   assert.equal(failedCalls.some(sql => sql.startsWith('insert into supabase_migrations.schema_migrations')), false)
 })
 
+test('migration names recorded by the Supabase connector are recognized as applied aliases', async () => {
+  const names = [
+    '20261217_private_denial_reasons',
+    '20261217_protect_paid_request_orders',
+    '20261217_rpc_least_privilege',
+  ]
+  const versions = ['20261025061715', '20261025061738', '20261025062337']
+  const entries = names.map((name, i) => ({ name, version: versions[i] }))
+  const client = { async query(sql) {
+    if (sql.includes("to_regclass('supabase_migrations.schema_migrations')")) return { rows: [{ ok: true }] }
+    if (sql.includes('select version, name')) return { rows: entries }
+    if (sql.includes("to_regclass('public.profiles')")) return { rows: [{ has_app_tables: true, has_login_table: true }] }
+    throw new Error(`unexpected audit query: ${sql}`)
+  } }
+
+  const result = await plan(client)
+  for (const name of names) assert.equal(result.pending.some(row => row.id === name), false, `${name} must not rerun`)
+  assert.deepEqual(result.applied, versions, 'reported applied versions remain the actual database versions')
+  assert.equal(result.skippedApplied.length, names.length)
+})
+
 test('no documentation tells anyone to run the superseded migration', () => {
   const scan = dir => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = join(dir, entry.name)
@@ -508,16 +538,16 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
   assert.equal(pathName('a\\b\\c.sql'), 'c.sql')
   assert.equal(pathDir('a\\b\\c.sql'), 'a\\b')
 
-  /* Và trên chính máy này: quét thật vẫn phải ra đúng 52 migration đang hoạt động
+  /* Và trên chính máy này: quét thật vẫn phải ra đúng 60 migration đang hoạt động
      (41 cũ + ba bản B1: 20261126/27/28 + B2: 20261129 + B3: 20261201
      + bản sửa bảng giải mystery v2: 20261202 + lịch sử tháng: 20261203
      + siết tỉ lệ hộp: 20261204 + vote-back: 20261210
      + catalog thành tựu v3: 20261211 + bulk/bình luận admin: 20261212
      + nhật ký quản trị / sửa request đầy đủ: 20261213
-     + lịch sử theo từng request: 20261214 + báo người gửi khi duyệt/từ chối: 20261215
-     + gỡ tính năng bình luận: 20261216). */
+     + lịch sử từng request: 20261214 + báo người gửi: 20261215
+     + gỡ bình luận: 20261216 + bảo mật lý do từ chối và bảo vệ đơn trả phí: 20261217). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 56)
+  assert.equal(active.length, 60)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -537,10 +567,12 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261129_mystery_box', '20261201_spin_v2', '20261202_mystery_paid_v2',
       '20261203_mystery_month', '20261204_mystery_odds', '20261210_vote_back',
       '20261211_achievements_v3', '20261212_admin_bulk_and_comments_page',
-      '20261213_admin_actions_and_request_edit', '20261214_request_history',
-      '20261215_notify_requester_review', '20261216_remove_comments'])
+      '20261212_admin_fold_translation_fix', '20261213_admin_actions_and_request_edit', '20261214_request_history',
+      '20261215_notify_requester_review', '20261216_remove_comments',
+      '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
+      '20261217_rpc_least_privilege'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '20 migration(s) would be applied:')
+  assert.equal(lines[0], '24 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -558,10 +590,14 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261210  20261210_vote_back.sql',
     'apply 20261211  20261211_achievements_v3.sql',
     'apply 20261212  20261212_admin_bulk_and_comments_page.sql',
+    'apply 20261212  20261212_admin_fold_translation_fix.sql',
     'apply 20261213  20261213_admin_actions_and_request_edit.sql',
     'apply 20261214  20261214_request_history.sql',
     'apply 20261215  20261215_notify_requester_review.sql',
     'apply 20261216  20261216_remove_comments.sql',
+    'apply 20261217  20261217_private_denial_reasons.sql',
+    'apply 20261217  20261217_protect_paid_request_orders.sql',
+    'apply 20261217  20261217_rpc_least_privilege.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

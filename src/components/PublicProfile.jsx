@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon'
+import DenyReason from './DenyReason'
 import { fetchPublicProfile, fetchPublicStreak, PUBLIC_RECENT } from '../lib/db'
 import StreakStrip from './StreakStrip'
 import ShareCardButton from './ShareCardButton'
@@ -10,7 +11,7 @@ import { useNav, spaLink } from '../lib/nav.js'
 import { useI18n } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import LoadErr from './LoadErr'
-import { statusLabel } from '../lib/meta'
+import { kindCls, kindShort, statusColorOf, statusLabel, timeAgo } from '../lib/meta'
 
 /* =========================================================
    TRANG CÁ NHÂN CÔNG KHAI — mở từ tên người gửi / tên tác giả bình luận
@@ -27,7 +28,7 @@ import { statusLabel } from '../lib/meta'
        đúng chữ mà hàng trên bảng nói.
    ========================================================= */
 
-export default function PublicProfile({ userId, onBack, fetchers = null }) {
+export default function PublicProfile({ userId, viewerId = null, onBack, onDelete = null, fetchers = null }) {
   const { t } = useI18n()
   const nav = useNav()
   const back = onBack || nav.closeProfile
@@ -59,14 +60,17 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
   useEffect(() => {
     let live = true
     const api = fetchers || { profile: fetchPublicProfile, streak: fetchPublicStreak }
-    api.profile(userId)
+    /* `viewerId` là người ĐANG ĐĂNG NHẬP, `userId` là người được xem. Chỉ khi
+       hai cái trùng nhau thì nguồn dữ liệu mới trả thêm `privateRecent` —
+       quyết định nằm ở `fetchPublicProfile`, component chỉ vẽ những gì nhận. */
+    api.profile(userId, viewerId)
       .then(profile => { if (live) setLoaded({ id: userId, profile: profile || null, error: false }) })
       .catch(() => { if (live) setLoaded({ id: userId, profile: null, error: true }) })
     api.streak(userId)
       .then(stats => { if (live) setAct({ id: userId, stats }) })
       .catch(() => { if (live) setAct({ id: userId, stats: null }) })
     return () => { live = false }
-  }, [userId, fetchers, retry])
+  }, [userId, viewerId, fetchers, retry])
 
   const loading = loaded.id !== userId
   const profile = loading ? null : loaded.profile
@@ -82,6 +86,25 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
   const recent = useMemo(
     () => (profile?.recent || []).filter(r => r && (r.title || r.artist)).slice(0, PUBLIC_RECENT),
     [profile])
+
+  /* Hàng CHỜ DUYỆT / BỊ TỪ CHỐI của chính chủ. Không đi qua `recent` vì loại
+     này không có trên bảng: dựng link `?q=` cho chúng là dẫn người dùng tới một
+     danh sách rỗng — đúng lỗi mà khối này vừa chữa. Nên chúng chỉ là chữ, kèm
+     lý do từ chối nếu có. `fetchPublicProfile` trả mảng rỗng cho người ngoài. */
+  const isOwner = viewerId === userId
+  const privateRecent = useMemo(
+    () => isOwner
+      ? (profile?.privateRecent || []).filter(r => r && (r.title || r.artist)).slice(0, PUBLIC_RECENT)
+      : [],
+    [profile, isOwner])
+  /* Người gửi phải tự xoá được request chưa vào sản xuất (pending/queued/denied),
+     nếu không sẽ bị kẹt hạn mức theo giờ. Không hiện nút cho đơn đã trả phí:
+     RPC xoá hiện giữ đơn thanh toán để quản trị xử lý, tránh xoá nhầm giao dịch. */
+  const canDeleteOwnRequest = (r) => isOwner && !!onDelete && !r.is_paid
+    && !r.picked_at && ['pending', 'queued', 'denied'].includes(r.status)
+  const removeOwnRequest = async (id) => {
+    if (await onDelete?.(id)) setRetry(n => n + 1)
+  }
 
   /* Nội dung tấm card PNG: số liệu lấy ĐÚNG nguồn đang hiển thị ở hồ sơ
      (fetchPublicProfile) và streak đang hiển thị ở dải trên — card là một
@@ -161,6 +184,42 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
         {actStats?.longest >= 30 && <span><Icon name="flame" size={14} /><b>{t('badge.streak30')}</b></span>}
       </div>
     </div>
+    {privateRecent.length > 0 && (
+      <div className="public-requests public-private">
+        <h3>{t('public.private')}</h3>
+        <p className="public-private-note">{t('public.privateNote')}</p>
+        <div className="public-requests-grid">
+          {privateRecent.map((r, i) => (
+            <div className={`row req public-private-request${r.is_paid ? ' paid' : ''}`}
+              key={r.id || `priv-${i}`} style={{ '--sc': statusColorOf(r) }}>
+              <div className="body">
+                <div className="title">
+                  <span className="tx2">{r.title || r.artist}{r.title && r.artist && <span className="artist"> — {r.artist}</span>}</span>
+                  {r.is_paid && <span className="pill gold">PAID</span>}
+                </div>
+                <div className="sub">
+                  <div className="meta">
+                    {r.status === 'denied' && r.deny_reason
+                      ? <DenyReason reason={r.deny_reason} label={statusLabel(r, t)}
+                        className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }} />
+                      : <span className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</span>}
+                    <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span>
+                    <span className="dot" aria-hidden="true" />
+                    <span>{timeAgo(r.created_at, t)}</span>
+                  </div>
+                </div>
+              </div>
+              {canDeleteOwnRequest(r) && (
+                <button type="button" className="icon-btn" title={t('row.deleteReq')}
+                  aria-label={t('row.deleteReq')} onClick={() => removeOwnRequest(r.id)}>
+                  <Icon name="close" size={15} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {recent.length > 0 && (
       <div className="public-requests">
         <h3>{t('public.recent')}</h3>
@@ -172,7 +231,16 @@ export default function PublicProfile({ userId, onBack, fetchers = null }) {
                   <b>{r.title}</b><small>{r.artist}</small>
                 </a>
               </span>
-              <em className="public-state">{statusLabel(r, t)}</em>
+              {/* Nhãn ở đây cũng phải mang màu trạng thái như dòng ngay trên
+                  nó: thiếu `--c` là nó rơi về xám, cùng một bài mà hàng công
+                  khai xám còn hàng riêng tư mang màu — hai chỗ lệch nhau. */}
+              <em className="public-state" style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</em>
+              {canDeleteOwnRequest(r) && (
+                <button type="button" className="icon-btn" title={t('row.deleteReq')}
+                  aria-label={t('row.deleteReq')} onClick={() => removeOwnRequest(r.id)}>
+                  <Icon name="close" size={15} />
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -36,6 +36,15 @@ class IO {
 }
 window.IntersectionObserver = IO
 window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+/* jsdom không có canvas renderer; qrcode vẫn phải chạy hết đường async trong
+   smoke (không cần ảnh pixel), nên cung cấp đúng ba primitive 2D mà thư viện
+   QR gọi. Điều này vừa tránh lỗi runtime giả vừa giữ nguyên QR/payload thật. */
+window.HTMLCanvasElement.prototype.getContext = function () {
+  return {
+    createImageData: (width, height) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }),
+    clearRect() {}, putImageData() {},
+  }
+}
 window.matchMedia = window.matchMedia || ((q) => ({
   matches: false, media: q, onchange: null,
   addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
@@ -130,7 +139,10 @@ const waitFor = async (fn, ms = 4000) => {
 }
 const click = async (el) => {
   if (!el) throw new Error('không tìm thấy phần tử để bấm')
-  await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })) })
+  /* .click() chạy activation behavior chuẩn của trình duyệt (kể cả submit của
+     nút gửi). dispatchEvent('click') chỉ phát sự kiện, KHÔNG mô phỏng việc nút
+     thật được kích hoạt — form vì thế đi sai đường trong bài smoke. */
+  await act(async () => { el.click() })
   await tick()
 }
 /* Gõ chữ THẬT như người dùng: React theo dõi giá trị cũ của ô nhập, nên gán
@@ -143,7 +155,13 @@ const setNative = (el, value) => {
 const type = async (el, value) => {
   await act(async () => {
     setNative(el, value)
-    el.dispatchEvent(new window.Event('input', { bubbles: true }))
+    /* React's text-input onChange is delegated from InputEvent in the browser.
+       A plain Event('input') misses that path in jsdom 26 and leaves React state
+       empty even though the DOM visibly contains the typed text. */
+    const event = typeof window.InputEvent === 'function'
+      ? new window.InputEvent('input', { bubbles: true, inputType: 'insertText', data: String(value) })
+      : new window.Event('input', { bubbles: true })
+    el.dispatchEvent(event)
   })
   await tick()
 }
@@ -181,6 +199,8 @@ function loneTagClusters(limit = 6) {
     if (el.classList.contains('tags')) continue
     /* dãy chip lọc và cụm số liệu là control, không phải nhãn dán trên hàng */
     if (el.closest('.fchips, .adm-kpis, .vm-balance, .vm-presets, .kindpicks')) continue
+    /* Chữ phụ của một hàng admin là metadata chạy inline (loại · người gửi · tuổi), không phải chồng chip. */
+    if (el.closest('.adm') && el.tagName === 'SMALL') continue
     bad.push(`${el.tagName.toLowerCase()}.${el.className || '?'} giữ ${kids.length} nhãn rời`)
   }
   return bad.slice(0, limit)
@@ -202,10 +222,6 @@ check('màn chờ tự tan (không kẹt)', gone, gone ? '' : `vẫn còn hiện
    vào DOM cùng lúc với mẩu tin đầu tiên thì mẩu đó bị coi là nội dung nền. */
 check('vùng live của thông báo có mặt ngay từ đầu (tin đầu tiên sẽ được đọc)',
   !!q('.toasts-live[aria-live]'), q('.toasts-live')?.getAttribute('aria-live'))
-
-const gate = qa('button').find(b => /Continue with Google/i.test(b.textContent || ''))
-if (gate) await click(gate)
-await waitFor(() => qa('.row, .grow').length > 0 || !!q('.empty'), 5000)
 
 /* ---------- 4b. SIDEBAR (vòng 12) ---------- */
 where = 'sidebar'
@@ -259,9 +275,10 @@ where = 'khách chưa đăng nhập'
   check('chân sidebar của khách có nút Đăng nhập, không còn nút Sign out',
     !!q('.side-foot .side-signin') && !q('.side-foot .side-out'))
 
-  await click(q('.head-signin'))
+  const guestSignIn = q('.head-signin')
+  if (guestSignIn) await click(guestSignIn)
   const scrim = q('.gate-scrim')
-  check('bấm nút Đăng nhập là màn đăng nhập hiện ra', !!scrim && !!q('.gate-scrim .gate-card'), !!scrim)
+  check('bấm nút Đăng nhập là màn đăng nhập hiện ra', !!scrim && !!q('.gate-scrim .gate-panel'), !!scrim)
   /* LỖI CŨ: khối này nằm TRONG LUỒNG văn bản (min-height:100%) nên nó được
      chèn vào đầu tài liệu, đẩy cả trang xuống — bấm ở giữa bảng thì không ai
      thấy nó. Chốt bằng cấu trúc: hộp thoại phải nằm TRONG lớp phủ. */
@@ -327,116 +344,114 @@ where = 'khách chưa đăng nhập'
   check('khách quay lại được bảng request', !!q('.board') || qa('.row, .grow').length > 0)
 }
 
+/* ---------- 4d. ĐĂNG NHẬP DEMO (đặt SAU khối khách, đúng như chú thích 4c) ----------
+   Từ vòng 23 màn đăng nhập là lớp phủ chỉ mở khi được gọi: nút Google KHÔNG
+   nằm sẵn trong trang, phải bấm nút Đăng nhập ở hàng tiêu đề trước. Bản cũ đi
+   tìm thẳng nút Google ngay từ đầu nên không thấy gì, cả lượt chạy ở lại trạng
+   thái KHÁCH, và mọi phép kiểm phía sau đo nhầm người dùng — đỏ oan hàng loạt. */
+where = 'đăng nhập demo'
+{
+  const signInBtn = q('.head-signin') || q('.side-foot .side-signin')
+  check('khách có đường vào màn đăng nhập để bấm', !!signInBtn)
+  if (signInBtn) { await click(signInBtn); await tick(220) }
+  const google = qa('button').find(b => /Continue with Google/i.test(b.textContent || ''))
+  check('hộp đăng nhập có nút Continue with Google', !!google)
+  if (google) await click(google)
+  const signedIn = await waitFor(() => !q('.gate-scrim') && qa('.row, .grow').length > 0, 6000)
+  check('đăng nhập demo xong thì hộp đóng và bảng có dữ liệu', signedIn,
+    `hộp=${!!q('.gate-scrim')} hàng=${qa('.row, .grow').length}`)
+  await tick(200)
+}
+
 /* ---------- 5. trang chủ ---------- */
 where = 'trang chủ'
 const rows = qa('.row, .grow')
 check('bảng request có hàng', rows.length > 0, `${rows.length} hàng`)
-check('thanh lọc có mục lọc trạng thái', qa('.fchip').length >= 4, `${qa('.fchip').length} mục`)
-/* THỨ TỰ TRONG THANH LỌC (vòng 12, cập nhật vòng 14): ô tìm kiếm đứng ĐẦU,
-   rồi tới tóm tắt + nút Bộ lọc, rồi mới tới dải chế độ xem. Một thứ tự cho cả
-   desktop lẫn máy hẹp, nên thứ tự nhìn luôn trùng thứ tự Tab.
-   (Bài kiểm này từng đòi dải chip đứng NGAY SAU ô tìm kiếm — đúng với bản
-   vòng 12 khi con số đếm nằm ở hàng dưới; bản hiện tại đưa tóm tắt + nút Bộ lọc
-   lên hàng trên, nên phép kiểm cũ báo đỏ một thứ tự đã cố ý. Đỏ oan cũng là
-   lỗi: nó dạy người chạy công cụ cách phớt lờ màu đỏ.) */
-const topKids = [...(q('.fbar-top')?.children || [])].map(el => el.className.split(' ')[0])
-check('ô tìm kiếm đứng đầu thanh lọc', topKids[0] === 'searchwrap', topKids.join(' · '))
-check('dải chế độ xem đứng sau ô tìm kiếm và tóm tắt', topKids[2] === 'fchips', topKids.join(' · '))
-check('có dòng đếm kết quả', !!q('.fcount'), q('.fcount')?.textContent)
-check('icon ô tìm kiếm nằm trong ô', !!q('.searchwrap .search-ico'))
-/* DẢI CHẾ ĐỘ XEM (vòng 15) — người dùng chỉ ra đúng ba chữ: "phần hiện status
-   xấu quá", "nhìn AI". Bốn vế dưới đây là hình dáng MỚI của dải đó, mỗi vế là
-   một thứ đã bị gỡ hoặc đã được sắp lại:
-     · mỗi mục có vạch màu riêng (chấm tròn đã bị gỡ);
-     · đúng MỘT mục đang chọn, và mục đó vẫn còn vạch của nó;
-     · bốn giai đoạn đứng liền nhau, đúng thứ tự dây chuyền;
-     · có vạch ngăn giữa hai nhóm, và nhóm "đang theo dõi" vắng thì vạch ngăn
-       của nó cũng phải vắng theo. */
+/* THANH LỌC (bố cục hiện tại): ô tìm + hai pill mở bảng chọn (Status, Type)
+   + menu Sort + nút Bộ lọc cho máy hẹp. Dải chip chế độ xem cũ (`.fchip`) đã
+   được thay bằng bảng chọn nhiều của pill Status — nên các phép kiểm đòi
+   `.fchip`/`.fbar-top`/`.fcount` đã hết đối tượng, không phải app hỏng. */
 {
-  const rail = [...(q('.fchips')?.children || [])]
-  const items = rail.filter(el => el.classList.contains('fchip'))
-  const gaps = rail.filter(el => el.className === 'dot')
-  check('mỗi mục lọc có vạch màu riêng', items.length > 0 && items.every(el => el.querySelector('.ftick')),
-    `${items.filter(el => el.querySelector('.ftick')).length}/${items.length} mục có vạch`)
-  const lit = items.filter(el => el.classList.contains('on'))
-  check('dải chế độ xem có đúng một mục đang chọn', lit.length === 1, `${lit.length} mục đang chọn`)
-  const labels = items.map(el => (el.textContent || '').replace(/\d+/g, '').trim())
-  const pipe = labels.filter(l => ['Queue', 'Up next', 'In progress', 'Done'].includes(l))
-  check('bốn giai đoạn đứng liền nhau, đúng thứ tự dây chuyền',
-    pipe.join(' · ') === 'Queue · Up next · In progress · Done', labels.join(' · '))
-  const want = labels.includes('Following') ? 2 : 1
-  check('số vạch ngăn khớp số nhóm đang hiện (nhóm vắng thì vạch ngăn cũng vắng)',
-    gaps.length === want, `${gaps.length} vạch ngăn, ${labels.join(' · ')}`)
+  const main = [...(q('.fb-main')?.children || [])].map(el => el.className.split(' ')[0])
+  check('ô tìm kiếm đứng đầu thanh lọc', main[0] === 'searchwrap', main.join(' · '))
+  check('icon ô tìm kiếm nằm trong ô', !!q('.searchwrap .search-ico'))
+
+  const facs = qa('.fb-main .fb-fac')
+  check('thanh lọc có hai pill Status và Type', facs.length === 2,
+    facs.map(b => (b.textContent || '').trim()).join(' · '))
+  check('pill Status đứng trước pill Type',
+    /Status/.test(facs[0]?.textContent || '') && /Type/.test(facs[1]?.textContent || ''),
+    facs.map(b => (b.textContent || '').trim()).join(' · '))
+  check('có menu Sort riêng, không chui vào bảng lọc', !!q('.fb-main .fb-sort'))
+
+  /* BỐN GIAI ĐOẠN trong bảng chọn Status — đúng thứ tự dây chuyền. Đây là chỗ
+     thay cho dải chip cũ: cùng một sự thật, nay nằm trong một bảng chọn. */
+  await click(facs[0])
+  const pop = q('#fb-status')
+  check('bấm pill Status là bảng chọn trạng thái hiện ra', !!pop)
+  const names = [...(pop?.querySelectorAll('.fb-nm') || [])].map(e => (e.textContent || '').trim())
+  check('bảng chọn Status có đủ bốn giai đoạn, đúng thứ tự dây chuyền',
+    names.join(' · ') === 'Queue · Up next · In progress · Done', names.join(' · '))
+  check('mỗi mục trạng thái có vạch màu riêng',
+    pop && [...pop.querySelectorAll('.fb-opt')].every(el => el.querySelector('.fb-sw')))
+
+  /* chọn "In progress" → danh sách chỉ còn bài đang làm, và mỗi hàng có thanh
+     tiến độ (vạch + số là MỘT khối, hai mốc chia 40% · 80%). */
+  const inProg = [...(pop?.querySelectorAll('.fb-opt') || [])]
+    .find(el => /In progress/i.test(el.textContent || ''))
+  if (inProg) { await click(inProg); await tick(120) }
+  const bars = qa('.list .nhip')
+  check('tab In progress: mỗi hàng đang làm có ba nhịp tiến độ', bars.length > 0, `${bars.length} thanh`)
+  const bar = bars[0]
+  const segs = bar ? [...bar.querySelectorAll('.nhip-seg')] : []
+  check('ba nhịp đúng ba việc Layout · Lyrics · Edit', segs.length === 3, `${segs.length} vạch`)
+  check('mỗi nhịp có nhãn đọc được cho trình đọc màn hình',
+    /Layout/.test(bar?.getAttribute('aria-valuetext') || '') && /Lyrics/.test(bar?.getAttribute('aria-valuetext') || '')
+    && /Edit/.test(bar?.getAttribute('aria-valuetext') || ''), bar?.getAttribute('aria-valuetext'))
+  check('nhịp tiến độ có role progressbar và giá trị phần trăm',
+    bar?.getAttribute('role') === 'progressbar' && /^\d+$/.test(bar?.getAttribute('aria-valuenow') || ''),
+    `role=${bar?.getAttribute('role')} now=${bar?.getAttribute('aria-valuenow')}`)
+  check('nhịp tiến độ giữ khối "ba vạch + số"', !!bar?.querySelector('.nhip-n'),
+    bar?.querySelector('.nhip-n')?.textContent)
+  dump('nhịp tiến độ của request', '.list .nhip')
+
+  /* chip "đang lọc" chỉ hiện khi có lọc, và bấm vào chip là bỏ lọc đó */
+  const chipOf = re => qa('.fb-applied .fb-chip').find(el => re.test(el.textContent || ''))
+  const ipChip = chipOf(/In progress/i)
+  check('đang lọc In progress thì có chip đang lọc', !!ipChip, ipChip?.textContent?.trim())
+  check('chip đang lọc mang vạch màu của trạng thái', !!ipChip?.querySelector('.fb-bar'))
+  if (ipChip) { await click(ipChip); await tick(140) }
+  check('bấm chip đang lọc là bỏ lọc đó', !chipOf(/In progress/i),
+    q('.fb-applied')?.textContent?.trim())
+  if (q('#fb-status')) { const clr = q('#fb-status .fb-apply'); if (clr) await click(clr) }
+
+  /* LỌC THEO LOẠI BÀI: mỗi mục có dấu màu vuông của chính nó. */
+  await click(qa('.fb-main .fb-fac')[1])
+  const kindPop = q('#fb-kind')
+  const kindItems = [...(kindPop?.querySelectorAll('.fb-opt') || [])]
+  check('bảng chọn Type có đủ bốn loại bài', kindItems.length === 4, `${kindItems.length} mục`)
+  check('mục lọc loại bài không mang lớp thẻ .kind', !qa('.fb-opt.kind').length)
+  check('mục lọc loại bài có dấu màu riêng',
+    kindItems.length > 0 && kindItems.every(el => el.querySelector('.fb-sw.sq')),
+    `${kindItems.filter(el => el.querySelector('.fb-sw.sq')).length}/${kindItems.length} mục có dấu`)
+  if (kindItems[0]) {
+    const kindName = (kindItems[0].querySelector('.fb-nm')?.textContent || '').trim()
+    await click(kindItems[0]); await tick(120)
+    const kchip = qa('.fb-applied .fb-chip').find(el => (el.textContent || '').includes(kindName))
+    check('chọn một loại bài thì hiện chip loại đang lọc', !!kchip,
+      `${kindName} · ${q('.fb-applied')?.textContent?.trim()}`)
+    if (kchip) { await click(kchip); await tick(120) }
+    check('bấm chip loại đang lọc là bỏ lọc đó',
+      !qa('.fb-applied .fb-chip').some(el => (el.textContent || '').includes(kindName)),
+      q('.fb-applied')?.textContent?.trim())
+  }
+  if (q('#fb-kind')) { const ap = q('#fb-kind .fb-apply'); if (ap) await click(ap) }
+  check('bỏ lọc xong danh sách trở lại', qa('.row, .grow').length > 0, `${qa('.row, .grow').length} hàng`)
 }
+
 const enabledVotes = qa('.votebtn:not([disabled])')
 check('có bài bấm vote được', enabledVotes.length > 0, `${enabledVotes.length}/${qa('.votebtn').length} nút mở`)
-/* LỌC THEO LOẠI BÀI: chọn một loại thì hàng chip chính phải hiện chip "đang lọc"
-   (trên màn hẹp khối lọc gấp lại, nên đây là chỗ duy nhất NÓI RA vì sao danh
-   sách ngắn đi), và bấm vào chip đó là bỏ lọc. */
-/* VÒNG 16 — ba thứ vừa sửa, chốt trên DOM thật: */
-check('không còn vạch tiến độ cuộn ở đỉnh trang', !q('.scroll-progress'),
-  q('.scroll-progress') ? 'phần tử vẫn được dựng' : '')
-/* Mục lọc loại bài: KHÔNG mang lớp `.kind` của thẻ (lỗi cũ làm cả bốn nút cùng
-   một màu tím), và mỗi mục có dấu màu của chính nó. */
-{
-  const kindItems = qa('.fbar-more .fchips.kinds .fchip')
-  check('mục lọc loại bài không mang lớp thẻ .kind', !qa('.fchip.kind').length,
-    `${qa('.fchip.kind').length} phần tử còn lớp .kind`)
-  check('mục lọc loại bài có dấu màu riêng', kindItems.length >= 5 && kindItems.every(el => el.querySelector('.kswatch')),
-    `${kindItems.filter(el => el.querySelector('.kswatch')).length}/${kindItems.length} mục có dấu`)
-  const onKind = q('.fbar-more .fchip.fkind.on')
-  check('đúng một mục loại đang chọn', kindItems.filter(el => el.classList.contains('on')).length === 1,
-    (onKind?.textContent || '').trim())
-}
-/* Thanh tiến độ của request: số được chừa chỗ, và vạch có hai mốc chia (suy từ
-   ba mốc Layout/Lyrics/Edit — 40 · 40 · 20).
-   Bài kiểm này phải đứng ở tab "In progress" mới thấy thanh tiến độ TRONG DANH
-   SÁCH (mặc định của bảng là tab Queue, nơi chưa có bài nào đang làm — chỉ khối
-   Up next mới có). Kiểm đúng chỗ người dùng nhìn thấy nó. */
-{
-  const chip = qa('.fchip').find(c => /In progress/i.test(c.textContent || ''))
-  if (chip) await click(chip)
-  const bars = qa('.list .prog')
-  check('tab In progress: mỗi hàng đang làm có thanh tiến độ', bars.length > 0, `${bars.length} thanh`)
-  const bar = bars[0]
-  const marks = bar ? [...bar.querySelectorAll('.prog-mile')] : []
-  check('vạch tiến độ có hai mốc chia', marks.length === 2, `${marks.length} mốc`)
-  check('vạch mốc nằm ở 40% và 80%', marks.map(m => m.style.getPropertyValue('--m')).join(' · ') === '40% · 80%',
-    marks.map(m => m.style.getPropertyValue('--m')).join(' · '))
-  check('thanh tiến độ có nhãn đọc được cho cả ba mốc',
-    /Layout 40% · Lyrics 40% · Edit 20%/.test(bar?.getAttribute('title') || ''),
-    bar?.getAttribute('title'))
-  const num = bar?.querySelector('.prog-num')
-  check('thanh tiến độ giữ nguyên khối "vạch + số"', !!num && !!bar.querySelector('.prog-track'),
-    num ? `${num.textContent.trim()}` : 'không thấy .prog-num')
-  dump('thanh tiến độ của request', '.list .prog')
-  /* trả bảng về tab Queue cho các mục kiểm phía sau */
-  const back = qa('.fchip').find(c => /^Queue/.test((c.textContent || '').trim()))
-  if (back) await click(back)
-}
-
-const kindChip = qa('.fbar-more .fchip.fkind').find(b => (b.textContent || '').trim() && !/All types/i.test(b.textContent))
-if (kindChip) {
-  const kindName = (kindChip.textContent || '').trim()
-  await click(kindChip)
-  await tick()
-  const onkind = q('.fchip.onkind')
-  check('chọn loại bài thì hàng chính hiện chip loại đang lọc', !!onkind, onkind?.textContent?.trim())
-  if (onkind) {
-    await click(onkind)
-    await tick()
-    check('bấm chip loại đang lọc là bỏ lọc đó', !q('.fchip.onkind'),
-      `còn ${q('.fchip.onkind')?.textContent?.trim()}`)
-  }
-  check('bỏ lọc xong danh sách trở lại', qa('.row, .grow').length > 0, `${qa('.row, .grow').length} hàng`)
-  void kindName
-} else {
-  check('thanh lọc có chip loại bài', false, 'không thấy chip loại bài nào trong khối lọc')
-}
-
-/* TIÊU ĐỀ KHỐI UP NEXT là một h2 thật (không phải div) và mang .lbl — cấp bậc
-   của khối. Trước đây nó 13,5px, nhỏ hơn cả tên bài trong khối (15px). */
-check('Up next có tiêu đề h2', !!q('.nowbar h2.lbl'), q('.nowbar h2.lbl')?.textContent?.replace(/\s+/g, ' ').trim())
+check('không còn vạch tiến độ cuộn ở đỉnh trang', !q('.scroll-progress'))
 
 const lone1 = loneTagClusters()
 check('trang chủ: không có cụm nhãn rời', lone1.length === 0, lone1.join(' | '))
@@ -451,15 +466,20 @@ if (search) {
     `${qa('.row, .grow').length} hàng cho "aespa"`)
   await type(search, '')
 }
-const upNextChip = qa('.fchip').find(c => /Up next/i.test(c.textContent || ''))
-if (upNextChip) {
-  await click(upNextChip)
-  check('tab Up next có nội dung', qa('.now-item, .row, .grow').length > 0)
+const statusPill = qa('.fb-main .fb-fac')[0]
+await click(statusPill)
+const upNextOpt = [...(q('#fb-status')?.querySelectorAll('.fb-opt') || [])]
+  .find(el => /Up next/i.test(el.textContent || ''))
+if (upNextOpt) {
+  await click(upNextOpt); await tick(140)
+  check('chọn Up next có nội dung', qa('.row, .grow').length > 0, `${qa('.row, .grow').length} hàng`)
   const lone2 = loneTagClusters()
   check('Up next: không có cụm nhãn rời', lone2.length === 0, lone2.join(' | '))
+  /* trả bảng về như cũ cho các mục phía sau */
+  await click(upNextOpt); await tick(120)
 }
-const queueChip = qa('.fchip').find(c => /Queue/i.test(c.textContent || ''))
-if (queueChip) await click(queueChip)
+const clrStatus = q('#fb-status .fb-apply')
+if (clrStatus) await click(clrStatus)
 
 /* ---------- 5b. XEM TRƯỚC VIDEO TRONG HALL OF FAME (vòng 23 + vòng 25) ----------
    LỖI CHỦ DỰ ÁN BÁO, LẦN 2 (vòng 25): "cái preview 30s ở hall of fame vẫn không
@@ -797,7 +817,7 @@ where = 'hộp vote'
 const voteBtn = qa('.votebtn:not([disabled])')[0]
 if (voteBtn) {
   await click(voteBtn)
-  check('hộp vote mở ra', !!q('.vm-hero'))
+  check('hộp vote mở ra', !!q('.vote-modal .vm-song'))
   /* BÀN PHÍM: mũi lên / dấu + phải chỉnh được số phiếu mà không cần tới ô nhập */
   const qtyBox = q('#vm-qty')
   if (qtyBox) {
@@ -818,8 +838,9 @@ if (voteBtn) {
      Vòng 10 dựng ba ô có viền + một vạch chia tỉ lệ; vòng 11 gỡ cả hai vì hộp
      vote bị chê là rối — nên phép kiểm ở đây chốt luôn rằng chúng KHÔNG quay
      lại: một khung viền nữa trong hộp chật là một lớp rối nữa. */
-  const after = q('.vm-after')
-  check('có dòng "còn … → còn …"', !!after && /\d/.test(after.textContent || ''),
+  const after = q('.vm-balance')
+  check('số dư sau vote có nhãn và con số mới', !!after && !!after.querySelector('.vm-balance-label')
+    && !!after.querySelector('strong[aria-live]') && /\d/.test(after.textContent || ''),
     after?.textContent?.replace(/\s+/g, ' ').trim())
   check('quỹ phiếu không còn ô/vạch trang trí', !q('.vm-chip') && !q('.vm-mix'))
 
@@ -854,10 +875,18 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
   if (name === 'Daily login') {
     await waitFor(() => !!q('.daily-login-page'))
     await waitFor(() => !!q('.check-in-day.is-today'))
-    check('Daily login có lịch điểm danh 7 cột và chỉ ngày hôm nay bấm được',
-      qa('.check-in-calendar-grid th').length === 7 && qa('.check-in-calendar-grid button').length === 1
-      && !!q('.check-in-day[aria-current="date"]') && qa('.check-in-stat').length === 4
-      && qa('.check-in-nav').length === 2)
+    {
+      const cells = qa('.check-in-calendar-grid button')
+      check('Daily login có lịch điểm danh 7 cột và chỉ ngày hôm nay bấm được',
+        qa('.check-in-calendar-grid th').length === 7
+        && cells.every(b => b.classList.contains('is-today'))
+        && !!q('.check-in-day[aria-current="date"]')
+        && qa('.check-in-nav').length === 2,
+        `th=${qa('.check-in-calendar-grid th').length} nút=${cells.length} nav=${qa('.check-in-nav').length}`)
+      check('Daily login có thẻ phần thưởng chu kỳ 7 ngày',
+        !!q('.login-rewards') && qa('.login-rewards-cycle-bar i').length === 7,
+        `${qa('.login-rewards-cycle-bar i').length} ô chu kỳ`)
+    }
     check('Daily login là trang riêng: chỉ có điểm danh',
       !!q('.daily-claim') && !q('.daily-spin') && !/quiz/i.test(text()))
   }
@@ -873,13 +902,12 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
       !/ties go to/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
     const lone = loneTagClusters()
     check('Xếp hạng: không có cụm nhãn rời', lone.length === 0, lone.join(' | '))
-    /* ---- MÙA GIẢI (vòng 19): ba núm All time / This week / This month ----
-       Luật cắt mùa có test riêng (season.test.js); smoke chỉ chốt hành vi thật
-       trên trình duyệt: bấm núm thì câu luật + khoảng ngày đổi theo, và bảng
-       không điều hướng đi đâu (nút type=button trong SPA). */
+    /* ---- MÙA GIẢI: All time / This month ----
+       Luật cắt mùa có test số (season.test.js); smoke chốt hành vi trên trình
+       duyệt: bấm núm thì câu luật + khoảng ngày đổi theo, không điều hướng. */
     const pseg = q('.lb-periodseg')
     const pbtns = [...(pseg?.querySelectorAll('button') || [])]
-    check('bảng xếp hạng có bộ chọn mùa 3 nút', pbtns.length === 3,
+    check('bảng xếp hạng có bộ chọn 2 kỳ', pbtns.length === 2,
       pbtns.map(b => b.textContent).join(' · ') || 'không thấy .lb-periodseg')
     const ruleAll = q('.lb-rule')?.textContent || ''
     /* ngày tháng KHÔNG in thường trực (người dùng chốt) — mặc định tooltip
@@ -887,16 +915,16 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     check('mặc định là All time: câu luật một vế, tooltip chưa chở khoảng ngày',
       pbtns[0]?.getAttribute('aria-pressed') === 'true'
       && !/\d{2}\/\d{2}/.test(pseg?.getAttribute('title') || ''), pseg?.getAttribute('title'))
-    if (pbtns.length === 3) {
-      await click(pbtns[2])
-      await waitFor(() => /this period/i.test(q('.lb-rule')?.textContent || ''), 2000)
-      const tip = pseg?.getAttribute('title') || ''
-      check('bấm This month: câu luật đổi thành theo mùa',
-        /this period/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
-      check('bấm This month: khoảng ngày vào tooltip nhóm mùa (dd/mm – dd/mm)',
-        /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(tip), tip)
-      check('đang xem mùa thì phiếu phải tự thú nhận là phiếu NHẬN TRONG MÙA (trong tooltip)',
-        /received this period/.test(tip), tip)
+    if (pbtns.length === 2) {
+      await click(pbtns[1])
+      await waitFor(() => /this month/i.test(q('.lb-rule')?.textContent || ''), 2000)
+      const rangeText = q('.lb-list-head .sr-only')?.textContent || ''
+      check('bấm This month: câu luật nói rõ dữ liệu trong tháng',
+        /this month/i.test(q('.lb-rule')?.textContent || '')
+          && /votes received this month/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
+      check('bấm This month: khoảng ngày có cho trình đọc màn hình, không in thường trực',
+        /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(rangeText)
+          && !/\d{2}\/\d{2} – \d{2}\/\d{2}/.test(pseg?.textContent || ''), rangeText)
       check('đổi mùa không điều hướng — vẫn ở /ranking',
         window.location.pathname === '/ranking', window.location.pathname)
       await click(pbtns[0])
@@ -907,70 +935,26 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     }
   }
   if (name === 'Daily Spin') {
+    /* ĐĨA ĐÃ ĐỔI HÌNH: bản cũ là một vòng 16 ô vẽ bằng CSS (`.spin-sector`),
+       có kéo-thả để quay và một dải chú giải bốn tầng. Bản hiện tại là BẢNG
+       20 ô đèn chạy vòng quanh một lõi có nút SPIN (`.spin-board` →
+       `.spin-tile`), không kéo, không chú giải. Nên các phép kiểm đòi
+       `.spin-sector`/`.spin-legend`/`can-drag` không còn đối tượng — chúng đo
+       một hình đã bị gỡ, không phải một lỗi mới. Dưới đây là hợp đồng của
+       hình ĐANG có, giữ nguyên tinh thần cũ: mỗi ô nói một mức thưởng, và số
+       ô / tỉ lệ thật vẫn đọc được bằng trình đọc màn hình. */
     check('Daily Spin chỉ giữ vòng quay, không dồn daily login vào chung',
       !q('.daily-login-page') && !q('.check-in-calendar'))
-    /* ĐĨA QUAY: 16 ô, và ĐÚNG BỐN nhãn — một nhãn cho một mức thưởng, chỉ là
-       con số. Trước đây mỗi nhãn còn kèm "×9" nên mặt đĩa đọc như bảng dữ liệu. */
-    check('đĩa có 16 ô', qa('.spin-sector').length === 16, `${qa('.spin-sector').length} ô`)
-    const wheelLabels = qa('.spin-wheel-number').map(e => (e.textContent || '').trim())
-    check('đĩa có đúng bốn nhãn thưởng, không kèm số ô',
-      wheelLabels.length === 4 && wheelLabels.every(x => /^\+\d+$/.test(x)),
-      wheelLabels.join(' · '))
-    check('không còn nhãn "×N" trên đĩa', !q('.spin-wheel-times'))
-    /* VÒNG 13: "vòng quay cx ko clear và colorful cho người dùng". Bốn tầng
-       thưởng nay là BỐN MÀU khác nhau trên đĩa, và chú giải nói lại đúng bốn
-       tầng đó.
-       VÒNG 15 (soát lại): chú giải CỐ Ý không in số ô và tỉ lệ — bản in đầy đủ
-       biến dải này thành một bảng dữ liệu nằm dưới một trò chơi; tỉ lệ thật đã
-       đi vào `aria-label` của chính đĩa (n: số ô, odds: từng mức thưởng), chỗ
-       duy nhất cần con số chính xác. Phép kiểm cũ đòi "N slices … %" nên báo
-       đỏ một điều đã cố ý — nay nó chốt đúng điều đang có. */
-    check('đĩa có chú giải bốn dải thưởng', qa('.spin-legend li').length === 4,
-      `${qa('.spin-legend li').length} dòng`)
-    check('chú giải giữ bốn tầng màu, không in số ô / tỉ lệ',
-      qa('.spin-legend li').every(li => li.querySelector('i') && /^\+\d+$/.test((li.textContent || '').trim())),
-      qa('.spin-legend li').map(li => (li.textContent || '').trim()).join(' · '))
-    check('tỉ lệ thật vẫn đọc được ở nhãn của đĩa', /\d+×\s*\+\d+/.test(
-      q('.spin-wheel-wrap')?.getAttribute('aria-label') || ''),
-    q('.spin-wheel-wrap')?.getAttribute('aria-label'))
-    /* Không còn note thừa: dòng "mỗi lượt thắng trung bình 1,75 vote" ở đầu
-       khối và câu "ô nào cũng có thưởng" dưới nút đều đã bị gỡ. */
-    /* KÉO ĐĨA — thao tác vừa được thêm. Ba điều phải đúng, và điều thứ ba
-       (kéo đủ xa thì đĩa quay thật) chỉ kiểm được bằng cách BẤM THẬT: nó đi
-       qua `spin()`, qua nhịp 4,5s và qua trạng thái của component. */
-    {
-      const wrap = q('.spin-wheel-wrap')
-      check('đĩa báo được là kéo được (can-drag)', !!wrap && wrap.classList.contains('can-drag'))
-      const ev = (type, x, y, pointerType = 'mouse') => {
-        const e = new window.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 7 })
-        Object.defineProperty(e, 'pointerType', { value: pointerType })
-        return e
-      }
-      const fire = async (el, e) => { await act(async () => { el.dispatchEvent(e) }); await tick(50) }
-
-      /* (1) ngón tay KHÔNG kéo được: kéo ở giữa màn hình cảm ứng là cuộn trang */
-      await fire(wrap, ev('pointerdown', 100, 0, 'touch'))
-      check('ngón tay không cầm được đĩa', !wrap.classList.contains('dragging'))
-      /* (2) chuột thì cầm được, và đĩa đi theo tay */
-      await fire(wrap, ev('pointerdown', 100, 0))
-      check('chuột cầm được đĩa', wrap.classList.contains('dragging'))
-      await fire(wrap, ev('pointermove', 95, 12))          // ~7° — có xoay, nhưng chưa tới ngưỡng
-      check('đĩa xoay theo tay', /rotate\(-?\d+/.test(wrap.style.transform), wrap.style.transform)
-      /* (3) kéo hụt (chưa tới ngưỡng 40°) thì nhả ra KHÔNG quay: đĩa trả về chỗ cũ */
-      await fire(wrap, ev('pointerup', 95, 12))
-      await tick(80)
-      check('kéo hụt không tiêu mất lượt quay',
-        !wrap.classList.contains('is-spinning') && wrap.style.transform === '',
-        wrap.style.transform)
-      /* (4) kéo đủ xa rồi nhả: đĩa vào nhịp quay thật */
-      await fire(wrap, ev('pointerdown', 100, 0))
-      await fire(wrap, ev('pointermove', 0, 100))          // 90° — quá ngưỡng 40°
-      await fire(wrap, ev('pointerup', 0, 100))
-      const turned = await waitFor(() => wrap.classList.contains('is-spinning'), 1500)
-      check('kéo đủ xa thì đĩa quay thật', turned,
-        `transform="${wrap.style.transform}" class="${wrap.className}"`)
-      await tick(200)
-    }
+    check('bảng quay có 20 ô quanh lõi', qa('.spin-tile').length === 20,
+      `${qa('.spin-tile').length} ô`)
+    check('mỗi ô mang một mức thưởng đọc được',
+      qa('.spin-tile').length > 0 && qa('.spin-tile b').every(b => /^\+\d+$/.test((b.textContent || '').trim())),
+      qa('.spin-tile b').slice(0, 4).map(b => b.textContent.trim()).join(' · '))
+    check('lõi quay có nút SPIN và trạng thái đọc được', !!q('.spin-cta') && !!q('.spin-control-status[role="status"]'),
+      q('.spin-cta')?.textContent?.trim())
+    check('đầu khối có đồng hồ lượt quay kế tiếp', !!q('.spin-reset b'),
+      q('.spin-reset')?.textContent?.replace(/\s+/g, ' ').trim())
+    check('dải dưới in số lượt còn lại và lịch sử', !!q('.spin-remaining') && !!q('.spin-history'))
     check('đầu khối quay không còn dòng trung bình cộng',
       !/1\.75|on average/i.test(text()), text().slice(0, 120))
     check('không còn câu ghi chú "ô nào cũng có thưởng"',
@@ -983,7 +967,7 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     check('khối hồ sơ có nút Lưu và nút đổi ảnh', qa('.prof-head-acts button').length >= 1 && !!q('.prof-av-acts button'))
     check('hồ sơ không còn là hộp thoại nổi', !q('.overlay .modal.narrow'))
     check('khối hồ sơ không còn dòng "Square crop…"', !/Square crop/i.test(text()))
-    check('mục About me vẫn liệt kê request của mình', !!q('.list') && !!q('.section-title'))
+    check('mục About me vẫn liệt kê request của mình', !!q('.mine-activity .list') && !!q('.mine-activity .tab'))
     /* ---- STREAK (vòng 20): dải chuỗi ngày + ba badge cột mốc 7/30/100 ----
        Luật đếm có test số (streak.test.js), hợp đồng schema có test tĩnh; smoke
        chốt phần NGƯỜI THẤY: dải nằm dưới khối hồ sơ, đủ ba badge, và con số
@@ -1046,17 +1030,9 @@ check('trang quản trị dựng ra', !!q('.adm-page'))
 check('trang quản trị nằm trong .main', !!q('.main .adm-page'))
 check('trang quản trị nằm trong .sect', !!q('.sect .adm-page'))
 check('trang quản trị có tiêu đề trang (h1)', !!q('.mainhead-t'))
-check('có dải số liệu chuyển mục', qa('.adm-kpi').length >= 6, `${qa('.adm-kpi').length} ô`)
-/* HAI VÙNG KHÁC NHAU PHẢI CÓ HAI TÊN KHÁC NHAU: dải số liệu là con của trang
-   quản trị, dùng lại đúng câu của trang thì trình đọc màn hình nghe một cái tên
-   hai lần và không biết mình vừa vào vùng nào. */
-{
-  const pageLabel = q('.adm-page')?.getAttribute('aria-label') || ''
-  const kpiLabel = q('.adm-kpis')?.getAttribute('aria-label') || ''
-  check('dải số liệu có tên riêng, không lặp tên trang quản trị',
-    !!pageLabel && !!kpiLabel && pageLabel !== kpiLabel,
-    `trang="${pageLabel}" · dải="${kpiLabel}"`)
-}
+check('điều hướng Admin gọn bằng một bộ chọn có nhãn truy cập',
+  !!q('.adm-section-select[aria-label]') && !q('.adm-kpis'),
+  q('.adm-section-select')?.getAttribute('aria-label') || 'không thấy bộ chọn mục')
 check('có thanh công cụ', !!q('.adm-bar'))
 /* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
    (Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ ở vòng 11.) */
@@ -1064,7 +1040,11 @@ const admH2 = q('.adm-h2')
 check('có tiêu đề cho mục đang mở', !!admH2 && !!q('.adm-h2-n'),
   admH2?.textContent?.replace(/\s+/g, ' ').trim())
 check('không còn vạch chia tỉ lệ trang trí', !q('.adm-mix'))
-check('nút xuất CSV có mặt', qa('button').some(b => /Export CSV/.test(b.textContent || '')))
+/* CSV chỉ có ở mục mang dữ liệu bảng; Overview là các thẻ funnel và cố ý không có nút xuất. */
+window.history.pushState({}, '', '/admin?tab=pending')
+window.dispatchEvent(new window.Event('popstate'))
+await waitFor(() => !!q('.adm-page') && !!q('.adm-export'), 3000)
+check('mục Chờ duyệt có nút xuất CSV', !!q('.adm-export') && /Export CSV/i.test(q('.adm-export')?.textContent || ''))
 
 /* Bộ lọc của bảng quản trị nằm ở ĐỊA CHỈ: mở một địa chỉ đã lọc sẵn thì ô tìm
    kiếm phải có sẵn từ khoá, và thẻ <option> sắp xếp phải đúng lựa chọn. */
@@ -1369,7 +1349,12 @@ try {
     }
     const sendBtn = q('.req-actions button[type="submit"]')
     if (!sendBtn) { check(`gửi request ${label}: bước 3 có nút gửi thật`, false); return false }
+    /* Khi bước 3 vừa mở, nút submit bị khoá ngắn 280ms để chặn double-tap.
+       Đợi đúng trạng thái sẵn sàng thay vì bấm nút đang disabled rồi kết luận
+       rằng đường gửi hỏng. */
+    await waitFor(() => !sendBtn.disabled, 1000)
     await click(sendBtn)
+    await tick(120)
     const sent = await waitFor(() => !!q('.msg.ok'), 3000)
     check(`gửi request ${label}: form báo đã gửi`, sent,
       q('.msg')?.textContent?.slice(0, 80) || 'không thấy dòng xác nhận')
@@ -1635,6 +1620,8 @@ where = 'bài trả phí'
      làm gì — đúng chỗ mà máy kiểm thật thà tin rằng "không có gì xảy ra".
      Nên ở đây phải tự phát đúng sự kiện mà trình duyệt sẽ phát. */
   const implicitSubmit = async () => {
+    const submit = q('.req-actions button[type="submit"]')
+    if (submit) await waitFor(() => !submit.disabled, 1000)
     await act(async () => {
       q('form')?.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }))
     })
@@ -1725,8 +1712,8 @@ where = 'bài trả phí'
     const tabsBefore = reqTabs().map(b => b.textContent.trim()).join(' / ')
     await click(mtab(/^Vote/i)); await tick(220)
     check('rời tab Request thì bảng vote hiện ra (và form request rời màn)',
-      !!q('.vote-status') && !q('.paidbox'),
-      `vote-status=${!!q('.vote-status')} paidbox=${!!q('.paidbox')} tabs=${tabsBefore}`)
+      !!q('.vp-stats') && !q('.paidbox'),
+      `vp-stats=${!!q('.vp-stats')} paidbox=${!!q('.paidbox')} tabs=${tabsBefore}`)
     await click(mtab(/^New request/i)); await tick(300)
     check('quay lại tab Request: vẫn đứng ở bước 3, không bị đẩy về bước 1',
       stepNow() === 3, `bước ${stepNow()}`)
@@ -1809,14 +1796,28 @@ where = 'bài trả phí'
   const splashUp = () => !!q('.splash:not(.hide)')
   const items = () => qa('.list .row, .list .grow')
   const searched = () => q('input.search')?.value || ''
-  /* Nhãn chip KHÔNG kèm con số: `<b class="fnum">` đứng sát nhãn nên
-     textContent là "Queue12" — muốn so nhãn thì phải bóc số ra trước. */
-  const chipLabel = (c) => (c.textContent || '').replace(/\s+/g, ' ').replace(/\d+$/, '').trim()
-  const onChips = () => qa('.fchip.on').map(chipLabel)
-  /* Nhãn của bốn chip GIAI ĐOẠN (i18n: filter.queued/picked/in_progress/completed).
-     Những chip còn lại trong dải là cách nhìn (Newest/Top voted/Following). */
+  /* Bố cục hiện tại dùng hai facet có bảng chọn, không còn dải `.fchip`.
+     Nhãn đang chọn nằm trong giá trị `.v` của Status/Type; trên máy hẹp, các
+     lựa chọn được lặp lại trong dải `.fb-applied`. */
+  const onChips = () => qa('.fb-main .fb-fac .v').map(e => (e.textContent || '').trim())
   const STAGE = /^(Queue|Up next|In progress|Done)$/
-  const chip = (re) => qa('.fchip').find(c => re.test(chipLabel(c)))
+  const chooseFacet = async (re) => {
+    const isStage = ['Queue', 'Up next', 'In progress', 'Done'].some(label => re.test(label))
+    const fac = qa('.fb-main .fb-fac')[isStage ? 0 : 1]
+    if (!fac) return null
+    await click(fac); await tick(100)
+    const opt = [...(q(isStage ? '#fb-status' : '#fb-kind')?.querySelectorAll('.fb-opt') || [])]
+      .find(el => re.test((el.querySelector('.fb-nm')?.textContent || '').trim()))
+    if (opt) {
+      await click(opt); await tick(100)
+      const apply = q(isStage ? '#fb-status .fb-apply' : '#fb-kind .fb-apply')
+      if (apply) await click(apply)
+    } else {
+      const apply = q(isStage ? '#fb-status .fb-apply' : '#fb-kind .fb-apply')
+      if (apply) await click(apply)
+    }
+    return opt
+  }
   const before = problems.length
   const quiet = (label) => check(`${label}: không có lỗi mới trong console`, problems.length === before,
     problems.slice(before).map(x => x.text).join(' / ').slice(0, 180))
@@ -1867,7 +1868,7 @@ where = 'bài trả phí'
     recent.length > 0 && recent.every(a => {
       const h = a.getAttribute('href') || ''
       const p = new URLSearchParams(h.replace(/^[^?]*\??/, ''))
-      return h.startsWith('/?f=newest&q=') && p.get('f') === 'newest' && (p.get('q') || '').trim().length > 2
+      return h.startsWith('/?f=all&s=newest&q=') && p.get('f') === 'all' && p.get('s') === 'newest' && (p.get('q') || '').trim().length > 2
     }), recent.map(a => a.getAttribute('href')).join(' | ').slice(0, 200))
   check('mỗi Recent request có nhãn trạng thái (không phải chữ `undefined`)',
     qa('.public-state').length === recent.length
@@ -1908,9 +1909,11 @@ where = 'bài trả phí'
     check('bài đã completed không bị loại (link không dùng f=top)',
       /Completed/i.test(q('.list')?.textContent || ''), (q('.list')?.textContent || '').slice(0, 120))
     check('không chip GIAI ĐOẠN nào còn bật', !onChips().some(c => STAGE.test(c)), onChips().join(' | '))
-    check('chip loại bài đã về "All types"', onChips().some(c => /All types/i.test(c)), onChips().join(' | '))
+    check('facet Type đã trở về trạng thái không lọc', !qa('.fb-main .fb-fac')[1]?.querySelector('.v'),
+      qa('.fb-main .fb-fac')[1]?.textContent?.trim())
     check('địa chỉ là ?f=newest&q=… để dán cho người khác được',
-      new URLSearchParams(window.location.search).get('f') === 'newest'
+      new URLSearchParams(window.location.search).get('f') === 'all'
+      && new URLSearchParams(window.location.search).get('s') === 'newest'
       && /Get\+Up|%20/.test(window.location.search), window.location.search)
   }
 
@@ -1919,11 +1922,11 @@ where = 'bài trả phí'
   /* Chỉ bấm khi chip CHƯA bật: `goto('/')` khôi phục bộ lọc đã lưu trong
      localStorage, nên Queue có thể đang bật sẵn — bấm vào lúc đó là TẮT nó đi
      (và về "Newest" theo luật chip giai đoạn cuối cùng). */
-  if (!onChips().some(c => STAGE.test(c))) await click(chip(STAGE))                 // Queue
-  if (!onChips().some(c => /Color Coded/.test(c))) await click(chip(/^Color Coded Lyrics/))
+  if (!onChips().some(c => STAGE.test(c))) await chooseFacet(/^Queue$/)
+  if (!onChips().some(c => /Color Coded Lyrics/.test(c))) await chooseFacet(/^Color Coded Lyrics$/)
   await tick(420)                                // chờ nhịp ghi URL + localStorage (320ms)
-  check('đã bật được chip giai đoạn + chip loại bài',
-    onChips().some(c => STAGE.test(c)) && onChips().some(c => /Color Coded/.test(c)), onChips().join(' | '))
+  check('đã bật được lựa chọn Status + Type',
+    onChips().some(c => STAGE.test(c)) && onChips().some(c => /Color Coded Lyrics/.test(c)), onChips().join(' | '))
   await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
   const doneLink2 = qa('.public-request-link').find(a => /Get Up/i.test(a.textContent || ''))
   if (doneLink2) {
@@ -1933,7 +1936,8 @@ where = 'bài trả phí'
       /Get Up/.test(q('.list')?.textContent || '') && items().length > 0,
       `chip đang bật: ${onChips().join(' | ')} · q="${searched()}"`)
     check('và cả hai bộ lọc nhiều-chọn đã được dọn',
-      !onChips().some(c => STAGE.test(c)) && onChips().some(c => /All types/i.test(c)), onChips().join(' | '))
+      qa('.fb-main .fb-fac .v').length === 0,
+      qa('.fb-main .fb-fac').map(e => e.textContent.trim()).join(' · '))
   } else {
     check('chip lọc còn bật từ trước: mở lại được trang cá nhân', false, 'không thấy link Get Up')
   }
@@ -1944,8 +1948,8 @@ where = 'bài trả phí'
   check('bảng có thẻ "This week"', !!weekly, (q('.nowbar.weekly')?.textContent || '(không có khối This week)').slice(0, 100))
   if (weekly) {
     const name = (weekly.querySelector('b')?.textContent || '').trim()
-    check('thẻ This week trỏ về bảng bằng f=newest (không phải f=top)',
-      (weekly.getAttribute('href') || '').startsWith('/?f=newest&q='), weekly.getAttribute('href'))
+    check('thẻ This week trỏ về bảng bằng f=all&s=newest (không phải f=top)',
+      (weekly.getAttribute('href') || '').startsWith('/?f=all&s=newest&q='), weekly.getAttribute('href'))
     scrolled.length = 0
     await click(weekly)
     check('bấm thẻ This week: đi trong app, tìm ra bài, không màn chờ',
@@ -1962,29 +1966,11 @@ where = 'bài trả phí'
     window.scrollTo = realScrollTo
   }
 
-  /* (6) TÁC GIẢ BÌNH LUẬN CŨNG LÀ MỘT LINK TRANG CÁ NHÂN */
+  /* Bình luận từng được hiển thị inline; giao diện hiện tại không có
+     điều khiển bình luận trên hàng. Đừng giữ click-path cũ cho một control đã
+     được gỡ khỏi sản phẩm. */
   await goto('/', () => items().length > 0)
-  const toggle = q('.comments-toggle')
-  check('hàng request có nút Comments', !!toggle)
-  if (toggle) {
-    await click(toggle)
-    const box = await waitFor(() => !!q('.comment-form input'), 3000)
-    check('mở được khung bình luận', box)
-    if (box) {
-      await type(q('.comment-form input'), ' smoke: link trang ca nhan ')
-      await click(q('.comment-form button[type="submit"]'))
-      const posted = await waitFor(() => qa('.comment').length > 0, 3000)
-      check('gửi được bình luận (đường ghi demo)', posted, `${qa('.comment').length} bình luận`)
-      const author = q('.comment-author')
-      check('bình luận có tên tác giả bấm được', !!author && (author.getAttribute('href') || '').startsWith('/?profile='),
-        author?.getAttribute('href') || (q('.comments-list')?.textContent || '').slice(0, 100))
-      if (author) {
-        await click(author)
-        check('bấm tên tác giả: mở trang cá nhân, không tải lại trang',
-          (await waitFor(() => !!q('.public-profile-head'), 3000)) && !splashUp(), text().slice(0, 120))
-      }
-    }
-  }
+  check('hàng request không dựng nút Comments đã gỡ', !q('.comments-toggle'))
 
   /* (7) BACK TO BOARD */
   await goto('/?profile=demo-user', () => !!q('.public-profile-head'))
@@ -2088,54 +2074,98 @@ where = 'bài trả phí'
    hàm sau reset mất việc hàm trước vừa làm, và nhãn nút thì nói láo. */
 where = 'click-path'
 {
-  /* (9a) Dòng "How this is calculated" — mở/đóng thuần details, không state.
-     Lời hứa: bấm vào thì thấy cách tính; bấm lần hai thì thu lại. */
+  /* (9a) Bảng "cách tính" đã bị gỡ khỏi chân khối Up next (chủ dự án yêu cầu:
+     chỉ vào bảng ba dòng và nói "bỏ"). Chân khối chỉ còn MỘT câu quy tắc.
+     Kiểm sự VẮNG MẶT: không còn details.calc, nhưng câu quy tắc vẫn còn — nếu
+     ai đó gỡ luôn cả câu thì đây là chỗ báo. */
   const calc = q('.now-foot details.calc')
-  check('click-path 9a: Up next có dòng cách tính mở ra được', !!calc && !!calc.querySelector('summary'))
-  if (calc) {
-    const sum = calc.querySelector('summary')
-    check('click-path 9a: ban đầu dòng cách tính đang ĐÓNG', !calc.open)
-    await click(sum)
-    const rows = [...calc.querySelectorAll('.calc-row')]
-    check('click-path 9a: bấm tóm tắt thì MỞ và có 3 dòng giải thích ngắn',
-      calc.open && rows.length === 3 && rows.every(row => row.querySelector('dt')?.textContent && row.querySelector('dd')?.textContent?.trim().length > 12),
-      `${rows.length} dòng: ${rows.map(row => row.textContent.trim()).join(' · ').slice(0, 90)}`)
-    await click(sum)
-    check('click-path 9a: bấm lần hai thì ĐÓNG lại', !calc.open)
+  check('click-path 9a: khối Up next KHÔNG còn bảng "cách tính"', !calc)
+  check('click-path 9a: chân khối vẫn còn câu quy tắc chốt bài',
+    !!q('.now-foot .now-rule')?.textContent?.trim())
+
+  /* (9c) Tab Buy votes: ba gói phải là ba HÀNG của một bảng (đủ cột để so giá
+     theo cột), và chọn phương thức thanh toán là có NGAY hóa đơn điền sẵn số
+     tiền của gói đang chọn. Đây là chỗ dễ hỏng câm: bảng có thể render đủ hàng
+     mà cột giá rỗng, hoặc hóa đơn mở ra với số 0 vì chưa có đơn nào. */
+  where = 'click-path · Buy votes'
+  {
+    const buyBtn = qa('button').find(b => /^buy votes$/i.test((b.textContent || '').trim()))
+    check('click-path 9c: có lối vào tab Buy votes', !!buyBtn)
+    if (buyBtn) {
+      await click(buyBtn)
+      const opened = await waitFor(() => !!q('.pk-row'), 3000)
+      await tick(200)
+      check('click-path 9c: ba gói là ba hàng của một bảng, không còn ba thẻ .pack',
+        opened && qa('.pk-row').length === 3 && !q('.pack'),
+        `${qa('.pk-row').length} hàng · thẻ .pack=${!!q('.pack')}`)
+      const per = qa('.pk-per span').map(e => (e.textContent || '').trim())
+      const price = qa('.pk-price b').map(e => (e.textContent || '').trim())
+      check('click-path 9c: mỗi hàng có đủ giá mỗi vote và tổng tiền để so theo cột',
+        per.length === 3 && price.length === 3 && per.every(Boolean) && price.every(Boolean),
+        `${per.join(' / ')} · ${price.join(' / ')}`)
+      const tile = qa('.paytile')[0]
+      if (tile) {
+        await click(tile); await tick(260)
+        const amt = (q('.iv-amt')?.textContent || '').replace(/\s+/g, '')
+        const pendingRow = qa('.buy-sec .adm').find(row => row.querySelector('.pill.pending'))
+        const pendingAmount = pendingRow?.querySelector('.nm small')?.textContent?.split('·').pop()?.replace(/\s+/g, '')
+        const expectedAmount = pendingAmount || '78,000₫'
+        check('click-path 9c: phương thức chọn xong hiện hóa đơn QR đúng số của đơn chờ (hoặc gói đang chọn)',
+          !!expectedAmount && amt.includes(expectedAmount) && !!q('.iv-qr')
+          && (pendingRow ? /Awaiting transfer/i.test(q('.iv-status')?.textContent || '')
+            : /Payment details/i.test(q('.iv-status')?.textContent || '')),
+          `số tiền=${amt || '(trống)'} · cần=${expectedAmount} · đơn chờ=${!!pendingRow} · qr=${!!q('.iv-qr')}`)
+        check('click-path 9c: mỗi dòng của hóa đơn có nút chép riêng',
+          qa('.iv-row').length >= 4 && qa('.iv-copy').length === qa('.iv-row').length,
+          `${qa('.iv-row').length} dòng · ${qa('.iv-copy').length} nút chép`)
+        const close = q('.modal .x')
+        if (close) { await click(close); await tick(220) }
+      }
+    }
   }
 
-  /* (9b) Dòng "{n} shown" phải đếm ĐÚNG tập đang thấy, và "Clear filters"
-     phải trả lại đúng danh sách trước khi lọc — không phải chỉ xoá ô tìm.
-     (Bất biến "đếm = hàng" chỉ đúng khi một trang hiển thị hết: bảng dùng
-     usePager 20/trang, demo nhỏ hơn nhiều nên kiểm được nguyên vẹn.) */
-  const topItems = () => qa('.list > .grow, .list > .row')
-  const fcount = () => parseInt((q('.fcount')?.textContent || '').match(/(\d+)/)?.[1] || '-1', 10)
-  /* Đo mốc từ trạng thái SẠCH: mục trước có thể để lại bộ lọc, mà "Clear
-     filters" trả về tập ĐẦY ĐỦ — so với mốc đang lọc là so hai tập khác nhau. */
-  const leftover = q('.fbar-meta')?.querySelector('button.lnk')
-  if (leftover) { await click(leftover); await tick(250) }
-  const boardSearch = q('.fbar input.search, .searchwrap input.search')
+  /* (9b) Status + Type + Sort cùng có hiệu lực. Bộ lọc hiện dùng các facet
+     (không còn dòng cũ ".fbar-meta"/"{n} shown"): bật hai facet, đổi Sort,
+     xác nhận hai facet vẫn còn chọn và bảng thực sự chỉ chứa đúng tập đã lọc;
+     nút Clear filters phải trả lại danh sách ban đầu. */
+  const topItems = () => qa('.list > .row, .list > .grow')
+  const searchBox = q('.fbar .search')
+  const clearFacetButton = q('.fb-main .fb-clear')
+  if (clearFacetButton && !clearFacetButton.hidden) { await click(clearFacetButton); await tick(360) }
   const nBefore = topItems().length
-  check('click-path 9b: dòng "{n} shown" đếm đúng số mục đang thấy',
-    nBefore > 0 && fcount() === nBefore, `dòng=${fcount()} · mục=${nBefore}`)
-  if (boardSearch && nBefore > 0) {
-    await type(boardSearch, 'e')
-    await tick(220)
-    const nFiltered = topItems().length
-    const meta = q('.fbar-meta')
-    check('click-path 9b: có lọc thì số trên dòng đếm = số mục còn lại trên bảng',
-      nFiltered > 0 && fcount() === nFiltered, `dòng=${fcount()} · mục=${nFiltered}`)
-    check('click-path 9b: dòng "{n} shown" khi lọc có kèm lối thoát "Clear filters"', !!meta)
-    const clearAll = meta?.querySelector('button.lnk')
-    if (clearAll) {
-      await click(clearAll)
-      await tick(250)
-      check('click-path 9b: "Clear filters" trả lại ĐÚNG danh sách trước khi lọc',
-        topItems().length === nBefore && fcount() === nBefore,
-        `trước=${nBefore} · sau=${topItems().length} · dòng=${fcount()}`)
-      check('click-path 9b: và cất luôn dòng "{n} shown" khi không còn lọc',
-        !q('.fbar-meta'), q('.fbar-meta')?.textContent)
-    }
+  check('click-path 9b: trạng thái sạch có danh sách để lọc', nBefore > 0, `${nBefore} mục`)
+  if (nBefore > 0) {
+    await chooseFacet(/^Queue$/); await tick(180)
+    await chooseFacet(/^Color Coded Lyrics$/); await tick(240)
+    const facetButtons = qa('.fb-main .fb-fac')
+    const statusVal = facetButtons[0]?.querySelector('.v')?.textContent?.trim() || ''
+    const typeVal = facetButtons[1]?.querySelector('.v')?.textContent?.trim() || ''
+    const filtered = topItems()
+    check('click-path 9b: Status Queue và Type Color Coded cùng đang chọn',
+      /Queue/i.test(statusVal) && /Color Coded/i.test(typeVal), `${statusVal} · ${typeVal}`)
+    check('click-path 9b: kết quả đồng thời đúng trạng thái và loại',
+      filtered.length > 0 && filtered.every(row => /Queue/i.test(row.querySelector('.status')?.textContent || '')
+        && !!row.querySelector('.kind.ccl')),
+      `${filtered.length} hàng`)
+
+    const sortButton = q('.fb-main .fb-sort')
+    if (sortButton) { await click(sortButton); await tick(80) }
+    const oldest = [...(q('#fb-sort-menu')?.querySelectorAll('.fb-mi') || [])]
+      .find(el => /^Oldest$/i.test((el.querySelector('.nm')?.textContent || '').trim()))
+    if (oldest) { await click(oldest); await tick(240) }
+    check('click-path 9b: đổi Sort sang Oldest không xoá Status hoặc Type',
+      /Oldest/i.test(q('.fb-sort .v')?.textContent || '')
+      && /Queue/i.test(qa('.fb-main .fb-fac')[0]?.querySelector('.v')?.textContent || '')
+      && /Color Coded/i.test(qa('.fb-main .fb-fac')[1]?.querySelector('.v')?.textContent || ''),
+      `${q('.fb-sort')?.textContent?.trim()} · ${q('.fb-main')?.textContent?.replace(/\s+/g,' ').trim()}`)
+
+    const clearAll = q('.fb-main .fb-clear')
+    if (clearAll && !clearAll.hidden) { await click(clearAll); await tick(360) }
+    check('click-path 9b: Clear filters trả lại danh sách và xoá cả hai facet + Sort',
+      topItems().length === nBefore
+      && qa('.fb-main .fb-fac .v').length === 0
+      && !/Oldest/i.test(q('.fb-sort .v')?.textContent || ''),
+      `trước=${nBefore} · sau=${topItems().length} · lọc=${qa('.fb-main .fb-fac .v').map(e=>e.textContent.trim()).join('|')}`)
   }
 
   /* (9c + 9d) Hộp New request → tab Vote: gõ tìm bậy → empty-state NÓI LÝ DO
@@ -2493,7 +2523,9 @@ realLog('\n── daily login ──')
     (() => {
       const demo = rd('../src/lib/dailyLoginCalendar.js')
       return !/bonus_credits|vote_credits|votes_awarded|free_vote/i.test(demo)
-        && /writeDemo\(userId, \[\.\.\.days, before\.day\]\.sort\(\)\)/.test(demo)
+        && /writeDemoState\(userId, \{[\s\S]*?days,[\s\S]*?milestone30Granted,[\s\S]*?milestone30Day:/.test(demo)
+        && /function makeRewardStatus/.test(demo)
+        && /writeDemoState\(userId, \{/.test(demo)
     })())
 
   check('daily login: file cài tay có bản cắt của hai phần sửa lỗi (không có bước cho 20261118)',

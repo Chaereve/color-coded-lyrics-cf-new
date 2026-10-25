@@ -10,7 +10,7 @@
         `done` và `on`;
      3. mỗi mục là một NÚT bấm được (quay lại bước cũ), trừ bước gửi khi chưa
         đủ hai ô bắt buộc — trạng thái đó là `disabled` thật;
-     4. máy hẹp: vẫn đủ ba vòng số, chỉ mở nhãn của bước đang đứng;
+     4. máy hẹp: vẫn đủ ba vòng số và ba nhãn ngắn, không cắt mất tên bước;
      5. reduced-motion: cả hai nhịp (đoạn nối + màn vào) đều tắt.
 
    Đây là hợp đồng theo CẶP giống cssFilterBar.test.js: mỗi mục phải còn cả vế
@@ -89,17 +89,16 @@ test('dải bước đủ ba phần: vòng số, nhãn, đoạn nối — và ha
   assert.match(line, /background:\s*var\(--line\)/)
 })
 
-test('bước xong tô đoạn nối + vòng số; bước đang đứng là vòng số ĐẶC màu nhấn', () => {
-  assert.match(anchor('.req-step.done .rs-line', /background:\s*color-mix/, 'đoạn nối đã qua'),
-    /color-mix\(in srgb, var\(--a-2\)/)
-  assert.match(anchor('.req-step.done .rs-n', /--a-soft/, 'vòng số đã xong'), /color-mix|--a-soft/)
-  const on = anchor('.req-step.on .rs-n', /background:\s*var\(--a\)/, 'vòng số đang đứng')
-  assert.match(on, /color:\s*#fff/, 'chữ trên nền nhấn phải là trắng (tương phản)')
-  /* Bước đang đứng chỉ ĐẬM HƠN một bậc — không thêm khung, không thêm bóng,
-     không thêm dấu chấm: dải bước đã nói đủ. */
+test('bước xong tô nối nhẹ; bước hiện tại dùng vòng nhấn dịu, không nền tím đặc', () => {
+  const line = anchor('.req-step.done .rs-line', /background:/, 'đoạn nối đã qua')
+  assert.match(line, /rgba\(169,164,255,\.2\)/, 'đường hoàn tất giữ màu nhấn nhưng giảm sáng')
+  const done = anchor('.req-step.done .rs-n', /background:/, 'vòng số đã xong')
+  assert.match(done, /rgba\(169,164,255,\.055\)/, 'vòng hoàn tất chỉ có nền nhấn rất nhẹ')
+  const on = anchor('.req-step.on .rs-n', /background:/, 'vòng số đang đứng')
+  assert.match(on, /rgba\(169,164,255,\.1\)/, 'bước hiện tại không dùng màu đặc quá sáng')
+  assert.match(on, /color:\s*#c9c5df/, 'giữ tương phản chữ mà không dùng trắng gắt')
   const onBtn = anchor('.req-step.on .rs-btn', /font-weight:\s*600/, 'chữ bước đang đứng')
-  assert.doesNotMatch(onBtn, /box-shadow|border:/, 'không thêm khung cho bước đang đứng')
-  /* Bước chưa tới: chìm hẳn, đọc là "chưa tới" chứ không phải "bấm được mà mờ". */
+  assert.doesNotMatch(onBtn, /box-shadow|border:/, 'không thêm khung cho nhãn bước')
   assert.match(anchor('.rs-btn', /color:\s*var\(--txt-3\)/, 'màu chữ mặc định'), /color:\s*var\(--txt-3\)/)
 })
 
@@ -116,14 +115,13 @@ test('bấm được bước đã qua (nút thật), và bước 3 bị khoá t�
 })
 
 /* ---------- 3. máy hẹp ---------- */
-test('máy hẹp: giữ đủ ba vòng số, chỉ mở nhãn của bước đang đứng', () => {
+test('máy hẹp: tên cả ba bước đều hiện và connector vẫn còn', () => {
   /* Trang có NHIỀU nhánh 620px (thanh lọc, hàng ô, ô dài…). Phải chọn đúng
      nhánh nói về dải bước, không phải nhánh đầu tiên gặp được. */
   const blocks = [...css.matchAll(/@media\s*\(max-width:\s*620px\)\s*\{([\s\S]*?)\n\}/g)].map((m) => m[1])
   const block = blocks.find((b) => /\.rs-t|\.req-step/.test(b))
   assert.ok(block, 'phải có nhánh máy hẹp cho dải bước')
-  assert.match(block, /\.rs-t\s*\{\s*display:\s*none/, 'nhãn bước khác phải gấp lại')
-  assert.match(block, /\.req-step\.on\s+\.rs-t\s*\{\s*display:\s*inline/, 'nhãn bước đang đứng vẫn hiện')
+  assert.doesNotMatch(block, /\.rs-t\s*\{[^}]*display:\s*none/, 'không được ẩn tên các bước')
   assert.match(block, /\.rs-line\s*\{[^}]*min-width/, 'đoạn nối ngắn lại nhưng vẫn còn')
   assert.doesNotMatch(block, /\.req-step\s*\{[^}]*flex:\s*0 0 auto/, 'ba bước vẫn phải chia đều hàng')
 })

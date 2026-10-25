@@ -38,7 +38,7 @@ export default function Countdown({ pick }) {
   const to = nextPickAt(pick)
   if (!to) {
     return (
-      <div className="pick-cd" title={t('now.pickRule', { n: days })}>
+      <div className="pick-cd">
         <span>{t('now.nextPickLbl')}</span>
         <b>{t('now.everyDays', { n: days })}</b>
       </div>
@@ -51,7 +51,7 @@ export default function Countdown({ pick }) {
   const h = Math.floor((ms % DAY) / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
   return (
-    <div className={over ? 'pick-cd over' : 'pick-cd'} title={t('now.pickRule', { n: days })}>
+    <div className={over ? 'pick-cd over' : 'pick-cd'}>
       <span>{t('now.nextPickLbl')}</span>
       <b>{over ? t('now.pickSoon') : t('now.nextPick', { d, h, m })}</b>
     </div>

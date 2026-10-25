@@ -69,13 +69,13 @@ export const profileUrl = (id) => `/?profile=${encodeURIComponent(id ?? '')}`
 export const songQuery = (title, artist) =>
   `${title ?? ''} ${artist ?? ''}`.replace(/\s+/g, ' ').trim()
 
-/** Bảng yêu cầu đã mở sẵn một bài. `f=newest` là chủ ý: đó là cách nhìn thấy
- *  MỌI bài trên bảng, nên link vẫn dẫn tới đúng bài khi nó đã được chốt,
- *  đang làm, hay đã xong. `f=top` thì không — nó chỉ liệt kê bài đang xin
- *  phiếu. */
+/** Mở một bài trong bảng: `f=all` giữ đủ mọi trạng thái để cả bài đã xong
+ *  còn tìm thấy; `s=newest` là cách xếp hiện rõ trong URL. Không dùng `top`,
+ *  vì nó chỉ liệt kê bài đang xin phiếu. */
 export const boardSearchUrl = (title, artist) => {
   const p = new URLSearchParams()
-  p.set('f', 'newest')
+  p.set('f', 'all')
+  p.set('s', 'newest')
   const q = songQuery(title, artist)
   if (q) p.set('q', q)
   return `/?${p.toString()}`

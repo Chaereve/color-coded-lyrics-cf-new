@@ -3,11 +3,10 @@ import Icon from './Icon'
 import { useModalExit } from '../lib/useModalExit'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { isPicked, kindCls } from '../lib/meta'
+import { isPicked, kindCls, kindShort } from '../lib/meta'
 import { warmCaptcha, warmFingerprint } from '../lib/spinShield.js'
 
 const MAX = 100
-const PRESETS = [1, 5, 10, 25]
 
 /**
  * Hộp vote / rút phiếu. Hai việc KHÔNG dùng chung một con số:
@@ -98,17 +97,14 @@ export default function VoteModal({
   }
 
   const clampQty = q => Math.max(1, Math.min(addMax, Math.trunc(Number(q)) || 1))
-  const presets = PRESETS.filter(v => v < cap)
-  const after = locked ? req.votes : (giving ? req.votes + n : Math.max(0, req.votes - n))
-  const leftAfter = giving ? Math.max(0, votesLeft - n) : votesLeft + Math.min(n, myCount)
-  const mineAfter = giving ? myCount + n : Math.max(0, myCount - n)
-  const changing = busy
+  const leftAfter = Math.max(0, votesLeft - n)
+  const mineAfter = Math.max(0, myCount - n)
   const canGive = giveCap > 0
   const canBack = backCap > 0
 
   return (
     <div className={`overlay vote-overlay${out}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal narrow vote-modal${out}`} role="dialog" aria-modal="true" aria-label={t('vote.dialogTitle')} ref={panelRef}>
+      <div className={`modal narrow vote-modal${giving ? '' : ' is-back'}${out}`} role="dialog" aria-modal="true" aria-label={t('vote.dialogTitle')} ref={panelRef}>
         <div className="modal-head">
           <div className="modal-tabs"><span className="mtab on">{t('vote.dialogTitle')}</span></div>
           <button className="x" onClick={onClose} aria-label={t('btn.close')}><Icon name="close" size={15} /></button>
@@ -116,10 +112,13 @@ export default function VoteModal({
 
         <div className="modal-body">
           <div className="vm-song">
-            <b>{req.title}</b>
-            <span> — {req.artist}</span>
+            <div className="vm-song-title">
+              <b>{req.title}</b>
+              <span className="vm-dash" aria-hidden="true">–</span>
+              <span className="vm-artist">{req.artist}</span>
+            </div>
             <div className="vm-sub">
-              <span className={`kind ${kindCls(req.kind)}`}>{req.kind}</span>
+              <span className={`kind ${kindCls(req.kind)}`} title={req.kind}>{kindShort(req.kind)}</span>
               <span className="dot" aria-hidden="true" />
               <span>{t('vote.total', { n: req.votes })}</span>
               {myCount > 0 && <><span className="dot" aria-hidden="true" /><span>{t('vote.yours', { n: myCount })}</span></>}
@@ -145,22 +144,18 @@ export default function VoteModal({
 
               {((giving && canGive) || (!giving && canBack)) && (
                 <>
-                  <div className={`vm-hero${giving ? '' : ' is-back'}`}>
-                    <span className="k">{t(giving ? 'vote.hero' : 'vote.heroBack')}</span>
-                    <span className={`v${changing ? '' : ' pop'}`} aria-live="polite">{after}</span>
-                    <span className="u">{t('vote.heroSub', { n: req.votes })}</span>
-                  </div>
-
-                  <div className="vm-presets" role="group" aria-label={t('vote.qty')}>
-                    {presets.map(v => (
-                      <button key={v} type="button" className={`vm-preset${n === v ? ' on' : ''}`}
-                        aria-pressed={n === v} disabled={busy} onClick={() => setQty(v)}>{v}</button>
-                    ))}
-                    {cap >= 1 && (
-                      <button type="button" className={`vm-preset all${usingAll ? ' on' : ''}`}
-                        aria-pressed={usingAll} disabled={busy}
-                        onClick={() => setQty(cap)}>{t('vote.useAll', { n: cap })}</button>
-                    )}
+                  <div className={`vm-balance${giving ? '' : ' is-back'}`} id="vm-balance">
+                    <div className="vm-balance-copy">
+                      <span className="vm-balance-label">{t(giving ? 'vote.balanceAfter' : 'vote.balanceBack')}</span>
+                      <small>
+                        {giving ? t('vote.freeTodayShort') : t('vote.yours', { n: myCount })}
+                        {(purchased > 0 || bonus > 0) && giving && <span className="vm-src"> · {t('vote.sources', { p: purchased, b: bonus })}</span>}
+                      </small>
+                    </div>
+                    <strong aria-live="polite">{giving ? leftAfter : mineAfter}</strong>
+                    <div className="vm-balance-track" aria-hidden="true">
+                      <i style={{ width: `${Math.max(0, Math.min(100, (giving ? leftAfter / Math.max(1, votesLeft) : mineAfter / Math.max(1, myCount)) * 100))}%` }} />
+                    </div>
                   </div>
 
                   <div className="field">
@@ -171,7 +166,7 @@ export default function VoteModal({
                           disabled={busy} aria-label="−"><Icon name="minus" size={15} /></button>
                         <input id="vm-qty" type="number" min="1" max={addMax} value={qty} disabled={busy}
                           ref={qtyRef}
-                          aria-describedby="vm-after"
+                          aria-describedby="vm-balance"
                           onChange={e => setQty(e.target.value)}
                           onBlur={() => setQty(q => clampQty(q))}
                           onKeyDown={e => {
@@ -182,24 +177,10 @@ export default function VoteModal({
                         <button type="button" onClick={() => setQty(q => Math.min(addMax, Number(q) + 1))}
                           disabled={busy} aria-label="+"><Icon name="plus" size={15} /></button>
                       </div>
-                    </div>
-                    <div className="vm-after" id="vm-after">
-                      {giving ? (
-                        <>
-                          <span>{t('vote.leftBefore', { n: votesLeft })}</span>
-                          <span className="arw" aria-hidden="true">→</span>
-                          <b className={leftAfter === 0 ? 'bad' : 'good'}>{leftAfter}</b>
-                        </>
-                      ) : (
-                        <>
-                          <span>{t('vote.yours', { n: myCount })}</span>
-                          <span className="arw" aria-hidden="true">→</span>
-                          <b className={mineAfter === 0 ? 'bad' : 'good'}>{mineAfter}</b>
-                        </>
-                      )}
-                      {(purchased > 0 || bonus > 0) && (
-                        <span className="vm-src">{t('vote.sources', { p: purchased, b: bonus })}</span>
-                      )}
+                      <button type="button" className="vm-all" disabled={busy || cap < 1}
+                        onClick={() => setQty(cap)}>
+                        {t(giving ? 'vote.confirmAll' : 'vote.takeBackAll', { n: cap })}
+                      </button>
                     </div>
                   </div>
                 </>

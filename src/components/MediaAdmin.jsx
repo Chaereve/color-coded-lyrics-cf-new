@@ -7,15 +7,10 @@ import { safeHttpUrl } from '../lib/safeUrl'
 import { timeAgo } from '../lib/meta'
 
 /* =========================================================
-   ADMIN — VIDEOS
+   ADMIN — LATEST VIDEOS
    ---------------------------------------------------------
-   Hai loại mục, cùng một bảng `media`:
-     · featured — hero lớn ở giữa trang chủ (mục đầu chưa ẩn)
-     · video    — dải "Latest update": link YouTube admin dán
-   Mỗi loại có thứ tự riêng (hai nút mũi tên, icon Lucide). Dải video sửa bằng
-   một ô textarea:
-   mỗi dòng một link theo định dạng   link | tên video — lưu một lần
-   là xong (thêm + sửa + xoá + xếp).
+   Chỉ quản lý dải video mới nhất. Có thể sửa từng video hoặc cập nhật cả danh
+   sách trong một ô textarea: mỗi dòng một link | tên video.
    ========================================================= */
 
 function MediaForm({ initial, busy, onSave, onCancel }) {
@@ -157,7 +152,7 @@ function TextEditor({ initial, busy, onCancel, onCommit }) {
   )
 }
 
-function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
+function MediaRow({ m, i, last, busy, onEdit, onDelete, onMove }) {
   const { t } = useI18n()
   const p = parseYoutube(m.url)
   const mediaHref = safeHttpUrl(m.url)
@@ -178,7 +173,6 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
       <div className="nm">
         <b>
           {m.title}
-          {live && <span className="pill completed">{t('adm.mediaLive')}</span>}
           {m.is_hidden && <span className="pill">{t('adm.mediaHidden')}</span>}
         </b>
         <small>
@@ -206,23 +200,19 @@ function MediaRow({ m, i, last, live, busy, onEdit, onDelete, onMove }) {
   )
 }
 
-function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, onReorder, addLabel }) {
+function MediaGroup({ allItems, busy, label, onSave, onCommit, onDelete, onReorder }) {
   const { t } = useI18n()
   const [editing, setEditing] = useState(null)   // id đang sửa | 'new' | null
   const [draft, setDraft] = useState(null)       // bản nháp khi sửa nhanh (ẩn/hiện)
   const [listEdit, setListEdit] = useState(false) // bảng sửa cả danh sách (chỉ nhóm Latest)
 
-  /* thứ tự toàn bảng theo position — reorder phải renumber đủ cả featured
-     lẫn video, không thì id trong một nhóm bị kéo về position 0 và nhảy
-     nhóm trên trang chủ */
+  /* Giữ thứ tự toàn thư viện khi kéo video: các mục cũ thuộc loại khác vẫn
+     giữ nguyên vị trí, nhưng chỉ video mới nhất xuất hiện trong giao diện. */
   const allSorted = useMemo(
     () => [...allItems].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)
       || new Date(b.created_at) - new Date(a.created_at)),
     [allItems])
-  const sorted = useMemo(() => allSorted.filter(m => m.kind === kind || (kind === 'video' && m.kind === 'playlist')),
-    [allSorted, kind])
-  /* featured: mục đầu chưa ẩn là hero đang hiển thị */
-  const liveId = kind === 'featured' ? sorted.find(m => !m.is_hidden)?.id : null
+  const sorted = useMemo(() => allSorted.filter(m => m.kind === 'video' || m.kind === 'playlist'), [allSorted])
 
   const move = (i, dir) => {
     const j = i + dir
@@ -253,20 +243,13 @@ function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, o
 
       {!editing && !listEdit && (
         <div className="mgroup-acts">
-          {kind === 'video' && onCommit ? (
-            <button className="btn btn-sm" onClick={() => setListEdit(true)}>
-              + {t('adm.mediaEditList')}
-            </button>
-          ) : (
-            <button className="btn btn-sm"
-              onClick={() => { setDraft({ kind, title: '', url: '', thumb: '', is_hidden: false }); setEditing('new') }}>
-              + {addLabel}
-            </button>
-          )}
+          <button className="btn btn-sm" onClick={() => setListEdit(true)}>
+            + {t('adm.mediaEditList')}
+          </button>
         </div>
       )}
 
-      {listEdit && kind === 'video' && onCommit && (
+      {listEdit && (
         <TextEditor key="textedit" initial={sorted} busy={busy}
           onCancel={() => setListEdit(false)}
           onCommit={async (p) => { await onCommit(p); setListEdit(false) }} />
@@ -277,7 +260,7 @@ function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, o
         <MediaForm key={editing} initial={draft} busy={busy}
           onCancel={() => { setEditing(null); setDraft(null) }}
           onSave={async (f) => {
-            await onSave(editing === 'new' ? f : { ...draft, ...f, id: editing })
+            await onSave({ ...draft, ...f, id: editing })
             setEditing(null); setDraft(null)
           }} />
       )}
@@ -285,7 +268,7 @@ function MediaGroup({ kind, allItems, busy, label, onSave, onCommit, onDelete, o
       {sorted.length === 0
         ? <div className="empty">{t('adm.mediaEmptyGroup')}</div>
         : sorted.map((m, i) => (
-          <MediaRow key={m.id} m={m} i={i} last={i === sorted.length - 1} live={m.id === liveId} busy={busy}
+          <MediaRow key={m.id} m={m} i={i} last={i === sorted.length - 1} busy={busy}
             onEdit={startEdit} onDelete={onDelete} onMove={move} />
         ))}
     </div>
@@ -297,19 +280,9 @@ export default function MediaAdmin({ media = [], busy, onSave, onCommit, onDelet
 
   return (
     <div>
-      {/* Nút "View on home page" đứng trong thanh công cụ của trang quản trị
-          (xem .adm-bar-end ở AdminPanel) — cùng hàng, cùng chỗ với điều khiển
-          của mọi mục khác, thay vì một dải riêng nằm chênh giữa tiêu đề và
-          nhóm đầu tiên. */}
       <p className="hint">{t('adm.mediaLimit', { n: media.length })}</p>
-      <MediaGroup kind="featured" allItems={media} busy={busy}
-        label={t('adm.mediaGroupFeatured')}
-        addLabel={t('adm.mediaAddFeatured')}
-        onSave={onSave} onDelete={onDelete} onReorder={onReorder} />
-
-      <MediaGroup kind="video" allItems={media} busy={busy}
+      <MediaGroup allItems={media} busy={busy}
         label={t('adm.mediaGroupVideo')}
-        addLabel={t('adm.mediaAddVideo')}
         onSave={onSave} onCommit={onCommit} onDelete={onDelete} onReorder={onReorder} />
     </div>
   )

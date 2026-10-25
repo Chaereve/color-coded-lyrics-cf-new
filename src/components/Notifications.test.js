@@ -9,7 +9,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
-import { DEFAULT_PREFS, groupNotices, pickLadder } from '../lib/watch.js'
+import { groupNotices } from '../lib/watch.js'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const AT = Date.UTC(2026, 8, 8, 12)
@@ -35,7 +35,7 @@ async function renderModule(path, props, exportName = 'default') {
 
 const renderPanel = (props = {}) => renderModule('/src/components/Notifications.jsx', {
   open: true, onToggle: () => {}, onClose: () => {}, onOpenNotice: () => {}, onReadAll: () => {},
-  onDrop: () => {}, onBrowse: () => {}, onVote: () => {}, onUnfollow: () => {}, onPrefs: () => {},
+  onDrop: () => {}, onBrowse: () => {}, onVote: () => {},
   ...props,
 })
 
@@ -47,7 +47,6 @@ const row = (o) => ({
   picked_at: null, created_at: ISO, ...o,
 })
 const rows = [row({}), row({ id: 'r2', user_id: 'u2', artist: 'ILLIT', title: 'Lalaluka', votes: 7 })]
-const { rank } = pickLadder(rows)
 const KEY = 'aespa\nwhiplash'
 const rowsByKey = new Map(rows.map(r => [`${(r.artist || '').toLowerCase()}\n${(r.title || '').toLowerCase()}`, r]))
 
@@ -92,11 +91,11 @@ test('bảng là hộp thoại đúng cấu trúc: aria-controls, tiêu điểm,
 })
 
 test('chuông đếm tin chưa đọc, quá 9 thì ghi 9+', async () => {
-  const html = await renderPanel({ open: false, notices: [notice('near'), notice('lead'), notice('done')] })
+  const html = await renderPanel({ open: false, notices: [notice('approved'), notice('picked'), notice('done')] })
   assert.match(html, /aria-label="Open your notifications \u2014 3 unread"/)
   assert.match(html, /class="nt-btn has"/)
   assert.match(html, /dotbadge[^>]*>3</)
-  const many = await renderPanel({ open: false, notices: Array.from({ length: 12 }, (_, i) => notice('votes', { id: `v${i}`, votes: i + 5 })) })
+  const many = await renderPanel({ open: false, notices: Array.from({ length: 12 }, (_, i) => notice('progress', { id: `v${i}`, pct: i + 5 })) })
   assert.match(many, /dotbadge[^>]*>9\+</)
 })
 
@@ -108,13 +107,10 @@ test('chia nhóm theo trạng thái, việc cần làm trước, kết quả ch�
       notice('done', { id: 'd', read: true }),
       notice('denied', { id: 'x', type: 'denied', reason: 'Link không xem được' }),
       notice('picked', { id: 'p' }),
-      notice('near', { gap: 2 }),
+      notice('approved', { id: 'a' }),
       notice('progress', { id: 'w', type: 'started', pct: 40 }),
     ],
-    /* pickVan de nguyen: du co du lieu that thi bang cung khong con in dong
-       dem nguoc o dau nhom nua — do la yeu cau cua nguoi dung. */
-    rank, rowsByKey,
-    pick: { interval_days: 4, next_pick_at: new Date(AT + 2 * 86400000).toISOString() },
+    rowsByKey,
   })
   const tx = plain(html)
   for (const label of ['Needs your votes', 'Up next', 'Denied', 'In progress', 'Out now']) {
@@ -127,7 +123,7 @@ test('chia nhóm theo trạng thái, việc cần làm trước, kết quả ch�
 test('Denied hiện luôn lý do trong dòng tin', async () => {
   const html = await renderPanel({
     notices: [notice('denied', { reason: 'Link không xem được, gửi lại link nhé' })],
-    rank, rowsByKey,
+    rowsByKey,
   })
   const tx = plain(html)
   assert.match(tx, /Whiplash \u2014 aespa/)
@@ -137,12 +133,12 @@ test('Denied hiện luôn lý do trong dòng tin', async () => {
 })
 
 test('dòng tin có sẵn nút việc: Vote khi còn vote được, Watch khi có video', async () => {
-  const withVote = await renderPanel({ notices: [notice('approved')], rank, rowsByKey })
+  const withVote = await renderPanel({ notices: [notice('approved')], rowsByKey })
   assert.match(plain(withVote), /Vote now/)
   assert.ok(!/Watch/.test(plain(withVote)))
 
   const withVideo = await renderPanel({
-    notices: [notice('done', { url: 'https://youtu.be/abc' })], rank,
+    notices: [notice('done', { url: 'https://youtu.be/abc' })],
     rowsByKey: new Map([[KEY, { ...rows[0], status: 'completed', video_url: 'https://youtu.be/abc', picked_at: ISO }]]),
   })
   assert.match(withVideo, /href="https:\/\/youtu\.be\/abc"/)
@@ -151,19 +147,22 @@ test('dòng tin có sẵn nút việc: Vote khi còn vote được, Watch khi c�
   assert.ok(!/Vote now/.test(plain(withVideo)), 'bài đã xong thì không còn Vote')
 })
 
-test('chưa có tin: nói thẳng + cho lối vào cài đặt ngay tại đó', async () => {
-  const html = await renderPanel({ notices: [], watched: [], prefs: DEFAULT_PREFS, rank })
+test('chưa có tin: nói thẳng, chỉ còn lối ra bảng', async () => {
+  const html = await renderPanel({ notices: [] })
   const tx = plain(html)
   assert.match(tx, /Nothing yet/)
   assert.match(tx, /Browse the board/)
-  assert.match(tx, /Notification settings/)
   assert.ok(!/Mark all read/.test(tx), 'không có tin đọc thì đừng bày nút đánh dấu')
+  /* Bốn công tắc cũ đều xoay quanh việc theo dõi bài của người khác — tầng
+     đó đã bị gỡ, nên cả nút răng cưa lẫn tab cài đặt phải đi theo. */
+  assert.ok(!/Notification settings/.test(tx), 'không còn tab cài đặt')
+  assert.ok(!/aria-label="Notification settings"/.test(html), 'không còn nút răng cưa mở cài đặt')
 })
 
 test('Mark all read hiện khi còn tin chưa đọc, kèm đếm ở đầu bảng và ở nhóm', async () => {
   const html = await renderPanel({
-    notices: [notice('near', { gap: 1 }), notice('lead', { id: 'l', read: true })],
-    rank, rowsByKey,
+    notices: [notice('approved', { gap: 1 }), notice('picked', { id: 'l', read: true })],
+    rowsByKey,
   })
   const tx = plain(html)
   assert.match(tx, /Mark all read/)
@@ -172,29 +171,9 @@ test('Mark all read hiện khi còn tin chưa đọc, kèm đếm ở đầu b�
   assert.match(html, /nt-i new/)
 })
 
-test('cài đặt: đúng bốn công tắc, không kèm danh sách hay nút demo', async () => {
-  const html = await renderPanel({
-    startTab: 'prefs', notices: [], prefs: { ...DEFAULT_PREFS, votes: true },
-  })
-  const tx = plain(html)
-  assert.match(tx, /Tell me about my requests/)
-  assert.match(tx, /Tell me when a song is almost picked/)
-  assert.match(tx, /Tell me about video progress/)
-  assert.match(tx, /Tell me when votes go up/)
-  const boxes = html.match(/<input type="checkbox"[^>]*>/g) || []
-  assert.equal(boxes.length, 4)
-  assert.deepEqual(boxes.map(b => /checked/.test(b)), [true, true, false, true])
-  /* 4 thu nay thuoc cho khac: danh sach theo doi o tab Following cua bang,
-     bo theo doi o the chi tiet — dung day vao bang cai dat nua */
-  for (const gone of ['Following', 'Stop following', 'Demo:', 'Notification settings,']) {
-    assert.ok(!tx.includes(gone), `le lai: ${gone}`)
-  }
-  assert.match(tx, /Notifications/)
-})
-
 test('bảng không còn dòng chú thích ở chân, nhãn nút video thì ngắn', async () => {
   const html = await renderPanel({
-    notices: [notice('done', { url: 'https://youtu.be/abc' })], rank,
+    notices: [notice('done', { url: 'https://youtu.be/abc' })],
     rowsByKey: new Map([[KEY, { ...rows[0], status: 'completed', video_url: 'https://youtu.be/abc', picked_at: ISO }]]),
   })
   const tx = plain(html)
@@ -212,9 +191,8 @@ test('bảng không còn dòng chú thích ở chân, nhãn nút video thì ng�
 
 test('nhóm cần phiếu: nut VOTE NOW thay dong dem nguoc, va khong mo hop thoai', async () => {
   const html = await renderPanel({
-    notices: [notice('approved'), notice('near', { id: 'k', gap: 1 })],
-    rank, rowsByKey,
-    pick: { interval_days: 4, next_pick_at: new Date(AT + 2 * 86400000).toISOString() },
+    notices: [notice('approved'), notice('approved', { id: 'k' })],
+    rowsByKey,
   })
   const tx = plain(html)
   /* thu trong CSS, nen text nay van la chu thuong o dau nhom */
@@ -227,14 +205,13 @@ test('nhóm cần phiếu: nut VOTE NOW thay dong dem nguoc, va khong mo hop tho
 
 test('nhóm cần phiếu mà không còn bài nào bỏ phiếu được thì không bày nut VOTE NOW', async () => {
   const html = await renderPanel({
-    /* tin 'lead' cua bai da CHOT -> rowsByKey tra ve dong picked, bo phieu khong con nghia gi */
-    notices: [notice('lead', { id: 'l' })], rank,
+    /* bai da CHOT -> rowsByKey tra ve dong picked, bo phieu khong con nghia gi */
+    notices: [notice('approved', { id: 'l' })],
     rowsByKey: new Map([[KEY, row({ status: 'in_progress', picked_at: ISO })]]),
   })
   const tx = plain(html)
   assert.match(tx, /Needs your votes/)
   assert.ok(!/Vote now/.test(tx))
-  assert.match(tx, /needs 3 to lead/)
 })
 
 /* ---------------- logic gom nhóm (không qua React) ---------------- */

@@ -2,29 +2,28 @@
    tool thì không ("lệch tí, thấy mà không đo được"), và những lần ai đó "đơn
    giản hoá" làm quay lại đúng cái thiết kế đã bị phản đối.
    ---------------------------------------------------------
-   Ba điều ở đây đều do người dùng chỉ ra bằng ảnh chụp:
-   1) Lưới của THẺ CỤM BÀI (.grow): chốt cột là phải chốt hàng. FollowBtn đứng
-      TRƯỚC .grow-head trong DOM; chỉ khai cột mà để hàng tự xếp thì chuông chiếm
-      hàng 1, đầu cụm bị đẩy xuống hàng 2 — chuông nằm riêng một góc, thẻ cao
-      thêm ~40px.
-   2) Chuông của cụm không được neo `position:absolute` + `top`: đó là số đo, còn
-      đầu cụm cao theo nội dung nên nó nhảy so với nút mũi tên.
-   3) Chuông là AFFORDANCE MỜ cuối dòng meta, KHÔNG phải ô nút có hộp — người
-   dùng đánh giá hộp 26px viền 1px (bật lên thành chip màu) ở cuối mọi dòng là
-   "thô, mất thẩm mỹ". CSS phải chứng minh: không viền, không nền, ẩn khi hàng
-   tĩnh, hiện khi rê/focus, icon bật/tắt cross-fade cùng ô, và màn cảm ứng vẫn
-   thấy. Kèm theo: không còn "ô ghost" giữ chỗ cho hàng trong cụm, vì hàng
-   trong cụm chẳng có chuông nào để canh cột.
+   Bốn điều ở đây đều do người dùng chỉ ra bằng ảnh chụp:
+   1) CỘT PHIẾU BÊN PHẢI của hàng request (phương án F) — bốn vế: hàng giãn
+      hết chiều cao, đệm dọc dời về phần chữ, vách ngăn là `border-left` của
+      cột, số phiếu là chữ lớn. Thiếu vế nào là quay lại nút vote lơ lửng.
+   2) NÚT NGHE là hành động duy nhất của hàng, nên nó phải đọc ra là một nút
+      (viền + nền + mũi play màu nhấn) và phải KHÔNG đội dòng tiêu đề lên —
+      hộp 24px đứng trong dòng chữ 17px mà không bù lề là chữ trôi lên trên,
+      đúng hiện tượng "chữ chưa ở giữa ô".
+   3) Chuông theo dõi và nút chia sẻ đã bị GỠ khỏi sản phẩm (cùng với cột lưới
+      thứ hai của `.grow` chỉ tồn tại để đặt chuông). Bài này canh cho chúng
+      không quay lại bằng đường sau: không component, không lớp CSS, không
+      prop `onWatch`/`onShare`, không icon `share`.
    Xem thêm cssNotifyPitch.test.js, cssSelectArrow.test.js. Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const at = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+const fileAt = (rel) => fileURLToPath(new URL(rel, import.meta.url))
 const css = at('../index.css')
 const app = at('../App.jsx')
-const btn = at('../components/FollowBtn.jsx')
 /* bỏ comment để không đếm cả những gì nằm trong ghi chú */
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -47,146 +46,176 @@ const ruleOf = (sel) => {
   return hits.join('; ')                 // gộp bản gốc + bản trong @media
 }
 
-test('.grow: mỗi quy tắc chọn con trực tiếp đều chốt cả hàng lẫn cột', () => {
-  const rules = RULES.filter((r) => r.sels.some((x) => x.startsWith('.grow >')))
-  assert.ok(rules.length >= 2, `không tìm thấy quy tắc .grow > con (${rules.length})`)
-  for (const { sels, body } of rules) {
-    const hasCol = /grid-column(-start|-end)?\s*:/.test(body)
-    const hasRow = /grid-row(-start|-end)?\s*:/.test(body)
-    const hasArea = /grid-area\s*:/.test(body)
-    assert.ok(!hasCol || hasRow || hasArea, `${sels.join(', ')}: chốt cột mà quên chốt hàng`)
+/* PHƯƠNG ÁN F — CỘT PHIẾU BÊN PHẢI.
+   ---------------------------------------------------------
+   Lỗi mà ảnh chụp thật cho thấy: nội dung dòng phụ hết ở giữa hàng, nút vote
+   là một hộp nhỏ canh giữa mép phải, nên mỗi hàng có một khoảng trống ~40% bề
+   ngang và cái nút lơ lửng trong đó. Cách sửa là ĐÓNG KHUNG cột phải. Bốn vế
+   phải còn đủ, thiếu vế nào là quay lại đúng trạng thái cũ:
+
+     1. hàng giãn hết chiều cao  → `align-items: stretch` trên `.row.req`;
+     2. cột chạm hai mép         → đệm dọc dời về `.body`, hàng `padding: 0`;
+     3. vách ngăn dọc            → `border-left` trên cột, không phải viền hộp;
+     4. số phiếu là chữ lớn      → `--fs-lead`, nhãn về cỡ caption in hoa. */
+test('cột phiếu bên phải (phương án F) còn đủ bốn vế', () => {
+  const row = ruleOf('.row.req')
+  assert.match(row, /align-items:\s*stretch/, 'hàng phải giãn để cột chạm hai mép')
+  assert.match(row, /padding:\s*0/, 'đệm dọc của hàng phải về 0, nếu không cột bị hụt vào trong')
+  const body = rulesWith('.row.req .body').join(' ')
+  assert.match(body, /padding:\s*var\(--sp-3\) 0/,
+    'đệm dọc nằm ở phần chữ; mép phải do CHÍNH nút nghe lo bằng lề của nó')
+  /* HAI DÒNG PHẢI THỞ. Khi cụm ba nút rời dòng tiêu đề, hộp chữ của dòng đó
+     thấp đi ~7px và hàng tự co — hai dòng dính vào nhau (ảnh chụp chủ dự án:
+     "ô hẹp quá nên khoảng cách giữa các dòng bị dính"). Khoảng nới nằm ở GAP,
+     không phải line-height: chữ vẫn sát trong từng dòng. */
+  assert.match(body, /gap:\s*6px/, 'khoảng giữa hai dòng là 6px — 2px thì hai dòng dính')
+
+  const btn = ruleOf('.row.req > .votebtn')
+  assert.match(btn, /flex-direction:\s*column/, 'số và nhãn phải xếp dọc trong cột')
+  assert.match(btn, /border-left:\s*1px solid var\(--line\)/, 'vách ngăn là đường kẻ trái của cột')
+  assert.match(btn, /border:\s*0/, 'không giữ viền hộp của nút cũ — viền + vách là hai khung chồng nhau')
+  assert.match(btn, /border-radius:\s*0/, 'cột chạm hai mép thì không được bo góc')
+  assert.match(btn, /align-self:\s*stretch/, 'cột cao đúng bằng hàng')
+
+  const num = rulesWith('.row.req > .votebtn b').join(' ')
+  assert.match(num, /font-size:\s*var\(--fs-lead\)/, 'số phiếu phải lấy từ thang chữ, không viết cỡ rời')
+  const lbl = rulesWith('.row.req > .votebtn span').join(' ')
+  assert.match(lbl, /text-transform:\s*uppercase/, 'nhãn là đơn vị của con số: chữ nhỏ in hoa')
+  assert.match(lbl, /letter-spacing/, 'chữ in hoa cỡ nhỏ phải giãn chữ mới đọc được')
+
+  /* Trạng thái KHOÁ không được dùng viền đứt của bản cũ: trên một vách ngăn
+     dọc, nét đứt đọc ra thành "ô nhập liệu" chứ không phải "không bấm được". */
+  /* ĐÃ BỎ PHIẾU (bản B, vòng 6). Ảnh chụp chủ dự án gửi: nền `--a-soft` 16% +
+     vách sáng 1px + chấm 6px = ba tín hiệu cho một sự thật, và cột rỗng thì
+     đọc ra thành một khối nặng hơn cả tên bài. Nay đúng MỘT tầng: nền 7%, vách
+     2px, không chấm — cộng một pill nhỏ cho số suất của chính mình. */
+  const on = ruleOf('.row.req > .votebtn.on')
+  assert.match(on, /background:\s*color-mix\(in oklab, var\(--a\) 7%/, 'nền 7% — đủ để đọc "đang chọn", không thành khối')
+  assert.doesNotMatch(on, /a-soft/, 'không quay lại nền 16% của bản cũ')
+  assert.match(on, /border-left:\s*2px solid var\(--a-2\)/, 'vách dày 2px là tín hiệu chính, thay cho vách 1px + chấm')
+  assert.match(on, /padding-left:\s*9px/, 'vách dày thêm 1px thì bớt 1px đệm, để cột số không nhảy khi bấm')
+  assert.match(on, /border-radius:\s*0/, 'cột chạm hai mép, bo góc là hở góc')
+  assert.match(css, /\.row\.req > \.votebtn\.on::before \{[^}]*content:\s*none/,
+    'chấm "đã bấm" ở đầu vách phải bị gỡ — nó đọc ra thành "có thông báo mới"')
+  assert.match(ruleOf('.row.req > .votebtn.on .mine'), /border-radius:\s*var\(--r-pill\)/,
+    'số suất của mình là một pill nhỏ, không phải tầng chữ thứ ba')
+  assert.match(css, /\.row\.req > \.votebtn\.on:hover:not\(:disabled\) \{[^}]*var\(--a\) 11%/,
+    'rê chuột trên hàng đã vote đậm nền lên, không xoá mất dấu đã chọn')
+  /* Nhãn VOTE giữ xám khi rê chuột. Luật hover chung đổi mọi `span` sang màu
+     nhấn; trên hàng đã vote điều đó thành tín hiệu thứ tư và làm nhãn sáng hơn
+     cả con số — ảnh chụp chủ dự án gửi lộ đúng chỗ đó. */
+  assert.match(css, /\.row\.req > \.votebtn\.on:hover:not\(:disabled\) span \{[^}]*var\(--txt-3\)/,
+    'nhãn VOTE của hàng đã vote không được đổi sang màu nhấn khi rê chuột')
+  /* Ô cuối danh sách bo đúng góc dưới-phải của khung, không trông nhờ cắt. */
+  assert.match(css, /\.row:last-child > \.votebtn\.on \{[^}]*border-radius:\s*0 0 var\(--r-md\) 0/,
+    'ô phiếu đã vote ở hàng cuối phải bo theo góc khung danh sách')
+
+  assert.match(css, /\.row\.req > \.votebtn\.locked \{[^}]*border-style:\s*none/,
+    'cột bị khoá tắt viền đứt, chìm bằng màu chữ thay vì bằng nét')
+  assert.match(css, /\.row\.req > \.votebtn\.locked b \{[^}]*var\(--txt-3\)/,
+    'số phiếu của bài đã khoá phải chìm về màu xám')
+})
+
+/* NÚT NGHE — hành động DUY NHẤT của một hàng request.
+   ---------------------------------------------------------
+   Bản trước nó là một chuỗi chữ xám không viền, đứng cạnh hai ô icon, và cả
+   cụm nằm lẫn trong dòng phụ. Chủ dự án chốt: bỏ theo dõi + chia sẻ, và nút
+   nghe phải NỔI BẬT. Ba lần chỉnh tiếp theo vẫn giữ nó TRONG dòng tiêu đề, và
+   lần nào ảnh chụp cũng lộ cùng một lỗi (chủ dự án: "vị trí vẫn còn kì cục"):
+   nút lửng lơ ở nửa trên bên phải, dưới nó là khoảng trống. Vòng này đổi hẳn
+   chỗ đứng:
+
+     1. nó là ANH EM của `.body`, đứng sau khối chữ và TRƯỚC cột phiếu — một
+        cột mảnh trong vùng hành động của hàng, không phải một nhãn trong tên
+        bài. Đây là vế quan trọng nhất: đặt lại vào `.title` là lỗi cũ quay lại.
+     2. `align-self: center` — canh giữa theo chiều dọc cả hàng, nên nó không
+        còn lệch lên trên so với khối chữ.
+     3. vẫn đọc ra là nút: pill màu nhấn, không viền xám. */
+test('nút nghe: đứng riêng trước cột phiếu, canh giữa hàng', () => {
+  const bodyClose = app.indexOf('</div>\n      {/* NÚT NGHE')
+  const watchAt = app.indexOf('<a className="watchbtn"')
+  const voteAt = app.indexOf('<button className={`votebtn')
+  const titleAt = app.indexOf('<div className="title">')
+  assert.ok(watchAt > 0 && voteAt > watchAt, 'nút nghe phải đứng TRƯỚC cột phiếu')
+  /* Không còn nằm trong khối tiêu đề: mép đóng của `.title` phải trước nút. */
+  const titleClose = app.indexOf('</div>', app.indexOf('<span className="tag', titleAt) > 0 ? app.indexOf('<span className="tag', titleAt) : titleAt)
+  assert.ok(titleClose > 0 && titleClose < watchAt,
+    'nút nghe KHÔNG được nằm trong dòng tiêu đề nữa — đó là cái làm nó "kì cục"')
+  assert.ok(bodyClose > 0, 'phải thấy chú thích đánh dấu chỗ nút đứng sau khối chữ')
+
+  const b = ruleOf('.row.req > .watchbtn')
+  assert.match(b, /display:\s*inline-flex/, 'nút là flex một hàng: icon + chữ')
+  assert.match(b, /height:\s*22px/, 'cao 22px — cỡ một nhãn phụ, không phải một khối')
+  assert.match(b, /align-self:\s*center/, 'canh giữa theo chiều dọc cả hàng')
+  assert.match(b, /flex:\s*none/, 'cột nút không được co lại khi tên bài dài')
+  assert.doesNotMatch(b, /margin-right|margin-left|margin:/,
+    'không lề riêng: `gap` 12px của `.row` lo cả khe tới khối chữ và khe tới vách phiếu')
+  assert.doesNotMatch(b, /margin-left:\s*auto/,
+    'không neo mép phải nữa: nút đứng trong cột của chính nó, không phải trong khối chữ')
+  assert.doesNotMatch(b, /margin-block:\s*-4px/,
+    'không cần lề âm bù dòng nữa — nút không còn nằm trong dòng chữ')
+  assert.match(b, /border:\s*0/, 'không viền: viền xám 1px là ngôn ngữ của ô nhập liệu, đặt cạnh tên bài là "thô"')
+  assert.match(b, /border-radius:\s*var\(--r-pill\)/, 'pill — cùng họ với nhãn PAID / Full Album trong hàng')
+  assert.match(b, /background:\s*color-mix\(in oklab, var\(--a-2\)/,
+    'nền là màu nhấn pha loãng: đọc ra "bấm được" mà không thành một khung kẻ')
+  assert.match(b, /color:\s*var\(--a-2\)/, 'chữ cùng màu nhấn với nền — một tín hiệu, không hai')
+  assert.match(b, /font-weight:\s*600/, 'nét 600: đây là nút, không phải một mẩu thông tin')
+  assert.match(b, /font-size:\s*11px/, 'cỡ chữ phụ nhỏ nhất trong hàng — nổi bật bằng màu, không bằng cỡ')
+  assert.match(b, /text-decoration:\s*none/, 'nút không gạch chân kiểu link chữ')
+  assert.match(rulesWith('.row.req > .watchbtn:hover').join(' '), /color-mix\(in oklab, var\(--a-2\)/,
+    'rê vào phải đậm nền lên, không chỉ đổi màu chữ')
+  assert.match(rulesWith('.row.req > .watchbtn:focus-visible').join(' '), /outline:\s*2px solid/,
+    'bàn phím Tab tới phải thấy vòng focus')
+
+  /* Máy cảm ứng: hộp 24px là quá nhỏ cho ngón tay, nhưng nới hộp lên 40px là
+     đội cả dòng tiêu đề. Nới VÙNG CHẠM bằng pseudo — hình không đổi một pixel. */
+  assert.match(css, /\.row\.req > \.watchbtn::before \{[^}]*inset:\s*-9px/,
+    'máy cảm ứng phải nới vùng chạm quanh nút bằng pseudo-element')
+})
+
+/* KHÔNG CÒN THEO DÕI / CHIA SẺ.
+   ---------------------------------------------------------
+   Hai tính năng này bị gỡ theo yêu cầu trực tiếp của chủ dự án. Gỡ nửa vời là
+   thứ dễ tái phát nhất: bỏ nút mà để lại component, để lại lớp CSS, hay để lại
+   prop `onWatch` xuyên qua ba lớp thì lần sau ai đó "khôi phục" một nửa là ra
+   một giao diện nửa cũ nửa mới. */
+test('theo dõi và chia sẻ đã bị gỡ hẳn, không còn dấu vết', () => {
+  for (const f of ['../components/FollowBtn.jsx', '../components/ShareBtn.jsx']) {
+    assert.ok(!existsSync(fileAt(f)), `${f} phải bị xoá — không để component chết`)
   }
+  for (const word of ['FollowBtn', 'ShareBtn', 'onWatch', 'onShare', 'doToggleWatch',
+    'shareSong', 'act-link', 'className="acts"']) {
+    assert.ok(!app.includes(word), `App.jsx còn sót "${word}"`)
+  }
+  for (const cls of ['.rowact', '.followbtn', '.sharebtn', '.act-link', '.row .acts']) {
+    const hits = RULES.filter((r) => r.sels.some((s) => s.startsWith(cls)))
+    assert.equal(hits.length, 0, `CSS còn quy tắc chết cho ${cls}`)
+  }
+  assert.doesNotMatch(at('../components/Icon.jsx'), /^\s*share:/m,
+    'icon chia sẻ không còn chỗ dùng — bộ icon có luật "không tên chết"')
+
+  /* Cụm bài mất chuông thì mất luôn cột lưới thứ hai: `.grow` từng là
+     `grid-template-columns: 1fr auto` chỉ để đặt chuông vào cột 2, kéo theo ba
+     luật `grid-area` và một `padding-right: 0` để nhường chỗ. */
+  assert.match(ruleOf('.grow'), /display:\s*block/, 'cụm bài trở lại một cột')
+  assert.equal(RULES.filter((r) => r.sels.some((s) => s.startsWith('.grow > .rowact'))).length, 0,
+    'không còn luật đặt chuông vào cột 2')
+  assert.doesNotMatch(bare, /\.grow \{[^}]*grid-template-columns/, 'lưới hai cột của cụm đã bỏ')
 })
 
-test('.grow định nghĩa lưới và nút mảnh của cụm không neo absolute', () => {
-  assert.match(ruleOf('.grow'), /display:\s*grid/)
-  assert.ok(!rulesWith('.grow > .rowact').some((b) => /position:\s*absolute/.test(b)),
-    'nút mảnh của cụm (chuông) phải là ô lưới, không phải absolute + top: số đo')
-  assert.match(ruleOf('.grow > .rowact'), /grid-area:\s*1\s*\/\s*2/, 'chuông cụm ở cột 2, hàng 1')
-  assert.match(ruleOf('.grow > .grow-head'), /padding-right:\s*0/,
-    'đầu cụm không cộng padding — khoảng cách do chuông giữ, không thì thành 26px')
-})
-
-test('nhịp cụm nút phải thống nhất giữa dòng lẻ và cả cụm', () => {
+test('nhịp hàng giữ nguyên thang mật độ', () => {
   const row = ruleOf('.row')
-  assert.match(row, /gap:\s*12px/, '.row gap phải 12px như cam kết trong HUONG-DAN')
-  assert.match(row, /padding:\s*11px 14px/, '.row cách mép phải 14px')
-  const bell = rulesWith('.grow > .rowact')
-  assert.ok(bell.some((b) => /margin:\s*0 14px 0 12px/.test(b)),
-    'chuông cụm: 12px từ mũi tên, 14px từ mép phải — đúng bằng .row')
-  assert.ok(bell.some((b) => /margin:\s*0 10px 0 8px/.test(b)),
-    'bản hẹp giữ cùng tỉ lệ: 8px giữa các nút, 10px từ mép phải')
+  /* Gap và đệm hàng lấy từ thang mật độ (`--sp-*`) thay vì số viết tay, nên
+     luật ở đây đọc đúng TÊN NẤC chứ không đọc con số: `--sp-3` = 12px (khe)
+     và `--sp-4` = 16px (đệm ngang). Đổi giá trị của nấc thì phải đổi cả chỗ
+     này — đó chính là mục đích: một chỗ khai, một chỗ chốt. */
+  assert.match(row, /gap:\s*var\(--sp-3\)/, '.row gap phải là nấc --sp-3 (= 12px) như cam kết trong HUONG-DAN')
+  assert.match(row, /padding:\s*8px var\(--sp-4\)/, '.row đệm 8px/--sp-4 (= 8px 16px)')
 })
 
-test('nút mảnh cuối dòng meta là affordance mờ, không phải ô nút có hộp', () => {
-  /* Nền dùng chung nằm ở `.rowact` (theo dõi + chia sẻ dùng cùng một cái), còn
-     `.followbtn` chỉ còn giữ trạng thái "đang theo dõi". */
-  const b = ruleOf('.rowact')
-  assert.match(b, /opacity:\s*0/, 'hàng tĩnh thì chuông phải ẩn hẳn')
-  assert.match(b, /border:\s*0/, 'không viền — có viền là quay lại cái hộp 26px bị phản đối')
-  assert.match(b, /background:\s*none/, 'không nền')
-  assert.match(b, /width:\s*18px/, 'ô 18px vừa đủ cho glyph 15px, không phải hộp 26px')
-  assert.match(b, /flex:\s*none/, '.meta là flex nên chuông phải flex:none — co lại là lệch nhịp chữ')
-  assert.ok(!/vertical-align/.test(b), 'hết thời `vertical-align`: .meta căn giữa bằng flex, khai nữa là số đo tay')
-  /* An = khong duoc cham vao. Thieu no thi 18px trong cuoi dong meta van la mot
-     nut: con tro bao bam duoc o cho khong co gi, va bôi đen dòng chữ là dính ô. */
-  assert.match(b, /pointer-events:\s*none/)
-  for (const sel of ['.row:hover .rowact', '.grow:hover > .rowact', '.rowact:focus-visible']) {
-    assert.ok(rulesWith(sel).some((body) => /pointer-events:\s*auto/.test(body)),
-      `"${sel}" phải mở lại pointer-events, không chỉ tăng opacity`)
-  }
-  /* phải là quy tắc LÀM HIỆN (opacity) chứ không chỉ quy tắc đổi glyph/chấm:
-     chỉ kiếm chuỗi ".row:hover .followbtn" trong file thì nó khớp cả
-     `.row:hover .followbtn.on > svg`, tức là bỏ mất đường hiện khi rê mà test
-     vẫn xanh. */
-  for (const sel of ['.row:hover .rowact', '.grow:hover > .rowact', '.rowact:focus-visible']) {
-    const hits = rulesWith(sel)
-    assert.ok(hits.length, `thiếu quy tắc "${sel}" — affordance ẩn mà không có đường hiện thì mất luôn lối tắt`)
-    assert.ok(hits.some((body) => /opacity:/.test(body) && !/svg|::after/.test(body)),
-      `"${sel}" phải đặt opacity cho chính nút`)
-  }
-  /* @media phải đọc trên CSS gốc: quy tắc một dòng `@media (...) { .x { y } }`
-     làm bộ parse ở trên nhảy thẳng vào quy tắc con, mất tên @media.  */
-  assert.match(css, /@media\s*\(hover:\s*none\)\s*\{[^{}]*\.rowact\s*\{[^{}]*opacity:[^}]*\}/,
-    'màn cảm ứng không có "rê": phải có .rowact trong @media (hover: none) với opacity > 0')
-  /* Hai nút mảnh đang cùng tồn tại (theo dõi + chia sẻ). Nút nào quên `.rowact`
-     là tự dựng kiểu riêng và lệch nhịp với nút bên cạnh — đúng lỗi mà khối
-     `.rowact` sinh ra để chặn. */
-  assert.match(btn, /rowact followbtn/,
-    'FollowBtn phải mang CẢ .rowact (nền chung) lẫn .followbtn (trạng thái)')
-  assert.match(at('../components/ShareBtn.jsx'), /rowact sharebtn/,
-    'ShareBtn phải mang CẢ .rowact lẫn .sharebtn')
-})
-  /* Vong focus: index.css chot bang THE (`button:focus-visible`), khong bang
-     danh sach ten — ten chu ong co trong danh sach la mau hinh cu, va o day
-     vong focus dang quan trong hon vi chinh thuoc no an. */
+test('vòng focus nằm ở THẺ button, không ở danh sách tên lớp', () => {
   assert.match(bare, /button:focus-visible[^{]*\{[^}]*outline:\s*2px solid/,
-    'phải còn quy tắc THẺ button:focus-visible — không có là chuông (và mọi nút trần khác) mất vòng focus')
-  assert.ok(!/\.followbtn:focus-visible\s*\{[^}]*outline:/.test(bare),
-    'không viết riêng vòng focus cho .followbtn nữa — quy tắc thẻ đã lo; thêm tên vào là bắt đầu lại cái danh sách đã bỏ')
-
-
-test('chuông theo dõi chuyển icon thật, không dùng chấm giả hay chip nền', () => {
-  assert.match(btn, /className="icon-crossfade"[\s\S]*name="bell"[\s\S]*crossfade-off[\s\S]*name="bellOn"[\s\S]*crossfade-on/,
-    'hai trạng thái chuông phải cùng tồn tại để cross-fade')
-  assert.match(ruleOf('.icon-crossfade > svg'), /transition:\s*opacity\s+150ms/,
-    'icon chuyển bằng opacity 150ms, không animate layout')
-  assert.match(ruleOf('.followbtn.on'), /color:\s*var\(--a-2\)/, 'đang bật thì đổi màu accent')
-  assert.ok(!bare.includes('.followbtn::after'), 'không quay lại chấm giả 4px thay cho icon chuông')
-  assert.ok(!ruleOf('.followbtn.on').includes('var(--a-soft)'),
-    'không biến chuông đang bật thành chip nền màu — chính là cái bị chê nặng')
-  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?transition-duration:\s*\.001ms\s*!important/,
-    'cross-fade phải tôn trọng prefers-reduced-motion')
-})
-
-/* hai ham JSX duoc cat theo ten de do vi tri trong markup — so sanh ca file
-   thi vo nghia: votebtn o RequestRow nam SAU chuong cua RequestGroup khac,
-   nen "indexOf > bellAt" duoc thoa man ngay ca khi bell bi dua ra sai cho. */
-const between = (src, from, toRe) => {
-  const a = src.indexOf(from)
-  assert.ok(a >= 0, `không tìm thấy "${from}" trong App.jsx`)
-  const rest = src.slice(a + from.length)
-  const m = toRe.exec(rest)
-  assert.ok(m && m.index > 0, `không tìm thấy ranh giới đóng của "${from}"`)
-  return src.slice(a, a + from.length + m.index)
-}
-/* ranh giới ham: ham dau tien sau do co the la `export default function` (App) */
-const NEXT_FN = /\n(?:export default )?function /
-
-test('hàng trong cụm không còn ô ghost giữ chỗ', () => {
-  assert.equal(rulesWith('.followbtn.is-ghost').length, 0, 'CSS "giữ chỗ" cho hàng trong cụm đã bỏ')
-  assert.ok(!bare.includes(':not(:has(> .followbtn))'),
-    'biến thể "cụm không chuông" không còn vì chuông nào cũng đứng ở đầu cụm')
-  assert.match(btn, /export default function FollowBtn\(\{ on = false, onToggle \}\)/,
-    'FollowBtn chỉ còn hai prop — không có `hidden`/`collapse` vì không còn ô giữ chỗ')
-  const rowFn = between(app, 'function RequestRow(', NEXT_FN)
-  const grpFn = between(app, 'function RequestGroup(', NEXT_FN)
-  assert.match(rowFn, /\{onWatch && <FollowBtn/,
-    'RequestRow chỉ dựng chuông khi dòng đó thật sự có quyền bật/tắt theo dõi')
-  /* "bellAt < indexOf('votebtn')" KHONG du: dat chuong ngay TRUOC nut vote cung
-     thoat (no van nam ben trai chu `votebtn`). Do bang cach tim phan tu <div
-     className="meta"> va bao chuông phải rơi vao trong no. */
-  const metaOpen = rowFn.indexOf('<div className="meta">')
-  const metaClose = rowFn.indexOf('</div>', metaOpen)
-  assert.ok(metaOpen >= 0 && metaClose > metaOpen, 'RequestRow phải còn <div className="meta">')
-  const bellAt = rowFn.indexOf('{onWatch && <FollowBtn')
-  assert.ok(bellAt > metaOpen && bellAt < metaClose,
-    'chuông phải nằm TRONG dòng meta của hàng lẻ — đưa nó ra cụm nút mép phải là quay lại thiết kế cũ')
-  assert.ok(bellAt > rowFn.indexOf('<Standing st={st} />'),
-    'chuông phải là MỤC CUỐI của dòng meta — đưa nó lên trước Standing là đổi nhịp chữ')
-  /* doi chieu tren THEO THE <FollowBtn .../>, khong tren ca ham: `aria-hidden`
-     cua svg/spans trong hang cung co chu "hidden=" va lam assert nay luc nao cung
-     do (mau test xanh gia nguoc lai: bao bao loi). `[^>]*` cung khong dung vi
-     mui ten `=>` co dau `>` trong prop onToggle. */
-  const tags = (src) => [...src.matchAll(/<FollowBtn\b([\s\S]*?)\/>/g)].map((m) => m[1])
-  const allTags = tags(rowFn).concat(tags(grpFn))
-  assert.equal(allTags.length, 2, 'phải còn đúng 2 chỗ đặt chuông: cuối dòng meta và đầu cụm')
-  for (const tag of allTags) {
-    assert.ok(!/\b(hidden|collapse)\s*=/.test(tag), `thẻ chuông không còn prop ẩn: ${tag.trim().slice(0, 60)}`)
-  }
-  /* Chuông của CỤM đứng TRƯỚC .grow-head (anh em, không lồng trong nút) — lồng
-     vào là HTML sai; absolute là số đo; và nó phải là con trực tiếp của .grow
-     để `grid-area: 1/2` áp được. */
-  assert.ok(grpFn.indexOf('<FollowBtn') < grpFn.indexOf('className="grow-head"'),
-    'chuông cụm phải là anh em đứng trước .grow-head, không nằm trong nút đầu cụm')
+    'phải còn quy tắc THẺ button:focus-visible — không có là mọi nút trần mất vòng focus')
+  assert.doesNotMatch(bare, /\.followbtn:focus-visible\s*\{[^}]*outline:/,
+    'không viết riêng vòng focus cho lớp đã bị gỡ')
 })

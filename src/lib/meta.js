@@ -16,6 +16,16 @@ export const STATUS_META = {
 
 export const kindCls = (k) => KIND_META[k]?.cls || 'ccl'
 
+/* NHÃN NGẮN CỦA THỂ LOẠI. Tên đầy đủ ("Color Coded Lyrics", 18 ký tự) là thứ
+   dài nhất trên dòng phụ — dài hơn cả tên người gửi lẫn giờ gửi — trong khi nó
+   nói một thông tin người đọc thường đã đoán được từ tên bài. Dòng phụ vì thế
+   bị đẩy sang hàng thứ hai trên màn hẹp.
+   Trường `short` đã có sẵn trong KIND_META từ đầu (dùng cho ô chọn thể loại),
+   nên chỉ cần một hàm đọc nó ra — không dựng thêm bảng nhãn thứ hai, vì hai
+   bảng là hai chỗ sẽ lệch nhau sau một lần sửa.
+   Tên đầy đủ không mất: nó đi vào `title` của nhãn (xem App.jsx). */
+export const kindShort = (k) => KIND_META[k]?.short || k
+
 /* Màu trạng thái — LUÔN trả về một màu. Một dòng lạ (trạng thái cũ còn sót
    trong DB, dữ liệu nhập tay, hàng của bản deploy trước) không được làm vỡ cả
    bảng chỉ vì tra bảng màu không thấy: `STATUS_META[s].c` trần là TypeError
@@ -43,6 +53,20 @@ export const inChain = (r) => isPicked(r) || r?.status === 'in_progress'
    nơi sẽ lệch nhau sau một lần sửa — nên chỉ có một hàm. */
 export const statusLabel = (r, t) =>
   (isPicked(r) && r.status === 'queued' ? t('now.next') : t(`status.${r.status}`))
+
+/* MÀU của nhãn trạng thái — đi theo CẶP với `statusLabel`.
+   Chủ dự án: "màu của up next vs in queue đang quá giống nhau". Đúng, và lý do
+   rất cụ thể: cả hai đều là `status === 'queued'`, nên `statusColor(r.status)`
+   trả về cùng một sắc. Nhưng "đang chờ tới lượt" và "đã được chọn vào Up
+   next" là hai bậc khác nhau của dây chuyền — giờ mỗi bậc một sắc
+   (`--queued` xanh lạnh, `--upnext` tím).
+
+   Hàm này nhận CẢ DÒNG, không nhận chuỗi trạng thái: chỉ có dòng mới biết nó
+   đã được chốt hay chưa (`picked_at`). Mọi chỗ vẽ nhãn trạng thái phải đi qua
+   đây, không được gọi `statusColor(r.status)` trực tiếp — đó đúng là chỗ đã
+   làm hai nhãn trùng màu. */
+export const statusColorOf = (r) =>
+  (isPicked(r) && r?.status === 'queued' ? 'var(--upnext)' : statusColor(r?.status))
 
 /* Cần truyền hàm t vào để dịch */
 export const timeAgo = (iso, t) => {

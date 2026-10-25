@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
 import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../lib/db'
-import { KIND_META, isPicked, kindCls, vnd, usd } from '../lib/meta'
+import { KIND_META, isPicked, kindCls, kindShort, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
@@ -407,10 +407,10 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           Bản cũ là ba ô chữ nằm cạnh nhau, còn form thì vẫn là một cột dài với
           mọi ô hiện cùng lúc: dải đó chỉ nói "form có ba việc", không nói người
           dùng đang ở đâu. Nay ba bước là BA MÀN:
-            · bước xong đổi số thành dấu ✓ và đoạn nối tới nó được tô kín —
+            · bước xong đổi số thành dấu ✓ và đoạn nối được nhuốm nhẹ —
               vạch tiến trình nằm ngay trong dải bước, nên không cần thêm một
               thanh phần trăm thứ hai nói lại đúng một điều;
-            · bước đang đứng mang `aria-current="step"` và viền nhấn;
+            · bước đang đứng mang `aria-current="step"` và vòng số nhấn dịu;
             · bấm quay lại được (chỉ tới bước đã qua), nên không phải nhớ đường.
           Thứ tự DOM = thứ tự Tab = thứ tự đọc của trình đọc màn hình. */}
       <ol className="req-steps" aria-label={t('req.stepsAria')}>
@@ -458,17 +458,16 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
                 <button type="button" key={k}
                   className={`kchip ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
                   aria-pressed={form.kind === k}
-                  title={t(`req.kindHint.${kindCls(k)}`)}
+                  aria-label={k}
                   onClick={() => setForm(f => ({ ...f, kind: k }))}>
                   {form.kind === k && <Icon name="check" size={13} />}
-                  <span>{k}</span>
+                  <span>{kindShort(k)}</span>
                 </button>
               ))}
             </div>
             {/* Dòng này ĐỔI theo lựa chọn nên nó vừa giải thích vừa xác nhận, chứ
                 không phải một dải chữ tĩnh nằm đó suốt buổi. */}
             <p className="kind-note" key={form.kind}>
-              <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
               <b>{t(`req.kindHint.${kindCls(form.kind)}`)}</b>
               {meta.noteKey && <span className="kind-note-sub">{t(meta.noteKey)}</span>}
             </p>
@@ -720,7 +719,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         ) : (
           <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
             style={{ flex: 1 }} disabled={submitDisabled}
-            title={ready && !submitLocked ? undefined : t('req.notReady')}>
+>
             {busy ? t('req.sending')
               : paid ? (useBonus ? t('req.submitBonusPaid') : t('req.submitPaid', { p: usd(PAID_REQUEST.usd) }))
                 : ready ? t('req.submit') : t('req.submitFix')}
@@ -815,16 +814,15 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
         : pg.items.map(r => {
           const mine = myVotes.get(r.id) || 0
           return (
-            <div className="adm" key={r.id}>
+            <div className="adm vote-row" key={r.id}>
               <div className="nm">
                 <b>
                   {r.title}{' '}
                   {r.is_paid && <span className="pill gold">PAID</span>}
                 </b>
-                <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span></small>
+                <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span></small>
               </div>
-              <button className={`votebtn${mine > 0 ? ' on' : ''}`} onClick={() => onVote(r)}
-                title={t('row.openVote')}>
+              <button className={`votebtn${mine > 0 ? ' on' : ''}`} onClick={() => onVote(r)}>
                 <b>{r.votes}</b><span>{t('row.vote')}</span>
                 {mine > 0 && <em className="mine">×{mine}</em>}
               </button>
@@ -862,7 +860,6 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const best = VOTE_PACKS[VOTE_PACKS.length - 1]
   const saving = (p) => Math.round((1 - (p.usd / p.qty) / SINGLE_VOTE.usd) * 100)
   const chosen = sel === 'custom' ? custom : (VOTE_PACKS.find(p => p.id === sel) || best)
-  const chosenOff = saving(chosen)
   const orderStatus = (s) => s === 'paid' ? t('order.paid') : s === 'rejected' ? t('order.rejected') : t('order.awaiting')
   const bumpCustom = (next) => { setSel('custom'); setQty(next) }
 
@@ -870,65 +867,97 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
     <>
       <section className="buy-shop">
         <p className="buy-lead">{t('buy.lead')}</p>
-        <div className="packs" role="listbox" aria-label={t('buy.packs')}>
+        {/* Ba gói là ba HÀNG của một bảng, không phải ba thẻ đứng cạnh nhau.
+            Mỗi hàng trả lời ba câu theo đúng ba cột: gói nào · mỗi vote bao
+            nhiêu · tổng bao nhiêu. Nhờ vậy tiền của cả bảng rơi vào một cột
+            dọc, so được bằng mắt; thẻ cũ có sáu dòng chữ xếp dọc nên muốn so
+            phải đọc lần lượt từng thẻ. */}
+        <div className="pk" role="listbox" aria-label={t('buy.packs')}>
+          <div className="pk-head" aria-hidden="true">
+            <span className="pk-h-name">{t('buy.colPack')}</span>
+            <span className="pk-h-per">{t('buy.colPer')}</span>
+            <span className="pk-h-price">{t('buy.colPrice')}</span>
+          </div>
           {VOTE_PACKS.map(p => {
             const unit = usd(Math.round((p.usd / p.qty) * 100) / 100)
             const off = saving(p)
             const on = sel === p.id
             return (
               <button type="button" role="option" aria-selected={on}
-                className={`pack${p.id === best.id ? ' best' : ''}${on ? ' on' : ''}`} key={p.id}
+                className={`pk-row${on ? ' on' : ''}`} key={p.id}
                 disabled={!!busy} onClick={() => setSel(p.id)}>
-                {p.id === best.id && <span className="pack-flag">{t('buy.best')}</span>}
-                <b>{p.qty}</b>
-                <span className="u">{t('buy.unit')}</span>
-                <span className="p">{usd(p.usd)}<small>{vnd(p.vnd)}</small></span>
-                <span className="pack-unit">{unit} {t('buy.perVote')}</span>
-                {off > 0 && <span className="pack-save">−{off}%</span>}
+                <span className="pk-chk" aria-hidden="true" />
+                <span className="pk-name">
+                  <b>{p.qty} <span>{t('buy.unit')}</span></b>
+                  {p.id === best.id && <em>{t('buy.best')}</em>}
+                </span>
+                <span className="pk-per">
+                  <span>{unit}</span>
+                  {off > 0 && <i>−{off}%</i>}
+                </span>
+                <span className="pk-price">
+                  <b>{usd(p.usd)}</b>
+                  <small>{vnd(p.vnd)}</small>
+                </span>
               </button>
             )
           })}
         </div>
+
+        {/* Số lẻ là lựa chọn thứ tư của cùng bảng: cùng lưới, cùng cột giá —
+            trước đây nó là một cái hộp riêng trông như thẻ thứ tư. */}
         <div className={`buy-custom${sel === 'custom' ? ' on' : ''}`}
           onClick={() => !busy && setSel('custom')}>
           <span className="buy-custom-k">
             {t('buy.single')}
-            <small>{usd(SINGLE_VOTE.usd)} {t('buy.perVote')} · {t('buy.each', { v: vnd(SINGLE_VOTE.vnd) })}</small>
+            <small>{usd(SINGLE_VOTE.usd)} {t('buy.eachVote')}</small>
           </span>
           <span className="qty" onClick={e => e.stopPropagation()}>
-            <button type="button" disabled={!!busy} onClick={() => bumpCustom(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
+            <button type="button" disabled={!!busy} aria-label={t('buy.less')}
+              onClick={() => bumpCustom(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
             <input type="number" min="1" max="100" value={qty} disabled={!!busy}
+              aria-label={t('buy.qty')}
               onFocus={() => setSel('custom')}
               onChange={e => bumpCustom(e.target.value)}
               onBlur={() => bumpCustom(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
-            <button type="button" disabled={!!busy} onClick={() => bumpCustom(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
+            <button type="button" disabled={!!busy} aria-label={t('buy.more')}
+              onClick={() => bumpCustom(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
           </span>
-          <span className="buyone-total">
+          <span className="buy-custom-price">
             <b>{usd(custom.usd)}</b>
-            <span>{vnd(custom.vnd)}</span>
+            <small>{vnd(custom.vnd)}</small>
           </span>
         </div>
+
+        {/* Tổng tiền và nút mua ở CÙNG một khối: thanh toán là một hành động,
+            không phải hai dòng chữ rời nhau. Tổng chỉ nói một lần ở đây. */}
         <div className="buy-checkout">
-          <div className="buy-checkout-info">
-            <b>{t('order.votes', { n: chosen.qty })}</b>
-            <span>{usd(chosen.usd)} · {vnd(chosen.vnd)}</span>
+          <div className="buy-sum">
+            <span className="buy-sum-k">{t('buy.total')}</span>
+            <span className="buy-sum-v">
+              <b>{t('order.votes', { n: chosen.qty })}</b> · {usd(chosen.usd)} <em>· {vnd(chosen.vnd)}</em>
+            </span>
           </div>
-          {chosenOff > 0 && sel !== 'custom' && <span className="pack-save">{`−${chosenOff}%`}</span>}
           <button type="button" className="btn btn-gold" disabled={!!busy}
             onClick={() => buy(chosen, t('order.votes', { n: chosen.qty }))}>
-            {busy ? '…' : t('buy.order')}
+            {busy ? '…' : t('buy.order', { n: chosen.qty })}
           </button>
         </div>
+        <p className="buy-foot">{t('buy.foot')}</p>
       </section>
 
       {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
 
       <section className="buy-sec">
         <h3 className="section-title">{t('buy.payment')}</h3>
-        <div className="pay-note">
-          {t('buy.payNote1')}<b>{t('buy.payNoteB')}</b>{t('buy.payNote2')}
-        </div>
-        <PaymentMethods amountVnd={lastOrder?.vnd ?? 0} amountUsd={lastOrder?.usd ?? 0} content={userName} />
+        {/* Có đơn đang chờ thì hóa đơn mang số tiền của ĐƠN; chưa có đơn thì mang
+            số tiền của gói đang chọn — để chọn phương thức xong là có ngay tờ
+            giấy điền sẵn, khỏi phải bấm Buy trước mới thấy số. */}
+        <PaymentMethods
+          amountVnd={lastOrder?.vnd ?? chosen.vnd}
+          amountUsd={lastOrder?.usd ?? chosen.usd}
+          content={userName}
+          awaiting={!!lastOrder} />
       </section>
 
       <section className="buy-sec">
@@ -940,9 +969,11 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
         {myOrders.length === 0
           ? (
             <div className="empty">
-              <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={18} /></span>
-              <b>{t('buy.noOrders')}</b>
-              <small>{t('buy.noOrdersBody')}</small>
+              <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={15} /></span>
+              <div className="empty-tx">
+                <b>{t('buy.noOrders')}</b>
+                <small>{t('buy.noOrdersBody')}</small>
+              </div>
             </div>
           )
           : myOrders.slice(0, 12).map(o => (

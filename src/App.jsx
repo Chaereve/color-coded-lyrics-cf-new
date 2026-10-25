@@ -1,5 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
+import DenyReason from './components/DenyReason'
 import GoogleIcon from './components/GoogleIcon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
@@ -17,19 +18,16 @@ import { weekRecap as buildWeekRecap, recapStats } from './lib/weekRecap.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
+import CategoryFilter from './components/CategoryFilter'
 import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
-import CalcNote from './components/CalcNote'
-import FollowBtn from './components/FollowBtn'
-import ShareBtn from './components/ShareBtn'
 import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
-import Standing from './components/Standing'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
 import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
-import Progress from './components/Progress'
+import Steps from './components/Steps'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
@@ -37,25 +35,23 @@ const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
-import { KIND_META, inChain, isPicked, kindCls, statusColor, statusLabel, timeAgo, vnd, usd } from './lib/meta'
+import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
-import { absolute, pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
+import { pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
 import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
-import { copyText } from './lib/clipboard'
+import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
-  DEFAULT_PREFS, WATCH_LIMIT, diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, loadPrefs, loadWatched,
-  loadOff, markAllRead, markRead, mergeInbox, pickLadder, pushNotices, rememberDismissed, saveInbox, saveOff, savePrefs, saveWatched,
-  snapOf, songAttr, syncOwnRequests, toastOf, toggleWatched, watchedKeys, withoutDismissed,
+  diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
+  mergeInbox, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
-import { parseYoutube } from './lib/youtube'
+import { parseYoutube, thumbUrl } from './lib/youtube'
 import { buildHallOfFame } from './lib/hallOfFame.js'
 import { trackVisitOnce } from './lib/funnel.js'
 import { safeHttpUrl } from './lib/safeUrl'
@@ -148,8 +144,14 @@ const readSavedBoard = () => {
 const readBoard = () => {
   const p = new URLSearchParams(window.location.search)
   const saved = readSavedBoard()
+  /* Link cũ mang CÁCH XẾP trong `f` (`?f=top`, `?f=newest`): đọc ra thành
+     sort + chặng "cả bảng" thay vì bỏ đi. Từ nay `f` chỉ nói chặng, `s` nói
+     cách xếp, nên hai thứ không giành nhau một ô nhớ nữa. */
+  const fRaw = pickBoardParam(p.get('f'), saved.f, FILTER_KEYS, 'queued')
+  const legacySort = SORTS.includes(fRaw) ? fRaw : null
   return {
-    f: pickBoardParam(p.get('f'), saved.f, FILTER_KEYS, 'queued'),
+    f: legacySort ? 'all' : fRaw,
+    s: legacySort || pickBoardParam(p.get('s'), saved.s, SORTS, null),
     k: pickBoardParam(p.get('k'), saved.k, KIND_KEYS, 'all'),
     q: p.get('q') || '',
   }
@@ -176,17 +178,22 @@ const sectionTransition = createSectionTransition({ reduced: REDUCED })
      · you  — việc của riêng người đang xem. Chỉ hiện khi có ít nhất một bài
        đang theo dõi (rỗng thì mục này vô nghĩa), nên nhóm này có thể vắng
        mặt — vạch ngăn của nó cũng phải biến mất theo (xem chỗ dựng dải). */
-const FILTERS = [
-  { k: 'queued',      c: 'var(--queued)',   ax: 'pipe' },
-  { k: 'picked',      c: 'var(--queued)',   ax: 'pipe' },
-  { k: 'in_progress', c: 'var(--progress)', ax: 'pipe' },
-  { k: 'completed',   c: 'var(--done)',     ax: 'pipe' },
-  { k: 'newest',      c: 'var(--a-2)',      ax: 'view' },
-  { k: 'top',         c: 'var(--a-2)',      ax: 'view' },
-  { k: 'watch',       c: 'var(--a-2)',      ax: 'you' },
-]
-const FILTER_KEYS = FILTERS.map(f => f.k)
+/* Giá trị hợp lệ cho `?f=`: bốn CHẶNG của dây chuyền + năm CÁCH XẾP. Danh
+   sách chặng nằm ở board.js (STAGES), cách xếp cũng vậy (SORTS) — ở đây chỉ
+   là phép cộng của hai nguồn đó, không có bảng thứ ba để lệch. */
+/* 'all' = xem cả bảng (không giới hạn chặng); SORTS còn trong danh sách chỉ
+   để đọc được link cũ — xem readBoard. */
+const FILTER_KEYS = [...STAGES, 'all', ...SORTS]
 const KIND_KEYS = ['all', ...Object.keys(KIND_META)]
+/* Bốn chặng của dây chuyền, đúng thứ tự công việc: bảng chọn Status dựng từ
+   STAGES, không trộn hai "cách nhìn" (newest/top) vào cùng dải như bản cũ. */
+const STAGE_COLOR = {
+  queued: 'var(--queued)', picked: 'var(--upnext)',
+  in_progress: 'var(--progress)', completed: 'var(--done)',
+}
+const KIND_LIST = Object.keys(KIND_META)
+/* Icon dẫn đường cho từng cách xếp. Một bảng tra, không rải `if` trong JSX. */
+const SORT_ICON = { newest: 'up', top: 'cup', oldest: 'down', requests: 'board', az: 'az' }
 
 function Num({ v }) {
   const n = useCountUp(v)
@@ -228,12 +235,10 @@ function ListSkeleton({ n = 4, label }) {
   )
 }
 
-/* Ô thống kê: `why` là định nghĩa của con số, dán vào `title` — người đọc tự
-   đối chiếu được "In progress" ở đây nghĩa là gì (dây chuyền đã chốt) thay vì
-   đoán theo nhãn. Con số không có định nghĩa là con số người ta không tin. */
-function Stat({ c, v, label, why }) {
+/* Số liệu chỉ có nhãn ngắn; nội dung giải thích không lặp lại khi rê chuột. */
+function Stat({ c, v, label }) {
   return (
-    <div className="stat" style={{ '--c': c }} title={why}>
+    <div className="stat" style={{ '--c': c }}>
       <Num v={v} />
       <span>{label}</span>
     </div>
@@ -268,12 +273,12 @@ function SignInPanel({ title, body, onSignIn }) {
 }
 
 /* ---------------- một dòng request ---------------- */
-function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
-  followed = false, onWatch, onShare, hl = false, st = null }) {
+function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
+  user = null, hl = false }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
-  const sm = { c: statusColor(r.status) }
+  const sm = { c: statusColorOf(r) }
   /* Đã vào dây chuyền (chốt vào Up next HOẶC đang làm) thì khóa vote, kể cả
      rút lại: bài sắp/đang được làm mà vẫn nhận phiếu thì lá phiếu không còn
      nghĩa gì. Trước đây chỉ khóa theo isPicked nên một bài in_progress thiếu
@@ -291,12 +296,19 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
   }, [r.votes])
 
   return (
-    <div className={`row${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
+    /* `req` = hàng của BẢNG YÊU CẦU (khác hàng đơn mua trong mục "Của tôi").
+       Chỉ hàng này mới có cột phiếu bên phải (phương án F), nên hình dáng của
+       nó phải là một lớp riêng — sửa `.row` trần là hàng đơn mua đổi theo. */
+    <div className={`row req${r.is_paid ? ' paid' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(groupKey(r))}
       style={{ '--sc': sm.c, '--i': Math.min(n, 12) }}>
-      {i != null && <div className="idx">{i + 1}</div>}
       <div className="body">
+        {/* DÒNG TIÊU ĐỀ = tên bài + nhãn. Hành động KHÔNG nằm ở đây nữa: đặt
+            nó lên dòng này thì nó đứng lệch lên trên, ngang tầm tên bài, trong
+            khi nửa dưới bên phải trống — chủ dự án đọc đúng là "kì cục". Nút
+            nghe giờ là ANH EM của khối chữ, canh giữa theo chiều dọc cả hàng
+            (xem chú thích ngay dưới `.body`). */}
         <div className="title">
-          {r.title} <span className="artist">— {r.artist}</span>
+          <span className="tx2">{r.title} <span className="artist">— {r.artist}</span></span>
           {/* Nhãn nằm trong .tags: hộp này tự xuống dòng và giữ khoảng cách
               hàng-dọc, nên "PAID" với "Up next" không bao giờ dán vào nhau. */}
           {(r.is_paid || isPicked(r)) && (
@@ -306,43 +318,59 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
             </span>
           )}
         </div>
-        <div className="meta">
-          <span className="status" style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
-          <span className={`kind ${kindCls(r.kind)}`}>{r.kind}</span>
-          <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
-          <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
-          {r.status === 'denied' && r.deny_reason && (
-            <>
-              <span className="dot" aria-hidden="true" />
-              <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
-            </>
-          )}
-          {/* Hàng của bài so với đợt chốt kế tiếp: "còn 2 vote nữa là tới lượt"
-              là cái duy nhất người đọc làm được ngay bây giờ. Chỉ người đang
-              theo dõi mới thấy (người ngoài xem bảng không cần "bài sắp chốt"). */}
-          {!isPicked(r) && followed && <Standing st={st} />}
-          {/* Chuông nằm CUỐI dòng meta, không phải một ô nút ở mép phải: hàng
-              tĩnh thì chỉ có chữ, quyền theo dõi hiện lên khi rê. Dòng trong cụm
-              không có chuông vì theo dõi là chuyện của CẢ bài (RequestGroup). */}
-          {onWatch && <FollowBtn on={followed} onToggle={() => onWatch(r)} />}
-          {onShare && <ShareBtn onShare={() => onShare(r)} />}
+        {/* DÒNG PHỤ = một hàng chữ mô tả "đang ở đâu": trạng thái · loại bài
+            · người gửi · giờ · ba nhịp tiến độ (chỉ hàng đang làm) · lý do từ
+            chối · thứ hạng chờ. Tất cả nằm trong `.meta` — hộp flex cho CHỮ,
+            nên chỉ chứa thứ thẳng hàng với chữ. Thanh tiến độ cao 4px từng
+            đứng ở đây và làm hàng "đang làm" cao gần gấp đôi hàng khác; nay
+            thay bằng ba vạch 3px (`.nhip`), cùng cỡ với một dấu chấm. */}
+        <div className="sub">
+          <div className="meta">
+            {/* `s-<status>` KHÔNG phải để tô màu — màu đã đi qua `--c`. Lớp này
+                đổi HÌNH của cái đèn: chờ là vòng rỗng mờ, đã xếp hàng là vòng
+                rỗng, đang làm là chấm đặc có quầng, xong là chấm đặc viền mảnh,
+                từ chối là vòng đứt. Nhờ vậy trạng thái đọc được kể cả khi người
+                xem không phân biệt màu. */}
+            {r.status === 'denied' && r.deny_reason && (user?.isAdmin || user?.id === r.user_id)
+              ? <DenyReason reason={r.deny_reason} label={statusLabel(r, t)}
+                className={`status s-${r.status}`} style={{ '--c': sm.c }} />
+              : <span className={`status s-${r.status}`} style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>}
+            {/* Nhãn thể loại dùng tên NGẮN; tên đầy đủ nằm trong `title` để rê
+                chuột vẫn đọc được "Color Coded Lyrics" thay vì chỉ "CCL". */}
+            <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span>
+            <span className="dot" aria-hidden="true" />{r.user_id ? <a className="requester-link" href={profileUrl(r.user_id)} onClick={spaLink(nav.openProfile, r.user_id)}>{r.requester}</a> : <span>{r.requester}</span>}
+            <span className="dot" aria-hidden="true" /><span>{timeAgo(r.created_at, t)}</span>
+            {/* BA NHỊP thay thanh phần trăm: một yêu cầu có đúng ba việc có
+                tên, nên "2/3" là câu trả lời trực tiếp cho "đang ở đâu" —
+                còn "47%" thì người đọc phải tự dịch ngược. */}
+            {r.status === 'in_progress' && (
+              <><span className="dot" aria-hidden="true" />
+                <Steps pct={r.progress} label={t('progress.label')} /></>
+            )}
+          </div>
         </div>
-        {/* Việc đang chạy: MỘT khối (vạch + số cùng hàng), không phải số trần
-            mang chấm trạng thái rồi một vạch rời nằm dưới. Khối Up next in
-            đúng con số này — một bài, một con số. */}
-        {r.status === 'in_progress' && <Progress pct={r.progress} label={t('progress.label')} />}
-        {watchUrl && <a className="watch" href={watchUrl} target="_blank" rel="noreferrer">{t('row.watch')}</a>}
       </div>
+      {/* NÚT NGHE — việc DUY NHẤT bấm được trong hàng, nên nó đứng riêng
+          thành một cột mảnh ngay trước cột phiếu, canh giữa theo chiều dọc.
+          Trước đây nó nằm trong dòng tiêu đề và neo mép phải: nút lửng lơ ở
+          trên, nửa dưới trống, và cách vách phiếu một quãng không đều — chủ dự
+          án gọi đúng là "kì cục". Đứng giữa hàng thì nó thuộc về CẢ HÀNG, như
+          một hành động ở cuối dòng, chứ không phải một nhãn dán vào tên bài. */}
+      {watchUrl && (
+        <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer">
+          <Icon name="play" size={12} />
+          <span>{t('row.watchShort')}</span>
+        </a>
+      )}
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
         disabled={!votable}
-        aria-disabled={!votable}
-        title={locked ? t('row.voteLocked') : !canVote ? t('row.cantVote') : t('row.openVote')}>
+        aria-disabled={!votable}>
         {pulse > 0 && <span key={`fx${pulse}`} className="votefx" aria-hidden="true" />}
         <b key={r.votes} className="tick">{r.votes}</b><span>{t('row.vote')}</span>
-        {myCount > 0 && <em className="mine" title={t('row.mine', { n: myCount })}>×{myCount}</em>}
+        {myCount > 0 && <em className="mine">×{myCount}</em>}
       </button>
-      {showDelete && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
+      {showDelete && !r.is_paid && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
           onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
       )}
@@ -350,8 +378,150 @@ function RequestRow({ r, i, n = 0, showDelete, myCount = 0, canVote, onVote, onD
   )
 }
 
-function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelete,
-  followed = false, onWatch, onShare, onLogin, hl = false, st = null }) {
+function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, onCancelOrder }) {
+  const { t } = useI18n()
+  const [pane, setPane] = useState('requests')
+  const [requestCategory, setRequestCategory] = useState('queued')
+  const [orderCategory, setOrderCategory] = useState('paid_request')
+  const requestRef = useRef(null)
+  const ordersRef = useRef(null)
+  const requestsTabRef = useRef(null)
+  const ordersTabRef = useRef(null)
+  const handleActivityTabKey = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const next = event.key === 'Home' ? 'requests'
+      : event.key === 'End' ? 'orders'
+        : pane === 'requests' ? 'orders' : 'requests'
+    setPane(next)
+    ;(next === 'requests' ? requestsTabRef : ordersTabRef).current?.focus()
+  }
+
+  const requestCategories = useMemo(() => {
+    const definitions = [
+      { key: 'in_progress', label: t('status.in_progress'), color: 'var(--progress)', matches: r => r.status === 'in_progress' },
+      { key: 'up_next', label: t('now.next'), color: 'var(--upnext)', matches: r => r.status === 'queued' && isPicked(r) },
+      { key: 'queued', label: t('status.queued'), color: 'var(--queued)', matches: r => r.status === 'queued' && !isPicked(r) },
+      { key: 'pending', label: t('status.pending'), color: 'var(--pending)', matches: r => r.status === 'pending' },
+      { key: 'completed', label: t('status.completed'), color: 'var(--done)', matches: r => r.status === 'completed' },
+      { key: 'denied', label: t('status.denied'), color: 'var(--denied)', matches: r => r.status === 'denied' },
+    ]
+    const categories = definitions.map(category => {
+      const rows = requests.filter(category.matches)
+      return { ...category, rows, count: rows.length }
+    })
+    const otherRows = requests.filter(request => !definitions.some(category => category.matches(request)))
+    if (otherRows.length) categories.push({ key: 'other', label: t('mine.other'), color: 'var(--txt-3)', rows: otherRows, count: otherRows.length })
+    return categories
+  }, [requests, t])
+  const activeRequestCategory = requestCategories.find(category => category.key === requestCategory && category.count)
+    || requestCategories.find(category => category.key === 'pending' && category.count)
+    || requestCategories.find(category => category.key === 'denied' && category.count)
+    || requestCategories.find(category => category.count)
+  const requestRows = activeRequestCategory?.rows || []
+  const pgMine = usePager(requestRows, PER_PAGE, [activeRequestCategory?.key || 'empty'])
+
+  const orderCategories = useMemo(() => {
+    const definitions = [
+      { key: 'paid_request', label: t('order.paidRequest'), color: 'var(--paid)', matches: order => order.kind === 'paid_request' },
+      { key: 'rejected', label: t('order.rejected'), color: 'var(--denied)', matches: order => order.status === 'rejected' && order.kind !== 'paid_request' },
+      { key: 'successful', label: t('order.successful'), color: 'var(--done)', matches: order => order.status === 'paid' && order.kind !== 'paid_request' },
+      { key: 'awaiting', label: t('order.awaiting'), color: 'var(--pending)', matches: order => order.status === 'awaiting' && order.kind !== 'paid_request' },
+    ]
+    const categories = definitions.map(category => {
+      const rows = orders.filter(category.matches)
+      return { ...category, rows, count: rows.length }
+    })
+    const otherRows = orders.filter(order => !definitions.some(category => category.matches(order)))
+    if (otherRows.length) categories.push({ key: 'other', label: t('order.other'), color: 'var(--txt-3)', rows: otherRows, count: otherRows.length })
+    return categories
+  }, [orders, t])
+  const activeOrderCategory = orderCategories.find(category => category.key === orderCategory && category.count)
+    || orderCategories.find(category => category.count)
+  const orderRows = activeOrderCategory?.rows || []
+  const pgOrders = usePager(orderRows, PER_PAGE_ORDERS, [activeOrderCategory?.key || 'empty'])
+
+  return (
+    <section className="mine-activity" aria-label={t('mine.activity')}>
+      <div className="mine-activity-head">
+        <div className="tabs" role="tablist" aria-label={t('mine.activity')}>
+          <button ref={requestsTabRef} id="mine-requests-tab" type="button" className={`tab${pane === 'requests' ? ' on' : ''}`} role="tab"
+            tabIndex={pane === 'requests' ? 0 : -1} aria-selected={pane === 'requests'} aria-controls="mine-requests-panel"
+            onKeyDown={handleActivityTabKey} onClick={() => setPane('requests')}>
+            {t('mine.title')} <span className="n">{requests.length}</span>
+          </button>
+          <button ref={ordersTabRef} id="mine-orders-tab" type="button" className={`tab${pane === 'orders' ? ' on' : ''}`} role="tab"
+            tabIndex={pane === 'orders' ? 0 : -1} aria-selected={pane === 'orders'} aria-controls="mine-orders-panel"
+            onKeyDown={handleActivityTabKey} onClick={() => setPane('orders')}>
+            {t('mine.orders')} <span className="n">{orders.length}</span>
+          </button>
+        </div>
+        {pane === 'requests' && requests.length > 0 && (
+          <div className="mine-filter-row">
+            <CategoryFilter id="mine-request-filter" label={t('mine.filterStatus')} categories={requestCategories}
+              value={activeRequestCategory?.key || requestCategory} onChange={setRequestCategory} />
+          </div>
+        )}
+        {pane === 'orders' && orders.length > 0 && (
+          <div className="mine-filter-row">
+            <CategoryFilter id="mine-order-filter" label={t('mine.filterOrder')} categories={orderCategories}
+              value={activeOrderCategory?.key || orderCategory} onChange={setOrderCategory} />
+          </div>
+        )}
+      </div>
+
+      <div id="mine-requests-panel" role="tabpanel" aria-labelledby="mine-requests-tab" tabIndex={0} hidden={pane !== 'requests'}>
+        <div className="list" data-glow ref={requestRef}>
+          {requests.length === 0
+            ? <div className="empty">
+              <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+              <b>{t('mine.empty')}</b><small>{t('mine.emptyHint')}</small>
+            </div>
+            : pgMine.items.map((r, i) => (
+              <RequestRow key={r.id} r={r} n={i} user={user} showDelete
+                myCount={myVotes.get(r.id) || 0}
+                canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
+                onVote={onVote} onDelete={onDelete} />
+            ))}
+        </div>
+        {requests.length > 0 && <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={requestRef} />}
+      </div>
+
+      <div id="mine-orders-panel" role="tabpanel" aria-labelledby="mine-orders-tab" tabIndex={0} hidden={pane !== 'orders'}>
+        <div className="list" ref={ordersRef}>
+          {orders.length === 0
+            ? <div className="empty">
+              <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
+              <b>{t('mine.ordersEmpty')}</b><small>{t('mine.ordersHint')}</small>
+            </div>
+            : pgOrders.items.map(o => (
+              <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
+                <div className="body">
+                  <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
+                  <div className="meta">
+                    <span>{vnd(o.amount_vnd)}</span><span className="dot" aria-hidden="true" />
+                    <span>{usd(o.amount_usd)}</span><span className="dot" aria-hidden="true" />
+                    <span>{timeAgo(o.created_at, t)}</span>
+                  </div>
+                </div>
+                <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
+                  {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
+                </span>
+                {o.status === 'awaiting' && (
+                  <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
+                    onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
+                )}
+              </div>
+            ))}
+        </div>
+        {orders.length > 0 && <Pager {...pgOrders} onChange={pgOrders.setPage} scrollTo={ordersRef} />}
+      </div>
+    </section>
+  )
+}
+
+function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
+  hl = false }) {
   const { t } = useI18n()
   const kinds = [...new Set(g.rows.map(r => r.kind))]
   /* nguoi gui trong cum (toi da 2 ten + so con lai) de nhan ra ngay */
@@ -360,18 +530,9 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
   const newest = Math.max(...g.rows.map(r => +new Date(r.created_at) || 0))
   return (
     <div className={`grow${expanded ? ' open' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(g.key)}>
-      {/* Chuông theo dõi đặt là ANH EM của .grow-head, không nhét vào trong
-          nút cha — HTML không cho nút lồng nút — nên nó chiếm cột lưới thứ hai
-          và nằm cùng hàng với nút mũi tên. Theo dõi là cho CẢ BÀI nên cụm chỉ
-          có một chuông; các dòng bên trong không có nút nào (cũng không cần ô
-          giữ chỗ: cuối dòng meta của hàng lẻ chỉ còn chấm trạng thái). */}
-      {onWatch && (
-        <FollowBtn on={followed} onToggle={() => onWatch(g.rows[0] || { artist: g.artist, title: g.title })} />
-      )}
       <button type="button" className="grow-head" aria-expanded={expanded}
-        title={expanded ? t('group.hide') : t('group.showAll', { n: g.rows.length })}
+        title={expanded ? t('group.hide') : t('group.showAll')}
         onClick={onToggle}>
-        {i != null && <span className="idx">{i + 1}</span>}
         <span className="body">
           <span className="grow-tags">
             <span className="grow-count">{t('group.requests', { n: g.rows.length })}</span>
@@ -381,7 +542,6 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
           <span className="meta">
             <span>{whoTx}</span>
             {newest > 0 && <><span className="dot" aria-hidden="true" /><span>{timeAgo(newest, t)}</span></>}
-            {followed && <Standing st={st} />}
           </span>
         </span>
         <span className="grow-stat" aria-hidden="true">
@@ -392,12 +552,11 @@ function RequestGroup({ g, i, expanded, onToggle, user, myVotes, onVote, onDelet
       <div className="grow-rows">
         <div className="grow-rows-in">
           {g.rows.map((r, k) => (
-            <RequestRow key={r.id} r={r} i={null} n={k}
+            <RequestRow key={r.id} r={r} n={k} user={user}
               showDelete={!!user && r.user_id === user.id}
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
               onVote={onVote}
-              onShare={onShare}
               onDelete={onDelete} />
           ))}
         </div>
@@ -511,10 +670,9 @@ function AppInner() {
   const [pick, setPick] = useState(null)   // { interval_days, last_pick_at, next_pick_at }
   const [hallVideo, setHallVideo] = useState(null)
 
-  /* ------- theo dõi + hộp thư (prototype: localStorage, xem lib/watch.js) -------
-     `watched` là danh sách BÀI (khóa = groupKey), không phải danh sách dòng:
-     một bài bị nhiều người gửi lẻ vẫn chỉ có một mục theo dõi. */
-  const [watched, setWatched] = useState([])
+  /* ------- hộp thư (prototype: localStorage, xem lib/watch.js) -------
+     Tầng "theo dõi bài" đã bị gỡ cùng chuông trên hàng request, nên hộp thư
+     chỉ còn tin về request CỦA CHÍNH MÌNH và tin từ database. */
   const [notices, setNotices] = useState([])
   /* uid đã nạp xong hộp thư. Không có cờ này thì effect lưu chạy trên mảng
      rỗng của khung hình đầu (user vừa có, notices chưa đọc từ localStorage)
@@ -522,7 +680,6 @@ function AppInner() {
      giữ. Lần vào sau chỉ còn tin database kéo lại. */
   const [inboxUid, setInboxUid] = useState(null)
   const dismissedRef = useRef(new Set())
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS)
   const [hlSong, setHlSong] = useState(null)
   /* Hộp thông báo mở tại chỗ dưới chuông. Một dòng tin BẤM LÀ NHẢY tới hàng
      request của bài đó (xem `openNotice`) — giữa bảng và tin không còn đặt một
@@ -533,13 +690,6 @@ function AppInner() {
      Dùng để chặn tự-thông-báo cho mình: lượt bảng đổi ngay sau đó sẽ bỏ qua các
      khoá này khi sinh tin — admin đứng ngay chỗ thay đổi, không cần toast/badge. */
   const selfActRef = useRef(null)
-  /* Ba `rows`/`prefs`/`off` cần đọc đúng giá trền hiện tại từ những callback
-     không đăng ký deps (`load`, `loadBoard`); ref là cách ngắn nhất để không
-     bất cử mỗi lúc đểy cả `load` chạy lại. */
-  const watchedRef = useRef([])
-  const prefsRef = useRef(DEFAULT_PREFS)
-  const offRef = useRef([])
-  const watchedSet = useMemo(() => watchedKeys(watched), [watched])
 
   const [section, setSection] = useState(() => sectionOf(window.location.pathname))
   /* TRANG CÁ NHÂN CÔNG KHAI là một mục trong state, không phải thứ đọc lại từ
@@ -570,6 +720,18 @@ function AppInner() {
   }, [section])
   const [board] = useState(readBoard)
   const [filter, setFilter] = useState(board.f)
+  /* Trục XẾP riêng, không còn nằm chung ô nhớ với trục LỌC. null = "theo thứ
+     tự gốc của chặng đang xem" (hàng chờ: paid rồi tới phiếu). */
+  const [sort, setSort] = useState(board.s)
+  /* Hai TRỤC ĐỘC LẬP, tính một lần ở đây:
+     · `stage`  — chặng đang giới hạn ('all' = cả bảng);
+     · `sortMode` — cách xếp thật sự dùng. `sort` rỗng thì lấy thứ tự gốc
+       của chặng (hàng chờ: paid rồi tới phiếu); riêng "cả bảng" thì mặc
+       định là mới nhất, đúng thứ tự mà trước đây `filter='newest'` cho.
+     Trước đây chỉ có MỘT ô nhớ cho cả hai, nên chọn sort là mất bộ lọc và
+     ngược lại — không thể xài hai thứ cùng lúc. */
+  const boardStage = STAGES.includes(filter) ? filter : 'all'
+  const sortMode = sort || (boardStage === 'all' ? 'newest' : boardStage)
   const [statusFilters, setStatusFilters] = useState(() => STAGES.includes(board.f) ? [board.f] : [])
   const [kindFilter, setKindFilter] = useState(board.k)
   const [kindFilters, setKindFilters] = useState(() => board.k !== 'all' ? [board.k] : [])
@@ -578,7 +740,7 @@ function AppInner() {
   /* Bộ lọc trên máy hẹp nằm trong một khối gấp/mở, và thanh lọc tự dính lên
      đầu khi cuộn qua — hai thứ này chỉ để phục vụ việc CHỌN, không phải dữ
      liệu, nên không lưu vào localStorage. */
-  const [fbarOpen, setFbarOpen] = useState(false)
+  const [fbTab, setFbTab] = useState(null)
   const searchRef = useRef(null)
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
@@ -662,16 +824,14 @@ function AppInner() {
     go(k)
   }, [user, go, onProfile])
 
-  /* Nhảy tới bài: bật tab "Following" (nên bài đang pending/bị từ chối cũng
-     tìm thấy), làm sáng hàng 2,6 giây rồi tự tắt. */
+  /* Nhảy tới bài: về bảng chung (bỏ hết bộ lọc đang bật), làm sáng hàng 2,6
+     giây rồi tự tắt. Không còn tab "Following" nào để nhảy vào — tab đó đi
+     cùng tầng theo dõi đã bị gỡ. */
   const jumpToSong = useCallback((target) => {
     const key = typeof target === 'string' ? target : (target?.key || groupKey(target || {}))
     if (!key) return
     go('board'); setKindFilter('all'); setKindFilters([]); setStatusFilters([]); setQ('')
-    /* tab "Following" la noi duy nhat con hien bai pending/bi tu choi; bai
-       chua theo doi thi nhay ve bang chung lo, de hien "khong co ket qua" con
-       hon la nhay vao mot tab trong sach cua nguoi khac */
-    setFilter(watchedSet.has(key) ? 'watch' : 'newest')
+    setFilter('all'); setSort(null)
     /* XOÁ cả hai bộ lọc nhiều-chọn: chúng THẮNG `filter` trong `filterBoard`,
        nên một chip `Queued` còn bật từ lần lọc trước sẽ giấu đúng cái bài mà
        tin thông báo vừa bảo "bấm vào đây để xem". Cùng một họ lỗi với
@@ -683,7 +843,7 @@ function AppInner() {
       el?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'center' })
     }, 90))
     setTimeout(() => setHlSong(s => (s === key ? null : s)), 2600)
-  }, [go, watchedSet])
+  }, [go])
 
   /* ---------------- trang cá nhân công khai + đi tới một bài ----------------
      Ba hàm này là NỘI DUNG của context `lib/nav.js`: mọi link nội bộ gọi
@@ -705,7 +865,8 @@ function AppInner() {
      có ăn không. Nên cuộn tới THANH LỌC: chỗ đó thấy được từ khoá vừa đặt, dòng
      "đang xem n/mục", và danh sách nằm ngay bên dưới.
      Chờ một nhịp (rAF + 60ms) vì danh sách được dựng lại từ bộ lọc vừa đổi —
-     cuộn ngay là cuộn vào cái danh sách CŨ, và `.list` mang `key={filter}` nên
+     cuộn ngay là cuộn vào cái danh sách CŨ, và `.list` mang key theo chặng + cách
+     xếp nên đổi cách nhìn là node đó bị thay bằng node khác.
      đổi cách nhìn là node đó bị thay bằng node khác. */
   const scrollToList = useCallback(() => {
     requestAnimationFrame(() => setTimeout(() => {
@@ -761,7 +922,8 @@ function AppInner() {
     setStatusFilters([])
     setKindFilters([])
     setKindFilter('all')
-    setFilter('newest')
+    setFilter('all')
+    setSort('newest')
     setQ(query)
     pushUrl({ s: 'board' }, boardSearchUrl(song?.title, song?.artist))
     scrollToList()
@@ -790,7 +952,7 @@ function AppInner() {
          đổi địa chỉ mà màn hình đứng yên. */
       setProfileId(readProfileId())
       const b = readBoard()
-      setFilter(b.f); setStatusFilters(STAGES.includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
+      setFilter(b.f); setSort(b.s); setStatusFilters(STAGES.includes(b.f) ? [b.f] : []); setKindFilter(b.k); setKindFilters(b.k !== 'all' ? [b.k] : []); setQ(b.q)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -810,6 +972,7 @@ function AppInner() {
       if (profileRef.current || new URLSearchParams(window.location.search).has('profile')) return
       const p = new URLSearchParams()
       if (filter !== 'queued') p.set('f', filter)
+      if (sort) p.set('s', sort)
       if (kindFilter !== 'all') p.set('k', kindFilter)
       if (q.trim()) p.set('q', q.trim())
       const qs = p.toString()
@@ -819,11 +982,11 @@ function AppInner() {
       }
       /* Ghi cùng lúc với URL, cùng một nhịp hoãn 320ms: hai lần ghi tách rời
          nhau thì có lúc URL nói một đằng, bộ nhớ nói một nẻo. */
-      try { localStorage.setItem(BOARD_KEY, JSON.stringify({ f: filter, k: kindFilter })) }
+      try { localStorage.setItem(BOARD_KEY, JSON.stringify({ f: filter, s: sort, k: kindFilter })) }
       catch { /* chặn storage thì bộ lọc chỉ sống trong phiên này */ }
     }, 320)
     return () => clearTimeout(id)
-  }, [section, filter, kindFilter, q])
+  }, [section, filter, sort, kindFilter, q])
 
   /* Nút "lên đầu trang" biết mình nên hiện khi nào nhờ IntersectionObserver
      trên mốc đầu nội dung, với ngưỡng 520px nằm ở rootMargin. Cách cũ là
@@ -1002,19 +1165,6 @@ function AppInner() {
     return () => clearTimeout(t)
   }, [section, pick, loadPick])
 
-  /* TỰ THEO DÕI bài của mình — cái người dùng cần nhất mà bản đầu quên:
-     đã gửi request thì phải biết nó được duyệt hay chưa, không phải đi tìm
-     cái chuông ẩn dưới hover. Gọi từ `load`/`loadBoard` (nơi dữ liệu vừa về)
-     chứ không phải một effect riêng — khỏi vòng render thừa. */
-  const applyOwnFollows = (rowsNext) => {
-    const u = currentUserId.current
-    if (!u || !rowsNext?.length) return
-    const res = syncOwnRequests(rowsNext, u, watchedRef.current, prefsRef.current, Date.now(), offRef.current)
-    if (!res) return
-    setWatched(res.list)
-    saveWatched(u, res.list)
-  }
-
   const load = useCallback(async (u = user) => {
     if (!u) return
     const version = ++balanceVersion.current
@@ -1031,7 +1181,7 @@ function AppInner() {
        của nó cũ hơn số liệu đang có trên màn hình. */
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
-    if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
+    if (r.status === 'fulfilled') setRows(r.value)
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong sau khi lan tai nay bat dau) thi
     // GIU NGUYEN trang thai truoc do — khong spread vs.value ke ca free_used,
@@ -1073,7 +1223,7 @@ function AppInner() {
     const [r, v, vs, ach, rk, act, vv, achievementReqs] = results
     if (!stillLatest(dataSeq, seq)) return results
     noteBoard(r.status === 'fulfilled')
-    if (r.status === 'fulfilled') { setRows(r.value); applyOwnFollows(r.value) }
+    if (r.status === 'fulfilled') setRows(r.value)
     if (v.status === 'fulfilled') setMyVotes(v.value)
     // Phan hoi cu (vong quay vua cong thuong) thi giu nguyen trang thai truoc
     // do, khong de so du thoi diem cu de len so moi.
@@ -1240,7 +1390,7 @@ function AppInner() {
   }, [section, t])
 
   /* Bọc useCallback: `flash` được dùng bên trong nhiều useCallback khác
-     (shareSong, các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
+     (các thao tác vote/xoá). Để nó là hàm mới mỗi lần render thì
      mọi callback đó phải ghi `flash` vào deps, mà `flash` lại đổi mỗi render —
      React Compiler than phiền, và memo vô hiệu. Danh tính ổn định ở đây rẻ
      hơn nhiều so với việc đi giải thích từng chỗ. */
@@ -1258,14 +1408,11 @@ function AppInner() {
   useEffect(() => {
     snapRef.current = null
     if (!uid) {
-      setWatched([]); setNotices([]); setPrefs(DEFAULT_PREFS)
+      setNotices([])
       setInboxUid(null)
       dismissedRef.current = new Set()
       return
     }
-    const w = loadWatched(uid)
-    const off = loadOff(uid)
-    setWatched(w); watchedRef.current = w
     const dismissed = loadDismissed(uid)
     dismissedRef.current = dismissed
     /* Đọc hộp thư TRƯỚC khi effect lưu chạy. Cờ inboxUid chỉ bật ở render
@@ -1281,21 +1428,8 @@ function AppInner() {
       if (!live || !dbInbox.length) return
       setNotices(current => mergeInbox(current, dbInbox, loadDismissed(uid)))
     }).catch(() => {})
-    const pf = loadPrefs(uid)
-    setPrefs(pf); prefsRef.current = pf
-    offRef.current = off
-    /* ?f=watch còn sót trong URL của lần trước: không có gì để xem thì
-       trở về hàng đợi, để tab "Following" không bị chọn mà trang trống */
-    if (!w.length) setFilter(f => (f === 'watch' ? 'queued' : f))
     return () => { live = false }
   }, [uid])
-
-  /* Hạng của từng bài so với đợt chót kế tiếp — một lần tính cho cả
-     bảng, dùng chung cho dòng request, thẻ cụm, hộp thông báo và cả lúc
-     so sánh sinh tin. `pick` đi kèm để mỗi mục tự mang theo sàn thời gian tới
-     lượt (pickEta trong lib/watch.js): nhờ vậy mọi chỗ đã có `st` đều hiện
-     được "bao giờ" mà không phải luồn thêm prop qua từng tầng. */
-  const { rank: standings } = useMemo(() => pickLadder(rows, pick), [rows, pick])
 
   /* Bảng thông báo cần biết "dòng nào là của bài này" để gắn nút Vote / Xem
      video ngay trong dòng: lấy bài của mình trước, rồi tới dòng nhiều vote
@@ -1311,15 +1445,6 @@ function AppInner() {
     }
     return m
   }, [rows, uid])
-
-  /* Pham vi bao tin = dang theo doi + bai CHINH MINH DA BO PHIEU. Result
-     cuoc chot phai toi tay nguoi da vote, ke ca khi ho chang bam chuong nao.
-     `myVotes` danh theo request_id nen phai doi ra key cua bai. */
-  const votedSet = useMemo(() => {
-    const set = new Set()
-    if (myVotes?.size) for (const r of rows) if (myVotes.get(r.id)) set.add(groupKey(r))
-    return set
-  }, [myVotes, rows])
 
   /* Bấm một tin = đưa người ta ĐẾN dòng request của bài đó trên bảng rồi làm
      sáng hàng — không mở hộp thoại "This song" nữa: hộp thoại lặp lại đúng những
@@ -1343,11 +1468,13 @@ function AppInner() {
        lần thao tác hỏng không rò sang lượt bảng đổi sau. */
     const selfAct = selfActRef.current
     selfActRef.current = null
-    const next = snapOf(rows, uid, standings)
+    const next = snapOf(rows, uid)
     const prev = snapRef.current
     snapRef.current = next
-    if (!prev || !watchedSet.size) return
-    const found = diffNotices({ prev, next, watched: watchedSet, voted: votedSet, prefs, cycle: pick?.last_pick_at || '' })
+    /* Chỉ cần snapshot trước đó: phạm vi báo tin là "bài CỦA MÌNH", mà cờ đó
+       đã nằm sẵn trong từng mục của snapshot. */
+    if (!prev) return
+    const found = diffNotices({ prev, next })
       .filter(n => !selfAct?.has(n.key) && !isDismissed(dismissedRef.current, n))
     if (!found.length) return
     setNotices(box => pushNotices(box, found))
@@ -1358,39 +1485,23 @@ function AppInner() {
     const vars = { song, pct: first.pct ?? 0, votes: first.votes ?? 0, n: first.gap ?? n }
     /* Tone của toast và tone của TIẾNG phải là một: tin trả tiền (bài vừa được
        chốt) kêu tiếng ấm hơn tin thường, tin bị từ chối kêu tiếng lỗi. */
-    const tone = first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err'
-      : first.type === 'near' ? 'gold' : 'ok'
+    const tone = first.type === 'done' ? 'gold' : first.type === 'denied' ? 'err' : 'ok'
     sfx.notify(tone)
     push({
       tone,
       title: n > 1 ? t('nt.multi', { n }) : t(`nt.tag.${first.type}`),
       body: n > 1 ? t('nt.multiBody', { song })
         : t('nt.toast', { song, msg: t(`nt.n.${first.type}`, vars) }),
-      ms: 8000,
+      ms: 7000,
       action: n > 1
         ? { label: t('nt.title'), onClick: () => setBellOpen(true) }
         : { label: t('nt.open'), onClick: () => openNotice(first) },
     })
-  }, [rows, standings, watchedSet, votedSet, prefs, uid, pick, push, t, openNotice])
+  }, [rows, uid, push, t, openNotice])
 
   /* Lưu hộp thư + tuỳ chọn ở một chỗ: viết ngay trong updater của
      setNotices thì không được — updater phải thuần. */
   useEffect(() => { if (uid && inboxUid === uid) saveInbox(uid, notices) }, [uid, inboxUid, notices])
-  useEffect(() => { prefsRef.current = prefs; if (uid) savePrefs(uid, prefs) }, [uid, prefs])
-  useEffect(() => { watchedRef.current = watched }, [watched])
-
-  const doToggleWatch = (r) => {
-    if (!uid) return
-    const res = toggleWatched(watched, { ...r, own: r.user_id === uid }, Date.now(), offRef.current)
-    setWatched(res.list); saveWatched(uid, res.list)
-    offRef.current = res.off; saveOff(uid, res.off)
-    sfx.tap()
-    const song = `${r.title} — ${r.artist}`
-    flash(res.full ? 'err' : 'ok',
-      res.full ? t('watch.full', { n: WATCH_LIMIT }) : t(res.added ? 'watch.on' : 'watch.off', { song }))
-  }
-
-  const doSetPrefs = (patch) => setPrefs(p => ({ ...p, ...patch }))
 
   const doDropNotice = (id) => {
     const dropped = notices.find(n => n.id === id)
@@ -1451,7 +1562,17 @@ function AppInner() {
   /* Số bài đang chạy, đếm trên CHÍNH mảng dựng ra khối Up next (rep =
      in_progress nếu bài đó có dòng đang chạy) — nhờ vậy hai số nhỏ trong dòng
      chú thích luôn cộng đúng bằng con số lớn trên nắp khối. */
-  const working = useMemo(() => pickedGroups.filter(g => g.rep.status === 'in_progress').length, [pickedGroups])
+  /* KHỐI UP NEXT CHIA HAI VÙNG (bố cục "hai vùng", chủ dự án chốt).
+     Trái: bài ĐANG LÀM — nếu chưa có bài nào chạy thì là bài kế tiếp, để vùng
+     trái không bao giờ trống. Phải: phần còn lại của dây chuyền, theo đúng thứ
+     tự chốt. Số dòng chờ vẫn giới hạn bằng NOW_SHOW; phần dư nằm sau "View all"
+     như trước, nên khối không dài vô tận khi dây chuyền đông. */
+  const nowLead = useMemo(
+    () => pickedGroups.find(g => g.rep.status === 'in_progress') || pickedGroups[0] || null,
+    [pickedGroups])
+  const nowRest = useMemo(
+    () => pickedGroups.filter(g => g !== nowLead).slice(0, NOW_SHOW),
+    [pickedGroups, nowLead])
 
   const counts = useMemo(() => ({
     /* badge tab = số THẺ mà tab đó sắp hiện ra, không phải số dòng: bảng gom
@@ -1472,10 +1593,9 @@ function AppInner() {
     completed: songCount(pub.filter(r => r.status === 'completed')),
     pending: rows.filter(r => r.status === 'pending').length,
     expired: rows.filter(r => r.expired_at && !r.picked_at && ['pending', 'queued'].includes(r.status)).length,
-    watch: new Set(rows.filter(r => watchedSet.has(groupKey(r))).map(groupKey)).size,
     mine: rows.filter(r => r.user_id === user?.id).length,
     orders: orders.filter(o => o.status === 'awaiting').length,
-  }), [pub, pickedGroups, rows, orders, user, watchedSet])
+  }), [pub, pickedGroups, rows, orders, user])
 
   /* LỌC nằm trong `filterBoard` (lib/board.js) — cùng chỗ với luật gom cụm và
      sắp xếp, để mọi đường vào bảng (chip lọc, link "This week", Recent requests
@@ -1483,8 +1603,8 @@ function AppInner() {
      không có trong deps vì nó chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ
      `?k=`; thứ thật sự lọc là `kindFilters`. */
   const visible = useMemo(
-    () => filterBoard({ pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet }),
-    [pub, picked, rows, filter, statusFilters, kindFilters, q, watchedSet])
+    () => filterBoard({ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q }),
+    [pub, picked, rows, boardStage, sortMode, statusFilters, kindFilters, q])
 
   const featured = useMemo(() => {
     const m = media.find(x => !x.is_hidden && x.kind === 'featured')
@@ -1522,6 +1642,7 @@ function AppInner() {
   }, [rows, votesLog])
   const weeklyHighlights = weekly.highlights
   const weekRecap = weekly.recap
+  const hasWeeklyRecap = weekRecap.windowVotes > 0 || weekRecap.completed.length > 0
 
   const fullRanking = useMemo(
     () => [...ranking].sort((a, b) => b.total - a.total || b.total_votes - a.total_votes),
@@ -1529,18 +1650,90 @@ function AppInner() {
 
   const freeLeft = Math.max(0, voteStatus.free_limit - voteStatus.free_used)
   const votesLeft = freeLeft + voteStatus.credits
+  /* Hai nguồn của `credits` tách riêng chỉ để vẽ dải thành phần ở bảng vote:
+     người dùng thấy được bao nhiêu phiếu là phiếu mua, bao nhiêu là thưởng. */
+  const purchased = voteStatus.purchased ?? 0
+  const bonus = voteStatus.bonus ?? 0
 
   const myOrders = useMemo(
     () => orders.filter(o => !hasSupabase || o.user_id === user?.id),
     [orders, user])
   const listRef = useRef(null)
-  const mineRef = useRef(null)
-  const ordersRef = useRef(null)
   /* Cụm trùng bài: hạng của cụm tính bằng TỔNG vote của cả bài nên một bài
      bị nhiều người gửi lẻ không còn tụt hạng do vote bị xé nhỏ. Phân trang
      theo cụm để một cụm không bị xé làm đôi giữa hai trang. */
-  const boardItems = useMemo(() => buildBoardItems(visible, filter), [visible, filter])
-  const pgBoard = usePager(boardItems, PER_PAGE, [filter, kindFilter, q])
+  const boardItems = useMemo(() => buildBoardItems(visible, sortMode), [visible, sortMode])
+  const pgBoard = usePager(boardItems, PER_PAGE, [boardStage, sortMode, kindFilter, q])
+
+  /* =====================================================================
+     THANH LỌC — giá trị hiển thị và các thao tác
+     ---------------------------------------------------------------------
+     Hai trục, hai ô nhớ: `filter` là CHẶNG của dây chuyền (hoặc 'all'), `sort`
+     là cách xếp. Bảng chọn Status đọc trạng thái từ `statusFilters`, và khi
+     nó rỗng thì lấy chặng trong `filter` — nếu không, mặc định chặng `queued`
+     (chỉ hàng chờ) sẽ hiện ra thành "All" trong khi danh sách thật ra đang
+     chỉ có Queue. */
+  const stagePick = statusFilters.length
+    ? statusFilters
+    : (STAGES.includes(boardStage) ? [boardStage] : [])
+  /* Nút Sort in ĐÚNG cách xếp đang dùng, và chỉ in khi người dùng đã chọn
+     một cách xếp. Chưa chọn thì nút chỉ mang tên trường ("Sort"): danh sách
+     đang theo thứ tự gốc của chặng (hàng chờ: paid rồi tới phiếu), in
+     "Newest" lên đó là nói sai về thứ tự đang nhìn. */
+  const sortKey = sort
+  const fbActive = statusFilters.length + kindFilters.length + (q.trim() ? 1 : 0)
+  const stageText = !stagePick.length ? t('board.allStages')
+    : stagePick.length === 1 ? t(`filter.${stagePick[0]}`)
+    : `${t(`filter.${stagePick[0]}`)} +${stagePick.length - 1}`
+  const kindText = !kindFilters.length ? t('board.allKinds')
+    : kindFilters.length === 1 ? kindFilters[0]
+    : `${kindFilters[0]} +${kindFilters.length - 1}`
+
+  /* Bỏ MỘT chặng. Chặng cuối cùng bị bỏ thì về "cả bảng": để `filter` ở lại
+     chặng vừa bỏ là danh sách vẫn lọc y như cũ trong khi ô đã trống — người
+     bấm thấy "không có gì thay đổi". */
+  const removeStage = (k) => {
+    /* Lọc trên `stagePick` chứ không phải `statusFilters`: chặng mặc định
+       (queued) không nằm trong mảng, bỏ nó phải rơi về "cả bảng" chứ không
+       phải ở lại yên. */
+    const next = stagePick.filter(x => x !== k)
+    setStatusFilters(next)
+    setFilter(next.length === 1 ? next[0] : 'all')
+  }
+  const toggleStage = (k) => {
+    if (stagePick.includes(k)) return removeStage(k)
+    const next = [...stagePick, k]
+    setStatusFilters(next)
+    setFilter(next.length === 1 ? next[0] : 'all')
+  }
+  /* `kindFilters` là thứ lọc thật; `kindFilter` chỉ là bản sao MỘT lựa chọn cho
+     địa chỉ `?k=` và bộ lọc đã lưu, nên phải đổi theo. */
+  const toggleKind = (k) => {
+    const next = kindFilters.includes(k) ? kindFilters.filter(x => x !== k) : [...kindFilters, k]
+    setKindFilters(next)
+    setKindFilter(next.length === 1 ? next[0] : 'all')
+  }
+  /* Sort là trục RIÊNG: chọn cách xếp không đụng tới chặng đang lọc, nên
+     "đang lọc Queued + xếp A→Z" là một trạng thái dùng được. */
+  const pickSort = (k) => { setSort(k); setFbTab(null) }
+  /* Xoá hết = trả về đúng trạng thái mở đầu: cả bảng, chưa chọn cách xếp. */
+  const clearAll = () => {
+    setStatusFilters([]); setFilter('all'); setSort(null); setKindFilters([]); setKindFilter('all'); setQ(''); setFbTab(null)
+  }
+
+  /* Đóng bảng chọn khi bấm ra ngoài hoặc Esc. `pointerdown` chứ không `click`:
+     bấm ra ngoài mà đóng ở `click` thì bảng đã kịp nhận cú bấm đầu. */
+  useEffect(() => {
+    if (!fbTab) return
+    const onDown = (e) => { if (!e.target.closest?.('.fbar')) setFbTab(null) }
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); setFbTab(null) } }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [fbTab])
 
   /* Tin bấm từ hộp thư (jumpToSong) thường rơi vào bài ở trang khác. Bộ lọc
      vừa đổi là usePager tự về trang 1, nên KHÔNG setPage được ngay trong
@@ -1560,21 +1753,19 @@ function AppInner() {
 
   /* Cụm nào đang mở — tự thu hết khi đổi bộ lọc/tìm kiếm (cùng nhịp reset
      trang của usePager, không dùng effect để khỏi render thừa). */
-  const gkey = `${filter}|${kindFilter}|${q.trim()}`
+  const gkey = `${boardStage}|${sort ?? ''}|${kindFilter}|${q.trim()}`
   const [expSt, setExpSt] = useState({ key: gkey, open: {} })
   const openGroups = expSt.key === gkey ? expSt.open : {}
   const toggleGroup = (k) => setExpSt(s => {
     const open = s.key === gkey ? s.open : {}
     return { key: gkey, open: { ...open, [k]: !open[k] } }
   })
-  const pgMine = usePager(mineRows, PER_PAGE, [section])
-  const pgOrders = usePager(myOrders, PER_PAGE_ORDERS, [section])
-
   /* nút "View all" trong khối Up next: mở tab Up next của danh sách và cuộn tới */
   const showAllPicked = useCallback(() => {
     /* `setStatusFilters([])` là bắt buộc: bộ lọc nhiều-chọn THẮNG `filter`,
-       nên không dọn nó thì bấm "View all" đổi `filter` mà danh sách đứng yên. */
-    setFilter('picked'); setStatusFilters([]); setKindFilter('all'); setKindFilters([]); setQ('')
+       nên không dọn nó thì bấm "View all" đổi `filter` mà danh sách đứng yên.
+       Cách xếp cũng trả về mặc định — "View all" là để xem thứ tự làm việc. */
+    setFilter('picked'); setSort(null); setStatusFilters([]); setKindFilter('all'); setKindFilters([]); setQ('')
     requestAnimationFrame(() => {
       setTimeout(() => listRef.current?.scrollIntoView({ behavior: REDUCED() ? 'auto' : 'smooth', block: 'start' }), 60)
     })
@@ -1586,33 +1777,10 @@ function AppInner() {
   /* ---------------- actions ---------------- */
   /* Chặn mở bảng vote cho Up next ngay ở lớp điều phối (nút đã disable,
      đây là lớp chặn thứ hai cho phím tắt / state cũ). */
-  /* CHIA SẺ MỘT BÀI. Link trỏ về CHÍNH bảng (`?f=top&q=<bài>`), không trỏ ra
-     YouTube: người nhận bấm vào là vote được ngay, thay vì phải tự đi tìm bài
-     trong danh sách. Điện thoại có hộp chia sẻ hệ thống thì mở hộp đó (người
-     dùng chọn được Zalo/Messenger), còn lại thì copy + toast.
-     Không dùng `navigator.share` ở desktop: hộp thoại hệ thống trên Windows
-     chậm và nhiều máy không có, trong khi copy link là thao tác ai cũng hiểu. */
-  const shareSong = useCallback(async (r) => {
-    /* Link dựng bằng `boardSearchUrl` — cùng một cửa với thẻ "This week" và
-       Recent requests của trang cá nhân. Bản cũ tự ghép `?f=top&q=…`: `top` chỉ
-       liệt kê bài ĐANG XIN PHIẾU, nên chia sẻ một bài vừa được chốt (hoặc đã
-       xong) là gửi đi một link mở ra danh sách RỖNG — người nhận không phân
-       biệt được "bài bị xoá" với "link hỏng". */
-    const url = absolute(boardSearchUrl(r?.title, r?.artist))
-    const text = `${r.title} - ${r.artist}`
-    /* Hộp chia sẻ hệ thống chỉ mở trên máy cảm ứng. Trên desktop nó là một hộp
-       thoại của hệ điều hành (Windows/macOS) chậm, hay bị chặn trong webview,
-       và không giúp gì: người dùng desktop muốn một chuỗi để dán. Nhận biết
-       bằng `(hover: none)` — cùng tiêu chí mà CSS dùng để phân biệt hai thế
-       giới, không phải đoán theo user-agent. */
-    const touch = window.matchMedia?.('(hover: none)').matches
-    if (touch && navigator.share) {
-      try { await navigator.share({ title: 'Chaereve', text, url }); return } catch { return }
-    }
-    const ok = await copyText(url)
-    if (ok) sfx.copy()
-    flash(ok ? 'ok' : 'err', t(ok ? 'row.shareCopied' : 'row.shareFailed'))
-  }, [flash, t])
+  /* Nút chia sẻ đã bị gỡ khỏi sản phẩm (cùng lượt với chuông theo dõi): người
+     dùng không muốn hàng request có thêm hành động nào ngoài "nghe bài". Link
+     dựng bằng `boardSearchUrl` vẫn còn ở hai thẻ "This week" và Recent requests
+     của trang cá nhân — chỗ đó chia sẻ là hành động chính, không phải nút phụ. */
 
   const openVote = useCallback((r) => {
     /* Guests can inspect and share the board, but voting is an explicit auth action. */
@@ -1645,13 +1813,21 @@ function AppInner() {
        được báo như phiếu thất bại: phiếu đã nằm trong database. */
     bump(delta); mine(delta)
     if (delta < 0) sfx.unvote(); else sfx.vote()
+    const count = `${Math.abs(delta)} ${Math.abs(delta) === 1 ? 'vote' : 'votes'}`
+    const song = target ? `${target.title} — ${target.artist}` : ''
+    const takingBack = delta < 0
+    push({
+      tone: takingBack ? 'info' : 'ok',
+      title: t(takingBack ? 'notif.voteBackTitle' : 'notif.voteAddedTitle'),
+      body: song
+        ? t(takingBack ? 'notif.voteBackBody' : 'notif.voteAddedBody', { count, song })
+        : t(takingBack ? 'notif.voteBackSaved' : 'notif.voteSaved'),
+    })
     try { await loadBoard(user) } catch { /* realtime sẽ kéo bảng lại */ }
   }
   const doSubmit = async (form, paid, useBonus = false) => {
     if (!user) { setModal(false); setAuthPrompt(true); return }
     const row = await addRequest(form, user, paid, useBonus)
-    /* vua gui xong là theo dõi liọn, khỏi phải chờ lần nạp bảng kế tiếp */
-    if (row) applyOwnFollows([{ ...row, user_id: row.user_id || user.id }])
     sfx.submit()
     const song = `${form.artist.trim()} — ${form.title.trim()}`
     push({
@@ -1662,7 +1838,7 @@ function AppInner() {
         : paid
           ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
           : t('notif.reqBody', { song }),
-      ms: 6500,
+      ms: paid && !useBonus ? 6000 : 4000,
       ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => openModal('buy') } }),
     })
     await load(user)
@@ -1675,15 +1851,22 @@ function AppInner() {
       tone: 'gold',
       title: t('notif.buyTitle', { n: pack.qty }),
       body: t('notif.buyBody', { n: pack.qty, amt: vnd(pack.vnd) }),
-      ms: 6500,
+      ms: 5600,
     })
     await load(user)
     return order
   }
   const doDelete = async (id) => {
-    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
-    try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.deleted')) }
-    catch (e) { flash('err', errMsg(t, e)) }
+    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
+    try {
+      await deleteRequest(id)
+      await loadBoard(user)
+      flash('ok', t('toast.deleted'))
+      return true
+    } catch (e) {
+      flash('err', errMsg(t, e))
+      return false
+    }
   }
   const doReview = async (id, ok, reason, videoUrl) => {
     const r = rows.find(x => x.id === id)
@@ -2000,14 +2183,9 @@ function AppInner() {
               chữ trong đó thành tên prop rồi báo "dây đứt" oan.
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
-          {user && activityView?.stats.current > 0 && (
-            <span className="streak-pill" title={t('streak.headerTitle', { n: activityView.stats.current })} aria-label={t('streak.headerTitle', { n: activityView.stats.current })}>
-              <Icon name="flame" size={13} /><b>{activityView.stats.current}</b>
-            </span>
-          )}
           <Notifications
-            open={bellOpen} notices={notices} rank={standings}
-            rowsByKey={rowsByKey} prefs={prefs}
+            open={bellOpen} notices={notices}
+            rowsByKey={rowsByKey}
             onToggle={() => setBellOpen(o => !o)}
             onClose={() => setBellOpen(false)}
             onOpenNotice={openNotice}
@@ -2015,8 +2193,6 @@ function AppInner() {
             onDrop={doDropNotice}
             onBrowse={() => { setBellOpen(false); go('board') }}
             onVote={(r) => { setBellOpen(false); openVote(r) }}
-            onBuy={() => { setBellOpen(false); openModal('buy') }}
-            onPrefs={doSetPrefs}
           />
           {/* LỐI VÀO MÀN ĐĂNG NHẬP, NGAY CẠNH CHUÔNG. Mọi việc cần tài khoản
               (vote, gửi request, About me) đều tự mở cửa sổ này; nhưng một
@@ -2037,7 +2213,9 @@ function AppInner() {
         </header>
         <div className="sect" key={section}>
 
-        {profileId && <PublicProfile userId={profileId} onBack={closeProfile} />}
+        {/* `viewerId` để trang cá nhân biết người xem có phải chủ hồ sơ không:
+            chỉ chủ mới thấy hàng chờ duyệt / bị từ chối của chính mình. */}
+        {profileId && <PublicProfile userId={profileId} viewerId={user?.id} onBack={closeProfile} onDelete={doDelete} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
         {section === 'board' && !onProfile && (
@@ -2045,53 +2223,32 @@ function AppInner() {
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
           <div className="board">
-            <div className="stats" data-reveal data-glow>
+            <div className="stats" data-home-stats data-reveal data-glow>
               {/* Bốn giai đoạn, cộng lại đúng tổng số bài trên bảng. Ô "Paid"
                   cũ bị bỏ: nó là một NHÃN (bài trả phí) chứ không phải giai
                   đoạn, nằm trong dãy này thì phá vỡ phép cộng — nhãn đó vẫn
                   hiện nguyên trên hàng (pill vàng) và trong bảng Admin. */}
-              <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} why={t('stat.queuedWhy')} />
-              <Stat c="var(--a-2)" v={stage.picked} label={t('stat.picked')} why={t('stat.pickedWhy')} />
-              <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} why={t('stat.inProgressWhy')} />
-              <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} why={t('stat.completedWhy')} />
+              <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} />
+              {/* Suất đã chốt mang màu Up next, không phải màu nhấn: `--a-2`
+                  giờ TRÙNG với `--progress`, để nguyên là hai ô cạnh nhau cùng
+                  một màu: "Up next 2" và "In progress 2" không phân biệt được. */}
+              <Stat c="var(--upnext)" v={stage.picked} label={t('stat.picked')} />
+              <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} />
+              <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} />
             </div>
 
             <MediaShowcase featured={featured} videos={latest} state={mediaState}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} onRetry={loadMedia} />
 
-            {(weeklyHighlights.top || weeklyHighlights.newcomer || weekRecap.completed.length > 0) && (
+            {(weeklyHighlights.top || weeklyHighlights.newcomer || hasWeeklyRecap || hallOfFame.length > 0) && (
               <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
-                <div className="now-head">
-                  <h2 className="lbl" id="weekly-title">This week</h2>
-                  <span className="now-split">Community highlights · last 7 days</span>
-                </div>
-                <div className="weekly-grid">
-                  {/* Cả hai thẻ đi qua `boardSearchUrl` (một chỗ dựng link, luôn
-                      kèm `f=newest`) và `spaLink` (đi trong app, không tải lại
-                      trang → không chạy lại màn chờ). Bản cũ tự ghép chuỗi bằng
-                      tay: thẻ "Most voted" giữ `f=top` — mà `top` cố ý loại bài
-                      đã xong/đã vào dây chuyền, nên bấm vào bài nổi nhất tuần
-                      (thường đúng là bài đang làm) ra danh sách RỖNG; thẻ "New this
-                      week" không kèm `f` nên rơi về bộ lọc đã lưu trong
-                      localStorage, cũng rỗng nếu lần trước đang xem Queue. */}
-                  {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
-                    <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
-                  </a>}
-                  {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
-                    <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
-                  </a>}
-                </div>
-                {/* Tuần qua nhìn lại (T7): dòng tóm tắt + nút Save card.
-                    Card recap đi cùng đường xuất blob với card hồ sơ
-                    (ShareCardButton + drawRecapCard) — không có bản sao
-                    "cách lưu card" thứ hai trong app. Không có gì đáng kể
-                    trong tuần thì dòng này ẩn — không hiển thị 0/0 vô nghĩa. */}
-                {(weekRecap.windowVotes > 0 || weekRecap.completed.length > 0) && (
-                  <div className="weekly-recap">
-                    <span className="now-split">
-                      {t('recap.summary', { votes: weekRecap.windowVotes, done: weekRecap.completed.length })}
-                    </span>
+                <div className="weekly-head">
+                  <div className="weekly-head-copy">
+                    <h2 className="lbl" id="weekly-title">This week</h2>
+                  </div>
+                  {hasWeeklyRecap && (
                     <ShareCardButton
+                      className="weekly-save"
                       draw={drawRecapCard}
                       card={{
                         name: 'week-in-review',
@@ -2104,36 +2261,51 @@ function AppInner() {
                         completed: weekRecap.completed.map(c => ({ title: c.title, artist: c.artist })),
                         footer: t('card.footer'),
                       }} />
+                  )}
+                </div>
+                {(weeklyHighlights.top || weeklyHighlights.newcomer) && (
+                  <div className="weekly-grid">
+                    {/* Cả hai thẻ mở đúng bài trong bảng mà không tải lại trang;
+                        boardSearchUrl giữ mọi trạng thái và ghi rõ cách xếp mới nhất. */}
+                    {weeklyHighlights.top && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.top.title, weeklyHighlights.top.artist)} onClick={spaLink(openSong, weeklyHighlights.top)}>
+                      <small>Most voted</small><b>{weeklyHighlights.top.title}</b><span>{weeklyHighlights.top.artist} · {weeklyHighlights.top.votes} {weeklyHighlights.top.votes === 1 ? 'vote' : 'votes'}</span>
+                    </a>}
+                    {weeklyHighlights.newcomer && <a className="weekly-card" href={boardSearchUrl(weeklyHighlights.newcomer.title, weeklyHighlights.newcomer.artist)} onClick={spaLink(openSong, weeklyHighlights.newcomer)}>
+                      <small>New this week</small><b>{weeklyHighlights.newcomer.title}</b><span>{weeklyHighlights.newcomer.artist}{weeklyHighlights.newcomer.requester ? ` · requested by ${weeklyHighlights.newcomer.requester}` : ''}</span>
+                    </a>}
                   </div>
                 )}
-              </section>
-            )}
-
-            {hallOfFame.length > 0 && (
-              <section className="nowbar hall" data-reveal aria-labelledby="hall-title">
-                <div className="now-head">
-                  <h2 className="lbl" id="hall-title">Hall of Fame</h2>
-                  <span className="now-split">Completed videos</span>
-                </div>
-                <div className="hall-grid">
-                  {hallOfFame.map(r => {
-                    const reqTx = r.requesters && r.requesters.length > 1
-                      ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
-                      : r.requester
-                    return (
-                      <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
-                        <span className="hall-play" aria-hidden="true">▶</span>
-                        <span>
-                          <b>{r.title}</b>
-                          <small>
-                            {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
-                            {r.count > 1 ? ` (${r.count} requests)` : ''}
-                          </small>
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                {hallOfFame.length > 0 && (
+                  <section className="weekly-completed" aria-labelledby="completed-title">
+                    <div className="weekly-completed-head">
+                      <h3 id="completed-title">Completed videos</h3>
+                    </div>
+                    <div className="hall-grid">
+                      {hallOfFame.map(r => {
+                        const reqTx = r.requesters && r.requesters.length > 1
+                          ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
+                          : r.requester
+                        const videoId = parseYoutube(r.video_url)?.id
+                        const thumbnail = thumbUrl(videoId, 'mq')
+                        return (
+                          <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
+                            <span className={`hall-thumb${thumbnail ? '' : ' hall-thumb-empty'}`} aria-hidden="true">
+                              {thumbnail && <img src={thumbnail} alt="" loading="lazy" />}
+                              <span className="hall-play">▶</span>
+                            </span>
+                            <span className="hall-card-copy">
+                              <b>{r.title}</b>
+                              <small>
+                                {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
+                                {r.count > 1 ? ` (${r.count} requests)` : ''}
+                              </small>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
               </section>
             )}
 
@@ -2141,7 +2313,7 @@ function AppInner() {
                 Khối này luôn hiện để mốc giờ chốt tiếp theo không bao giờ
                 biến mất (kể cả khi chưa có request nào được chốt). ======= */}
             {
-              <div className={`nowbar${picked.some(r => r.status === 'in_progress') ? ' live' : ''}`}
+              <div className={`nowbar upnext${picked.some(r => r.status === 'in_progress') ? ' live' : ''}`}
                 data-reveal data-glow>
                 <span className="nbar" aria-hidden="true" />
                 <div className="now-head">
@@ -2151,11 +2323,6 @@ function AppInner() {
                   <h2 className="lbl">
                     {t('now.next')}
                     {pickedGroups.length > 0 && <span className="now-n">{pickedGroups.length}</span>}
-                    {pickedGroups.length > 0 && (
-                      <span className="now-split visually-quiet">
-                        {t('now.split', { a: working, b: pickedGroups.length - working })}
-                      </span>
-                    )}
                   </h2>
                   <Countdown pick={pick} />
                 </div>
@@ -2163,62 +2330,117 @@ function AppInner() {
                 {pickedGroups.length === 0 ? (
                   <h3 className="now-empty">{t('now.noPick')}</h3>
                 ) : (
-                  <div className="now-list">
-                    {pickedGroups.slice(0, NOW_SHOW).map((g, i) => {
-                      const rep = g.rep
-                      const working = rep.status === 'in_progress'
-                      return (
-                        <div className={`now-item${g.rows.length > 1 ? ' now-group' : ''}`} key={g.key} style={{ '--i': i }}>
-                          <h3>
-                            <span className="tx">{g.title} <span>— {g.artist}</span></span>
-                            {(g.paid || g.rows.length > 1) && (
-                              <span className="tags">
-                                {g.paid && <span className="pill gold">PAID</span>}
-                                {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
-                              </span>
-                            )}
-                          </h3>
-                          <div className="sub">
-                            <span className="status" style={{ '--c': statusColor(rep.status) }}>{statusLabel(rep, t)}</span>
-                            <span className={`kind ${kindCls(rep.kind)}`}>{rep.kind}</span>
-                            <span className="dot" aria-hidden="true" /><span>{g.votes} {t('now.votes')}</span>
-                            <span className="dot visually-quiet" aria-hidden="true" /><span className="visually-quiet">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
-                          </div>
-                          {/* Số phần trăm chỉ nằm MỘT chỗ: trong thanh, sát mép
-                              phải. Trước đây nó nằm trong dòng meta rồi lặp
-                              lại lần nữa bằng một cái vạch trần bên dưới. */}
-                          {working && <Progress pct={rep.progress} label={t('progress.label')} />}
-                          {g.rows.length > 1 && (
-                            <ul className="now-members">
-                              {g.rows.map(rr => (
-                                <li key={rr.id}>
-                                  <span className="status" style={{ '--c': statusColor(rr.status) }}>{statusLabel(rr, t)}</span>
-                                  {rr.is_paid && <span className="pill gold">PAID</span>}
-                                  <span>{rr.votes} {t('now.votes')}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                  <div className={`now-body${nowRest.length ? '' : ' solo'}`}>
+                    {/* ---- TRÁI: bài đang làm (hoặc bài kế tiếp) ----
+                        Đây là câu trả lời cho câu hỏi duy nhất khối này tồn tại
+                        để trả lời, nên nó là chữ TO NHẤT của khối và nhãn trạng
+                        thái của nó là một chip tô màu — không phải một dòng chữ
+                        xám lẫn vào các dòng khác. */}
+                    {nowLead && (
+                      <div className={`now-work${nowLead.rep.status === 'in_progress' ? ' live' : ''}`}>
+                        {/* `.now-item` là tên lớp mà bộ kiểm thử tiến độ dùng để
+                            xác định "dòng của Up next"; nó cũng là dòng mang
+                            dòng phụ `.meta` có ba nhịp. */}
+                        {(() => {
+                          const rep = nowLead.rep
+                          return (
+                            <div className="now-item">
+                              <div className={`now-lab${rep.status === 'in_progress' ? ' live' : ''}`}>
+                                <span className={`status s-${rep.status}`} style={{ '--c': statusColorOf(rep) }}>{statusLabel(rep, t)}</span>
+                              </div>
+                              <h3 className="now-work-t">
+                                <span className="tx">{nowLead.title}</span>
+                                <span className="ar">— {nowLead.artist}</span>
+                                {(nowLead.paid || nowLead.rows.length > 1) && (
+                                  <span className="tags">
+                                    {nowLead.paid && <span className="pill gold">PAID</span>}
+                                    {nowLead.rows.length > 1 && <span className="pill group">×{nowLead.rows.length}</span>}
+                                  </span>
+                                )}
+                              </h3>
+                              <div className="meta">
+                                {/* BA NHỊP, không phải thanh phần trăm: cùng một bài
+                                    đứng ở hàng request (ba vạch 16×3px + "n/3") và ở
+                                    đây phải đọc ra cùng một hình. */}
+                                {rep.status === 'in_progress' && (
+                                  <Steps pct={rep.progress} label={t('progress.label')} />
+                                )}
+                                <span className={`kind ${kindCls(rep.kind)}`} title={rep.kind}>{kindShort(rep.kind)}</span>
+                                <span className="dot" aria-hidden="true" />
+                                <span className="now-votes"><b>{nowLead.votes}</b> {t('now.votes')}</span>
+                                <span className="dot" aria-hidden="true" />
+                                <span className="now-when">{t('now.pickedAgo', { t: timeAgo(rep.picked_at, t) })}</span>
+                              </div>
+                              {nowLead.rows.length > 1 && (
+                                <ul className="now-members">
+                                  {nowLead.rows.map(rr => (
+                                    <li key={rr.id}>
+                                      <span className={`status s-${rr.status}`} style={{ '--c': statusColorOf(rr) }}>{statusLabel(rr, t)}</span>
+                                      {rr.is_paid && <span className="pill gold">PAID</span>}
+                                      <span>{rr.votes} {t('now.votes')}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+
+                    {/* ---- PHẢI: phần còn lại của dây chuyền ----
+                        Số thứ tự ở lề là THỨ TỰ CHỐT thật (picked_at tăng dần),
+                        không phải số trang trí: người gửi cần biết bài mình đứng
+                        thứ mấy. Vote và mốc chốt nằm CÙNG DÒNG PHỤ với chip loại
+                        bài — y như vùng trái. Trước đây chúng là một cột riêng ở
+                        lề phải, và cột đó ăn mất ~90px nên tên bài dài bị cắt
+                        thành "Moonlight …": mất tên bài để giữ một con số. */}
+                    {nowRest.length > 0 && (
+                      <div className="now-wait">
+                        <div className="now-lab">
+                          <span className="status s-queued" style={{ '--c': 'var(--upnext)' }}>{t('now.waiting', { n: pickedGroups.length - 1 })}</span>
                         </div>
-                      )
-                    })}
+                        <ol className="now-q">
+                          {nowRest.map((g, i) => (
+                            <li className="now-qrow" key={g.key}>
+                              <span className="now-rank" aria-hidden="true">{i + 1}</span>
+                              <div className="now-qmain">
+                                <h3>
+                                  <span className="tx">{g.title}</span>
+                                  <span className="ar">— {g.artist}</span>
+                                </h3>
+                                <div className="now-qmeta">
+                                  <span className={`kind ${kindCls(g.rep.kind)}`} title={g.rep.kind}>{kindShort(g.rep.kind)}</span>
+                                  {(g.paid || g.rows.length > 1) && (
+                                    <span className="tags">
+                                      {g.paid && <span className="pill gold">PAID</span>}
+                                      {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
+                                    </span>
+                                  )}
+                                  <span className="dot" aria-hidden="true" />
+                                  <span className="now-votes"><b>{g.votes}</b> {t('now.votes')}</span>
+                                  <span className="dot" aria-hidden="true" />
+                                  <span className="now-when">{t('now.pickedAgo', { t: timeAgo(g.rep.picked_at, t) })}</span>
+                                </div>
+                              </div>
+
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="now-foot">
+                  {/* Chân khối chỉ còn ĐÚNG MỘT câu: nhịp chốt. Nút "cách tính"
+                      và bảng ba dòng của nó đã được gỡ theo yêu cầu (chủ dự án
+                      chỉ vào bảng đó và nói "bỏ"). Câu quy tắc giữ lại vì nó là
+                      thông tin, không phải phần giải thích mở rộng. */}
                   <div className="now-rule">
                     <span>{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
-                    {/* Cách tính cho TOÀN BỘ dây chuyền: nhịp chốt, thứ tự chốt,
-                        và vì sao con số chờ là SÀN (at least) chứ không phải hẹn.
-                        Một note dùng chung cho đếm ngược + standing + ETA — ba con
-                        số cùng một phép tính, không giải thích ba lần. */}
-                    <CalcNote items={[
-                      { label: t('now.calcOrderLbl'), text: t('now.calcOrder') },
-                      { label: t('now.calcWaitLbl'), text: t('now.calcWait', { n: pick?.interval_days || 4 }) },
-                      { label: t('now.calcNoteLbl'), text: t('now.calcNote') },
-                    ]} />
                   </div>
-                  {pickedGroups.length > NOW_SHOW && (
+                  {pickedGroups.length > NOW_SHOW + 1 && (
                     <button type="button" className="btn btn-sm now-more" onClick={showAllPicked}>
                       {t('now.more', { n: pickedGroups.length })}
                     </button>
@@ -2227,8 +2449,18 @@ function AppInner() {
               </div>
             }
 
+            {/* ---- YOUR VOTES ----------------------------------------------------
+                Ba khối thông tin cũ (bốn ô kẻ viền bằng nhau + một dòng "3 / 3")
+                nói CÙNG một chuyện: tổng số vote đã in ở trên, rồi ô "Free today"
+                in lại đúng con số đó, còn ba ô kia là ba số 0 to bằng ô có nghĩa.
+                Nay: MỘT con số, MỘT dải thành phần (mỗi đoạn một nguồn vote, tỉ
+                lệ thật), MỘT dòng chú thích chỉ liệt kê nguồn đang CÓ. Nguồn nào
+                bằng 0 thì không hiện — số 0 không cần chỗ.
+                Nút: chỉ MỘT nút chính. Khi hết vote, nút chính đổi sang "Buy
+                votes" vì đó mới là việc người dùng làm được lúc đó; "Vote now"
+                vẫn bấm được (nó mở bảng mua) nhưng không còn là điểm nhấn. */}
             <section className="votepanel" data-reveal data-glow>
-              <div className="vp-top">
+              <div className="vp-head">
                 <div className="vp-main">
                   <div className="vp-label">{t('vp.yourVotes')}</div>
                   <div className="vp-big">
@@ -2237,55 +2469,58 @@ function AppInner() {
                   </div>
                 </div>
                 <div className="vp-acts">
-                  <button className="btn" onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
+                  <button className={`btn${votesLeft > 0 ? ' btn-primary' : ''}`}
+                    onClick={() => openModal('vote')}>{t('vp.goVote')}</button>
                   <button className="btn" onClick={() => go('spin')}>{t('nav.spin')}</button>
-                  <button className="btn btn-gold" onClick={() => openModal('buy')}>{t('vp.buy')}</button>
+                  <button className={`btn btn-gold${votesLeft > 0 ? '' : ' on'}`}
+                    onClick={() => openModal('buy')}>{t('vp.buy')}</button>
                 </div>
               </div>
-              <div className="vp-stats">
-                <div className={`vp-cell${freeLeft > 0 ? ' is-free' : ' is-empty'}`} title={t('vp.reset')}>
-                  <div className="vp-k">{t('vp.freeToday')}</div>
-                  <div className="vp-v">
-                    <Num v={freeLeft} /> / {voteStatus.free_limit}
-                  </div>
-                  <div className="vs-bar">
-                    <i style={{ width: `${(freeLeft / voteStatus.free_limit) * 100}%` }} />
-                  </div>
-                </div>
-                <div className="vp-cell is-paid">
-                  <div className="vp-k">{t('vote.purchased')}</div>
-                  <div className="vp-v"><Num v={voteStatus.purchased ?? 0} /></div>
-                </div>
-                <div className="vp-cell is-bonus" title={t('vp.bonusReset')}>
-                  <div className="vp-k">{t('vp.voteBonus')}</div>
-                  <div className="vp-v"><Num v={voteStatus.bonus ?? 0} /></div>
-                </div>
-                <div className="vp-cell is-paid">
-                  <div className="vp-k">{t('vp.freePaid')}</div>
-                  <div className="vp-v"><Num v={voteStatus.bonus_requests ?? 0} /></div>
-                </div>
+              {/* Dải thành phần. `aria-hidden` vì mọi con số đã có bằng chữ ở
+                  dòng dưới — trình đọc màn hình không cần đọc lại một thanh màu. */}
+              <div className={`vp-meter${votesLeft > 0 ? '' : ' is-out'}`} aria-hidden="true">
+                {votesLeft > 0
+                  ? <>
+                      {freeLeft > 0 && <i className="s-free" style={{ flexGrow: freeLeft }} />}
+                      {purchased > 0 && <i className="s-paid" style={{ flexGrow: purchased }} />}
+                      {bonus > 0 && <i className="s-bonus" style={{ flexGrow: bonus }} />}
+                    </>
+                  : <i />}
+              </div>
+              <div className="vp-legend">
+                {votesLeft === 0
+                  ? <span className="vp-leg is-out">{t('vp.legendOut', { n: voteStatus.free_limit })}</span>
+                  : <>
+                      {freeLeft > 0 && (
+                        <span className="vp-leg"><i className="s-free" /><b>{freeLeft}</b>{t('vp.legendFree')}</span>
+                      )}
+                      {purchased > 0 && (
+                        <span className="vp-leg"><i className="s-paid" /><b>{purchased}</b>{t('vp.legendPaid')}</span>
+                      )}
+                      {bonus > 0 && (
+                        <span className="vp-leg"><i className="s-bonus" /><b>{bonus}</b>{t('vp.legendBonus')}</span>
+                      )}
+                    </>}
+                {voteStatus.bonus_requests > 0 && (
+                  <span className="vp-req"><b>{voteStatus.bonus_requests}</b>
+                    {t(voteStatus.bonus_requests === 1 ? 'vp.paidReqOne' : 'vp.paidReq')}</span>
+                )}
+                <span className="vp-leg is-mut">{t('vp.reset')}</span>
               </div>
             </section>
 
             <div className="board-list">
               <h2 className="section-title">{t('board.listTitle')}</h2>
-              {/* Thanh lọc: mỗi chip mang ĐÚNG màu giai đoạn nó lọc, chip
-                  đang chọn sáng lên bằng chính màu đó; máy hẹp thì dải chip
-                  cuộn ngang chứ không xuống dòng. */}
-              {/* THANH LỌC — mỗi thứ chỉ có MỘT ô điều khiển. Hàng trên là ô
-                  tìm + tóm tắt/nút Bộ lọc; dải status ở hàng dưới luôn giữ MỘT
-                  hàng, hết chỗ thì cuộn ngang chứ không gãy thành hai hàng.
-                  Hàng loại bài gấp sau nút "Bộ lọc" trên máy hẹp — nhồi tất cả
-                  vào một hàng 340px là mỗi thứ một mẩu. Thanh NẰM TRONG DÒNG,
-                  không dính mép trên: cuộn qua nó là nó đi theo trang (vòng 13
-                  — "đừng để thanh lọc floating lúc cuộn"); nút "lên đầu trang"
-                  là đường quay lại. */}
-              <div className={`fbar${fbarOpen ? ' open' : ''}`}>
-                <div className="fbar-top">
-                  {/* Ô TÌM ĐỨNG ĐẦU THANH LỌC — thứ tự DOM cũng là thứ tự
-                      bàn phím: ô nhập → tóm tắt/nút Bộ lọc → dải status. Máy
-                      hẹp tự thành hai hàng (ô tìm + nút ở trên, chip ở dưới),
-                      không cần đảo thứ tự bằng `order`. */}
+              {/* THANH LỌC — ba điều khiển trên một đường ngang.
+                  · ô tìm là hộp DUY NHẤT có nền riêng (nó là chỗ để gõ);
+                  · Status / Type là hai pill có viền, mở bảng chọn nhiều;
+                  · Sort là menu một lựa chọn, chọn xong đóng ngay;
+                  · Clear chỉ hiện khi thật sự có gì để xoá.
+                  Bố cục gọn (≤899px): Status/Type gom vào MỘT bảng sau nút
+                  icon, còn sort ra một icon riêng — sort không phải bộ lọc
+                  nên không được chui vào bảng lọc. Thanh NẰM TRONG DÒNG. */}
+              <div className="fbar">
+                <div className="fb-main">
                   <span className="searchwrap">
                     <Icon name="search" size={14} className="search-ico" />
                     <input ref={searchRef} className="search" placeholder={t('board.search')}
@@ -2296,116 +2531,212 @@ function AppInner() {
                           onClick={() => { setQ(''); searchRef.current?.focus() }}><Icon name="close" size={13} /></button>
                       : <kbd className="search-kbd" aria-hidden="true">/</kbd>}
                   </span>
-                  <div className="fbar-side">
-                    <span className="fcount">{t('board.showing', { n: boardItems.length })}</span>
-                    <button type="button" className={`fmore${fbarOpen ? ' on' : ''}`}
-                      aria-expanded={fbarOpen} aria-controls="fbar-more"
-                      onClick={() => setFbarOpen(v => !v)}>
-                      <Icon name="settings" size={14} />{t('board.filters')}
-                      {(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0) > 0 && (
-                        <b>{(kindFilter !== 'all' ? 1 : 0) + (q ? 1 : 0)}</b>
-                      )}
+
+                  {/* Mỗi facet là một KHỐI NEO: bảng chọn nằm ngay dưới chính
+                      cái pill mở nó, nên không phải tính toạ độ bằng JS. */}
+                  <span className="fb-wrap">
+                    <button type="button" className={`fb-fac${stagePick.length ? ' on' : ''}`}
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'status'} aria-controls={fbTab === 'status' ? 'fb-status' : undefined}
+                      onClick={() => setFbTab(v => v === 'status' ? null : 'status')}>
+                      <span className="k">{t('board.status')}</span>
+                      {/* Chưa lọc thì pill CHỈ mang tên trường. In thêm "All"
+                          là hai chữ cho một sự thật, và chữ "All" cạnh chữ
+                          "Status" đọc ra như một giá trị đang chọn. */}
+                      {stagePick.length > 0 && <span className="v">{stageText}</span>}
+                      <Icon name="chevron" size={13} className="car" />
                     </button>
-                  </div>
-                  <div className="fchips" role="group" aria-label={t('board.filterAria')}>
-                    {/* Mỗi mục = VẠCH MÀU + nhãn + số (xem khối THANH LỌC trong
-                        index.css). Vạch ngăn chỉ mọc lên ở mục đầu tiên của
-                        một nhóm MỚI, và nhóm "đang theo dõi" vắng mặt thì vạch
-                        ngăn của nó cũng không được ở lại một mình. */}
-                    {FILTERS.filter(f => f.ax !== 'you' || watchedSet.size > 0).map((f, i, list) => (
-                      <Fragment key={f.k}>
-                        {i > 0 && f.ax !== list[i - 1].ax && <span className="dot" aria-hidden="true" />}
-                        <button type="button" className={`fchip${(STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k) ? ' on' : ''}`}
-                          style={{ '--c': f.c }} aria-pressed={STAGES.includes(f.k) ? statusFilters.includes(f.k) : filter === f.k}
-                          onClick={() => {
-                            const stage = STAGES.includes(f.k)
-                            const next = stage
-                              ? (statusFilters.includes(f.k) ? statusFilters.filter(s => s !== f.k) : [...statusFilters, f.k])
-                              : []
-                            setStatusFilters(next)
-                            /* Bỏ chọn chip giai đoạn CUỐI CÙNG thì về "cả bảng"
-                               (newest). Để `filter` ở lại giai đoạn vừa bỏ là
-                               danh sách vẫn lọc đúng y như cũ trong khi chip đã
-                               tắt — người bấm thấy "không có gì thay đổi". */
-                            setFilter(stage && !next.length ? 'newest' : f.k)
-                          }}>
-                          <i className="ftick" aria-hidden="true" />{t(`filter.${f.k}`)}
-                          <b className={`fnum${counts[f.k] ? '' : ' zero'}`}>{counts[f.k]}</b>
-                        </button>
-                      </Fragment>
+                    {fbTab === 'status' && (
+                      <div className="fb-pop" id="fb-status" role="dialog" aria-label={t('board.status')}>
+                        <div className="fb-ph">
+                          <b>{t('board.status')}</b>
+                          <span className="fb-num">{stagePick.length ? `${stagePick.length}/${STAGES.length}` : ''}</span>
+                          <button type="button" className="fb-clr" disabled={!stagePick.length}
+                            onClick={() => { setStatusFilters([]); setFilter('all') }}>{t('board.clear')}</button>
+                        </div>
+                        <ul className="fb-list">
+                          {STAGES.map(k => (
+                            <li key={k}>
+                              <button type="button" className="fb-opt" aria-pressed={stagePick.includes(k)}
+                                style={{ '--c': STAGE_COLOR[k] }} onClick={() => toggleStage(k)}>
+                                <span className="fb-box"><Icon name="check" size={10} /></span>
+                                <span className="fb-sw" aria-hidden="true" />
+                                <span className="fb-nm">{t(`filter.${k}`)}</span>
+                                <span className="fb-cn">{counts[k]}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="fb-pf">
+                          <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                            {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </span>
+
+                  <span className="fb-wrap">
+                    <button type="button" className={`fb-fac${kindFilters.length ? ' on' : ''}`}
+                      aria-haspopup="dialog" aria-expanded={fbTab === 'kind'} aria-controls={fbTab === 'kind' ? 'fb-kind' : undefined}
+                      onClick={() => setFbTab(v => v === 'kind' ? null : 'kind')}>
+                      <span className="k">{t('board.type')}</span>
+                      {kindFilters.length > 0 && <span className="v">{kindText}</span>}
+                      <Icon name="chevron" size={13} className="car" />
+                    </button>
+                    {fbTab === 'kind' && (
+                      <div className="fb-pop" id="fb-kind" role="dialog" aria-label={t('board.kindAria')}>
+                        <div className="fb-ph">
+                          <b>{t('board.type')}</b>
+                          <span className="fb-num">{kindFilters.length ? `${kindFilters.length}/${KIND_LIST.length}` : ''}</span>
+                          <button type="button" className="fb-clr" disabled={!kindFilters.length}
+                            onClick={() => { setKindFilters([]); setKindFilter('all') }}>{t('board.clear')}</button>
+                        </div>
+                        <ul className="fb-list">
+                          {KIND_LIST.map(k => (
+                            <li key={k}>
+                              <button type="button" className="fb-opt" aria-pressed={kindFilters.includes(k)}
+                                style={{ '--c': `var(--k-${kindCls(k)})` }} onClick={() => toggleKind(k)}>
+                                <span className="fb-box"><Icon name="check" size={10} /></span>
+                                <span className="fb-sw sq" aria-hidden="true" />
+                                <span className="fb-nm">{k}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="fb-pf">
+                          <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                            {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </span>
+
+                  <span className="fb-gap" aria-hidden="true" />
+
+                  <span className="fb-wrap fb-wrap-end">
+                    <button type="button" className={`fb-sort${sortKey ? ' on' : ''}`}
+                      aria-haspopup="menu" aria-expanded={fbTab === 'sort'} aria-controls={fbTab === 'sort' ? 'fb-sort-menu' : undefined}
+                      aria-label={t('board.sortAria')}
+                      onClick={() => setFbTab(v => v === 'sort' ? null : 'sort')}>
+                      <Icon name="sort" size={13} className="si" />
+                      <span className="v">{sortKey ? t(`filter.${sortKey}`) : t('board.sortLabel')}</span>
+                      <Icon name="chevron" size={13} className="car" />
+                    </button>
+                    {fbTab === 'sort' && (
+                      <div className="fb-menu" id="fb-sort-menu" role="menu" aria-label={t('board.sortAria')}>
+                        <div className="fb-mh" aria-hidden="true">{t('board.sortBy')}</div>
+                        <div className="fb-sep" aria-hidden="true" />
+                        {SORTS.map(k => (
+                          <button key={k} type="button" role="menuitemradio" aria-checked={sortKey === k}
+                            className="fb-mi" onClick={() => pickSort(k)}>
+                            <Icon name={SORT_ICON[k]} size={14} className="mi-ico" />
+                            <span className="nm">{t(`filter.${k}`)}</span>
+                            <Icon name="check" size={13} className="ck" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </span>
+
+                  {/* bố cục gọn: nút mở bảng lọc (Status + Type cùng một chỗ) */}
+                  <button type="button" className={`fb-icon${fbActive ? ' on' : ''}`}
+                    aria-haspopup="dialog" aria-expanded={fbTab === 'filters'} aria-controls={fbTab === 'filters' ? 'fb-filters' : undefined}
+                    aria-label={t('board.filters')}
+                    onClick={() => setFbTab(v => v === 'filters' ? null : 'filters')}>
+                    <Icon name="filter" size={17} />
+                    {fbActive > 0 && <i className="fb-dot" aria-hidden="true" />}
+                  </button>
+
+                  <button type="button" className="fb-clear" hidden={!fbActive} onClick={clearAll}>
+                    {t('board.clearAll')}
+                  </button>
+                </div>
+
+                {/* Dải chip "đang lọc" — CHỈ ở bố cục gọn, nơi Status/Type nằm
+                    sau một lần bấm. Trên màn rộng chính hai pill đã nói điều
+                    này, nói lại là hai chỗ cho một sự thật. */}
+                {fbActive > 0 && (
+                  <div className="fb-applied" role="group" aria-label={t('board.filterAria')}>
+                    {stagePick.map(k => (
+                      <button key={k} type="button" className="fb-chip" style={{ '--c': STAGE_COLOR[k] }}
+                        aria-label={t('board.clearKind', { k: t(`filter.${k}`) })}
+                        onClick={() => toggleStage(k)}>
+                        <i className="fb-bar" aria-hidden="true" />{t(`filter.${k}`)}<Icon name="close" size={11} />
+                      </button>
                     ))}
-                    {/* LOẠI BÀI ĐANG LỌC, hiện thành chip bỏ được ngay trên hàng
-                        chính. Trên màn rộng khối lọc thứ hai luôn hiện nên chip
-                        này là thừa (CSS ẩn nó từ 621px); trên máy hẹp khối đó
-                        gấp sau nút "Bộ lọc", nên đây là chỗ DUY NHẤT cho biết
-                        "danh sách này đang bị lọc theo một loại bài" — người
-                        dùng cuộn xuống thấy thiếu bài mà không hiểu vì sao. */}
-                    {kindFilter !== 'all' && (
-                      <button type="button" className="fchip fkind on onkind"
-                        style={{ '--c': `var(--k-${kindCls(kindFilter)})` }}
-                        aria-label={t('board.clearKind', { k: kindFilter })}
-                        title={t('board.clearKind', { k: kindFilter })}
-                        onClick={() => { setKindFilters([]); setKindFilter('all') }}>
-                        <i className="kswatch" aria-hidden="true" />{kindFilter}<Icon name="close" size={12} />
+                    {kindFilters.map(k => (
+                      <button key={k} type="button" className="fb-chip" style={{ '--c': `var(--k-${kindCls(k)})` }}
+                        aria-label={t('board.clearKind', { k })}
+                        onClick={() => toggleKind(k)}>
+                        <i className="sw" aria-hidden="true" />{k}<Icon name="close" size={11} />
+                      </button>
+                    ))}
+                    {q.trim() && (
+                      <button type="button" className="fb-chip"
+                        aria-label={t('board.clearQ')}
+                        onClick={() => { setQ(''); searchRef.current?.focus() }}>
+                        “{q.trim()}”<Icon name="close" size={11} />
                       </button>
                     )}
+                    <button type="button" className="fb-all" onClick={clearAll}>{t('board.clearAll')}</button>
                   </div>
-                </div>
+                )}
 
-                <div className="fbar-more" id="fbar-more">
-                  {/* MỤC LỌC LOẠI BÀI KHÔNG PHẢI THẺ. Bốn nút dưới đây từng mang
-                      lớp `kind` — lớp của THẺ loại bài nằm trên từng hàng request.
-                      Thẻ đó khoá cứng `color: var(--k-ccl)`, nên cả bốn nút (kể
-                      cả "All types") đều hiện đúng một màu TÍM CCL, bất kể
-                      `--c` của chúng: bốn thẻ loại khác nhau mà mắt thấy cùng
-                      một màu, còn nền của nút đang chọn lại lấy `--c` — nên nút
-                      "Full Album" đang chọn có CHỮ TÍM trên NỀN XANH TEAL.
-                      Nay chúng mang lớp riêng `.fkind` và tự mang màu của mình.
-                      Dấu hiệu để nhận ra lỗi này từ đầu: một lớp CSS mang tên
-                      dữ liệu (`kind`) được dùng cho cả thứ hiển thị dữ liệu lẫn
-                      control để lọc dữ liệu đó. */}
-                  <div className="fchips kinds" role="group" aria-label={t('board.kindAria')}>
-                    <button type="button" className={`fchip fkind${kindFilters.length === 0 ? ' on' : ''}`}
-                      aria-pressed={kindFilters.length === 0} onClick={() => { setKindFilters([]); setKindFilter('all') }}>
-                      <i className="kswatch any" aria-hidden="true" />{t('board.allKinds')}
-                    </button>
-                    {Object.keys(KIND_META).map(k => (
-                      <button key={k} type="button"
-                        className={`fchip fkind${kindFilters.includes(k) ? ' on' : ''}`}
-                        style={{ '--c': `var(--k-${kindCls(k)})` }} aria-pressed={kindFilters.includes(k)}
-                        onClick={() => {
-                          const next = kindFilters.includes(k) ? kindFilters.filter(x => x !== k) : [...kindFilters, k]
-                          setKindFilters(next)
-                          /* `kindFilter` là bản sao MỘT lựa chọn (địa chỉ `?k=`,
-                             bộ lọc đã lưu, chip bỏ được trên hàng chính) nên phải
-                             đổi theo: bỏ chọn loại cuối cùng mà nó vẫn giữ tên
-                             loại đó thì chip "đang lọc" còn hiện trong khi danh
-                             sách đã hết lọc. */
-                          setKindFilter(next.length === 1 ? next[0] : 'all')
-                        }}>
-                        <i className="kswatch" aria-hidden="true" />{k}
+
+
+
+
+
+
+                {/* ---------- BẢNG LỌC CỦA BỐ CỤC GỌN ---------- */}
+                {fbTab === 'filters' && (
+                  <div className="fb-pop fb-wide" id="fb-filters" role="dialog" aria-label={t('board.filters')}>
+                    <div className="fb-ph">
+                      <b>{t('board.filters')}</b>
+                      <button type="button" className="fb-clr" disabled={!fbActive} onClick={clearAll}>
+                        {t('board.clear')}
                       </button>
-                    ))}
-                  </div>
-                  {/* Chỉ hiện khi ĐANG lọc thật: một dòng nói đang xem bao nhiêu
-                      bài và lối thoát về trạng thái đầy đủ. */}
-                  {(kindFilter !== 'all' || !!q) && (
-                    <div className="fbar-meta">
-                      <span>{t('board.showing', { n: boardItems.length })}</span>
-                      <button type="button" className="lnk"
-                        onClick={() => {
-                          /* Clear filters means restore the full board, not the
-                             narrower default queue. `newest` is the all-requests
-                             view; this also preserves the clean baseline when
-                             the user filtered an already-open All requests list. */
-                          setStatusFilters([]); setFilter('newest'); setKindFilters([]); setKindFilter('all'); setQ('')
-                        }}>{t('board.clearAll')}</button>
                     </div>
-                  )}
-                </div>
+                    <div className="fb-body">
+                      <h3>{t('board.status')}</h3>
+                      <ul className="fb-list">
+                        {STAGES.map(k => (
+                          <li key={k}>
+                            <button type="button" className="fb-opt" aria-pressed={stagePick.includes(k)}
+                              style={{ '--c': STAGE_COLOR[k] }} onClick={() => toggleStage(k)}>
+                              <span className="fb-box"><Icon name="check" size={10} /></span>
+                              <span className="fb-sw" aria-hidden="true" />
+                              <span className="fb-nm">{t(`filter.${k}`)}</span>
+                              <span className="fb-cn">{counts[k]}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <h3>{t('board.type')}</h3>
+                      <ul className="fb-list">
+                        {KIND_LIST.map(k => (
+                          <li key={k}>
+                            <button type="button" className="fb-opt" aria-pressed={kindFilters.includes(k)}
+                              style={{ '--c': `var(--k-${kindCls(k)})` }} onClick={() => toggleKind(k)}>
+                              <span className="fb-box"><Icon name="check" size={10} /></span>
+                              <span className="fb-sw sq" aria-hidden="true" />
+                              <span className="fb-nm">{k}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="fb-pf">
+                      <button type="button" className="fb-apply" onClick={() => setFbTab(null)}>
+                        {t(boardItems.length === 1 ? 'board.show1' : 'board.show', { n: boardItems.length })}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="list" data-glow key={filter} ref={listRef}>
+              <div className="list" data-glow key={`${boardStage}|${sort ?? ""}`} ref={listRef}>
                 {boardItems.length === 0
                   /* Ba trạng thái, ba câu trả lời (xem khối ListSkeleton):
                      đang tải / lỗi có nút thử lại / trống thật sự. */
@@ -2416,27 +2747,25 @@ function AppInner() {
                       : (
                         <div className="empty">
                           <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
-                          <b>{filter === 'watch' ? t('nt.none') : t('board.empty')}</b>
+                          <b>{t('board.empty')}</b>
                           <small>{t('board.emptyHint')}</small>
                         </div>
                       ))
                   : pgBoard.items.map((e, i) => (e.type === 'group'
                     ? (
-                      <RequestGroup key={e.key} g={e} i={pgBoard.from - 1 + i}
+                      <RequestGroup key={e.key} g={e}
                         expanded={!!openGroups[e.key]} onToggle={() => toggleGroup(e.key)}
                         user={viewer} myVotes={myVotes} onVote={openVote} onDelete={doDelete}
-                        followed={watchedSet.has(e.key)} onWatch={doToggleWatch} hl={hlSong === e.key}
-                        onShare={shareSong} onLogin={() => setAuthPrompt(true)} st={standings.get(e.key)} />
+                        hl={hlSong === e.key} />
                       )
                     : (
-                      <RequestRow key={e.r.id} r={e.r} i={pgBoard.from - 1 + i} n={i} user={viewer}
+                      <RequestRow key={e.r.id} r={e.r} n={i} user={viewer}
                         showDelete={!!user && e.r.user_id === user.id}
                         myCount={myVotes.get(e.r.id) || 0}
                         canVote={(e.r.status === 'queued' || e.r.status === 'in_progress') && !isPicked(e.r)}
                         onVote={openVote}
                         onDelete={doDelete}
-                        followed={watchedSet.has(groupKey(e.r))} onWatch={doToggleWatch} hl={hlSong === groupKey(e.r)}
-                        onShare={shareSong} st={standings.get(groupKey(e.r))} />
+                        hl={hlSong === groupKey(e.r)} />
                       )
                   ))}
               </div>
@@ -2522,63 +2851,13 @@ function AppInner() {
               {myCard && <ShareCardButton card={myCard} />}
             </div>
             <AchievementIndex metrics={myAchievementMetrics} />
-            <div className="stats" data-glow>
-              <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
+            <div className="stats mine-stats" data-glow>
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />
               <Stat c="var(--done)" v={myStats?.completed ?? 0} label={t('stat.completed')} />
               <Stat c="var(--a-2)" v={myStats?.total_votes ?? 0} label={t('stat.votesReceived')} />
             </div>
-
-            <h2 className="section-title">{t('mine.title')}</h2>
-            <div className="list" data-glow ref={mineRef}>
-              {mineRows.length === 0
-                ? <div className="empty">
-                  <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
-                  <b>{t('mine.empty')}</b>
-                  <small>{t('mine.emptyHint')}</small>
-                </div>
-                : pgMine.items.map((r, i) => (
-                  <RequestRow key={r.id} r={r} n={i} showDelete
-                    myCount={myVotes.get(r.id) || 0}
-                    canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
-                    onVote={openVote}
-                    onDelete={doDelete}
-                    followed={watchedSet.has(groupKey(r))} onWatch={doToggleWatch}
-                    onShare={shareSong} st={standings.get(groupKey(r))} />
-                ))}
-            </div>
-            <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />
-
-            <h2 className="section-title" style={{ marginTop: 26 }}>{t('mine.orders')}</h2>
-            <div className="list" ref={ordersRef}>
-              {myOrders.length === 0
-                ? <div className="empty">
-                  <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
-                  <b>{t('mine.ordersEmpty')}</b>
-                  <small>{t('mine.ordersHint')}</small>
-                </div>
-                : pgOrders.items.map(o => (
-                  <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
-                    <div className="body">
-                      <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
-                      <div className="meta">
-                        <span>{vnd(o.amount_vnd)}</span>
-                        <span className="dot" aria-hidden="true" />
-                        <span>{usd(o.amount_usd)}</span>
-                        <span className="dot" aria-hidden="true" /><span>{timeAgo(o.created_at, t)}</span>
-                      </div>
-                    </div>
-                    <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
-                      {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
-                    </span>
-                    {o.status === 'awaiting' && (
-                      <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                        onClick={() => doCancelOrder(o)}><Icon name="close" size={15} /></button>
-                    )}
-                  </div>
-                ))}
-            </div>
-            <Pager {...pgOrders} onChange={pgOrders.setPage} scrollTo={ordersRef} />
+            <MyActivityPanel requests={mineRows} orders={myOrders} user={viewer} myVotes={myVotes}
+              onVote={openVote} onDelete={doDelete} onCancelOrder={doCancelOrder} />
           </>
         )}
 

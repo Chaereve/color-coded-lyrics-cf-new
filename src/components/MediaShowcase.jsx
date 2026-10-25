@@ -6,28 +6,22 @@ import { thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
 
 /* =========================================================
-   TRANG CHỦ — "Featured" + dải "Latest update"
+   TRANG CHỦ — showcase video mới nhất
    ---------------------------------------------------------
-   Toàn bộ video do admin tự thêm trong Admin → Videos.
-   Một video lớn ở giữa (sân khấu) + hai nút mũi tên hai bên
-   để xoay vòng qua lại giữa các video, như khung "Janette's
-   Pick" của trang mẫu: bấm trái/phải là video trước/sau, vòng
-   hết danh sách thì quay lại đầu. Dải ảnh nhỏ dưới chân vừa là
-   mục lục vừa là chỗ bấm nhảy thẳng tới đúng video; video đang
-   mở được khoanh sáng. Bấm vào sân khấu vẫn mở video đó trên
-   YouTube ở tab mới.
+   Một video 16:9 với thông tin đặt cạnh bên; dải ảnh bên dưới dùng để
+   chọn slide, còn ảnh lớn và nút Watch on YouTube mở cùng video ở tab mới.
+   Mũi tên trong header đổi slide theo thứ tự; vòng cuối về đầu danh sách.
+   Không phát video trong trang, không tự chạy slideshow.
    ========================================================= */
 
-/* Ảnh bìa: ưu tiên ảnh admin dán; không thì dựng từ ID video.
-   Thử bản nét nhất trước (maxres 1280px cho sân khấu, hq 480px
-   cho thẻ nhỏ), lỗi thì tự hạ xuống bản thấp hơn — video cũ có
-   thể không có maxres. */
+/* Ảnh bìa: ưu tiên ảnh admin dán; không thì chỉ thử hai bản YouTube 16:9.
+   `hqdefault` là 4:3 nên tạo viền đen hai bên trong khung 16:9; dùng maxres
+   trước rồi mq (320×180) để mọi thẻ giữ đúng tỷ lệ mà không cắt ảnh. */
 function thumbSrcs(item) {
   if (item.thumb) return [item.thumb]
   const { id } = item
   if (!id) return []
-  return item.size === 'lg' ? [thumbUrl(id, 'maxres'), thumbUrl(id, 'hq')]
-    : [thumbUrl(id, 'hq'), thumbUrl(id, 'mq')]
+  return [thumbUrl(id, 'maxres'), thumbUrl(id, 'mq')]
 }
 
 function Thumb({ item, eager = false }) {
@@ -56,13 +50,6 @@ function Thumb({ item, eager = false }) {
     </span>
   )
 }
-
-/* Nút phát chỉ là dấu hiệu "bấm được", không phát trong trang */
-const Play = ({ sm }) => (
-  <span className={`playbtn${sm ? ' sm' : ''}`} aria-hidden="true">
-    <Icon name="play" size={sm ? 13 : 17} fill="currentColor" />
-  </span>
-)
 
 /* Mũi tên qua lại của sân khấu */
 const Chev = ({ dir }) => (
@@ -108,7 +95,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
      bảng: chỉ hiện khối lỗi khi THẬT SỰ chưa có gì để xem. */
   if (!n && (state === 'loading' || state === 'error')) {
     return (
-      <section className="pick" id="home-media" data-reveal>
+      <section className="pick pick-showcase" id="home-media" data-reveal>
         {state === 'loading'
           ? (
             <div className="sklist" role="status" aria-label={t('board.loading')}>
@@ -128,7 +115,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
 
   if (!n) {
     return (
-      <section className="pick" id="home-media" data-reveal>
+      <section className="pick pick-showcase" id="home-media" data-reveal>
         <div className="channel-state" role="status">
           <div>{canEdit ? t('media.emptyAdmin') : t('media.emptyPublic')}</div>
           {canEdit && (
@@ -141,72 +128,73 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
     )
   }
 
-  return (
-    <section className="pick" id="home-media" data-reveal>
-      <div className="pick-main">
-        {/* Sân khấu + hai nút qua lại. Nút phải đứng NGOÀI link (không
-            lồng button trong a) nên khung bao .pick-hero giữ cả hai;
-            phím ←/→ cũng xoay video khi focus đang trong khung. */}
-        <div className="pick-hero"
-          onKeyDown={e => {
-            if (n < 2) return
-            if (e.key === 'ArrowLeft') { e.preventDefault(); setSel(s => s - 1) }
-            if (e.key === 'ArrowRight') { e.preventDefault(); setSel(s => s + 1) }
-          }}>
-          {/* key theo video đang mở: đổi video là sân khấu dựng lại,
-              ảnh fade-in một nhịp thay vì nhảy cắt củ khoai */}
-          <a className="pick-stage" key={cur.key ?? cur.id} href={safeHttpUrl(ytLink(cur)) || undefined} target="_blank" rel="noreferrer"
-            aria-label={`${isFeat ? `${t('media.featured')} - ` : ''}${t('media.openYT')}: ${cur.title}`}>
-            <Thumb item={{ ...cur, size: 'lg' }} eager />
-            <Play />
-            {isFeat && <span className="pick-flag">{t('media.featured')}</span>}
-            <span className="pick-cap">
-              <b>{cur.title}</b>
-            </span>
-          </a>
+  const videoHref = safeHttpUrl(ytLink(cur))
+  const handleKeyDown = (e) => {
+    if (n < 2 || e.altKey || e.ctrlKey || e.metaKey) return
+    if (e.key === 'ArrowLeft') { e.preventDefault(); setSel(s => s - 1) }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setSel(s => s + 1) }
+  }
 
+  return (
+    <section className="pick pick-showcase" id="home-media" data-reveal onKeyDown={handleKeyDown}>
+      <header className="pick-showcase-head">
+        <h2 className="pick-showcase-label">{t('media.latest')}</h2>
+        <div className="pick-showcase-controls">
           {n > 1 && (
-            <>
-              <button type="button" className="pick-nav prev" onClick={() => setSel(s => s - 1)}
-                aria-label={t('media.prev')}>
-                <Chev dir={-1} />
-              </button>
-              <button type="button" className="pick-nav next" onClick={() => setSel(s => s + 1)}
-                aria-label={t('media.next')}>
-                <Chev dir={1} />
-              </button>
-            </>
+            <div className="pick-showcase-pager">
+              <span className="pv-count pick-showcase-count" key={cur.key ?? cur.id} aria-live="polite">{at + 1} / {n}</span>
+              <div className="pick-showcase-arrows">
+                <button type="button" className="pick-nav prev" onClick={() => setSel(s => s - 1)}
+                  aria-label={t('media.prev')}>
+                  <Chev dir={-1} />
+                </button>
+                <button type="button" className="pick-nav next" onClick={() => setSel(s => s + 1)}
+                  aria-label={t('media.next')}>
+                  <Chev dir={1} />
+                </button>
+              </div>
+            </div>
+          )}
+          {canEdit && <button type="button" className="pv-add" onClick={onAdd}>{t('adm.mediaAddShort')}</button>}
+        </div>
+      </header>
+
+      <div className="pick-main">
+        <div className="pick-hero">
+          <a className="pick-stage" key={cur.key ?? cur.id} href={videoHref || undefined}
+            target="_blank" rel="noreferrer"
+            aria-label={`${isFeat ? `${t('media.featured')} — ` : ''}${t('media.openYT')}: ${cur.title}`}>
+            <Thumb item={cur} eager />
+          </a>
+        </div>
+        <div className="pick-info">
+          <div className="pick-copy" key={cur.key ?? cur.id}>
+            <h3 className="pick-showcase-title">{cur.title}</h3>
+          </div>
+          {videoHref && (
+            <a className="pick-watch" key={`watch-${cur.key ?? cur.id}`} href={videoHref}
+              target="_blank" rel="noreferrer">
+              <span>{t('media.openYT')}</span><Icon name="ext" size={14} />
+            </a>
           )}
         </div>
-
-        {n > 1 && (
-          <div className="pick-side">
-            <div className="pv-label">
-              {t('media.latest')}
-              <span className="pv-count">{at + 1} / {n}</span>
-              {canEdit && (
-                <button type="button" className="pv-add" onClick={onAdd}>{t('adm.mediaAddShort')}</button>
-              )}
-            </div>
-            <div className="pvlist" ref={stripRef}>
-              {items.map((v, i) => (
-                <button type="button" className={`pvrow${i === at ? ' on' : ''}`} key={v.key ?? v.id}
-                  style={{ '--i': Math.min(i, 11) }} onClick={() => setSel(i)}
-                  aria-label={t('media.view', { t: v.title })}
-                  aria-current={i === at ? 'true' : undefined}>
-                  <span className="pv-thumb">
-                    <Thumb item={v} />
-                    <Play sm />
-                  </span>
-                  <span className="pv-tx">
-                    <b>{v.title}</b>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {n > 1 && (
+        <div className="pick-side">
+          <div className={`pvlist${n > 3 ? ' has-overflow' : ''}`} ref={stripRef}>
+            {items.map((v, i) => (
+              <button type="button" className={`pvrow${i === at ? ' on' : ''}`} key={v.key ?? v.id}
+                style={{ '--i': Math.min(i, 11) }} onClick={() => setSel(i)}
+                aria-label={t('media.view', { t: v.title })}
+                aria-current={i === at ? 'true' : undefined} aria-pressed={i === at}>
+                <span className="pv-thumb"><Thumb item={v} /></span>
+                <span className="pv-tx"><b>{v.title}</b></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }
