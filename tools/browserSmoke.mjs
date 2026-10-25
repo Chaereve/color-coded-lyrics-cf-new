@@ -241,6 +241,28 @@ if (live) {
         errors.length === 0, errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài)` : ''))
       const overflow = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
       check(`live ${vp.name}: không tràn ngang`, overflow <= 2, `${overflow}px`)
+
+      /* This week depends on the public votes_received RPC. Check the data and
+         rendered card together so a quiet RPC failure cannot hide Most voted. */
+      if (vp.name === 'desktop-1280') {
+        const votesResponsePromise = page.waitForResponse(
+          response => response.url().includes('/rest/v1/rpc/votes_received'),
+          { timeout: 15_000 },
+        ).catch(() => null)
+        await page.goto(`${live}/`, { waitUntil: 'load', timeout: 60_000 })
+        const votesResponse = await votesResponsePromise
+        const voteRows = votesResponse?.ok()
+          ? await votesResponse.json().catch(() => null)
+          : null
+        await page.waitForTimeout(500)
+        const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
+        const hasRecentVotes = Array.isArray(voteRows) && voteRows.length > 0
+        check('live desktop: votes_received RPC trả lời được', Boolean(votesResponse?.ok()),
+          `HTTP ${votesResponse?.status() ?? 'no response'} · ${Array.isArray(voteRows) ? voteRows.length : 0} phiếu`)
+        check('live desktop: có phiếu gần đây thì hiện Most voted',
+          !hasRecentVotes || weeklyLabels.some(label => label.trim() === 'Most voted'),
+          `recent=${Array.isArray(voteRows) ? voteRows.length : 'unavailable'} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'}`)
+      }
       await page.screenshot({ path: join(outDir, `live-${vp.name}.png`), fullPage: true })
       await context.close()
     } catch (e) {
