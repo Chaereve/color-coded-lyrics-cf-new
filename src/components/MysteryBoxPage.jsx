@@ -18,7 +18,7 @@ import { spinCountdown, nextSpinReset } from '../lib/dailySpin.js'
 import './MysteryBox.css'
 
 /* =========================================================
-   /mystery-box — TRANG RIÊNG của Mystery Box (B2, tách khỏi /daily-login)
+   /daily-box — TRANG RIÊNG của Mystery Box (B2, tách khỏi /daily-login)
    ---------------------------------------------------------
    Một hộp mỗi ngày, mở SAU khi điểm danh. Trang này KHÔNG điểm danh hộ ai:
    chưa check-in thì hộp khoá và dẫn người chơi sang /daily-login. Trạng thái

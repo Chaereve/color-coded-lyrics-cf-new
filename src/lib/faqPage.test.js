@@ -63,6 +63,15 @@ test('faq.html có BreadcrumbList và trỏ đúng origin của hợp đồng SE
     'og:image phải là URL tuyệt đối (bài học Telegram/Discord không có ảnh xem trước)')
 })
 
+test('FAQ phản ánh đúng Daily Spin, Daily Box và không còn chức năng bình luận đã gỡ', () => {
+  const spin = faqLd.mainEntity.find(q => q.name === 'How does the Daily Spin work?')
+  const box = faqLd.mainEntity.find(q => q.name === 'How does the Daily Box work?')
+  assert.ok(spin?.acceptedAnswer.text.includes('+20 (1%)'), 'FAQ phải nêu odds mới của Daily Spin')
+  assert.ok(box?.acceptedAnswer.text.includes('one box per day'), 'FAQ phải nêu giới hạn Daily Box')
+  assert.match(faq, /href="\/daily-box"/, 'FAQ cần link tới Daily Box')
+  assert.doesNotMatch(faq, /comments|replies|Comment on the board/i, 'FAQ không được mô tả lại tính năng bình luận đã gỡ')
+})
+
 test('trang nằm trên đường đi: có trong sitemap và có link từ app', () => {
   assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/faq\.html<\/loc>/,
     'sitemap phải khai /faq.html — SPA không có link HTML nào để crawler tự lần ra')

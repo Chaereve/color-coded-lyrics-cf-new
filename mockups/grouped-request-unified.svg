@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">Mockup chỉnh lại cho request được gom nhóm</title>
+  <desc id="desc">Thẻ nhóm với phần tổng hợp gọn, hai request con cùng kiểu hàng và các cột YouTube, vote căn thẳng.</desc>
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#11151c"/><stop offset="1" stop-color="#0b0e13"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#5142ed"/><stop offset="1" stop-color="#7062ff"/></linearGradient>
+    <filter id="card-shadow" x="-8%" y="-10%" width="116%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".28"/></filter>
+  </defs>
+  <rect width="1200" height="500" fill="url(#page)"/>
+  <text x="48" y="48" fill="#f3f4f8" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">Request được gom nhóm</text>
+  <text x="48" y="74" fill="#8d98a8" font-family="Inter, Arial, sans-serif" font-size="13">Bản chỉnh: bỏ chữ thừa, thu gọn chiều cao, căn thẳng cột vote và nút nghe.</text>
+
+  <!-- One continuous card: no mismatched nested boxes -->
+  <g filter="url(#card-shadow)">
+    <rect x="48" y="104" width="1104" height="318" rx="16" fill="#121720" stroke="#6962ef" stroke-width="1.2"/>
+    <!-- summary row -->
+    <path d="M64 105 H1136 Q1151 105 1151 120 V207 H49 V120 Q49 105 64 105Z" fill="#171d27"/>
+    <rect x="68" y="124" width="108" height="26" rx="13" fill="url(#accent)"/>
+    <text x="122" y="142" text-anchor="middle" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700">2 requests</text>
+    <rect x="186" y="124" width="170" height="26" rx="13" fill="#25283a"/>
+    <text x="271" y="142" text-anchor="middle" fill="#b5adff" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600">Color Coded Lyrics</text>
+    <text x="68" y="177" fill="#f3f4f8" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="700">Work <tspan fill="#a3acb9" font-weight="400">— no na</tspan></text>
+    <text x="68" y="198" fill="#8d98a8" font-family="Inter, Arial, sans-serif" font-size="13">khairulnizam azman, One Hundreds <tspan fill="#505b69">·</tspan> 1mo ago</text>
+    <!-- compact, aligned group control + total vote rail -->
+    <line x1="1060" y1="105" x2="1060" y2="207" stroke="#2a323e"/>
+    <line x1="1020" y1="137" x2="1020" y2="175" stroke="#2a323e"/>
+    <circle cx="1040" cy="156" r="14" fill="#393486"/>
+    <path d="M1036 158 l4 -6 4 6" fill="none" stroke="#eceaff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1106" y="153" text-anchor="middle" fill="#a99fff" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700">76</text>
+    <text x="1106" y="173" text-anchor="middle" fill="#8791a0" font-family="Inter, Arial, sans-serif" font-size="9" letter-spacing="1">VOTES</text>
+
+    <!-- request row 1 -->
+    <rect x="49" y="208" width="1102" height="106" fill="#121720"/>
+    <line x1="68" y1="314" x2="1060" y2="314" stroke="#29313c"/>
+    <text x="68" y="239" fill="#f2f4f8" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Work <tspan fill="#a3acb9" font-weight="400">— no na</tspan></text>
+    <circle cx="73" cy="267" r="4" fill="#34d4ab"/>
+    <text x="85" y="272" fill="#42d8b0" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600">Completed</text>
+    <rect x="174" y="256" width="40" height="22" rx="11" fill="#27263d"/>
+    <text x="194" y="271" text-anchor="middle" fill="#b0a8ff" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700">CCL</text>
+    <text x="229" y="272" fill="#8994a3" font-family="Inter, Arial, sans-serif" font-size="12">khairulnizam azman <tspan fill="#505b69">·</tspan> 1mo ago</text>
+    <rect x="890" y="247" width="128" height="32" rx="16" fill="#28283f"/>
+    <path d="M905 256 v14 l11 -7z" fill="none" stroke="#b9b2ff" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="960" y="267" text-anchor="middle" fill="#c0baff" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600">YouTube</text>
+    <line x1="1060" y1="208" x2="1060" y2="314" stroke="#2a323e"/>
+    <text x="1106" y="254" text-anchor="middle" fill="#a99fff" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="700">49</text>
+    <text x="1106" y="271" text-anchor="middle" fill="#8791a0" font-family="Inter, Arial, sans-serif" font-size="9" letter-spacing="1">VOTE</text>
+    <rect x="1083" y="281" width="46" height="19" rx="9.5" fill="#25263a"/>
+    <text x="1106" y="294" text-anchor="middle" fill="#aaa2ff" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700">×33</text>
+
+    <!-- request row 2 -->
+    <path d="M49 315 H1151 V406 Q1151 421 1136 421 H64 Q49 421 49 406Z" fill="#121720"/>
+    <text x="68" y="346" fill="#f2f4f8" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Work <tspan fill="#a3acb9" font-weight="400">— no na</tspan></text>
+    <circle cx="73" cy="374" r="4" fill="#34d4ab"/>
+    <text x="85" y="379" fill="#42d8b0" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600">Completed</text>
+    <rect x="174" y="363" width="40" height="22" rx="11" fill="#27263d"/>
+    <text x="194" y="378" text-anchor="middle" fill="#b0a8ff" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700">CCL</text>
+    <text x="229" y="379" fill="#8994a3" font-family="Inter, Arial, sans-serif" font-size="12">One Hundreds <tspan fill="#505b69">·</tspan> 1mo ago</text>
+    <rect x="890" y="354" width="128" height="32" rx="16" fill="#28283f"/>
+    <path d="M905 363 v14 l11 -7z" fill="none" stroke="#b9b2ff" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="960" y="374" text-anchor="middle" fill="#c0baff" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600">YouTube</text>
+    <line x1="1060" y1="315" x2="1060" y2="421" stroke="#2a323e"/>
+    <text x="1106" y="361" text-anchor="middle" fill="#a99fff" font-family="Inter, Arial, sans-serif" font-size="23" font-weight="700">27</text>
+    <text x="1106" y="378" text-anchor="middle" fill="#8791a0" font-family="Inter, Arial, sans-serif" font-size="9" letter-spacing="1">VOTE</text>
+    <rect x="1083" y="388" width="46" height="19" rx="9.5" fill="#25263a"/>
+    <text x="1106" y="401" text-anchor="middle" fill="#aaa2ff" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700">×2</text>
+  </g>
+  <text x="48" y="458" fill="#8d98a8" font-family="Inter, Arial, sans-serif" font-size="12">Bản mockup để duyệt — giao diện thật chưa thay đổi.</text>
+</svg>

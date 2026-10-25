@@ -1182,49 +1182,61 @@ select {
 .icon-btn:hover { color: var(--denied); border-color: var(--line-2); }
 
 /* cụm request trùng bài — thẻ card riêng, nhìn là biết ngay đâu là cụm.
-   Đầu cụm là một nút gập/mở: huy hiệu đếm + chip loại video, tên bài lớn,
-   cột tổng vote, nút mũi tên tròn. Bấm là bung ra đủ request (mở/rút mượt). */
-.grow { position: relative; margin: var(--sp-3); border: 1px solid var(--line);
-  border-radius: var(--r-md); overflow: hidden;
+   Đầu cụm là một nút gập/mở: huy hiệu đếm và tên bài; cột tổng vote đứng
+   riêng bên phải, nút mũi tên ở giữa. Bung ra là đủ status/loại của từng dòng. */
+.grow { --grow-radius: var(--r-lg);
+  position: relative; margin: var(--sp-3); border: 1px solid var(--line);
+  border-radius: var(--grow-radius); overflow: hidden;
   background: var(--surface);
   box-shadow: var(--sh-1);
   transition: border-color var(--t-2) var(--e-soft), box-shadow var(--t-2) var(--e-soft); }
 .list > .grow:first-child { margin-top: 12px; }
 .list > .grow:last-child { margin-bottom: 12px; }
-.grow:hover { border-color: rgba(169,164,255,.6); }
-.grow.open { border-color: var(--a-2); box-shadow: 0 10px 28px -16px var(--a-glow); }
-.grow-head { position: relative; display: flex; align-items: center; gap: var(--sp-3);
-  width: 100%; padding: 8px var(--sp-4);
-  border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
-  background: none; }
-/* thẻ trong nút bấm dùng span + block (không lồng div vào button) */
-.grow-head .body { display: block; flex: 1; min-width: 0; }
-.grow-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
-/* huy hiệu đếm: nền accent gradient, chữ trắng — khác hẳn pill xám */
+.grow:hover { border-color: rgba(169,164,255,.34); }
+.grow.open { border-color: color-mix(in srgb, var(--a-2) 46%, var(--line));
+  box-shadow: 0 8px 22px -18px var(--a-glow); }
+.grow-head { position: relative; display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px 92px; align-items: stretch;
+  width: 100%; padding: 0 0 0 var(--sp-4);
+  border: 0; border-radius: calc(var(--grow-radius) - 1px) calc(var(--grow-radius) - 1px) 0 0;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+  background: linear-gradient(105deg, rgba(169,164,255,.045), transparent 58%); }
+.grow-head:hover { background: linear-gradient(105deg, rgba(169,164,255,.065), transparent 62%); }
+/* Nội dung trái, nút thu gọn ở giữa, tổng vote trong rail cố định bên phải —
+   mép vote thẳng hàng với các hàng con như mockup đã duyệt. */
+.grow-head .body { display: block; align-self: center; min-width: 0; padding: 15px 14px 15px 0; }
+.grow-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+/* huy hiệu đếm: cùng badge tím chuyển sắc của giao diện gốc */
 .grow-count { display: inline-block; padding: 1px 8px; border-radius: var(--r-pill);
   font-size: 11px; font-weight: 700; letter-spacing: .2px; color: #fff;
   background: linear-gradient(90deg, var(--a), var(--a-dim));
   box-shadow: 0 2px 10px -4px var(--a-glow); }
 .grow-head .title { display: block; font-size: var(--fs-lead); font-weight: 700; letter-spacing: .1px;
-  margin-bottom: 0; line-height: 1.1; }
+  margin-bottom: 0; line-height: 1.2; }
 .grow-head .title .artist { color: var(--txt-2); font-weight: 400; }
 .grow-head .meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
-  font-size: var(--fs-meta); line-height: 1.15; color: var(--txt-3); }
-/* cột tổng vote bên phải — con số mono lớn màu accent */
-.grow-stat { flex: none; display: flex; flex-direction: column; align-items: flex-end;
-  min-width: 44px; }
-.grow-stat b { font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1.1;
+  margin-top: 6px; font-size: var(--fs-meta); line-height: 1.25; color: var(--txt-3); }
+/* Cột phải theo mockup: số lớn canh giữa, nhãn ngắn có tracking rõ ràng. */
+.grow-stat { grid-column: 3; grid-row: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; min-width: 0; padding: 10px 8px;
+  border-left: 1px solid var(--line); text-align: center; font-variant-numeric: tabular-nums; }
+.grow-stat b { font-family: var(--mono); font-size: 20px; font-weight: 600; line-height: 1;
   color: var(--a-2); }
-.grow-stat span { font-size: var(--fs-cap); color: var(--txt-3); }
+.grow-stat span { margin-top: 4px; color: var(--txt-3); font-size: 8px; font-weight: 600;
+  letter-spacing: .09em; line-height: 1.2; text-transform: uppercase; white-space: nowrap; }
 /* mũi tên là một chip tròn — mục chạm rõ ràng, xoay 180° khi mở */
-.grow-arrow { flex: none; width: 30px; height: 30px; display: grid; place-items: center;
-  border: 1px solid var(--line-2); border-radius: 50%; background: var(--surface-2);
-  color: var(--txt-2); font-size: 14px; line-height: 1;
+.grow-arrow { grid-column: 2; grid-row: 1; align-self: center; justify-self: center;
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: 1px solid color-mix(in srgb, var(--a-2) 24%, var(--line-2)); border-radius: 50%;
+  background: color-mix(in srgb, var(--a) 7%, var(--surface-2)); color: var(--a-2); line-height: 1;
   transition: transform var(--t-2) var(--e-out), color var(--t-1) var(--e-soft),
               border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft); }
-.grow-head:hover .grow-arrow { color: #fff; border-color: transparent; background: var(--a); }
-.grow-arrow.on { transform: rotate(180deg); color: #fff; border-color: transparent;
-  background: var(--a); }
+.grow-arrow svg { display: block; width: 14px; height: 14px; }
+.grow-head:hover .grow-arrow { border-color: color-mix(in srgb, var(--a-2) 42%, var(--line-2));
+  background: color-mix(in srgb, var(--a) 14%, var(--surface-2)); }
+.grow-arrow.on { transform: rotate(180deg);
+  border-color: color-mix(in srgb, var(--a-2) 42%, var(--line-2));
+  background: color-mix(in srgb, var(--a) 14%, var(--surface-2)); }
 /* bung ra/rút vào mượt bằng grid-rows; visibility đi kèm để nút vote bên
    trong không bắt focus khi cụm đang thu */
 .grow-rows { display: grid; grid-template-rows: 0fr;
@@ -1965,8 +1977,9 @@ img { max-width: 100%; }
   .search, .sel { max-width: none; flex: 1; }
   /* cụm trùng bài: bỏ số thứ tự, thẻ card ôm sát mép cho vừa màn hẹp */
   .grow { margin-left: 8px; margin-right: 8px; }
-  .grow-head { padding: 10px 12px; gap: 10px; }
-  .grow-stat b { font-size: 17px; }
+  .grow-head { grid-template-columns: minmax(0, 1fr) 40px 72px; padding: 0 0 0 12px; }
+  .grow-stat b { font-size: 18px; }
+  .grow-stat span { font-size: 8px; letter-spacing: .1em; }
   /* lề trái của hàng trong cụm; lề PHẢI do khối thẻ ở dưới quyết định (10px,
      cùng nhịp với chấm chuông) — hai chỗ cùng khai một cạnh thì chỗ dưới
      luôn thắng và chỗ trên chỉ còn là một câu đọc lên thấy mâu thuẫn. */
@@ -3922,13 +3935,12 @@ html[data-section="spin"] .bgfx { display: none; }
 .sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-off { opacity: 0; }
 .sfxbtn[aria-pressed="true"] .icon-crossfade .crossfade-on { opacity: 1; }
 
-/* CỤM BÀI không còn chuông theo dõi nên KHÔNG còn cột lưới thứ hai: bản trước
-   dựng `.grow` thành lưới `1fr auto` để đặt chuông vào cột 2, kéo theo ba
-   luật `grid-area` và một `padding-right: 0` chỉ để nhường chỗ. Bỏ chuông là
-   bỏ luôn cả cụm đó — card trở lại một cột, đầu cụm có đệm phải bình thường. */
+/* CỤM BÀI không còn chuông theo dõi nên `.grow` không cần lưới hai cột.
+   Riêng `.grow-rows` phải giữ display:grid ở luật phía trên: hàng 0fr mới
+   thu cụm kín khi đóng. Đặt thành block làm các hàng con vẫn chiếm chiều cao
+   dù visibility:hidden — để lại một khoảng trống lớn dưới đầu cụm. */
 .grow { display: block; }
 .grow > .grow-head { min-width: 0; }
-.grow-rows { display: block; }
 .grow.hl { border-color: var(--a-2); }
 
 @media (max-width: 620px) {
@@ -5239,8 +5251,9 @@ body { overflow-x: hidden; }
   .meta { font-size: var(--fs-cap); gap: var(--sp-2); }
   .votebtn { padding: 6px 9px; min-height: 36px; }
   .grow { margin: var(--sp-2) 0; }
-  .grow-head { padding: 7px var(--sp-3); }
+  .grow-head { grid-template-columns: minmax(0, 1fr) 36px 72px; padding: 0 0 0 var(--sp-3); }
   .grow-stat b { font-size: 16px; }
+  .grow-stat span { font-size: 7px; letter-spacing: .08em; }
   .pager { gap: 8px; }
   .pager-btn { min-height: 36px; }
   .overlay { padding: 0; align-items: end; }
@@ -5815,7 +5828,12 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   display: block; width: 100%; height: auto; padding: 0; overflow: hidden;
   border: 0; border-radius: 0; aspect-ratio: 16 / 9;
   background: var(--surface-3); color: inherit; text-decoration: none; box-shadow: none;
-  animation: none; transition: none;
+  /* Chỉ sân khấu video chính chuyển cảnh khi đổi video; dải Latest update đứng yên. */
+  animation: latestHeroEnter .24s cubic-bezier(.2,.8,.2,1) both; transition: none;
+}
+@keyframes latestHeroEnter {
+  from { opacity: .55; transform: scale(.99); }
+  to { opacity: 1; transform: scale(1); }
 }
 .pick-showcase .pick-stage::before,
 .pick-showcase .pick-stage::after { content: none; display: none; }

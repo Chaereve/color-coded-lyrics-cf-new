@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import { onRequest as archiveOnRequest, renderArchivePage } from './functions/archive.js'
 import react from '@vitejs/plugin-react'
 
 /* Cấu hình dev/preview — và hai chỗ dưới đây là để chữa lỗi CHỈ xảy ra trong
@@ -92,8 +93,59 @@ function devProbe() {
   }
 }
 
+/* Vite does not execute Cloudflare Pages Functions. Without this dev-only
+   bridge, /archive falls through to index.html and the SPA silently renders
+   the home page because /archive is intentionally not a client route. */
+function archivePagesPreview() {
+  const install = server => {
+    const loaded = loadEnv(server.config.mode, process.cwd(), '')
+    const env = {
+      SUPABASE_URL: process.env.SUPABASE_URL || loaded.SUPABASE_URL || loaded.VITE_SUPABASE_URL,
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || loaded.SUPABASE_ANON_KEY || loaded.VITE_SUPABASE_ANON_KEY,
+    }
+    server.middlewares.use(async (req, res, next) => {
+      const incoming = new URL(req.url || '/', 'http://localhost')
+      if (incoming.pathname !== '/archive') return next()
+      try {
+        let response
+        if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+          const request = new Request(`https://chaereve.pages.dev${incoming.pathname}${incoming.search}`, {
+            method: req.method || 'GET',
+          })
+          response = await archiveOnRequest({ request, env })
+        } else {
+          const html = renderArchivePage({
+            videos: [],
+            media: [],
+            query: incoming.searchParams.get('q') || '',
+            month: incoming.searchParams.get('month') || '',
+            page: incoming.searchParams.get('page'),
+            mediaUnavailable: true,
+            previewNotice: 'Local preview only: Supabase bindings are not configured, so archive video data is unavailable here.',
+          })
+          response = new Response(html, {
+            status: 200,
+            headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+          })
+        }
+        res.statusCode = response.status
+        for (const [name, value] of response.headers) res.setHeader(name, value)
+        res.end(req.method === 'HEAD' ? undefined : Buffer.from(await response.arrayBuffer()))
+      } catch (error) {
+        next(error)
+      }
+    })
+  }
+  return {
+    name: 'ccl-pages-archive-preview',
+    apply: 'serve',
+    configureServer: install,
+    configurePreviewServer: install,
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), requestLog(), devProbe()],
+  plugins: [react(), archivePagesPreview(), requestLog(), devProbe()],
   server: {
     host: '0.0.0.0',
     port: 5173,

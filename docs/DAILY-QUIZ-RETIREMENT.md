@@ -7,16 +7,15 @@ drops, deletes or rewrites quiz data today; the file that closes the quiz door
 
 ## 1. What is retired now
 
-- **Route.** `/quiz` no longer has a screen. `src/App.jsx` keeps a single
-  `RETIRED_PATHS = { '/quiz': '/daily-login' }` entry: the old address replaces
-  the URL with `/daily-login` instead of pushing a new history entry, so a
-  bookmark or an old link lands on the check-in calendar without a dead page and
-  without a back-button trap.
+- **Route.** `/quiz` has no screen, route entry, or redirect alias. Unknown paths
+  fall back to the request board; Cloudflare serves the SPA shell, and the app
+  normalizes the address to `/`. The former `/quiz` → `/daily-login` redirect was
+  intentionally removed as part of the later slug cleanup.
 - **UI.** `DailyRewards.jsx` / `DailyRewards.css` (the quiz + rewards screen) and
   its controller (`src/lib/dailyRewards.js`, `dailyRewardsDemo.js`) are deleted.
   The sidebar has no quiz entry, `Icon.jsx` no longer ships the quiz glyph,
-  `sitemap.xml` no longer lists `/quiz`, and `public/_headers` keeps its
-  `/daily-login` rule without advertising the retired path.
+  `sitemap.xml` and `public/_headers` do not advertise `/quiz`; `/daily-login`
+  remains an independent route.
 - **Text.** Every user-facing string that mentioned the quiz (47 i18n keys:
   quiz, questions, answers, "streak from quiz", quiz reward) is gone. What stays
   is the six `err.dailyQuiz*` failure messages, because the SQL functions still

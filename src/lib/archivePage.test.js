@@ -76,18 +76,19 @@ test('archive server-renders completed videos, deduplicates YouTube IDs and esca
     assert.doesNotMatch(mediaQuery.url.searchParams.get('select'), /user_id|requester/)
     assert.ok(!html.includes('not-in-html'), 'the public anon key is not reflected into the page')
     assert.match(response.headers.get('content-security-policy') || '', /img-src 'self' https:/)
+    assert.match(response.headers.get('content-security-policy') || '', /font-src 'self'/)
     assert.doesNotMatch(html, /<script(?! type="application\/ld\+json")/i,
       'the archive has structured data but no client-side JavaScript')
     const escapedImage = injectedImage.replace('<', '&lt;').replace('>', '&gt;')
     assert.ok(html.includes(escapedImage))
     assert.ok(!html.includes(injectedImage))
     assert.equal((html.match(/class="video-card"/g) || []).length, 1, 'same YouTube ID renders only once')
-    assert.match(html, /Community favorite · 2 requests/)
-    assert.match(html, /Cover gallery/)
+    assert.match(html, /Linked to 2 completed requests/)
+    assert.match(html, /More from the channel/)
     assert.ok(html.includes('https://covers.example.test/spring.webp'), 'use the curated cover image')
     assert.ok(!html.includes('http://covers.example.test/winter.webp'), 'reject insecure cover URLs')
     assert.ok(!html.includes('Hidden title') && !html.includes('Playlist'), 'hidden records and playlists are excluded')
-    assert.match(html, /not when the video was completed or published on YouTube/)
+    assert.match(html, /date an item was added to this site/)
     const ld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])
     assert.equal(ld['@type'], 'CollectionPage')
     assert.equal(ld.mainEntity.itemListElement.length, 1)
@@ -130,6 +131,12 @@ test('curated gallery uses visible media records, safe thumbnails, VN add-months
   assert.equal(archiveMedia(many).length, 50)
 })
 
+test('local preview notice is opt-in and escaped instead of silently rendering the SPA home page', () => {
+  const preview = renderArchivePage({ videos: [], previewNotice: 'Preview <only>' })
+  assert.match(preview, /class="preview-note" role="status">Preview &lt;only&gt;/)
+  assert.doesNotMatch(renderArchivePage({ videos: [] }), /class="preview-note"/)
+})
+
 test('archive search filters artist/title/type and pagination uses stable canonical links', () => {
   const videos = Array.from({ length: 30 }, (_, i) => ({
     id: `video_${String(i).padStart(4, '0')}`,
@@ -138,7 +145,7 @@ test('archive search filters artist/title/type and pagination uses stable canoni
     kind: 'Song', requestCount: 1,
   }))
   const filtered = renderArchivePage({ videos, query: 'chung ha' })
-  assert.match(filtered, /1 video matching “chung ha”/)
+  assert.match(filtered, /<strong>1<\/strong>\s+<span>video matching “chung ha”<\/span>/)
   assert.match(filtered, /Dream of You/)
   assert.match(filtered, /name="robots" content="noindex,follow"/)
 
@@ -150,6 +157,27 @@ test('archive search filters artist/title/type and pagination uses stable canoni
   const canonicalPage2 = renderArchivePage({ videos, page: 2 })
   assert.match(canonicalPage2, /rel="canonical" href="https:\/\/chaereve\.pages\.dev\/archive\?page=2"/)
   assert.match(canonicalPage2, /name="robots" content="index,follow"/)
+})
+
+test('completed search and channel-month filter stay independent and empty states explain what is missing', () => {
+  const completed = [{
+    id: 'video_00001', artist: 'Chung Ha', title: 'Dream of You', kind: 'Song', requestCount: 1,
+  }]
+  const media = archiveMedia(mediaRows)
+
+  const searched = renderArchivePage({ videos: completed, media, query: 'Chung Ha' })
+  assert.match(searched, /Dream of You/)
+  assert.match(searched, /Spring Feature/)
+  assert.match(searched, /Winter Upload/, 'archive search does not filter the separate channel collection')
+  assert.match(searched, /name="month"/)
+
+  const filteredMonth = renderArchivePage({ videos: completed, media, month: '2026-03' })
+  assert.match(filteredMonth, /Dream of You/, 'channel month does not filter completed requests')
+  assert.match(filteredMonth, /Spring Feature/)
+  assert.doesNotMatch(filteredMonth, /Winter Upload/)
+
+  assert.match(renderArchivePage({ videos: [] }), /No completed videos yet/)
+  assert.match(renderArchivePage({ videos: [], query: 'unknown' }), /No matching videos/)
 })
 
 test('only completed rows with valid YouTube IDs enter archive structured data', () => {
@@ -171,8 +199,8 @@ test('media gallery upstream failure degrades without hiding completed requests'
     })
     const html = await response.text()
     assert.equal(response.status, 200)
-    assert.match(html, /The channel gallery is temporarily unavailable/)
-    assert.match(html, /Completed color-coded lyrics/)
+    assert.match(html, /The channel video list is temporarily unavailable/)
+    assert.match(html, /Completed video archive/)
   } finally { globalThis.fetch = before }
 })
 

@@ -50,22 +50,25 @@ test('Calendar API is auth.uid-scoped, stale-day-only, and free of the retired r
   assert.doesNotMatch(calendarApi, /'quiz'|quiz\?|votes_awarded|earned_today|credits|purchased|bonus/)
 })
 
-test('/quiz đã nghỉ hưu: chuyển hướng về lịch điểm danh và không còn màn quiz nào', () => {
-  /* Đường dẫn cũ chỉ được nhắc ở ĐÚNG một chỗ trong mã — bảng chuyển hướng —
-     nên không thể có màn, mục menu, icon hay chunk quiz nào lọt lại. */
-  assert.match(app, /const RETIRED_PATHS = \{ '\/quiz': '\/daily-login' \}/)
+test('slug routes phản ánh map đã duyệt; quiz không có route hoặc alias', () => {
+  assert.match(routes, /mystery: '\/daily-box'/)
+  assert.match(routes, /ranking: '\/leaderboard'/)
+  assert.match(routes, /login: '\/daily-login'/)
+  assert.match(routes, /spin: '\/daily-spin'/)
+  assert.match(routes, /mine: '\/profile'/)
+  assert.doesNotMatch(routes, /quiz|mystery-box|\/ranking'/)
   assert.ok(!sections.includes("'quiz'"), 'SECTIONS không còn mục quiz')
-  assert.ok(!routes.includes('quiz:'), 'ROUTES không còn đường dẫn quiz')
   assert.ok(!sidebar.includes('quiz:'), 'sidebar không còn icon quiz')
-  assert.doesNotMatch(app, /DailyRewards|needQuiz|nav\.quiz/, 'không còn component/cổng/mục menu quiz')
+  assert.doesNotMatch(app, /RETIRED_PATHS|DailyRewards|needQuiz|nav\.quiz/)
 
-  /* 301 ở tầng Pages phải đứng TRƯỚC dòng SPA fallback, và fallback vẫn là
-     dòng CUỐI (Cloudflare so từ trên xuống, dòng đầu tiên khớp được dùng). */
   const lines = redirects.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'))
-  assert.ok(lines.length >= 2, 'thiếu rule chuyển hướng hoặc thiếu SPA fallback')
-  assert.match(lines[lines.length - 1], /^\/\*\s+\/index\.html\s+200$/, 'SPA fallback phải là dòng cuối')
-  assert.match(lines[0], /^\/quiz\s+\/daily-login\s+301$/, 'đường dẫn cũ phải được 301 trước fallback')
-
-  /* Sitemap không còn quảng cáo đường dẫn đã nghỉ hưu. */
-  assert.doesNotMatch(sitemap, /\/quiz/, 'sitemap không còn /quiz')
+  assert.deepEqual(lines, [
+    '/mystery-box  /daily-box   301',
+    '/ranking      /leaderboard 301',
+    '/*            /index.html  200',
+  ])
+  assert.doesNotMatch(redirects, /^\/quiz(?:\s|$)/mi, 'không tạo redirect cho /quiz')
+  assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/daily-box<\/loc>/)
+  assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/leaderboard<\/loc>/)
+  assert.doesNotMatch(sitemap, /\/(mystery-box|ranking|quiz)(<|\s)/)
 })

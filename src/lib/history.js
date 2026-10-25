@@ -59,11 +59,10 @@ export function here() {
    rỗng). Ghép ở đây một lần, mọi chỗ dùng chung.
    ========================================================= */
 
-/** Trang cá nhân công khai. Dạng tham số (`/?profile=<id>`) chứ không phải
- *  `/u/<id>`: `/u/…` là một đường dẫn thật, mà host tĩnh chỉ phục vụ
- *  `index.html` cho đúng `/` (xem `public/_redirects`) — dán link `/u/…` cho
- *  người khác là họ nhận 404. App vẫn ĐỌC được `/u/<id>` cho link cũ. */
-export const profileUrl = (id) => `/?profile=${encodeURIComponent(id ?? '')}`
+/** Trang cá nhân công khai dùng slug riêng; host tĩnh chuyển các đường
+ *  dẫn SPA về index.html trong `public/_redirects`. Tham số `?profile=` cũ
+ *  vẫn được App đọc để những liên kết đã chia sẻ không bị hỏng. */
+export const profileUrl = (id) => `/u/${encodeURIComponent(id ?? '')}`
 
 /** Từ khoá tìm một bài: tên bài + nghệ sĩ, khoảng trắng thừa đã dồn. */
 export const songQuery = (title, artist) =>

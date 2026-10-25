@@ -1,4 +1,4 @@
-/* The mystery box is a STANDALONE page at /mystery-box (owner decision):
+/* The mystery box is a STANDALONE page at /daily-box (owner decision):
    its own route, its own nav entry, and a check-in gate that points back to
    /daily-login without ever claiming on the box's behalf. The page shell is
    rendered through Vite's SSR loader (async data stays "loading" server-side,
@@ -208,7 +208,7 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
      xong rời đi là card trang chủ bị nhuộm gradient tím hồng. */
   const cssNoComment = css.replace(/\/\*[\s\S]*?\*\//g, '')
   assert.doesNotMatch(cssNoComment, /(^|}|,)(\s*)\.(f|fr|bk|lf|rt|in|s|lid|bd|gl|bow)(\s|,|\{)/,
-    'không selector mặt hộp trần — CSS này sống sót sau khi rời /mystery-box')
+    'không selector mặt hộp trần — CSS này sống sót sau khi rời /daily-box')
   assert.match(css, /\.box-stage-fx\s*\{[^}]*overflow:\s*hidden/,
     'tia/beam phải clip trong lớp fx, không trong cây preserve-3d')
   // Keyframes động chỉ đụng transform/opacity — không gây reflow.
@@ -301,7 +301,7 @@ test('the odds table and the route/nav wiring are exactly the approved shape', a
     assert.match(pageSrc, /buildMysteryMonth/)
   })
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8')
-  assert.match(app, /mystery: '\/mystery-box'/)
+  assert.match(app, /mystery: '\/daily-box'/)
   assert.match(app, /const SECTIONS = \['board', 'login', 'mystery', 'spin', 'ranking', 'mine'\]/)
   assert.match(app, /import\('\.\/components\/MysteryBoxPage'\)/)
   // The page NEVER embeds inside DailyLogin (owner decision, 2026-10).

@@ -96,6 +96,21 @@ test('Arcade styling remains restrained, responsive and reduced-motion aware', a
   assert.match(jsx, /<button type="button" className="spin-cta" onClick=\{spin\}/)
 })
 
+test('when the daily spin is spent, the disabled CTA keeps Spin and hides the reset countdown', async () => {
+  const [jsx, css] = await Promise.all([
+    readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('./DailySpin.css', import.meta.url), 'utf8'),
+  ])
+  assert.match(jsx, /: t\('spin\.action'\)\}<\/span>/,
+    'spent state keeps the same Spin label')
+  assert.doesNotMatch(jsx, /spin\.nextIn/,
+    'the button must not show a reset countdown')
+  assert.match(jsx, /disabled=\{active \|\| loading \|\| !status \|\| \(!remaining && !pending\)\}/,
+    'the exhausted action stays disabled')
+  assert.match(css, /\.spin-cta:disabled\s*\{[^}]*opacity:\s*\.68/,
+    'the exhausted action is visibly dimmed')
+})
+
 test('real spin mechanics remain server-decided and retain success, error and SFX flows', async () => {
   const jsx = await readFile(new URL('./DailySpin.jsx', import.meta.url), 'utf8')
   assert.match(jsx, /performDailySpin\(requestId, userId\)/)

@@ -2,9 +2,9 @@
    có URL, bằng EDGE của Cloudflare Pages.
    -----------------------------------------------------------------------------
    Cái mà `npm run smoke` không trả lời được: bố cục và hành vi trong trình duyệt
-   thật (mobile ≤620px và desktop), lỗi console thật, và việc `/quiz` có được
-   301 ở edge hay không. Script này làm đúng ba việc đó rồi thoát khác 0 nếu có
-   mục hỏng; ảnh chụp được ghi vào --out để gửi kèm khi review.
+   thật (mobile ≤620px và desktop), lỗi console thật, các alias slug cũ có chuyển đúng
+   hướng không, và slug mới có phục vụ HTML không. Script thoát khác 0 nếu có mục
+   hỏng; ảnh chụp được ghi vào --out để gửi kèm khi review.
 
    Riêng ở chế độ --edge còn một câu hỏi nữa mà KHÔNG trạng thái check nào trả
    lời được: edge đang phục vụ bản MỚI hay còn bundle cũ? Deploy xong không có
@@ -27,7 +27,7 @@
    HAI CHẾ ĐỘ, ĐỪNG LẪN:
      · bản dist/ cục bộ (mặc định) — phần lớn phép kiểm nằm ở đây: bốn màn
        (trang chủ, bảng xếp hạng, về tôi, hồ sơ công khai) × hai khổ màn hình,
-       cộng đường /quiz → /daily-login và lượt điểm danh demo.
+       cộng kiểm tra slug Daily login và lượt điểm danh demo.
      · --live — chỉ đọc trang production, KHÔNG bấm gì; mỗi lượt mở vẫn ghi một
        dòng 'visit' vào bảng funnel (hành vi của mọi lượt truy cập).
    Trước khi mở trình duyệt, script soi dist/assets/*.js: nhúng URL Supabase thật
@@ -110,26 +110,33 @@ const attachErrorTracking = page => {
   return { errors, noise }
 }
 
-/* ---------- 1. edge: 301 của Cloudflare Pages ---------- */
+/* ---------- 1. edge: aliases slug cũ của Cloudflare Pages ---------- */
 if (edge) {
-  const waitFor = async (attempts = 18) => {
+  const waitForAlias = async (oldPath, newPath, attempts = 18) => {
+    let response
     for (let i = 1; i <= attempts; i += 1) {
-      try {
-        const res = await fetch(`${edge}/quiz`, { redirect: 'manual' })
-        if ([301, 308].includes(res.status)) return res
-        if (i === attempts) return res
-      } catch (e) {
-        if (i === attempts) throw e
-      }
-      await new Promise(r => setTimeout(r, 10_000))
+      response = await fetch(`${edge}${oldPath}`, { redirect: 'manual' })
+      const location = String(response.headers.get('location') || '')
+      if (response.status === 301 && new URL(location, edge).pathname === newPath) return response
+      if (i < attempts) await new Promise(resolve => setTimeout(resolve, 10_000))
     }
+    return response
   }
   console.log(`\n── edge: ${edge} ──`)
   try {
-    const quiz = await waitFor()
-    check('edge: /quiz trả 301/308 (không dựng lại màn quiz)', [301, 308].includes(quiz.status), `status=${quiz.status}`)
-    const location = String(quiz.headers.get('location') || '')
-    check('edge: Location trỏ về /daily-login', /\/daily-login$/.test(location), location || '(thiếu Location)')
+    for (const [oldPath, newPath] of [['/ranking', '/leaderboard'], ['/mystery-box', '/daily-box']]) {
+      const alias = await waitForAlias(oldPath, newPath)
+      check(`edge: ${oldPath} chuyển hướng 301 sang ${newPath}`, alias.status === 301, `status=${alias.status}`)
+      const location = String(alias.headers.get('location') || '')
+      check(`edge: Location của ${oldPath} trỏ đúng ${newPath}`, new URL(location, edge).pathname === newPath, location || '(thiếu Location)')
+    }
+    const quiz = await fetch(`${edge}/quiz`, { redirect: 'manual' })
+    check('edge: /quiz không có redirect riêng', quiz.status !== 301 && quiz.status !== 308, `status=${quiz.status}`)
+    for (const path of ['/daily-box', '/leaderboard', '/u/edge-smoke']) {
+      const route = await fetch(`${edge}${path}`, { redirect: 'manual' })
+      check(`edge: route mới ${path} trả HTML 200`, route.status === 200, `status=${route.status}`)
+      check(`edge: HTML ${path} cần revalidate`, /must-revalidate/i.test(route.headers.get('cache-control') || ''))
+    }
 
     const login = await fetch(`${edge}/daily-login`)
     const html = await login.text()
@@ -205,9 +212,9 @@ await new Promise(r => server.listen(0, '127.0.0.1', r))
 const base = arg('base', `http://127.0.0.1:${server.address().port}`)
 
 /* ---------- 2b. site THẬT (tuỳ chọn): chỉ đọc, không bấm gì ----------
-   Mở đúng trang production như một khách chưa đăng nhập: kiểm /quiz có bị đưa
-   về /daily-login không, có còn chữ/phần tử quiz không, trang có dựng lên
-   không (không trắng màn), console có sạch không, có tràn ngang không. Không
+   Mở đúng trang production như một khách chưa đăng nhập: kiểm /daily-login
+   có dựng lên không (không trắng màn), không còn chữ/phần tử quiz, console có
+   sạch không, có tràn ngang không. Không
    bấm nút đăng nhập hay bất kỳ nút nào khác nên không tạo phiên, không ghi dữ
    liệu người dùng; một lượt mở trang thật sẽ ghi đúng một dòng 'visit' vào
    bảng funnel (hành vi của mọi lượt truy cập, bảng tự dọn sau 30 ngày). */
@@ -225,12 +232,12 @@ if (live) {
       const context = await liveBrowser.newContext({ viewport: { width: vp.width, height: vp.height } })
       const page = await context.newPage()
       const { errors, noise } = attachErrorTracking(page)
-      await page.goto(`${live}/quiz`, { waitUntil: 'load', timeout: 60_000 })
+      await page.goto(`${live}/daily-login`, { waitUntil: 'load', timeout: 60_000 })
       await page.waitForSelector('.signin-panel, .daily-login-page, .gate-card', { timeout: 45_000 })
       await page.waitForTimeout(800)
 
       const path = new URL(page.url()).pathname
-      check(`live ${vp.name}: /quiz được đưa về /daily-login`, path === '/daily-login', path)
+      check(`live ${vp.name}: mở thẳng /daily-login`, path === '/daily-login', path)
       const text = await page.innerText('body')
       check(`live ${vp.name}: không còn chữ quiz trên trang thật`, !/quiz/i.test(text))
       const quizNodes = await page.locator('.music-quiz-page, .daily-quiz, .daily-quiz-start, .daily-quiz-level, .daily-quiz-start-btn').count()
@@ -348,11 +355,10 @@ for (const vp of viewports) {
   const { errors, noise } = attachErrorTracking(page)
 
   /* Một lần điều hướng = trình duyệt tải lại trang; `putUrl` của app dùng
-     replaceState nên KHÔNG có mục nào thêm vào đây. Đếm trước/sau để phân biệt
-     "SPA tự đổi địa chỉ" (đúng) với "edge trả 200 rồi trang tự tải lại" (sai). */
+     replaceState nên KHÔNG có mục nào thêm vào đây. */
   let navigations = 0
   page.on('framenavigated', () => { navigations += 1 })
-  await page.goto(`${base}/quiz`, { waitUntil: 'load' })
+  await page.goto(`${base}/daily-login`, { waitUntil: 'load' })
   /* Chờ một nhịp để sự kiện điều hướng của chính lần tải này rơi xuống, rồi mới
      lấy mốc: từ đây về sau, một sự kiện nữa nghĩa là trang ĐÃ tải lại. */
   await page.waitForTimeout(200)
@@ -378,11 +384,10 @@ for (const vp of viewports) {
   await page.waitForSelector('.daily-login-page', { timeout: 20_000 })
   await page.waitForTimeout(600)
 
-  /* (b) địa chỉ cũ phải biến mất. Đếm số lần điều hướng CHỈ để làm bằng chứng
-     (0 = replaceState của SPA, >0 = có tải lại trang); mục đạt/hỏng chỉ phụ
-     thuộc vào địa chỉ cuối cùng, để phép kiểm không mạnh hơn yêu cầu. */
+  /* Direct load phải giữ đúng slug đã khai báo; đếm lần điều hướng để phát hiện
+     tải lại ngoài ý muốn sau khi app đã khởi động. */
   const atDailyLogin = new URL(page.url()).pathname === '/daily-login'
-  check(`${vp.name}: mở /quiz được replace về /daily-login`, atDailyLogin,
+  check(`${vp.name}: mở /daily-login giữ đúng slug`, atDailyLogin,
     `từ ${arrivedAt} → ${new URL(page.url()).pathname}, ${navigations - navsAtArrival} lần điều hướng`)
   const text = await page.innerText('body')
   check(`${vp.name}: không còn chữ quiz trên trang`, !/quiz/i.test(text))
@@ -409,7 +414,7 @@ for (const vp of viewports) {
   const overflow = await page.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
   check(`${vp.name}: không tràn ngang`, overflow <= 2, `${overflow}px`)
 
-  const shot = join(outDir, `quiz-retirement-${vp.name}.png`)
+  const shot = join(outDir, `route-smoke-${vp.name}.png`)
   await page.screenshot({ path: shot, fullPage: true })
   console.log(`  ảnh: ${shot}`)
 
@@ -422,7 +427,8 @@ for (const vp of viewports) {
      dừng hai màn còn lại: mỗi màn tự bắt lỗi. */
   const routes = [
     { slug: 'board', name: 'trang chủ', url: `${base}/`, anchor: '.board, .stats, .requester-link' },
-    { slug: 'ranking', name: 'bảng xếp hạng', url: `${base}/ranking`, anchor: '.lb-tabs' },
+    { slug: 'ranking', name: 'bảng xếp hạng', url: `${base}/leaderboard`, anchor: '.lb-tabs' },
+    { slug: 'daily-box', name: 'Daily Box', url: `${base}/daily-box`, anchor: '.mystery-page' },
     { slug: 'mine', name: 'về tôi', url: `${base}/profile`, anchor: '.prof-card' },
   ]
   for (const r of routes) {
@@ -456,7 +462,7 @@ for (const vp of viewports) {
     }
   }
 
-  /* Hồ sơ công khai (`/?profile=<id>`) — mở từ liên kết THẬT trên bảng, không
+  /* Hồ sơ công khai (`/u/<id>`) — mở từ liên kết THẬT trên bảng, không
      tự đặt id, nên phép kiểm chỉ chạy khi bảng có liên kết người gửi. */
   try {
     await page.goto(`${base}/`, { waitUntil: 'load' })

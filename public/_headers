@@ -114,24 +114,23 @@
 
 # HTML — luôn phải hỏi lại. Đây là SPA: index.html trỏ tới bundle có hash,
 # nên cache index.html là người dùng kẹt ở bản cũ vĩnh viễn.
-# `/daily-login`, `/daily-spin`, `/ranking`, `/profile` được rewrite về index.html
-# (mã 200), nên phải khai riêng từng đường — rule cho `/` không phủ chúng.
-# Đường dẫn đã nghỉ hưu vẫn giữ rule bên dưới: nếu request tới nó được phục vụ
-# bằng index.html (thay vì 301 trong `_redirects`), nó vẫn phải nhận bản HTML
-# mới nhất — cache HTML ở đây là người dùng kẹt ở bundle cũ.
+# Các route SPA được rewrite về index.html (mã 200), nên phải khai riêng từng
+# đường — rule cho `/` không phủ các slug này. HTML luôn phải hỏi lại để nhận bundle mới.
 /
   Cache-Control: public, max-age=0, must-revalidate
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
 /daily-login
   Cache-Control: public, max-age=0, must-revalidate
-/quiz
-  Cache-Control: public, max-age=0, must-revalidate
 /daily-spin
   Cache-Control: public, max-age=0, must-revalidate
-/ranking
+/daily-box
+  Cache-Control: public, max-age=0, must-revalidate
+/leaderboard
   Cache-Control: public, max-age=0, must-revalidate
 /profile
+  Cache-Control: public, max-age=0, must-revalidate
+/u/*
   Cache-Control: public, max-age=0, must-revalidate
 /privacy.html
   Cache-Control: public, max-age=0, must-revalidate

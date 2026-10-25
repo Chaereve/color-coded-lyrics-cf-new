@@ -34,8 +34,8 @@ const timeOf = iso => new Intl.DateTimeFormat('en-GB', {
      3. LAND — dừng ĐÚNG ô chứa mức giải SERVER trả (spinRingTarget chọn ô
         tất định phía trước; client KHÔNG random, KHÔNG chọn thưởng). Ô trúng
         nổ (.win pulse), cả board mờ đi trừ ô trúng, confetti bung một nhịp.
-     4. RESULT — lõi hiện "+N bonus votes" + độ hiếm; còn lượt thì nút bật
-        lại, hết lượt thì nút thành đếm ngược tới reset.
+         4. RESULT — lõi hiện "+N bonus votes" + độ hiếm; còn lượt thì nút bật
+            lại, hết lượt thì giữ chữ Spin và nút mờ tới khi lượt được reset.
      5. ERROR — dừng an toàn, bật lại nút, lỗi i18n; không tạo thưởng/lượt.
 
    20 ô lặp lại 7 mức giải THEO TRỌNG SỐ (1×5 · 2×4 · 3×4 · 5×2 · 8×2 ·
@@ -323,11 +323,10 @@ export default function DailySpin({ userId, onBalance, onVote }) {
           </div>
           <button type="button" className="spin-cta" onClick={spin}
             disabled={active || loading || !status || (!remaining && !pending)}>
-            <Icon name={loading || active ? 'spin' : spent ? 'calendar' : 'play'} size={16}
+            <Icon name={loading || active ? 'spin' : 'play'} size={16}
               className={`spin-cta-ico${loading || active ? ' is-spinning' : ''}`} />
             <span>{active ? t('spin.spinning')
               : loading ? t('spin.loading')
-              : spent ? t('spin.nextIn', { time: spinCountdown(deadline - clock) })
               : t('spin.action')}</span>
           </button>
         </aside>

@@ -18,14 +18,15 @@ import { SUPPORT } from '../lib/payment'
    lại — icon đứng yên, không giật.
    ========================================================= */
 
-/* Hai nhãn hiệu bên ngoài: Lucide cố ý không vẽ logo thương hiệu, mà logo
-   thì phải đúng logo — nên hai đường dẫn này ở lại đây, ngay cạnh chỗ dùng.
+/* Các nhãn hiệu bên ngoài: Lucide cố ý không vẽ logo thương hiệu, mà logo
+   thì phải đúng logo — nên các đường dẫn này ở lại đây, ngay cạnh chỗ dùng.
    Mọi icon chức năng khác đi qua component Icon (src/components/Icon.jsx) —
    viết tên không kèm dấu ngoặc nhọn vì propContract.test.js quét cả văn bản
    nguồn và sẽ tưởng đây là một chỗ dựng component thiếu prop. */
 const BRAND = {
   yt: <path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8ZM10 15V9l5.2 3L10 15Z" fill="currentColor" />,
   tg: <path d="M21.5 4.3 2.9 11.5c-.9.3-.9 1.6.1 1.9l4.6 1.4 1.8 5.4c.3.8 1.3 1 1.9.4l2.5-2.5 4.6 3.4c.7.5 1.7.1 1.9-.7l3-14.6c.2-1-.7-1.8-1.8-1.4ZM9.4 14.2l8.4-5.3-6.7 6.5-.3 3.4-1.4-4.6Z" fill="currentColor" />,
+  kofi: <path d="M11.351 2.715c-2.7 0-4.986.025-6.83.26C2.078 3.285 0 5.154 0 8.61c0 3.506.182 6.13 1.585 8.493 1.584 2.701 4.233 4.182 7.662 4.182h.83c4.209 0 6.494-2.234 7.637-4a9.5 9.5 0 0 0 1.091-2.338C21.792 14.688 24 12.22 24 9.208v-.415c0-3.247-2.13-5.507-5.792-5.87-1.558-.156-2.65-.208-6.857-.208m0 1.947c4.208 0 5.09.052 6.571.182 2.624.311 4.13 1.584 4.13 4v.39c0 2.156-1.792 3.844-3.87 3.844h-.935l-.156.649c-.208 1.013-.597 1.818-1.039 2.546-.909 1.428-2.545 3.064-5.922 3.064h-.805c-2.571 0-4.831-.883-6.078-3.195-1.09-2-1.298-4.155-1.298-7.506 0-2.181.857-3.402 3.012-3.714 1.533-.233 3.559-.26 6.39-.26m6.547 2.287c-.416 0-.65.234-.65.546v2.935c0 .311.234.545.65.545 1.324 0 2.051-.754 2.051-2s-.727-2.026-2.052-2.026m-10.39.182c-1.818 0-3.013 1.48-3.013 3.142 0 1.533.858 2.857 1.949 3.897.727.701 1.87 1.429 2.649 1.896a1.47 1.47 0 0 0 1.507 0c.78-.467 1.922-1.195 2.623-1.896 1.117-1.039 1.974-2.364 1.974-3.897 0-1.662-1.247-3.142-3.039-3.142-1.065 0-1.792.545-2.338 1.298-.493-.753-1.246-1.298-2.312-1.298" fill="currentColor" />,
 }
 const BrandIco = ({ d, size = 16 }) => (
   <svg className="sico" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">{d}</svg>
@@ -166,11 +167,16 @@ export default function Sidebar({
               <BrandIco d={BRAND.tg} /><span className="side-tx">Telegram</span>
               <Icon name="ext" size={13} className="side-ext" />
             </a>
+            <a className="side-item ext" href={SUPPORT.kofiUrl} target="_blank" rel="noreferrer"
+              style={{ '--i': sections.length + 2 }} title={tip('Ko-fi')}>
+              <BrandIco d={BRAND.kofi} /><span className="side-tx">Ko-fi</span>
+              <Icon name="ext" size={13} className="side-ext" />
+            </a>
             {/* Khối "Order queue" đã bị GỠ khỏi sidebar (vòng 12): hàng đợi đơn
                 là một tab của trang quản trị, và nó đã có lối vào đúng chỗ —
                 ô "Orders" trên dải số liệu, kèm con số và huy hiệu chờ xử lý.
                 Một mục thứ hai trong sidebar vừa trùng đường, vừa chiếm chỗ
-                của hai link ngoài (YouTube/Telegram) là thứ được bấm nhiều nhất
+                của ba link ngoài (YouTube/Telegram/Ko-fi) là nhóm kết nối chính
                 ở nhóm này. */}
           </div>
         </div>
