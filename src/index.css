@@ -5854,31 +5854,31 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 }
 .pick-showcase .pick-side::before,
 .pick-showcase .pick-side::after {
-  content: ''; position: absolute; z-index: 3; top: 2px; bottom: 8px; width: 42px;
+  content: ''; position: absolute; z-index: 5; top: 2px; bottom: 10px; width: 56px;
   pointer-events: none; opacity: 0; transition: opacity var(--t-2) var(--e-soft);
 }
 .pick-showcase .pick-side::before {
-  left: 1px; background: linear-gradient(90deg, rgba(8, 10, 15, .86), rgba(8, 10, 15, 0));
+  left: 1px; background: linear-gradient(90deg, rgba(8, 10, 15, .96), rgba(8, 10, 15, 0));
 }
 .pick-showcase .pick-side::after {
-  right: 1px; background: linear-gradient(270deg, rgba(8, 10, 15, .86), rgba(8, 10, 15, 0));
+  right: 1px; background: linear-gradient(270deg, rgba(8, 10, 15, .96), rgba(8, 10, 15, 0));
 }
 .pick-showcase .pick-side.fade-left::before,
 .pick-showcase .pick-side.fade-right::after { opacity: 1; }
 .pick-showcase .pvlist {
-  display: flex; align-items: stretch; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
-  padding: 2px 1px 8px; scroll-snap-type: x proximity; scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+  display: flex; align-items: stretch; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 2px 1px 8px; scroll-snap-type: x proximity; scrollbar-width: none;
 }
+.pick-showcase .pvlist::-webkit-scrollbar { display: none; }
 .pick-showcase .pvrow {
-  position: relative; display: flex; flex: 0 0 calc((100% - 28px) / 3.15); flex-direction: column; align-items: stretch;
-  gap: 7px; min-width: 0; padding: 12px 12px 10px; overflow: visible; isolation: auto;
-  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); color: var(--txt-2);
+  position: relative; display: flex; flex: 0 0 clamp(232px, 20vw, 300px); flex-direction: column; align-items: stretch;
+  gap: 8px; min-width: 0; padding: 8px 8px 9px; overflow: visible; isolation: auto;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); color: var(--txt-2);
   font-family: inherit; text-align: left; text-decoration: none; box-shadow: none;
   scroll-snap-align: start;
   transition: border-color var(--t-2) var(--e-soft), background var(--t-2) var(--e-soft);
 }
-.pick-showcase .pvlist.has-overflow .pvrow { flex-basis: calc((100% - 28px) / 3.15); }
+.pick-showcase .pvlist.has-overflow .pvrow { flex-basis: clamp(232px, 20vw, 300px); }
 .pick-showcase .pvrow:hover { border-color: var(--line-2); background: var(--surface-2); box-shadow: none; transform: none; }
 .pick-showcase .pvrow.on {
   border-color: color-mix(in srgb, var(--a-2) 30%, var(--line-2));
@@ -5893,11 +5893,11 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 .pick-showcase .pvrow:hover .pv-thumb { border-color: var(--line-2); }
 .pick-showcase .pvrow .mthumb { width: 100%; height: 100%; aspect-ratio: 16 / 9; border-radius: 0; }
 .pick-showcase .pvrow:hover .mthumb > img { transform: none !important; }
-.pick-showcase .pv-tx { display: block; min-height: calc(2 * 1.38em); padding: 0 2px; }
+.pick-showcase .pv-tx { display: block; min-height: calc(2 * 1.36em); padding: 0 2px; }
 .pick-showcase .pv-tx b {
-  display: block; color: var(--txt-2); font-size: 13px; font-weight: 500; line-height: 1.38;
-  white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip;
-  -webkit-line-clamp: unset; -webkit-box-orient: initial;
+  display: -webkit-box; color: var(--txt-2); font-size: 12.5px; font-weight: 500; line-height: 1.36;
+  white-space: normal; overflow: hidden; overflow-wrap: anywhere; text-overflow: ellipsis;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   transition: color var(--t-2) var(--e-soft);
 }
 .pick-showcase .pvrow.on .pv-tx b { color: var(--a-2); font-weight: 600; }
