@@ -78,6 +78,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
   /* Video đang mở tự được kéo vào giữa dải mục lục — chọn bằng mũi tên
      thì mắt phải thấy nó ở đâu đó, không bị bỏ lại ngoài rìa dải. */
   const stripRef = useRef(null)
+  const [stripEdges, setStripEdges] = useState({ left: false, right: false })
   useEffect(() => {
     const strip = stripRef.current
     const el = strip?.querySelector('.pvrow.on')
@@ -87,6 +88,32 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
     try { strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' }) }
     catch { strip.scrollLeft = Math.max(0, left) }
   }, [at, n])
+
+  /* Dark edge fades appear only while there is more rail to reveal. Re-measure
+     after scrolling and resizing so the fade follows the active edge. */
+  useEffect(() => {
+    const strip = stripRef.current
+    if (!strip) {
+      setStripEdges({ left: false, right: false })
+      return undefined
+    }
+    const measure = () => {
+      const max = Math.max(0, strip.scrollWidth - strip.clientWidth)
+      const left = strip.scrollLeft > 2
+      const right = max > 2 && strip.scrollLeft < max - 2
+      setStripEdges(current => current.left === left && current.right === right
+        ? current
+        : { left, right })
+    }
+    measure()
+    strip.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    observer?.observe(strip)
+    return () => {
+      strip.removeEventListener('scroll', measure)
+      observer?.disconnect()
+    }
+  }, [n])
 
   /* Chưa có dòng nào để vẽ: ba khả năng, ba câu trả lời KHÁC NHAU.
      Bản cũ gộp cả ba vào nhánh rỗng, nên mất mạng là dải video nói "chưa có
@@ -181,7 +208,7 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
       </div>
 
       {n > 1 && (
-        <div className="pick-side">
+        <div className={`pick-side${stripEdges.left ? ' fade-left' : ''}${stripEdges.right ? ' fade-right' : ''}`}>
           <div className={`pvlist${n > 3 ? ' has-overflow' : ''}`} ref={stripRef}>
             {items.map((v, i) => (
               <button type="button" className={`pvrow${i === at ? ' on' : ''}`} key={v.key ?? v.id}
