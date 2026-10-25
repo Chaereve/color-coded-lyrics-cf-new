@@ -5855,7 +5855,7 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 .pick-showcase .pick-side::before,
 .pick-showcase .pick-side::after {
   content: ''; position: absolute; z-index: 5; top: 2px; bottom: 10px; width: 56px;
-  pointer-events: none; opacity: 0; transition: opacity var(--t-2) var(--e-soft);
+  pointer-events: none; opacity: 0; transition: none;
 }
 .pick-showcase .pick-side::before {
   left: 1px; background: linear-gradient(90deg, rgba(8, 10, 15, .96), rgba(8, 10, 15, 0));

@@ -552,10 +552,11 @@ export async function fetchRecentVotes() {
     }
     return out
   }
-  const { data, error } = await readQuery(() =>
-    supabase.rpc('votes_received', { p_since: new Date(since).toISOString() }))
-  if (error) throw error
-  return data || []
+  // RPC has a 10k SQL cap, but PostgREST caps each response at 1000 rows;
+  // page through it so older votes cannot hide this week's votes.
+  return fetchAllPages((from, size) => readQuery(() =>
+    supabase.rpc('votes_received', { p_since: new Date(since).toISOString() })
+      .range(from, from + size - 1)), 1000)
 }
 
 /* Chia so du thanh hai loai: vote da mua (khong het han) va bonus tu vong

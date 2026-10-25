@@ -103,6 +103,8 @@ test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn
     'fade phải được cập nhật khi người dùng kéo dải')
   assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
   assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
+  assert.match(css, /\.pick-showcase \.pick-side::before,[\s\S]*?transition:\s*none/,
+    'fade phải xuất hiện ngay khi cuộn, không chờ animation opacity')
   assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.96\)/,
     'fade hai cạnh phải tối dần ra trong suốt')
 })
