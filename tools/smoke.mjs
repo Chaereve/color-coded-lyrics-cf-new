@@ -406,8 +406,8 @@ check('bảng request có hàng', rows.length > 0, `${rows.length} hàng`)
   const segs = bar ? [...bar.querySelectorAll('.nhip-seg')] : []
   check('ba nhịp đúng ba việc Layout · Lyrics · Edit', segs.length === 3, `${segs.length} vạch`)
   check('mỗi nhịp có nhãn đọc được cho trình đọc màn hình',
-    /Layout/.test(bar?.getAttribute('title') || '') && /Lyrics/.test(bar?.getAttribute('title') || '')
-    && /Edit/.test(bar?.getAttribute('title') || ''), bar?.getAttribute('title'))
+    /Layout/.test(bar?.getAttribute('aria-valuetext') || '') && /Lyrics/.test(bar?.getAttribute('aria-valuetext') || '')
+    && /Edit/.test(bar?.getAttribute('aria-valuetext') || ''), bar?.getAttribute('aria-valuetext'))
   check('nhịp tiến độ có role progressbar và giá trị phần trăm',
     bar?.getAttribute('role') === 'progressbar' && /^\d+$/.test(bar?.getAttribute('aria-valuenow') || ''),
     `role=${bar?.getAttribute('role')} now=${bar?.getAttribute('aria-valuenow')}`)
@@ -817,7 +817,7 @@ where = 'hộp vote'
 const voteBtn = qa('.votebtn:not([disabled])')[0]
 if (voteBtn) {
   await click(voteBtn)
-  check('hộp vote mở ra', !!q('.vm-hero'))
+  check('hộp vote mở ra', !!q('.vote-modal .vm-song'))
   /* BÀN PHÍM: mũi lên / dấu + phải chỉnh được số phiếu mà không cần tới ô nhập */
   const qtyBox = q('#vm-qty')
   if (qtyBox) {
@@ -838,8 +838,9 @@ if (voteBtn) {
      Vòng 10 dựng ba ô có viền + một vạch chia tỉ lệ; vòng 11 gỡ cả hai vì hộp
      vote bị chê là rối — nên phép kiểm ở đây chốt luôn rằng chúng KHÔNG quay
      lại: một khung viền nữa trong hộp chật là một lớp rối nữa. */
-  const after = q('.vm-after')
-  check('có dòng "còn … → còn …"', !!after && /\d/.test(after.textContent || ''),
+  const after = q('.vm-balance')
+  check('số dư sau vote có nhãn và con số mới', !!after && !!after.querySelector('.vm-balance-label')
+    && !!after.querySelector('strong[aria-live]') && /\d/.test(after.textContent || ''),
     after?.textContent?.replace(/\s+/g, ' ').trim())
   check('quỹ phiếu không còn ô/vạch trang trí', !q('.vm-chip') && !q('.vm-mix'))
 
@@ -901,13 +902,12 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
       !/ties go to/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
     const lone = loneTagClusters()
     check('Xếp hạng: không có cụm nhãn rời', lone.length === 0, lone.join(' | '))
-    /* ---- MÙA GIẢI (vòng 19): ba núm All time / This week / This month ----
-       Luật cắt mùa có test riêng (season.test.js); smoke chỉ chốt hành vi thật
-       trên trình duyệt: bấm núm thì câu luật + khoảng ngày đổi theo, và bảng
-       không điều hướng đi đâu (nút type=button trong SPA). */
+    /* ---- MÙA GIẢI: All time / This month ----
+       Luật cắt mùa có test số (season.test.js); smoke chốt hành vi trên trình
+       duyệt: bấm núm thì câu luật + khoảng ngày đổi theo, không điều hướng. */
     const pseg = q('.lb-periodseg')
     const pbtns = [...(pseg?.querySelectorAll('button') || [])]
-    check('bảng xếp hạng có bộ chọn mùa 3 nút', pbtns.length === 3,
+    check('bảng xếp hạng có bộ chọn 2 kỳ', pbtns.length === 2,
       pbtns.map(b => b.textContent).join(' · ') || 'không thấy .lb-periodseg')
     const ruleAll = q('.lb-rule')?.textContent || ''
     /* ngày tháng KHÔNG in thường trực (người dùng chốt) — mặc định tooltip
@@ -915,16 +915,16 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     check('mặc định là All time: câu luật một vế, tooltip chưa chở khoảng ngày',
       pbtns[0]?.getAttribute('aria-pressed') === 'true'
       && !/\d{2}\/\d{2}/.test(pseg?.getAttribute('title') || ''), pseg?.getAttribute('title'))
-    if (pbtns.length === 3) {
-      await click(pbtns[2])
-      await waitFor(() => /this period/i.test(q('.lb-rule')?.textContent || ''), 2000)
-      const tip = pseg?.getAttribute('title') || ''
-      check('bấm This month: câu luật đổi thành theo mùa',
-        /this period/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
-      check('bấm This month: khoảng ngày vào tooltip nhóm mùa (dd/mm – dd/mm)',
-        /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(tip), tip)
-      check('đang xem mùa thì phiếu phải tự thú nhận là phiếu NHẬN TRONG MÙA (trong tooltip)',
-        /received this period/.test(tip), tip)
+    if (pbtns.length === 2) {
+      await click(pbtns[1])
+      await waitFor(() => /this month/i.test(q('.lb-rule')?.textContent || ''), 2000)
+      const rangeText = q('.lb-list-head .sr-only')?.textContent || ''
+      check('bấm This month: câu luật nói rõ dữ liệu trong tháng',
+        /this month/i.test(q('.lb-rule')?.textContent || '')
+          && /votes received this month/i.test(q('.lb-rule')?.textContent || ''), q('.lb-rule')?.textContent)
+      check('bấm This month: khoảng ngày có cho trình đọc màn hình, không in thường trực',
+        /\d{2}\/\d{2} – \d{2}\/\d{2}/.test(rangeText)
+          && !/\d{2}\/\d{2} – \d{2}\/\d{2}/.test(pseg?.textContent || ''), rangeText)
       check('đổi mùa không điều hướng — vẫn ở /ranking',
         window.location.pathname === '/ranking', window.location.pathname)
       await click(pbtns[0])
@@ -950,8 +950,8 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     check('mỗi ô mang một mức thưởng đọc được',
       qa('.spin-tile').length > 0 && qa('.spin-tile b').every(b => /^\+\d+$/.test((b.textContent || '').trim())),
       qa('.spin-tile b').slice(0, 4).map(b => b.textContent.trim()).join(' · '))
-    check('lõi có nút SPIN và trạng thái đọc được', !!q('.spin-core .spin-cta'),
-      q('.spin-core .spin-cta')?.textContent?.trim())
+    check('lõi quay có nút SPIN và trạng thái đọc được', !!q('.spin-cta') && !!q('.spin-control-status[role="status"]'),
+      q('.spin-cta')?.textContent?.trim())
     check('đầu khối có đồng hồ lượt quay kế tiếp', !!q('.spin-reset b'),
       q('.spin-reset')?.textContent?.replace(/\s+/g, ' ').trim())
     check('dải dưới in số lượt còn lại và lịch sử', !!q('.spin-remaining') && !!q('.spin-history'))
@@ -967,7 +967,7 @@ for (const [name, path] of [['Daily login', '/daily-login'], ['Daily Spin', '/da
     check('khối hồ sơ có nút Lưu và nút đổi ảnh', qa('.prof-head-acts button').length >= 1 && !!q('.prof-av-acts button'))
     check('hồ sơ không còn là hộp thoại nổi', !q('.overlay .modal.narrow'))
     check('khối hồ sơ không còn dòng "Square crop…"', !/Square crop/i.test(text()))
-    check('mục About me vẫn liệt kê request của mình', !!q('.list') && !!q('.section-title'))
+    check('mục About me vẫn liệt kê request của mình', !!q('.mine-activity .list') && !!q('.mine-activity .tab'))
     /* ---- STREAK (vòng 20): dải chuỗi ngày + ba badge cột mốc 7/30/100 ----
        Luật đếm có test số (streak.test.js), hợp đồng schema có test tĩnh; smoke
        chốt phần NGƯỜI THẤY: dải nằm dưới khối hồ sơ, đủ ba badge, và con số
@@ -1030,17 +1030,9 @@ check('trang quản trị dựng ra', !!q('.adm-page'))
 check('trang quản trị nằm trong .main', !!q('.main .adm-page'))
 check('trang quản trị nằm trong .sect', !!q('.sect .adm-page'))
 check('trang quản trị có tiêu đề trang (h1)', !!q('.mainhead-t'))
-check('có dải số liệu chuyển mục', qa('.adm-kpi').length >= 6, `${qa('.adm-kpi').length} ô`)
-/* HAI VÙNG KHÁC NHAU PHẢI CÓ HAI TÊN KHÁC NHAU: dải số liệu là con của trang
-   quản trị, dùng lại đúng câu của trang thì trình đọc màn hình nghe một cái tên
-   hai lần và không biết mình vừa vào vùng nào. */
-{
-  const pageLabel = q('.adm-page')?.getAttribute('aria-label') || ''
-  const kpiLabel = q('.adm-kpis')?.getAttribute('aria-label') || ''
-  check('dải số liệu có tên riêng, không lặp tên trang quản trị',
-    !!pageLabel && !!kpiLabel && pageLabel !== kpiLabel,
-    `trang="${pageLabel}" · dải="${kpiLabel}"`)
-}
+check('điều hướng Admin gọn bằng một bộ chọn có nhãn truy cập',
+  !!q('.adm-section-select[aria-label]') && !q('.adm-kpis'),
+  q('.adm-section-select')?.getAttribute('aria-label') || 'không thấy bộ chọn mục')
 check('có thanh công cụ', !!q('.adm-bar'))
 /* TIÊU ĐỀ MỤC ĐANG MỞ: tên mục + số dòng đang xem, ngay trên thanh công cụ.
    (Vạch chia tỉ lệ dưới dải số liệu đã bị gỡ ở vòng 11.) */

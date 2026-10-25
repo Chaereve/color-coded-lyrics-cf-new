@@ -234,7 +234,7 @@ test('component thật phải cắt mùa qua season.js, không tự lọc ngày 
   assert.doesNotMatch(src, /new Date\((?!nowMs)/, 'Leaderboard không được tự dựng mốc thời gian')
 })
 
-test('ba mùa là ba nút, và All time giữ nguyên luật cũ', () => {
-  assert.deepEqual(PERIODS.map((p) => p.k), ['all', 'week', 'month'])
-  assert.equal(PERIODS.length, 3)
+test('bộ chọn leaderboard chỉ giữ All time và This month', () => {
+  assert.deepEqual(PERIODS.map((p) => p.k), ['all', 'month'])
+  assert.equal(PERIODS.length, 2)
 })

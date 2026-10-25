@@ -1,5 +1,5 @@
 /* DẢI STREAK — dựng THẬT ra HTML để chốt những thứ chỉ thấy khi render:
-   badge sáng/tối đúng theo chuỗi dài nhất, tooltip mang luật và mốc, và
+   badge sáng/tối đúng theo chuỗi dài nhất, tooltip chỉ mang tên mốc, và
    `days === null` (chưa chạy migration / lỗi mạng) thì khối TỰ ẨN chứ không
    nói dối rằng người ta chưa hoạt động ngày nào.
    Chạy: npm test */
@@ -41,11 +41,10 @@ test('chuỗi 7 ngày: số hiện tại, chuỗi dài nhất, và badge 7 SÁNG
   assert.ok(html.includes('longest 7'), 'chuỗi dài nhất phải in ra')
   const badges = [...html.matchAll(/class="streak-mile( got)?"/g)].map((m) => m[1] === ' got')
   assert.deepEqual(badges, [true, false, false], 'đúng badge 7 sáng, 30 và 100 mờ')
-  /* tooltip badge: cái sáng nói "đã mở", cái mờ nói còn thiếu bao xa */
-  assert.ok(html.includes('Unlocked: 7-day streak'))
-  assert.ok(html.includes('Reach a 30-day streak to unlock'))
-  /* luật đếm nằm trong tooltip ngọn lửa, không chiếm chỗ trên dải */
-  assert.ok(html.includes('Vietnam time'))
+  /* Tooltip chỉ hiện tên mốc ngắn, không lặp lời giải thích. */
+  assert.ok(html.includes('title="7-day streak"'))
+  assert.ok(html.includes('title="30-day streak"'))
+  assert.doesNotMatch(html, /Unlocked:|Reach a|Vietnam time/)
 })
 
 test('chuỗi dài nhất 30 ngày dù hiện tại đã đứt: badge 7+30 vẫn sáng', async () => {

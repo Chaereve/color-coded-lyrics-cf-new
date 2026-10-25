@@ -23,7 +23,15 @@ Trong Cloudflare Pages → Settings → Variables and Secrets, thêm cho cả Pr
 
 Nếu không đặt `GOOGLE_DRIVE_FOLDER_ID`, API dùng folder ID trên làm mặc định. Sau khi đặt biến, chạy lại deployment để Pages Functions nhận secrets mới. Không bật chia sẻ công khai cho folder hay file đầu ra.
 
-Endpoint finder là `GET /api/drive-video/find?artist=IVE&title=Looks%20Can%20Kill`; endpoint stream nội bộ hỗ trợ HTTP Range để player tua trong clip. Khi credentials chưa được cấu hình, finder trả 503 và modal giữ hành vi YouTube hiện tại.
+Endpoint finder là `GET /api/drive-video/find?artist=IVE&title=Looks%20Can%20Kill`; endpoint stream nội bộ hỗ trợ HTTP Range để player tua trong clip. Tìm file khớp được cache ngắn trong Worker để các lần tua không phải hỏi danh sách Drive lại. Hai endpoint có giới hạn theo IP đã băm: tối đa 30 lần tìm và 180 yêu cầu stream mỗi phút; khi vượt giới hạn trả 429 kèm `Retry-After`.
+
+Để giới hạn được chia sẻ giữa các isolate Cloudflare, cần gắn D1 `RATE_SHIELD` như cấu hình Edge hiện có và áp dụng thêm bảng mới:
+
+```sh
+npx wrangler d1 execute ccl-rate-shield --remote --file=worker/migrations/0002_drive_video_rate_limit.sql
+```
+
+Pages Production và Preview phải cùng có binding `RATE_SHIELD`. Nếu không có binding, code chỉ dùng bộ đếm trong bộ nhớ của từng isolate; đó là lớp dự phòng, **không đủ làm giới hạn Production**. D1 chỉ lưu hash IP, không lưu IP thô. Khi credentials chưa được cấu hình, finder trả 503 và modal giữ hành vi YouTube hiện tại.
 
 ## Workers chạy bằng Wrangler (tuỳ chọn)
 

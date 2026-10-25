@@ -1,5 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
+import DenyReason from './components/DenyReason'
 import GoogleIcon from './components/GoogleIcon'
 import Splash from './components/Splash'
 import Leaderboard from './components/Leaderboard'
@@ -17,6 +18,7 @@ import { weekRecap as buildWeekRecap, recapStats } from './lib/weekRecap.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
 import Pager from './components/Pager'
+import CategoryFilter from './components/CategoryFilter'
 import MediaShowcase from './components/MediaShowcase'
 import Notifications from './components/Notifications'
 import Countdown from './components/Countdown'
@@ -49,7 +51,7 @@ import {
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
-import { parseYoutube } from './lib/youtube'
+import { parseYoutube, thumbUrl } from './lib/youtube'
 import { buildHallOfFame } from './lib/hallOfFame.js'
 import { trackVisitOnce } from './lib/funnel.js'
 import { safeHttpUrl } from './lib/safeUrl'
@@ -233,12 +235,10 @@ function ListSkeleton({ n = 4, label }) {
   )
 }
 
-/* Ô thống kê: `why` là định nghĩa của con số, dán vào `title` — người đọc tự
-   đối chiếu được "In progress" ở đây nghĩa là gì (dây chuyền đã chốt) thay vì
-   đoán theo nhãn. Con số không có định nghĩa là con số người ta không tin. */
-function Stat({ c, v, label, why }) {
+/* Số liệu chỉ có nhãn ngắn; nội dung giải thích không lặp lại khi rê chuột. */
+function Stat({ c, v, label }) {
   return (
-    <div className="stat" style={{ '--c': c }} title={why}>
+    <div className="stat" style={{ '--c': c }}>
       <Num v={v} />
       <span>{label}</span>
     </div>
@@ -274,7 +274,7 @@ function SignInPanel({ title, body, onSignIn }) {
 
 /* ---------------- một dòng request ---------------- */
 function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDelete,
-  hl = false }) {
+  user = null, hl = false }) {
   const { t } = useI18n()
   /* Link người gửi đi trong app (không tải lại trang) — xem lib/nav.js. */
   const nav = useNav()
@@ -331,7 +331,10 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
                 rỗng, đang làm là chấm đặc có quầng, xong là chấm đặc viền mảnh,
                 từ chối là vòng đứt. Nhờ vậy trạng thái đọc được kể cả khi người
                 xem không phân biệt màu. */}
-            <span className={`status s-${r.status}`} style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>
+            {r.status === 'denied' && r.deny_reason && (user?.isAdmin || user?.id === r.user_id)
+              ? <DenyReason reason={r.deny_reason} label={statusLabel(r, t)}
+                className={`status s-${r.status}`} style={{ '--c': sm.c }} />
+              : <span className={`status s-${r.status}`} style={{ '--c': sm.c }}>{statusLabel(r, t)}</span>}
             {/* Nhãn thể loại dùng tên NGẮN; tên đầy đủ nằm trong `title` để rê
                 chuột vẫn đọc được "Color Coded Lyrics" thay vì chỉ "CCL". */}
             <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span>
@@ -344,12 +347,6 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               <><span className="dot" aria-hidden="true" />
                 <Steps pct={r.progress} label={t('progress.label')} /></>
             )}
-            {r.status === 'denied' && r.deny_reason && (
-              <>
-                <span className="dot" aria-hidden="true" />
-                <span style={{ color: 'var(--denied)' }}>{r.deny_reason}</span>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -360,8 +357,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
           án gọi đúng là "kì cục". Đứng giữa hàng thì nó thuộc về CẢ HÀNG, như
           một hành động ở cuối dòng, chứ không phải một nhãn dán vào tên bài. */}
       {watchUrl && (
-        <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer"
-          title={t('row.watch')}>
+        <a className="watchbtn" href={watchUrl} target="_blank" rel="noreferrer">
           <Icon name="play" size={12} />
           <span>{t('row.watchShort')}</span>
         </a>
@@ -369,17 +365,158 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
       <button className={`votebtn${myCount > 0 ? ' on' : ''}${locked ? ' locked' : ''}`}
         onClick={() => onVote(r)}
         disabled={!votable}
-        aria-disabled={!votable}
-        title={locked ? t('row.voteLocked') : !canVote ? t('row.cantVote') : t('row.openVote')}>
+        aria-disabled={!votable}>
         {pulse > 0 && <span key={`fx${pulse}`} className="votefx" aria-hidden="true" />}
         <b key={r.votes} className="tick">{r.votes}</b><span>{t('row.vote')}</span>
-        {myCount > 0 && <em className="mine" title={t('row.mine', { n: myCount })}>×{myCount}</em>}
+        {myCount > 0 && <em className="mine">×{myCount}</em>}
       </button>
-      {showDelete && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
+      {showDelete && !r.is_paid && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
           onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
       )}
     </div>
+  )
+}
+
+function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, onCancelOrder }) {
+  const { t } = useI18n()
+  const [pane, setPane] = useState('requests')
+  const [requestCategory, setRequestCategory] = useState('queued')
+  const [orderCategory, setOrderCategory] = useState('paid_request')
+  const requestRef = useRef(null)
+  const ordersRef = useRef(null)
+  const requestsTabRef = useRef(null)
+  const ordersTabRef = useRef(null)
+  const handleActivityTabKey = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const next = event.key === 'Home' ? 'requests'
+      : event.key === 'End' ? 'orders'
+        : pane === 'requests' ? 'orders' : 'requests'
+    setPane(next)
+    ;(next === 'requests' ? requestsTabRef : ordersTabRef).current?.focus()
+  }
+
+  const requestCategories = useMemo(() => {
+    const definitions = [
+      { key: 'in_progress', label: t('status.in_progress'), color: 'var(--progress)', matches: r => r.status === 'in_progress' },
+      { key: 'up_next', label: t('now.next'), color: 'var(--upnext)', matches: r => r.status === 'queued' && isPicked(r) },
+      { key: 'queued', label: t('status.queued'), color: 'var(--queued)', matches: r => r.status === 'queued' && !isPicked(r) },
+      { key: 'pending', label: t('status.pending'), color: 'var(--pending)', matches: r => r.status === 'pending' },
+      { key: 'completed', label: t('status.completed'), color: 'var(--done)', matches: r => r.status === 'completed' },
+      { key: 'denied', label: t('status.denied'), color: 'var(--denied)', matches: r => r.status === 'denied' },
+    ]
+    const categories = definitions.map(category => {
+      const rows = requests.filter(category.matches)
+      return { ...category, rows, count: rows.length }
+    })
+    const otherRows = requests.filter(request => !definitions.some(category => category.matches(request)))
+    if (otherRows.length) categories.push({ key: 'other', label: t('mine.other'), color: 'var(--txt-3)', rows: otherRows, count: otherRows.length })
+    return categories
+  }, [requests, t])
+  const activeRequestCategory = requestCategories.find(category => category.key === requestCategory && category.count)
+    || requestCategories.find(category => category.key === 'pending' && category.count)
+    || requestCategories.find(category => category.key === 'denied' && category.count)
+    || requestCategories.find(category => category.count)
+  const requestRows = activeRequestCategory?.rows || []
+  const pgMine = usePager(requestRows, PER_PAGE, [activeRequestCategory?.key || 'empty'])
+
+  const orderCategories = useMemo(() => {
+    const definitions = [
+      { key: 'paid_request', label: t('order.paidRequest'), color: 'var(--paid)', matches: order => order.kind === 'paid_request' },
+      { key: 'rejected', label: t('order.rejected'), color: 'var(--denied)', matches: order => order.status === 'rejected' && order.kind !== 'paid_request' },
+      { key: 'successful', label: t('order.successful'), color: 'var(--done)', matches: order => order.status === 'paid' && order.kind !== 'paid_request' },
+      { key: 'awaiting', label: t('order.awaiting'), color: 'var(--pending)', matches: order => order.status === 'awaiting' && order.kind !== 'paid_request' },
+    ]
+    const categories = definitions.map(category => {
+      const rows = orders.filter(category.matches)
+      return { ...category, rows, count: rows.length }
+    })
+    const otherRows = orders.filter(order => !definitions.some(category => category.matches(order)))
+    if (otherRows.length) categories.push({ key: 'other', label: t('order.other'), color: 'var(--txt-3)', rows: otherRows, count: otherRows.length })
+    return categories
+  }, [orders, t])
+  const activeOrderCategory = orderCategories.find(category => category.key === orderCategory && category.count)
+    || orderCategories.find(category => category.count)
+  const orderRows = activeOrderCategory?.rows || []
+  const pgOrders = usePager(orderRows, PER_PAGE_ORDERS, [activeOrderCategory?.key || 'empty'])
+
+  return (
+    <section className="mine-activity" aria-label={t('mine.activity')}>
+      <div className="mine-activity-head">
+        <div className="tabs" role="tablist" aria-label={t('mine.activity')}>
+          <button ref={requestsTabRef} id="mine-requests-tab" type="button" className={`tab${pane === 'requests' ? ' on' : ''}`} role="tab"
+            tabIndex={pane === 'requests' ? 0 : -1} aria-selected={pane === 'requests'} aria-controls="mine-requests-panel"
+            onKeyDown={handleActivityTabKey} onClick={() => setPane('requests')}>
+            {t('mine.title')} <span className="n">{requests.length}</span>
+          </button>
+          <button ref={ordersTabRef} id="mine-orders-tab" type="button" className={`tab${pane === 'orders' ? ' on' : ''}`} role="tab"
+            tabIndex={pane === 'orders' ? 0 : -1} aria-selected={pane === 'orders'} aria-controls="mine-orders-panel"
+            onKeyDown={handleActivityTabKey} onClick={() => setPane('orders')}>
+            {t('mine.orders')} <span className="n">{orders.length}</span>
+          </button>
+        </div>
+        {pane === 'requests' && requests.length > 0 && (
+          <div className="mine-filter-row">
+            <CategoryFilter id="mine-request-filter" label={t('mine.filterStatus')} categories={requestCategories}
+              value={activeRequestCategory?.key || requestCategory} onChange={setRequestCategory} />
+          </div>
+        )}
+        {pane === 'orders' && orders.length > 0 && (
+          <div className="mine-filter-row">
+            <CategoryFilter id="mine-order-filter" label={t('mine.filterOrder')} categories={orderCategories}
+              value={activeOrderCategory?.key || orderCategory} onChange={setOrderCategory} />
+          </div>
+        )}
+      </div>
+
+      <div id="mine-requests-panel" role="tabpanel" aria-labelledby="mine-requests-tab" tabIndex={0} hidden={pane !== 'requests'}>
+        <div className="list" data-glow ref={requestRef}>
+          {requests.length === 0
+            ? <div className="empty">
+              <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
+              <b>{t('mine.empty')}</b><small>{t('mine.emptyHint')}</small>
+            </div>
+            : pgMine.items.map((r, i) => (
+              <RequestRow key={r.id} r={r} n={i} user={user} showDelete
+                myCount={myVotes.get(r.id) || 0}
+                canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
+                onVote={onVote} onDelete={onDelete} />
+            ))}
+        </div>
+        {requests.length > 0 && <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={requestRef} />}
+      </div>
+
+      <div id="mine-orders-panel" role="tabpanel" aria-labelledby="mine-orders-tab" tabIndex={0} hidden={pane !== 'orders'}>
+        <div className="list" ref={ordersRef}>
+          {orders.length === 0
+            ? <div className="empty">
+              <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
+              <b>{t('mine.ordersEmpty')}</b><small>{t('mine.ordersHint')}</small>
+            </div>
+            : pgOrders.items.map(o => (
+              <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
+                <div className="body">
+                  <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
+                  <div className="meta">
+                    <span>{vnd(o.amount_vnd)}</span><span className="dot" aria-hidden="true" />
+                    <span>{usd(o.amount_usd)}</span><span className="dot" aria-hidden="true" />
+                    <span>{timeAgo(o.created_at, t)}</span>
+                  </div>
+                </div>
+                <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
+                  {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
+                </span>
+                {o.status === 'awaiting' && (
+                  <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
+                    onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
+                )}
+              </div>
+            ))}
+        </div>
+        {orders.length > 0 && <Pager {...pgOrders} onChange={pgOrders.setPage} scrollTo={ordersRef} />}
+      </div>
+    </section>
   )
 }
 
@@ -394,7 +531,7 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
   return (
     <div className={`grow${expanded ? ' open' : ''}${hl ? ' hl' : ''}`} data-song={songAttr(g.key)}>
       <button type="button" className="grow-head" aria-expanded={expanded}
-        title={expanded ? t('group.hide') : t('group.showAll', { n: g.rows.length })}
+        title={expanded ? t('group.hide') : t('group.showAll')}
         onClick={onToggle}>
         <span className="body">
           <span className="grow-tags">
@@ -415,7 +552,7 @@ function RequestGroup({ g, expanded, onToggle, user, myVotes, onVote, onDelete,
       <div className="grow-rows">
         <div className="grow-rows-in">
           {g.rows.map((r, k) => (
-            <RequestRow key={r.id} r={r} n={k}
+            <RequestRow key={r.id} r={r} n={k} user={user}
               showDelete={!!user && r.user_id === user.id}
               myCount={myVotes.get(r.id) || 0}
               canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
@@ -1355,7 +1492,7 @@ function AppInner() {
       title: n > 1 ? t('nt.multi', { n }) : t(`nt.tag.${first.type}`),
       body: n > 1 ? t('nt.multiBody', { song })
         : t('nt.toast', { song, msg: t(`nt.n.${first.type}`, vars) }),
-      ms: 8000,
+      ms: 7000,
       action: n > 1
         ? { label: t('nt.title'), onClick: () => setBellOpen(true) }
         : { label: t('nt.open'), onClick: () => openNotice(first) },
@@ -1522,8 +1659,6 @@ function AppInner() {
     () => orders.filter(o => !hasSupabase || o.user_id === user?.id),
     [orders, user])
   const listRef = useRef(null)
-  const mineRef = useRef(null)
-  const ordersRef = useRef(null)
   /* Cụm trùng bài: hạng của cụm tính bằng TỔNG vote của cả bài nên một bài
      bị nhiều người gửi lẻ không còn tụt hạng do vote bị xé nhỏ. Phân trang
      theo cụm để một cụm không bị xé làm đôi giữa hai trang. */
@@ -1625,9 +1760,6 @@ function AppInner() {
     const open = s.key === gkey ? s.open : {}
     return { key: gkey, open: { ...open, [k]: !open[k] } }
   })
-  const pgMine = usePager(mineRows, PER_PAGE, [section])
-  const pgOrders = usePager(myOrders, PER_PAGE_ORDERS, [section])
-
   /* nút "View all" trong khối Up next: mở tab Up next của danh sách và cuộn tới */
   const showAllPicked = useCallback(() => {
     /* `setStatusFilters([])` là bắt buộc: bộ lọc nhiều-chọn THẮNG `filter`,
@@ -1681,6 +1813,16 @@ function AppInner() {
        được báo như phiếu thất bại: phiếu đã nằm trong database. */
     bump(delta); mine(delta)
     if (delta < 0) sfx.unvote(); else sfx.vote()
+    const count = `${Math.abs(delta)} ${Math.abs(delta) === 1 ? 'vote' : 'votes'}`
+    const song = target ? `${target.title} — ${target.artist}` : ''
+    const takingBack = delta < 0
+    push({
+      tone: takingBack ? 'info' : 'ok',
+      title: t(takingBack ? 'notif.voteBackTitle' : 'notif.voteAddedTitle'),
+      body: song
+        ? t(takingBack ? 'notif.voteBackBody' : 'notif.voteAddedBody', { count, song })
+        : t(takingBack ? 'notif.voteBackSaved' : 'notif.voteSaved'),
+    })
     try { await loadBoard(user) } catch { /* realtime sẽ kéo bảng lại */ }
   }
   const doSubmit = async (form, paid, useBonus = false) => {
@@ -1696,7 +1838,7 @@ function AppInner() {
         : paid
           ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
           : t('notif.reqBody', { song }),
-      ms: 6500,
+      ms: paid && !useBonus ? 6000 : 4000,
       ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => openModal('buy') } }),
     })
     await load(user)
@@ -1709,15 +1851,22 @@ function AppInner() {
       tone: 'gold',
       title: t('notif.buyTitle', { n: pack.qty }),
       body: t('notif.buyBody', { n: pack.qty, amt: vnd(pack.vnd) }),
-      ms: 6500,
+      ms: 5600,
     })
     await load(user)
     return order
   }
   const doDelete = async (id) => {
-    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
-    try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.deleted')) }
-    catch (e) { flash('err', errMsg(t, e)) }
+    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
+    try {
+      await deleteRequest(id)
+      await loadBoard(user)
+      flash('ok', t('toast.deleted'))
+      return true
+    } catch (e) {
+      flash('err', errMsg(t, e))
+      return false
+    }
   }
   const doReview = async (id, ok, reason, videoUrl) => {
     const r = rows.find(x => x.id === id)
@@ -2034,11 +2183,6 @@ function AppInner() {
               chữ trong đó thành tên prop rồi báo "dây đứt" oan.
               `onBuy` đi thẳng vào tab mua, không vòng qua hộp vote: người vừa
               đọc "còn 2 vote nữa là dẫn đầu" đã biết mình muốn gì. */}
-          {user && activityView?.stats.current > 0 && (
-            <span className="streak-pill" title={t('streak.headerTitle', { n: activityView.stats.current })} aria-label={t('streak.headerTitle', { n: activityView.stats.current })}>
-              <Icon name="flame" size={13} /><b>{activityView.stats.current}</b>
-            </span>
-          )}
           <Notifications
             open={bellOpen} notices={notices}
             rowsByKey={rowsByKey}
@@ -2071,7 +2215,7 @@ function AppInner() {
 
         {/* `viewerId` để trang cá nhân biết người xem có phải chủ hồ sơ không:
             chỉ chủ mới thấy hàng chờ duyệt / bị từ chối của chính mình. */}
-        {profileId && <PublicProfile userId={profileId} viewerId={user?.id} onBack={closeProfile} />}
+        {profileId && <PublicProfile userId={profileId} viewerId={user?.id} onBack={closeProfile} onDelete={doDelete} />}
 
         {/* ======= MỤC 1: BẢNG YÊU CẦU ======= */}
         {section === 'board' && !onProfile && (
@@ -2079,18 +2223,18 @@ function AppInner() {
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
           <div className="board">
-            <div className="stats" data-reveal data-glow>
+            <div className="stats" data-home-stats data-reveal data-glow>
               {/* Bốn giai đoạn, cộng lại đúng tổng số bài trên bảng. Ô "Paid"
                   cũ bị bỏ: nó là một NHÃN (bài trả phí) chứ không phải giai
                   đoạn, nằm trong dãy này thì phá vỡ phép cộng — nhãn đó vẫn
                   hiện nguyên trên hàng (pill vàng) và trong bảng Admin. */}
-              <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} why={t('stat.queuedWhy')} />
+              <Stat c="var(--queued)" v={stage.queued} label={t('stat.queued')} />
               {/* Suất đã chốt mang màu Up next, không phải màu nhấn: `--a-2`
                   giờ TRÙNG với `--progress`, để nguyên là hai ô cạnh nhau cùng
                   một màu: "Up next 2" và "In progress 2" không phân biệt được. */}
-              <Stat c="var(--upnext)" v={stage.picked} label={t('stat.picked')} why={t('stat.pickedWhy')} />
-              <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} why={t('stat.inProgressWhy')} />
-              <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} why={t('stat.completedWhy')} />
+              <Stat c="var(--upnext)" v={stage.picked} label={t('stat.picked')} />
+              <Stat c="var(--progress)" v={stage.in_progress} label={t('stat.inProgress')} />
+              <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} />
             </div>
 
             <MediaShowcase featured={featured} videos={latest} state={mediaState}
@@ -2101,7 +2245,6 @@ function AppInner() {
                 <div className="weekly-head">
                   <div className="weekly-head-copy">
                     <h2 className="lbl" id="weekly-title">This week</h2>
-                    <p className="weekly-sub">Community highlights · last 7 days</p>
                   </div>
                   {hasWeeklyRecap && (
                     <ShareCardButton
@@ -2133,20 +2276,24 @@ function AppInner() {
                   </div>
                 )}
                 {hallOfFame.length > 0 && (
-                  <section className="weekly-completed" aria-labelledby="hall-title">
+                  <section className="weekly-completed" aria-labelledby="completed-title">
                     <div className="weekly-completed-head">
-                      <h3 id="hall-title">Hall of Fame</h3>
-                      <span className="weekly-completed-caption">Completed videos</span>
+                      <h3 id="completed-title">Completed videos</h3>
                     </div>
                     <div className="hall-grid">
                       {hallOfFame.map(r => {
                         const reqTx = r.requesters && r.requesters.length > 1
                           ? `${r.requesters.slice(0, 2).join(', ')}${r.requesters.length > 2 ? ` +${r.requesters.length - 2}` : ''}`
                           : r.requester
+                        const videoId = parseYoutube(r.video_url)?.id
+                        const thumbnail = thumbUrl(videoId, 'mq')
                         return (
                           <button type="button" className="hall-card" key={r.id} onClick={() => setHallVideo(r)}>
-                            <span className="hall-play" aria-hidden="true">▶</span>
-                            <span>
+                            <span className={`hall-thumb${thumbnail ? '' : ' hall-thumb-empty'}`} aria-hidden="true">
+                              {thumbnail && <img src={thumbnail} alt="" loading="lazy" />}
+                              <span className="hall-play">▶</span>
+                            </span>
+                            <span className="hall-card-copy">
                               <b>{r.title}</b>
                               <small>
                                 {r.artist}{reqTx ? ` · requested by ${reqTx}` : ''}
@@ -2158,13 +2305,6 @@ function AppInner() {
                       })}
                     </div>
                   </section>
-                )}
-                {hasWeeklyRecap && (
-                  <div className="weekly-recap">
-                    <span className="now-split">
-                      {t('recap.summary', { votes: weekRecap.windowVotes, done: weekRecap.completed.length })}
-                    </span>
-                  </div>
                 )}
               </section>
             )}
@@ -2711,61 +2851,13 @@ function AppInner() {
               {myCard && <ShareCardButton card={myCard} />}
             </div>
             <AchievementIndex metrics={myAchievementMetrics} />
-            <div className="stats" data-glow>
-              <Stat c="var(--a-2)" v={mineRows.length} label={t('stat.submitted')} />
+            <div className="stats mine-stats" data-glow>
               <Stat c="var(--pending)" v={mineRows.filter(r => r.status === 'pending').length} label={t('stat.pending')} />
               <Stat c="var(--done)" v={myStats?.completed ?? 0} label={t('stat.completed')} />
               <Stat c="var(--a-2)" v={myStats?.total_votes ?? 0} label={t('stat.votesReceived')} />
             </div>
-
-            <h2 className="section-title">{t('mine.title')}</h2>
-            <div className="list" data-glow ref={mineRef}>
-              {mineRows.length === 0
-                ? <div className="empty">
-                  <span className="empty-ico" aria-hidden="true"><Icon name="board" size={18} /></span>
-                  <b>{t('mine.empty')}</b>
-                  <small>{t('mine.emptyHint')}</small>
-                </div>
-                : pgMine.items.map((r, i) => (
-                  <RequestRow key={r.id} r={r} n={i} showDelete
-                    myCount={myVotes.get(r.id) || 0}
-                    canVote={(r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)}
-                    onVote={openVote}
-                    onDelete={doDelete} />
-                ))}
-            </div>
-            <Pager {...pgMine} onChange={pgMine.setPage} scrollTo={mineRef} />
-
-            <h2 className="section-title" style={{ marginTop: 26 }}>{t('mine.orders')}</h2>
-            <div className="list" ref={ordersRef}>
-              {myOrders.length === 0
-                ? <div className="empty">
-                  <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
-                  <b>{t('mine.ordersEmpty')}</b>
-                  <small>{t('mine.ordersHint')}</small>
-                </div>
-                : pgOrders.items.map(o => (
-                  <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
-                    <div className="body">
-                      <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
-                      <div className="meta">
-                        <span>{vnd(o.amount_vnd)}</span>
-                        <span className="dot" aria-hidden="true" />
-                        <span>{usd(o.amount_usd)}</span>
-                        <span className="dot" aria-hidden="true" /><span>{timeAgo(o.created_at, t)}</span>
-                      </div>
-                    </div>
-                    <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
-                      {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
-                    </span>
-                    {o.status === 'awaiting' && (
-                      <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                        onClick={() => doCancelOrder(o)}><Icon name="close" size={15} /></button>
-                    )}
-                  </div>
-                ))}
-            </div>
-            <Pager {...pgOrders} onChange={pgOrders.setPage} scrollTo={ordersRef} />
+            <MyActivityPanel requests={mineRows} orders={myOrders} user={viewer} myVotes={myVotes}
+              onVote={openVote} onDelete={doDelete} onCancelOrder={doCancelOrder} />
           </>
         )}
 

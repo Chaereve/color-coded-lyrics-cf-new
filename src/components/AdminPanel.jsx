@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
+import DenyReason from './DenyReason'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
 import { MILESTONES, progressOf, fetchAdminActions, fetchRequestHistory, fetchFunnelSummary, hasSupabase } from '../lib/db'
@@ -103,7 +104,6 @@ function SearchBox({ t, q, setQ, inputRef, placeholder }) {
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
   onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire,
   reveal = null, focused = false }) {
-  const groupSize = dup && dup.n > 1 ? dup.n : 0
   const { t } = useI18n()
   /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
      gửi). Việc này trước đây làm bằng tay — mở bảng, đọc từng dòng, gõ lại
@@ -157,7 +157,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
       {select && (
         /* Ô chọn dùng lại đúng component Check của trang (một chỗ vẽ checkbox),
            kèm nhãn ẩn để trình đọc màn hình đọc được là chọn dòng nào. */
-        <label className="adm-sel" title={t('adm.selectRow')}>
+        <label className="adm-sel">
           <Check checked={selected} onChange={() => onSelect?.(r.id)} />
           <span className="sr-only">{t('adm.selectRow')}</span>
         </label>
@@ -185,7 +185,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               Quá nhịp chốt bài thì chip đổi màu và nói ra con số nhịp. */}
           {age && (
             <span className={`pill adm-age${age.overdue ? ' stale' : ''}`}
-              title={t('adm.ageTitle', { d: age.days, n: age.interval })}>
+              title={t('adm.waitingTime')}>
               {age.days === 0 ? t('time.now') : t('adm.ageDays', { d: age.days })}
             </span>
           )}
@@ -195,7 +195,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           /* Nhãn dài nhất trong hệ và có thể bị cắt bằng ba chấm trên máy hẹp
              (xem `.pill.dup` trong index.css) — nên câu đầy đủ nằm ở `title`. */
           <small>
-            <span className="pill dup" title={t('adm.dupTotal', { n: dup.n, v: dup.total })}>
+            <span className="pill dup" title={t('adm.duplicates')}>
               {t('adm.dupTotal', { n: dup.n, v: dup.total })}
             </span>
           </small>
@@ -232,15 +232,17 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </>
         ) : (
           <>
-            {expired && <span className="status s-denied" title={t('adm.expiredBody')}>{t('expiry.label')}</span>}
-            {!expired && <span className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</span>}
+            {expired && <span className="status s-denied">{t('expiry.label')}</span>}
+            {!expired && r.status === 'denied' && r.deny_reason
+              ? <DenyReason reason={r.deny_reason} label={statusLabel(r, t)}
+                className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }} />
+              : !expired && <span className={`status s-${r.status}`} style={{ '--c': statusColorOf(r) }}>{statusLabel(r, t)}</span>}
             {/* Nhịp chốt bài đọc từ CÙNG nguồn với dòng "Next pick" ở trang
                 chủ (`settings.pick.interval_days`). Viết cứng `n: 4` ở đây là
                 cách lời giải thích lệch khỏi lịch thật ngay khi admin đổi nhịp
                 — chú thích một đằng, máy chạy một nẻo. */}
             {(r.status === 'queued' || r.status === 'in_progress') && onPick && (
-              <button className="btn btn-sm" onClick={() => onPick(r.id, !picked)}
-                title={t('now.pickRule', { n: pickInterval })}>
+              <button className="btn btn-sm" onClick={() => onPick(r.id, !picked)}>
                 {picked ? t('adm.unpick') : t('adm.pick')}
               </button>
             )}
@@ -297,7 +299,6 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             {/* link + hoan thanh la su that cua CA BAI: gan xong thi nhung dong
                 trung cung bai cung phai dong lai, neu khong chung mai o 'queued' */}
             <button type="button" className="btn btn-sm"
-              title={groupSize ? t('adm.saveDoneGroup', { n: groupSize }) : undefined}
               onClick={() => onUpdate(r.id, { video_url: video, status: 'completed' },
                 { group: ['queued', 'in_progress', 'completed'] })}>
               {t('adm.saveDone')}
@@ -305,7 +306,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
           </div>
           {/* 3 moc tien do: tick o day tinh cho CA BAI, khong rieng dong nay —
               xem doAdminUpdate (opts.group) trong App.jsx. */}
-          <div className="steps" title={groupSize ? t('adm.mileGroup', { n: groupSize }) : undefined}>
+          <div className="steps">
             {MILESTONES.map(m => (
               <label key={m.k} className={`step${r[m.k] ? ' on' : ''}`}>
                 <Check checked={!!r[m.k]}
@@ -323,7 +324,6 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             {r.status === 'queued' && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdate(r.id, { status: 'in_progress' }, { group: true })}>{t('adm.start')}</button>}
             <button type="button" className="btn btn-sm" onClick={() => onUpdate(r.id, { status: 'queued' })}>{t('adm.backToQueue')}</button>
             <button type="button" className={`btn btn-sm adm-copy${copied ? ' done' : ''}`}
-              title={t('adm.creditsHint')}
               onClick={async () => {
                 const ok = await copyText(creditText({ title: r.title, artist: r.artist, rows: songRows }))
                 if (!ok) return
@@ -926,8 +926,9 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.length, picked: pickedRows.length, log: logTotal,
-  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media.length, pickedRows.length, logTotal])
+    done: others.length, media: media.filter(m => m.kind === 'video' || m.kind === 'playlist').length,
+    picked: pickedRows.length, log: logTotal,
+  }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media, pickedRows.length, logTotal])
   const kpis = useMemo(
     () => ADMIN_TAB_META.map(m => ({ ...m, n: counts[m.count] ?? 0 })),
     [counts])
@@ -996,17 +997,22 @@ export default function AdminPanel({
 
   return (
     <section className="adm-page" aria-label={t('adm.pageAria')}>
-      {/* DẢI SỐ LIỆU — VỪA LÀ TỔNG QUAN, VỪA LÀ BỘ CHUYỂN MỤC.
-          Ô đang mở được tô bằng đúng màu trạng thái của nó, nên "đang đứng ở
-          đâu" và "mục này có bao nhiêu việc" đọc trong cùng một cái liếc. */}
-      <div className="adm-kpis" role="group" aria-label={t('adm.kpisAria')}>
-        {kpis.map(k => (
-          <button key={k.k} type="button" className={`adm-kpi${tab === k.k ? ' on' : ''}`}
-            style={{ '--sc': k.tone }} aria-pressed={tab === k.k} onClick={() => goTab(k.k)}>
-            <span className="k"><i aria-hidden="true" />{t(k.label)}</span>
-            <span className="v">{k.n}</span>
-          </button>
-        ))}
+      {/* Một bộ chọn duy nhất thay cho chín mục chiếm nhiều hàng.
+          Số lượng vẫn đi cùng tên mục, còn bộ chọn native giữ thao tác gọn,
+          dùng được bằng bàn phím và không bị tràn trên màn hình nhỏ. */}
+      <div className="adm-section-switcher">
+        <label className="sr-only" htmlFor="adm-section-select">{t('adm.kpisAria')}</label>
+        <span className="adm-section-select-wrap">
+          <select id="adm-section-select" className="sel adm-section-select"
+            aria-label={t('adm.kpisAria')} value={tab || 'overview'}
+            onChange={event => goTab(event.target.value)}>
+            {kpis.map(k => (
+              <option key={k.k} value={k.k}>
+                {t(k.label)}{k.k === 'overview' ? '' : ` · ${k.n}`}
+              </option>
+            ))}
+          </select>
+        </span>
       </div>
 
       {/* ================= TỔNG QUAN =================

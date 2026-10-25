@@ -4,7 +4,7 @@ import { mergeToast } from './toastStack'
 /* =========================================================
    THÔNG BÁO — một chỗ duy nhất cho mọi phản hồi với người dùng
    ---------------------------------------------------------
-   Toast góc màn hình: luôn có, có thanh đếm giờ, rê chuột vào
+   Toast góc màn hình: tự ẩn theo thời gian; rê chuột/focus vào
    thì tạm dừng (logic nằm trong components/Toaster.jsx).
    Tiếng (lib/sfx) vẫn do chỗ gọi bấm, vì âm thanh phải nằm
    đúng nhịp của thao tác.
@@ -31,7 +31,7 @@ export function NotifyProvider({ children }) {
       tone: n.tone || 'ok',
       title: n.title || '',
       body: n.body || '',
-      ms: n.ms === 0 ? 0 : Math.max(1800, n.ms || (n.tone === 'err' ? 6200 : 4400)),
+      ms: n.ms === 0 ? 0 : Math.max(1800, n.ms ?? (n.tone === 'err' ? 5600 : n.action ? 6200 : 4000)),
       action: n.action || null,
       repeat: 1,
       out: false,

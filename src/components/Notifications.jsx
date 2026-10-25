@@ -111,7 +111,7 @@ export default function Notifications({
     <div className="nt" ref={box}>
       <button type="button" className={`nt-btn${unread ? ' has' : ''}`} ref={bell} onClick={onToggle}
         aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? 'nt-panel' : undefined}
-        aria-label={label} title={label}>
+        aria-label={label} title={t('nt.aria')}>
         <Icon name={unread > 0 ? 'bellOn' : 'bell'} size={16} />
         {/* `key={unread}` để con số MỌC LÊN mỗi lần số tin đổi (animation ở
             .nt-btn .dotbadge) — nếu không, React dùng lại đúng thẻ đó và nhịp
@@ -227,8 +227,7 @@ function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
           </button>
         )}
         {url && (
-          <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer"
-            title={t('row.watch')}>{t('nt.watch')}</a>
+          <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer">{t('nt.watch')}</a>
         )}
         <button type="button" className="icon-btn" title={t('nt.drop')} aria-label={t('nt.drop')}
           onClick={() => onDrop?.(n.id)}><Icon name="close" size={15} /></button>

@@ -47,7 +47,8 @@ test('chỉ chủ hồ sơ mới tải và thấy hàng chờ duyệt / bị t�
   /* Câu truy vấn: người ngoài vẫn lọc ngay ở DB, chủ thì tải cả hai loại. */
   assert.match(db, /if \(!ownerView\) q\.neq\('status', 'pending'\)\.neq\('status', 'denied'\)/,
     'người ngoài không được tải những hàng đó về client')
-  assert.match(db, /deny_reason/, 'phải chọn cả lý do từ chối — thiếu nó thì khối này vô nghĩa')
+  assert.match(db, /attachVisibleDenialReasons\(rs \|\| \[\]\)/, 'lý do phải qua RPC quyền riêng tư, không lấy trực tiếp từ requests')
+  assert.match(db, /get_visible_denial_reasons/)
   /* Đường demo và đường Supabase phải trả lời giống nhau. */
   const demoCall = db.match(/publicProfileShape\(\s*\{ id: userId, name, avatar_url: null \}, rows, ownerView\)/)
   assert.ok(demoCall, 'đường demo cũng phải truyền ownerView — không thì chỉ bản deploy mới có khối này')
@@ -55,12 +56,28 @@ test('chỉ chủ hồ sơ mới tải và thấy hàng chờ duyệt / bị t�
     'App phải truyền người đang đăng nhập xuống trang cá nhân')
 })
 
+test('trang chủ và Profile dùng chung quyền xem lý do trong RequestRow', () => {
+  const start = app.indexOf('function RequestRow(')
+  const end = app.indexOf('\nfunction ', start + 10)
+  const row = app.slice(start, end > start ? end : start + 9000)
+  assert.match(row, /user\?\.isAdmin \|\| user\?\.id === r\.user_id/,
+    'chỉ admin hoặc người gửi mới được gắn popup vào hàng')
+  assert.match(row, /<DenyReason/, 'lý do chỉ hiện trong popup dùng chung')
+  assert.match(app, /<RequestRow key=\{r\.id\} r=\{r\} n=\{k\} user=\{user\}/,
+    'RequestGroup trang chủ phải truyền viewer')
+  assert.match(app, /<MyActivityPanel requests=\{mineRows\} orders=\{myOrders\} user=\{viewer\}/,
+    'trang About Me phải truyền viewer xuống bộ hoạt động')
+  assert.match(app, /<RequestRow key=\{r\.id\} r=\{r\} n=\{i\} user=\{user\} showDelete/,
+    'bộ hoạt động phải chuyển viewer xuống từng request')
+})
+
 test('khối "chỉ bạn thấy" không dựng link và có lý do từ chối', () => {
   const block = page.slice(page.indexOf('privateRecent.length > 0'), page.indexOf('{recent.length > 0'))
   assert.ok(block.length > 200, 'không tìm thấy khối hàng riêng trong PublicProfile')
   assert.doesNotMatch(block, /boardSearchUrl|<a /,
     'không dựng link cho hàng riêng: bảng vẫn ẩn chúng, link sẽ dẫn tới danh sách rỗng')
-  assert.match(block, /public-deny/, 'hàng bị từ chối phải hiện lý do')
+  assert.match(block, /<DenyReason/, 'lý do từ chối phải mở bằng nút, không hiện inline')
+  assert.match(block, /r\.deny_reason/, 'component chỉ được nối vào trường lý do của request riêng')
   assert.match(block, /t\('public\.private'\)/, 'khối phải có nhãn "chỉ bạn thấy"')
   assert.match(block, /t\('public\.privateNote'\)/, 'phải có câu giải thích vì sao không thấy trên bảng')
   assert.match(page, /api\.profile\(userId, viewerId\)/,
@@ -72,8 +89,8 @@ test('khối "chỉ bạn thấy" không dựng link và có lý do từ chối'
 test('khối riêng trông khác khối công khai ngay từ khung', () => {
   assert.match(css, /\.public-private \{[^}]*border:\s*1px dashed var\(--line-2\)/,
     'viền đứt là ngôn ngữ của "chưa công khai" trong chính app này')
-  assert.match(css, /\.public-deny \{[^}]*var\(--denied\)/,
-    'lý do từ chối mang màu từ chối, không phải chữ xám')
+  assert.match(css, /\.deny-reason-popover \{[^}]*var\(--denied\)/,
+    'popup lý do từ chối mang màu từ chối')
   assert.match(strings, /'public\.private': /, 'thiếu chuỗi nhãn khối riêng')
   assert.match(strings, /'public\.privateNote': /, 'thiếu chuỗi giải thích khối riêng')
 })

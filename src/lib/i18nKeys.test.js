@@ -127,7 +127,7 @@ test('mỗi mã lỗi SQL/RPC raise đều có bản dịch', () => {
 test('họ key ghép động còn nguyên (nt.tag.*, status.*, filter.*, nav.*)', () => {
   /* JSX goi `t(\`nt.tag.${type}\`)` — xoa ca mot ho thi khong loi cu the nao
      ca, chi la moi loai thong bao mat nhan. Do bang so luong toi thieu. */
-  for (const fam of ['nt.tag.', 'nt.n.', 'nt.grp.', 'status.', 'filter.', 'nav.', 'rank.sort.']) {
+  for (const fam of ['nt.tag.', 'nt.n.', 'nt.grp.', 'status.', 'filter.', 'nav.']) {
     const n = [...DICT.keys()].filter((k) => k.startsWith(fam)).length
     assert.ok(n >= 3, `họ "${fam}*" chỉ còn ${n} key — JSX vẫn ghép động vào họ này`)
   }

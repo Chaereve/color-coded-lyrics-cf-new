@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Icon from './Icon'
 import DailyLoginCalendar from './DailyLoginCalendar'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { hasSupabase } from '../lib/supabaseClient.js'
@@ -17,9 +16,8 @@ import './DailyLogin.css'
    /daily-login — LỊCH ĐIỂM DANH + THƯỞNG CHECK-IN (B1)
    ---------------------------------------------------------
    Hai cột trên desktop (lịch 60% | thẻ thưởng 40%), một cột trên
-   mobile. Ngôn ngữ thị giác giữ nguyên palette brand (token --a/
-   --done/--paid/--denied, Be Vietnam Pro, JetBrains Mono) — chỉ thêm
-   gradient accent, kính mờ và elevation, không thêm màu ngoài hệ.
+   mobile. Thẻ thưởng dùng bố cục gọn, phẳng; giữ palette brand và
+   Be Vietnam Pro / JetBrains Mono, tránh thêm chi tiết trang trí.
 
    Thẻ phải là CUÔN CỦA SỐ THẬT: mọi con số đến từ RPC
    `my_login_reward_status` (20261127) hoặc từ kết quả claim. RPC chưa
@@ -87,36 +85,32 @@ function RewardCard({ rewards, claimed, fete }) {
   const m30Done = rewards.milestone30_granted
   const m30Progress = m30Done ? 30 : Math.min(rewards.streak, 30)
 
-  /* HIỆU ỨNG UNLOCK: chip vừa chuyển Locked → Done được một nhịp nảy + quét
-     sáng (so sánh trạng thái TRƯỚC đó qua ref, không đụng reduced-motion). */
-  const prev7 = useRef(null)
+  /* Chỉ đánh dấu chuyển động nhẹ khi mốc 30 ngày vừa hoàn tất. */
   const prev30 = useRef(null)
-  const [unlock, setUnlock] = useState('')
+  const [m30Unlocked, setM30Unlocked] = useState(false)
   useEffect(() => {
-    if (prev7.current === false && m7Done) setUnlock('m7')
-    else if (prev30.current === false && m30Done) setUnlock('m30')
-    prev7.current = m7Done
+    if (prev30.current === false && m30Done) setM30Unlocked(true)
     prev30.current = m30Done
-  }, [m7Done, m30Done])
+  }, [m30Done])
   useEffect(() => {
-    if (!unlock) return undefined
-    const id = setTimeout(() => setUnlock(''), 1400)
+    if (!m30Unlocked) return undefined
+    const id = setTimeout(() => setM30Unlocked(false), 900)
     return () => clearTimeout(id)
-  }, [unlock])
+  }, [m30Unlocked])
 
   return (
-    <article className={`login-rewards${fete ? ' is-fete' : ''}`} aria-labelledby="login-rewards-title">
-      <h3 id="login-rewards-title"><Icon name="flame" size={15} />{t('daily.rewardsTitle')}</h3>
-
-      {/* HERO — số streak lớn là nhân vật chính của thẻ */}
-      <div className="login-rewards-hero">
-        <span className="login-rewards-flame" aria-hidden="true"><Icon name="flame" size={22} /></span>
-        <div className="login-rewards-hero-streak">
-          <b className="login-rewards-streak-num">{rewards.streak}</b>
-          <span className="login-rewards-streak-label">{t('daily.streakLabel')}</span>
+    <article className={`login-rewards${fete ? ' is-fete' : ''}`} aria-label={t('daily.rewardsCardLabel')}>
+      <div className="login-rewards-lead">
+        <div className="login-rewards-current">
+          <span className="login-rewards-overline">{t('daily.currentStreak')}</span>
+          <div className="login-rewards-streak-value">
+            <b className="login-rewards-streak-num">{rewards.streak}</b>
+            <span>{t(rewards.streak === 1 ? 'daily.dayOne' : 'daily.dayMany')}</span>
+          </div>
         </div>
-        <div className="login-rewards-earn">
-          <b className="login-rewards-counter">{t(total === 1 ? 'daily.rewardOne' : 'daily.rewardMany', { n: total })}</b>
+        <div className="login-rewards-earned">
+          <span className="login-rewards-overline">{t('daily.todayReward')}</span>
+          <strong className="login-rewards-counter">{t(total === 1 ? 'daily.rewardOne' : 'daily.rewardMany', { n: total })}</strong>
           <span>{t('daily.rewardsToday')}</span>
         </div>
       </div>
@@ -143,36 +137,47 @@ function RewardCard({ rewards, claimed, fete }) {
           : t(nextTotal === 1 ? 'daily.nextCheckinOne' : 'daily.nextCheckin', { n: nextTotal })}
       </p>
 
-      {/* CHU KỲ 7 NGÀY — progress dạng segmented, ô cuối là ô mốc */}
+      <div className="login-rewards-divider" aria-hidden="true" />
+
+      {/* Chu kỳ 7 ngày — tiến độ rõ ràng, không đánh dấu mục tiêu bằng viền rời. */}
       <div className="login-rewards-cycle">
         <div className="login-rewards-cycle-head">
-          <span>{cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}</span>
+          <div className="login-rewards-cycle-copy">
+            <span>{t('daily.source.login_milestone7')}</span>
+            <small>{t('daily.milestone7')}</small>
+          </div>
+          <b className="login-rewards-cycle-count">{cycle} / {LOGIN_CYCLE_DAYS}</b>
         </div>
         <div className={`login-rewards-cycle-bar${cycle === LOGIN_CYCLE_DAYS ? ' is-complete' : ''}`}
-          role="img" aria-label={cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}>
+          role="img" aria-label={`${cycle > 0 ? t('daily.cycleDay', { n: cycle }) : t('daily.cycleFresh')}; ${t('daily.milestone7')}; ${m7Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}`}>
           {Array.from({ length: LOGIN_CYCLE_DAYS }, (_, i) => (
-            <i key={i} className={`${i < cycle ? 'is-on' : ''}${i === LOGIN_CYCLE_DAYS - 1 ? ' is-goal' : ''}`} />
+            <i key={i} className={i < cycle ? 'is-on' : ''} />
           ))}
         </div>
       </div>
 
-      {/* MỐC 7/30 — chips có progress nội tại + nhịp unlock khi vừa đạt */}
-      <ul className="login-rewards-milestones">
-        <li className={`${m7Done ? 'is-done' : ''}${unlock === 'm7' ? ' just-unlocked' : ''}`}>
-          <span className="login-rewards-milestone-bar" aria-hidden="true">
-            <i style={{ width: `${pct(cycle, LOGIN_CYCLE_DAYS)}%` }} />
-          </span>
-          <span className="login-rewards-milestone-copy">{t('daily.milestone7')}</span>
-          <em>{m7Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}</em>
-        </li>
-        <li className={`${m30Done ? 'is-done' : ''}${unlock === 'm30' ? ' just-unlocked' : ''}`}>
-          <span className="login-rewards-milestone-bar" aria-hidden="true">
-            <i style={{ width: `${pct(m30Progress, 30)}%` }} />
-          </span>
-          <span className="login-rewards-milestone-copy">{t('daily.milestone30')}</span>
-          <em>{m30Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}</em>
-        </li>
-      </ul>
+      {/* Tóm tắt mốc 30 ngày và giới hạn ngày — cùng bố cục gọn như preview. */}
+      <div className="login-rewards-summary">
+        <div className={`login-rewards-summary-item${m30Done ? ' is-done' : ''}${m30Unlocked ? ' just-unlocked' : ''}`}
+          role="progressbar" aria-valuenow={m30Progress} aria-valuemin={0} aria-valuemax={30}
+          aria-label={`${t('daily.milestone30')}: ${m30Progress} of 30; ${m30Done ? t('daily.milestoneDone') : t('daily.milestoneLocked')}`}>
+          <div className="login-rewards-summary-line">
+            <span>{t('daily.source.login_milestone30')}</span>
+            <b>{m30Progress} / 30 · {t('daily.rewardMany', { n: 20 })}</b>
+          </div>
+          <div className="login-rewards-summary-meter"><i style={{ width: `${pct(m30Progress, 30)}%` }} /></div>
+        </div>
+        <div className="login-rewards-summary-item login-rewards-summary-cap login-rewards-cap"
+          role="progressbar" data-level={capLevel(rewards.cap_used, rewards.cap)}
+          aria-valuenow={rewards.cap_used} aria-valuemin={0} aria-valuemax={rewards.cap}
+          aria-label={t('daily.capUsage', { used: rewards.cap_used, cap: rewards.cap })}>
+          <div className="login-rewards-summary-line">
+            <span>{t('daily.capTitle')}</span>
+            <b>{t('daily.capUsage', { used: rewards.cap_used, cap: rewards.cap })}</b>
+          </div>
+          <div className="login-rewards-summary-meter login-rewards-cap-bar"><i style={{ width: `${pct(rewards.cap_used, rewards.cap)}%` }} /></div>
+        </div>
+      </div>
 
       {rewards.breakdown.length > 0 && (
         <div className="login-rewards-breakdown">
@@ -188,17 +193,6 @@ function RewardCard({ rewards, claimed, fete }) {
         </div>
       )}
 
-      {/* CAP — thanh mảnh, màu đi theo mức dùng (xanh → vàng → đỏ) */}
-      <div className="login-rewards-cap" role="progressbar"
-        data-level={capLevel(rewards.cap_used, rewards.cap)}
-        aria-valuenow={rewards.cap_used} aria-valuemin={0} aria-valuemax={rewards.cap}
-        aria-label={t('daily.capUsage', { used: rewards.cap_used, cap: rewards.cap })}>
-        <div className="login-rewards-cap-head">
-          <span>{t('daily.capTitle')}</span>
-          <b>{t('daily.capUsage', { used: rewards.cap_used, cap: rewards.cap })}</b>
-        </div>
-        <div className="login-rewards-cap-bar"><i style={{ width: `${pct(rewards.cap_used, rewards.cap)}%` }} /></div>
-      </div>
     </article>
   )
 }
@@ -318,7 +312,7 @@ export default function DailyLogin({ userId }) {
   return <section className={`daily-rewards daily-login-page${showRewards ? ' has-side' : ''}`} aria-labelledby={titleId} aria-busy={loading || action}>
     <header className="daily-rewards-head">
       <h2 id={titleId} className="sr-only">{t('daily.loginHeading')}</h2>
-      <div className="daily-rewards-reset" title={t('daily.resetRule')}>
+      <div className="daily-rewards-reset">
         <span>{t('daily.nextReset')}</span>
         <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
       </div>
@@ -331,11 +325,13 @@ export default function DailyLogin({ userId }) {
     <div className="daily-cols">
       <div className="daily-main">
         {status && <DailyLoginCalendar status={status} disabled={disabled} onClaim={claim} loadMonth={loadMonth} />}
-        <button type="button" className={`btn${status?.login.claimed ? ' btn-ok' : ' btn-primary'} daily-claim`}
-          disabled={disabled || status?.login.claimed} onClick={claim}>
-          {status?.login.claimed && <Icon name="check" size={15} />}
-          {t(action ? 'daily.claiming' : status?.login.claimed ? 'daily.claimed' : 'daily.claim')}
-        </button>
+        {!status?.login.claimed && (
+          <div className="daily-checkin-footer">
+            <button type="button" className="btn btn-primary daily-claim" disabled={disabled} onClick={claim}>
+              {t(action ? 'daily.claiming' : 'daily.claim')}
+            </button>
+          </div>
+        )}
       </div>
       {showRewards && <aside className="daily-side" aria-label={t('daily.rewardsCardLabel')}>
         <RewardCard rewards={rewards} claimed={!!status?.login.claimed} fete={fete} />

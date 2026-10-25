@@ -157,7 +157,7 @@ export default function Sidebar({
           <div className="side-group">
             <div className="side-label"><span>{t('side.connect')}</span></div>
             <a className="side-item ext" href={CHANNEL.url} target="_blank" rel="noreferrer"
-              style={{ '--i': sections.length }} title={tip(t('side.youtube', { h: CHANNEL.handle }))}>
+              style={{ '--i': sections.length }} title={tip('YouTube')}>
               <BrandIco d={BRAND.yt} /><span className="side-tx">{t('side.youtube', { h: CHANNEL.handle })}</span>
               <Icon name="ext" size={13} className="side-ext" />
             </a>

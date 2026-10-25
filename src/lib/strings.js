@@ -116,6 +116,7 @@ const S = {
   'calendar.nextMonth': 'Next month',
   'calendar.best': 'Best streak',
   'calendar.lifetime': 'Lifetime',
+  'calendar.statsLabel': 'Check-in stats',
   'calendar.historyFailed': 'Check-in history could not be loaded. Today’s check-in still works.',
   'calendar.historyUnavailable': 'Past check-ins are not available yet. Today’s check-in still works; the site owner needs to apply the calendar database update.',
   'calendar.mon': 'Mon', 'calendar.monLong': 'Monday',
@@ -126,17 +127,14 @@ const S = {
   'calendar.sat': 'Sat', 'calendar.satLong': 'Saturday',
   'calendar.sun': 'Sun', 'calendar.sunLong': 'Sunday',
   'daily.nextReset': 'Next reset',
-  'daily.resetRule': 'Resets at 00:00 Vietnam time (GMT+7)',
   'daily.demo': 'Demo mode — rewards are saved only in this browser.',
   'daily.claim': 'Check in today',
   'daily.claiming': 'Checking in…',
-  'daily.claimed': 'Checked in today',
   'daily.claimSuccess': 'Checked in for today. See you tomorrow!',
   'daily.alreadyClaimed': 'You are already checked in for today.',
   'daily.loading': 'Loading today’s rewards…',
   'daily.refresh': 'Refresh status',
   /* Reward card (B1) — every amount is VOTES; the word "credits" never appears. */
-  'daily.rewardsTitle': 'Check-in rewards',
   'daily.rewardsCardLabel': 'Check-in rewards summary',
   'daily.rewardsToday': 'Earned today',
   'daily.rewardOne': '+1 vote',
@@ -177,7 +175,10 @@ const S = {
   'mystery.votesMany': '+{n} votes',
   'mystery.paidRequestOne': '+1 free paid request',
   'mystery.paidRequestTwo': '+2 free paid requests',
-  'daily.streakLabel': 'Streak',
+  'daily.dayOne': 'day',
+  'daily.dayMany': 'days',
+  'daily.todayReward': 'Today’s reward',
+  'daily.currentStreak': 'Current streak',
   'err.dailySetup': 'Daily missions are not set up yet. The site owner needs to apply the daily rewards database migration.',
   'err.dailyAccountChanged': 'Your account changed. Refresh the page before collecting rewards.',
   'err.dailyDayChanged': 'A new day has started. Refresh to get today’s missions.',
@@ -191,9 +192,6 @@ const S = {
   'gate.needMystery': 'Sign in to open your daily box.',
   'mystery.goCheckin': 'Check in at Daily Login',
   'mystery.oddsTitle': 'Prizes',
-  'mystery.ruleOnce': '1 box/day after check-in.',
-  'mystery.ruleCap': 'Votes → Vote bonus · cap 30/day.',
-  'mystery.rulePaid': 'Free paid request · no cap.',
   'mystery.unavailable': 'The daily box is not available right now.',
   'mystery.monthTitle': 'This month',
   'mystery.monthCaption': '{month} daily box history',
@@ -247,7 +245,6 @@ const S = {
   'spin.pending': 'Confirm your last spin first.',
   'spin.refresh': 'Try again',
   'spin.deviceReset': 'Reset this browser',
-  'spin.deviceResetHint': 'Clears the saved browser token and reloads. Spins used today stay used.',
   'spin.wonOne': '+1 bonus vote',
   'spin.won': '+{n} bonus votes',
   'spin.resetIn': 'Next reset',
@@ -256,8 +253,6 @@ const S = {
   'spin.reward': '+{n} votes',
   'spin.history': 'Today’s rewards',
   'spin.historyEmpty': 'No spins yet.',
-  'spin.addedAt': '{time} · GMT+7',
-  'spin.ruleReset': 'Resets at 00:00 (GMT+7).',
   'err.spinSetup': 'Daily Spin isn’t available yet.',
   'err.spinDevice': 'Could not verify this browser. Please contact support.',
   'err.spinStorage': 'Enable cookies and local storage to spin.',
@@ -292,10 +287,6 @@ const S = {
   /* Dinh nghia cua tung con so (title) — so KHONG co dinh nghia la so nguoi
      doc khong tin duoc, nhat la khi bon o nay nam canh bon con so khac o badge
      tab. */
-  'stat.queuedWhy': 'Songs still waiting for votes. Nothing is being made yet.',
-  'stat.pickedWhy': 'Songs already picked for production, waiting for their turn to start.',
-  'stat.inProgressWhy': 'Songs being edited right now. The In progress tab shows these plus the picked songs still waiting for their turn.',
-  'stat.completedWhy': 'Songs finished and out on the channel.',
   'stat.submitted': 'Submitted',
   'stat.pending': 'Pending',
   'stat.votesReceived': 'Votes received',
@@ -383,7 +374,6 @@ const S = {
   /* bài đã có trên bảng — hiện ngay dưới ô tên bài, lúc người dùng còn đang gõ */
   'adm.credits': 'Copy credits',
   'adm.creditsDone': 'Copied',
-  'adm.creditsHint': 'Copy the song name and everyone who requested it, ready to paste into the video description',
   'req.dupMeta': '{c} requests, {n} votes on the board already',
   'req.dupPending': '{c} request of yours is waiting for review',
   'req.dupVote': 'Vote for it instead',
@@ -468,28 +458,18 @@ const S = {
   'media.emptyPublic': 'No videos here yet.',
 
   /* dong request */
-  'row.watch': 'Watch on YouTube',
-  /* Nhãn NGẮN cho chip nghe trong cụm hành động của một hàng: "Watch on
-     YouTube" dài 18 ký tự, đứng cạnh hai ô icon thì nó thành nửa dòng chữ và
-     đẩy cụm về sát cột phiếu. Tên nền tảng là đủ nghĩa; câu đầy đủ vẫn nằm ở
-     `title` (tooltip) và ở thông báo, nơi có chỗ cho nó. */
+  /* Nhãn NGẮN cho chip nghe trong cụm hành động của một hàng. */
   'row.watchShort': 'YouTube',
   'row.vote': 'vote',
-  'row.cantVote': 'Voting is closed for this request',
-  'row.voteLocked': 'Already picked. Voting is closed.',
   'row.deleteReq': 'Delete request',
-  'row.openVote': 'Choose how many votes',
   'progress.label': 'Build progress',
-  'row.mine': 'You voted {n}',
   'row.confirmDelete': 'Delete this request?',
 
   /* TRANG CÁ NHÂN CÔNG KHAI (PublicProfile.jsx) — cả trang này trước đây in
      chữ tiếng Anh viết thẳng trong JSX: `Loading profile…`, `Requests`,
      `Achievements`, bảy badge… Chúng vô hình với mọi bài kiểm tra (chuỗi vẫn
      hợp lệ) nhưng là chữ người dùng đọc, và sửa một chỗ thì ba trang khác
-     đứng nguyên. Ba nhãn số liệu trùng chữ với bộ chọn sắp xếp của bảng xếp
-     hạng (rank.sort.*) một cách CÓ Ý: đây là nhãn của hồ sơ, đổi chữ ở đây
-     không được kéo theo bộ chọn sắp xếp. */
+     đứng nguyên. Ba nhãn số liệu ở đây độc lập với cách xếp hạng Leaderboard. */
   'public.loading': 'Loading profile…',
   'public.notFound': 'Profile not found.',
   'public.back': 'Back to board',
@@ -519,48 +499,37 @@ const S = {
 
   /* cum request trung bai */
   'group.requests': '{n} requests',
-  'group.showAll': 'Show all {n} requests',
-  'group.hide': 'Show less',
+  'group.showAll': 'Expand group',
+  'group.hide': 'Collapse group',
 
   /* bang xep hang */
   'rank.title': 'Leaderboard',
-  'rank.empty': 'No data yet.',
+  'rank.listTitle': 'Rankings',
   'rank.you': 'you',
   'rank.requests': 'requests',
   'rank.completed': 'completed',
   'rank.votes': 'votes',
-  'rank.kicker': 'Latest update',
-  'rank.sortLabel': 'Sort leaderboard',
-  'rank.sort.total': 'Requests',
-  'rank.sort.completed': 'Completed',
-  'rank.sort.total_votes': 'Votes earned',
-  /* Luật xếp hạng, nói thẳng ra: khoá chính và thứ tự phá hoà (ranking.js).
-     Ba câu, ba con số đếm được — bảng không còn "điểm" nào do nó tự đặt ra, nên
-     cũng không còn câu giải thích trọng số nào để mà lệch. */
-  'rank.rule.total': 'Sorted by requests sent',
-  'rank.rule.completed': 'Sorted by requests completed',
-  'rank.rule.total_votes': 'Sorted by votes earned',
-  'rank.player': 'Requester',
-  'rank.position': 'Rank {n} of {total}',
+  'rank.averageScore': 'Average',
+  /* Both periods use the same fixed arithmetic-mean rule; only their input
+     counts differ. */
+  'rank.rule.average': 'Overall score is the arithmetic mean of requests, completed requests, and votes received',
+  'rank.player': 'User',
   'rank.noMe': 'You are not on the board yet.',
   /* CHUỖI NGÀY HOẠT ĐỘNG + badge 7/30/100 (streak.js / StreakStrip.jsx).
-     Câu `how` là luật đếm, nằm trong tooltip ngọn lửa: một ngày tính khi có
-     ít nhất một hành động cộng đồng, theo lịch Việt Nam. */
+     Tooltip chỉ hiện tên ngắn của streak và từng mốc. */
   'streak.label': 'Activity streak',
-  'streak.how': 'A day counts when you open the site while signed in, or when you send a request, vote or use the daily spin (Vietnam time)',
+  'streak.milestone': '{n}-day streak',
   'streak.current': '{n}-day streak',
   'streak.longest': 'longest {n}',
   'streak.none': 'No active day yet — open the site while signed in to start a streak',
-  'streak.unlocked': 'Unlocked: {n}-day streak',
-  'streak.locked': 'Reach a {n}-day streak to unlock',
-  'streak.headerTitle': '{n}-day activity streak',
   /* achievement index: transparent reward catalogue; no hidden vote weight */
   'ach.index': 'Achievement index',
+  'ach.closest': 'Closest to unlock',
+  'ach.noneClose': 'No nearby milestones yet',
   'ach.showAll': 'View all achievements ({n})',
   'ach.popupTitle': 'All Achievements',
   'ach.close': 'Close achievements',
   'ach.reward': 'Reward',
-  'ach.locked': 'Locked',
   'ach.earned': 'Earned',
   'ach.scrollRegion': 'Achievements list, use arrow keys to scroll',
   /* ACHIEVEMENTS V3 (20261211) — approved 52-item catalog (20 retained from
@@ -728,7 +697,6 @@ const S = {
      trên màn hình — component ghép sẵn rồi truyền xuống canvas. */
   'card.save': 'Save card',
   'card.busy': 'Making card…',
-  'card.tip': 'Download a shareable PNG card of these stats',
   'card.saved': 'Card saved as PNG',
   'card.unsupported': 'This browser cannot render the card image',
   'card.subtitle': 'Chaereve community member',
@@ -762,51 +730,30 @@ const S = {
   'preview.noEmbed': 'This link cannot play inside the page. Use the button below to open it.',
   'expiry.label': 'Expired',
   'expiry.delete': 'Expire and delete',
-  /* MÙA GIẢI (tuần/tháng, giờ Việt Nam — src/lib/season.js). Khoảng ngày phải
-     in ra kèm nhãn: "tuần này" là từ mơ hồ nếu không nói tuần nào. */
-  'rank.periodLabel': 'Choose season period',
+  /* Kỳ xếp hạng (All time / This month — src/lib/season.js). */
+  'rank.periodLabel': 'Period',
   'rank.period.all': 'All time',
-  'rank.period.week': 'This week',
   'rank.period.month': 'This month',
   'rank.range': '{from} – {to}',
-  /* Chi tiết cửa sổ (tuần T2–CN, tháng lịch, giờ VN) KHÔNG in thường trực:
-     nó là chú thích một-lần-đọc, in mãi thành nhiễu và đẩy cụm nút lệch hàng
-     (người dùng đã chê "chú thích dài làm bố cục nút bị lệch xuống"). Nó sống
-     trong tooltip của con tem khoảng ngày — cần thì hover/hold để đọc. */
-  'rank.rangeTip': 'Week runs Mon–Sun, month is the calendar month · Vietnam time (UTC+7)',
-  /* Câu luật của bảng mùa: MỘT vế ngắn, nói rõ con số bị cắt theo cửa sổ, cùng
-     khoá chính với ba cách xếp — không một con số tự đặt nào. */
-  'rank.periodRule.total': 'Sorted by requests active this period (sent, completed, or voted)',
-  'rank.periodRule.completed': 'Sorted by requests completed this period',
-  'rank.periodRule.total_votes': 'Sorted by votes earned this period',
+  'rank.periodRule.average': 'This month score is the average of requests, completed requests, and votes received this month',
   /* Cột phiếu của bảng mùa là phiếu NHẬN TRONG MÙA (chủ dự án chốt 26/09,
      nguồn rpc votes_received — xem src/lib/season.js). Câu ghi rõ bài được
      tính dù gửi từ lâu: không để người xem tự hiểu ngược. Rút còn một vế
      inline (ngăn bằng chấm mờ trong câu luật): ý phải giữ trọn, chữ không
      được chiếm cả hàng. */
-  'rank.votesNote': 'Votes are those received this period, on requests sent any time',
   'rank.emptyPeriod.all': 'No data yet.',
-  'rank.emptyPeriod.week': 'No requests yet this week — the season resets every Monday (Vietnam time).',
   'rank.emptyPeriod.month': 'No requests yet this month.',
   'rank.emptyCta': 'Switch to All time',
-  'rank.rewards.week': 'Weekly prizes: 1st (+15 votes) · 2nd (+10 votes) · 3rd (+5 votes)',
-  'rank.rewards.month': 'Monthly prizes: 1st (+50 votes & +1 request) · 2nd (+30 votes) · 3rd (+20 votes)',
-  'rank.rewards.title': 'Season prizes',
-  'rank.rewards.subtitle': 'Top 3 each week and month earn bonus votes',
-  'rank.rewards.weekTitle': 'Weekly prizes',
-  'rank.rewards.weekDesc': 'Resets every Monday 00:00 (Vietnam time). Top 3 receive bonus votes:',
-  'rank.rewards.monthTitle': 'Monthly prizes',
-  'rank.rewards.monthDesc': 'Resets on the 1st of every month (Vietnam time). Top 3 receive bonus votes:',
-  'rank.rewards.note': 'Prizes are credited automatically when the season ends',
-  'rank.reward.w1': '+15 vote bonus',
-  'rank.reward.w2': '+10 vote bonus',
-  'rank.reward.w3': '+5 vote bonus',
   'rank.reward.m1': '+50 vote bonus + 1 request bonus',
   'rank.reward.m2': '+30 vote bonus',
   'rank.reward.m3': '+20 vote bonus',
 
   /* request cua toi */
   'mine.title': 'My requests',
+  'mine.activity': 'My activity',
+  'mine.filterStatus': 'Status',
+  'mine.filterOrder': 'Order type',
+  'mine.other': 'Other',
   'mine.empty': 'No requests yet.',
   'mine.emptyHint': 'Send your first request — it will show up here with its status and votes.',
   'mine.orders': 'My orders',
@@ -815,6 +762,8 @@ const S = {
 
   /* don hang */
   'order.paid': 'Paid',
+  'order.successful': 'Successful',
+  'order.other': 'Other',
   'order.rejected': 'Rejected',
   'order.awaiting': 'Awaiting confirmation',
   'order.cancel': 'Cancel order',
@@ -845,16 +794,18 @@ const S = {
      chính là lý do hộp này tồn tại. */
   'dlg.cannotUndo': 'This cannot be undone.',
   'dlg.denyTitle': 'Deny this request?',
-  'dlg.denyBody': 'The reason you type here is shown to the requester.',
+  'dlg.denyBody': 'The reason you type here is shown only to the requester and admins.',
+  'deny.showReason': 'Show denial reason',
+  'deny.reasonLabel': 'Reason for denial',
   'dlg.bulkDenyTitle': 'Deny {n} requests?',
   'dlg.mediaTitle': 'Delete this video?',
   'dlg.mediaBody': 'It leaves the home page, and the other videos close the gap.',
 
   /* form gui request */
   /* Form gửi request: ba bước, lỗi từng ô, gợi ý cho từng loại bài. */
-  'req.step1': 'Pick a type',
-  'req.step2': 'Name the song',
-  'req.step3': 'Send it',
+  'req.step1': 'Type',
+  'req.step2': 'Details',
+  'req.step3': 'Options',
   /* điều hướng ba bước */
   'req.stepsAria': 'Request form steps',
   'req.next': 'Continue',
@@ -872,7 +823,6 @@ const S = {
   'req.warnLink': 'That does not look like a full link — it should start with http.',
   'req.errArtist': 'Who is the artist? This one is required.',
   'req.errTitle': 'This one is required.',
-  'req.notReady': 'Fill in the two required fields first',
   'req.submitFix': 'Fill in the required fields',
   'req.clear': 'Clear',
 
@@ -934,19 +884,16 @@ const S = {
   'vote.empty': 'Nothing to vote on.',
   'vote.emptyAllBusy': 'Every request is already picked or in progress — nothing needs your votes right now.',
   'vote.emptyNoBoard': 'The board is empty. Send the first request and others can vote for it.',
-  'vote.dialogTitle': 'Vote for this request',
+  'vote.dialogTitle': 'Vote',
   'vote.total': '{n} votes',
   'vote.freeToday': 'Free votes today',
-  'vote.yours': 'you voted {n}',
-  'vote.qty': 'Number of votes',
-  /* Hộp vote: con số lớn là KẾT QUẢ SAU khi bấm, không phải số đang có. */
-  'vote.hero': 'Votes after this',
-  'vote.heroBack': 'Votes after taking back',
-  'vote.heroSub': 'Currently {n} votes',
-  'vote.leftBefore': 'Your votes left',
+  'vote.freeTodayShort': 'Free today',
+  'vote.yours': 'You: {n}',
+  'vote.qty': 'Votes',
+  'vote.balanceAfter': 'Votes remaining',
+  'vote.balanceBack': 'Votes after take back',
   'vote.modeGive': 'Vote',
   'vote.modeBack': 'Take back',
-  'vote.useAll': 'All {n}',
   'vote.tooMany': 'You have {n} votes left.',
   'vote.none': 'No votes left.',
   'vote.confirm': 'Vote {n}',
@@ -955,7 +902,7 @@ const S = {
   'vote.closed': 'Voting is closed for this request — it is no longer in the queue.',
   'vote.takeBack': 'Take back {n}',
   'vote.takeBackAll': 'Take back all {n}',
-  'vote.sources': 'including {p} bought and {b} bonus',
+  'vote.sources': '{p} bought · {b} bonus',
   'vote.tooManyBack': 'You voted {n} here.',
   'vote.buyMore': 'Buy more votes',
 
@@ -1111,8 +1058,8 @@ const S = {
   'adm.deny': 'Deny',
   'adm.denyVideo': 'Already made it? Video link (optional)',
   'err.denyVideo': 'Enter a valid https:// or http:// video link.',
-  'err.mediaLimit': 'You can add up to 20 videos, including featured videos. Remove a video first.',
-  'adm.mediaLimit': '{n}/20 videos · featured included',
+  'err.mediaLimit': 'The media library is full (20 items). Remove an item first.',
+  'adm.mediaLimit': '{n}/20 items',
   'adm.denyPrompt': 'Reason shown to the user (optional)',
   /* Bốn lý do thật sự xảy ra. Chip điền vào ô, admin vẫn sửa/thêm được. */
   'adm.denyPreset.dup': 'Already requested for this song',
@@ -1134,7 +1081,6 @@ const S = {
   'adm.backToQueue': 'Back to queue',
   'adm.start': 'Start production',
   'adm.expired': 'Expired',
-  'adm.expiredBody': 'Requests not picked within one month appear here for review.',
   'adm.pick': 'Pick for Up next',
   'adm.unpick': 'Remove from Up next',
   'adm.picked': 'Up next',
@@ -1153,7 +1099,7 @@ const S = {
   /* TUỔI CỦA MỘT YÊU CẦU: một bài chờ ba tuần không được trông giống bài vừa
      gửi, và nhịp chốt bài bị vượt phải có dấu hiệu trên màn hình. */
   'adm.ageDays': '{d}d waiting',
-  'adm.ageTitle': 'Waiting {d} days · pick interval is {n} days',
+  'adm.waitingTime': 'Waiting time',
   'adm.orderFilterAria': 'Filter orders by status',
   'adm.orderAll': 'All orders',
   'adm.orderAwaiting': 'Awaiting payment',
@@ -1187,8 +1133,7 @@ const S = {
   'adm.noResults': 'Nothing matches “{q}”.',
   /* request trùng bài: dòng này là một phần của cụm, hạng tính theo tổng vote */
   'adm.dupTotal': '{n} requests for this song · {v} votes in total',
-  'adm.mileGroup': 'Tick here moves the progress bar of all {n} requests for this song',
-  'adm.saveDoneGroup': 'Saves the link and closes all {n} requests for this song',
+  'adm.duplicates': 'Duplicate requests',
   /* NHẬT KÝ THAO TÁC (migration 20261213). Nhãn việc + nhãn trường. */
   'adm.log': 'Activity log',
   'adm.logMissing': 'Activity log is not available yet',
@@ -1226,10 +1171,7 @@ const S = {
   'adm.media': 'Videos',
   'adm.mediaAddShort': '+ Add',
   'adm.mediaViewHome': 'View on home page',
-  'adm.mediaGroupFeatured': 'Featured video',
   'adm.mediaGroupVideo': 'Latest videos',
-  'adm.mediaAddFeatured': 'Add featured video',
-  'adm.mediaAddVideo': 'Add video link',
   'adm.mediaEditList': 'Add / edit links',
   'adm.mediaTextHint': 'One YouTube link per line · custom title: link | Title',
   'adm.mediaTextCount': '{n} videos',
@@ -1245,7 +1187,6 @@ const S = {
   'adm.mediaThumb': 'Cover image (optional, leave empty for HD YouTube thumbnail)',
   'adm.mediaHide': 'Hide from site',
   'adm.mediaHidden': 'hidden',
-  'adm.mediaLive': 'live',
   'adm.mediaShow': 'Show again',
   'adm.mediaSave': 'Save',
   'adm.mediaUp': 'Move up',
@@ -1255,7 +1196,7 @@ const S = {
   'toast.deleted': 'Request deleted.',
   'toast.approved': 'Request approved.',
   'toast.denied': 'Request denied.',
-  'toast.repeated': '{n} identical notices merged into this one',
+  'toast.repeatCount': 'Repeat count',
   'toast.updated': 'Updated.',
   'toast.updatedGroup': 'Updated · {n} requests for this song',
   'toast.bulk': '{n} requests updated',
@@ -1282,6 +1223,12 @@ const S = {
   'notif.payNow': 'Open payment',
   'notif.buyTitle': 'Order for {n} votes',
   'notif.buyBody': 'Pay {amt} to add {n} votes to your account.',
+  'notif.voteAddedTitle': 'Vote added',
+  'notif.voteAddedBody': 'Added {count} to {song}.',
+  'notif.voteBackTitle': 'Vote taken back',
+  'notif.voteBackBody': 'Took back {count} from {song}.',
+  'notif.voteSaved': 'Your vote was saved.',
+  'notif.voteBackSaved': 'Your vote was taken back.',
 
   /* ve dau trang */
   'top.label': 'Back to top',
@@ -1304,6 +1251,7 @@ const S = {
   'err.needFields': 'Artist and title are required.',
   'err.notOwner': 'You can only delete your own request.',
   'err.deleteLocked': 'This request is in production and cannot be deleted.',
+  'err.requestHasActiveOrder': 'Cancel the linked payment order before deleting this request.',
   'err.adminOnly': 'Admin only.',
   'err.rewardInvalid': 'That reward is not valid.',
   'err.rewardPeriod': 'That reward period is not valid.',

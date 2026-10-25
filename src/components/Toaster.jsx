@@ -4,23 +4,14 @@ import { useNotify } from '../lib/notify'
 import { useI18n } from '../lib/i18n.jsx'
 
 /* =========================================================
-   TOASTER — chồng thông báo góc trên phải
+   TOASTER — notification kiểu Alert, phủ lớp liquid glass
    ---------------------------------------------------------
-   Mỗi mẩu tự đếm giờ bằng rAF (không phải setTimeout) để:
-     · rê chuột vào hàng là đồng hồ DỪNG lại thật sự, đúng như cái
-       thanh tiến độ đang hiện — người đọc không bị mất thông báo
-       giữa câu vì hết giờ;
-     · tab ẩn thì đồng hồ nghỉ, quay lại vẫn còn nguyên.
-   Hết giờ thì tự bắn onDone → provider đánh dấu .out, animation
-   trượt ra chạy xong mới nhấc DOM.
+   Đồng hồ tự ẩn vẫn chạy bằng rAF; khi rê chuột/focus hoặc ẩn tab thì
+   tạm dừng. Không còn progress bar nhìn như trạng thái tải.
    ========================================================= */
-
-/* tone -> tên icon trong bộ chung */
-const TONE = { ok: 'check', err: 'warn', info: 'info', gold: 'star' }
 
 function Toast({ n, onDone, onClose }) {
   const { t } = useI18n()
-  const barRef = useRef(null)
   const leftRef = useRef(n.ms)
   const [paused, setPaused] = useState(false)
 
@@ -31,13 +22,11 @@ function Toast({ n, onDone, onClose }) {
     let alive = true
     const tick = (now) => {
       if (!alive) return
-      /* trần 100ms cho một khung: tab bị ngủ đông rồi thức dậy có thể trả
-         hiệu số khổng lồ, mẩu tin vừa hiện ra đã mất */
+      /* trần 100ms: khi tab thức lại, toast không biến mất đột ngột */
       const dt = Math.min(100, Math.max(0, now - prev))
       prev = now
       if (!paused && !document.hidden) {
         leftRef.current -= dt
-        if (barRef.current) barRef.current.style.transform = `scaleX(${Math.max(0, leftRef.current / n.ms)})`
         if (leftRef.current <= 0) { onDone(); return }
       }
       raf = requestAnimationFrame(tick)
@@ -50,13 +39,10 @@ function Toast({ n, onDone, onClose }) {
     <div className={`toast ${n.tone}${n.out ? ' out' : ''}`} data-toast
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-      <span className="toast-ico" aria-hidden="true">
-        <Icon name={TONE[n.tone] || "info"} size={15} />
-      </span>
+      <span className="toast-dot" aria-hidden="true" />
       <div className="toast-tx">
         <b>{n.title}{n.repeat > 1 && (
-          /* mot cú tick sinh ba o giong het nhau -> gộp lại thành một, dem so lan */
-          <em className="toast-rep" title={t('toast.repeated', { n: n.repeat })}>×{n.repeat}</em>
+          <em className="toast-rep" title={t('toast.repeatCount')}>×{n.repeat}</em>
         )}</b>
         {n.body && <p>{n.body}</p>}
         {n.action && (
@@ -65,8 +51,9 @@ function Toast({ n, onDone, onClose }) {
           </button>
         )}
       </div>
-      <button type="button" className="toast-x" aria-label={t('notif.dismiss')} onClick={onClose}><Icon name="close" size={15} /></button>
-      {n.ms > 0 && <i className="toast-bar" ref={barRef} aria-hidden="true" />}
+      <button type="button" className="toast-x" aria-label={t('notif.dismiss')} onClick={onClose}>
+        <Icon name="close" size={15} />
+      </button>
     </div>
   )
 }
@@ -84,15 +71,7 @@ export default function Toaster() {
     return () => window.removeEventListener('keydown', h)
   }, [items.length, onClose])
 
-  /* VÙNG LIVE PHẢI CÓ TRƯỚC NỘI DUNG.
-     Trình đọc màn hình chỉ đọc những THAY ĐỔI bên trong một vùng `aria-live`
-     đã tồn tại; nội dung được gắn kèm đúng lúc vùng đó vừa vào DOM thì bị coi
-     là nội dung nền — im lặng. Bản trước `return null` khi chưa có mẩu tin nào,
-     nên mẩu ĐẦU TIÊN (và với phần lớn người dùng, mẩu duy nhất) không được đọc
-     lên. Khung ngoài giờ luôn nằm trong DOM: CSS của `.toasts` là `position:
-     fixed` + `pointer-events: none`, rỗng thì không chiếm chỗ và không chặn
-     click, còn `.toasts-live { display: contents }` nên không thêm một tầng hộp
-     nào cho các mẩu tin. */
+  /* Vùng live tồn tại cả khi rỗng để trình đọc màn hình nhận được toast đầu tiên. */
   return (
     <div className="toasts" role="region" aria-label={t('notif.region')}>
       <div className="toasts-live" aria-live="polite" aria-atomic="false">

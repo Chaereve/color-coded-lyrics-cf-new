@@ -9,7 +9,7 @@
    Chạy: npm test */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { achievementRank, RANK_SORTS, rankDemo, rankRows, rateOf, ratePct } from './ranking.js'
+import { achievementRank, averageRankScore, RANK_SORTS, rankDemo, rankRows, rankRowsByAverage, rateOf, ratePct } from './ranking.js'
 
 const P = (name, total, completed, total_votes) => ({ name, total, completed, total_votes })
 
@@ -143,6 +143,27 @@ test('hạng thành tích khớp claim_achievements: work count, votes, rồi us
   assert.equal(achievementRank(ranking, 'u-c'), 4, 'nhiều phiếu không vượt work count')
   assert.equal(achievementRank(ranking, 'missing'), 0)
   assert.equal(achievementRank(ranking, null), 0)
+})
+
+test('Leaderboard xếp theo trung bình cộng ba chỉ số; điểm chính xác và phá hoà ổn định', () => {
+  const rows = [
+    P('votes-heavy', 2, 1, 30),       // (2 + 1 + 30) / 3 = 11
+    P('requests-heavy', 10, 0, 0),    // (10 + 0 + 0) / 3 = 3.333…
+    P('balanced', 1, 1, 12),          // (1 + 1 + 12) / 3 = 4.666…
+    P('tie-fewer-done', 9, 0, 9),     // mean 6
+    P('tie-more-done', 3, 6, 9),      // mean 6; completed breaks tie
+  ]
+  const out = rankRowsByAverage(rows)
+  assert.deepEqual(out.map(p => p.name), [
+    'votes-heavy', 'tie-more-done', 'tie-fewer-done', 'balanced', 'requests-heavy',
+  ])
+  assert.deepEqual(out.map(p => p.place), [1, 2, 3, 4, 5])
+  assert.equal(out[0].score, 11)
+  assert.equal(out[1].score, 6)
+  assert.equal(out[0].share, 1)
+  assert.equal(averageRankScore({ total: 'bad', completed: null, total_votes: 6 }), 2,
+    'chuỗi méo/null an toàn và vẫn chia đều ba chỉ số')
+  assert.equal(rankRowsByAverage([null])[0].score, 0)
 })
 
 test('mỗi cách xếp có màu riêng và khoá chính nằm trong dữ liệu nhận về', () => {

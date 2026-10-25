@@ -407,10 +407,10 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
           Bản cũ là ba ô chữ nằm cạnh nhau, còn form thì vẫn là một cột dài với
           mọi ô hiện cùng lúc: dải đó chỉ nói "form có ba việc", không nói người
           dùng đang ở đâu. Nay ba bước là BA MÀN:
-            · bước xong đổi số thành dấu ✓ và đoạn nối tới nó được tô kín —
+            · bước xong đổi số thành dấu ✓ và đoạn nối được nhuốm nhẹ —
               vạch tiến trình nằm ngay trong dải bước, nên không cần thêm một
               thanh phần trăm thứ hai nói lại đúng một điều;
-            · bước đang đứng mang `aria-current="step"` và viền nhấn;
+            · bước đang đứng mang `aria-current="step"` và vòng số nhấn dịu;
             · bấm quay lại được (chỉ tới bước đã qua), nên không phải nhớ đường.
           Thứ tự DOM = thứ tự Tab = thứ tự đọc của trình đọc màn hình. */}
       <ol className="req-steps" aria-label={t('req.stepsAria')}>
@@ -458,17 +458,16 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
                 <button type="button" key={k}
                   className={`kchip ${kindCls(k)}${form.kind === k ? ' on' : ''}`}
                   aria-pressed={form.kind === k}
-                  title={t(`req.kindHint.${kindCls(k)}`)}
+                  aria-label={k}
                   onClick={() => setForm(f => ({ ...f, kind: k }))}>
                   {form.kind === k && <Icon name="check" size={13} />}
-                  <span>{k}</span>
+                  <span>{kindShort(k)}</span>
                 </button>
               ))}
             </div>
             {/* Dòng này ĐỔI theo lựa chọn nên nó vừa giải thích vừa xác nhận, chứ
                 không phải một dải chữ tĩnh nằm đó suốt buổi. */}
             <p className="kind-note" key={form.kind}>
-              <span className={`kind ${kindCls(form.kind)}`}>{form.kind}</span>
               <b>{t(`req.kindHint.${kindCls(form.kind)}`)}</b>
               {meta.noteKey && <span className="kind-note-sub">{t(meta.noteKey)}</span>}
             </p>
@@ -720,7 +719,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
         ) : (
           <button type="submit" className={`btn ${paid ? 'btn-gold' : 'btn-primary'}`}
             style={{ flex: 1 }} disabled={submitDisabled}
-            title={ready && !submitLocked ? undefined : t('req.notReady')}>
+>
             {busy ? t('req.sending')
               : paid ? (useBonus ? t('req.submitBonusPaid') : t('req.submitPaid', { p: usd(PAID_REQUEST.usd) }))
                 : ready ? t('req.submit') : t('req.submitFix')}
@@ -815,7 +814,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
         : pg.items.map(r => {
           const mine = myVotes.get(r.id) || 0
           return (
-            <div className="adm" key={r.id}>
+            <div className="adm vote-row" key={r.id}>
               <div className="nm">
                 <b>
                   {r.title}{' '}
@@ -823,8 +822,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
                 </b>
                 <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span></small>
               </div>
-              <button className={`votebtn${mine > 0 ? ' on' : ''}`} onClick={() => onVote(r)}
-                title={t('row.openVote')}>
+              <button className={`votebtn${mine > 0 ? ' on' : ''}`} onClick={() => onVote(r)}>
                 <b>{r.votes}</b><span>{t('row.vote')}</span>
                 {mine > 0 && <em className="mine">×{mine}</em>}
               </button>

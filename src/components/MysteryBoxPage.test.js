@@ -229,6 +229,7 @@ test('opening flow: lock instantly → shake 800ms (RPC song song) → lid flips
 test('BẢNG GIẢI v3: tổng 100%, DUY NHẤT +5@4%, hai mức paid tách bạch — lib/SQL/demo khớp nhau', async () => {
   const { MYSTERY_PRIZES } = await import('../lib/mysteryBox.js')
   const strings = readFileSync(new URL('../lib/strings.js', import.meta.url), 'utf8')
+  const pageSrc = readFileSync(new URL('./MysteryBoxPage.jsx', import.meta.url), 'utf8')
   const sqlV2 = readFileSync(new URL('../../supabase/migrations/20261202_mystery_paid_v2.sql', import.meta.url), 'utf8')
   const sql = readFileSync(new URL('../../supabase/migrations/20261204_mystery_odds.sql', import.meta.url), 'utf8')
 
@@ -263,8 +264,8 @@ test('BẢNG GIẢI v3: tổng 100%, DUY NHẤT +5@4%, hai mức paid tách bạ
   // Copy: nói rõ "free paid request", không "credits", không nhãn mơ hồ.
   assert.match(strings, /'mystery\.paidRequestOne': '\+1 free paid request'/)
   assert.match(strings, /'mystery\.paidRequestTwo': '\+2 free paid requests'/)
-  assert.match(strings, /'mystery\.ruleCap': 'Votes → Vote bonus · cap 30\/day\.'/)
-  assert.match(strings, /'mystery\.rulePaid': 'Free paid request · no cap\.'/)
+  assert.doesNotMatch(strings, /'mystery\.rule(?:Once|Cap|Paid)'/, 'tab Prizes không còn các dòng note đã bỏ')
+  assert.doesNotMatch(pageSrc, /mystery-rules|mystery\.rule(?:Once|Cap|Paid)/, 'không render note trong danh sách Prizes')
   const mysteryCopy = [...strings.matchAll(/'mystery\.[a-zA-Z]+': '([^']*)'/g)].map(m => m[1])
   assert.ok(mysteryCopy.length > 10, 'đọc được các nhãn mystery từ strings.js')
   for (const copy of mysteryCopy) {

@@ -167,7 +167,7 @@ test('mọi nhãn trạng thái lấy màu qua statusColorOf, không tự tra th
   const files = ['src/App.jsx', 'src/components/AdminPanel.jsx', 'src/components/PublicProfile.jsx']
   for (const f of files) {
     const src = readFileSync(`${root}${f}`, 'utf8')
-    assert.doesNotMatch(src, /statusColor\(/, 
+    assert.doesNotMatch(src, /statusColor\(/,
       `${f} còn gọi statusColor(...) trực tiếp — đó là chỗ làm Up next trùng màu In queue`)
     assert.match(src, /statusColorOf\(/, `${f} phải lấy màu qua statusColorOf`)
   }

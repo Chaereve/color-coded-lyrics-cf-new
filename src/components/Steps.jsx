@@ -32,7 +32,8 @@ export default function Steps({ pct, label }) {
   return (
     <span className="nhip" role="progressbar" aria-valuenow={v} aria-valuemin={0}
       aria-valuemax={100} aria-label={label}
-      title={MILESTONES.map((m, i) => `${m.label}${segs[i].fill >= 100 ? ' ✓' : ''}`).join(' · ')}>
+      aria-valuetext={`${done} of ${segs.length} tasks complete: ${segs.map(s => s.label).join(', ')}`}>
+
       {segs.map((s) => (
         <span key={s.k} className="nhip-seg" aria-hidden="true">
           <i style={{ '--w': `${s.fill}%` }} />

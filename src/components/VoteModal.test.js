@@ -1,14 +1,12 @@
 /* Hộp thoại nhập số vote — dựng THẬT ra HTML.
    ---------------------------------------------------------
-   Thân hộp thoại vừa được viết lại (số vote sau khi vote · bốn mức nhanh ·
-   thanh trượt · tổng kết trước→sau · ba ô số dư) nên phải có chỗ chốt: một
+   Thân hộp thoại vừa được viết lại (số dư còn lại · ô nhập tay · Vote all · Take back)
+   nên phải có chỗ chốt: một
    biến không tồn tại trong nhánh mới là màn hình trắng ngay lúc mở, mà
    `npm run build` thì không thấy gì.
    Ba thứ được kiểm ở đây đều là LỜI HỨA với người dùng:
-     · con số lớn là SỐ VOTE SAU KHI VOTE, không phải số đang có — người bấm
-       cần biết kết quả, không phải hiện trạng;
-     · không mức nhanh nào vượt quá số vote còn lại (bấm vào không được nhảy
-       sang một con số không thể thực hiện);
+     · số dư cập nhật theo lượng vote đã chọn;
+     · Vote all và Take back all luôn dùng đúng hạn mức riêng của từng chế độ;
      · nút xác nhận khoá khi không còn vote để dùng, thay vì để bấm rồi báo lỗi.
    Chạy: npm test */
 import test, { after } from 'node:test'
@@ -46,36 +44,33 @@ const base = {
   onClose: () => {}, onVote: () => {}, onBuy: () => {},
 }
 
-test('hộp thoại dựng được và con số lớn là số vote SAU khi vote', async () => {
+test('hộp thoại dựng được và số dư đổi theo vote đã chọn', async () => {
   const html = await render(base)
-  assert.ok(html.includes('vm-hero'), 'thiếu khối số lớn')
-  assert.ok(html.includes('>9<'), 'mặc định chọn 1 vote: 8 hiện có + 1 = 9')
+  assert.ok(html.includes('class="vm-balance"'), 'thiếu thẻ số dư')
+  assert.ok(html.includes('>11<'), 'mặc định chọn 1: còn 11 trong 12 vote')
   assert.ok(html.includes('Whiplash'), 'phải hiện tên bài đang vote')
+  assert.ok(html.includes('Vote all 12'), 'có nút Vote all')
 })
 
-test('quỹ phiếu đọc ra bằng MỘT dòng chữ, không phải ba ô có viền', async () => {
+test('số dư và nguồn vote nằm gọn trong một thẻ', async () => {
   const html = await render(base)
-  /* Vòng 10 dựng ba ô có viền + một vạch chia tỉ lệ cho cùng một câu trả lời
-     ("phiếu này lấy từ đâu"); vòng 11 gỡ cả hai vì hộp vote bị chê là rối —
-     khung viền là thứ đắt nhất trong một hộp chật. */
-  assert.doesNotMatch(html, /vm-chip/, 'ba ô số dư phải bị gỡ')
-  assert.doesNotMatch(html, /vm-mix/, 'vạch chia tỉ lệ cũng phải bị gỡ')
-  assert.match(html, /class="vm-after" id="vm-after"/, 'phải có dòng trước–sau')
-  assert.match(html, /including 4 bought and 3 bonus/, 'nguồn phiếu viết bằng chữ ngay sau dòng đó')
+  assert.match(html, /class="vm-balance"/, 'có một thẻ số dư')
+  assert.match(html, /4 bought · 3 bonus/, 'nguồn phiếu được ghi gọn trong thẻ')
   /* Không có phiếu mua / phiếu thưởng thì đừng nhắc tới chúng. */
   const plain = await render({ ...base, purchased: 0, bonus: 0 })
   assert.doesNotMatch(plain, /including/, 'không có gì để kể thì không thêm một dòng')
 })
 
-test('không mức nhanh nào vượt quá số vote còn lại', async () => {
+test('ô nhập tay và Vote all cùng theo hạn mức hiện có', async () => {
   const html = await render({ ...base, votesLeft: 3 })
-  assert.match(html, /All 3/, 'còn 3 vote thì phải có Vote all 3')
-  assert.ok(!html.includes('>25<'), 'còn 3 vote thì không được mời bấm 25')
+  assert.match(html, /type="number" min="1" max="3"/, 'có thể nhập số vote thủ công')
+  assert.match(html, /class="vm-all"[^>]*>Vote all 3/, 'nút Vote all dùng đúng hạn mức')
+  assert.doesNotMatch(html, /vm-presets|vm-preset/, 'không lặp bộ chọn số lượng')
 })
 
 test('Vote all và Take back all là hai việc độc lập, không dùng chung một con số', async () => {
   const html = await render({ ...base, votesLeft: 12, myCount: 4 })
-  assert.match(html, /All 12/, 'Vote all = hết phiếu đang có')
+  assert.match(html, /Vote all 12/, 'Vote all = hết phiếu đang có')
   assert.match(html, /Take back all 4/, 'Take back all = hết phiếu đã bỏ vào bài này')
   assert.match(html, /vote-modeGive|Vote/, 'có chế độ Vote')
   assert.match(html, /Take back/, 'có chế độ Take back')
@@ -93,7 +88,7 @@ test('hết vote thì không còn nút xác nhận — đổi thành lối mua t
 test('bài đã xong / bị từ chối / chờ duyệt thì hộp thoại nói rõ vì sao đóng, không cho chọn phiếu', async () => {
   for (const status of ['completed', 'denied', 'pending']) {
     const html = await render({ ...base, request: { ...request, status } })
-    assert.ok(!html.includes('vm-hero'), `${status}: không được hiện bảng chọn vote`)
+    assert.ok(!html.includes('vm-balance'), `${status}: không được hiện bộ chọn vote`)
     assert.ok(html.includes('Voting is closed'), `${status}: phải nói ra lý do`)
   }
 })
@@ -128,27 +123,25 @@ test('bàn phím chỉnh được số phiếu, và trên điện thoại hộp 
     'tấm trượt phải bo hai góc trên, phẳng ở đáy')
   assert.match(narrow, /\.modal\.narrow::before \{/, 'thiếu tay nắm của tấm trượt')
 
-  /* ngón tay: mức chọn nhanh và nút tăng/giảm đủ to */
-  assert.match(coarse, /\.vm-preset \{ min-width: 54px; height: 44px/, 'mức chọn nhanh phải đủ 44px khi chạm')
+  /* ngón tay: nút tăng/giảm đủ lớn để chạm */
+  assert.match(coarse, /\.qty button \{ min-width: 44px; height: 44px/, 'nút tăng/giảm phải đủ 44px khi chạm')
 })
 
-test('nguồn phiếu viết bằng chữ, và con số lớn được đọc lên', async () => {
+test('nguồn phiếu gọn và số dư được đọc lên', async () => {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(fileURLToPath(new URL('./VoteModal.jsx', import.meta.url)), 'utf8')
   const css = readFileSync(fileURLToPath(new URL('../index.css', import.meta.url)), 'utf8')
 
-  /* Nguồn phiếu: hai con số mua / thưởng viết ra thành chữ trong CÙNG dòng
-     trước–sau, và CHỈ hiện khi thật sự có phiếu thuộc nguồn đó. */
+  /* Nguồn mua/thưởng chỉ hiện trong thẻ số dư khi có số lượng tương ứng. */
   assert.match(src, /t\('vote\.sources', \{ p: purchased, b: bonus \}\)/,
     'nguồn phiếu phải viết ra bằng chữ')
   assert.match(src, /purchased > 0 \|\| bonus > 0/, 'không có phiếu mua/thưởng thì không nhắc')
   assert.doesNotMatch(src, /vm-mix|leftTotal/, 'vạch chia tỉ lệ và phép tính của nó đã bị gỡ')
   assert.doesNotMatch(css, /\.vm-mix/, 'luật CSS của vạch đó cũng phải bị gỡ khỏi tệp')
 
-  /* Con số lớn đổi theo từng lần chọn — trình đọc màn hình cũng phải biết. */
-  assert.match(src, /className=\{`v\$\{changing \? '' : ' pop'\}`\} aria-live="polite"/,
-    'con số kết quả phải được đọc lên khi đổi')
-  /* Ô nhập số phiếu trỏ tới dòng "còn 7 → còn 3": đọc tới ô là hiểu ngay sẽ mất gì. */
-  assert.match(src, /aria-describedby="vm-after"/, 'ô số phiếu phải trỏ tới dòng trước–sau')
-  assert.match(src, /className="vm-after" id="vm-after"/, 'dòng trước–sau phải có id để trỏ tới')
+  /* Số dư đổi theo lựa chọn — trình đọc màn hình cũng phải biết. */
+  assert.match(src, /<strong aria-live="polite">\{giving \? leftAfter : mineAfter\}<\/strong>/,
+    'số dư phải được đọc lên khi đổi')
+  assert.match(src, /aria-describedby="vm-balance"/, 'ô số phiếu phải trỏ tới thẻ số dư')
+  assert.match(src, /className=\{`vm-balance\$\{giving \? '' : ' is-back'\}`\} id="vm-balance"/, 'thẻ số dư có id')
 })

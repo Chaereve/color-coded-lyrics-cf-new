@@ -69,10 +69,16 @@ test('đã có video: lỗi làm mới KHÔNG xoá nội dung đang xem', async 
   assert.ok(!text.includes('This section could not load'), 'còn nội dung thì không dựng bảng lỗi đè lên')
 })
 
-test('đã có video + ready: vẫn vẽ sân khấu và dải mục lục như cũ', async () => {
+test('đã có video: dựng showcase 16:9, nút YouTube, dải chọn và điều hướng', async () => {
   const videos = [V('aaa', 'Song A — Artist'), V('bbb', 'Song B — Artist')]
   const html = await render({ videos, state: 'ready' })
+  assert.match(html, /pick-showcase-head/)
   assert.match(html, /pick-stage/)
+  assert.match(html, /pick-info/)
+  assert.match(html, /pick-watch/)
   assert.match(html, /pvlist/)
+  assert.match(html, /pvrow on/)
+  assert.match(html, /aria-pressed="true"/)
   assert.match(html, /pick-nav next/)
+  assert.doesNotMatch(html, /class="playbtn/)
 })

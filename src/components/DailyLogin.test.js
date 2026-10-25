@@ -5,6 +5,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
@@ -65,6 +66,31 @@ test('the check-in page keeps its frame and hides the reward card until data exi
     // Legacy copy must be gone: check-ins DO pay votes now.
     assert.doesNotMatch(html, /never award/)
   })
+})
+
+test('removes the redundant checked-in stats row and separates reward progress sections', () => {
+  const jsx = readFileSync(new URL('./DailyLogin.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('./DailyLogin.css', import.meta.url), 'utf8')
+  assert.match(jsx, /!status\?\.login\.claimed/)
+  assert.doesNotMatch(jsx, /daily-checkin-done|daily-checkin-stats/)
+  assert.match(css, /\.login-rewards-summary\s*\{[^}]*padding-top:\s*15px; border-top:\s*1px solid var\(--line\)/)
+  assert.match(css, /\.login-rewards-breakdown\s*\{\s*padding-top:\s*15px; border-top:\s*1px solid var\(--line\);/)
+  assert.match(css, /\.login-rewards-cycle\s*\{[^}]*gap:\s*14px/)
+  assert.match(css, /\.login-rewards-lead\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*start/)
+  assert.match(css, /\.login-rewards-cycle-head\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*start/)
+  assert.match(css, /\.login-rewards-summary-line\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*center/)
+  assert.match(css, /\.login-rewards-breakdown li\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*center/)
+  assert.match(css, /\.login-rewards-summary-item\.login-rewards-cap\s*\{\s*gap:\s*9px/)
+})
+
+test('calendar labels use readable sizes on desktop and mobile', () => {
+  const css = readFileSync(new URL('./DailyLogin.css', import.meta.url), 'utf8')
+  assert.match(css, /\.daily-demo\s*\{[^}]*font-size:\s*13px/)
+  assert.match(css, /\.check-in-calendar-month\s*\{\s*font-size:\s*16px/)
+  assert.match(css, /\.check-in-calendar-grid th\s*\{[^}]*font-size:\s*12px/)
+  assert.match(css, /\.check-in-day time\s*\{\s*font-size:\s*14px/)
+  assert.match(css, /@media \(max-width: 620px\)[\s\S]*?\.check-in-calendar-grid th\s*\{\s*font-size:\s*11px/)
+  assert.match(css, /@media \(max-width: 620px\)[\s\S]*?\.check-in-day time\s*\{\s*font-size:\s*13px/)
 })
 
 test('the reward card renders votes only: total, cycle, milestones, cap meter', async () => {

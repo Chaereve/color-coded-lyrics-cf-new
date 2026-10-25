@@ -182,7 +182,7 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
             </button>
           </div>
         )}
-        <div className="mystery-page-reset" title={t('spin.ruleReset')}>
+        <div className="mystery-page-reset">
           <span>{t('spin.resetIn')}</span>
           <b>{deadline === null ? '--:--:--' : spinCountdown(deadline - clock)}</b>
         </div>
@@ -250,11 +250,6 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
                     <b>{formatPct(prize.weight)}</b>
                   </li>
                 ))}
-              </ul>
-              <ul className="mystery-rules">
-                <li>{t('mystery.ruleOnce')}</li>
-                <li>{t('mystery.ruleCap')}</li>
-                <li>{t('mystery.rulePaid')}</li>
               </ul>
             </div>
           </div>

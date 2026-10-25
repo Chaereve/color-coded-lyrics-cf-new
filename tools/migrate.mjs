@@ -366,11 +366,15 @@ export async function ensureHistory (client) {
     name text)`)
 }
 
-export async function readHistory (client) {
+export async function readHistoryEntries (client) {
   const { rows: [row] } = await client.query(`select to_regclass('${HISTORY_TABLE}') is not null as ok`)
   if (!row.ok) return []
-  const { rows } = await client.query(`select version from ${HISTORY_TABLE} order by version`)
-  return rows.map(row => row.version)
+  const { rows } = await client.query(`select version, name from ${HISTORY_TABLE} order by version`)
+  return rows
+}
+
+export async function readHistory (client) {
+  return (await readHistoryEntries(client)).map(row => row.version)
 }
 
 /** Refuses to run against a database that has app tables but no history. */
@@ -456,8 +460,18 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null, unt
   const { active, quarantined } = assertMigrationSafety(dir)
   // Read-only until the plan is accepted: a refused deployment must not leave
   // even an empty history table behind.
-  const applied = await readHistory(client)
-  const appliedSet = new Set(applied)
+  const historyEntries = await readHistoryEntries(client)
+  const applied = historyEntries.map(({ version }) => version)
+  const migrationIds = new Set(active.map(({ id }) => id))
+  // Supabase's Management API records a generated timestamp as `version` and
+  // the caller's migration name separately. Treat an exact repository filename
+  // stored in `name` as applied too, so connector-applied, idempotent migrations
+  // are not replayed by this runner on the next deploy.
+  const appliedForPlan = [...new Set([
+    ...applied,
+    ...historyEntries.map(({ name }) => name).filter(name => migrationIds.has(name)),
+  ])]
+  const appliedSet = new Set(appliedForPlan)
   // A baseline claims "everything up to here is already in this database".
   // That claim is only accepted when the live schema matches a committed
   // fingerprint of that migration's result, and only when it is about to be
@@ -481,7 +495,7 @@ export async function plan (client, { dir = MIGRATIONS_DIR, baseline = null, unt
      vào pending: runner sẽ chạy lại migration cũ rồi vỡ bằng lỗi khoá chính khi ghi
      history (recordBaseline đã ghi trước đó), tức một abort khó hiểu thay vì kế
      hoạch đúng. */
-  const plan = planPending({ active, quarantined, applied, baseline })
+  const plan = planPending({ active, quarantined, applied: appliedForPlan, baseline })
   if (until != null && until !== '') {
     if (!active.some(({ version }) => version === until)) {
       throw new Error(`--until ${until} does not match any migration version`)

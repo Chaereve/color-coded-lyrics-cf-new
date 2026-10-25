@@ -126,7 +126,10 @@ test('đang lọc thì có MỘT tín hiệu, không phải ba', () => {
 })
 
 test('chip lọc và nút icon đủ to để chạm', () => {
-  const coarse = css.slice(css.lastIndexOf('@media (pointer: coarse)'))
+  /* CSS chia touch-target thành nhiều khối coarse theo từng tính năng; gom tất
+     cả để phần mở rộng mới (ví dụ modal vote) không che mất khối thanh lọc. */
+  const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)]
+    .map((m) => m[1]).join('\n')
   assert.match(coarse, /\.fbar \.searchwrap, \.fbar \.search \{ height: 44px/, 'ô tìm 44px khi chạm')
   assert.match(coarse, /\.fb-icon, \.fb-sort \{ width: 44px; height: 44px/, 'hai nút icon 44px khi chạm')
   assert.match(coarse, /\.fb-opt \{ height: 44px/, 'mục trong bảng chọn 44px khi chạm')

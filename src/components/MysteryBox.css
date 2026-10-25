@@ -409,13 +409,6 @@
 .mystery-odds li:last-child { border-bottom: 0; }
 .mystery-odds li span { color: var(--txt); min-width: 0; overflow-wrap: anywhere; }
 .mystery-odds li b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--txt-2); font-weight: 600; flex: 0 0 auto; }
-.mystery-rules { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.mystery-rules li { position: relative; padding-left: 14px; font-size: 11px; line-height: 1.6; color: var(--txt-2); }
-.mystery-rules li::before {
-  content: ""; position: absolute; left: 0; top: .55em;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--a-2);
-}
-
 .mystery-month { display: flex; flex-direction: column; gap: 12px; }
 .mystery-month-head { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 .mystery-month-nav { display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; }

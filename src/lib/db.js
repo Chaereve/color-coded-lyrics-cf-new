@@ -320,6 +320,17 @@ const privateRequestsOf = (rows) => (rows || [])
   .filter(r => r && (r.status === 'pending' || r.status === 'denied'))
   .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
+/* `deny_reason` is not granted as a readable table column. This SECURITY
+   DEFINER RPC returns only reasons the signed-in requester owns (or an admin
+   may review); keep the public request snapshot and browser cache reason-free. */
+async function attachVisibleDenialReasons(rows) {
+  if (!hasSupabase || !Array.isArray(rows) || rows.length === 0) return rows || []
+  const { data, error } = await supabase.rpc('get_visible_denial_reasons')
+  if (error || !Array.isArray(data)) return rows
+  const reasons = new Map(data.map(item => [item.id, item.deny_reason]))
+  return rows.map(row => ({ ...row, deny_reason: reasons.get(row.id) || null }))
+}
+
 const publicProfileShape = (profile, rows, ownerView = false) => {
   const visible = publicRequestsOf(rows)
   return {
@@ -361,14 +372,15 @@ export async function fetchPublicProfile(userId, viewerId = null) {
       /* Chủ hồ sơ: tải CẢ hàng chờ duyệt / bị từ chối (kèm lý do) để chính họ
          xem lại được; người ngoài: vẫn lọc ngay ở câu truy vấn. */
       const q = supabase.from('requests')
-        .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, deny_reason')
+        .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid')
         .eq('user_id', userId)
       if (!ownerView) q.neq('status', 'pending').neq('status', 'denied')
       return q.order('created_at', { ascending: false }).limit(50)
     })(),
   ])
   if (pe) throw pe; if (re) throw re; if (!p) return null
-  return publicProfileShape(p, rs, ownerView)
+  const privateRows = ownerView ? await attachVisibleDenialReasons(rs || []) : rs
+  return publicProfileShape(p, privateRows, ownerView)
 }
 
 /* ======================== READ ======================== */
@@ -448,17 +460,24 @@ export async function fetchRequests() {
   /* Lần nạp đầu của trang là thứ quyết định người dùng có thấy bảng hay
      không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js). */
   const { data, error } = await readQuery(() =>
-    supabase.from('requests').select('*')
+    supabase.from('requests')
+      .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
       .order('created_at', { ascending: false }).limit(800))
   if (!error) {
     cacheWrite(CACHE.rows, data)
-    return data
+    return attachVisibleDenialReasons(data)
   }
   /* A transient outage must not make previously loaded user data disappear.
      If the old browser snapshot exists, use it even while the owner repairs
      a missing schema object; never replace it with a fake empty board. */
   const cached = cacheRead(CACHE.rows)
-  if (Array.isArray(cached)) return cached
+  if (Array.isArray(cached)) {
+    /* Purge snapshots from versions that cached every column, including private
+       notes. Offline board data remains available without retaining the reason. */
+    const safeCached = cached.map(({ deny_reason: _privateReason, ...row }) => ({ ...row, deny_reason: null }))
+    cacheWrite(CACHE.rows, safeCached)
+    return safeCached
+  }
   throw error
 }
 

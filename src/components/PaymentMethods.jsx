@@ -91,7 +91,7 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
       </div>
 
       {active ? (
-        <div className="iv">
+        <div className="iv" key={active.k}>
           <div className="iv-head">
             <div className="iv-htop">
               <span className="iv-title">{t('pay.invoice')}</span>
