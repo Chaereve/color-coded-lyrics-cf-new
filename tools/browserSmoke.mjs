@@ -300,7 +300,7 @@ for (const vp of viewports) {
   if (guest) {
     check(`${vp.name}: khách chưa đăng nhập thấy lời mời đăng nhập, không trắng màn`, true)
     await page.locator('.signin-panel-btn').first().click()
-    await page.waitForSelector('.gate-card', { timeout: 10_000 })
+    await page.waitForSelector('.gate-panel', { timeout: 10_000 })
     check(`${vp.name}: bấm nút đăng nhập mở được cửa sổ (không kẹt)`, true)
     await page.locator('.btn-google').first().click()
   } else {
@@ -365,7 +365,7 @@ for (const vp of viewports) {
       try { await page.waitForSelector(r.anchor, { timeout: 12_000 }) } catch {
         if (await page.locator('.signin-panel-btn').count()) {
           await page.locator('.signin-panel-btn').first().click()
-          await page.waitForSelector('.gate-card', { timeout: 10_000 })
+          await page.waitForSelector('.gate-panel', { timeout: 10_000 })
           await page.locator('.btn-google').first().click()
           await page.waitForSelector(r.anchor, { timeout: 15_000 })
         } else throw new Error(`không thấy ${r.anchor}`)
