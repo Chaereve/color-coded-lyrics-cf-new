@@ -265,8 +265,8 @@ if (live) {
         /* The public load awaits every page of the votes RPC before publishing
            rows, so the New card is a reliable signal that pagination finished. */
         await page.waitForFunction(
-          "Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'New this week')",
-          null, { timeout: 20_000 },
+          "Number(document.querySelector('.board')?.getAttribute('data-weekly-votes') || 0) > 0 || Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'New this week')",
+          null, { timeout: 25_000 },
         ).catch(() => {})
         /* A rendered "New this week" card is not proof that the RPC response
            event has fired (the card can already be present during a fast SPA
@@ -292,6 +292,11 @@ if (live) {
         const votesResponse = votePages.find(({ response }) => response.ok())?.response || votePages[0]?.response || null
         await page.waitForTimeout(200)
         const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
+        const weeklyData = await page.locator('.board').evaluate(el => ({
+          votes: el.getAttribute('data-weekly-votes'),
+          top: el.getAttribute('data-weekly-top'),
+          requests: el.getAttribute('data-request-rows'),
+        })).catch(() => ({ votes: null, top: null, requests: null }))
         const recentVoteRows = voteRows.filter(row => {
           const at = Date.parse(row?.created_at)
           return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
@@ -300,7 +305,7 @@ if (live) {
           `requests=${voteRequests.length} · HTTP ${votesResponse?.status() ?? (voteFailures.length ? `failed: ${voteFailures[0]}` : 'no response after 25s')} · ${voteRows.length} phiếu/${votePages.length} trang`)
         check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',
           Boolean(votesResponse?.ok()) && (recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted')),
-          `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'}`)
+          `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'} · appVotes=${weeklyData.votes ?? '?'} · computedTop=${weeklyData.top ?? '?'} · requestRows=${weeklyData.requests ?? '?'}`)
         page.off('request', captureVoteRequest)
         page.off('response', captureVotes)
         page.off('requestfailed', captureVoteFailure)

@@ -2238,7 +2238,8 @@ function AppInner() {
           /* .board: một cột ở bản hẹp, hai cột (nội dung + video) từ 1300px —
              xem khối "BỐ CỤC BẢNG" trong index.css. Thứ tự DOM vẫn là thứ tự
              đọc: thống kê → video → Up next → vote → danh sách. */
-          <div className="board">
+          <div className="board" data-weekly-votes={votesLog.length}
+            data-weekly-top={weeklyHighlights.top ? 'true' : 'false'} data-request-rows={rows.length}>
             <div className="stats" data-home-stats data-reveal data-glow>
               {/* Bốn giai đoạn, cộng lại đúng tổng số bài trên bảng. Ô "Paid"
                   cũ bị bỏ: nó là một NHÃN (bài trả phí) chứ không phải giai
