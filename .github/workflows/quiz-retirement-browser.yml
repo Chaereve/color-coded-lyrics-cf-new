@@ -82,12 +82,10 @@ jobs:
           if [ -n "$LIVE_URL" ]; then
             echo "live_url truyền qua dispatch: $LIVE_URL (ưu tiên hơn tệp)"
           elif [ "$GITHUB_REF_NAME" = "arena/92d15269-color-coded-lyrics-cf-new" ]; then
-            # Trên PR phải kiểm tra đúng bundle của branch preview, không phải
-            # production đang chạy commit cũ. Sau merge vào main, nhánh main
-            # tiếp tục smoke URL production lấy từ live-smoke-target.
-            TARGET=https://arena-92d15269-color-coded-l.chaereve.pages.dev
-            echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
-            echo "live smoke sẽ mở branch preview $TARGET"
+            # PR preview đang chạy chế độ demo (không có VITE_SUPABASE_*), còn
+            # production vẫn là commit cũ nên không thể dùng nó để kiểm bản PR.
+            # Sau merge vào main, production live smoke bên dưới mới có ý nghĩa.
+            echo "bỏ live smoke cho PR: preview là demo, production chưa có commit này"
           elif [ -n "$TARGET" ]; then
             echo "LIVE_URL=$TARGET" >> "$GITHUB_ENV"
             echo "live smoke sẽ mở $TARGET (đọc từ .github/live-smoke-target)"
