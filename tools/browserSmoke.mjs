@@ -262,8 +262,8 @@ if (live) {
         page.on('response', captureVotes)
         page.on('requestfailed', captureVoteFailure)
         await page.goto(`${live}/?weekly-smoke=${Date.now()}`, { waitUntil: 'load', timeout: 60_000 })
-        /* The public load awaits every page of the votes RPC before publishing
-           rows, so the New card is a reliable signal that pagination finished. */
+        /* The homepage publishes its first recent-vote page before older
+           ranking history loads. Wait for either the data marker or New card. */
         await page.waitForFunction(
           "Number(document.querySelector('.board')?.getAttribute('data-weekly-votes') || 0) > 0 || Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'New this week')",
           null, { timeout: 25_000 },
@@ -290,7 +290,10 @@ if (live) {
         })))
         const voteRows = votePages.flatMap(({ rows }) => Array.isArray(rows) ? rows : [])
         const votesResponse = votePages.find(({ response }) => response.ok())?.response || votePages[0]?.response || null
-        await page.waitForTimeout(200)
+        await page.waitForFunction(
+          "(() => { const board = document.querySelector('.board'); const labels = Array.from(document.querySelectorAll('.weekly-card small')).map(el => el.textContent.trim()); return board?.getAttribute('data-weekly-top') === 'true' ? labels.includes('Most voted') : labels.includes('New this week') || Number(board?.getAttribute('data-weekly-votes') || 0) > 0; })()",
+          null, { timeout: 5_000 },
+        ).catch(() => {})
         const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
         const weeklyData = await page.locator('.board').evaluate(el => ({
           votes: el.getAttribute('data-weekly-votes'),
@@ -306,6 +309,32 @@ if (live) {
         check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',
           Boolean(votesResponse?.ok()) && (recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted')),
           `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'} · appVotes=${weeklyData.votes ?? '?'} · computedTop=${weeklyData.top ?? '?'} · requestRows=${weeklyData.requests ?? '?'}`)
+
+        const nextVideo = page.locator('.pick-showcase .pick-nav.next').first()
+        if (await nextVideo.count()) {
+          const previousLabel = await page.locator('.pick-showcase .pvrow.on').getAttribute('aria-label')
+          await nextVideo.click()
+          const changed = await page.waitForFunction(previous => {
+            const active = document.querySelector('.pick-showcase .pvrow.on')
+            return active && active.getAttribute('aria-label') !== previous
+          }, previousLabel, { timeout: 3_000 }).then(() => true).catch(() => false)
+          const railState = await page.locator('.pick-showcase').evaluate(section => {
+            const rail = section.querySelector('.pvlist')
+            const active = section.querySelector('.pvrow.on')
+            const railRect = rail?.getBoundingClientRect()
+            const activeRect = active?.getBoundingClientRect()
+            return {
+              selectedTitle: active?.querySelector('.pv-tx b')?.textContent?.trim() || '',
+              heroTitle: section.querySelector('.pick-showcase-title')?.textContent?.trim() || '',
+              visible: Boolean(railRect && activeRect && activeRect.left >= railRect.left - 2 && activeRect.right <= railRect.right + 2),
+            }
+          })
+          check('live desktop: chuyển video cập nhật hero và giữ thumbnail đang chọn trong khung dải',
+            changed && railState.visible && railState.selectedTitle === railState.heroTitle,
+            `changed=${changed} · visible=${railState.visible} · hero=${railState.heroTitle || 'none'} · selected=${railState.selectedTitle || 'none'}`)
+        } else {
+          check('live desktop: dải video có nút chuyển để kiểm tra', false, 'không thấy .pick-nav.next')
+        }
         page.off('request', captureVoteRequest)
         page.off('response', captureVotes)
         page.off('requestfailed', captureVoteFailure)
