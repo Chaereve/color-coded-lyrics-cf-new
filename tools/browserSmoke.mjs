@@ -254,6 +254,7 @@ if (live) {
         const voteRows = votesResponse?.ok()
           ? await votesResponse.json().catch(() => null)
           : null
+        await page.locator('.weekly-card small').first().waitFor({ timeout: 20_000 }).catch(() => {})
         await page.waitForTimeout(500)
         const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
         const hasRecentVotes = Array.isArray(voteRows) && voteRows.length > 0
