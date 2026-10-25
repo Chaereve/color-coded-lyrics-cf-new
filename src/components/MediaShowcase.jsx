@@ -84,8 +84,9 @@ export default function MediaShowcase({ featured = null, videos = [], canEdit, o
     const el = strip?.querySelector('.pvrow.on')
     if (!el) return
     const left = el.offsetLeft - (strip.clientWidth - el.clientWidth) / 2
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    try { strip.scrollTo({ left: Math.max(0, left), behavior: reduce ? 'auto' : 'smooth' }) }
+    /* The selected video changes immediately; a smooth rail scroll made the
+       highlight/fade trail behind that selection. Reposition in the same frame. */
+    try { strip.scrollTo({ left: Math.max(0, left), behavior: 'auto' }) }
     catch { strip.scrollLeft = Math.max(0, left) }
   }, [at, n])
 

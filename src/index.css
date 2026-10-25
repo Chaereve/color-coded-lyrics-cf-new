@@ -5790,7 +5790,7 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 .pick-showcase-label { margin: 0; color: var(--txt); font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; line-height: 1.3; }
 .pick-showcase-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .pick-showcase-pager { display: flex; align-items: center; gap: 9px; }
-.pick-showcase-count { margin: 0; font-size: var(--fs-meta); transition: opacity var(--t-2) var(--e-soft), transform var(--t-2) var(--e-out); animation: showcaseTextIn .22s var(--e-out) both; }
+.pick-showcase-count { margin: 0; font-size: var(--fs-meta); transition: none; animation: none; }
 .pick-showcase-count.is-changing { opacity: .35; transform: translateY(3px); }
 .pick-showcase-arrows { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
 .pick-showcase .pick-nav {
@@ -5815,7 +5815,7 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   display: block; width: 100%; height: auto; padding: 0; overflow: hidden;
   border: 0; border-radius: 0; aspect-ratio: 16 / 9;
   background: var(--surface-3); color: inherit; text-decoration: none; box-shadow: none;
-  animation: showcaseMediaIn .28s var(--e-out) both; transition: none;
+  animation: none; transition: none;
 }
 .pick-showcase .pick-stage::before,
 .pick-showcase .pick-stage::after { content: none; display: none; }
@@ -5823,8 +5823,8 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
 .pick-showcase .pick-stage:focus-visible { transform: none; box-shadow: none; }
 .pick-showcase .pick-stage .mthumb { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 0; }
 .pick-showcase .mthumb > img {
-  object-fit: contain !important; outline: 0; transform: none !important;
-  transition: opacity .32s var(--e-out) !important;
+  object-fit: contain !important; outline: 0; opacity: 1 !important; transform: none !important;
+  transition: none !important;
 }
 .pick-showcase .mthumb.ready > img { opacity: 1; transform: none !important; }
 .pick-showcase .mthumb:not(.ready)::after { display: none; animation: none; }
@@ -5833,7 +5833,7 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   gap: 20px; min-width: 0; padding: clamp(18px, 2.6vw, 30px);
   border-left: 1px solid var(--line); background: var(--panel);
 }
-.pick-copy { display: grid; gap: 8px; min-width: 0; animation: showcaseTextIn .26s var(--e-out) both; }
+.pick-copy { display: grid; gap: 8px; min-width: 0; animation: none; }
 .pick-showcase-title {
   margin: 0; color: var(--txt); font-family: var(--display); font-size: var(--fs-h1);
   font-weight: 700; line-height: 1.3; letter-spacing: -.02em; text-wrap: pretty; overflow-wrap: anywhere;
@@ -5844,7 +5844,7 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2);
   color: var(--txt); font-size: var(--fs-meta); font-weight: 600; line-height: 1.35;
   text-decoration: none; transition: border-color var(--t-1) var(--e-soft), background var(--t-1) var(--e-soft), color var(--t-1) var(--e-soft);
-  animation: showcaseTextIn .26s var(--e-out) .04s both;
+  animation: none;
 }
 .pick-showcase .pick-watch:hover { border-color: var(--a-2); background: var(--a-soft); color: var(--a-2); }
 .pick-showcase .pick-watch svg { flex: none; }
