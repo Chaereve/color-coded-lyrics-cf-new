@@ -1058,8 +1058,9 @@ const S = {
   'adm.deny': 'Deny',
   'adm.denyVideo': 'Already made it? Video link (optional)',
   'err.denyVideo': 'Enter a valid https:// or http:// video link.',
-  'err.mediaLimit': 'The media library is full (20 items). Remove an item first.',
-  'adm.mediaLimit': '{n}/20 items',
+  'err.mediaLimit': 'The Latest videos list is full (20 videos). Remove a video first.',
+  'err.mediaFeaturedLimit': 'Only one Featured video is allowed.',
+  'adm.mediaLimit': '{n}/20 videos (Featured is separate)',
   'adm.denyPrompt': 'Reason shown to the user (optional)',
   /* Bốn lý do thật sự xảy ra. Chip điền vào ô, admin vẫn sửa/thêm được. */
   'adm.denyPreset.dup': 'Already requested for this song',

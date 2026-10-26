@@ -14,6 +14,7 @@ import { streakStats, STREAK_MILESTONES, unionActivityDays } from './lib/streak.
 import { vnDayKey } from './lib/season.js'
 import { achievementRequestMetrics } from './lib/achievementMetrics.js'
 import { drawRecapCard } from './lib/shareCard.js'
+import { FEATURED_MEDIA_LIMIT, HOMEPAGE_VIDEO_LIMIT, featuredMediaCount, homepageVideoCount, isHomepageVideo } from './lib/mediaLimits.js'
 import { weekRecap as buildWeekRecap, recapStats } from './lib/weekRecap.js'
 import VoteModal from './components/VoteModal'
 import Sidebar from './components/Sidebar'
@@ -1990,7 +1991,12 @@ function AppInner() {
   }
   const doMediaSave = async (item) => {
     try {
-      if (!item.id && media.length >= 20) throw new Error(t('err.mediaLimit'))
+      if (!item.id && isHomepageVideo(item) && homepageVideoCount(media) >= HOMEPAGE_VIDEO_LIMIT) {
+        throw new Error(t('err.mediaLimit'))
+      }
+      if (!item.id && item.kind === 'featured' && featuredMediaCount(media) >= FEATURED_MEDIA_LIMIT) {
+        throw new Error(t('err.mediaFeaturedLimit'))
+      }
       await saveMedia(item); await loadMedia(); flash('ok', t('toast.mediaSaved'))
     } catch (e) { flash('err', errMsg(t, e)); throw e }
   }
@@ -1999,7 +2005,9 @@ function AppInner() {
   const doMediaCommit = async ({ updates = [], adds = [], removes = [], order = [] } = {}) => {
     const isVideo = (m) => m && (m.kind === 'video' || m.kind === 'playlist')
     try {
-      if (media.filter(m => !removes.includes(m.id)).length + adds.length > 20) throw new Error(t('err.mediaLimit'))
+      if (homepageVideoCount(media.filter(m => !removes.includes(m.id))) + adds.length > HOMEPAGE_VIDEO_LIMIT) {
+        throw new Error(t('err.mediaLimit'))
+      }
       if (removes.length) await deleteMediaMany(removes)
       for (const u of updates) await saveMedia(u)
       const newIdByKey = {}

@@ -15,6 +15,7 @@ import { useConfirm } from '../lib/confirm.jsx'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import { here, putUrl } from '../lib/history'
+import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
@@ -926,7 +927,7 @@ export default function AdminPanel({
      một thứ chỉ được đếm ở một chỗ. */
   const counts = useMemo(() => ({
     pending: pending.length, active: active.length, expired: expiredRows.length, orders: orderQueue.length,
-    done: others.length, media: media.filter(m => m.kind === 'video' || m.kind === 'playlist').length,
+    done: others.length, media: homepageVideoCount(media),
     picked: pickedRows.length, log: logTotal,
   }), [pending.length, active.length, expiredRows.length, orderQueue.length, others.length, media, pickedRows.length, logTotal])
   const kpis = useMemo(
@@ -1133,11 +1134,11 @@ export default function AdminPanel({
           <span className="adm-h2-n">{t('adm.showing', {
             /* Bình luận: `n` là số thẻ ĐANG HIỆN, `total` là tổng khớp bộ lọc ở
                database — nên dòng này nói thật "đang xem 20 trong 1.240". */
-            n: tab === 'media' ? media.length
+            n: tab === 'media' ? counts.media
               : tab === 'log' ? logRows.length
                 : tab === 'overview' ? counts.pending + counts.expired + counts.orders
                   : pg.items.length,
-            total: tab === 'media' ? media.length
+            total: tab === 'media' ? counts.media
               : tab === 'log' ? logTotal
                 : tab === 'overview' ? counts.pending + counts.expired + counts.orders
                   : shown.length,
