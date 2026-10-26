@@ -48,6 +48,15 @@
    đọc cả hai chỗ và so, nên không có chuyện sửa một nơi rồi quên nơi kia. */
 export const PREVIEW_SECONDS = 30
 
+/* MP4 clips trimmed to a nominal 30 seconds often report a duration just under
+   30s (for example 29.97), so the browser fires `ended` before the 30s cap and
+   displays 0:29. Hold the final frame for the tiny remainder; reject genuinely
+   shorter clips instead of pretending they are complete previews. */
+export function nearThirtyTailMs(duration) {
+  if (typeof duration !== 'number' || !Number.isFinite(duration) || duration < PREVIEW_SECONDS - 1) return null
+  return Math.max(0, Math.round((PREVIEW_SECONDS - duration) * 1000))
+}
+
 /* `id` là tem để player dán lại vào từng sự kiện; `channel:"widget"` là phần
    bắt buộc của phong bì (thiếu nó player coi như tin lạ và bỏ qua). */
 export const PLAYER_ID = 'ccl-preview'

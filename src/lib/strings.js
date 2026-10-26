@@ -775,9 +775,20 @@ const S = {
   /* footer */
   'foot.tag': 'Request Page',
   'foot.copy': '© {y} CHAEREVE. All rights reserved.',
+  'foot.contact': 'Contact',
+  'foot.followSupport': 'Follow & support',
+  'foot.community': 'Community',
+  'foot.explore': 'Explore',
+  'foot.help': 'Help',
+  'foot.linksLabel': 'Footer links',
+  'foot.telegram': 'Telegram',
+  'foot.supportShort': 'support',
+  'foot.communityTitle': 'Hi-Res / Atmos',
+  'foot.communityHint': 'Telegram · YouTube post',
+  'foot.calendar': 'Calendar',
   'foot.privacy': 'Privacy',
   'foot.faq': 'FAQ',
-  'foot.archive': 'Completed videos',
+  'foot.archive': 'Archive',
 
   /* tab trong modal */
   'tab.request': 'New request',

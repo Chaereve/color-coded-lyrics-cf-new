@@ -714,9 +714,9 @@ if (addBtn) {
   check('mở form ở bước 1 — chưa dựng ô của bước 2',
     !!q('.req-pane') && !q('#rq-artist') && !q('#rq-note'))
   check('đủ 4 chip loại bài', qa('.kchip').length === 4)
-  /* VÒNG 13: chữ "TikTok" trong dòng gợi ý kiểu bài đã bị gỡ — trang chỉ nói
-     về YouTube, nhắc một nền tảng khác chỉ làm người gửi phân vân. */
-  check('dòng gợi ý kiểu bài không còn nhắc TikTok', !/TikTok/i.test(text()),
+  /* Chỉ kiểm tra dòng gợi ý của form: TikTok có thể xuất hiện hợp lệ ở
+     footer/kênh social nhưng không nên bị hiểu là nền tảng nhận request. */
+  check('dòng gợi ý kiểu bài không còn nhắc TikTok', !/TikTok/i.test(q('.kind-note')?.textContent || ''),
     q('.kind-note')?.textContent)
   check('có đúng MỘT dòng giải thích loại đang chọn', qa('.kind-note').length === 1)
   /* Nút chính của bước 1 là ĐI TIẾP, không phải Gửi: bước gửi chưa tới. */

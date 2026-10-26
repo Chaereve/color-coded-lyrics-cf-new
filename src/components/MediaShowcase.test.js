@@ -86,34 +86,32 @@ test('đã có video: dựng showcase 16:9, nút YouTube, dải chọn và đi�
   assert.doesNotMatch(html, /class="playbtn/)
 })
 
-test('dải video rộng bằng khung trên và fade tối theo vị trí cuộn', async () => {
+test('dải video không phủ thumbnail bằng gradient; dùng scrollbar mảnh làm tín hiệu cuộn', async () => {
   const html = await render({ videos: [V('aaa', 'Song A — Artist'), V('bbb', 'Song B — Artist')], state: 'ready' })
   assert.match(html, /class="pick-side"/)
   assert.match(css, /\.pick-showcase \.pick-side\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none/,
     'không được chặn chiều ngang dải bằng max-width nhỏ hơn khung showcase')
   assert.match(css, /flex:\s*0 0 clamp\(232px, 20vw, 300px\)/,
     'thẻ phải gọn, không phình thành ba thẻ khổng lồ trên màn rộng')
-  assert.match(css, /\.pick-showcase \.pvlist\s*\{[^}]*scrollbar-width:\s*none/,
-    'ẩn thanh cuộn thô; fade là tín hiệu cuộn')
+  assert.match(css, /\.pick-showcase \.pvlist\s*\{[^}]*scrollbar-width:\s*thin/,
+    'dùng thanh cuộn mảnh làm tín hiệu, không phủ gradient lên thumbnail')
+  assert.match(css, /\.pick-showcase \.pvlist::-webkit-scrollbar-thumb\s*\{[^}]*background:\s*var\(--line-2\)/,
+    'thanh cuộn dùng màu đặc của giao diện, không gradient')
   assert.match(css, /-webkit-line-clamp:\s*2/,
     'mọi tiêu đề dừng ở hai dòng để thẻ giữ cùng chiều cao')
-  assert.match(componentSource, /scrollWidth - strip\.clientWidth/,
-    'dải phải đo phần còn cuộn được thay vì luôn hiện fade')
-  assert.match(componentSource, /strip\.addEventListener\('scroll', measure/,
-    'fade phải được cập nhật khi người dùng kéo dải')
+  assert.match(css, /overflow-x:\s*auto/,
+    'dải vẫn cuộn ngang được bằng tay')
+  assert.doesNotMatch(componentSource, /stripEdges|fade-left|fade-right|scrollWidth - strip\.clientWidth/,
+    'không còn state đo cạnh hay lớp fade phủ lên ảnh')
   assert.match(componentSource, /behavior:\s*'auto'/,
-    'chọn video phải căn dải ngay, không để thẻ/fade chạy theo trễ sau video')
+    'chọn video phải căn dải ngay, không để thẻ chạy theo trễ sau video')
   assert.match(componentSource, /useIsoLayoutEffect\(\(\) => \{[\s\S]*?strip\.scrollTo/,
     'căn dải đồng bộ trước khi vẽ frame mới để không lóe vị trí video cũ')
   assert.match(componentSource, /\}, \[at, n, cur\?\.key \?\? cur\?\.id\]\)/,
     'phải căn lại nếu danh sách đổi thứ tự nhưng vị trí số vẫn như cũ')
   assert.doesNotMatch(componentSource, /behavior:\s*reduce\s*\?\s*'auto'\s*:\s*'smooth'/)
-  assert.match(css, /\.pick-showcase \.pick-side\.fade-left::before/)
-  assert.match(css, /\.pick-showcase \.pick-side\.fade-right::after/)
-  assert.match(css, /\.pick-showcase \.pick-side::before,[\s\S]*?transition:\s*none/,
-    'fade phải xuất hiện ngay khi cuộn, không chờ animation opacity')
-  assert.match(css, /background:\s*linear-gradient\(90deg, rgba\(8, 10, 15, \.96\)/,
-    'fade hai cạnh phải tối dần ra trong suốt')
+  assert.doesNotMatch(css, /\.pick-showcase \.pick-side::(?:before|after)/,
+    'không dùng lớp giả gradient ở cạnh rail')
 })
 
 test('chỉ sân khấu video latest update có transition vào; dải video không chạy animation đó', () => {

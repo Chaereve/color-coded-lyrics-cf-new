@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs'
 import {
   PREVIEW_SECONDS, PLAYER_ID, PLAYER_ORIGIN, FRAME_FADE,
   handshake, command, isPlayerOrigin, readWidgetEvent, mergeInfo, overCap, previewPct,
-  playhead, keptTime,
+  playhead, keptTime, nearThirtyTailMs,
 } from './previewCap.js'
 
 test('mốc xem trước là 30 giây, một số nguyên dương', () => {
@@ -180,6 +180,32 @@ test('hai mép khung là vệt mờ tan dần, không phải dải phủ', () =>
     'số đo vệt mờ phải lấy từ FRAME_FADE, không chép lại vào JSX')
   assert.ok(!modal.includes('video-preview-masks'),
     'lớp phủ bốn mép của vòng 27 đã bị chê là "gớm" — không được quay lại')
+})
+
+test('clip duration rounded down by the browser is held to the full 30-second mark', () => {
+  assert.equal(nearThirtyTailMs(29.97), 30)
+  assert.equal(nearThirtyTailMs(29.5), 500)
+  assert.equal(nearThirtyTailMs(29), 1000)
+  assert.equal(nearThirtyTailMs(30), 0)
+  assert.equal(nearThirtyTailMs(31), 0)
+  assert.equal(nearThirtyTailMs(28.99), null, 'genuinely short clips are not padded')
+  assert.equal(nearThirtyTailMs(Number.NaN), null)
+})
+
+test('Drive player holds a near-30-second clip at the final frame until the cap', () => {
+  const modal = readFileSync(new URL('../components/VideoPreviewModal.jsx', import.meta.url), 'utf8')
+  assert.match(modal, /onEnded=\{\(e\) => \{[\s\S]*?nearThirtyTailMs\(e\.currentTarget\.duration\)/)
+  assert.match(modal, /endedTailTimerRef\.current = setTimeout/)
+})
+
+test('Drive player hides easy download controls while retaining native playback controls', () => {
+  const modal = readFileSync(new URL('../components/VideoPreviewModal.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
+  assert.match(modal, /controlsList="nodownload noplaybackrate noremoteplayback"/)
+  assert.match(modal, /disablePictureInPicture/)
+  assert.match(modal, /onContextMenu=\{\(e\) => e\.preventDefault\(\)\}/)
+  assert.match(css, /\.video-preview-frame\.is-file-preview/)
+  assert.match(css, /\.video-preview-file::-webkit-media-controls-panel/)
 })
 
 test('thanh tiến trình kẹp về 0..100 và không nhận giá trị rác', () => {

@@ -56,7 +56,7 @@ import { parseYoutube, thumbUrl } from './lib/youtube'
 import { buildHallOfFame } from './lib/hallOfFame.js'
 import { trackVisitOnce } from './lib/funnel.js'
 import { safeHttpUrl } from './lib/safeUrl'
-import { SUPPORT } from './lib/payment'
+import SiteFooter from './components/SiteFooter'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyAchievementRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
@@ -2922,31 +2922,7 @@ function AppInner() {
           <Icon name="up" size={16} />
         </button>
 
-        <footer className="site-footer">
-        <div className="foot-in">
-          <div className="foot-brand">
-            <span className="applogo lg-foot"><img src="/logo-128.png" alt="chaereve" width="32" height="32" /></span>
-            <div>
-              <div className="foot-name">Chaereve</div>
-              <div className="foot-tag">{t('foot.tag')}</div>
-            </div>
-          </div>
-          <div className="foot-legal">
-            <div className="foot-copy">{t('foot.copy', { y: new Date().getFullYear() })}</div>
-            <div className="foot-contact">
-              {t('support.line')}{' '}
-              <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
-              {' · '}
-              {/* trang tĩnh trong public/ — trước đây không có link nào trỏ tới */}
-              <a href="/archive">{t('foot.archive')}</a>
-              {' · '}
-              <a href="/faq.html">{t('foot.faq')}</a>
-              {' · '}
-              <a href="/privacy.html">{t('foot.privacy')}</a>
-            </div>
-          </div>
-        </div>
-        </footer>
+        <SiteFooter />
       </main>
       </div>{/* /.shell */}
 

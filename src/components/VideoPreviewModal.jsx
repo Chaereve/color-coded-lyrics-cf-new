@@ -4,7 +4,7 @@ import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
 import {
   PREVIEW_SECONDS, PLAYER_ORIGIN, FRAME_FADE, handshake, command,
-  readWidgetEvent, mergeInfo, overCap, playhead, keptTime, previewPct,
+  readWidgetEvent, mergeInfo, overCap, playhead, keptTime, previewPct, nearThirtyTailMs,
 } from '../lib/previewCap.js'
 import { useI18n } from '../lib/i18n.jsx'
 
@@ -159,6 +159,8 @@ export default function VideoPreviewModal({ video, onClose }) {
   const driveLookup = !shouldLookupDrive ? 'missing' : matchedDriveResult?.status || 'loading'
   const fileSrc = driveSrc || (isVideoFile(url) ? url : '')
   const videoRef = useRef(null)              /* thẻ <video> của nhánh file */
+  const endedTailTimerRef = useRef(null)
+  useEffect(() => () => clearTimeout(endedTailTimerRef.current), [])
 
   /* Tìm clip riêng tư trong Drive bằng tên quy ước. Backend chỉ trả URL cùng
      origin sau khi xác minh đúng file trong folder; không đưa token/Drive URL
@@ -252,6 +254,8 @@ export default function VideoPreviewModal({ video, onClose }) {
   }, [send])
 
   const replay = useCallback(() => {
+    clearTimeout(endedTailTimerRef.current)
+    endedTailTimerRef.current = null
     /* Quên hết những gì player cũ kể — vị trí 47 giây nằm trong đó. Không xoá
        thì vòng canh của phiên mới đọc lại đúng con số vừa làm nó cắt và cắt
        luôn phiên vừa mở (bài kiểm smoke bắt được đúng ca này). */
@@ -421,8 +425,10 @@ export default function VideoPreviewModal({ video, onClose }) {
   } else if (driveLookup === 'loading') {
     body = <p className="video-preview-fallback" role="status">{t('preview.loading')}</p>
   } else if (fileSrc) {
-    /* Clip Drive được proxy qua endpoint cùng origin; thẻ video và modal này là
-       player duy nhất. onTimeUpdate + onSeeking giữ nguyên trần 30 giây. */
+    /* Clip Drive được proxy qua endpoint cùng origin; giữ native controls nhưng
+       bỏ nút tải, Picture-in-Picture và menu chuột phải để tránh tải nhầm.
+       Đây không phải DRM: người chủ động trích URL từ DevTools vẫn có thể lấy
+       luồng video. onTimeUpdate + onSeeking giữ nguyên trần 30 giây. */
     body = (
       <video
         key={runId}
@@ -431,7 +437,11 @@ export default function VideoPreviewModal({ video, onClose }) {
         src={fileSrc}
         playsInline
         controls
+        controlsList="nodownload noplaybackrate noremoteplayback"
+        disablePictureInPicture
+        disableRemotePlayback
         autoPlay
+        onContextMenu={(e) => e.preventDefault()}
         onTimeUpdate={(e) => {
           const s = e.currentTarget.currentTime
           atRef.current = keptTime(atRef.current, s)
@@ -440,6 +450,16 @@ export default function VideoPreviewModal({ video, onClose }) {
         }}
         onSeeking={(e) => {
           if (overCap(e.currentTarget.currentTime)) { e.currentTarget.pause(); cut() }
+        }}
+        onEnded={(e) => {
+          const tailMs = nearThirtyTailMs(e.currentTarget.duration)
+          if (tailMs === null) return
+          const endedVideo = e.currentTarget
+          if (tailMs === 0) { cut(); return }
+          clearTimeout(endedTailTimerRef.current)
+          endedTailTimerRef.current = setTimeout(() => {
+            if (videoRef.current === endedVideo) cut()
+          }, tailMs)
         }}
       />
     )
@@ -475,7 +495,7 @@ export default function VideoPreviewModal({ video, onClose }) {
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
       <div className="video-preview-stage">
         <section ref={dialogRef} className="video-preview-player" role="dialog" aria-modal="true" aria-labelledby="video-preview-title" tabIndex={-1}>
-          <div className="video-preview-frame">
+          <div className={`video-preview-frame${fileSrc ? ' is-file-preview' : ''}`}>
             {/* Hai vệt mờ tan dần ở mép khung (số đo ở FRAME_FADE): đủ để mép hình
                 hoà vào nền đen, KHÔNG phải băng che — alpha thấp, tan hết trước
                 khi tới giữa khung. */}
