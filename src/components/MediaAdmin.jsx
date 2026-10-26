@@ -4,6 +4,7 @@ import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
+import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { timeAgo } from '../lib/meta'
 
 /* =========================================================
@@ -280,7 +281,7 @@ export default function MediaAdmin({ media = [], busy, onSave, onCommit, onDelet
 
   return (
     <div>
-      <p className="hint">{t('adm.mediaLimit', { n: media.length })}</p>
+      <p className="hint">{t('adm.mediaLimit', { n: homepageVideoCount(media) })}</p>
       <MediaGroup allItems={media} busy={busy}
         label={t('adm.mediaGroupVideo')}
         onSave={onSave} onCommit={onCommit} onDelete={onDelete} onReorder={onReorder} />

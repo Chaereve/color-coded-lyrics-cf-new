@@ -11,6 +11,7 @@ import { rankDemo } from './ranking.js'
 import { fetchAllPages, fetchAvailablePages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
 import { streakStats } from './streak.js'
+import { FEATURED_MEDIA_LIMIT, HOMEPAGE_VIDEO_LIMIT, featuredMediaCount, homepageVideoCount, isHomepageVideo } from './mediaLimits.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
 
@@ -1528,9 +1529,19 @@ export async function saveMedia(item = {}) {
   if (!hasSupabase) {
     const rows = demoMedia()
     const now = new Date().toISOString()
+    const checkCapacity = (targetKind, currentId = null) => {
+      const others = rows.filter(row => row.id !== currentId)
+      if (isHomepageVideo({ kind: targetKind }) && homepageVideoCount(others) >= HOMEPAGE_VIDEO_LIMIT) {
+        throw appError('err.mediaLimit')
+      }
+      if (targetKind === 'featured' && featuredMediaCount(others) >= FEATURED_MEDIA_LIMIT) {
+        throw appError('err.mediaFeaturedLimit')
+      }
+    }
     if (item.id) {
       const i = rows.findIndex(r => r.id === item.id)
       if (i < 0) throw appError('err.mediaMissing')
+      checkCapacity(kind, item.id)
       rows[i] = {
         ...rows[i], kind, title, note, url, thumb,
         is_hidden: item.is_hidden ?? rows[i].is_hidden, updated_at: now,
@@ -1538,7 +1549,7 @@ export async function saveMedia(item = {}) {
       wr(LS.media, rows)
       return rows[i]
     }
-    if (rows.length >= 20) throw appError('err.mediaLimit')
+    checkCapacity(kind)
     const row = {
       id: crypto.randomUUID(), kind, title, note, url, thumb,
       is_hidden: !!item.is_hidden,
