@@ -21,6 +21,7 @@ const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
 const read = (rel) => readFileSync(at(rel), 'utf8')
 
 const app = read('../App.jsx')
+const footer = read('../components/SiteFooter.jsx')
 const html = read('../../index.html')
 const robots = read('../../public/robots.txt')
 const sitemap = read('../../public/sitemap.xml')
@@ -81,7 +82,7 @@ test('mọi route của app đều có mặt trong sitemap, và ngược lại',
 })
 
 test('archive có link nội bộ để người dùng và crawler tìm thấy', () => {
-  assert.match(app, /href="\/archive"/, 'footer app cần link tới archive server-render')
+  assert.match(footer, /href="\/archive"/, 'footer app cần link tới archive server-render')
   assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/archive<\/loc>/)
 })
 

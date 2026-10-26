@@ -17,7 +17,7 @@ const at = (rel) => fileURLToPath(new URL(rel, import.meta.url))
 const read = (rel) => readFileSync(at(rel), 'utf8')
 const faq = read('../../public/faq.html')
 const sitemap = read('../../public/sitemap.xml')
-const app = read('../App.jsx')
+const footer = read('../components/SiteFooter.jsx')
 
 /* hai khối JSON-LD: FAQPage + BreadcrumbList */
 const ldBlocks = [...faq.matchAll(
@@ -75,6 +75,6 @@ test('FAQ phản ánh đúng Daily Spin, Daily Box và không còn chức năng 
 test('trang nằm trên đường đi: có trong sitemap và có link từ app', () => {
   assert.match(sitemap, /<loc>https:\/\/chaereve\.pages\.dev\/faq\.html<\/loc>/,
     'sitemap phải khai /faq.html — SPA không có link HTML nào để crawler tự lần ra')
-  assert.match(app, /href="\/faq\.html"/,
-    'App.jsx phải có link /faq.html (footer) — trang mồ côi không ai tới được')
+  assert.match(footer, /href="\/faq\.html"/,
+    'SiteFooter.jsx phải có link /faq.html — trang mồ côi không ai tới được')
 })
