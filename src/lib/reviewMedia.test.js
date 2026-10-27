@@ -34,8 +34,9 @@ test('20 Latest videos are allowed in addition to one Featured slot', async () =
     id: String(i), kind: i === 0 ? 'featured' : 'video', is_hidden: i === 1,
   }))
   store.set('ccl3_media', JSON.stringify(initial))
-  const data = { kind: 'video', title: 'A video', url: 'https://youtu.be/abcdef12345' }
+  const data = { title: 'A video', url: 'https://youtu.be/abcdef12345' }
   const added = await db.saveMedia(data)
+  assert.equal(added.kind, 'video', 'saveMedia defaults omitted kind to video, not featured')
   let rows = JSON.parse(store.get('ccl3_media'))
   assert.equal(rows.length, 21)
   assert.equal(videoCount(rows), 20)
@@ -61,7 +62,9 @@ test('media admin shows Latest-video capacity without counting Featured', async 
   ]
   const html = renderToStaticMarkup(createElement(I18nProvider, null,
     createElement(MediaAdmin, { media })))
-  assert.match(html, /19\/20 videos \(Featured is separate\)/)
+  assert.match(html, /19\/20 videos/)
+  assert.doesNotMatch(html, /20\/20 videos/)
+  assert.doesNotMatch(html, /Featured/)
 })
 
 test('showcase renders 20 Latest videos plus the separate Featured item', async () => {

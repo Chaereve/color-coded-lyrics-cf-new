@@ -155,7 +155,7 @@ const demoProfile = () => {
 /* Du lieu mau: mot video noi bat + vai link video. Dung video that de
    thumbnail o che do demo tai duoc. */
 const MEDIA_SEED = [
-  { kind: 'featured', title: 'Stray Kids — FARMING [Color Coded Lyrics]',
+  { kind: 'video', title: 'Stray Kids — FARMING [Color Coded Lyrics]',
     url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
   { kind: 'video', title: 'CHUNG HA México (Versión Español) Lyrics',
     url: 'https://www.youtube.com/watch?v=WLNidQY8FuM' },
@@ -1745,7 +1745,7 @@ export async function saveMedia(item = {}) {
   const url = String(item.url || '').trim().slice(0, 300)
   const note = String(item.note || '').trim().slice(0, 200)
   const thumb = String(item.thumb || '').trim().slice(0, 300) || null
-  const kind = MEDIA_KINDS.includes(item.kind) ? item.kind : 'featured'
+  const kind = MEDIA_KINDS.includes(item.kind) ? item.kind : 'video'
 
   if (title.length < 2) throw appError('err.mediaTitle')
   if (!parseYoutube(url)?.id) throw appError('err.mediaUrl')
