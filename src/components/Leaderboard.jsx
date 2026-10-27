@@ -5,6 +5,8 @@ import { useI18n } from '../lib/i18n.jsx'
 import { usePager } from '../lib/usePager'
 import { rankRowsByAverage } from '../lib/ranking.js'
 import { PERIODS, seasonRows, seasonWindow, seasonLabel } from '../lib/season.js'
+import { useNav, spaLink } from '../lib/nav'
+import { profileUrl } from '../lib/history'
 import Pager from './Pager'
 
 const PER_PAGE = 25
@@ -19,6 +21,7 @@ function Face({ p, size = 'md' }) {
 
 function PodiumFace({ p, place, period = 'all' }) {
   const { t } = useI18n()
+  const nav = useNav()
   const average = useCountUp(p.score, 620)
   const reward = period === 'month'
     ? (place === 1 ? t('rank.reward.m1') : place === 2 ? t('rank.reward.m2') : place === 3 ? t('rank.reward.m3') : null)
@@ -32,7 +35,9 @@ function PodiumFace({ p, place, period = 'all' }) {
           {place === 1 && <span className="lb-pod-crown" aria-hidden="true"><Icon name="crown" size={12} /></span>}
         </span>
         <span className="lb-pod-name-row">
-          <span className="lb-pod-name" title={p.name}>{p.name}</span>
+          {p.user_id
+            ? <a className="requester-link lb-pod-name" href={profileUrl(p.user_id)} onClick={spaLink(nav.openProfile, p.user_id)} title={p.name}>{p.name}</a>
+            : <span className="lb-pod-name" title={p.name}>{p.name}</span>}
         </span>
         <span className="lb-pod-num">
           <b>{Number(average || 0).toFixed(2)}</b>
@@ -75,6 +80,7 @@ function RankingsHeader({ period, setPeriod, showNotRanked = false, range = null
 
 export default function Leaderboard({ rows, allRows = [], ranking = [], meId, initialPeriod = 'all', now = null, votesLog = [], loading = false }) {
   const { t } = useI18n()
+  const nav = useNav()
   const [period, setPeriod] = useState(PERIODS.some(p => p.k === initialPeriod) ? initialPeriod : 'all')
   const nowMs = useMemo(() => now ?? Date.now(), [now])
 
@@ -167,7 +173,9 @@ export default function Leaderboard({ rows, allRows = [], ranking = [], meId, in
                   <td className="c-pl">
                     <span className="lb-pl-in">
                       <Face p={p} />
-                      <span className="lb-nm" title={p.name}>{p.name}</span>
+                      {p.user_id
+                        ? <a className="requester-link lb-nm" href={profileUrl(p.user_id)} onClick={spaLink(nav.openProfile, p.user_id)} title={p.name}>{p.name}</a>
+                        : <span className="lb-nm" title={p.name}>{p.name}</span>}
                       {p.user_id === meId && <span className="lb-you">{t('rank.you')}</span>}
                     </span>
                     <i className="lb-underline" style={{ width: `${Math.round(p.share * 100)}%` }} aria-hidden="true" />

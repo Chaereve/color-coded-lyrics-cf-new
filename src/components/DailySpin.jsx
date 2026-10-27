@@ -234,7 +234,7 @@ export default function DailySpin({ userId, onBalance, onVote }) {
       // the same ID for network/unknown errors: it may have committed already.
       if (e?.code === 'P0001' || [
         'err.spinDeviceLimit', 'err.spinAccountLimit', 'err.spinAccountChanged', 'err.spinDeviceAccount',
-        'err.spinDevice', 'err.spinRequest', 'err.signin', 'err.spinSetup',
+        'err.spinDevice', 'err.spinRegistration', 'err.spinStorage', 'err.spinRequest', 'err.signin', 'err.spinSetup',
         // Edge từ chối trước khi chạm database: không có ledger để retry.
         'err.spinEdgeFp', 'err.spinEdgeIp', 'err.spinCaptcha', 'err.spinFingerprint',
       ].includes(e?.message)) clearPendingSpin(userId, requestId)
@@ -257,7 +257,6 @@ export default function DailySpin({ userId, onBalance, onVote }) {
   // The transaction is already committed, but do not spoil the result while
   // the ring is still running. Leaving the page never loses the real credit.
   const history = (status?.history || []).filter(item => !active || item.request_id !== activeRequest)
-  const spent = !!status && !remaining && !pending
   const nowReward = active && onSlot >= 0 ? SPIN_RING[onSlot] : (result ? result.reward : null)
   const nowRarity = nowReward == null ? -1 : rarityOfReward(nowReward, rewards)
 

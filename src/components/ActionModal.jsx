@@ -856,12 +856,21 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const pendingOrder = myOrders.find(o => o.status === 'awaiting')
   const lastOrder = picked
     || (pendingOrder ? { usd: Number(pendingOrder.amount_usd), vnd: pendingOrder.amount_vnd } : null)
-  const custom = singlePrice(Math.max(1, Math.min(100, Number(qty) || 1)))
+  const customQty = Math.max(1, Math.min(100, Number(qty) || 1))
+  const custom = singlePrice(customQty)
   const best = VOTE_PACKS[VOTE_PACKS.length - 1]
   const saving = (p) => Math.round((1 - (p.usd / p.qty) / SINGLE_VOTE.usd) * 100)
   const chosen = sel === 'custom' ? custom : (VOTE_PACKS.find(p => p.id === sel) || best)
   const orderStatus = (s) => s === 'paid' ? t('order.paid') : s === 'rejected' ? t('order.rejected') : t('order.awaiting')
   const bumpCustom = (next) => { setSel('custom'); setQty(next) }
+  const onCustomQtyChange = (e) => {
+    const digits = String(e.target.value || '').replace(/\D+/g, '')
+    if (digits === '') {
+      bumpCustom('')
+      return
+    }
+    bumpCustom(Math.min(100, Math.max(1, Number(digits))))
+  }
 
   return (
     <>
@@ -914,14 +923,14 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
           </span>
           <span className="qty" onClick={e => e.stopPropagation()}>
             <button type="button" disabled={!!busy} aria-label={t('buy.less')}
-              onClick={() => bumpCustom(q => Math.max(1, Number(q) - 1))}><Icon name="minus" size={14} /></button>
-            <input type="number" min="1" max="100" value={qty} disabled={!!busy}
+              onClick={() => bumpCustom(q => Math.max(1, (Number(q) || 1) - 1))}><Icon name="minus" size={14} /></button>
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={qty} disabled={!!busy}
               aria-label={t('buy.qty')}
               onFocus={() => setSel('custom')}
-              onChange={e => bumpCustom(e.target.value)}
+              onChange={onCustomQtyChange}
               onBlur={() => bumpCustom(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
             <button type="button" disabled={!!busy} aria-label={t('buy.more')}
-              onClick={() => bumpCustom(q => Math.min(100, Number(q) + 1))}><Icon name="plus" size={14} /></button>
+              onClick={() => bumpCustom(q => Math.min(100, (Number(q) || 1) + 1))}><Icon name="plus" size={14} /></button>
           </span>
           <span className="buy-custom-price">
             <b>{usd(custom.usd)}</b>

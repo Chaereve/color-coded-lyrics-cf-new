@@ -21,6 +21,9 @@ jobs:
     # no credentials of any real environment are involved.
     services:
       postgres:
+        # Must stay postgres:18 because supabase/baselines/*.json were captured on
+        # PG18 and baselineReadiness.test.js asserts the 147 PG18 contype='n' rows
+        # before stripping them in-memory to simulate older PG15/PG17 servers.
         image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
@@ -91,6 +94,18 @@ jobs:
       # không-lặp trên cùng chuỗi migration đã có ở trên.
       - name: Daily Spin v2 on PGlite (B3 chain)
         run: npm run test:spinv2:pglite
+
+      # Vote-back B4 (20261210) + migration runner end-to-end trên PGlite.
+      - name: Vote-back & migration runner on PGlite (B4+ chain)
+        run: |
+          npm run test:voteback:pglite
+          npm run test:migration:pglite
+
+      # Dựng bản production + chạy jsdom smoke đầy đủ trên mỗi PR/push.
+      - name: Production build & DOM smoke
+        run: |
+          npm run build
+          npm run smoke
 
       # Bảng bằng chứng đọc được cho câu hỏi của gate review: một bundle cũ còn
       # trong cache gọi lại 5 RPC đã revoke thì nhận gì, và người dùng thấy gì.

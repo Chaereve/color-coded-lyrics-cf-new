@@ -21,15 +21,35 @@
   "overrides": [
     {
       "files": [
+        "worker/**/*.js",
+        "functions/**/*.js"
+      ],
+      "env": {
+        "worker": true,
+        "browser": false
+      }
+    },
+    {
+      "files": [
+        "**/*.test.js",
+        "**/*.test.mjs",
+        "**/*.pglite.mjs",
         "supabase/tests/**/*.js",
-        "functions/**/*.js",
         "tools/**/*.mjs",
-        "vite.config.js",
-        "src/lib/backup.test.js"
+        "scripts/**/*.mjs",
+        "vite.config.js"
       ],
       "env": {
         "node": true,
-        "browser": false
+        "browser": true
+      }
+    },
+    {
+      "files": [
+        "src/lib/*.jsx"
+      ],
+      "rules": {
+        "react/only-export-components": "off"
       }
     }
   ]

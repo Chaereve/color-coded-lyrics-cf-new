@@ -1,4 +1,8 @@
-# BÁO CÁO BÀN GIAO CHI TIẾT (HANDOVER REPORT)
+# BÁO CÁO BÀN GIAO CHI TIẾT (HANDOVER REPORT — LƯU TRỮ ĐỢT 2026-09-22)
+
+> **⚠️ LƯU Ý BẢO MẬT QUAN TRỌNG (CẬP NHẬT 2026-10 / MIGRATION `20261220`):**
+> Đây là báo cáo lưu trữ của đợt bàn giao ngày `2026-09-22`. **TUYỆT ĐỐI KHÔNG copy-paste các đoạn SQL lịch sử bên dưới vào Supabase SQL Editor** — tính năng bình luận đã được gỡ bỏ ở `20261216_remove_comments.sql` và quyền RPC đã được siết chặt qua `20261106_security_audit.sql` + `20261217_rpc_least_privilege.sql` + `20261220_review_notify_privacy_fix.sql`.
+> Để xem hướng dẫn hiện hành và chạy migration an toàn, vui lòng đọc `README.md`, `HUONG-DAN.md` và `docs/DB-MIGRATIONS.md` (`npm run db:plan` / `npm run db:deploy`).
 
 ---
 
@@ -106,7 +110,8 @@ begin
   end if;
 end $$;
 
-grant execute on function public.grant_season_reward(text, int, int, text) to authenticated, service_role;
+revoke all on function public.grant_season_reward(text, int, int, text) from public, anon, authenticated;
+grant execute on function public.grant_season_reward(text, int, int, text) to service_role;
 
 -- Tự động tính toán và chốt thưởng mùa (Idempotent - không bao giờ cộng trùng)
 create or replace function public.settle_season_rewards(

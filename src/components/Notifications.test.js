@@ -228,3 +228,44 @@ test('groupNotices: nhóm rỗng không dựng nhãn, ưu tiên việc cần là
   assert.deepEqual(g[0].items.map(n => n.id), ['c', 'a'], 'tin chưa đọc nổi lên trước')
   assert.equal(groupNotices([]).length, 0)
 })
+
+test('tin thưởng phiếu (votes) hiện đúng nội dung phần thưởng, không lộ key nt.n.votes và không thừa dấu gạch ngang', async () => {
+  const html = await renderPanel({
+    notices: [{
+      id: 'db-99', sig: 'login-reward|2026-10-27', key: 'login-reward', type: 'votes',
+      at: AT, title: 'Daily check-in reward', artist: null,
+      reason: 'Check-in streak day 7: +17 bonus votes today.', own: true, read: false,
+    }],
+    rowsByKey,
+  })
+  const tx = plain(html)
+  assert.ok(!/nt\.n\.votes/.test(tx), 'không được lộ mã kỹ thuật nt.n.votes')
+  assert.ok(!/Daily check-in reward\s*\u2014/.test(tx), 'artist null thì không được vẽ dấu gạch ngang cụt')
+  assert.match(tx, /Daily check-in reward/)
+  assert.match(tx, /Check-in streak day 7: \+17 bonus votes today\./)
+})
+
+test('tin nhắc Admin duyệt bài quá hạn (expiry-admin) không nằm ở Out now và không báo nhầm đã xoá', async () => {
+  const html = await renderPanel({
+    notices: [{
+      id: 'db-100', sig: 'expiry-admin|r1', key: KEY, type: 'expired',
+      at: AT, title: 'Whiplash', artist: 'aespa',
+      reason: 'Not picked within one month.', own: true, read: false,
+    }],
+    rowsByKey,
+  })
+  const tx = plain(html)
+  assert.ok(!/Out now/.test(tx), 'tin nhắc Admin không được chui vào nhóm Out now')
+  assert.ok(!/was deleted/i.test(tx), 'bài chưa xoá thì không được báo đã xoá')
+  assert.match(tx, /Waiting over one month without being picked/)
+})
+
+test('nhóm có hơn 12 tin hiện nút mở rộng Show N more thay vì nuốt mất tin cũ', async () => {
+  const html = await renderPanel({
+    notices: Array.from({ length: 15 }, (_, i) => notice('progress', { id: `p-${i}`, pct: 10 + i })),
+    rowsByKey,
+  })
+  assert.match(plain(html), /Show 3 more/)
+  assert.match(html, /class="lnk nt-more"/)
+})
+

@@ -73,7 +73,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=31536000
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://*.googleusercontent.com https://res.cloudinary.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://api.vietqr.io https://challenges.cloudflare.com https://*.pages.dev https://*.workers.dev https://i.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://challenges.cloudflare.com; worker-src 'self' blob:; form-action 'self'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://*.googleusercontent.com https://res.cloudinary.com; media-src 'self' https: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://api.vietqr.io https://challenges.cloudflare.com https://*.pages.dev https://*.workers.dev https://i.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://challenges.cloudflare.com; worker-src 'self' blob:; form-action 'self'; upgrade-insecure-requests
 
 # API chống farm (Daily Spin + Vote): cache là hỏng tính năng — mỗi lượt quay
 # phải là một lần hỏi máy chủ thật.
@@ -130,7 +130,13 @@
   Cache-Control: public, max-age=0, must-revalidate
 /profile
   Cache-Control: public, max-age=0, must-revalidate
+/admin
+  Cache-Control: public, max-age=0, must-revalidate
 /u/*
   Cache-Control: public, max-age=0, must-revalidate
 /privacy.html
+  Cache-Control: public, max-age=0, must-revalidate
+/faq.html
+  Cache-Control: public, max-age=0, must-revalidate
+/maintenance.html
   Cache-Control: public, max-age=0, must-revalidate

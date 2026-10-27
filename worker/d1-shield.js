@@ -26,7 +26,7 @@ const counter = (db, day, scope, subjectHash) => db.prepare(
   'SELECT used, blocked FROM edge_rate_counters WHERE day = ? AND scope = ? AND subject_hash = ?'
 ).bind(day, scope, subjectHash).first()
 
-export async function d1SpinCheck(db, { ipHash, fpHash, nowMs = Date.now(), limit, maxFpPerIp }) {
+export async function d1SpinCheck(db, { fpHash, nowMs = Date.now(), limit }) {
   const day = vnDay(nowMs)
   await pruneExpiredDays(db, day)
   // IPs can represent entire schools, offices or carrier-grade NATs. Never
@@ -36,18 +36,13 @@ export async function d1SpinCheck(db, { ipHash, fpHash, nowMs = Date.now(), limi
   return { ok: true, _state: { day } }
 }
 
-export async function d1SpinCommit(db, { ipHash, fpHash, nowMs = Date.now() }) {
+export async function d1SpinCommit(db, { fpHash, nowMs = Date.now() }) {
   const day = vnDay(nowMs)
   await pruneExpiredDays(db, day)
-  await db.batch([
-    db.prepare(`INSERT INTO edge_rate_counters (day, scope, subject_hash, used, blocked)
-      VALUES (?, 'spin_fp', ?, 1, 0)
-      ON CONFLICT(day, scope, subject_hash) DO UPDATE SET used = edge_rate_counters.used + 1`)
-      .bind(day, fpHash),
-    db.prepare(`INSERT OR IGNORE INTO edge_spin_ip_fingerprints (day, ip_hash, fp_hash)
-      VALUES (?, ?, ?)`)
-      .bind(day, ipHash, fpHash),
-  ])
+  await db.prepare(`INSERT INTO edge_rate_counters (day, scope, subject_hash, used, blocked)
+    VALUES (?, 'spin_fp', ?, 1, 0)
+    ON CONFLICT(day, scope, subject_hash) DO UPDATE SET used = edge_rate_counters.used + 1`)
+    .bind(day, fpHash).run()
 }
 
 export async function d1VoteCheck(db, { fpHash, nowMs = Date.now(), limit }) {

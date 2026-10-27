@@ -11,6 +11,7 @@ export function mysteryOpenUrl(spinGateUrl = SPIN_GATE_URL) {
   return `${base}/mystery/open`
 }
 import { gateShouldFallback } from './gateFallback.js'
+import { creditDemoRewards } from './demoWallet.js'
 
 /* =========================================================
    MYSTERY BOX — thuần logic + I/O mỏng (20261129)
@@ -240,6 +241,10 @@ export async function openMysteryBox(userId, expectedDay) {
     if (!current.opened) {
       const prize = demoResultFor(userId, expectedDay)
       writeDemo(userId, { day: expectedDay, result: prize.result, votes: prize.votes })
+      creditDemoRewards({
+        votes: prize.kind === 'votes' ? prize.votes : 0,
+        requests: prize.kind === 'free_paid_request' ? prize.requests : 0,
+      })
     }
     const after = makeDemoStatus(userId)
     rememberMysteryOpen(userId, after)
@@ -253,28 +258,34 @@ export async function openMysteryBox(userId, expectedDay) {
 
   let data = null
   if (SPIN_GATE_URL) {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20_000)
-    let response
     try {
-      response = await fetch(mysteryOpenUrl(), {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ expected_day: expectedDay, user_token: userToken }),
-      })
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20_000)
+      let response
+      try {
+        response = await fetch(mysteryOpenUrl(), {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ expected_day: expectedDay, user_token: userToken }),
+        })
+      } catch (e) {
+        if (e?.name === 'AbortError') throw new Error('err.mysteryGate')
+        throw Object.assign(new Error('err.mysteryGate'), { gateDown: true })
+      } finally { clearTimeout(timeout) }
+      const contentType = response.headers.get('content-type') || ''
+      try { data = await response.json() } catch { data = null }
+      if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+        throw Object.assign(new Error('err.mysteryGate'), { gateDown: true })
+      }
+      if (!response.ok) {
+        const key = data?.error
+          || (typeof data?.message === 'string' && data.message.startsWith('err.') ? data.message : '')
+        throw new Error(key || 'err.mysteryGate')
+      }
     } catch (e) {
-      if (e?.name === 'AbortError') throw new Error('err.mysteryGate')
-      throw Object.assign(new Error('err.mysteryGate'), { gateDown: true })
-    } finally { clearTimeout(timeout) }
-    const contentType = response.headers.get('content-type') || ''
-    try { data = await response.json() } catch { data = null }
-    if (gateShouldFallback({ status: response.status, contentType, payload: data })) {
+      if (!e?.gateDown) throw e
       data = await mysteryRpc('open_mystery_box', { p_expected_day: expectedDay })
-    } else if (!response.ok) {
-      const key = data?.error
-        || (typeof data?.message === 'string' && data.message.startsWith('err.') ? data.message : '')
-      throw new Error(key || 'err.mysteryGate')
     }
   } else {
     data = await mysteryRpc('open_mystery_box', { p_expected_day: expectedDay })

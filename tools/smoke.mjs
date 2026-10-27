@@ -2116,7 +2116,6 @@ where = 'click-path'
      xác nhận hai facet vẫn còn chọn và bảng thực sự chỉ chứa đúng tập đã lọc;
      nút Clear filters phải trả lại danh sách ban đầu. */
   const topItems = () => qa('.list > .row, .list > .grow')
-  const searchBox = q('.fbar .search')
   const clearFacetButton = q('.fb-main .fb-clear')
   if (clearFacetButton && !clearFacetButton.hidden) { await click(clearFacetButton); await tick(360) }
   const nBefore = topItems().length

@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
 import DenyReason from './components/DenyReason'
 import GoogleIcon from './components/GoogleIcon'
@@ -47,8 +47,8 @@ import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
-  diffNotices, dropNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
-  mergeInbox, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
+  diffNotices, dropNotice, isAdminExpiryNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
+  mergeInbox, noticeAliases, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
 import { useGlow, useCountUp } from './lib/motion'
@@ -56,11 +56,13 @@ import { parseYoutube, thumbUrl } from './lib/youtube'
 import { buildHallOfFame } from './lib/hallOfFame.js'
 import { trackVisitOnce } from './lib/funnel.js'
 import { safeHttpUrl } from './lib/safeUrl'
+import { DAILY_LOGIN_CALENDAR_SYNC_KEY } from './lib/dailyLoginCalendar.js'
+import { MYSTERY_SYNC_KEY } from './lib/mysteryBox.js'
 import SiteFooter from './components/SiteFooter'
 import {
   hasSupabase, supabase, getUser, onAuthChange, signOut,
   fetchRequests, fetchMyAchievementRequests, fetchMyVotes, fetchVoteStatus, claimAchievements, fetchRanking, fetchOrders, fetchMedia,
-  fetchActivityDays, touchMyActivity, fetchNotifications, dismissNotification, adminExpireRequest,
+  fetchActivityDays, touchMyActivity, fetchNotifications, markNotificationsRead, dismissNotification, adminExpireRequest, settleCurrentSeasonRewards,
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
   adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
@@ -645,16 +647,42 @@ function AppInner() {
      đã đọc để một lần nạp bắt đầu trước khi dấu được ghi không nuốt mất hôm nay. */
   const [myActivity, setMyActivity] = useState(null)
   const [visitStamp, setVisitStamp] = useState(null)
-  /* Đổi tài khoản thì xoá dấu của người vừa rồi ngay trong lần render này,
-     trước khi vẽ — ngọn lửa không được kịp hiện chuỗi của tài khoản cũ. */
+  const [orders, setOrders] = useState([])
+  const [achievementRequests, setAchievementRequests] = useState({ userId: null, rows: [] })
+  const [earnedAchievements, setEarnedAchievements] = useState({ userId: null, ids: [] })
+  const mergeEarnedIds = useCallback((uid, incoming = []) => {
+    if (!uid || !Array.isArray(incoming) || incoming.length === 0) return
+    const nextIds = incoming.map(e => (typeof e === 'string' ? e : e?.id)).filter(Boolean)
+    if (!nextIds.length) return
+    setEarnedAchievements(prev => {
+      const base = prev.userId === uid ? prev.ids : []
+      const merged = [...new Set([...base, ...nextIds])]
+      return merged.length === base.length && prev.userId === uid ? prev : { userId: uid, ids: merged }
+    })
+  }, [])
+  const [voteFor, setVoteFor] = useState(null)
+  /* Đổi tài khoản hoặc đăng xuất thì xoá sạch dấu và dữ liệu riêng của người
+     vừa rồi ngay trong lần render này, trước khi vẽ — ví, phiếu bầu, đơn hàng,
+     thành tựu, và lý do từ chối riêng tư không được lưu lại sang phiên khách
+     hay tài khoản kế tiếp. */
   const [activityUserId, setActivityUserId] = useState(user?.id)
   if (user?.id !== activityUserId) {
     setActivityUserId(user?.id)
     setMyActivity(null)
     setVisitStamp(null)
+    setMyVotes(new Map())
+    setVoteStatus({
+      free_used: 0, free_limit: FREE_VOTES_PER_DAY, credits: 0, purchased: 0, bonus: 0,
+      bonus_requests: 0,
+    })
+    setOrders([])
+    setAchievementRequests({ userId: null, rows: [] })
+    setEarnedAchievements({ userId: null, ids: [] })
+    setVoteFor(null)
+    setRows(prev => prev.some(r => r?.deny_reason != null)
+      ? prev.map(r => (r?.deny_reason != null ? { ...r, deny_reason: null } : r))
+      : prev)
   }
-  const [orders, setOrders] = useState([])
-  const [achievementRequests, setAchievementRequests] = useState({ userId: null, rows: [] })
   const [media, setMedia] = useState([])
   /* Ba trạng thái cho dải video, cùng luật với bảng (`noteBoard`): lỗi khi
      ĐÃ có dữ liệu cũ thì giữ nguyên dữ liệu cũ và KHÔNG hiện bảng lỗi —
@@ -667,6 +695,47 @@ function AppInner() {
      Tầng "theo dõi bài" đã bị gỡ cùng chuông trên hàng request, nên hộp thư
      chỉ còn tin về request CỦA CHÍNH MÌNH và tin từ database. */
   const [notices, setNotices] = useState([])
+  /* Điểm danh hằng ngày / mở hộp quà cộng trực tiếp vào `bonus_credits` hoặc
+     `bonus_requests` ở DB (hoặc ví demo) và có thể ghi thông báo thưởng mới.
+     Nạp lại ví + hộp thư ngay sau khi claim/mở hộp để số dư và chuông cập nhật tức thì. */
+  const refreshWalletBalance = useCallback(async () => {
+    const uid = currentUserId.current
+    if (!uid) return
+    const version = ++balanceVersion.current
+    try {
+      const [next, ach] = await Promise.all([
+        fetchVoteStatus(),
+        claimAchievements().catch(() => null),
+      ])
+      if (uid !== currentUserId.current || version !== balanceVersion.current) return
+      setVoteStatus(previous => ({
+        ...previous,
+        ...next,
+        ...(ach || {}),
+        bonus_requests: Number.isInteger(ach?.bonus_requests)
+          ? ach.bonus_requests
+          : Number.isInteger(next.bonus_requests)
+            ? next.bonus_requests
+            : (previous.bonus_requests ?? 0),
+      }))
+      if (ach?.earned) mergeEarnedIds(uid, ach.earned)
+      fetchNotifications(uid)
+        .then(dbInbox => {
+          if (uid !== currentUserId.current || !dbInbox.length) return
+          setNotices(current => mergeInbox(current, dbInbox, loadDismissed(uid)))
+        })
+        .catch(() => {})
+    } catch { /* giữ số dư cũ nếu mạng chập chờn tạm thời */ }
+  }, [mergeEarnedIds])
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key === DAILY_LOGIN_CALENDAR_SYNC_KEY || event.key === MYSTERY_SYNC_KEY) {
+        refreshWalletBalance()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [refreshWalletBalance])
   /* uid đã nạp xong hộp thư. Không có cờ này thì effect lưu chạy trên mảng
      rỗng của khung hình đầu (user vừa có, notices chưa đọc từ localStorage)
      và XÓA hộp thư — kể cả những tin người dùng đã xóa, lẫn những tin còn
@@ -743,7 +812,6 @@ function AppInner() {
   /* mốc 0px đầu nội dung — nút "lên đầu trang" theo dõi nó thay vì nghe scroll */
   const topSentinelRef = useRef(null)
 
-  const [voteFor, setVoteFor] = useState(null)
   /* Link mời gửi bài (`/?add=1&artist=…&title=…`) do chủ kênh dán vào mô tả
      video: đọc MỘT lần lúc khởi tạo state nên form mở ngay từ khung hình đầu,
      không phải mở sau một effect (mở trễ một nhịp là thấy trang nháy). */
@@ -828,6 +896,7 @@ function AppInner() {
   const jumpToSong = useCallback((target) => {
     const key = typeof target === 'string' ? target : (target?.key || groupKey(target || {}))
     if (!key) return
+    setProfileId(null)
     go('board'); setKindFilter('all'); setKindFilters([]); setStatusFilters([]); setQ('')
     setFilter('all'); setSort(null)
     /* XOÁ cả hai bộ lọc nhiều-chọn: chúng THẮNG `filter` trong `filterBoard`,
@@ -1112,7 +1181,10 @@ function AppInner() {
         if (!fresh) return
         try {
           const ach = await claimAchievements()
-          if (live && ach) setVoteStatus(prev => ({ ...prev, ...ach }))
+          if (live && ach) {
+            setVoteStatus(prev => ({ ...prev, ...ach }))
+            if (ach.earned) mergeEarnedIds(uid, ach.earned)
+          }
         } catch (e) { console.warn('[streak] claim:', e?.message || e) }
       } finally { pending = false }
     }
@@ -1120,7 +1192,7 @@ function AppInner() {
     const onVisible = () => { if (document.visibilityState === 'visible') stampVisit() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { live = false; document.removeEventListener('visibilitychange', onVisible) }
-  }, [user?.id])
+  }, [user?.id, mergeEarnedIds])
 
   const loadMedia = useCallback(async () => {
     const note = (ok) => setMediaState(s => (ok || s !== 'ready' ? (ok ? 'ready' : 'error') : s))
@@ -1184,6 +1256,7 @@ function AppInner() {
     // vi no keo theo purchased/bonus/credits cua thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
       setVoteStatus(previous => ({
+        ...previous,
         ...vs.value,
         bonus_requests: Number.isInteger(vs.value.bonus_requests)
           ? vs.value.bonus_requests
@@ -1193,6 +1266,7 @@ function AppInner() {
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
     }
+    if (ach.status === 'fulfilled' && ach.value?.earned) mergeEarnedIds(u.id, ach.value.earned)
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (od.status === 'fulfilled') setOrders(od.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
@@ -1202,7 +1276,7 @@ function AppInner() {
        phải chờ realtime hoặc một lần tải lại bảng sau đó. */
     if (vv.status === 'fulfilled' && Array.isArray(vv.value) && vv.value.length > 0) setVotesLog(vv.value)
     return results
-  }, [user, loadMedia, loadPick, noteBoard])
+  }, [user, loadMedia, loadPick, noteBoard, mergeEarnedIds])
 
   /* Realtime chỉ tải lại đúng phần đổi: một lượt vote chạm bảng requests
      thì không cần lôi cả media + đơn hàng về theo. */
@@ -1229,6 +1303,7 @@ function AppInner() {
     // do, khong de so du thoi diem cu de len so moi.
     if (vs.status === 'fulfilled' && version === balanceVersion.current) {
       setVoteStatus(previous => ({
+        ...previous,
         ...vs.value,
         bonus_requests: Number.isInteger(vs.value.bonus_requests)
           ? vs.value.bonus_requests
@@ -1238,6 +1313,7 @@ function AppInner() {
     if (ach.status === 'fulfilled' && ach.value && version === balanceVersion.current) {
       setVoteStatus(previous => ({ ...previous, ...ach.value }))
     }
+    if (ach.status === 'fulfilled' && ach.value?.earned) mergeEarnedIds(u.id, ach.value.earned)
     if (rk.status === 'fulfilled') setRanking(rk.value)
     if (achievementReqs.status === 'fulfilled') setAchievementRequests({ userId: u.id, rows: achievementReqs.value })
     if (act.status === 'fulfilled') setMyActivity(act.value)
@@ -1245,7 +1321,7 @@ function AppInner() {
        vote trong mùa và thẻ Most voted tụt về 0 rồi hiện lại ở lượt kế tiếp. */
     if (vv.status === 'fulfilled' && Array.isArray(vv.value) && vv.value.length > 0) setVotesLog(vv.value)
     return results
-  }, [user, noteBoard])
+  }, [user, noteBoard, mergeEarnedIds])
 
   const loadOrdersOnly = useCallback(async (u = user) => {
     if (!u) return
@@ -1344,7 +1420,23 @@ function AppInner() {
   useEffect(() => {
     if (!hasSupabase || !user) return
     let t = 0
+    let inboxT = 0
     let dirty = false
+    const syncInboxNow = () => {
+      fetchNotifications(user.id)
+        .then(dbInbox => {
+          if (!dbInbox.length) return
+          setNotices(current => mergeInbox(current, dbInbox, loadDismissed(user.id)))
+        })
+        .catch(() => {})
+    }
+    const queueInbox = () => {
+      clearTimeout(inboxT)
+      inboxT = setTimeout(() => {
+        if (document.hidden) { dirty = true; return }
+        syncInboxNow()
+      }, 300)
+    }
     const queueBoard = () => {
       clearTimeout(t)
       t = setTimeout(() => {
@@ -1355,22 +1447,25 @@ function AppInner() {
            được đọc lúc đăng nhập, nên không có dòng này thì người gửi phải F5
            mới thấy kết quả, dù họ đang mở sẵn trang. `mergeInbox` đã chống
            trùng theo id/sig nên đọc lại không làm chuông nhảy số sai. */
-        fetchNotifications(user.id)
-          .then(dbInbox => {
-            if (!dbInbox.length) return
-            setNotices(current => mergeInbox(current, dbInbox, loadDismissed(user.id)))
-          })
-          .catch(() => {})
+        syncInboxNow()
       }, 400)
     }
     const ch = supabase.channel('live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, queueBoard)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadOrdersOnly(user))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, queueInbox)
       .subscribe()
-    const onVis = () => { if (!document.hidden && dirty) { dirty = false; loadBoard(user) } }
+    const onVis = () => {
+      if (!document.hidden && dirty) {
+        dirty = false
+        loadBoard(user)
+        syncInboxNow()
+      }
+    }
     document.addEventListener('visibilitychange', onVis)
     return () => {
       clearTimeout(t)
+      clearTimeout(inboxT)
       document.removeEventListener('visibilitychange', onVis)
       supabase.removeChannel(ch)
     }
@@ -1444,29 +1539,75 @@ function AppInner() {
   }, [uid])
 
   /* Bảng thông báo cần biết "dòng nào là của bài này" để gắn nút Vote / Xem
-     video ngay trong dòng: lấy bài của mình trước, rồi tới dòng nhiều vote
-     nhất — cùng luật với thẻ cụm ngoài bảng. */
+     video ngay trong dòng: ưu tiên dòng đang hoạt động trên bảng công khai
+     (không để bản trùng đã bị `denied` che mất nút Vote/Watch), sau đó ưu tiên
+     bài của mình và dòng nhiều vote nhất. */
   const rowsByKey = useMemo(() => {
+    const rankRow = (r) => {
+      const stageRank = (r.status !== 'pending' && r.status !== 'denied') ? 2 : r.status === 'pending' ? 1 : 0
+      const videoRank = r.video_url ? 1 : 0
+      const ownRank = uid && r.user_id === uid ? 1 : 0
+      return stageRank * 1000 + videoRank * 100 + ownRank * 10
+    }
     const m = new Map()
     for (const r of rows) {
       const k = groupKey(r)
       const cur = m.get(k)
-      const better = !cur || (r.user_id === uid && cur.user_id !== uid)
-        || (r.user_id === cur.user_id && Number(r.votes) > Number(cur.votes))
+      const rRank = rankRow(r)
+      const cRank = cur ? rankRow(cur) : -1
+      const better = !cur || rRank > cRank || (rRank === cRank && Number(r.votes) > Number(cur.votes))
       if (better) m.set(k, r)
     }
     return m
   }, [rows, uid])
 
-  /* Bấm một tin = đưa người ta ĐẾN dòng request của bài đó trên bảng rồi làm
-     sáng hàng — không mở hộp thoại "This song" nữa: hộp thoại lặp lại đúng những
-     gì dòng tin vừa kể, mà che mất danh sách người ta đang muốn xem. Đánh dấu đã
-     đọc luôn vì họ đang nhìn thấy tin. */
+  /* Bấm một tin = đánh dấu đã đọc (cả local lẫn Supabase) rồi đưa người dùng
+     tới đúng trang tương ứng:
+       · tin nhắc Admin duyệt bài quá hạn -> tab Expired trong Admin;
+       · tin nhận phiếu thưởng -> Daily login / Leaderboard;
+       · bài bị từ chối / đã xoá hết hạn không còn trên bảng công khai -> About me;
+       · bài đang mở trên bảng -> nhảy thẳng tới dòng bài đó và làm sáng hàng. */
+  const isSignedIn = Boolean(user)
+  const isAdminUser = Boolean(user?.isAdmin)
   const openNotice = useCallback((n) => {
     setBellOpen(false)
-    if (n && !n.read) setNotices(box => markRead(box, n.id))
-    if (n?.key) jumpToSong(n.key)
-  }, [jumpToSong])
+    if (!n) return
+    if (!n.read) {
+      setNotices(box => markRead(box, n.id))
+      if (uid) {
+        markNotificationsRead(uid, {
+          ids: [n.id],
+          sigs: n.sig ? [n.sig] : null,
+        }).catch(() => {})
+      }
+    }
+    if (isAdminExpiryNotice(n) && isAdminUser) {
+      setProfileId(null)
+      setAdmin('expired')
+      if (section !== ADMIN_ONLY) go(ADMIN_ONLY)
+      putUrl({ s: ADMIN_ONLY }, adminTabPath(ROUTES.admin, 'expired'))
+      return
+    }
+    if (n.type === 'votes' || n.key === 'login-reward' || n.key === 'season-reward') {
+      setProfileId(null)
+      go(n.key === 'season-reward' ? 'ranking' : 'login')
+      return
+    }
+    if ((n.type === 'denied' || n.type === 'expired') && isSignedIn) {
+      const onPublicBoard = rows.some(r => r.status !== 'pending' && r.status !== 'denied' && groupKey(r) === n.key)
+      if (!onPublicBoard) {
+        setProfileId(null)
+        go('mine')
+        return
+      }
+    }
+    if (n.key) jumpToSong(n.key)
+  }, [uid, isSignedIn, isAdminUser, section, rows, go, jumpToSong])
+
+  const doReadAllNotices = useCallback(() => {
+    setNotices(markAllRead)
+    if (uid) markNotificationsRead(uid).catch(() => {})
+  }, [uid])
 
   /* Mỗi lần bảng đổi (lần nạp đầu, realtime đẩy về, ngay sau lượt vote),
      so với snapshot ngay trước đó và chỉ lấy thay đổi của bài đang theo dõi.
@@ -1518,11 +1659,11 @@ function AppInner() {
   const doDropNotice = (id) => {
     const dropped = notices.find(n => n.id === id)
     /* Tin local lấy chính id làm chữ ký. Tin database có `sig` riêng — nhớ
-       cả hai để lần gộp sau không dựng lại dòng kia dưới một id khác. */
+       tất cả khoá tương đương để lần gộp sau không dựng lại dòng kia dưới một id khác. */
     const sig = dropped?.sig || (!String(id).startsWith('db-') ? id : null)
     setNotices(box => dropNotice(box, id))
     if (uid) {
-      dismissedRef.current = rememberDismissed(uid, [id, sig])
+      dismissedRef.current = rememberDismissed(uid, noticeAliases(dropped || { id, sig }))
       dismissNotification({ id, sig }).catch(() => {})
     }
   }
@@ -1918,8 +2059,14 @@ function AppInner() {
     } catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
   const doAdminExpire = async (id) => {
-    try { await adminExpireRequest(id); await loadBoard(user); flash('ok', t('toast.removed')) }
-    catch (e) { flash('err', errMsg(t, e)) }
+    try {
+      const res = await adminExpireRequest(id)
+      if (res?.notice && user && res.userId === user.id) {
+        setNotices(box => pushNotices(box, [res.notice]))
+      }
+      await loadBoard(user)
+      flash('ok', t('toast.removed'))
+    } catch (e) { flash('err', errMsg(t, e)) }
   }
   const doAdminDelete = async (id) => {
     try { await deleteRequest(id); await loadBoard(user); flash('ok', t('toast.removed')) }
@@ -1988,6 +2135,14 @@ function AppInner() {
     }
     try { await adminOrder(id, ok); await load(user); flash('ok', ok ? t('toast.orderOk') : t('toast.orderNo')) }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
+  }
+  const doSettleSeason = async (seasonType) => {
+    try {
+      const settled = await settleCurrentSeasonRewards(seasonType)
+      await load(user)
+      const count = Array.isArray(settled) ? settled.length : 0
+      flash('ok', t('toast.seasonSettled', { n: count }))
+    } catch (e) { flash('err', errMsg(t, e)) }
   }
   const doMediaSave = async (item) => {
     try {
@@ -2078,7 +2233,21 @@ function AppInner() {
      khong bao gio chay, va nguoi dung ket lai trong tai khoan cu. Don state
      cuc bo truoc, roi moi bao cho server. */
   const doSignOut = useCallback(async () => {
-    setUser(null); setAdmin(null); setModal(false); setMenu(false)
+    currentUserId.current = undefined
+    ++balanceVersion.current
+    dailyBalanceStamp.current = { userId: null, time: 0 }
+    setUser(null); setAdmin(null); setModal(false); setMenu(false); setVoteFor(null)
+    setMyActivity(null); setVisitStamp(null)
+    setMyVotes(new Map())
+    setVoteStatus({
+      free_used: 0, free_limit: FREE_VOTES_PER_DAY, credits: 0, purchased: 0, bonus: 0,
+      bonus_requests: 0,
+    })
+    setOrders([])
+    setAchievementRequests({ userId: null, rows: [] })
+    setRows(prev => prev.some(r => r?.deny_reason != null)
+      ? prev.map(r => (r?.deny_reason != null ? { ...r, deny_reason: null } : r))
+      : prev)
     try { await signOut() } catch { /* phien cuc bo da bi don o tren */ }
   }, [])
   /* useCallback: phím tắt 'n' phụ thuộc openModal — identity ổn định giữa
@@ -2127,13 +2296,26 @@ function AppInner() {
     if (!Array.isArray(days)) return null
     return { days, stats: streakStats(days) }
   }, [myActivity, visitStamp, user?.id])
-  const myAchievementMetrics = useMemo(() => ({
-    longestStreak: activityView?.stats.longest ?? 0,
-    ...achievementRequestMetrics(
+  const myAchievementMetrics = useMemo(() => {
+    const reqMetrics = achievementRequestMetrics(
       achievementRequests.userId === user?.id ? achievementRequests.rows : [],
-      orders, fullRanking, user?.id),
-    votesCast: myTotalVotesCast,
-  }), [activityView, achievementRequests, orders, fullRanking, user?.id, myTotalVotesCast])
+      orders, fullRanking, user?.id)
+    const earnedSet = new Set([
+      ...(earnedAchievements.userId === user?.id ? earnedAchievements.ids : []),
+      ...(Array.isArray(voteStatus.earned)
+        ? voteStatus.earned.map(e => (typeof e === 'string' ? e : e?.id)).filter(Boolean)
+        : []),
+    ])
+    return {
+      longestStreak: activityView?.stats.longest ?? 0,
+      ...reqMetrics,
+      picked: reqMetrics.picked || earnedSet.has('firstPick'),
+      voteBack: earnedSet.has('firstVoteBack'),
+      mystery: earnedSet.has('firstMystery'),
+      earnedIds: earnedSet,
+      votesCast: myTotalVotesCast,
+    }
+  }, [activityView, achievementRequests, earnedAchievements, voteStatus.earned, orders, fullRanking, user?.id, myTotalVotesCast])
   /* Card PNG của chính mình: số lấy từ ô thống kê ngay dưới (cùng nguồn),
      streak từ dải ngay trên — nút Save card ngồi cạnh dải streak. useMemo
      phải nằm TRƯỚC early-return `if (booting)` — hook sau return có điều
@@ -2208,9 +2390,9 @@ function AppInner() {
             onToggle={() => setBellOpen(o => !o)}
             onClose={() => setBellOpen(false)}
             onOpenNotice={openNotice}
-            onReadAll={() => setNotices(markAllRead)}
+            onReadAll={doReadAllNotices}
             onDrop={doDropNotice}
-            onBrowse={() => { setBellOpen(false); go('board') }}
+            onBrowse={() => { setBellOpen(false); setProfileId(null); go('board') }}
             onVote={(r) => { setBellOpen(false); openVote(r) }}
           />
           {/* LỐI VÀO MÀN ĐĂNG NHẬP, NGAY CẠNH CHUÔNG. Mọi việc cần tài khoản
@@ -2797,7 +2979,7 @@ function AppInner() {
         {section === 'login' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <DailyLogin key={`login-${user.id}`} userId={user.id} />
+              <DailyLogin key={`login-${user.id}`} userId={user.id} onReward={refreshWalletBalance} />
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needDailyLogin')} onSignIn={() => setAuthPrompt(true)} />
@@ -2810,7 +2992,7 @@ function AppInner() {
         {section === 'mystery' && !onProfile && (
           user ? (
             <Suspense fallback={<div className="empty" role="status">{t('daily.loading')}</div>}>
-              <MysteryBoxPage key={`mystery-${user.id}`} userId={user.id} onDailyLogin={() => navTo('login')} />
+              <MysteryBoxPage key={`mystery-${user.id}`} userId={user.id} onDailyLogin={() => navTo('login')} onReward={refreshWalletBalance} />
             </Suspense>
           ) : (
             <SignInPanel title={t('gate.needTitle')} body={t('gate.needMystery')} onSignIn={() => setAuthPrompt(true)} />
@@ -2909,6 +3091,7 @@ function AppInner() {
                 onMediaSave={doMediaSave} onMediaCommit={doMediaCommit}
                 onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
                 onMediaViewHome={viewMediaHome}
+                onSettleSeason={doSettleSeason}
                 pickInterval={pick?.interval_days || 4}
               />
             </Suspense>

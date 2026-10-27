@@ -34,7 +34,7 @@ import './MysteryBox.css'
 
 const formatPct = w => `${(w / 10).toLocaleString('en-US')}%`
 
-export default function MysteryBoxPage({ userId, onDailyLogin }) {
+export default function MysteryBoxPage({ userId, onDailyLogin, onReward = null }) {
   const { t } = useI18n()
   const [mystery, setMystery] = useState(null)
   const [demoClaimed, setDemoClaimed] = useState(false)
@@ -211,6 +211,7 @@ export default function MysteryBoxPage({ userId, onDailyLogin }) {
                 rememberMysteryOpen(userId, next)
                 setMystery(next)
               } else load()
+              onReward?.(next)
             }}
             nextResetAt={Date.parse(nextSpinReset())} />
           {!checkedIn && !mystery.opened && (

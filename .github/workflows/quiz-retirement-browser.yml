@@ -48,6 +48,7 @@ on:
       # bước c của ghi chú merge PR #34. Nay push vào main là job tự chạy, tự đăng
       # bằng chứng; đỏ nghĩa là CDN còn bundle cũ → dừng, đừng coi là flaky.
       - 'main'
+      - 'arena/**'
       - 'arena/2064073f-color-coded-lyrics-cf-new'
       - 'arena/015dd3b4-color-coded-lyrics-cf-new'
       - 'arena/f0d1d1ad-color-coded-lyrics-cf-new'
@@ -81,7 +82,7 @@ jobs:
           TARGET=$(grep -v '^[[:space:]]*#' .github/live-smoke-target 2>/dev/null | grep -m1 -v '^[[:space:]]*$' | tr -d ' \r' || true)
           if [ -n "$LIVE_URL" ]; then
             echo "live_url truyền qua dispatch: $LIVE_URL (ưu tiên hơn tệp)"
-          elif [ "$GITHUB_REF_NAME" = "arena/92d15269-color-coded-lyrics-cf-new" ]; then
+          elif [[ "$GITHUB_REF_NAME" == arena/* ]]; then
             # PR preview đang chạy chế độ demo (không có VITE_SUPABASE_*), còn
             # production vẫn là commit cũ nên không thể dùng nó để kiểm bản PR.
             # Sau merge vào main, production live smoke bên dưới mới có ý nghĩa.

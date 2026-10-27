@@ -40,7 +40,7 @@ export function loadTurnstile() {
   preconnectTurnstile()
   if (!loading) {
     loading = new Promise((resolve, reject) => {
-      const existing = document.querySelector(`script[src=\"${SRC}\"]`)
+      const existing = document.querySelector(`script[src="${SRC}"]`)
       if (existing && window.turnstile) { resolve(window.turnstile); return }
       const s = document.createElement('script')
       s.src = SRC

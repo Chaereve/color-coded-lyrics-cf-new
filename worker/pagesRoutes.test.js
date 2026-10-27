@@ -234,6 +234,7 @@ test('_headers: khối /* mang security headers, và không header nào bị kha
      (khác scheme là khác nguồn), nên phải khai riêng. Test ngay bên dưới chốt
      bằng đúng URL mà live smoke thấy bị từ chối trên production. */
   assert.match(csp, /connect-src[^;]*wss:\/\/\*\.supabase\.co/)
+  assert.match(csp, /media-src 'self' https: blob:/)
   assert.match(csp, /frame-src[^;]*https:\/\/www\.youtube\.com/)
   assert.match(csp, /object-src 'none'/)
   assert.match(csp, /frame-ancestors 'none'/)
@@ -341,7 +342,7 @@ test('_headers: bundle/font cache 1 năm, HTML luôn hỏi lại, API no-store',
     assert.match(cc(p) || '', /immutable/, `${p} có hash nội dung nên khai immutable được`)
   }
   assert.equal(cc('/api/*'), 'no-store', 'API chống farm không được cache')
-  for (const p of ['/', '/index.html', '/daily-login', '/daily-spin', '/daily-box', '/leaderboard', '/profile', '/u/*']) {
+  for (const p of ['/', '/index.html', '/daily-login', '/daily-spin', '/daily-box', '/leaderboard', '/profile', '/admin', '/u/*', '/privacy.html', '/faq.html', '/maintenance.html']) {
     assert.match(cc(p) || '', /must-revalidate/,
       `${p} là HTML: cache là người dùng kẹt ở bản cũ, không nhận bundle mới`)
   }

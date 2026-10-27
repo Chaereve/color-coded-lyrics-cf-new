@@ -3,19 +3,25 @@
    folder can be discovered or streamed. OAuth credentials never reach clients. */
 
 const DEFAULT_FOLDER_ID = '1Pc8aDq_Ieq6j8hAZLzXUkGO1Fm4l1Zp5'
-const JSON_HEADERS = {
-  'content-type': 'application/json; charset=utf-8',
+const BASE_SECURITY_HEADERS = {
   'cache-control': 'no-store',
   'x-content-type-options': 'nosniff',
   'cross-origin-resource-policy': 'same-origin',
   'referrer-policy': 'no-referrer',
 }
+const JSON_HEADERS = {
+  'content-type': 'application/json; charset=utf-8',
+  ...BASE_SECURITY_HEADERS,
+}
+const STREAM_ERROR_HEADERS = { ...BASE_SECURITY_HEADERS }
 
 let tokenCache = null
 const LOOKUP_CACHE_TTL_MS = 60_000
 const LOOKUP_MISS_TTL_MS = 10_000
 const LOOKUP_CACHE_MAX = 500
 const RATE_WINDOW_MS = 60_000
+const DRIVE_API_TIMEOUT_MS = 8_000
+const DRIVE_STREAM_TIMEOUT_MS = 25_000
 export const DRIVE_RATE_LIMITS = Object.freeze({ find: 30, stream: 180 })
 let lookupCache = new Map()
 let localRateWindows = new Map()
@@ -25,6 +31,21 @@ const json = (payload, status = 200, extraHeaders = {}) => new Response(JSON.str
   status,
   headers: { ...JSON_HEADERS, ...extraHeaders },
 })
+
+const emptyStreamResponse = (status, extraHeaders = {}) => new Response(null, {
+  status,
+  headers: { ...STREAM_ERROR_HEADERS, ...extraHeaders },
+})
+
+async function fetchWithTimeout(input, init = {}, timeoutMs = DRIVE_API_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 /* Local fallback protects a single Worker isolate. Production should bind
    RATE_SHIELD and apply worker/migrations/0002_drive_video_rate_limit.sql so
@@ -51,10 +72,10 @@ async function checkDriveRateLimit(request, env, endpoint, now = Date.now()) {
   if (env?.RATE_SHIELD && typeof env.RATE_SHIELD.prepare === 'function') {
     try {
       if (lastD1PruneWindow !== windowMinute && windowMinute % 10 === 0) {
-        lastD1PruneWindow = windowMinute
         await env.RATE_SHIELD.prepare(
           'DELETE FROM drive_video_rate_limits WHERE window_minute < ?'
         ).bind(windowMinute - 2).run()
+        lastD1PruneWindow = windowMinute
       }
       const row = await env.RATE_SHIELD.prepare(`
         INSERT INTO drive_video_rate_limits (window_minute, ip_hash, endpoint, requests)
@@ -83,11 +104,14 @@ async function checkDriveRateLimit(request, env, endpoint, now = Date.now()) {
   return { ok: used <= maximum, retryAfter }
 }
 
-async function rateLimitedResponse(request, env, endpoint) {
+async function rateLimitedResponse(request, env, endpoint, bodyless = false) {
   const limit = await checkDriveRateLimit(request, env, endpoint)
   if (limit.ok) return null
-  if (limit.unavailable) return json({ error: 'drive_unavailable' }, 503)
-  return json({ error: 'rate_limited' }, 429, { 'retry-after': String(limit.retryAfter) })
+  if (limit.unavailable) {
+    return bodyless ? emptyStreamResponse(503) : json({ error: 'drive_unavailable' }, 503)
+  }
+  const extra = { 'retry-after': String(limit.retryAfter) }
+  return bodyless ? emptyStreamResponse(429, extra) : json({ error: 'rate_limited' }, 429, extra)
 }
 
 export function clipFilename(artist, title) {
@@ -113,15 +137,19 @@ function config(env) {
   }
 }
 
-async function accessToken(env) {
+function invalidateAccessToken(cacheKey = null) {
+  if (!cacheKey || tokenCache?.cacheKey === cacheKey) tokenCache = null
+}
+
+async function accessToken(env, { forceRefresh = false } = {}) {
   const cfg = config(env)
   if (!cfg) return null
   const cacheKey = `${cfg.clientId}:${cfg.refreshToken}`
-  if (tokenCache?.cacheKey === cacheKey && tokenCache.expiresAt > Date.now() + 60_000) {
-    return tokenCache.value
+  if (!forceRefresh && tokenCache?.cacheKey === cacheKey && tokenCache.expiresAt > Date.now() + 60_000) {
+    return { token: tokenCache.value, fromCache: true, cacheKey }
   }
 
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -139,11 +167,35 @@ async function accessToken(env) {
     value: body.access_token,
     expiresAt: Date.now() + Math.max(60, Number(body.expires_in) || 3600) * 1000,
   }
-  return tokenCache.value
+  return { token: tokenCache.value, fromCache: false, cacheKey }
 }
 
 function escapeDriveQuery(value) {
   return value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")
+}
+
+async function fetchDriveAuthorized(env, url, init = {}, timeoutMs = DRIVE_API_TIMEOUT_MS) {
+  let auth = await accessToken(env)
+  if (!auth?.token) return { authError: true, response: null }
+
+  let response = await fetchWithTimeout(url, {
+    ...init,
+    headers: { ...(init.headers || {}), authorization: `Bearer ${auth.token}` },
+  }, timeoutMs)
+
+  if ((response.status === 401 || response.status === 403) && auth.fromCache) {
+    invalidateAccessToken(auth.cacheKey)
+    auth = await accessToken(env, { forceRefresh: true })
+    if (!auth?.token) return { authError: true, response: null }
+    response = await fetchWithTimeout(url, {
+      ...init,
+      headers: { ...(init.headers || {}), authorization: `Bearer ${auth.token}` },
+    }, timeoutMs)
+  }
+  if (response.status === 401 || response.status === 403) {
+    invalidateAccessToken(auth.cacheKey)
+  }
+  return { authError: false, response }
 }
 
 async function findClip(env, artist, title) {
@@ -162,8 +214,6 @@ async function findClip(env, artist, title) {
     lookupCache.delete(cacheKey)
   }
 
-  const token = await accessToken(env)
-  if (!token) return { status: 503 }
   const query = `'${escapeDriveQuery(cfg.folderId)}' in parents and name = '${escapeDriveQuery(name)}' and trashed = false`
   const params = new URLSearchParams({
     q: query,
@@ -174,9 +224,11 @@ async function findClip(env, artist, title) {
     supportsAllDrives: 'true',
     includeItemsFromAllDrives: 'true',
   })
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-    headers: { authorization: `Bearer ${token}` },
-  })
+  const { authError, response } = await fetchDriveAuthorized(
+    env,
+    `https://www.googleapis.com/drive/v3/files?${params}`,
+  )
+  if (authError || !response) return { status: 503 }
   if (!response.ok) return { status: 502 }
   const body = await response.json().catch(() => null)
   const file = body?.files?.find(item => item?.name === name
@@ -215,24 +267,27 @@ export async function driveVideoFindRoute(request, env) {
 }
 
 export async function driveVideoStreamRoute(request, env) {
-  if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405, headers: JSON_HEADERS })
-  const limited = await rateLimitedResponse(request, env, 'stream')
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return emptyStreamResponse(405, { allow: 'GET, HEAD' })
+  }
+  const limited = await rateLimitedResponse(request, env, 'stream', request.method === 'HEAD')
   if (limited) return limited
   try {
     const { artist, title } = paramsFrom(request)
     const result = await findClip(env, artist, title)
-    if (result.status !== 200) return new Response(null, { status: result.status, headers: JSON_HEADERS })
+    if (result.status !== 200) return emptyStreamResponse(result.status)
 
-    const token = await accessToken(env)
-    if (!token) return new Response(null, { status: 503, headers: JSON_HEADERS })
-    const headers = { authorization: `Bearer ${token}` }
+    const headers = {}
     const range = request.headers.get('range')
     if (range) headers.range = range
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(result.file.id)}?alt=media`, {
-      method: request.method,
-      headers,
-    })
-    if (!response.ok && response.status !== 206) return new Response(null, { status: 502, headers: JSON_HEADERS })
+    const { authError, response } = await fetchDriveAuthorized(
+      env,
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(result.file.id)}?alt=media`,
+      { method: request.method, headers },
+      DRIVE_STREAM_TIMEOUT_MS,
+    )
+    if (authError || !response) return emptyStreamResponse(503)
+    if (!response.ok && response.status !== 206) return emptyStreamResponse(502)
 
     const forwarded = new Headers({
       'content-type': 'video/mp4',
@@ -250,6 +305,6 @@ export async function driveVideoStreamRoute(request, env) {
       headers: forwarded,
     })
   } catch {
-    return new Response(null, { status: 502, headers: JSON_HEADERS })
+    return emptyStreamResponse(502)
   }
 }

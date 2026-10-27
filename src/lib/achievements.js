@@ -107,8 +107,14 @@ export function achievementProgress(metrics = {}) {
 
 export function evaluateAchievements(metrics = {}) {
   const m = achievementProgress(metrics)
+  const rawEarned = metrics.earnedIds
+  const earnedSet = rawEarned instanceof Set
+    ? rawEarned
+    : Array.isArray(rawEarned)
+      ? new Set(rawEarned)
+      : null
   return ACHIEVEMENTS.map(a => {
-    const value = a.source === 'streak' ? m.streak
+    const rawValue = a.source === 'streak' ? m.streak
       : a.source === 'requests' ? m.requests
         : a.source === 'completed' ? m.completed
           : a.source === 'paid' ? m.paidRequests
@@ -117,12 +123,14 @@ export function evaluateAchievements(metrics = {}) {
                 : a.source === 'voteBack' ? m.voteBack
                   : a.source === 'mystery' ? m.mystery
                     : 0
-    const earned = a.source === 'leaderboard' ? !!m.rank && m.rank <= a.need : value >= a.need
+    const alreadyEarned = earnedSet ? earnedSet.has(a.id) : false
+    const earned = alreadyEarned || (a.source === 'leaderboard' ? !!m.rank && m.rank <= a.need : rawValue >= a.need)
+    const value = alreadyEarned && a.source !== 'leaderboard' ? Math.max(rawValue, a.need) : rawValue
     return {
       ...a,
       value,
       earned,
-      progress: a.source === 'leaderboard' ? (earned ? a.need : 0) : Math.min(value, a.need),
+      progress: a.source === 'leaderboard' ? (earned ? a.need : 0) : (alreadyEarned ? a.need : Math.min(value, a.need)),
     }
   })
 }

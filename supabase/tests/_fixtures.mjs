@@ -41,6 +41,10 @@ export const POST_20261125 = [
   '20261217_protect_paid_request_orders',
   '20261217_rpc_least_privilege',
   '20261218_votes_received_recent_first',
+  '20261219_homepage_video_limit',
+  '20261220_review_notify_privacy_fix',
+  '20261221_notification_inbox_fix',
+  '20261222_achievement_pick_fix',
 ]
 
 const SCAFFOLD = `

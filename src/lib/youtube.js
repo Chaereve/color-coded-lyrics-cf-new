@@ -9,7 +9,7 @@ export { parseYoutube, thumbUrl }
 
 /* ---------- cấu hình kênh: chỉ cần sửa chỗ này ---------- */
 export const CHANNEL = {
-  handle: import.meta.env.VITE_YOUTUBE_CHANNEL_HANDLE || 'Chaereve',
+  handle: import.meta.env?.VITE_YOUTUBE_CHANNEL_HANDLE || 'Chaereve',
   name: 'Chaereve',
-  url: `https://www.youtube.com/@${import.meta.env.VITE_YOUTUBE_CHANNEL_HANDLE || 'Chaereve'}`,
+  url: `https://www.youtube.com/@${import.meta.env?.VITE_YOUTUBE_CHANNEL_HANDLE || 'Chaereve'}`,
 }

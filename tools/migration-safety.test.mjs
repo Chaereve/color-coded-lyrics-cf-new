@@ -196,7 +196,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
       '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
-      '20261219_homepage_video_limit'])
+      '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
+      '20261221_notification_inbox_fix', '20261222_achievement_pick_fix'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -217,7 +218,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
       '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
-      '20261219_homepage_video_limit'])
+      '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
+      '20261221_notification_inbox_fix', '20261222_achievement_pick_fix'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -240,7 +242,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261214_request_history', '20261215_notify_requester_review', '20261216_remove_comments',
       '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
-      '20261219_homepage_video_limit'])
+      '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
+      '20261221_notification_inbox_fix', '20261222_achievement_pick_fix'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -549,9 +552,11 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
      + nhật ký quản trị / sửa request đầy đủ: 20261213
      + lịch sử từng request: 20261214 + báo người gửi: 20261215
      + gỡ bình luận: 20261216 + bảo mật lý do từ chối và bảo vệ đơn trả phí: 20261217
-     + xếp phiếu mới nhất trước giới hạn REST: 20261218 + 20 video slots ngoài Featured: 20261219). */
+     + xếp phiếu mới nhất trước giới hạn REST: 20261218 + 20 video slots ngoài Featured: 20261219
+     + khóa rò rỉ thông báo duyệt/từ chối: 20261220 + sửa hộp thư thông báo & xoá bài hết hạn: 20261221
+     + bảo toàn thành tựu firstPick sau khi hoàn thành bài: 20261222). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 62)
+  assert.equal(active.length, 65)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -575,9 +580,10 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261215_notify_requester_review', '20261216_remove_comments',
       '20261217_private_denial_reasons', '20261217_protect_paid_request_orders',
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
-      '20261219_homepage_video_limit'])
+      '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
+      '20261221_notification_inbox_fix', '20261222_achievement_pick_fix'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '26 migration(s) would be applied:')
+  assert.equal(lines[0], '29 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -605,6 +611,9 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261217  20261217_rpc_least_privilege.sql',
     'apply 20261218  20261218_votes_received_recent_first.sql',
     'apply 20261219  20261219_homepage_video_limit.sql',
+    'apply 20261220  20261220_review_notify_privacy_fix.sql',
+    'apply 20261221  20261221_notification_inbox_fix.sql',
+    'apply 20261222  20261222_achievement_pick_fix.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })
@@ -687,4 +696,13 @@ test('normalizeExcept / parseArgs accept one version, repeats, and commas', () =
   const repeated = parseArgs(['--plan', '--except', '20261201', '--except', '20261210'])
   assert.deepEqual(repeated.except, ['20261201', '20261210'])
   assert.throws(() => parseArgs(['--plan', '--except']), /missing --except/)
+})
+
+test('POST_20261125 in supabase/tests/_fixtures.mjs stays in sync with active migrations', async () => {
+  const { POST_20261125 } = await import('../supabase/tests/_fixtures.mjs')
+  const { active } = collectMigrations()
+  assert.deepEqual(
+    POST_20261125,
+    active.filter(({ version }) => version >= '20261126').map(({ id }) => id),
+  )
 })

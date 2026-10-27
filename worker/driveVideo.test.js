@@ -171,5 +171,44 @@ test('Drive stream refuses a same-named file from outside the configured folder'
   try {
     const response = await driveVideoStreamRoute(request('stream'), { ...credentials('outside'), GOOGLE_DRIVE_FOLDER_ID: folderId })
     assert.equal(response.status, 404)
+    assert.equal(response.headers.get('content-type'), null, 'bodyless stream error responses must not advertise application/json')
   } finally { restore() }
+})
+
+test('Drive client evicts revoked cached OAuth token on 401 and retries once with a fresh token', async () => {
+  clearDriveVideoState()
+  let tokenMints = 0
+  let driveAttempts = 0
+  const restore = stubFetch(async (input, init = {}) => {
+    const url = String(input)
+    if (url === 'https://oauth2.googleapis.com/token') {
+      tokenMints++
+      return Response.json({ access_token: `token-${tokenMints}`, expires_in: 3600 })
+    }
+    const auth = new Headers(init.headers).get('authorization')
+    if (url.startsWith('https://www.googleapis.com/drive/v3/files?')) {
+      return Response.json({ files: [{
+        id: 'revoked-test-id',
+        name: 'IVE - Looks Can Kill - 30s.mp4',
+        mimeType: 'video/mp4',
+        parents: [folderId],
+      }] })
+    }
+    driveAttempts++
+    if (auth === 'Bearer token-1') {
+      return new Response('revoked', { status: 401 })
+    }
+    assert.equal(auth, 'Bearer token-2')
+    return new Response('fresh bytes', { status: 200, headers: { 'content-length': '11' } })
+  })
+  try {
+    const env = { ...credentials('revoke'), GOOGLE_DRIVE_FOLDER_ID: folderId }
+    // Seed token-1 into tokenCache via find
+    assert.equal((await driveVideoFindRoute(request('find'), env)).status, 200)
+    // Stream encounters 401 on cached token-1, refreshes to token-2, and succeeds
+    const streamRes = await driveVideoStreamRoute(request('stream', 'HEAD'), env)
+    assert.equal(streamRes.status, 200)
+    assert.equal(tokenMints, 2)
+    assert.equal(driveAttempts, 2)
+  } finally { restore(); clearDriveVideoState() }
 })

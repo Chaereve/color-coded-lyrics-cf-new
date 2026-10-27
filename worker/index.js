@@ -38,6 +38,7 @@
    ========================================================= */
 import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './shield.js'
 import { driveVideoFindRoute, driveVideoStreamRoute } from './driveVideo.js'
+import { onRequest as archiveOnRequest } from '../functions/archive.js'
 
 /* D1 is preferred; retain KV only as a rollout fallback while Pages bindings
    are being configured. Once RATE_SHIELD is present all shield writes go to D1. */
@@ -98,17 +99,26 @@ async function verifyTurnstile(secret, token, ip) {
 }
 
 /* Uỷ quyền RPC cho Supabase bằng JWT của người dùng: Worker không cầm service
-   role nên không thể tự thưởng / tự bỏ phiếu cho ai ngoài chính người gọi. */
-function callRpc(env, name, userToken, args) {
-  return fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/rpc/${name}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      apikey: env.SUPABASE_ANON_KEY,
-      authorization: `Bearer ${userToken}`,
-    },
-    body: JSON.stringify({ ...args, p_gate_token: env.EDGE_GATE_TOKEN ?? null }),
-  })
+   role nên không thể tự thưởng / tự bỏ phiếu cho ai ngoài chính người gọi.
+   Đặt timeout tường minh để một kết nối PostgREST treo không giữ cứng isolate. */
+const RPC_TIMEOUT_MS = 15_000
+async function callRpc(env, name, userToken, args) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS)
+  try {
+    return await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'content-type': 'application/json',
+        apikey: env.SUPABASE_ANON_KEY,
+        authorization: `Bearer ${userToken}`,
+      },
+      body: JSON.stringify({ ...args, p_gate_token: env.EDGE_GATE_TOKEN ?? null }),
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export async function handleSpin(request, env) {
@@ -136,13 +146,11 @@ export async function handleSpin(request, env) {
       if (!captcha || !(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, captcha, ip))) return deny('err.spinCaptcha')
     }
 
-    // 2) Xác thực kép + rate-limit theo IP/vân tay qua D1 (hoặc KV khi rollout).
+    // 2) Rate-limit theo vân tay qua D1 (hoặc KV khi rollout); không truyền IP thô.
     const ipHash = await sha256hex(ip)
     let check
     try {
-      check = await shieldCheck(shield, {
-        ip, ipHash: usesD1Shield(env) ? ipHash : undefined, fpHash: shieldFpHash,
-      })
+      check = await shieldCheck(shield, { fpHash: shieldFpHash })
     } catch (error) {
       if (usesD1Shield(env)) return deny('err.shieldUnavailable', 503)
       throw error
@@ -168,7 +176,6 @@ export async function handleSpin(request, env) {
     if (result && !result.replayed) {
       try {
         await shieldCommit(shield, {
-          ip, ipHash: usesD1Shield(env) ? ipHash : undefined,
           fpHash: shieldFpHash, _state: check._state,
         })
       } catch { /* lỗi ghi shield không thể đảo ledger đã commit */ }
@@ -301,6 +308,7 @@ export default {
     if (pathname === '/api/mystery/open') return mysteryRoute(request, env)
     if (pathname === '/api/drive-video/find') return driveVideoFindRoute(request, env)
     if (pathname === '/api/drive-video/stream') return driveVideoStreamRoute(request, env)
+    if (pathname === '/archive') return archiveOnRequest({ request, env })
     // Mọi đường dẫn còn lại: file tĩnh của app (SPA fallback do cấu hình assets lo).
     if (pathname.startsWith('/api/')) return deny('err.spinRequest', 404)
     return env.ASSETS.fetch(request)

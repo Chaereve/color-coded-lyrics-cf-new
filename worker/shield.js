@@ -5,11 +5,13 @@
    Supabase/Postgres vẫn là nguồn sự thật duy nhất cho quota và tiền thưởng;
    lá chắn chỉ làm lớp chống farm bổ sung, không tự cấp thưởng bao giờ.
 
-   D1 lưu counter theo ngày VN và hash; KV cũ dùng hai khoá có TTL VN-midnight.
+   D1 lưu counter theo ngày VN và hash; KV fallback lưu khoá vân tay có TTL
+   VN-midnight. Không bao giờ lưu địa chỉ IP thô vào D1 hay KV (khớp cam kết
+   tại /privacy.html), và không khoá IP dùng chung (Wi-Fi/CGNAT).
    ========================================================= */
 
 export const SHIELD_LIMIT = 2          // khớp DAILY_SPIN_LIMIT bên frontend/SQL
-export const SHIELD_MAX_FP_PER_IP = 5  // legacy threshold; shared IPs are not blocked
+export const SHIELD_MAX_FP_PER_IP = 5  // legacy constant kept for compatibility; shared IPs are never blocked
 /* Trần số LƯỢT GỌI vote của một vân tay trong ngày. Không phải hạn mức vote
    (Postgres giữ hạn mức đó: 3 free/ngày/tài khoản và /vân tay, phần còn lại
    phải trả tiền). Đây chỉ là cái phanh để một farm tool không nện hàng nghìn
@@ -27,64 +29,40 @@ const fpState = (raw, day) => {
   const v = readJson(raw)
   return v && v.d === day && Number.isInteger(v.used) ? v : { d: day, used: 0 }
 }
-const ipState = (raw, day) => {
-  const v = readJson(raw)
-  return v && v.d === day && Array.isArray(v.fps)
-    ? { d: day, fps: v.fps.slice(0, 64), blocked: v.blocked ? 1 : 0 }
-    : { d: day, fps: [], blocked: 0 }
-}
 
 export const fpKey = fpHash => `fp:${fpHash}`
-export const ipKey = ip => `ip:${ip}`
+export const ipKey = ipHash => `ip:${ipHash}`
 
-/* XÁC THỰC KÉP trước khi cho phép lượt quay đi tiếp:
-   · IP đã bị khoá trong ngày            → chặn (farm bị bẻ khoá trước đó).
+/* Hạn mức lượt quay theo vân tay ở Edge:
    · Fingerprint này đã hết lượt trong ngày → chặn ngay (trùng thiết bị gian lận).
-   · Trùng IP nhưng fingerprint KHÁC      → cho phép (người thật chung Wi-Fi),
-     trừ khi IP đó hôm nay đã thấy đủ 5 fingerprint khác nhau: đó là dấu hiệu
-     anti-detect browser, nên khoá luôn IP tới hết ngày. */
-export async function shieldCheck(kv, { ip, ipHash, fpHash, nowMs = Date.now(), limit = SHIELD_LIMIT, maxFpPerIp = SHIELD_MAX_FP_PER_IP } = {}) {
+   · Trùng IP nhưng fingerprint KHÁC      → cho phép (người thật chung Wi-Fi/CGNAT). */
+export async function shieldCheck(kv, { fpHash, nowMs = Date.now(), limit = SHIELD_LIMIT } = {}) {
   if (typeof kv?.prepare === 'function') {
-    if (!ipHash) throw new TypeError('D1 shield requires a hashed IP')
-    return d1SpinCheck(kv, { ipHash, fpHash, nowMs, limit, maxFpPerIp })
+    return d1SpinCheck(kv, { fpHash, nowMs, limit })
   }
   const day = vnDay(nowMs)
-  const [fpRaw, ipRaw] = await Promise.all([kv.get(fpKey(fpHash)), kv.get(ipKey(ip))])
+  const fpRaw = await kv.get(fpKey(fpHash))
   const fp = fpState(fpRaw, day)
-  const net = ipState(ipRaw, day)
   const ttl = ttlUntilVnMidnight(nowMs)
   if (fp.used >= limit) return { ok: false, reason: 'err.spinEdgeFp' }
-  return { ok: true, _state: { fp, net, day, ttl } }
+  return { ok: true, _state: { fp, day, ttl } }
 }
 
 /* Chỉ gọi SAU khi Supabase đã ghi ledger thành công (và không phải replay):
-   đếm thêm một lượt cho fingerprint và ghi nhận fingerprint vào IP.
-   Ghi sau thay vì trước để một lượt quay lỗi mạng không ăn mất hạn mức.
-   Nhận _state từ shieldCheck để tránh 2 KV reads thừa (4 reads -> 2 reads / spin). */
-export async function shieldCommit(kv, { ip, ipHash, fpHash, nowMs = Date.now(), _state } = {}) {
+   đếm thêm một lượt cho fingerprint. Không ghi IP thô vào KV. */
+export async function shieldCommit(kv, { fpHash, nowMs = Date.now(), _state } = {}) {
   if (typeof kv?.prepare === 'function') {
-    if (!ipHash) throw new TypeError('D1 shield requires a hashed IP')
-    return d1SpinCommit(kv, { ipHash, fpHash, nowMs })
+    return d1SpinCommit(kv, { fpHash, nowMs })
   }
-  let fp, net, day, ttl
+  let fp, day, ttl
   if (_state && _state.day === vnDay(nowMs)) {
-    ;({ fp, net, day, ttl } = _state)
+    ;({ fp, day, ttl } = _state)
   } else {
     day = vnDay(nowMs)
     ttl = ttlUntilVnMidnight(nowMs)
-    const [fpRaw, ipRaw] = await Promise.all([kv.get(fpKey(fpHash)), kv.get(ipKey(ip))])
-    fp = fpState(fpRaw, day)
-    net = ipState(ipRaw, day)
+    fp = fpState(await kv.get(fpKey(fpHash)), day)
   }
-  const exp = { expirationTtl: ttl }
-  await Promise.all([
-    kv.put(fpKey(fpHash), JSON.stringify({ d: day, used: fp.used + 1 }), exp),
-    kv.put(ipKey(ip), JSON.stringify({
-      d: day,
-      fps: net.fps.includes(fpHash) ? net.fps : [...net.fps, fpHash].slice(-64),
-      blocked: net.blocked,
-    }), exp),
-  ])
+  await kv.put(fpKey(fpHash), JSON.stringify({ d: day, used: fp.used + 1 }), { expirationTtl: ttl })
 }
 
 /* ---------------------------------------------------------

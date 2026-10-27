@@ -3906,6 +3906,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .nt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; font-family: var(--mono); font-size: 10.5px; color: var(--txt-3) }
 .nt-meta em { font-style: normal; font-family: var(--font); font-weight: 600; letter-spacing: .2px }
 .nt-acts { display: flex; align-items: center; gap: 5px; flex: none; padding: 8px 0 8px 0 }
+.nt-more-row { padding: 6px 12px 10px; border-top: 1px solid var(--line); }
 .nt-vote { color: var(--paid); border-color: color-mix(in oklab, var(--paid) 40%, transparent) }
 .nt-vote:hover { background: color-mix(in oklab, var(--paid) 14%, transparent) }
 

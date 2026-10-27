@@ -1,10 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { safeHttpUrl } from '../lib/safeUrl'
-import Check from './Check'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { isPicked, timeAgo } from '../lib/meta'
-import { groupNotices, ownNotices, otherNotices, unreadCount } from '../lib/watch'
+import { groupNotices, isAdminExpiryNotice, ownNotices, otherNotices, unreadCount } from '../lib/watch'
 
 /* =========================================================
    NOTIFICATIONS — chuông + bảng thông báo
@@ -37,6 +36,7 @@ const TONE = {
   picked: 'var(--upnext)',
   started: 'var(--progress)', progress: 'var(--progress)',
   approved: 'var(--queued)',
+  votes: 'var(--paid)',
 }
 
 export default function Notifications({
@@ -47,6 +47,8 @@ export default function Notifications({
   const box = useRef(null)
   const pop = useRef(null)
   const bell = useRef(null)
+  const [expState, setExpState] = useState({ open: false, groups: {} })
+  const expandedGroups = open && expState.open ? expState.groups : {}
   const unread = unreadCount(notices)
   const label = unread ? t('nt.ariaUnread', { n: unread }) : t('nt.aria')
 
@@ -104,7 +106,10 @@ export default function Notifications({
   }, [open, onClose])
 
   const feed = [...ownNotices(notices), ...otherNotices(notices)]
-  const groups = groupNotices(feed).map(g => ({ ...g, items: g.items.slice(0, MAX_PER_GROUP) }))
+  const groups = groupNotices(feed).map(g => {
+    const visible = expandedGroups[g.id] ? g.items : g.items.slice(0, MAX_PER_GROUP)
+    return { ...g, items: visible, hiddenCount: Math.max(0, g.items.length - visible.length) }
+  })
   const total = groups.reduce((n, g) => n + g.items.length, 0)
 
   return (
@@ -181,6 +186,14 @@ export default function Notifications({
                           grp={t(`nt.grp.${g.id}`)}
                           t={t} onOpenNotice={onOpenNotice} onDrop={onDrop} onVote={onVote} />
                       ))}
+                      {g.hiddenCount > 0 && (
+                        <div className="nt-more-row">
+                          <button type="button" className="lnk nt-more"
+                            onClick={() => setExpState({ open: true, groups: { ...expandedGroups, [g.id]: true } })}>
+                            {t('nt.more', { n: g.hiddenCount })}
+                          </button>
+                        </div>
+                      )}
                     </section>
                     )
                   })}
@@ -196,21 +209,34 @@ export default function Notifications({
    Ca dong la mot nut bam: bo qua hop thoai trung gian, nhay thang toi dong
    request cua bai do tren bang (App lo). Nut hanh dong nhanh nam NGOAI nut do,
    khong long trong — `button` trong `button` la HTML hong. */
-function Item({ n, row, st, grp, t, onOpenNotice, onDrop, onVote, onBuy }) {
+function Item({ n, row, grp, t, onOpenNotice, onDrop, onVote }) {
   const c = TONE[n.type] || 'var(--txt-3)'
-  const tag = t(`nt.tag.${n.type}`)
+  const rawTagKey = `nt.tag.${n.type}`
+  const translatedTag = t(rawTagKey)
+  const tag = translatedTag === rawTagKey ? t('nt.grp.other') : translatedTag
   const url = safeHttpUrl(row?.video_url || n.url)
   const votable = !!row && !isPicked(row) && (row.status === 'queued' || row.status === 'in_progress')
+  const titleText = n.title || t('nt.title')
+  const artistText = typeof n.artist === 'string' ? n.artist.trim() : ''
   const vars = {
-    song: `${n.title} — ${n.artist}`, pct: n.pct ?? 0, votes: n.votes ?? row?.votes ?? 0, n: n.gap ?? 0,
+    song: artistText ? `${titleText} — ${artistText}` : titleText,
+    pct: n.pct ?? 0, votes: n.votes ?? row?.votes ?? 0, n: n.gap ?? 0,
     author: n.author || 'Someone',
   }
+  const msgKey = isAdminExpiryNotice(n) ? 'nt.n.expiredAdmin' : `nt.n.${n.type}`
+  const translatedMsg = t(msgKey, vars)
+  const msg = n.type === 'votes'
+    ? (n.reason || (translatedMsg === msgKey ? t('nt.title') : translatedMsg))
+    : (translatedMsg === msgKey ? (n.reason || t('nt.title')) : translatedMsg)
   return (
     <div className={`nt-i${n.read ? '' : ' new'}`} style={{ '--c': c }}>
       <button type="button" className="nt-hit" onClick={() => onOpenNotice?.(n)}>
         <span className="nt-tx">
-          <span className="nt-title">{n.title} <span className="artist">— {n.artist}</span></span>
-          <span className="nt-msg">{t(`nt.n.${n.type}`, vars)}</span>
+          <span className="nt-title">
+            {titleText}
+            {artistText ? <> <span className="artist">— {artistText}</span></> : null}
+          </span>
+          <span className="nt-msg">{msg}</span>
           {n.type === 'denied' && n.reason && <span className="nt-reason">{n.reason}</span>}
           <span className="nt-meta">
             {/* nhan to trong ten nhom thi khong lap lai nua ("Out now" da

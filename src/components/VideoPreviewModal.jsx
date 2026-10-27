@@ -215,7 +215,7 @@ export default function VideoPreviewModal({ video, onClose }) {
         const last = focusable[focusable.length - 1]
 
         if (e.shiftKey) {
-          if (document.activeElement === first) {
+          if (document.activeElement === first || document.activeElement === dialogRef.current) {
             e.preventDefault()
             last.focus()
           }
