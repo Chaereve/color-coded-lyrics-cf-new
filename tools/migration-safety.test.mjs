@@ -697,3 +697,12 @@ test('normalizeExcept / parseArgs accept one version, repeats, and commas', () =
   assert.deepEqual(repeated.except, ['20261201', '20261210'])
   assert.throws(() => parseArgs(['--plan', '--except']), /missing --except/)
 })
+
+test('POST_20261125 in supabase/tests/_fixtures.mjs stays in sync with active migrations', async () => {
+  const { POST_20261125 } = await import('../supabase/tests/_fixtures.mjs')
+  const { active } = collectMigrations()
+  assert.deepEqual(
+    POST_20261125,
+    active.filter(({ version }) => version >= '20261126').map(({ id }) => id),
+  )
+})
