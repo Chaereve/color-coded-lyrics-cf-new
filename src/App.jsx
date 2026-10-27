@@ -1759,18 +1759,9 @@ function AppInner() {
     () => filterBoard({ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q }),
     [pub, picked, rows, boardStage, sortMode, statusFilters, kindFilters, q])
 
-  const featured = useMemo(() => {
-    const m = media.find(x => !x.is_hidden && x.kind === 'featured')
-    if (!m) return null
-    return {
-      id: parseYoutube(m.url)?.id || null, key: m.id, url: m.url,
-      title: m.title || '', thumb: m.thumb || null,
-    }
-  }, [media])
-
   const latest = useMemo(
     () => media
-      .filter(x => !x.is_hidden && x.kind !== 'featured')
+      .filter(x => !x.is_hidden && isHomepageVideo(x))
       .map(m => ({
         id: parseYoutube(m.url)?.id || null, key: m.id, url: m.url,
         title: m.title || '', thumb: m.thumb || null,
@@ -2146,13 +2137,14 @@ function AppInner() {
   }
   const doMediaSave = async (item) => {
     try {
-      if (!item.id && isHomepageVideo(item) && homepageVideoCount(media) >= HOMEPAGE_VIDEO_LIMIT) {
+      const next = { ...item, kind: item?.kind || 'video' }
+      if (!next.id && isHomepageVideo(next) && homepageVideoCount(media) >= HOMEPAGE_VIDEO_LIMIT) {
         throw new Error(t('err.mediaLimit'))
       }
-      if (!item.id && item.kind === 'featured' && featuredMediaCount(media) >= FEATURED_MEDIA_LIMIT) {
+      if (!next.id && next.kind === 'featured' && featuredMediaCount(media) >= FEATURED_MEDIA_LIMIT) {
         throw new Error(t('err.mediaFeaturedLimit'))
       }
-      await saveMedia(item); await loadMedia(); flash('ok', t('toast.mediaSaved'))
+      await saveMedia(next); await loadMedia(); flash('ok', t('toast.mediaSaved'))
     } catch (e) { flash('err', errMsg(t, e)); throw e }
   }
   /* Bảng sửa cả danh sách Latest: xóa trước, rồi lưu mục sửa, thêm mục mới,
@@ -2439,7 +2431,7 @@ function AppInner() {
               <Stat c="var(--done)" v={stage.completed} label={t('stat.completed')} />
             </div>
 
-            <MediaShowcase featured={featured} videos={latest} state={mediaState}
+            <MediaShowcase videos={latest} state={mediaState}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} onRetry={loadMedia} />
 
             {(weeklyHighlights.top || weeklyHighlights.newcomer || hasWeeklyRecap || hallOfFame.length > 0) && (
