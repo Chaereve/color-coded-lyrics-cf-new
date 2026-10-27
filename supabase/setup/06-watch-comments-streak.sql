@@ -403,28 +403,19 @@ commit;
 notify pgrst, 'reload schema';
 
 
--- Keep 20 Latest videos independently of the one Featured slot. Hidden videos
--- still count because they remain in the editable list; Featured does not.
+-- Serialise concurrent additions. Hidden and featured entries count as well.
 create or replace function public.enforce_media_limit()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare
-  v_count int;
 begin
   perform pg_advisory_xact_lock(20260919, 20);
-  if new.kind in ('video', 'playlist') then
-    select count(*) into v_count from public.media
-     where kind in ('video', 'playlist') and id is distinct from new.id;
-    if v_count >= 20 then raise exception 'err.mediaLimit'; end if;
-  elsif new.kind = 'featured' then
-    select count(*) into v_count from public.media
-     where kind = 'featured' and id is distinct from new.id;
-    if v_count >= 1 then raise exception 'err.mediaFeaturedLimit'; end if;
+  if (select count(*) from public.media) >= 20 then
+    raise exception 'err.mediaLimit';
   end if;
   return new;
 end $$;
 revoke all on function public.enforce_media_limit() from public;
 drop trigger if exists media_limit on public.media;
-create trigger media_limit before insert or update of kind on public.media
+create trigger media_limit before insert on public.media
 for each row execute function public.enforce_media_limit();
 
 -- =========================================================
