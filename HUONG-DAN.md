@@ -24,7 +24,7 @@ Copyright © @chaereve · Tự host, miễn phí 100%.
 |---|---|---|
 | Vote miễn phí | **3 / ngày** (reset 0h giờ VN) | `schema.sql` hàm `my_vote_status` |
 | Daily Spin | **2 lượt / thiết bị / ngày**, đồng thời tối đa **2 lượt / tài khoản / ngày** (0h giờ VN) | `migrations/20260907_daily_spin.sql` |
-| Daily Spin edge | tối đa **5 fingerprint / IP / ngày**, vượt thì khoá IP tới hết ngày; fingerprint hết lượt bị chặn ở Edge | `worker/shield.js` + `functions/api/` (Pages, đường chính thức) |
+| Daily Spin edge | giới hạn theo **vân tay trình duyệt / tài khoản / ngày** ở Edge (không khoá IP dùng chung Wi-Fi/CGNAT; không lưu IP thô) | `worker/shield.js` + `functions/api/` (Pages, đường chính thức) |
 | Request | **3 / giờ / tài khoản** | `schema.sql` hàm `create_request` |
 | Paid Request | **$0.75 · 20.000đ** — duyệt ngay, bỏ qua vote | `db.js` → `PAID_REQUEST` |
 | Up next | **khoá vote** (cả vote thêm lẫn rút lại) + khoá xoá của user | `schema.sql` hàm `cast_vote` / `delete_my_request`, cột `requests.picked_at` |
@@ -245,17 +245,15 @@ gì và cũng chẳng phải làm gì. Nếu Cloudflare đòi một thách thứ
 `err.spinCaptcha` ("Couldn't run the security check quietly. Please try again.")
 — lượt chưa chạm database nên bấm quay/vote lại là chạy một vòng xác minh mới.
 
-**Xác thực kép theo đúng bài toán Wi-Fi công cộng:**
+**Xác thực theo đúng bài toán Wi-Fi công cộng / CGNAT:**
 - Trùng `fp_hash` trong ngày **và đã hết lượt** → chặn ngay ở Edge (`err.spinEdgeFp`).
   Đếm theo hạn mức sản phẩm (2 lượt) chứ không chặn ở lần thấy lại đầu tiên, nếu không
   người thật mất luôn lượt thứ hai.
-- Trùng IP nhưng `fp_hash` khác → **cho phép** (người khác nhau chung mạng).
-- Một IP thấy **> 5 fingerprint khác nhau trong ngày** → dấu hiệu anti-detect browser:
-  khoá IP đó tới hết ngày (`err.spinEdgeIp`), fingerprint cũ quay từ mạng khác không bị vạ.
+- Trùng IP nhưng `fp_hash` khác → **cho phép** (người khác nhau chung mạng Wi-Fi, trường học, văn phòng, 4G CGNAT không bao giờ khoá vạ lây nhau).
+- Cả D1 lẫn KV fallback **không bao giờ lưu địa chỉ IP thô** (khớp cam kết tại `/privacy.html`).
 
-**Cấu trúc D1** (`RATE_SHIELD`): counter theo ngày VN, tách scope `spin_fp`, `spin_ip`,
-`vote_fp`; bảng IP↔fingerprint và trạng thái khóa IP. Chỉ lưu SHA-256 của fingerprint/IP,
-không lưu IP thô. Dữ liệu ngày cũ được dọn lười tối đa một lần/ngày bằng chính Worker,
+**Cấu trúc D1** (`RATE_SHIELD`): counter theo ngày VN, tách scope `spin_fp`,
+`vote_fp`. Chỉ lưu SHA-256 của fingerprint/account, không lưu IP thô. Dữ liệu ngày cũ được dọn lười tối đa một lần/ngày bằng chính Worker,
 không thêm cron. Migration nằm ở `worker/migrations/0001_rate_shield.sql`.
 
 Trong rollout, nếu chưa có binding `RATE_SHIELD`, `SPIN_SHIELD` KV cũ vẫn được dùng.
@@ -2209,9 +2207,7 @@ các gói miễn phí*). Hai điều cần biết:
 
 - **Cron chỉ chạy trên nhánh mặc định** (`main`). Chạy tay thì nhánh nào cũng được, nhưng
   muốn nó tự chạy hằng ngày thì phải merge.
-- Bản sao nằm trong **artifact của lượt chạy** (Actions → lượt gần nhất → mục *Artifacts*),
-  giữ **30 ngày**, mỗi lượt một gói theo ngày. Trong gói có cả `manifest.txt` (ngày, commit,
-  số dòng từng bảng) và `fingerprint.txt`.
+- Artifact trên GitHub Actions giữ **30 ngày** nhưng **mặc định chỉ chứa `manifest.txt` và `fingerprint*.txt`** (không đẩy file `.dump` / `auth-users.sql` dạng thô lên artifact để tránh lộ email OAuth trên repo công khai). Nếu muốn tải được bản dump đầy đủ từ artifact, thêm secret `BACKUP_PASSPHRASE` để workflow tự nén & mã hoá AES-256 (`db-backup.tar.gz.gpg`).
 
 **Muốn giữ lâu hơn 30 ngày?** Thêm bốn secret để đẩy sang **Cloudflare R2** (gói free: 10 GB,
 không tính phí băng thông ra): `R2_BUCKET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,

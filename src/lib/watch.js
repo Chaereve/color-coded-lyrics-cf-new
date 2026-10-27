@@ -79,7 +79,10 @@ export function rowEvents(p, n) {
   return out
 }
 
-/* So hai snapshot, chỉ xét BÀI CỦA CHÍNH MÌNH, ép về một tin / bài. */
+/* So hai snapshot, chỉ xét BÀI CỦA CHÍNH MÌNH, ép về một tin / bài.
+   `sig` được đặt khớp 1-1 với chữ ký SQL (`admin_review` và `requests_notify`)
+   để khi `fetchNotifications` đọc về sau 400ms, `mergeInbox` không bao giờ
+   nhân đôi thành hai dòng thông báo cho cùng một sự kiện. */
 export function diffNotices({ prev, next, at = Date.now() }) {
   if (!prev?.size || !next?.size) return []
   const best = new Map()
@@ -88,11 +91,16 @@ export function diffNotices({ prev, next, at = Date.now() }) {
     const p = prev.get(id)
     if (!p) continue                                  // dòng mới xuất hiện: chưa có gì để so
     for (const ev of rowEvents(p, n)) {
-      const sig = ev.type === 'done' ? `done:${n.video_url || ''}`
+      const tail = ev.type === 'done' ? `done:${n.video_url || ''}`
         : ev.type === 'progress' ? `progress:${ev.pct}`
-        : `${ev.type}:${n.status}:${n.picked ? 1 : 0}`
+        : `${ev.type}:${n.status}`
+      const localId = `${n.key}|${tail}`
+      const dbSig = (ev.type === 'approved' || ev.type === 'denied')
+        ? `review|${id}|${n.status}`
+        : localId
       const item = {
-        id: `${n.key}|${sig}`,
+        id: localId,
+        sig: dbSig,
         key: n.key, type: ev.type, at, own: true,
         title: n.title, artist: n.artist, kind: n.kind,
         request_id: id, url: ev.url || n.video_url || null,
@@ -121,14 +129,18 @@ export function loadInbox(uid) {
 }
 export function saveInbox(uid, list) { wr(K_BOX(uid), list.slice(0, INBOX_LIMIT)) }
 
-/* Dồn tin mới vào đầu, bỏ tin có id đã có, cắt theo INBOX_LIMIT. */
+/* Dồn tin mới vào đầu, bỏ tin có id hoặc chữ ký đã có, cắt theo INBOX_LIMIT. */
 export function pushNotices(inbox, found) {
   if (!found?.length) return Array.isArray(inbox) ? inbox : []
-  const seen = new Set((inbox || []).map(n => n.id))
+  const seen = new Set()
+  for (const n of inbox || []) {
+    for (const k of noticeAliases(n)) seen.add(k)
+  }
   const fresh = []
   for (const n of found) {
-    if (seen.has(n.id)) continue
-    seen.add(n.id)
+    const aliases = noticeAliases(n)
+    if (aliases.some(k => seen.has(k))) continue
+    for (const k of aliases) seen.add(k)
     fresh.unshift(n)
   }
   if (!fresh.length) return inbox || []
@@ -180,15 +192,51 @@ export function noticeDbId(id) {
   return Number.isSafeInteger(n) ? n : null
 }
 
+/* Tin nhắc Admin duyệt bài quá hạn 1 tháng (chưa xoá) mang sig `expiry-admin|…`. */
+export function isAdminExpiryNotice(notice) {
+  return notice?.type === 'expired' && String(notice?.sig || '').startsWith('expiry-admin|')
+}
+
+/* Mọi khoá nhận diện của cùng một thông báo (id local, id có hậu tố `:0`/`:1`
+   của phiên cũ, và chữ ký `sig` trên database) để chống nhân đôi và chống hồi
+   sinh sau khi xoá. */
+export function noticeAliases(notice) {
+  if (!notice || typeof notice !== 'object') return []
+  const out = new Set()
+  const add = (v) => { if (typeof v === 'string' && v) out.add(v) }
+  add(notice.id)
+  add(notice.sig)
+  if (notice.id && noticeDbId(notice.id) == null) {
+    add(String(notice.id).replace(/:[01]$/, ''))
+  }
+  if (notice.type === 'approved' || notice.type === 'denied') {
+    const st = notice.type === 'approved' ? 'queued' : 'denied'
+    if (notice.request_id) add(`review|${notice.request_id}|${st}`)
+    if (notice.key) {
+      add(`${notice.key}|${notice.type}:${st}`)
+      add(`${notice.key}|${notice.type}:${st}:0`)
+      add(`${notice.key}|${notice.type}:${st}:1`)
+    }
+  } else if (notice.key && (notice.type === 'picked' || notice.type === 'started')) {
+    const raw = (notice.sig && String(notice.sig).startsWith(`${notice.key}|${notice.type}:`))
+      ? String(notice.sig)
+      : (noticeDbId(notice.id) == null && String(notice.id || '').startsWith(`${notice.key}|${notice.type}:`)
+        ? String(notice.id)
+        : '')
+    const base = raw ? raw.replace(/:[01]$/, '') : ''
+    if (base) {
+      add(base)
+      add(`${base}:0`)
+      add(`${base}:1`)
+    }
+  }
+  return [...out]
+}
+
 export function isDismissed(dismissed, notice) {
   if (!notice) return false
   const set = dismissed instanceof Set ? dismissed : new Set(dismissed || [])
-  if (notice.id && set.has(notice.id)) return true
-  if (notice.sig && set.has(notice.sig)) return true
-  /* Tin local dùng chính id làm chữ ký (`bài|done:url`). Tin database mang
-     chữ ký đó ở `sig` — xóa một bên phải chặn được bên kia. */
-  if (notice.id && set.has(notice.sig)) return true
-  return false
+  return noticeAliases(notice).some(k => set.has(k))
 }
 
 export function withoutDismissed(list, dismissed) {
@@ -196,22 +244,38 @@ export function withoutDismissed(list, dismissed) {
 }
 
 /* Gộp hộp thư local với hộp thư database. Tin đã xóa không được quay lại,
-   tin trùng chữ ký không được hiện hai lần. */
+   tin trùng chữ ký không được hiện hai lần, và trạng thái đã đọc / id DB được
+   hợp nhất hai chiều. */
 export function mergeInbox(local, remote, dismissed) {
-  const base = withoutDismissed(local, dismissed)
-  const seen = new Set()
-  for (const n of base) {
-    if (n.id) seen.add(n.id)
-    if (n.sig) seen.add(n.sig)
-  }
+  const base = withoutDismissed(local, dismissed).map(n => ({ ...n }))
+  const indexByAlias = new Map()
+  base.forEach((n, idx) => {
+    for (const k of noticeAliases(n)) {
+      if (!indexByAlias.has(k)) indexByAlias.set(k, idx)
+    }
+  })
   const fresh = []
   for (const n of remote || []) {
     if (!n || isDismissed(dismissed, n)) continue
-    /* Chữ ký database trùng id của tin local đã có — đừng hiện hai dòng cho
-       cùng một sự kiện. `seen` đã chứa id local, nên so sig với seen là đủ. */
-    if ((n.id && seen.has(n.id)) || (n.sig && seen.has(n.sig))) continue
-    if (n.id) seen.add(n.id)
-    if (n.sig) seen.add(n.sig)
+    const aliases = noticeAliases(n)
+    const hitIdx = aliases.map(k => indexByAlias.get(k)).find(idx => idx !== undefined)
+    if (hitIdx !== undefined) {
+      const cur = base[hitIdx]
+      const merged = {
+        ...cur,
+        id: noticeDbId(cur.id) != null ? cur.id : (noticeDbId(n.id) != null ? n.id : cur.id),
+        sig: cur.sig || n.sig || null,
+        reason: cur.reason || n.reason || null,
+        url: n.url || cur.url || null,
+        read: Boolean(cur.read || n.read),
+      }
+      base[hitIdx] = merged
+      for (const k of noticeAliases(merged)) {
+        if (!indexByAlias.has(k)) indexByAlias.set(k, hitIdx)
+      }
+      continue
+    }
+    for (const k of aliases) indexByAlias.set(k, -1)
     fresh.push(n)
   }
   return [...fresh, ...base].slice(0, INBOX_LIMIT)
@@ -238,7 +302,7 @@ export function groupNotices(inbox) {
   const taken = new Set()
   const out = []
   for (const g of NOTICE_GROUPS) {
-    const items = list.filter(n => n && g.types.includes(n.type))
+    const items = list.filter(n => n && g.types.includes(n.type) && !(g.id === 'out' && isAdminExpiryNotice(n)))
     items.forEach(n => taken.add(n.id))
     if (items.length) {
       out.push({
@@ -249,8 +313,10 @@ export function groupNotices(inbox) {
       })
     }
   }
-  /* tin lạ (thêm sau này) không được biến mất khỏi hộp thư */
-  const rest = list.filter(n => n && !taken.has(n.id))
+  /* tin lạ hoặc tin thưởng / nhắc duyệt quá hạn không bị biến mất khỏi hộp thư */
+  const rest = list
+    .filter(n => n && !taken.has(n.id))
+    .sort((a, b) => (a.read === b.read ? b.at - a.at : a.read ? 1 : -1))
   if (rest.length) out.push({ id: 'other', items: rest, unread: rest.filter(n => !n.read).length })
   return out
 }

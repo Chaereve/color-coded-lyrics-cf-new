@@ -286,3 +286,55 @@ test('an owner of a revived badge keeps exactly one badge row; the vote bonus se
     await db.close()
   }
 })
+
+test('20261222 preserves firstPick eligibility after picked_at is cleared on completion (both vote_back and 0-vote picks)', async () => {
+  const db = await buildV3Database()
+  try {
+    await db.exec(read('supabase/migrations/20261222_achievement_pick_fix.sql'))
+
+    // Case A: 0-vote picked song whose picked_at was cleared when marked completed;
+    // requests_notify left a 'picked' notification row for the owner.
+    const ownerZero = await seedUser(db)
+    await seedRankFillers(db, ownerZero)
+    await seedRequest(db, ownerZero, { title: 'ZeroVotePicked', status: 'completed' })
+    const reqZeroId = (await db.query(
+      'select id from public.requests where user_id = $1 limit 1', [ownerZero])).rows[0].id
+    await db.query(
+      `insert into public.notifications (user_id, song_key, kind, request_id, title, artist, sig)
+       values ($1, public.song_key('aespa', 'ZeroVotePicked'), 'picked', $2, 'ZeroVotePicked', 'aespa', $3)`,
+      [ownerZero, reqZeroId, `${reqZeroId}|status:picked`])
+
+    const resZero = await withSession(db, ownerZero, () => claim(db))
+    const earnedZero = resZero.earned.map(e => e.id)
+    assert.ok(earnedZero.includes('firstPick'), `0-vote completed pick must grant firstPick: ${earnedZero.join(', ')}`)
+    assert.ok(earnedZero.includes('firstCompletion'), `completed song must grant firstCompletion: ${earnedZero.join(', ')}`)
+
+    // Case B: picked song recorded via vote_back_owner in reward_events after picked_at became null.
+    const ownerVb = await seedUser(db)
+    await seedRankFillers(db, ownerVb)
+    await seedRequest(db, ownerVb, { title: 'VoteBackPicked', status: 'completed' })
+    const reqVbId = (await db.query(
+      'select id from public.requests where user_id = $1 limit 1', [ownerVb])).rows[0].id
+    await db.query(
+      `insert into public.reward_events (user_id, day, source, ref, amount)
+       values ($1, current_date, 'vote_back_owner', $2, 2)`,
+      [ownerVb, reqVbId])
+
+    const resVb = await withSession(db, ownerVb, () => claim(db))
+    const earnedVb = resVb.earned.map(e => e.id)
+    assert.ok(earnedVb.includes('firstPick'), `vote_back_owner must grant firstPick: ${earnedVb.join(', ')}`)
+    assert.ok(earnedVb.includes('firstVoteBack'), `vote_back_owner must grant firstVoteBack: ${earnedVb.join(', ')}`)
+
+    // Re-claiming keeps firstPick & firstVoteBack in earned without double-paying.
+    const walletBefore = (await walletOf(db, ownerVb)).bonus_credits
+    const resVbAgain = await withSession(db, ownerVb, () => claim(db))
+    assert.ok(resVbAgain.earned.some(e => e.id === 'firstPick' && e.newly_granted === false))
+    assert.ok(resVbAgain.earned.some(e => e.id === 'firstVoteBack' && e.newly_granted === false))
+    assert.equal((await walletOf(db, ownerVb)).bonus_credits, walletBefore, 'no duplicate payout on re-claim')
+
+    // Rollback script runs cleanly in a transaction.
+    await db.exec(read('supabase/rollback/20261222_achievement_pick_fix.sql'))
+  } finally {
+    await db.close()
+  }
+})

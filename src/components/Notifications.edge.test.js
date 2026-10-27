@@ -56,6 +56,18 @@ const cases = [
     open: true,
     notices: Array.from({ length: 1000 }, (_, i) => notice({ id: `i${i}`, key: `k${i}`, at: AT + i })),
   }],
+  ['tin thưởng phiếu (votes) không có artist', {
+    open: true,
+    notices: [notice({ type: 'votes', title: 'Daily check-in reward', artist: null, reason: '+2 bonus votes today.' })],
+  }],
+  ['tin near / lead / lạ từ database', {
+    open: true,
+    notices: [
+      notice({ id: 'n1', type: 'near' }),
+      notice({ id: 'n2', type: 'lead' }),
+      notice({ id: 'n3', type: 'future_server_event', reason: 'Server announcement' }),
+    ],
+  }],
 ]
 
 for (const [name, props] of cases) {

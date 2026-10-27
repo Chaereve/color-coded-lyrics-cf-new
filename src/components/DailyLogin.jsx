@@ -197,7 +197,7 @@ function RewardCard({ rewards, claimed, fete }) {
   )
 }
 
-export default function DailyLogin({ userId }) {
+export default function DailyLogin({ userId, onReward = null }) {
   const { t } = useI18n()
   const [status, setStatus] = useState(null)
   const [rewards, setRewards] = useState(null)
@@ -280,6 +280,7 @@ export default function DailyLogin({ userId }) {
     try {
       const result = await claimDailyLoginCalendar(userId, status.day)
       announceDailyLoginCalendarChanged()
+      onReward?.(result)
       if (!mounted.current) return
       applyStatus(result.status)
       if (result.rewards) setRewards(result.rewards)

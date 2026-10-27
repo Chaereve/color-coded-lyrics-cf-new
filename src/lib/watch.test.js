@@ -180,6 +180,44 @@ test('ownNotices / otherNotices tách đúng hai khối của hộp thư', () =>
   assert.deepEqual(otherNotices(box).map(n => n.id), ['2'])
 })
 
+test('mergeInbox chống nhân đôi giữa tin diffNotices ở trình duyệt và tin đọc về từ database cho mọi chặng', () => {
+  const base = req('aespa', 'Whiplash', { id: 'req-uuid-1', status: 'pending', votes: 2 })
+  const approvedLocal = diffNotices(between(base, { status: 'pending' }, { status: 'queued', votes: 2 }))
+  const approvedRemote = [{
+    id: 'db-50', sig: 'review|req-uuid-1|queued', key: 'aespa\nwhiplash',
+    type: 'approved', request_id: 'req-uuid-1', title: 'Whiplash', artist: 'aespa',
+    at: AT + 100, read: false, own: true,
+  }]
+  const mergedApproved = mergeInbox(approvedLocal, approvedRemote, new Set())
+  assert.equal(mergedApproved.length, 1, 'duyệt bài khi đang mở tab không được nhân đôi thành 2 dòng')
+  assert.equal(mergedApproved[0].id, 'db-50', 'nâng cấp lên id database để đánh dấu đã đọc / xoá được trên server')
+
+  const deniedLocal = diffNotices(between(base, { status: 'pending' }, { status: 'denied', deny_reason: null }))
+  const deniedRemote = [{
+    id: 'db-51', sig: 'review|req-uuid-1|denied', key: 'aespa\nwhiplash',
+    type: 'denied', request_id: 'req-uuid-1', title: 'Whiplash', artist: 'aespa',
+    reason: 'Duplicate song link', at: AT + 200, read: true, own: true,
+  }]
+  const mergedDenied = mergeInbox(deniedLocal, deniedRemote, new Set())
+  assert.equal(mergedDenied.length, 1, 'từ chối bài không được nhân đôi')
+  assert.equal(mergedDenied[0].reason, 'Duplicate song link', 'bổ sung lý do từ database nếu bản local chưa kịp nạp')
+  assert.equal(mergedDenied[0].read, true, 'đồng bộ trạng thái đã đọc từ thiết bị khác')
+
+  const pickedLocal = diffNotices(between({ ...base, status: 'queued' }, { picked_at: null }, { picked_at: new Date(AT).toISOString() }))
+  const pickedRemote = [{
+    id: 'db-52', sig: 'aespa\nwhiplash|picked:queued', key: 'aespa\nwhiplash',
+    type: 'picked', request_id: 'req-uuid-1', at: AT + 300, read: false, own: true,
+  }]
+  assert.equal(mergeInbox(pickedLocal, pickedRemote, new Set()).length, 1, 'picked không nhân đôi do đuôi :1')
+
+  const startedLocal = diffNotices(between({ ...base, status: 'queued' }, {}, { status: 'in_progress' }))
+  const startedRemote = [{
+    id: 'db-53', sig: 'aespa\nwhiplash|started:in_progress', key: 'aespa\nwhiplash',
+    type: 'started', request_id: 'req-uuid-1', at: AT + 400, read: false, own: true,
+  }]
+  assert.equal(mergeInbox(startedLocal, startedRemote, new Set()).length, 1, 'started không nhân đôi do đuôi :0')
+})
+
 /* Chốt ở mức NGUỒN: tầng theo dõi không được mọc lại bằng một export thừa. */
 test('watch.js không còn tàn dư của tầng theo dõi', () => {
   /* Bỏ chú thích trước khi soát: chính đầu tệp nhắc tên những thứ đã xoá để

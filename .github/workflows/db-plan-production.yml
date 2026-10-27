@@ -19,13 +19,14 @@
 name: DB plan production (chỉ đọc)
 
 on:
-  push:
-    branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-after-b4'
   workflow_dispatch:
     inputs:
       baseline:
         description: 'Baseline 8 chữ số (tuỳ chọn). Trống = kế hoạch thật từ history production, không đoán sàn.'
+        required: false
+        type: string
+      until:
+        description: 'Giới hạn tới prefix 8 chữ số (tuỳ chọn, ví dụ 20261220). Trống = toàn bộ migration đang chờ.'
         required: false
         type: string
 
@@ -38,9 +39,7 @@ jobs:
     timeout-minutes: 10
     env:
       BASELINE: ${{ inputs.baseline }}
-      # B4 batch (plan chỉ đọc, chờ duyệt). --until 20261210 = đúng 1 file
-      # vote_back. Không --except. Không để UNTIL trống.
-      UNTIL: '20261210'
+      UNTIL: ${{ inputs.until }}
       EXCEPT: ''
     steps:
       - uses: actions/checkout@v4
@@ -67,13 +66,14 @@ jobs:
         run: |
           set -o pipefail
           PLAN_EXTRA=()
+          if [ -n "$UNTIL" ]; then PLAN_EXTRA+=(--until "$UNTIL"); fi
           if [ -n "$EXCEPT" ]; then PLAN_EXTRA+=(--except "$EXCEPT"); fi
           if [ -n "$BASELINE" ]; then
-            echo "== db:plan --baseline $BASELINE --until $UNTIL ${EXCEPT:+--except $EXCEPT} (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" --until "$UNTIL" "${PLAN_EXTRA[@]}")
+            echo "== db:plan --baseline $BASELINE ${UNTIL:+--until $UNTIL} ${EXCEPT:+--except $EXCEPT} (chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- --baseline "$BASELINE" "${PLAN_EXTRA[@]}")
           else
-            echo "== db:plan --until $UNTIL (B4 batch, history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
-            PLAN_CMD=(npm run db:plan -- --until "$UNTIL" "${PLAN_EXTRA[@]}")
+            echo "== db:plan ${UNTIL:+--until $UNTIL} (history production, chỉ đọc — không ghi) ==" | tee /tmp/plan.txt
+            PLAN_CMD=(npm run db:plan -- "${PLAN_EXTRA[@]}")
           fi
           if "${PLAN_CMD[@]}" 2>&1 | tee -a /tmp/plan.txt; then
             PLAN_RC=0

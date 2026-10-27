@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import { onRequest as archiveOnRequest, renderArchivePage } from './functions/archive.js'
+import edgeWorker from './worker/index.js'
 import react from '@vitejs/plugin-react'
 
 /* Cấu hình dev/preview — và hai chỗ dưới đây là để chữa lỗi CHỈ xảy ra trong
@@ -93,24 +94,64 @@ function devProbe() {
   }
 }
 
-/* Vite does not execute Cloudflare Pages Functions. Without this dev-only
-   bridge, /archive falls through to index.html and the SPA silently renders
-   the home page because /archive is intentionally not a client route. */
+/* Vite does not execute Cloudflare Pages Functions natively. Bridge both
+   `/api/*` (Daily Spin, Vote, Mystery Box, Drive Video) and `/archive` in
+   `vite` dev and `vite preview` so local testing matches Cloudflare Pages
+   instead of falling through to SPA `index.html`. */
+async function readRawBody(req) {
+  const chunks = []
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+  }
+  return Buffer.concat(chunks)
+}
+
 function archivePagesPreview() {
   const install = server => {
     const loaded = loadEnv(server.config.mode, process.cwd(), '')
     const env = {
       SUPABASE_URL: process.env.SUPABASE_URL || loaded.SUPABASE_URL || loaded.VITE_SUPABASE_URL,
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || loaded.SUPABASE_ANON_KEY || loaded.VITE_SUPABASE_ANON_KEY,
+      TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY || loaded.TURNSTILE_SECRET_KEY,
+      EDGE_GATE_TOKEN: process.env.EDGE_GATE_TOKEN || loaded.EDGE_GATE_TOKEN,
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || loaded.GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || loaded.GOOGLE_CLIENT_SECRET,
+      GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN || loaded.GOOGLE_REFRESH_TOKEN,
+      GOOGLE_DRIVE_FOLDER_ID: process.env.GOOGLE_DRIVE_FOLDER_ID || loaded.GOOGLE_DRIVE_FOLDER_ID,
     }
     server.middlewares.use(async (req, res, next) => {
       const incoming = new URL(req.url || '/', 'http://localhost')
+      const method = (req.method || 'GET').toUpperCase()
+      if (incoming.pathname.startsWith('/api/')) {
+        try {
+          const headers = new Headers()
+          for (const [key, value] of Object.entries(req.headers || {})) {
+            if (Array.isArray(value)) headers.set(key, value.join(', '))
+            else if (typeof value === 'string') headers.set(key, value)
+          }
+          const hasBody = method !== 'GET' && method !== 'HEAD'
+          const body = hasBody ? await readRawBody(req) : undefined
+          const request = new Request(`https://chaereve.pages.dev${incoming.pathname}${incoming.search}`, {
+            method,
+            headers,
+            body: body && body.length > 0 ? body : undefined,
+          })
+          const response = await edgeWorker.fetch(request, env)
+          res.statusCode = response.status
+          for (const [name, value] of response.headers) res.setHeader(name, value)
+          res.end(method === 'HEAD' ? undefined : Buffer.from(await response.arrayBuffer()))
+          return
+        } catch (error) {
+          next(error)
+          return
+        }
+      }
       if (incoming.pathname !== '/archive') return next()
       try {
         let response
         if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
           const request = new Request(`https://chaereve.pages.dev${incoming.pathname}${incoming.search}`, {
-            method: req.method || 'GET',
+            method,
           })
           response = await archiveOnRequest({ request, env })
         } else {
@@ -130,7 +171,7 @@ function archivePagesPreview() {
         }
         res.statusCode = response.status
         for (const [name, value] of response.headers) res.setHeader(name, value)
-        res.end(req.method === 'HEAD' ? undefined : Buffer.from(await response.arrayBuffer()))
+        res.end(method === 'HEAD' ? undefined : Buffer.from(await response.arrayBuffer()))
       } catch (error) {
         next(error)
       }

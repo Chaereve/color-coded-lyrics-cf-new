@@ -1,11 +1,16 @@
 import { useMemo, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
-import { useI18n } from '../lib/i18n.jsx'
+import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
 import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { timeAgo } from '../lib/meta'
+
+const safeThumbUrl = (raw) => {
+  const url = safeHttpUrl(raw)
+  return url && url.startsWith('https://') ? url : null
+}
 
 /* =========================================================
    ADMIN — LATEST VIDEOS
@@ -20,7 +25,7 @@ function MediaForm({ initial, busy, onSave, onCancel }) {
   const set = (k) => (e) => setF(s => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
 
   const parsed = parseYoutube(f.url)
-  const preview = f.thumb || thumbUrl(parsed?.id, 'hq')
+  const preview = safeThumbUrl(f.thumb) || thumbUrl(parsed?.id, 'hq')
 
   return (
     <div className="mform">
@@ -122,7 +127,7 @@ function TextEditor({ initial, busy, onCancel, onCommit }) {
     try {
       await onCommit({ updates, adds, removes, order })
     } catch (e) {
-      setMsg({ t: 'err', m: String(e?.message || e) })
+      setMsg({ t: 'err', m: errMsg(t, e) })
     }
   }
 
@@ -157,7 +162,7 @@ function MediaRow({ m, i, last, busy, onEdit, onDelete, onMove }) {
   const { t } = useI18n()
   const p = parseYoutube(m.url)
   const mediaHref = safeHttpUrl(m.url)
-  const img = m.thumb || thumbUrl(p?.id, 'hq')
+  const img = safeThumbUrl(m.thumb) || thumbUrl(p?.id, 'hq')
 
   /* ẩn/hiện là một lần sửa, đi chung đường với nút Lưu */
   const toggleHide = () => onEdit(m, { ...m, is_hidden: !m.is_hidden }, true)

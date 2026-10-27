@@ -313,12 +313,13 @@ const S = {
   'nt.markAll': 'Mark all read',
   'nt.browse': 'Browse the board',
   'nt.emptyTitle': 'Nothing yet',
-  'nt.emptyBody': 'Tap the bell on a song to get its news here. Songs you request are followed automatically.',
+  'nt.emptyBody': 'News on the songs you request, voted milestones, and bonus rewards will show up here.',
   'nt.drop': 'Remove this',
   'nt.vote': 'Vote now',
   'nt.watch': 'Watch',
   'nt.open': 'Go to the request',
   'nt.voteNow': 'Vote now',
+  'nt.more': 'Show {n} more',
   /* Nút mua vote nằm ngay trong tin "sát nút": lúc bài của mình chỉ còn vài
      phiếu nữa là dẫn đầu là lúc DUY NHẤT câu "mua thêm vote" trả lời đúng
      một câu hỏi đang có sẵn trong đầu người đọc. */
@@ -340,17 +341,21 @@ const S = {
   'nt.tag.done': 'Out now',
   'nt.tag.expired': 'Request expired',
   'nt.n.expired': 'This request expired after one month and was deleted.',
+  'nt.n.expiredAdmin': 'Waiting over one month without being picked \u2014 review in Expired.',
   'nt.tag.denied': 'Denied',
   'nt.tag.progress': 'Progress',
   'nt.tag.votes': 'Votes',
   /* Chu cau tin NGAN, khong lap lai ten bai: hang tin nao cung co ten bai in
      dam o dong tren. Toast la noi duy nhat khong co dong do -> nt.toast. */
+  'nt.n.near': 'Almost at the top of the queue.',
+  'nt.n.lead': 'Currently first in line.',
   'nt.n.approved': 'Approved, open for votes.',
   'nt.n.started': 'Moved into production.',
   'nt.n.picked': 'Picked for Up next. Voting is closed.',
   'nt.n.done': 'The video is up \u2014 go watch it.',
   'nt.n.denied': 'The request was denied.',
   'nt.n.progress': 'Progress is at {pct}%.',
+  'nt.n.votes': 'Bonus votes added to your account.',
   'nt.toast': '{song} — {msg}',
 
   /* 4 cong tac trong tab cai dat. Ban truoc ("Close calls", "Vote milestones")
@@ -1104,6 +1109,12 @@ const S = {
   'adm.sourceLink': 'source link',
   'adm.delete': 'Delete',
   'adm.confirmDelete': 'Delete this request?',
+  'adm.confirmRejectOrder': 'Reject this order?',
+  'adm.settleWeek': 'Settle weekly rewards',
+  'adm.settleMonth': 'Settle monthly rewards',
+  'adm.confirmSettleWeek': 'Settle current week rewards?',
+  'adm.confirmSettleMonth': 'Settle current month rewards?',
+  'adm.settleBody': 'Top leaderboard contributors for the current period receive their bonus rewards once.',
   'adm.received': 'Mark as paid',
   'adm.noOrders': 'No orders yet.',
   /* MỤC ĐƠN HÀNG: lọc theo trạng thái + số liệu thu tiền. Trước đây mục này
@@ -1216,6 +1227,7 @@ const S = {
   'toast.orderOk': 'Payment confirmed.',
   'toast.orderNo': 'Order rejected.',
   'toast.orderCancelled': 'Order cancelled.',
+  'toast.seasonSettled': 'Season rewards settled ({n} granted).',
   'toast.mediaSaved': 'Saved.',
   'toast.mediaDeleted': 'Deleted.',
   'toast.saved': 'Saved.',

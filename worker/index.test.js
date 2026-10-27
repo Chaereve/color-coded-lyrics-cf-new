@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { handleSpin } from './index.js'
+import worker, { handleSpin } from './index.js'
 
 const DEVICE = 'a'.repeat(64)
 const REQUEST = '11111111-1111-4111-8111-111111111111'
@@ -43,10 +43,11 @@ test('Spin vẫn đi qua shield khi fingerprint bị chặn; SQL nhận NULL và
     assert.equal(res.status, 200)
     assert.equal(rpcBody.p_fp_hash, null, 'không giả vờ hash tài khoản là fingerprint')
     assert.match(rpcBody.p_ip_hash, /^[a-f0-9]{64}$/)
-    assert.equal(kv.reads.length, 2, 'vẫn kiểm tra quota fingerprint/actor + IP')
+    assert.equal(kv.reads.length, 1, 'chỉ đọc counter fingerprint/actor, không đọc khoá IP thô')
     assert.match(kv.reads[0], /^fp:[a-f0-9]{64}$/)
     assert.ok(!kv.reads[0].includes(USER), 'khóa KV không lưu user id dạng thô')
-    assert.equal(kv.writes.length, 2, 'vẫn ghi đúng hai counter hiện có — không tăng số lần KV write')
+    assert.equal(kv.writes.length, 1, 'chỉ ghi 1 counter fingerprint — tiết kiệm 50% KV write và không lưu IP thô')
+    assert.ok(!kv.writes.some(w => w.key.includes('203.0.113.10')), 'không bao giờ ghi IP thô vào KV')
   } finally { globalThis.fetch = originalFetch }
 })
 
@@ -110,9 +111,24 @@ test('khi fingerprint có sẵn, Worker giữ nguyên hash thật cho RPC và sh
   } finally { globalThis.fetch = originalFetch }
 })
 
-test('Turnstile siteverify có timeout ngắn và fail-closed', async () => {
+test('Turnstile siteverify và Supabase RPC đều có timeout tường minh', async () => {
   const source = await import('node:fs/promises').then(fs => fs.readFile(new URL('./index.js', import.meta.url), 'utf8'))
   assert.match(source, /TURNSTILE_VERIFY_TIMEOUT_MS\s*=\s*4000/)
+  assert.match(source, /RPC_TIMEOUT_MS\s*=\s*15_000/)
   assert.match(source, /signal:\s*controller\.signal/)
   assert.match(source, /if \(!res\.ok\) return false/)
+})
+
+test('Workers cũng phục vụ SSR /archive đồng nhất với Pages Functions thay vì rơi về SPA', async () => {
+  let assetCalled = false
+  const env = {
+    ASSETS: { async fetch() { assetCalled = true; return new Response('spa', { status: 200 }) } },
+  }
+  const head = await worker.fetch(new Request('https://chaereve.pages.dev/archive', { method: 'HEAD' }), env)
+  assert.equal(head.status, 200)
+  assert.match(head.headers.get('content-type') || '', /text\/html/)
+  assert.equal(assetCalled, false, '/archive phải do archiveOnRequest xử lý, không rơi xuống ASSETS')
+
+  const post = await worker.fetch(new Request('https://chaereve.pages.dev/archive', { method: 'POST' }), env)
+  assert.equal(post.status, 405)
 })

@@ -6,7 +6,7 @@
    reached. Network failures and generic 5xx responses are ambiguous and must
    never trigger a second, non-idempotent vote call. */
 
-const SETUP = new Set(['err.voteGate', 'err.spinGate', 'err.spinSetup'])
+const SETUP = new Set(['err.voteGate', 'err.spinGate', 'err.spinSetup', 'err.mysteryGate', 'err.mysterySetup'])
 const VOTE_PRE_RPC_SETUP = new Set(['err.voteGate'])
 
 export function gateErrorKey(payload) {

@@ -1,4 +1,8 @@
-# Hướng dẫn các bước thủ công sau khi merge (Bản cập nhật lớn 2026-09-22)
+# Hướng dẫn các bước thủ công sau khi merge (Lưu trữ đợt 2026-09-22)
+
+> **⚠️ LƯU Ý BẢO MẬT QUAN TRỌNG (CẬP NHẬT 2026-10 / MIGRATION `20261220`):**
+> Tài liệu này thuộc đợt cập nhật cũ (`2026-09-22`, khi còn tính năng bình luận). **KHÔNG copy-paste các đoạn SQL cũ trong file này vào production** vì các bản vá bảo mật sau đó (`20261106_security_audit.sql`, `20261216_remove_comments.sql`, `20261217_private_denial_reasons.sql`, `20261220_review_notify_privacy_fix.sql`) đã thay thế và siết quyền chặt chẽ hơn.
+> Mọi thao tác migration hiện tại đi qua bộ công cụ có kiểm chứng `npm run db:check`, `npm run db:plan`, `npm run db:deploy` — xem `README.md` và `docs/DB-MIGRATIONS.md`.
 
 Tài liệu này tổng hợp toàn bộ các bước thiết lập thủ công trên **Supabase (PostgreSQL)**, **Cloudflare Pages**, và kiểm tra sau khi merge bản cập nhật 13 tính năng & cải tiến giao diện.
 
@@ -115,7 +119,8 @@ begin
   end if;
 end $$;
 
-grant execute on function public.grant_season_reward(text, int, int, text) to authenticated, service_role;
+revoke all on function public.grant_season_reward(text, int, int, text) from public, anon, authenticated;
+grant execute on function public.grant_season_reward(text, int, int, text) to service_role;
 
 -- 5. Trigger tự động bắn thông báo khi có Comment, Reply hoặc Mention
 create or replace function public.notify_on_comment()

@@ -15,14 +15,20 @@ import { HOMEPAGE_VIDEO_LIMIT } from '../lib/mediaLimits.js'
    Không phát video trong trang, không tự chạy slideshow.
    ========================================================= */
 
-/* Ảnh bìa: ưu tiên ảnh admin dán; không thì chỉ thử hai bản YouTube 16:9.
+const safeThumbUrl = (raw) => {
+  const url = safeHttpUrl(raw)
+  return url && url.startsWith('https://') ? url : null
+}
+
+/* Ảnh bìa: ưu tiên ảnh admin dán (chỉ nhận https://); không thì chỉ thử hai bản YouTube 16:9.
    `hqdefault` là 4:3 nên tạo viền đen hai bên trong khung 16:9; dùng maxres
    trước rồi mq (320×180) để mọi thẻ giữ đúng tỷ lệ mà không cắt ảnh. */
 function thumbSrcs(item) {
-  if (item.thumb) return [item.thumb]
+  const custom = safeThumbUrl(item.thumb)
   const { id } = item
-  if (!id) return []
-  return [thumbUrl(id, 'maxres'), thumbUrl(id, 'mq')]
+  if (!id) return custom ? [custom] : []
+  const yt = [thumbUrl(id, 'maxres'), thumbUrl(id, 'mq')]
+  return custom ? [custom, ...yt] : yt
 }
 
 function Thumb({ item, eager = false }) {

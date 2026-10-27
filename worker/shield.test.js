@@ -19,12 +19,13 @@ const IP = '203.0.113.7'
 const fp = n => `${n}`.padStart(64, '0')
 const run = async (kv, over = {}) => shieldCheck(kv, { ip: IP, fpHash: fp(1), nowMs: NOW, ...over })
 
-test('a fresh fingerprint on a fresh IP passes and commits one used spin', async () => {
+test('a fresh fingerprint on a fresh IP passes and commits one used spin without storing raw IP', async () => {
   const kv = new FakeKV()
   assert.equal((await run(kv)).ok, true)
   await shieldCommit(kv, { ip: IP, fpHash: fp(1), nowMs: NOW })
   assert.equal(JSON.parse(kv.store.get(fpKey(fp(1))).value).used, 1)
-  assert.deepEqual(JSON.parse(kv.store.get(ipKey(IP)).value).fps, [fp(1)])
+  assert.equal(kv.store.has(ipKey(IP)), false, 'raw IP must never be written to KV')
+  assert.ok(![...kv.store.keys()].some(k => k.includes(IP)), 'no KV key may contain raw IP')
   const ttl = kv.store.get(fpKey(fp(1))).options.expirationTtl
   assert.ok(ttl > 60 && ttl <= 86_400, 'TTL must expire at VN midnight')
 })
@@ -42,14 +43,14 @@ test('the same fingerprint may spin exactly SHIELD_LIMIT times, then is blocked'
   assert.equal((await run(kv, { nowMs: NOW + 86_400_000 })).ok, true)
 })
 
-test('same IP with different fingerprints is allowed (shared Wi-Fi)...', async () => {
+test('same IP with different fingerprints is allowed (shared Wi-Fi) without storing IP state', async () => {
   const kv = new FakeKV()
-  for (let i = 1; i <= SHIELD_MAX_FP_PER_IP; i++) {
+  for (let i = 1; i <= SHIELD_MAX_FP_PER_IP + 2; i++) {
     const hash = fp(i)
     assert.equal((await shieldCheck(kv, { ip: IP, fpHash: hash, nowMs: NOW })).ok, true)
     await shieldCommit(kv, { ip: IP, fpHash: hash, nowMs: NOW })
   }
-  assert.equal(JSON.parse(kv.store.get(ipKey(IP)).value).fps.length, SHIELD_MAX_FP_PER_IP)
+  assert.equal(kv.store.has(ipKey(IP)), false)
 })
 
 test('shared public IP never locks unrelated users, even if legacy KV state is blocked', async () => {

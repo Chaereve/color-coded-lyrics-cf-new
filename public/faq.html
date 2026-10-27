@@ -126,9 +126,9 @@
      board shows this estimate and how far it is from being picked.</p>
 
   <h2>What happens after a song is picked?</h2>
-  <p>Picked songs move through <em>picked → in progress → completed</em>. You can follow any
-     request to get a browser notification at each stage, and completed songs get the video
-     link on the board.</p>
+  <p>Picked songs move through <em>picked → in progress → completed</em>. You get an in-page
+     inbox notification as your request moves through each stage, and completed songs get the
+     video link on the board.</p>
   <p>Once a song enters the pick chain (“Up next”), its vote box <strong>locks</strong> — no
      more votes, no withdrawing, and the sender can no longer delete it. This protects the
      votes everyone (including people who bought them) already put in.</p>
@@ -170,8 +170,9 @@
 
   <h2>How do you keep voting and spins fair?</h2>
   <p>All limits live in the database and in an edge shield, not in the interface: per-account
-     and per-device limits on spins, a fingerprint/IP cap that blocks farms, one vote ledger per
-     account, and vote totals that only change through one audited function. The board also
+     and per-device limits on spins, a browser-fingerprint rate cap that blocks farms without
+     penalizing shared Wi-Fi, one vote ledger per account, and vote totals that only change
+     through one audited function. The board also
      groups duplicate requests so one song's votes aren't split across copies.</p>
   <p>What we store and why is in the <a href="/privacy.html">Privacy</a> page.</p>
 
@@ -232,7 +233,7 @@
       "name": "What happens after a song is picked?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Picked songs move through picked, in progress, to completed with the video link on the board. You can follow any request for browser notifications at each stage. Once a song enters the pick chain, its vote box locks: no more votes, no withdrawing, and the sender can no longer delete it."
+        "text": "Picked songs move through picked, in progress, to completed with the video link on the board. You get an in-page inbox notification as your request moves through each stage. Once a song enters the pick chain, its vote box locks: no more votes, no withdrawing, and the sender can no longer delete it."
       }
     },
     {
@@ -256,7 +257,7 @@
       "name": "How do you keep voting and spins fair?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "All limits live in the database and in an edge shield, not in the interface: per-account and per-device spin limits, a fingerprint/IP cap that blocks farms, one vote ledger per account, and vote totals that only change through one audited function. Duplicate requests are grouped so votes aren't split across copies."
+        "text": "All limits live in the database and in an edge shield, not in the interface: per-account and per-device spin limits, a browser-fingerprint rate cap that blocks farms without penalizing shared Wi-Fi, one vote ledger per account, and vote totals that only change through one audited function. Duplicate requests are grouped so votes aren't split across copies."
       }
     },
     {

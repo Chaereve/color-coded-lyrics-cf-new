@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { updateProfile } from '../lib/db'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
-import { loadImage, centerCrop, processAvatar, checkFile } from '../lib/avatar'
+import { loadImage, centerCrop, processAvatar } from '../lib/avatar'
 import AvatarCropper from './AvatarCropper'
 
 /* SỬA HỒ SƠ — NAY LÀ MỘT KHỐI CỦA TRANG "ABOUT ME", KHÔNG CÒN HỘP THOẠI.

@@ -10,9 +10,9 @@ anything.
 
 | Question | Answer in this repository |
 | --- | --- |
-| Is there a migration runner in CI? | **No.** `.github/workflows/` contains only `backup-db.yml` (scheduled backup). No workflow applies SQL. |
+| Is there a migration runner in CI? | **No automatic production deploy.** `.github/workflows/` runs read-only safety checks (`db-migration-safety.yml` on Postgres 17 + PGlite), manual read-only planning (`db-plan-production.yml`), browser/edge smoke (`quiz-retirement-browser.yml`), and scheduled verified backups (`backup-db.yml`). Production SQL is applied deliberately via `npm run db:deploy`. |
 | Is the Supabase CLI configured? | **No.** There is no `supabase/config.toml` and no `supabase link`. |
-| How do migrations get applied today? | By hand: paste one file into **Dashboard → SQL Editor → Run**, or `psql -f`. |
+| How do migrations get applied today? | Via the guarded Node runner (`npm run db:plan` then `npm run db:deploy` against `SUPABASE_DB_URL`), which verifies the baseline through `20261120` and applies pending migrations through `20261222_achievement_pick_fix.sql` in order while quarantining `20261118`. |
 | What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` and the ACL-only `20261122_disable_daily_quiz_runtime.sql` deliberately stay out of that manual bundle and are applied by the guarded runner only. |
 | Is there a migration history table? | Not in the app schema/setup bundle. The guarded runner creates `supabase_migrations.schema_migrations` after baseline verification and writes each migration row atomically; a pre-existing Supabase CLI history is also recognized. Migration 20261121 refuses to run without that table and its required source-state rows; 20261122 additionally refuses to run until 20261121 is recorded. |
 

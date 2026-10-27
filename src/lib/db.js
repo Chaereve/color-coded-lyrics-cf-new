@@ -1,12 +1,12 @@
 import { hasSupabase, supabase } from './supabaseClient.js'
 export { hasSupabase, supabase } from './supabaseClient.js'
-import { parseYoutube } from './youtube'
-import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin'
-import { getSpinDevice, withSpinLock } from './spinDevice'
-import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken } from './spinShield'
-import { TURNSTILE_SITE_KEY } from './turnstile'
+import { parseYoutube } from './youtube.js'
+import { demoSpinStatus, drawDemoSpin, validateSpinResult } from './dailySpin.js'
+import { getSpinDevice, withSpinLock } from './spinDevice.js'
+import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken } from './spinShield.js'
+import { TURNSTILE_SITE_KEY } from './turnstile.js'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
-import { groupKey } from './board'
+import { groupKey } from './board.js'
 import { rankDemo } from './ranking.js'
 import { fetchAllPages, fetchAvailablePages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
@@ -323,13 +323,26 @@ const privateRequestsOf = (rows) => (rows || [])
 
 /* `deny_reason` is not granted as a readable table column. This SECURITY
    DEFINER RPC returns only reasons the signed-in requester owns (or an admin
-   may review); keep the public request snapshot and browser cache reason-free. */
-async function attachVisibleDenialReasons(rows) {
-  if (!hasSupabase || !Array.isArray(rows) || rows.length === 0) return rows || []
-  const { data, error } = await supabase.rpc('get_visible_denial_reasons')
-  if (error || !Array.isArray(data)) return rows
+   may review); keep the public request snapshot and browser cache reason-free.
+   Skip the RPC entirely when there are no denied rows or when the visitor is
+   not signed in (guests are revoked from get_visible_denial_reasons). */
+export async function attachVisibleDenialReasons(rows, client = supabase) {
+  const base = Array.isArray(rows)
+    ? rows.map(({ deny_reason: _privateReason, ...row }) => ({ ...row, deny_reason: null }))
+    : []
+  if (!client || base.length === 0 || !base.some(row => row?.status === 'denied')) return base
+  if (typeof client.auth?.getSession === 'function') {
+    try {
+      const { data: sessionData } = await client.auth.getSession()
+      if (!sessionData?.session?.access_token) return base
+    } catch {
+      return base
+    }
+  }
+  const { data, error } = await client.rpc('get_visible_denial_reasons')
+  if (error || !Array.isArray(data)) return base
   const reasons = new Map(data.map(item => [item.id, item.deny_reason]))
-  return rows.map(row => ({ ...row, deny_reason: reasons.get(row.id) || null }))
+  return base.map(row => ({ ...row, deny_reason: reasons.get(row.id) || null }))
 }
 
 const publicProfileShape = (profile, rows, ownerView = false) => {
@@ -364,22 +377,27 @@ export async function fetchPublicProfile(userId, viewerId = null) {
     return publicProfileShape(
       { id: userId, name, avatar_url: null }, rows, ownerView)
   }
-  const [{ data: p, error: pe }, { data: rs, error: re }] = await Promise.all([
+  const [{ data: p, error: pe }, rs] = await Promise.all([
     supabase.from('profiles').select('id, name, avatar_url').eq('id', userId).maybeSingle(),
     /* Hai `.neq` ở đây chỉ để KHÔNG TẢI về những hàng kiểu gì cũng bị bỏ;
        luật lọc thật nằm trong `publicRequestsOf` để cả hai đường (demo /
-       Supabase) trả lời giống nhau. */
-    (() => {
+       Supabase) trả lời giống nhau. Phân trang toàn bộ thay vì cắt cứng 50 dòng
+       để tổng số bài / bài hoàn thành / tổng phiếu trên hồ sơ công khai luôn khớp
+       giữa chủ hồ sơ và khách ghé xem. */
+    fetchAllPages((from, size) => {
       /* Chủ hồ sơ: tải CẢ hàng chờ duyệt / bị từ chối (kèm lý do) để chính họ
          xem lại được; người ngoài: vẫn lọc ngay ở câu truy vấn. */
       const q = supabase.from('requests')
         .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid')
         .eq('user_id', userId)
       if (!ownerView) q.neq('status', 'pending').neq('status', 'denied')
-      return q.order('created_at', { ascending: false }).limit(50)
-    })(),
+      return readQuery(() => q
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + size - 1))
+    }, 500),
   ])
-  if (pe) throw pe; if (re) throw re; if (!p) return null
+  if (pe) throw pe; if (!p) return null
   const privateRows = ownerView ? await attachVisibleDenialReasons(rs || []) : rs
   return publicProfileShape(p, privateRows, ownerView)
 }
@@ -411,6 +429,48 @@ export async function fetchNotifications(uid) {
   return (data || []).map(noticeShape)
 }
 
+/* Đánh dấu tin đã đọc trên Supabase (RLS `notif_read_own` + grant update chỉ cột `read_at`).
+   `ids == null && sigs == null` = đánh dấu tất cả tin chưa đọc của người dùng này. */
+export async function markNotificationsRead(uid, { ids = null, sigs = null } = {}, client = supabase) {
+  if (!uid || !client) return
+  if (client === supabase && !hasSupabase) return
+  const nowIso = new Date().toISOString()
+  if (ids == null && sigs == null) {
+    const { error } = await client.from('notifications')
+      .update({ read_at: nowIso })
+      .eq('user_id', uid)
+      .is('read_at', null)
+    if (error && !isMissingSchemaObject(error)) console.warn('[notif] read-all:', error.message)
+    return
+  }
+  const dbIds = (ids || [])
+    .map(raw => {
+      const m = /^db-(\d+)$/.exec(String(raw || ''))
+      if (!m) return null
+      const num = Number(m[1])
+      return Number.isSafeInteger(num) ? num : null
+    })
+    .filter(x => x != null)
+  const cleanSigs = (sigs || [])
+    .map(s => (typeof s === 'string' ? s.trim() : ''))
+    .filter(s => s && s.length <= 500)
+  if (dbIds.length > 0) {
+    const { error } = await client.from('notifications')
+      .update({ read_at: nowIso })
+      .eq('user_id', uid)
+      .in('id', dbIds)
+      .is('read_at', null)
+    if (error && !isMissingSchemaObject(error)) console.warn('[notif] read:', error.message)
+  } else if (cleanSigs.length > 0) {
+    const { error } = await client.from('notifications')
+      .update({ read_at: nowIso })
+      .eq('user_id', uid)
+      .in('sig', cleanSigs)
+      .is('read_at', null)
+    if (error && !isMissingSchemaObject(error)) console.warn('[notif] read-sig:', error.message)
+  }
+}
+
 /* Xóa tin trên chuông. Không mở quyền DELETE: một RPC chỉ được đặt
    `dismissed_at` trên dòng của chính người đang đăng nhập. Thiếu hàm
    (chưa chạy migration) thì im — bản nhớ local vẫn giữ tin đã xóa trên
@@ -435,36 +495,87 @@ export async function adminExpireRequest(id) {
     const r = rows.find(x => x.id === id)
     if (!r) throw appError('err.requestMissing')
     if (r.picked_at || !['pending', 'queued'].includes(r.status)) throw appError('err.expiryLocked')
-    try {
-      const key = `ccl3_box:${r.user_id}`
-      const old = JSON.parse(localStorage.getItem(key) || '[]')
-      const n = { id: `expiry-${r.id}`, key: groupKey(r), type: 'expired', title: r.title, artist: r.artist,
-        reason: 'This request expired after one month and was deleted.', at: Date.now(), own: true, read: false }
-      localStorage.setItem(key, JSON.stringify([n, ...old].slice(0, 60)))
-    } catch { /* local demo storage may be blocked */ }
+    let created = null
+    if (r.user_id) {
+      created = {
+        id: `expiry-${r.id}`, sig: `expiry-user|${r.id}`, key: groupKey(r), type: 'expired',
+        request_id: r.id, title: r.title, artist: r.artist,
+        reason: 'This request expired after one month and was deleted.',
+        at: Date.now(), own: true, read: false,
+      }
+      try {
+        const key = `ccl3_box:${r.user_id}`
+        const old = JSON.parse(localStorage.getItem(key) || '[]')
+        localStorage.setItem(key, JSON.stringify([created, ...old].slice(0, 60)))
+      } catch { /* local demo storage may be blocked */ }
+    }
     wr(LS.rows, rows.filter(x => x.id !== id))
-    return
+    return created ? { userId: r.user_id, notice: created } : null
   }
   const { error } = await supabase.rpc('admin_expire_request', { p_id: id })
   if (error) throw rpcError(error)
+  return null
 }
 
 export async function settleCurrentSeasonRewards(seasonType = 'week') {
+  if (seasonType !== 'week' && seasonType !== 'month') throw appError('err.rewardPeriod')
   if (!hasSupabase) return []
   const { data, error } = await supabase.rpc('settle_current_season_rewards', { p_season_type: seasonType })
-  if (error) throw error
+  if (error) throw rpcError(error)
   return data || []
+}
+
+export function mergeBoardRows(openRows = [], closedRows = []) {
+  const byId = new Map()
+  for (const row of [...(openRows || []), ...(closedRows || [])]) {
+    if (!row?.id) continue
+    const prev = byId.get(row.id)
+    if (!prev) {
+      byId.set(row.id, row)
+      continue
+    }
+    const prevTs = Date.parse(prev.updated_at || prev.created_at || 0) || 0
+    const nextTs = Date.parse(row.updated_at || row.created_at || 0) || 0
+    if (nextTs >= prevTs) byId.set(row.id, row)
+  }
+  return [...byId.values()].sort((a, b) => {
+    const dt = (Date.parse(b.created_at || 0) || 0) - (Date.parse(a.created_at || 0) || 0)
+    return dt !== 0 ? dt : String(b.id).localeCompare(String(a.id))
+  })
 }
 
 export async function fetchRequests() {
   if (!hasSupabase) return demoRows()
   /* Lần nạp đầu của trang là thứ quyết định người dùng có thấy bảng hay
-     không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js). */
-  const { data, error } = await readQuery(() =>
-    supabase.from('requests')
-      .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
-      .order('created_at', { ascending: false }).limit(800))
-  if (!error) {
+     không, nên nó được phép thử lại khi mạng chập chờn (xem lib/retry.js).
+     Tách hàng đang mở (`pending`/`queued`/`in_progress`, phân trang đủ mọi
+     hàng) với hàng đã đóng (`completed`/`denied`, 800 hàng mới nhất) để lịch
+     sử video hoàn thành theo năm tháng không bao giờ đẩy mất bài đang chờ vote
+     hoặc chờ admin duyệt. */
+  let data = null
+  let error = null
+  try {
+    const [openRows, closedRes] = await Promise.all([
+      fetchAllPages((from, size) => readQuery(() =>
+        supabase.from('requests')
+          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
+          .in('status', ['pending', 'queued', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, from + size - 1)), 500),
+      readQuery(() =>
+        supabase.from('requests')
+          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
+          .in('status', ['completed', 'denied'])
+          .order('created_at', { ascending: false })
+          .limit(800)),
+    ])
+    if (closedRes.error) error = closedRes.error
+    else data = mergeBoardRows(openRows, closedRes.data)
+  } catch (e) {
+    error = e
+  }
+  if (!error && Array.isArray(data)) {
     cacheWrite(CACHE.rows, data)
     return attachVisibleDenialReasons(data)
   }
@@ -503,15 +614,18 @@ export async function fetchMyAchievementRequests(userId) {
 export async function fetchMyVotes(uid) {
   const tally = (ids) => {
     const m = new Map()
-    for (const id of ids) m.set(id, (m.get(id) || 0) + 1)
+    for (const id of ids) if (id) m.set(id, (m.get(id) || 0) + 1)
     return m
   }
   if (!uid) return new Map()
   if (!hasSupabase) return tally(readData(LS.votes, []).map(v => v.id))
-  const { data, error } = await readQuery(() =>
-    supabase.from('votes').select('request_id').eq('user_id', uid))
-  if (!error) return tally(data.map(v => v.request_id))
-  throw error
+  const rows = await fetchAllPages((from, size) => readQuery(() =>
+    supabase.from('votes')
+      .select('id, request_id')
+      .eq('user_id', uid)
+      .order('id', { ascending: true })
+      .range(from, from + size - 1)), 1000)
+  return tally(rows.map(v => v.request_id))
 }
 
 /* =========================================================
@@ -604,6 +718,26 @@ export async function fetchVoteStatus() {
   }
 }
 
+const demoAchievementKey = (uid) => `ccl.ach.demo.v1.${uid}`
+const recordDemoAchievement = (uid, id) => {
+  if (!uid || !id) return
+  const prev = rd(demoAchievementKey(uid), [])
+  const next = Array.isArray(prev) ? prev : []
+  if (!next.includes(id)) wr(demoAchievementKey(uid), [...next, id])
+}
+const demoEarnedIds = (uid) => {
+  if (!uid) return []
+  const ids = new Set(Array.isArray(rd(demoAchievementKey(uid), [])) ? rd(demoAchievementKey(uid), []) : [])
+  const myRows = demoRows().filter(r => r.user_id === uid)
+  if (myRows.some(r => r.picked_at != null)) ids.add('firstPick')
+  const mysteryToday = rd(`ccl.mystery.demo.v1.${uid}`, null)
+  const mysteryHist = rd(`ccl.mystery.history.v1.${uid}`, [])
+  if (mysteryToday?.opened || (Array.isArray(mysteryHist) && mysteryHist.length > 0)) {
+    ids.add('firstMystery')
+  }
+  return [...ids]
+}
+
 /* Rewards are never accepted from the browser. The RPC calculates every
    achievement metric, locks the profile, and inserts a unique ledger row
    before changing balances. A missing migration is tolerated so an older
@@ -611,19 +745,51 @@ export async function fetchVoteStatus() {
 export async function claimAchievements() {
   if (!hasSupabase) {
     const prof = demoProfile()
+    const uid = rd(LS.user, null)?.id || 'demo-user'
     return {
-      earned: [], bonus_credits: prof.bonus_credits || 0,
+      earned: demoEarnedIds(uid).map(id => ({ id })),
+      bonus_credits: prof.bonus_credits || 0,
       purchased: prof.vote_credits || 0,
       credits: (prof.vote_credits || 0) + (prof.bonus_credits || 0),
       bonus_requests: prof.bonus_requests || 0,
     }
   }
-  const { data, error } = await supabase.rpc('claim_achievements')
+  const [{ data, error }, { data: rewardRows }] = await Promise.all([
+    supabase.rpc('claim_achievements'),
+    readQuery(() => supabase.from('achievement_rewards').select('achievement_id'))
+      .catch(() => ({ data: null })),
+  ])
   if (error) {
     if (isMissingSchemaObject(error)) return null
     throw rpcError(error)
   }
-  return data
+  if (!data || typeof data !== 'object') return data
+  const earnedList = Array.isArray(data.earned) ? [...data.earned] : []
+  const seen = new Set(earnedList.map(e => (typeof e === 'string' ? e : e?.id)).filter(Boolean))
+  if (Array.isArray(rewardRows)) {
+    for (const row of rewardRows) {
+      const id = row?.achievement_id
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        earnedList.push({ id })
+      }
+    }
+  }
+  return { ...data, earned: earnedList }
+}
+
+export async function fetchEarnedAchievementIds(uid) {
+  if (!uid) return []
+  if (!hasSupabase) return demoEarnedIds(uid)
+  const { data, error } = await readQuery(() =>
+    supabase.from('achievement_rewards')
+      .select('achievement_id')
+      .eq('user_id', uid))
+  if (error) {
+    if (isMissingSchemaObject(error)) return []
+    throw error
+  }
+  return (data || []).map(r => r?.achievement_id).filter(Boolean)
 }
 
 /* ======================== DAILY SPIN ======================== */
@@ -892,8 +1058,20 @@ export async function fetchMedia() {
 }
 
 export async function fetchOrders(user) {
-  if (!hasSupabase) return readData(LS.orders, [])
-  return fetchAllPages((from, size) => {
+  if (!user?.id) return []
+  if (!hasSupabase) {
+    const all = readData(LS.orders, [])
+    const scoped = user.isAdmin ? all : all.filter(o => o.user_id === user.id)
+    const rows = demoRows()
+    return scoped.map(o => ({
+      ...o,
+      buyer_name: o.buyer_name || o.requester_name
+        || (o.request_id ? rows.find(r => r.id === o.request_id)?.requester : null)
+        || (o.user_id === user.id ? user.name : null)
+        || null,
+    }))
+  }
+  const orders = await fetchAllPages((from, size) => {
     let q = supabase.from('orders').select('*')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
@@ -901,6 +1079,24 @@ export async function fetchOrders(user) {
     if (!user.isAdmin) q = q.eq('user_id', user.id)
     return readQuery(() => q)
   }, 200)
+  if (!user.isAdmin || orders.length === 0) return orders
+  const userIds = [...new Set(orders.map(o => o.user_id).filter(Boolean))]
+  if (!userIds.length) return orders
+  const nameById = new Map()
+  for (let i = 0; i < userIds.length; i += 200) {
+    const chunk = userIds.slice(i, i + 200)
+    const { data, error } = await readQuery(() =>
+      supabase.from('profiles').select('id, name').in('id', chunk))
+    if (!error && Array.isArray(data)) {
+      for (const p of data) {
+        if (p?.id && p?.name) nameById.set(p.id, p.name)
+      }
+    }
+  }
+  return orders.map(o => ({
+    ...o,
+    buyer_name: o.buyer_name || o.requester_name || nameById.get(o.user_id) || null,
+  }))
 }
 
 /* Lỗi có mã để lớp giao diện tự dịch sang ngôn ngữ đang chọn */
@@ -1150,7 +1346,18 @@ export async function castVote(id, delta = 1) {
 
 export async function deleteRequest(id) {
   if (!hasSupabase) {
-    wr(LS.rows, demoRows().filter(r => r.id !== id))
+    const rows = demoRows()
+    const target = rows.find(r => r.id === id)
+    if (!target) throw appError('err.requestMissing')
+    const u = rd(LS.user, null)
+    if (!u?.isAdmin) {
+      const uid = u?.id || 'demo-user'
+      if (target.user_id !== uid) throw appError('err.notOwner')
+      if (target.status === 'in_progress' || target.status === 'completed' || target.picked_at != null) {
+        throw appError('err.deleteLocked')
+      }
+    }
+    wr(LS.rows, rows.filter(r => r.id !== id))
     wr(LS.votes, readData(LS.votes, []).filter(v => v.id !== id))
     return
   }
@@ -1160,18 +1367,25 @@ export async function deleteRequest(id) {
 
 export async function buyVotes(pack) {
   if (!hasSupabase) {
+    const u = rd(LS.user, null)
+    const uid = u?.id || 'demo-user'
+    const uname = u?.name || 'Demo User'
+    const orders = readData(LS.orders, [])
+    const waiting = orders.filter(o => o.user_id === uid && o.kind === 'votes' && o.status === 'awaiting')
+    if (waiting.length >= 20) throw appError('err.orderQueueLimit', { n: 20 })
     const o = {
-      id: crypto.randomUUID(), user_id: 'demo-user', kind: 'votes', pack: pack.id,
+      id: crypto.randomUUID(), user_id: uid, kind: 'votes', pack: pack.id,
       qty: pack.qty, amount_usd: pack.usd, amount_vnd: pack.vnd,
-      status: 'awaiting', created_at: new Date().toISOString(), requester_name: 'Demo User',
+      status: 'awaiting', created_at: new Date().toISOString(),
+      requester_name: uname, buyer_name: uname,
     }
-    wr(LS.orders, [o, ...readData(LS.orders, [])])
+    wr(LS.orders, [o, ...orders])
     return o
   }
   const { data, error } = await supabase.rpc('buy_votes', {
     p_pack: pack.id, p_qty: pack.qty, p_usd: pack.usd, p_vnd: pack.vnd,
   })
-  if (error) throw error
+  if (error) throw rpcError(error)
   trackFunnel('buy', { pack: pack.id })
   return data
 }
@@ -1193,7 +1407,7 @@ export async function updateProfile({ name, avatar }) {
     return
   }
   const { error } = await supabase.rpc('update_my_profile', { p_name: clean, p_avatar: avatar ?? null })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 export async function cancelOrder(id) {
@@ -1212,7 +1426,7 @@ export async function cancelOrder(id) {
     return
   }
   const { error } = await supabase.rpc('cancel_my_order', { p_id: id })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* ======================== ADMIN ======================== */
@@ -1225,7 +1439,7 @@ export async function adminReview(id, approve, reason = null, videoUrl = null) {
     return
   }
   const { error } = await supabase.rpc('admin_review', { p_id: id, p_approve: approve, p_reason: reason, p_video_url: url })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* Tien do = Layout 40% + Lyrics 40% + Edit 20% */
@@ -1244,6 +1458,7 @@ export async function adminUpdate(id, patch) {
       const next = { ...r, ...patch }
       next.progress = patch.status === 'completed' ? 100
         : (patch.progress ?? progressOf(next))
+      if (next.status === 'completed' || next.status === 'denied') next.picked_at = null
       return next
     }))
     return
@@ -1251,7 +1466,7 @@ export async function adminUpdate(id, patch) {
   /* ten bai / nghe si: trim truoc khi gui; chuoi trang gui thang de
      database tra loi 'err.needFields' chu khong am tham giu ten cu */
   const { error } = await supabase.rpc('admin_update', { p_id: id, ...adminUpdateParams(patch) })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* Tham số RPC của một patch — dùng chung cho `admin_update` (một dòng) và
@@ -1286,6 +1501,7 @@ export async function adminUpdateMany(ids = [], patch = {}) {
       const next = { ...r, ...patch }
       next.progress = patch.status === 'completed' ? 100
         : (patch.progress ?? progressOf(next))
+      if (next.status === 'completed' || next.status === 'denied') next.picked_at = null
       return next
     }))
     return uniq.length
@@ -1294,7 +1510,7 @@ export async function adminUpdateMany(ids = [], patch = {}) {
     p_ids: uniq, ...adminUpdateParams(patch),
   })
   if (!error) return Number(data) || uniq.length
-  if (!isMissingRpc(error)) throw error
+  if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await adminUpdate(id, patch)
   return uniq.length
 }
@@ -1413,7 +1629,7 @@ export async function adminReviewMany(ids = [], approve, reason = null, videoUrl
     p_ids: uniq, p_approve: !!approve, p_reason: reason ?? null, p_video_url: url,
   })
   if (!error) return Number(data) || uniq.length
-  if (!isMissingRpc(error)) throw error
+  if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await adminReview(id, approve, reason, url)
   return uniq.length
 }
@@ -1431,7 +1647,7 @@ export async function adminDeleteMany(ids = []) {
   }
   const { data, error } = await supabase.rpc('admin_delete_many', { p_ids: uniq })
   if (!error) return Number(data) || uniq.length
-  if (!isMissingRpc(error)) throw error
+  if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await deleteRequest(id)
   return uniq.length
 }
@@ -1450,14 +1666,18 @@ export async function adminPickMany(ids = [], picked = true) {
       if (target) keys.add(groupKey(target))
     }
     const at = picked ? new Date().toISOString() : null
-    wr(LS.rows, rows.map(r =>
-      (keys.has(groupKey(r)) && ['queued', 'in_progress'].includes(r.status))
-        ? { ...r, picked_at: at } : r))
+    wr(LS.rows, rows.map(r => {
+      if (keys.has(groupKey(r)) && ['queued', 'in_progress'].includes(r.status)) {
+        if (picked && r.user_id) recordDemoAchievement(r.user_id, 'firstPick')
+        return { ...r, picked_at: at }
+      }
+      return r
+    }))
     return uniq.length
   }
   const { data, error } = await supabase.rpc('admin_pick_many', { p_ids: uniq, p_picked: !!picked })
   if (!error) return Number(data) || uniq.length
-  if (!isMissingRpc(error)) throw error
+  if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await adminPickGroup(id, picked)
   return uniq.length
 }
@@ -1480,7 +1700,7 @@ export async function adminOrder(orderId, approve) {
     return
   }
   const { error } = await supabase.rpc('admin_order', { p_order_id: orderId, p_approve: approve })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* Admin chốt / gỡ một request khỏi Up next (đặt hoặc xóa picked_at).
@@ -1502,14 +1722,18 @@ export async function adminPickGroup(id, picked = true) {
     const target = rows.find(r => r.id === id)
     const key = target ? groupKey(target) : null
     if (key) {
-      wr(LS.rows, rows.map(r =>
-        (groupKey(r) === key && ['queued', 'in_progress'].includes(r.status))
-          ? { ...r, picked_at: at } : r))
+      wr(LS.rows, rows.map(r => {
+        if (groupKey(r) === key && ['queued', 'in_progress'].includes(r.status)) {
+          if (picked && r.user_id) recordDemoAchievement(r.user_id, 'firstPick')
+          return { ...r, picked_at: at }
+        }
+        return r
+      }))
     }
     return
   }
   const { error } = await supabase.rpc('admin_pick_group', { p_id: id, p_picked: !!picked })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* ======================== ADMIN — VIDEO NỔI BẬT (media) ======================== */
@@ -1564,7 +1788,7 @@ export async function saveMedia(item = {}) {
     p_id: item.id || null, p_kind: kind, p_title: title, p_note: note,
     p_url: url, p_thumb: thumb, p_hidden: item.is_hidden ?? null,
   })
-  if (error) throw setupError(error)
+  if (error) throw rpcError(error)
   return data
 }
 
@@ -1574,7 +1798,7 @@ export async function deleteMedia(id) {
     return
   }
   const { error } = await supabase.rpc('admin_media_delete', { p_id: id })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* ids = danh sách id theo thứ tự muốn hiện; các mục không có trong danh
@@ -1587,7 +1811,7 @@ export async function reorderMedia(ids) {
     return
   }
   const { error } = await supabase.rpc('admin_media_reorder', { p_ids: ids })
-  if (error) throw error
+  if (error) throw rpcError(error)
 }
 
 /* Xoa nhieu muc media mot luot (nut "Xoa het" dai video). */
@@ -1603,7 +1827,7 @@ export async function deleteMediaMany(ids) {
   for (let i = 0; i < list.length; i += CHUNK) {
     const results = await Promise.allSettled(
       list.slice(i, i + CHUNK).map(id =>
-        supabase.rpc('admin_media_delete', { p_id: id }).then(({ error }) => { if (error) throw error })
+        supabase.rpc('admin_media_delete', { p_id: id }).then(({ error }) => { if (error) throw rpcError(error) })
       )
     )
     const failed = results.find(r => r.status === 'rejected')

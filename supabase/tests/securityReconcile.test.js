@@ -506,7 +506,7 @@ test('tệp migration không xoá/ghi dữ liệu và không đụng chính sác
 })
 
 test('cửa sổ khoá của phần B: dựng lại index trên bảng cỡ thật là vài chục ms', { skip: !url, timeout: 240_000 }, async () => {
-  await withDatabase(url, async (pool, client) => {
+  await withDatabase(url, async (pool, _client) => {
     await installLevel(pool, 'fresh')
     const userId = await seedUser(pool)
     await buildProductionDrift(pool)

@@ -2,6 +2,7 @@ import { hasSupabase, supabase } from './supabaseClient.js'
 import { isCalendarDay, isCalendarMonth, monthOf, monthLength, checkInStats } from './checkInCalendar.js'
 import { nextSpinReset, spinDay } from './dailySpin.js'
 import { LOGIN_REWARD_SOURCES, checkInGrantsFor, applyCap, LOGIN_REWARD_CAP, LOGIN_MILESTONE30_BONUS } from './loginRewards.js'
+import { creditDemoRewards } from './demoWallet.js'
 
 export const DAILY_LOGIN_CALENDAR_SYNC_KEY = 'ccl.daily.login.calendar.changed.v1'
 const DEMO_KEY = userId => `ccl.daily.login.calendar.demo.v1.${userId}`
@@ -238,6 +239,8 @@ export async function claimDailyLoginCalendar(userId, expectedDay) {
         milestone30Granted,
         milestone30Day: milestone30JustNow ? before.day : state.milestone30Day,
       })
+      const grantedToday = makeRewardStatus(userId, readDemoState(userId)).today_total
+      creditDemoRewards({ votes: grantedToday })
     }
     result = { replayed, status: makeStatus(userId, readDemo(userId)), rewards: makeRewardStatus(userId, readDemoState(userId)) }
   }

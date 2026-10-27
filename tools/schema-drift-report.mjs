@@ -67,7 +67,7 @@ export function enrichReview (expected, actual, review) {
     } else if (item.kind.includes('constraint')) {
       const m = / on public\.(\S+)\(([^)]*)\)$/.exec(item.object)
       if (m) {
-        const [, table, columns] = m
+        const [, table] = m
         const want = (expected.tables[table]?.constraints ?? []).find(c =>
           `${CONSTRAINT_KIND[c.type] ?? c.type} on public.${table}(${c.columns.join(', ')})` === item.object)
         const hit = want && ((actual.tables[table]?.constraints ?? []).find(c => c.name === want.name)
@@ -106,7 +106,7 @@ export async function liveOnly (client, expected, actual) {
   for (const [table, spec] of Object.entries(actual.tables)) {
     const want = expected.tables[table]
     if (!want) { out.tables.push(`public.${table}`); continue }
-    const wantNames = (list, kind) => new Set((kind ? list?.[kind] : list ?? []).map(x => x.name))
+    const wantNames = (list, kind) => new Set(((kind ? list?.[kind] : list) ?? []).map(x => x.name))
     const indexNames = wantNames(want.indexes)
     for (const i of spec.indexes ?? []) if (!indexNames.has(i.name)) out.indexes.push(`public.${table} ${i.name}: ${i.definition}`)
     const policyNames = wantNames(want.policies)

@@ -119,19 +119,6 @@ jobs:
           console.log(`::notice title=${title("backup production — " + head)}::${msg(manifest || "(không đọc được manifest)")}`)
           '
 
-      # if: always() — dump hỏng thì file hỏng vẫn phải xem được để biết hỏng
-      # ở đâu; và bản dump lành của hôm qua trong R2 vẫn còn nguyên.
-      - name: Lưu artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: db-backup-${{ github.run_number }}
-          path: backup/
-          retention-days: 30
-          # Nếu dump fail thì giữ lỗi gốc ở bước dump; đừng ghi đè nó bằng
-          # một lỗi artifact thứ cấp "No files were found".
-          if-no-files-found: warn
-
       - name: (tuỳ chọn) Đẩy lên Cloudflare R2
         if: success()
         env:
@@ -140,6 +127,40 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: bash scripts/push-to-r2.sh
+
+      # KHÔNG BAO GIỜ đẩy bản dump thô (`*.dump`, `auth-users.sql` chứa email OAuth
+      # và ghi chú riêng tư) lên GitHub Actions artifact vì trên repo công khai bất
+      # kỳ tài khoản GitHub nào cũng tải được artifact. Chỉ đóng gói bản mã hoá
+      # AES-256 khi chủ dự án khai báo secret `BACKUP_PASSPHRASE`; còn metadata chẩn
+      # đoán (`manifest.txt`, `fingerprint*.txt`, `fingerprint.diff`) vẫn giữ nguyên.
+      - name: (tuỳ chọn) Mã hoá bản dump trước khi lưu artifact
+        if: always()
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -n "${BACKUP_PASSPHRASE:-}" ] && [ -d backup ] && compgen -G "backup/*.dump" > /dev/null; then
+            tar -czf - -C backup . | gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase-fd 0 -o backup/db-backup.tar.gz.gpg <<< "$BACKUP_PASSPHRASE"
+          fi
+
+      # if: always() — khi verify hỏng, manifest + fingerprint.diff vẫn xem được
+      # để biết lệch ở bảng/policy nào mà không làm rò dữ liệu người dùng.
+      - name: Lưu artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_number }}
+          path: |
+            backup/manifest.txt
+            backup/fingerprint*.txt
+            backup/fingerprint.diff
+            backup/*.gpg
+            !backup/*.dump
+            !backup/*.sql
+          retention-days: 30
+          # Nếu dump fail thì giữ lỗi gốc ở bước dump; đừng ghi đè nó bằng
+          # một lỗi artifact thứ cấp "No files were found".
+          if-no-files-found: warn
 
       # GitHub đã tự gửi email khi workflow đỏ; dòng này để log nói thẳng
       # việc cần làm thay vì chỉ báo "exit code 1".

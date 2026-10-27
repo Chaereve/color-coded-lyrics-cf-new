@@ -93,6 +93,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
   const [winTile, setWinTile] = useState(null) // ô kết quả server (kind+label)
   const [winRarity, setWinRarity] = useState('r1')
   const [error, setError] = useState('')
+  const [committedMystery, setCommittedMystery] = useState(null)
   const [miss, setMiss] = useState(() => !!mystery?.opened && mystery.reward_kind === 'nothing')
   const [clock, setClock] = useState(() => Date.now())
   const timers = useRef([])
@@ -110,6 +111,7 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
     setPhase('idle')
     setReveal(true)
     const result = resultRef.current
+    if (result?.mystery) setCommittedMystery(result.mystery)
     const kind = result?.mystery?.reward_kind
     const votes = result?.mystery?.reward_votes ?? 0
     const empty = kind === 'nothing'
@@ -174,8 +176,13 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
   ], [winTile])
 
   if (!mystery?.enabled) return null
-  const day = mystery.day
-  const opened = mystery.opened || (reveal && mystery.result !== null)
+  const activeMystery = committedMystery
+    && committedMystery.day === mystery.day
+    && (!committedMystery.user_id || committedMystery.user_id === userId)
+    ? { ...mystery, ...committedMystery }
+    : mystery
+  const day = activeMystery.day
+  const opened = activeMystery.opened || (reveal && activeMystery.result !== null)
 
   const wait = ms => new Promise(resolve => timers.current.push(setTimeout(resolve, ms)))
 
@@ -240,9 +247,9 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
      không có reveal cục bộ) — hộp ĐÓNG NẮP, sân khấu lặng; kết quả hôm nay
      đọc trên thanh box-bar. Hộp trượt đi thêm đường is-miss (đóng sớm 900ms). */
   const closedLook = miss || settled || (opened && !reveal)
-  const prize = opened ? mystery.result : null
-  const kind = opened ? mystery.reward_kind : null
-  const votes = opened ? mystery.reward_votes : 0
+  const prize = opened ? activeMystery.result : null
+  const kind = opened ? activeMystery.reward_kind : null
+  const votes = opened ? activeMystery.reward_votes : 0
   const rarity = opened ? rarityOf(kind, prize) : 'r0'
   const countdown = opened && nextResetAt
     ? Math.max(0, nextResetAt - clock)
@@ -326,8 +333,8 @@ export function MysteryBox({ userId, mystery, checkedIn, onOpened, nextResetAt =
                   {kind === 'nothing' && t('mystery.nothing')}
                   {kind === 'votes' && (votes === 1 ? t('mystery.votesOne') : t('mystery.votesMany', { n: votes }))}
                   {(kind === 'paid_request' || kind === 'free_paid_request')
-                    && t((Number.isInteger(mystery.reward_amount) && mystery.reward_amount > 0
-                      ? mystery.reward_amount
+                    && t((Number.isInteger(activeMystery.reward_amount) && activeMystery.reward_amount > 0
+                      ? activeMystery.reward_amount
                       : (prize === 6 ? 2 : 1)) === 2 ? 'mystery.paidRequestTwo' : 'mystery.paidRequestOne')}
                 </span>
                 : checkedIn ? t('mystery.readyBar') : t('mystery.locked')}

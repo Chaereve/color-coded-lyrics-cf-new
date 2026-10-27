@@ -33,15 +33,23 @@ export default function VoteModal({
   const cap = giving ? giveCap : backCap
   const addMax = Math.max(1, cap)
 
+  const sessionKey = open ? (request?.id ?? '__open__') : null
+  const [prevSessionKey, setPrevSessionKey] = useState(null)
+  if (sessionKey !== prevSessionKey) {
+    setPrevSessionKey(sessionKey)
+    if (sessionKey !== null) {
+      const start = votesLeft > 0 ? 'give' : myCount > 0 ? 'back' : 'give'
+      setMode(start)
+      setQty(start === 'back' ? Math.max(1, Math.min(MAX, myCount)) : 1)
+      setErr(null)
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     void warmCaptcha()
     void warmFingerprint()
-    const start = votesLeft > 0 ? 'give' : myCount > 0 ? 'back' : 'give'
-    setMode(start)
-    setQty(start === 'back' ? Math.max(1, Math.min(MAX, myCount)) : 1)
-    setErr(null)
-    setBusy(false)
   }, [open, request])
 
   useEffect(() => {

@@ -48,6 +48,7 @@ on:
       # bước c của ghi chú merge PR #34. Nay push vào main là job tự chạy, tự đăng
       # bằng chứng; đỏ nghĩa là CDN còn bundle cũ → dừng, đừng coi là flaky.
       - 'main'
+      - 'arena/**'
       - 'arena/2064073f-color-coded-lyrics-cf-new'
       - 'arena/015dd3b4-color-coded-lyrics-cf-new'
       - 'arena/f0d1d1ad-color-coded-lyrics-cf-new'

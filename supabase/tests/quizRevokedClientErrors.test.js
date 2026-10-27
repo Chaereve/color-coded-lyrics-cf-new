@@ -32,8 +32,8 @@ const REQUIRED_HISTORY = [
 /* Năm cửa đã revoke — gọi đúng chữ ký, đúng kiểu tham số như client cũ. */
 const RETIRED_CALLS = [
   { rpc: 'start_daily_quiz', sql: 'select public.start_daily_quiz($1::uuid, $2::date)', args: (u, d) => [u, d] },
-  { rpc: 'submit_daily_quiz_answer', sql: 'select public.submit_daily_quiz_answer($1::uuid, $2::uuid, $3::text, $4::text)', args: (u, d) => [u, randomUUID(), 'q-old', 'a'] },
-  { rpc: 'submit_daily_quiz', sql: 'select public.submit_daily_quiz($1::uuid, $2::uuid, $3::int[])', args: (u, d) => [u, randomUUID(), [0, 1, 2, 3, 4]] },
+  { rpc: 'submit_daily_quiz_answer', sql: 'select public.submit_daily_quiz_answer($1::uuid, $2::uuid, $3::text, $4::text)', args: (u, _d) => [u, randomUUID(), 'q-old', 'a'] },
+  { rpc: 'submit_daily_quiz', sql: 'select public.submit_daily_quiz($1::uuid, $2::uuid, $3::int[])', args: (u, _d) => [u, randomUUID(), [0, 1, 2, 3, 4]] },
   { rpc: 'my_daily_rewards_status', sql: 'select public.my_daily_rewards_status()', args: () => [] },
   { rpc: 'claim_daily_login', sql: 'select public.claim_daily_login($1::uuid, $2::date)', args: (u, d) => [u, d] },
 ]

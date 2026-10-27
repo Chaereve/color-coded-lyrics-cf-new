@@ -104,25 +104,10 @@ function SearchBox({ t, q, setQ, inputRef, placeholder }) {
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
   onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire,
-  reveal = null, focused = false }) {
+  reveal = null, focused = false, ask: askProp = null }) {
   const { t } = useI18n()
-  /* GHIM CÔNG: chữ để dán vào mô tả video YouTube (tên bài + những người đã
-     gửi). Việc này trước đây làm bằng tay — mở bảng, đọc từng dòng, gõ lại
-     tên — nên nó thường bị bỏ qua. Người đã gửi request là người làm nên tập
-     phim đó; ghi tên họ là thứ duy nhất khiến họ gửi tiếp.
-     Nhãn nút đổi tại chỗ sau khi copy thay vì bật toast: mắt đang ở giữa bảng,
-     còn toast nằm ở góc màn hình. */
-  /* Hộp xác nhận của app, gọi ngay trong hàng: hai việc không hoàn tác được
-     (từ chối bài, xoá bài) nằm ở đây chứ không ở thân bảng. */
-  const askRaw = useConfirm()
-  /* Hộp xác nhận đang mở thì phím tắt của TRANG phải im: `j`/`k` lúc đó là gõ
-     trong ô lý do (đã chặn bằng kiểm `typing`), nhưng `a`/`d`/Enter thì vẫn
-     lọt tới bảng phía sau lớp phủ và có thể duyệt đúng hàng vừa mới bị từ chối. */
-  const modalRef = useRef(false)
-  const ask = useCallback(async (opts) => {
-    modalRef.current = true
-    try { return await askRaw(opts) } finally { modalRef.current = false }
-  }, [askRaw])
+  const askFallback = useConfirm()
+  const ask = askProp || askFallback
   const [copied, setCopied] = useState(false)
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
@@ -430,6 +415,7 @@ export default function AdminPanel({
   tab, onTab, rows, orders, media = [],
   onReview, onUpdate, onDelete, onExpire, onOrder, onPick, onBulk, onEdit,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
+  onSettleSeason = null,
   pickInterval = 4,
 }) {
   const { t } = useI18n()
@@ -455,6 +441,19 @@ export default function AdminPanel({
     finally {
       setOrderBusy(prev => { const next = new Set(prev); next.delete(id); return next })
     }
+  }
+  const [seasonBusy, setSeasonBusy] = useState(null)
+  const runSettleSeason = async (period) => {
+    if (!onSettleSeason || seasonBusy) return
+    const ok = await ask({
+      title: t(period === 'month' ? 'adm.confirmSettleMonth' : 'adm.confirmSettleWeek'),
+      body: t('adm.settleBody'),
+      confirmLabel: t(period === 'month' ? 'adm.settleMonth' : 'adm.settleWeek'),
+    })
+    if (!ok) return
+    setSeasonBusy(period)
+    try { await onSettleSeason(period) }
+    finally { setSeasonBusy(null) }
   }
   /* Từ khoá tìm kiếm dùng chung cho cả 4 tab danh sách (tab Videos tự quản);
      đổi tab vẫn giữ từ khoá để soát bài ở mọi trạng thái mà không phải gõ lại */
@@ -676,12 +675,17 @@ export default function AdminPanel({
      là một phép `includes` cả chuỗi, tức là admin phải gõ đúng thứ tự cột. */
   const matchReq = (r) => allTermsIn(
     `${r.title} ${r.artist} ${r.requester} ${r.kind} ${r.note || ''} ${r.status}`, q)
+  const orderBuyerOf = (o) => {
+    const req = o.request_id ? rows.find(r => r.id === o.request_id) : null
+    return o.buyer_name || o.requester_name || req?.requester || ''
+  }
   const matchOrder = (o) => {
     const req = rows.find(r => r.id === o.request_id)
+    const buyer = orderBuyerOf(o)
     const what = o.kind === 'votes'
-      ? `${t('order.votes', { n: o.qty })} votes`
+      ? `${t('order.votes', { n: o.qty })} votes ${o.pack || ''}`
       : t('order.paidRequest')
-    return allTermsIn(`${what} ${o.status} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
+    return allTermsIn(`${what} ${o.status} ${buyer} ${o.id || ''} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
   }
 
   /* danh sách đang hiển thị theo tab — phân trang chung một chỗ cho cả
@@ -963,6 +967,7 @@ export default function AdminPanel({
       ? downloadText(csvFileName('orders'), toCsv(shown, [
         { k: 'id', label: 'ID' },
         { k: 'kind', label: 'Type' },
+        { k: 'buyer', label: 'Buyer', get: (o) => orderBuyerOf(o) },
         { k: 'qty', label: 'Votes' },
         { k: 'amount_vnd', label: 'Amount (VND)' },
         { k: 'amount_usd', label: 'Amount (USD)' },
@@ -1117,7 +1122,7 @@ export default function AdminPanel({
           </button>
         </div>
       )}
-      <div className="adm-panel" aria-busy={bulkBusy || undefined}>
+      <div className="adm-panel" ref={listRef} aria-busy={bulkBusy || undefined}>
         {/* THANH CÔNG CỤ: tìm kiếm → xếp thứ tự → lọc loại bài → chế độ chọn.
             Ô tìm kiếm đứng đầu vì đó là việc admin làm nhiều nhất; nút chọn
             nhiều đứng cuối vì nó đổi cách làm việc của cả trang. */}
@@ -1146,9 +1151,22 @@ export default function AdminPanel({
         </h2>
 
         {tab === 'overview' ? (
-          /* Tổng quan không có gì để tìm, xếp hay chọn: nó là ba tấm thẻ đọc
-             trong mười giây, mỗi con số dẫn sang mục tương ứng. */
-          <div className="adm-bar adm-bar-end" />
+          <div className="adm-bar adm-bar-end">
+            {onSettleSeason && (
+              <div className="adm-bar-right">
+                <button type="button" className="btn btn-sm"
+                  disabled={seasonBusy !== null}
+                  onClick={() => runSettleSeason('week')}>
+                  {seasonBusy === 'week' ? t('adm.loading') : t('adm.settleWeek')}
+                </button>
+                <button type="button" className="btn btn-sm"
+                  disabled={seasonBusy !== null}
+                  onClick={() => runSettleSeason('month')}>
+                  {seasonBusy === 'month' ? t('adm.loading') : t('adm.settleMonth')}
+                </button>
+              </div>
+            )}
+          </div>
         ) : tab === 'log' ? (
           /* Nhật ký chỉ để ĐỌC: không tìm, không xoá, không sửa. Một nút làm
              mới là đủ — và nó nói rõ việc cần làm khi database chưa có bảng. */
@@ -1380,43 +1398,58 @@ export default function AdminPanel({
           shown.length === 0
             ? <EmptyState title={t('adm.noOrders')} body={t('adm.emptyOrdersBody')}
                 filtered={filtered} q={q} t={t} onClear={clearFilters} />
-            : pg.items.map(o => (
-              <div className="adm" key={o.id}>
-                <div className="nm">
-                  <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                  <small>
-                    {vnd(o.amount_vnd)}
-                    <span className="dot dot-inline" aria-hidden="true" />
-                    {usd(o.amount_usd)}
-                    <span className="dot dot-inline" aria-hidden="true" />
-                    {timeAgo(o.created_at, t)}
-                  </small>
-                  {o.request_id && (
-                    <small style={{ color: 'var(--txt-2)' }}>
-                      {rows.find(r => r.id === o.request_id)
-                        ? `${rows.find(r => r.id === o.request_id).artist} — ${rows.find(r => r.id === o.request_id).title}`
-                        : t('adm.reqDeleted')}
+            : pg.items.map(o => {
+              const buyer = orderBuyerOf(o)
+              const req = o.request_id ? rows.find(r => r.id === o.request_id) : null
+              return (
+                <div className="adm" key={o.id}>
+                  <div className="nm">
+                    <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
+                    <small>
+                      {buyer && (
+                        <>
+                          <span>{buyer}</span>
+                          <span className="dot dot-inline" aria-hidden="true" />
+                        </>
+                      )}
+                      {vnd(o.amount_vnd)}
+                      <span className="dot dot-inline" aria-hidden="true" />
+                      {usd(o.amount_usd)}
+                      <span className="dot dot-inline" aria-hidden="true" />
+                      {timeAgo(o.created_at, t)}
                     </small>
-                  )}
+                    {o.request_id && (
+                      <small style={{ color: 'var(--txt-2)' }}>
+                        {req ? `${req.artist} — ${req.title}` : t('adm.reqDeleted')}
+                      </small>
+                    )}
+                  </div>
+                  <div className="adm-acts">
+                    {o.status === 'awaiting' ? (
+                      <>
+                        <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
+                          onClick={() => runOrder(o.id, true)}>
+                          {orderBusy.has(o.id) ? '…' : t('adm.received')}
+                        </button>
+                        <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
+                          onClick={async () => {
+                            const ok = await ask({
+                              title: t('adm.confirmRejectOrder'),
+                              body: t('dlg.cannotUndo'),
+                              confirmLabel: t('adm.deny'),
+                            })
+                            if (ok) runOrder(o.id, false)
+                          }}>{t('adm.deny')}</button>
+                      </>
+                    ) : (
+                      <span className={`pill ${o.status === 'paid' ? 'completed' : 'denied'}`}>
+                        {o.status === 'paid' ? t('order.paid') : t('order.rejected')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="adm-acts">
-                  {o.status === 'awaiting' ? (
-                    <>
-                      <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
-                        onClick={() => runOrder(o.id, true)}>
-                        {orderBusy.has(o.id) ? '…' : t('adm.received')}
-                      </button>
-                      <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
-                        onClick={() => runOrder(o.id, false)}>{t('adm.deny')}</button>
-                    </>
-                  ) : (
-                    <span className={`pill ${o.status === 'paid' ? 'completed' : 'denied'}`}>
-                      {o.status === 'paid' ? t('order.paid') : t('order.rejected')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
+              )
+            })
         ) : (
           shown.length === 0
             ? <EmptyState title={t(tab === 'picked' ? 'adm.emptyPicked' : 'adm.emptyTitle')}
@@ -1430,7 +1463,8 @@ export default function AdminPanel({
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
                 songRows={rows.filter(x => groupKey(x) === groupKey(r))}
                 onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick}
-                onEdit={onEdit} reveal={reveal} focused={cursor >= 0 && pg.items[cursor]?.id === r.id} />
+                onEdit={onEdit} reveal={reveal} focused={cursor >= 0 && pg.items[cursor]?.id === r.id}
+                ask={ask} />
             ))
         )}
 
