@@ -111,6 +111,12 @@ jobs:
       - name: Dựng bundle production
         run: npm run build
 
+      # Cổng tương thích máy cũ: sau khi build, quét chính dist/assets để chặn
+      # cú pháp/API vượt mức sàn (Safari 13 / Chrome 80). Đây là regression
+      # guard cho lỗi "màn hình tím / trang không load" trên iOS/WebView cũ.
+      - name: Kiểm tra tương thích trình duyệt của bundle
+        run: npm run check:browser-compat
+
       # Bước này ngoài /quiz + /daily-login còn tải asset edge đang phục vụ và đối
       # chiếu dấu vết trong .github/edge-bundle-markers.txt: đỏ nghĩa là bản deploy
       # chưa lên CDN (hoặc đã lên nhưng là bundle cũ) → DỪNG, đừng chạy tiếp bước sau.

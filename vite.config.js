@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import { BROWSER_TARGETS } from './tools/browser-targets.mjs'
 import { onRequest as archiveOnRequest, renderArchivePage } from './functions/archive.js'
 import edgeWorker from './worker/index.js'
 import react from '@vitejs/plugin-react'
@@ -187,6 +188,18 @@ function archivePagesPreview() {
 
 export default defineConfig({
   plugins: [react(), archivePagesPreview(), requestLog(), devProbe()],
+  /* HẠ TARGET BUILD — chữa lỗi "màn hình tím / trang không load" trên
+     máy cũ. Mặc định Vite 8 là "baseline-widely-available" = Safari 16.4
+     / iOS 16.4 / Chrome 111 / Firefox 114: iPhone 6s/7/8/X kẹt ở iOS
+     13–16.3 và Android WebView cũ KHÔNG đọc nổi bundle (lỗi cú pháp lúc
+     nạp module) → React không chạy → chỉ còn màu nền. Danh sách target
+     nằm ở tools/browser-targets.mjs để cổng kiểm tương thích đọc cùng
+     một nguồn. API mới (Object.hasOwn, Array.at, randomUUID) đã có
+     polyfill tối thiểu trong src/lib/polyfills.js. Đánh đổi: bundle lớn
+     hơn vài KB — rẻ hơn nhiều so với mất hẳn một nhóm người dùng. */
+  build: {
+    target: BROWSER_TARGETS,
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

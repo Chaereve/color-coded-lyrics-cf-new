@@ -1,3 +1,8 @@
+/* Polyfill phải chạy TRƯỚC mọi mô-đun khác (kể cả react): nó bổ sung
+   những API trình duyệt cũ thiếu để cả cây module phía sau không ném lỗi
+   lúc nạp. Xem giải thích đầy đủ trong lib/polyfills.js. */
+import './lib/polyfills.js'
+import { COMPAT_REV } from './lib/polyfills.js'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -22,7 +27,9 @@ if (typeof document.startViewTransition === 'function') {
    trong console. Lỗi phải nhỏ hơn thiệt hại, không được lớn hơn.
    Ở đây chỉ còn đúng việc ghi lỗi ra console với tiền tố [ccl] — mở DevTools
    là thấy, dán lại được — còn lỗi nghiệp vụ vẫn đi đường toast đỏ như cũ. */
-const report = (label, e) => console.error(`[ccl] ${label}:`, e)
+/* Kèm mã revision tương thích: đọc console của người dùng là biết ngay máy
+   họ đang chạy bản nào (xem COMPAT_REV trong lib/polyfills.js). */
+const report = (label, e) => console.error(`[ccl ${COMPAT_REV}] ${label}:`, e)
 window.addEventListener('error', (e) => report('lỗi runtime', e.error || e.message))
 window.addEventListener('unhandledrejection', (e) => report('promise bị từ chối', e.reason))
 
