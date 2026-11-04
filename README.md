@@ -44,6 +44,7 @@ npm run dev
 | `npm run lint` | Kiểm tra mã nguồn bằng `oxlint` |
 | `npm test` | Chạy toàn bộ unit, contract & Edge tests (`src/`, `supabase/tests/`, `worker/`, `tools/`) |
 | `npm run smoke` | Dựng bản build và chạy kiểm thử tích hợp DOM (`jsdom`) cho toàn bộ luồng giao diện |
+| `npm run test:browser-compat` | Build rồi quét `dist/assets` chặn cú pháp/API vượt mức sàn trình duyệt cũ (Safari 13 / Chrome 80) |
 | `npm run db:check` | Kiểm tra tĩnh chuỗi migration, quarantine manifest và tính nguyên vẹn của baseline |
 | `npm run schema:split:check` | Xác nhận các mảnh `supabase/setup/*.sql` khớp từng byte với `supabase/schema.sql` |
 | `npm run test:free-votes:pglite` | Kiểm thử chuỗi free-votes trên PostgreSQL WASM (PGlite) |

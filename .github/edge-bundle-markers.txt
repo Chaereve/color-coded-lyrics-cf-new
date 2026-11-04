@@ -25,3 +25,7 @@
 
 # 2026-10-07 · PR #34 (batch E — chữ của widget Turnstile vào từ điển)
 turnstile.region
+
+# 2026-11-04 · hạ build.target + polyfill cho máy cũ (lỗi "màn hình tím" trên iOS/WebView cũ)
+# COMPAT_REV trong src/lib/polyfills.js, in kèm log lỗi `[ccl compat-20261104]` ở src/main.jsx
+compat-20261104
