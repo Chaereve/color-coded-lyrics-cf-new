@@ -4867,6 +4867,10 @@ html[data-section="spin"] .bgfx { display: none; }
   border: 1px solid var(--line); border-radius: 12px;
   background: linear-gradient(110deg, color-mix(in oklab, var(--panel) 88%, var(--a-2) 12%), var(--panel));
   box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.video-preview-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding: 10px 14px; color: var(--txt-2); background: var(--bg-2); font-size: 12px; line-height: 1.5; }
+.video-preview-notice span { flex: 1 1 220px; }
+.video-preview-notice button { flex-shrink: 0; }
 .video-preview-meta-t { flex: 1 1 auto; min-width: 0; }
 .video-preview-meta-t h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font: 600 14px var(--display); color: var(--txt); }

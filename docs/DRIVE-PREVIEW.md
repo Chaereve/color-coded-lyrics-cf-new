@@ -31,7 +31,7 @@ Endpoint finder là `GET /api/drive-video/find?artist=IVE&title=Looks%20Can%20Ki
 npx wrangler d1 execute ccl-rate-shield --remote --file=worker/migrations/0002_drive_video_rate_limit.sql
 ```
 
-Pages Production và Preview phải cùng có binding `RATE_SHIELD`. Nếu không có binding, code chỉ dùng bộ đếm trong bộ nhớ của từng isolate; đó là lớp dự phòng, **không đủ làm giới hạn Production**. D1 chỉ lưu hash IP, không lưu IP thô. Khi credentials chưa được cấu hình, finder trả 503 và modal giữ hành vi YouTube hiện tại.
+Pages Production và Preview phải cùng có binding `RATE_SHIELD`. Nếu không có binding, code chỉ dùng bộ đếm trong bộ nhớ của từng isolate; đó là lớp dự phòng, **không đủ làm giới hạn Production**. D1 chỉ lưu hash IP, không lưu IP thô. Nếu deployment cũ đã gắn D1 nhưng thiếu riêng bảng `drive_video_rate_limits`, API tự tạo bảng theo migration 0002 rồi thử lại bộ đếm đúng một lần. Các lỗi D1 khác vẫn chặn yêu cầu (503), không bỏ qua rate limit. Khi credentials chưa được cấu hình, finder trả 503; modal báo lỗi kết nối và vẫn cho dùng YouTube thay thế.
 
 ## Workers chạy bằng Wrangler (tuỳ chọn)
 
@@ -44,3 +44,22 @@ npx wrangler secret put GOOGLE_REFRESH_TOKEN
 ```
 
 Có thể đặt `GOOGLE_DRIVE_FOLDER_ID` trong `vars` nếu cần đổi folder; sau đó deploy Worker theo quy trình hiện có.
+
+## Chẩn đoán “có file nhưng web không nhận”
+
+Mở `/api/drive-video/find?artist=KickFlip&title=Band-Aid` trên **đúng domain đang lỗi** (Production và Preview có cấu hình riêng). Sau bản sửa này, API phân biệt:
+
+| HTTP / `error` | Ý nghĩa / xử lý |
+|---|---|
+| 200 / `url` | Đã tìm thấy file. Nếu player lỗi, xem request `/stream` và codec của MP4. |
+| 404 / `clip_not_found` | Không tìm thấy MP4 đúng tên trong folder mà tài khoản OAuth của **web** nhìn thấy. Kiểm tra folder ID, tên và quyền đọc. |
+| 503 / `drive_not_configured` | Thiếu một trong ba biến `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` trên Pages. Đặt trong Dashboard và redeploy. |
+| 503 / `drive_auth_failed` | Không đổi được refresh token thành access token. Kiểm tra OAuth client/token, cấp lại quyền nếu token bị thu hồi/hết hạn. |
+| 502 / `drive_access_denied` | Google từ chối đọc Drive. Kiểm tra Drive API đã bật, scope `drive.readonly`, và tài khoản có quyền đọc folder/file. |
+| 503 / `drive_rate_limit_unavailable` | D1 lỗi hoặc không tạo được bảng preview. Kiểm tra binding và áp migration 0002 nếu cần. |
+| 429 / `rate_limited` | Đợi theo `Retry-After` trước khi thử lại. |
+| 502 / `drive_unavailable` | Lỗi mạng, timeout hoặc phản hồi Google không hợp lệ; không đồng nghĩa file bị thiếu. |
+
+Kết nối Google Drive trong Arena chỉ giúp kiểm tra file; **không tự cấu hình OAuth cho Cloudflare Pages**. Không gửi token/secret qua chat và không bật public cho file để chữa lỗi này.
+
+Modal chỉ coi `404 clip_not_found` là không có clip. Lỗi dịch vụ có thông báo và nút **Retry clip**, lookup có timeout, và lỗi phát stream chuyển sang video gốc kèm thông báo thay vì để player đen.

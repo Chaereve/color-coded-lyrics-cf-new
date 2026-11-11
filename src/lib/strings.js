@@ -715,6 +715,13 @@ const S = {
   'recap.statTop': 'top song votes',
   'preview.close': 'Close preview',
   'preview.loading': 'Finding the 30-second clip…',
+  'preview.retry': 'Retry clip',
+  'preview.driveSetup': 'The clip service is not configured on this deployment. The site owner needs to connect Google Drive.',
+  'preview.driveAuth': 'The clip service cannot access Google Drive. The site owner needs to check its authorization.',
+  'preview.driveService': 'The clip service is temporarily unavailable. Please try again shortly.',
+  'preview.driveBusy': 'Too many clip requests. Please wait a minute before retrying.',
+  'preview.driveUnavailable': 'Could not check for the 30-second clip. Please try again.',
+  'preview.drivePlayback': 'The clip was found but could not be played. Please retry or use the original video.',
   'preview.thirty': '30-second preview',
   'preview.open': 'Open full video on YouTube',
   /* MỐC 30 GIÂY — nói ra con số thay vì để người xem tự đoán vì sao khung dừng.

@@ -1,3 +1,4 @@
+import { findDrivePreview } from '../lib/drivePreview.js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
@@ -154,6 +155,7 @@ export default function VideoPreviewModal({ video, onClose }) {
   const driveKey = JSON.stringify([video?.id ?? '', driveArtist, driveTitle])
   const shouldLookupDrive = Boolean(video && driveArtist && driveTitle && !isVideoFile(url))
   const [driveResult, setDriveResult] = useState(null)
+  const [driveAttempt, setDriveAttempt] = useState(0)
   const matchedDriveResult = driveResult?.key === driveKey ? driveResult : null
   const driveSrc = matchedDriveResult?.status === 'ready' ? matchedDriveResult.src : ''
   const driveLookup = !shouldLookupDrive ? 'missing' : matchedDriveResult?.status || 'loading'
@@ -168,23 +170,12 @@ export default function VideoPreviewModal({ video, onClose }) {
   useEffect(() => {
     if (!shouldLookupDrive) return undefined
     const controller = new AbortController()
-    const params = new URLSearchParams({ artist: driveArtist, title: driveTitle })
-    fetch(`/api/drive-video/find?${params}`, { signal: controller.signal })
-      .then(async response => {
-        const result = await response.json().catch(() => null)
-        if (!response.ok || typeof result?.url !== 'string' || !result.url.startsWith('/api/drive-video/stream?')) {
-          throw new Error('clip_not_found')
-        }
-        return result.url
-      })
-      .then(source => {
-        if (!controller.signal.aborted) setDriveResult({ key: driveKey, status: 'ready', src: source })
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setDriveResult({ key: driveKey, status: 'missing', src: '' })
+    findDrivePreview(driveArtist, driveTitle, { signal: controller.signal })
+      .then(result => {
+        if (!controller.signal.aborted) setDriveResult({ key: driveKey, ...result })
       })
     return () => controller.abort()
-  }, [shouldLookupDrive, driveArtist, driveTitle, driveKey])
+  }, [shouldLookupDrive, driveArtist, driveTitle, driveKey, driveAttempt])
 
   /* Esc để đóng + khoá cuộn nền + focus management: cùng luật với các hộp thoại khác của app. */
   useEffect(() => {
@@ -441,6 +432,12 @@ export default function VideoPreviewModal({ video, onClose }) {
         disablePictureInPicture
         disableRemotePlayback
         autoPlay
+        onError={() => {
+          if (driveSrc) {
+            replay()
+            setDriveResult({ key: driveKey, status: 'error', src: '', message: 'preview.drivePlayback' })
+          }
+        }}
         onContextMenu={(e) => e.preventDefault()}
         onTimeUpdate={(e) => {
           const s = e.currentTarget.currentTime
@@ -545,6 +542,17 @@ export default function VideoPreviewModal({ video, onClose }) {
             aria-label={t('preview.close')} title={t('preview.close')}>
             <Icon name="close" size={16} />
           </button>
+
+          {driveLookup === 'error' && (
+            <div className="video-preview-notice" role="status">
+              <span>{t(matchedDriveResult?.message || 'preview.driveUnavailable')}</span>
+              <button type="button" className="btn btn-sm" onClick={() => {
+                replay()
+                setDriveResult(null)
+                setDriveAttempt(attempt => attempt + 1)
+              }}>{t('preview.retry')}</button>
+            </div>
+          )}
 
           {/* Metadata nằm TRONG dialog để screen reader đọc được khi focus vào dialog */}
           <div className="video-preview-meta">
