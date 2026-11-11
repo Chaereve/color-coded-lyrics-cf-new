@@ -62,6 +62,22 @@ async function sha256hex(value) {
   return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+// Keep this additive bootstrap identical to migration 0002. Existing Pages
+// deployments can have RATE_SHIELD without the newer preview-specific table.
+// Repair ONLY that missing table; other D1 failures must still fail closed.
+const DRIVE_RATE_TABLE_SQL = `CREATE TABLE IF NOT EXISTS drive_video_rate_limits (
+  window_minute INTEGER NOT NULL,
+  ip_hash TEXT NOT NULL,
+  endpoint TEXT NOT NULL CHECK (endpoint IN ('find', 'stream')),
+  requests INTEGER NOT NULL DEFAULT 0 CHECK (requests >= 0),
+  PRIMARY KEY (window_minute, ip_hash, endpoint)
+) WITHOUT ROWID`
+
+function missingDriveRateTable(error) {
+  return [error?.message, error?.cause?.message].some(message =>
+    typeof message === 'string' && /no such table: (?:main\.)?drive_video_rate_limits\b/i.test(message))
+}
+
 async function checkDriveRateLimit(request, env, endpoint, now = Date.now()) {
   const ip = request.headers.get('cf-connecting-ip')?.trim() || 'unknown'
   const ipHash = await sha256hex(ip)
@@ -70,7 +86,7 @@ async function checkDriveRateLimit(request, env, endpoint, now = Date.now()) {
   const retryAfter = Math.max(1, Math.ceil((RATE_WINDOW_MS - (now % RATE_WINDOW_MS)) / 1000))
 
   if (env?.RATE_SHIELD && typeof env.RATE_SHIELD.prepare === 'function') {
-    try {
+    const countRequest = async () => {
       if (lastD1PruneWindow !== windowMinute && windowMinute % 10 === 0) {
         await env.RATE_SHIELD.prepare(
           'DELETE FROM drive_video_rate_limits WHERE window_minute < ?'
@@ -85,9 +101,16 @@ async function checkDriveRateLimit(request, env, endpoint, now = Date.now()) {
         RETURNING requests
       `).bind(windowMinute, ipHash, endpoint).first()
       return { ok: Number(row?.requests) <= maximum, retryAfter }
-    } catch {
-      /* If a production D1 binding exists but its table is missing/unavailable,
-         fail closed rather than silently reverting to per-isolate limits. */
+    }
+    try {
+      return await countRequest()
+    } catch (error) {
+      if (missingDriveRateTable(error)) {
+        try {
+          await env.RATE_SHIELD.prepare(DRIVE_RATE_TABLE_SQL).run()
+          return await countRequest()
+        } catch { /* No unmetered/local fallback if setup or the retry fails. */ }
+      }
       return { ok: false, unavailable: true, retryAfter }
     }
   }
@@ -108,7 +131,7 @@ async function rateLimitedResponse(request, env, endpoint, bodyless = false) {
   const limit = await checkDriveRateLimit(request, env, endpoint)
   if (limit.ok) return null
   if (limit.unavailable) {
-    return bodyless ? emptyStreamResponse(503) : json({ error: 'drive_unavailable' }, 503)
+    return bodyless ? emptyStreamResponse(503) : json({ error: 'drive_rate_limit_unavailable' }, 503)
   }
   const extra = { 'retry-after': String(limit.retryAfter) }
   return bodyless ? emptyStreamResponse(429, extra) : json({ error: 'rate_limited' }, 429, extra)
@@ -201,7 +224,8 @@ async function fetchDriveAuthorized(env, url, init = {}, timeoutMs = DRIVE_API_T
 async function findClip(env, artist, title) {
   const cfg = config(env)
   const name = clipFilename(artist, title)
-  if (!cfg || !name) return { status: cfg ? 400 : 503 }
+  if (!name) return { status: 400, error: 'invalid_clip_metadata' }
+  if (!cfg) return { status: 503, error: 'drive_not_configured' }
 
   const cacheKey = `${cfg.folderId}:${name}`
   const cached = lookupCache.get(cacheKey)
@@ -228,10 +252,11 @@ async function findClip(env, artist, title) {
     env,
     `https://www.googleapis.com/drive/v3/files?${params}`,
   )
-  if (authError || !response) return { status: 503 }
-  if (!response.ok) return { status: 502 }
+  if (authError || !response) return { status: 503, error: 'drive_auth_failed' }
+  if (!response.ok) return { status: 502, error: [401, 403].includes(response.status) ? 'drive_access_denied' : 'drive_unavailable' }
   const body = await response.json().catch(() => null)
-  const file = body?.files?.find(item => item?.name === name
+  if (!Array.isArray(body?.files)) return { status: 502, error: 'drive_unavailable' }
+  const file = body.files.find(item => item?.name === name
     && item?.mimeType === 'video/mp4'
     && Array.isArray(item.parents)
     && item.parents.includes(cfg.folderId)
@@ -258,7 +283,7 @@ export async function driveVideoFindRoute(request, env) {
   try {
     const { artist, title } = paramsFrom(request)
     const result = await findClip(env, artist, title)
-    if (result.status !== 200) return json({ error: result.status === 404 ? 'clip_not_found' : 'drive_unavailable' }, result.status)
+    if (result.status !== 200) return json({ error: result.error || (result.status === 404 ? 'clip_not_found' : 'drive_unavailable') }, result.status)
     const params = new URLSearchParams({ artist: artist.trim(), title: title.trim() })
     return json({ url: `/api/drive-video/stream?${params}` })
   } catch {
@@ -282,7 +307,7 @@ export async function driveVideoStreamRoute(request, env) {
     if (range) headers.range = range
     const { authError, response } = await fetchDriveAuthorized(
       env,
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(result.file.id)}?alt=media`,
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(result.file.id)}?alt=media&supportsAllDrives=true`,
       { method: request.method, headers },
       DRIVE_STREAM_TIMEOUT_MS,
     )

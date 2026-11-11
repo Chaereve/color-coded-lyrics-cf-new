@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
+import { readFileSync } from 'node:fs'
 import { clipFilename, clearDriveVideoState, DRIVE_RATE_LIMITS, driveVideoFindRoute, driveVideoStreamRoute } from './driveVideo.js'
 
 const folderId = '1Pc8aDq_Ieq6j8hAZLzXUkGO1Fm4l1Zp5'
@@ -32,7 +34,7 @@ test('Drive finder requires server-side OAuth configuration and does not call Go
   try {
     const response = await driveVideoFindRoute(request('find'), {})
     assert.equal(response.status, 503)
-    assert.deepEqual(await response.json(), { error: 'drive_unavailable' })
+    assert.deepEqual(await response.json(), { error: 'drive_not_configured' })
   } finally { restore() }
 })
 
@@ -104,7 +106,9 @@ test('Drive stream verifies folder membership and forwards byte ranges without e
     assert.equal(response.headers.get('accept-ranges'), 'bytes')
     assert.equal(await response.text(), 'video bytes')
     assert.equal(mediaRange, 'bytes=0-10')
-    assert.match(mediaUrl, /\/files\/private-drive-id\?alt=media$/)
+    assert.equal(new URL(mediaUrl).pathname, '/drive/v3/files/private-drive-id')
+    assert.equal(new URL(mediaUrl).searchParams.get('alt'), 'media')
+    assert.equal(new URL(mediaUrl).searchParams.get('supportsAllDrives'), 'true')
   } finally { restore() }
 })
 
@@ -212,3 +216,93 @@ test('Drive client evicts revoked cached OAuth token on 401 and retries once wit
     assert.equal(driveAttempts, 2)
   } finally { restore(); clearDriveVideoState() }
 })
+
+function sqliteBinding(db, statements) {
+  return {
+    prepare(sql) {
+      statements.push(sql)
+      const stmt = db.prepare(sql)
+      const bound = args => ({
+        first: async () => stmt.get(...args),
+        run: async () => stmt.run(...args),
+      })
+      return { ...bound([]), bind: (...args) => bound(args) }
+    },
+  }
+}
+
+for (const minute of [100, 101]) {
+  test(`missing preview D1 table is repaired and still enforces shared limits (minute ${minute})`, async t => {
+    clearDriveVideoState()
+    t.mock.method(Date, 'now', () => minute * 60_000)
+    const db = new DatabaseSync(':memory:')
+    const statements = []
+    const env = { ...credentials('bootstrap'), RATE_SHIELD: sqliteBinding(db, statements) }
+    const restore = stubFetch(async input => String(input).includes('/token')
+      ? Response.json({ access_token: 'test-token' })
+      : Response.json({ files: [{ id: 'clip', name: clipFilename('IVE', 'Looks Can Kill'), mimeType: 'video/mp4', parents: [folderId] }] }))
+    try {
+      for (let i = 0; i < DRIVE_RATE_LIMITS.find; i++) {
+        assert.equal((await driveVideoFindRoute(request('find'), env)).status, 200)
+      }
+      const limited = await driveVideoFindRoute(request('find'), env)
+      assert.equal(limited.status, 429)
+      assert.equal(statements.filter(sql => sql.startsWith('CREATE TABLE')).length, 1)
+      assert.equal(db.prepare('SELECT requests FROM drive_video_rate_limits').get().requests, 31)
+      const migrationDb = new DatabaseSync(':memory:')
+      try {
+        migrationDb.exec(readFileSync(new URL('./migrations/0002_drive_video_rate_limit.sql', import.meta.url), 'utf8'))
+        const schema = database => database.prepare("SELECT sql FROM sqlite_master WHERE name = 'drive_video_rate_limits'").get().sql.replace(/\s+/g, ' ').trim()
+        assert.equal(schema(db), schema(migrationDb), 'bootstrap must match migration 0002')
+      } finally { migrationDb.close() }
+      // Streaming uses its own counter, not the exhausted find counter.
+      assert.equal((await driveVideoStreamRoute(request('stream', 'HEAD'), env)).status, 200)
+    } finally { restore(); db.close(); clearDriveVideoState() }
+  })
+}
+
+for (const cause of ['D1 unavailable', 'no such table: another_table', 'no such table: drive_video_rate_limits']) {
+  test(`D1 failure stays closed without leaking internals: ${cause}`, async () => {
+    clearDriveVideoState()
+    let creates = 0
+    const env = { ...credentials('broken-d1'), RATE_SHIELD: {
+      prepare(sql) {
+        if (sql.startsWith('CREATE TABLE')) { creates++; throw new Error('not authorized') }
+        throw new Error(cause)
+      },
+    } }
+    const restore = stubFetch(() => { throw new Error('must not reach Drive') })
+    try {
+      const response = await driveVideoFindRoute(request('find'), env)
+      assert.equal(response.status, 503)
+      assert.deepEqual(await response.json(), { error: 'drive_rate_limit_unavailable' })
+      assert.equal(creates, cause.endsWith(': drive_video_rate_limits') ? 1 : 0)
+      const head = await driveVideoStreamRoute(request('stream', 'HEAD'), env)
+      assert.equal(head.status, 503)
+      assert.equal(await head.text(), '')
+    } finally { restore(); clearDriveVideoState() }
+  })
+}
+
+for (const [upstream, expected] of [
+  ['oauth', 'drive_auth_failed'],
+  ['forbidden', 'drive_access_denied'],
+  ['malformed', 'drive_unavailable'],
+  ['empty', 'clip_not_found'],
+]) {
+  test(`finder distinguishes ${upstream} from a missing clip`, async () => {
+    clearDriveVideoState()
+    const restore = stubFetch(async input => {
+      if (String(input).includes('/token')) return upstream === 'oauth'
+        ? Response.json({ error: 'invalid_grant', error_description: 'private detail' }, { status: 400 })
+        : Response.json({ access_token: 'test-token' })
+      if (upstream === 'forbidden') return new Response('private detail', { status: 403 })
+      return Response.json(upstream === 'malformed' ? {} : { files: [] })
+    })
+    try {
+      const response = await driveVideoFindRoute(request('find'), credentials(upstream))
+      assert.equal(response.status, upstream === 'empty' ? 404 : upstream === 'oauth' ? 503 : 502)
+      assert.deepEqual(await response.json(), { error: expected })
+    } finally { restore(); clearDriveVideoState() }
+  })
+}
