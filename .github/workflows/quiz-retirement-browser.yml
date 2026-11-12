@@ -71,13 +71,15 @@ jobs:
       EDGE_URL: ${{ inputs.edge_url || 'https://chaereve.pages.dev' }}
       LIVE_URL: ${{ inputs.live_url || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Token của sandbox không có `actions:write` nên `gh workflow run` trả 403:
       # PUSH là cách duy nhất còn lại để chạy job này, mà push thì không truyền
       # được input. Vì vậy URL cần smoke đọc từ tệp .github/live-smoke-target
       # (xem ghi chú trong tệp đó). Input của workflow_dispatch vẫn được ưu tiên.
       - name: Đọc URL live smoke từ .github/live-smoke-target
+        env:
+          INPUT_EDGE_URL: ${{ inputs.edge_url }}
         run: |
           TARGET=$(grep -v '^[[:space:]]*#' .github/live-smoke-target 2>/dev/null | grep -m1 -v '^[[:space:]]*$' | tr -d ' \r' || true)
           if [ -n "$LIVE_URL" ]; then
@@ -94,7 +96,16 @@ jobs:
             echo "không có URL live smoke: chỉ chạy edge + Chromium cục bộ"
           fi
 
-      - uses: actions/setup-node@v4
+          # Dấu vết bundle mới không thể có trên production khi PR chưa merge.
+          # Push nhánh arena không truyền input: bỏ edge check production để job
+          # không đỏ oan vì bản cũ; vẫn chạy Chromium cục bộ trên dist của commit.
+          # Main hoặc dispatch có edge_url riêng thì vẫn kiểm edge như cũ.
+          if [[ "$GITHUB_REF_NAME" == arena/* && -z "$INPUT_EDGE_URL" ]]; then
+            echo "EDGE_URL=" >> "$GITHUB_ENV"
+            echo "bỏ edge check production cho PR: production chưa có commit này"
+          fi
+
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -106,7 +117,19 @@ jobs:
       - name: Cài Playwright + Chromium
         run: |
           npm i --no-save playwright@1.49.1
-          npx playwright install --with-deps chromium
+          # Tách dependency hệ thống khỏi lượt tải browser: CDN Playwright đôi
+          # khi reset kết nối. Cài deps một lần, rồi retry riêng lượt tải browser.
+          npx playwright install-deps chromium
+          ok=0
+          for i in 1 2 3; do
+            if npx playwright install chromium; then ok=1; break; fi
+            echo "Lượt tải Chromium $i thất bại; thử lại sau 15s..."
+            sleep 15
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Không tải được Chromium sau 3 lượt. Đây là lỗi hạ tầng cài đặt, không phải kết luận app hỏng."
+            exit 1
+          fi
 
       - name: Dựng bundle production
         run: npm run build
@@ -117,10 +140,23 @@ jobs:
       - name: Kiểm tra tương thích trình duyệt của bundle
         run: npm run check:browser-compat
 
+      # Lượt CHẠY LUÔN, không phụ thuộc EDGE_URL/LIVE_URL: đây là lượt duyệt dist
+      # của chính commit này (bố cục 1280/1440/390, cuộn cửa sổ, Back to top,
+      # công tắc tạm dừng pick). Trước đây nó nằm chung bước --edge nên khi bỏ
+      # edge cho nhánh arena thì cả lượt Chromium bị skip → job XANH mà không
+      # kiểm gì. Xanh giả là kiểu hỏng tệ nhất; bước này vì thế không có `if`.
+      - name: Kiểm chứng bằng Chromium trên dist của commit (desktop + mobile)
+        run: node tools/browserSmoke.mjs --out artifacts
+
+      # Xuất annotation NGAY: các lượt edge/live bên dưới ghi đè cùng tệp json.
+      - name: Xuất kết quả lượt dist thành annotation
+        if: always()
+        run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "dist" --commit "$GITHUB_SHA"
+
       # Bước này ngoài /quiz + /daily-login còn tải asset edge đang phục vụ và đối
       # chiếu dấu vết trong .github/edge-bundle-markers.txt: đỏ nghĩa là bản deploy
       # chưa lên CDN (hoặc đã lên nhưng là bundle cũ) → DỪNG, đừng chạy tiếp bước sau.
-      - name: Kiểm chứng bằng Chromium (desktop + mobile), slug routes tại edge và bundle đang phục vụ
+      - name: Kiểm chứng slug routes tại edge và bundle đang phục vụ
         if: env.EDGE_URL != ''
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
 
@@ -178,13 +214,15 @@ jobs:
         # LIVE_URL chỉ dùng khi được truyền tay: mở site thật như một khách,
         # không bấm gì, không đăng nhập.
 
+      # Chỉ gắn nhãn "live smoke" khi lượt live thật sự chạy: không có nó thì tệp
+      # json còn lại là của lượt dist, dán nhãn live là đọc sai bằng chứng.
       - name: Xuất kết quả live smoke thành annotation
-        if: always()
+        if: always() && env.LIVE_URL != ''
         run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "live smoke" --commit "$GITHUB_SHA"
 
       - name: Lưu ảnh chụp + log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quiz-retirement-browser
           path: artifacts/

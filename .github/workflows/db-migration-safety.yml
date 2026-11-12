@@ -39,9 +39,9 @@ jobs:
       DAILY_SPIN_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
       COMMENTS_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -100,6 +100,7 @@ jobs:
         run: |
           npm run test:voteback:pglite
           npm run test:migration:pglite
+          npm run test:pick-pause:pglite
 
       # Dựng bản production + chạy jsdom smoke đầy đủ trên mỗi PR/push.
       - name: Production build & DOM smoke
@@ -115,7 +116,7 @@ jobs:
 
       - name: Lưu bảng bằng chứng
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: revoked-rpc-client-view
           path: artifacts/revoked-rpc-client-view.json

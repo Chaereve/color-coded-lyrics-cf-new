@@ -12,7 +12,7 @@ anything.
 | --- | --- |
 | Is there a migration runner in CI? | **No automatic production deploy.** `.github/workflows/` runs read-only safety checks (`db-migration-safety.yml` on Postgres 17 + PGlite), manual read-only planning (`db-plan-production.yml`), browser/edge smoke (`quiz-retirement-browser.yml`), and scheduled verified backups (`backup-db.yml`). Production SQL is applied deliberately via `npm run db:deploy`. |
 | Is the Supabase CLI configured? | **No.** There is no `supabase/config.toml` and no `supabase link`. |
-| How do migrations get applied today? | Via the guarded Node runner (`npm run db:plan` then `npm run db:deploy` against `SUPABASE_DB_URL`), which verifies the baseline through `20261120` and applies pending migrations through `20261222_achievement_pick_fix.sql` in order while quarantining `20261118`. |
+| How do migrations get applied today? | Via the guarded Node runner (`npm run db:plan` then `npm run db:deploy` against `SUPABASE_DB_URL`), which verifies the baseline through `20261120` and applies pending migrations through `20261223_pick_pause.sql` in order while quarantining `20261118`. |
 | What is `supabase/schema.sql`? | The assembled fresh-install baseline through `20261120`; it is cut verbatim into `supabase/setup/01`–`16`. The data-dependent `20261121_vote_calendar_decoupling.sql` and the ACL-only `20261122_disable_daily_quiz_runtime.sql` deliberately stay out of that manual bundle and are applied by the guarded runner only. |
 | Is there a migration history table? | Not in the app schema/setup bundle. The guarded runner creates `supabase_migrations.schema_migrations` after baseline verification and writes each migration row atomically; a pre-existing Supabase CLI history is also recognized. Migration 20261121 refuses to run without that table and its required source-state rows; 20261122 additionally refuses to run until 20261121 is recorded. |
 
@@ -515,7 +515,7 @@ ignored rows separately.
 | 1 | `npm run backup:db` | backup file exists |
 | 2 | `npm run db:verify-baseline` (no `--baseline`) | identifies the mode |
 | 3 | `npm run db:verify-baseline -- --baseline <mode's version>` | prints `READY` |
-| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then the fail-closed `20261121` … `20261125` chain |
+| 4 | `npm run db:deploy -- --baseline <mode's version>` | records the verified baseline; applies `20261119`/`20261120` when pending, then the post-baseline chain through `20261223_pick_pause.sql` |
 | 5 | queries in section 6 | histogram unchanged, 0 reward CHECKs, 1 trigger |
 | 6 | deploy the frontend in the same release | — |
 
@@ -573,6 +573,7 @@ answer = 1 vote, maximum 5 quiz votes per day, Daily Login awards 0.
 | 20261122 quiz door must be reopened (coordinated frontend rollback) | After separate approval, run `supabase/rollback/20261122_disable_daily_quiz_runtime.sql`. It restores `EXECUTE` to `authenticated` on the four entry points that had it, keeps the legacy single-shot closed, and aborts if the revoke is not the live state or the Calendar API is missing. It does not re-enable quiz awards or the route, and it touches no quiz row. |
 | 20261123 reconcile caused a regression | After separate approval, run `supabase/rollback/20261123_reconcile_security_drift.sql`. It restores the policy text, the `request_comments` ACL and the index definition recorded in the migration's own comment (the ACL never comes back wider than it was), re-grants the legacy `create_request` overload, and aborts unless the reconciled state is live. It reopens a weaker policy and a legacy function surface — only use it for a real incident, and prefer fixing forward with a new migration. |
 | 20261124 daily free votes must be retired again | After separate approval, run `supabase/rollback/20261124_restore_daily_free_votes.sql`. It restores exactly the policy recorded in the comment of `public.daily_vote_quota_config` (in production the retired `false` + `3`), in both config copies, and aborts unless the 20261124 state is live. It touches no wallet, vote row, check-in row or ledger row, and it clears the record so it cannot be replayed. Prefer fixing forward with a new migration; do not re-run 20261124. |
+| 20261223 pick pause must be removed | After separate approval and a coordinated frontend rollback, run `supabase/rollback/20261223_pick_pause.sql`. It drops `admin_set_pick_paused`, restores the ungated `pick_top_request`, strips `paused`/`paused_at` from `settings.pick`, keeps audit rows and publication membership. The automatic picker resumes on the old schedule; hide/remove the admin switch in the same release. |
 | Wrong data written by a new migration | Write a **new** migration that corrects it. Never edit a file that may already have been applied anywhere. |
 | A destructive statement must be removed from the path | Move it to `supabase/migrations/archive/`, add it to `archive/quarantine.json`, remove its mirror from `schema.sql`, re-run `npm run schema:split`, and keep the repair as a new append-only migration. |
 | 20261118 already ran | Mode D above. Zeroed rows are not restorable from the database alone — use the backup taken before it ran, or the administrator-only repair migration in `20261120`. |
@@ -835,6 +836,24 @@ chúng trên database chưa chạy bản này.
 
 Kiểm chứng: PGlite — dựng bảng + 7 hàm + 4 dòng tin, chạy file **hai lần liên
 tiếp**: bảng và 7 hàm biến mất, chỉ còn tin `approved`.
+
+## 20261223 — Công tắc tạm dừng chốt request tự động
+
+Append-only, một transaction, rerunnable, không thuộc fresh-install bundle.
+Không thêm bảng/cột; chỉ thêm khoá `paused`/`paused_at` vào `settings.pick` và
+một RPC admin.
+
+| File | Vai trò |
+| --- | --- |
+| `20261223_pick_pause.sql` | `admin_set_pick_paused(boolean)` kiểm `auth.uid()` + `is_admin()`, khoá dòng `settings.pick`, đổi trạng thái idempotent và ghi một dòng `admin_actions` loại `pick_pause` cho mỗi lần đổi thật. `pick_top_request(force)` trả về ngay khi `paused=true` và `force=false`, không dời `last_pick_at`/`next_pick_at`. `admin_pick`/`admin_pick_group` và đường SQL `force=true` vẫn là ngoại lệ chủ đích. Thêm `public.settings` vào publication `supabase_realtime` nếu có để tab đang mở thấy công tắc. |
+| `supabase/rollback/20261223_pick_pause.sql` | Drop RPC admin, khôi phục `pick_top_request` không cổng tạm dừng, bỏ `paused`/`paused_at`; giữ nhật ký và publication membership. Chỉ chạy sau khi được duyệt riêng cùng bản frontend gỡ/ẩn công tắc. |
+
+Phía web: thẻ **Automatic pick** trong Admin → Tổng quan gọi RPC qua
+`adminSetPickPaused`; Countdown và chú thích bảng public hiện trạng thái
+Paused. Demo Mode lưu cùng hình dạng trong `localStorage`, không gọi
+Supabase. Kiểm chứng: `npm run test:pick-pause:pglite` (admin-only, anon bị
+từ chối, cron bị chặn, lịch không đổi, audit idempotent, resume/manual/force,
+replay và tạo lại dòng cấu hình thiếu).
 
 ## Mục "Đã pick" trong bảng quản trị (không cần migration)
 

@@ -77,6 +77,7 @@ export const MEDIA_KINDS = ['featured', 'video', 'playlist']
 const LS = {
   user: 'ccl3_user', rows: 'ccl3_rows', votes: 'ccl3_votes', orders: 'ccl3_orders',
   prof: 'ccl3_prof', media: 'ccl3_media', spins: 'ccl3_spins',
+  pick: 'ccl3_pick',
 }
 
 /*
@@ -1680,6 +1681,45 @@ export async function adminPickMany(ids = [], picked = true) {
   if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await adminPickGroup(id, picked)
   return uniq.length
+}
+
+/* CÔNG TẮC TẠM DỪNG CHỐT TỰ ĐỘNG
+   --------------------------------
+   Đọc cùng một bản ghi `settings.pick` mà đồng hồ công khai dùng. Ghi phải đi
+   qua RPC admin_set_pick_paused: hàm kiểm is_admin(), khóa dòng cấu hình và ghi
+   nhật ký ở server. Tuyệt đối không update bảng settings trực tiếp từ trình
+   duyệt — RLS hiện chỉ mở SELECT, và kể cả khi mở thêm cũng mất đường kiểm toán.
+
+   Demo Mode lưu cùng hình dạng dữ liệu trong localStorage để thử được công tắc
+   mà không cần Supabase. `paused_by` không có ở demo vì không có auth thật. */
+const DEMO_PICK = { interval_days: 4, last_pick_at: null, next_pick_at: null, paused: false }
+const normalizePick = (value) => {
+  const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  const days = Number(v.interval_days)
+  return {
+    ...DEMO_PICK, ...v,
+    interval_days: Number.isInteger(days) && days > 0 ? days : 4,
+    paused: v.paused === true,
+  }
+}
+
+export async function fetchPickSettings() {
+  if (!hasSupabase) return normalizePick(readData(LS.pick, DEMO_PICK))
+  const { data, error } = await readQuery(() => supabase.from('settings').select('value').eq('key', 'pick').maybeSingle())
+  if (error) throw rpcError(error)
+  return data?.value ? normalizePick(data.value) : null
+}
+
+export async function adminSetPickPaused(paused) {
+  if (typeof paused !== 'boolean') throw appError('err.pickPauseInvalid')
+  if (!hasSupabase) {
+    const next = normalizePick({ ...readData(LS.pick, DEMO_PICK), paused, paused_at: paused ? new Date().toISOString() : null })
+    wr(LS.pick, next)
+    return next
+  }
+  const { data, error } = await supabase.rpc('admin_set_pick_paused', { p_paused: paused })
+  if (error) throw rpcError(error)
+  return normalizePick(data)
 }
 
 export async function adminOrder(orderId, approve) {

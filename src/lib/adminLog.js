@@ -16,7 +16,7 @@ export const ADMIN_ACTIONS_PER_PAGE = 20
 /* Thứ tự ưu tiên khi một lần ghi đổi nhiều thứ: việc nặng nhất đứng trước. */
 export const ACTION_PRIORITY = [
   'delete', 'deny', 'approve', 'complete', 'pick', 'unpick', 'requeue',
-  'order', 'rename', 'edit', 'progress', 'video',
+  'order', 'pick_pause', 'rename', 'edit', 'progress', 'video',
 ]
 
 export const ACTION_LABEL = {
@@ -28,6 +28,7 @@ export const ACTION_LABEL = {
   unpick: 'adm.log.unpick',
   requeue: 'adm.log.requeue',
   order: 'adm.log.order',
+  pick_pause: 'adm.log.pickPause',
   rename: 'adm.log.rename',
   edit: 'adm.log.edit',
   progress: 'adm.log.progress',
@@ -51,6 +52,7 @@ export const FIELD_LABEL = {
   done_edit: 'adm.log.f.edit',
   progress: 'adm.log.f.progress',
   deny_reason: 'adm.log.f.reason',
+  paused: 'adm.log.f.paused',
 }
 
 /* `detail` từ SQL là jsonb: { status: ['pending','queued'], … } (cặp cũ → mới)

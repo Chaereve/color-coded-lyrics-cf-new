@@ -416,6 +416,7 @@ export default function AdminPanel({
   onReview, onUpdate, onDelete, onExpire, onOrder, onPick, onBulk, onEdit,
   onMediaSave, onMediaCommit, onMediaDelete, onMediaReorder, onMediaViewHome,
   onSettleSeason = null,
+  onSetPickPaused = null, pickPaused = false,
   pickInterval = 4,
 }) {
   const { t } = useI18n()
@@ -441,6 +442,23 @@ export default function AdminPanel({
     finally {
       setOrderBusy(prev => { const next = new Set(prev); next.delete(id); return next })
     }
+  }
+  const [pickPauseBusy, setPickPauseBusy] = useState(false)
+  const [pickPauseError, setPickPauseError] = useState('')
+  const runPickPause = async () => {
+    if (!onSetPickPaused || pickPauseBusy) return
+    const next = !pickPaused
+    const ok = await ask({
+      title: t(next ? 'adm.pickPauseConfirmTitle' : 'adm.pickResumeConfirmTitle'),
+      body: t(next ? 'adm.pickPauseConfirmBody' : 'adm.pickResumeConfirmBody'),
+      confirmLabel: t(next ? 'adm.pickPause' : 'adm.pickResume'),
+    })
+    if (!ok) return
+    setPickPauseBusy(true)
+    setPickPauseError('')
+    try { await onSetPickPaused(next) }
+    catch (e) { setPickPauseError(errMsg(t, e)) }
+    finally { setPickPauseBusy(false) }
   }
   const [seasonBusy, setSeasonBusy] = useState(null)
   const runSettleSeason = async (period) => {
@@ -1329,6 +1347,20 @@ export default function AdminPanel({
                   )}
                 </>
               )}
+            </div>
+
+            <div className="adm-ov-card adm-pick-card">
+              <h3>{t('adm.ov.autoPick')}</h3>
+              <p className="adm-ov-lead">{t(pickPaused ? 'adm.pickPaused' : 'adm.pickRunning')}</p>
+              <p className="adm-ov-sub">{t('adm.pickPauseHint', { n: pickInterval })}</p>
+              <button type="button" role="switch" aria-checked={pickPaused}
+                className={`adm-switch${pickPaused ? ' on' : ''}`}
+                disabled={!onSetPickPaused || pickPauseBusy}
+                onClick={runPickPause}>
+                <span className="adm-switch-track" aria-hidden="true"><i /></span>
+                <span>{t(pickPaused ? 'adm.pickResume' : 'adm.pickPause')}</span>
+              </button>
+              {pickPauseError && <p className="adm-ov-warn" role="alert">{pickPauseError}</p>}
             </div>
 
             <div className="adm-ov-card">
