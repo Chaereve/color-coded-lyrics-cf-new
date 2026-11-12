@@ -140,10 +140,23 @@ jobs:
       - name: Kiểm tra tương thích trình duyệt của bundle
         run: npm run check:browser-compat
 
+      # Lượt CHẠY LUÔN, không phụ thuộc EDGE_URL/LIVE_URL: đây là lượt duyệt dist
+      # của chính commit này (bố cục 1280/1440/390, cuộn cửa sổ, Back to top,
+      # công tắc tạm dừng pick). Trước đây nó nằm chung bước --edge nên khi bỏ
+      # edge cho nhánh arena thì cả lượt Chromium bị skip → job XANH mà không
+      # kiểm gì. Xanh giả là kiểu hỏng tệ nhất; bước này vì thế không có `if`.
+      - name: Kiểm chứng bằng Chromium trên dist của commit (desktop + mobile)
+        run: node tools/browserSmoke.mjs --out artifacts
+
+      # Xuất annotation NGAY: các lượt edge/live bên dưới ghi đè cùng tệp json.
+      - name: Xuất kết quả lượt dist thành annotation
+        if: always()
+        run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "dist" --commit "$GITHUB_SHA"
+
       # Bước này ngoài /quiz + /daily-login còn tải asset edge đang phục vụ và đối
       # chiếu dấu vết trong .github/edge-bundle-markers.txt: đỏ nghĩa là bản deploy
       # chưa lên CDN (hoặc đã lên nhưng là bundle cũ) → DỪNG, đừng chạy tiếp bước sau.
-      - name: Kiểm chứng bằng Chromium (desktop + mobile), slug routes tại edge và bundle đang phục vụ
+      - name: Kiểm chứng slug routes tại edge và bundle đang phục vụ
         if: env.EDGE_URL != ''
         run: node tools/browserSmoke.mjs --edge "$EDGE_URL" --out artifacts
 
@@ -201,8 +214,10 @@ jobs:
         # LIVE_URL chỉ dùng khi được truyền tay: mở site thật như một khách,
         # không bấm gì, không đăng nhập.
 
+      # Chỉ gắn nhãn "live smoke" khi lượt live thật sự chạy: không có nó thì tệp
+      # json còn lại là của lượt dist, dán nhãn live là đọc sai bằng chứng.
       - name: Xuất kết quả live smoke thành annotation
-        if: always()
+        if: always() && env.LIVE_URL != ''
         run: node tools/browserSmokeAnnotations.mjs --in artifacts/browser-smoke.json --label "live smoke" --commit "$GITHUB_SHA"
 
       - name: Lưu ảnh chụp + log
