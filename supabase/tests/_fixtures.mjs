@@ -45,6 +45,7 @@ export const POST_20261125 = [
   '20261220_review_notify_privacy_fix',
   '20261221_notification_inbox_fix',
   '20261222_achievement_pick_fix',
+  '20261223_pick_pause',
 ]
 
 const SCAFFOLD = `

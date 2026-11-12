@@ -65,7 +65,7 @@ import {
   fetchActivityDays, touchMyActivity, fetchNotifications, markNotificationsRead, dismissNotification, adminExpireRequest, settleCurrentSeasonRewards,
   fetchRecentVotes,
   addRequest, castVote, deleteRequest, buyVotes,
-  adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder,
+  adminReview, adminUpdateMany, adminOrder, adminPickGroup, cancelOrder, fetchPickSettings, adminSetPickPaused,
   adminReviewMany, adminDeleteMany, adminPickMany, adminEditRequest,
   saveMedia, deleteMedia, deleteMediaMany, reorderMedia, FREE_VOTES_PER_DAY, PAID_REQUEST,
 } from './lib/db'
@@ -1062,16 +1062,21 @@ function AppInner() {
      trên mốc đầu nội dung, với ngưỡng 520px nằm ở rootMargin. Cách cũ là
      nghe sự kiện scroll rồi setState mỗi khung hình: cuộn một màn hình là
      hàng chục lần React phải so sánh state, trong khi thứ duy nhất đổi là
-     một chữ "on" ở một nút. Observer chỉ báo đúng lúc vượt ngưỡng. */
+     một chữ "on" ở một nút. Observer chỉ báo đúng lúc vượt ngưỡng.
+
+     Phải chạy lại khi `booting` tắt: lúc màn chờ còn dựng, `.top-sentinel`
+     chưa nằm trong cây nên ref là null. Effect một lần duy nhất sẽ thoát ở
+     đó và không bao giờ gắn observer nữa — nút vẫn ẩn dù cửa sổ đã cuộn. */
   useEffect(() => {
+    if (booting) return undefined
     const el = topSentinelRef.current
-    if (!el || !('IntersectionObserver' in window)) return
+    if (!el || !('IntersectionObserver' in window)) return undefined
     const io = new IntersectionObserver(
       ([e]) => setShowTop(!e.isIntersecting),
       { rootMargin: '520px 0px 0px 0px' })
     io.observe(el)
     return () => io.disconnect()
-  }, [])
+  }, [booting])
 
   /* VẠCH TIẾN ĐỘ CUỘN ĐÃ BỊ GỠ (vòng 16).
      Nó là một vạch 2px gradient chạy ngang đỉnh màn hình, và có hai lý do để
@@ -1203,34 +1208,32 @@ function AppInner() {
   }, [])
   useEffect(() => { loadMedia() }, [loadMedia])
 
-  /* cấu hình chốt request định kỳ — bảng settings đọc công khai */
+  /* Cấu hình chốt request định kỳ — đọc công khai, ghi qua RPC admin có nhật ký.
+     Demo Mode cũng đọc được để thử công tắc tạm dừng mà không cần Supabase. */
   const loadPick = useCallback(async () => {
-    if (!hasSupabase) return
-    try {
-      const { data, error } = await supabase.from('settings').select('value').eq('key', 'pick').maybeSingle()
-      if (error) { console.warn('[pick] settings:', error.message); return }
-      setPick(data?.value || null)
-    } catch (e) { console.warn('[pick]', e) }
+    try { setPick(await fetchPickSettings()) }
+    catch (e) { console.warn('[pick]', e) }
   }, [])
   useEffect(() => { loadPick() }, [loadPick])
 
-  /* Đồng hồ "Next pick" không được kẹt ở "any moment…": khi mốc next_pick_at
-     sắp tới hoặc đã qua mà chưa có lượt chốt mới ghi mốc kế tiếp (cron chưa
-     chạy, admin chưa chốt tay…), cứ ~30s hỏi lại settings một lần. Có mốc
-     mới là dừng hỏi và đếm tiếp bình thường. */
+  /* Công tắc tạm dừng phải tới cả tab đang mở, không chỉ lần F5 sau. Realtime là
+     đường chính; vòng poll 30s bên dưới là đường lui khi socket chưa nối lại. */
   useEffect(() => {
-    if (!hasSupabase || section !== 'board' || !pick) return
-    let t = 0
-    const sync = async () => {
-      const to = pick?.next_pick_at ? new Date(pick.next_pick_at).getTime() : null
-      /* Thiếu mốc, hoặc mốc sắp tới / đã qua → hỏi lại settings cho tới khi
-         có mốc mới ở tương lai thì thôi. */
-      if (to == null || to - Date.now() <= 60_000) await loadPick()
-      t = setTimeout(sync, 30_000)
-    }
-    sync()
-    return () => clearTimeout(t)
-  }, [section, pick, loadPick])
+    if (!hasSupabase) return undefined
+    const ch = supabase.channel('live-pick')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'key=eq.pick' }, () => loadPick())
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [loadPick])
+
+  /* Đồng hồ "Next pick" không được kẹt ở "any moment…", và trạng thái tạm dừng
+     cũng không được kẹt ở bản cũ. Một dòng settings mỗi 30s khi đang ở Bảng là
+     rẻ hơn nhiều so với việc người dùng phải F5 mới biết admin đã dừng chốt. */
+  useEffect(() => {
+    if (!hasSupabase || section !== 'board') return undefined
+    const id = setInterval(() => { if (!document.hidden) loadPick() }, 30_000)
+    return () => clearInterval(id)
+  }, [section, loadPick])
 
   const load = useCallback(async (u = user) => {
     if (!u) return
@@ -2127,6 +2130,13 @@ function AppInner() {
     try { await adminOrder(id, ok); await load(user); flash('ok', ok ? t('toast.orderOk') : t('toast.orderNo')) }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
+  const doSetPickPaused = async (paused) => {
+    try {
+      const next = await adminSetPickPaused(paused)
+      setPick(next)
+      flash('ok', t(paused ? 'toast.pickPaused' : 'toast.pickResumed'))
+    } catch (e) { flash('err', errMsg(t, e)); throw e }
+  }
   const doSettleSeason = async (seasonType) => {
     try {
       const settled = await settleCurrentSeasonRewards(seasonType)
@@ -2434,6 +2444,9 @@ function AppInner() {
             <MediaShowcase videos={latest} state={mediaState}
               canEdit={user?.isAdmin} onAdd={() => openAdmin('media')} onRetry={loadMedia} />
 
+            {/* Một ô lưới `now` cho cả This week lẫn Up next — xem .board-now
+                trong index.css. Hai khối không được cùng nhận grid-area:now. */}
+            <div className="board-now">
             {(weeklyHighlights.top || weeklyHighlights.newcomer || hasWeeklyRecap || hallOfFame.length > 0) && (
               <section className="nowbar weekly" data-reveal aria-labelledby="weekly-title">
                 <div className="weekly-head">
@@ -2632,7 +2645,7 @@ function AppInner() {
                       chỉ vào bảng đó và nói "bỏ"). Câu quy tắc giữ lại vì nó là
                       thông tin, không phải phần giải thích mở rộng. */}
                   <div className="now-rule">
-                    <span>{t('now.pickRule', { n: pick?.interval_days || 4 })}</span>
+                    <span>{t(pick?.paused === true ? 'now.pickRulePaused' : 'now.pickRule', { n: pick?.interval_days || 4 })}</span>
                   </div>
                   {pickedGroups.length > NOW_SHOW + 1 && (
                     <button type="button" className="btn btn-sm now-more" onClick={showAllPicked}>
@@ -2642,6 +2655,7 @@ function AppInner() {
                 </div>
               </div>
             }
+            </div>{/* /.board-now */}
 
             {/* ---- YOUR VOTES ----------------------------------------------------
                 Ba khối thông tin cũ (bốn ô kẻ viền bằng nhau + một dòng "3 / 3")
@@ -3084,6 +3098,8 @@ function AppInner() {
                 onMediaDelete={doMediaDelete} onMediaReorder={doMediaReorder}
                 onMediaViewHome={viewMediaHome}
                 onSettleSeason={doSettleSeason}
+                onSetPickPaused={doSetPickPaused}
+                pickPaused={pick?.paused === true}
                 pickInterval={pick?.interval_days || 4}
               />
             </Suspense>

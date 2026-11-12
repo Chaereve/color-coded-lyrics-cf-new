@@ -30,9 +30,15 @@ const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></
 const { window } = dom
 
 class IO {
-  constructor(cb) { this.cb = cb }
-  observe(el) { this.cb([{ isIntersecting: true, target: el, boundingClientRect: { top: 0 } }], this) }
-  unobserve() {} disconnect() {} takeRecords() { return [] }
+  static instances = new Set()
+  constructor(cb) { this.cb = cb; this.targets = new Set(); IO.instances.add(this) }
+  observe(el) {
+    this.targets.add(el)
+    this.cb([{ isIntersecting: true, target: el, boundingClientRect: { top: 0 } }], this)
+  }
+  unobserve(el) { this.targets.delete(el) }
+  disconnect() { this.targets.clear(); IO.instances.delete(this) }
+  takeRecords() { return [] }
 }
 window.IntersectionObserver = IO
 window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
@@ -216,6 +222,25 @@ const tSplash = Date.now()
 const gone = await waitFor(() => { const s = q('.splash'); return !s || s.classList.contains('hide') }, 6000)
 realLog(`  · màn chờ vào trạng thái ẩn sau ${Date.now() - tSplash} ms: ${gone}`)
 check('màn chờ tự tan (không kẹt)', gone, gone ? '' : `vẫn còn hiện sau ${Date.now() - tSplash} ms`)
+
+/* Regression 2026-11-12: observer của nút Back to top phải được gắn SAU khi
+   màn chờ nhường chỗ cho nội dung. Effect chạy lúc ref còn null rồi không chạy
+   lại sẽ để nút ẩn vĩnh viễn, dù window.scrollTo đã cuộn đúng. */
+{
+  const sentinel = q('.top-sentinel')
+  const topObs = [...IO.instances].find(o => sentinel && o.targets.has(sentinel))
+  check('Back to top có observer gắn vào mốc đầu nội dung sau màn chờ', !!topObs)
+  if (topObs && sentinel) {
+    await act(async () => { topObs.cb([{ isIntersecting: false, target: sentinel }], topObs) })
+    await tick()
+    const btn = q('.to-top')
+    check('cuộn qua ngưỡng thì Back to top hiện và đọc được cho trình đọc màn hình',
+      !!btn?.classList.contains('on') && btn.getAttribute('aria-hidden') === 'false' && btn.tabIndex === 0)
+    await act(async () => { topObs.cb([{ isIntersecting: true, target: sentinel }], topObs) })
+    await tick()
+    check('về đầu trang thì Back to top ẩn lại', !q('.to-top')?.classList.contains('on') && q('.to-top')?.getAttribute('aria-hidden') === 'true')
+  }
+}
 
 /* THÔNG BÁO: vùng `aria-live` phải có mặt từ đầu, TRƯỚC mẩu tin nào. Trình đọc
    màn hình chỉ đọc thay đổi bên trong một vùng live đã tồn tại — vùng được gắn

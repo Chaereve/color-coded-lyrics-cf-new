@@ -292,12 +292,13 @@ test('mục Đơn hàng có bộ lọc trạng thái và con số tiền đã nh
     'ba trạng thái có thật của bảng orders là nguồn duy nhất')
 })
 
-test('mục Tổng quan trả lời ba câu: còn gì phải làm · chờ bao lâu · đã thu bao nhiêu', async () => {
+test('mục Tổng quan trả lời bốn câu: còn gì phải làm · chờ bao lâu · chốt tự động · đã thu bao nhiêu', async () => {
   const html = await render({ ...base, tab: 'overview', pickInterval: 4 })
-  assert.match(html, /class="adm-ov"/, 'thiếu ba tấm thẻ tóm tắt')
+  assert.match(html, /class="adm-ov"/, 'thiếu các tấm thẻ tóm tắt')
   assert.match(html, /Waiting for you/, 'thiếu thẻ "còn gì phải làm"')
   assert.match(html, /Oldest request/, 'thiếu thẻ "bài chờ lâu nhất"')
   assert.match(html, /Money received/, 'thiếu thẻ doanh thu')
+  assert.match(html, /Automatic pick/, 'thiếu thẻ chốt tự động')
   /* Mỗi con số phải bấm được và dẫn sang đúng danh sách — con số đứng một mình
      thì admin vẫn phải tự tìm chỗ sửa. */
   assert.match(html, /class="adm-ov-num"/, 'số liệu phải là nút dẫn sang mục tương ứng')
@@ -306,6 +307,23 @@ test('mục Tổng quan trả lời ba câu: còn gì phải làm · chờ bao l
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
   assert.match(src, /onClick=\{\(\) => goTab\('pending'\)\}/, 'thẻ "chờ duyệt" phải dẫn sang mục Chờ duyệt')
   assert.match(src, /const oldestPending = useMemo/, 'tuổi bài chờ lâu nhất phải tính từ dữ liệu thật')
+})
+
+test('công tắc tạm dừng chốt tự động đọc đúng trạng thái và chỉ bật khi có handler', async () => {
+  const running = await render({ ...base, tab: 'overview', pickPaused: false, onSetPickPaused: () => {} })
+  assert.match(running, /role="switch"[^>]*aria-checked="false"/, 'đang chạy phải là switch tắt tạm dừng')
+  assert.match(running, /Pause picking/, 'đang chạy thì mời tạm dừng')
+  assert.doesNotMatch(running, /role="switch"[^>]*disabled/, 'có handler thì phải bấm được')
+
+  const paused = await render({ ...base, tab: 'overview', pickPaused: true, onSetPickPaused: () => {} })
+  assert.match(paused, /role="switch"[^>]*aria-checked="true"/, 'đang tạm dừng phải phản ánh đúng trạng thái')
+  assert.match(paused, /Resume picking/, 'đang tạm dừng thì mời chạy lại')
+
+  const readOnly = await render({ ...base, tab: 'overview', pickPaused: false })
+  assert.match(readOnly, /role="switch"[^>]*disabled/, 'thiếu handler ghi thì không được mời bấm')
+
+  const other = await render({ ...base, tab: 'pending', pickPaused: true, onSetPickPaused: () => {} })
+  assert.doesNotMatch(other, /role="switch"/, 'công tắc vận hành chỉ nằm ở Tổng quan')
 })
 
 test('bốn phím j/k/a/d và Enter có trong bảng quản trị, in ra chỗ dùng, và không cướp phím khi đang gõ', async () => {

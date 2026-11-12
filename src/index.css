@@ -4111,6 +4111,11 @@ html[data-section="spin"] .bgfx { display: none; }
 
 .board-list { display: flex; flex-direction: column; min-width: 0; }
 .board-list .pager { margin-top: 12px; }
+/* This week + Up next là HAI khối nhưng chung một ô lưới `now`. Trước đây cả
+   hai nhận grid-area:now nên Up next đè lên This week ở màn rộng. Bọc chúng
+   trong một cột flex: ô lưới chỉ có một phần tử, thứ tự dọc giữ đúng DOM. */
+.board-now { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.board-now > .nowbar { margin: 0; }
 
 @media (min-width: 1300px) {
   /* rộng hơn 1060px một chút để sau khi trừ cột video vẫn còn ~740px cho
@@ -4127,7 +4132,7 @@ html[data-section="spin"] .bgfx { display: none; }
     column-gap: 26px;
   }
   .board > .stats     { grid-area: stats; }
-  .board > .nowbar    { grid-area: now; }
+  .board > .board-now { grid-area: now; }
   .board > .votepanel { grid-area: votes; }
   .board > .board-list { grid-area: list; }
   .board > .pick      { grid-area: media; }
@@ -4409,9 +4414,9 @@ html[data-section="spin"] .bgfx { display: none; }
   .adm-funnel-acts { justify-content: flex-start; }
 }
 
-/* BA TẤM THẺ TÓM TẮT: còn gì phải làm · chờ bao lâu · tiền đã nhận. Mỗi con
-   số là một nút — bấm là sang đúng danh sách đã lọc. */
-.adm-ov { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+/* BỐN TẤM THẺ TÓM TẮT: còn gì phải làm · chờ bao lâu · chốt tự động · tiền đã
+   nhận. Mỗi con số là một nút — bấm là sang đúng danh sách đã lọc. */
+.adm-ov { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .adm-ov-card { display: grid; gap: 8px; align-content: start; padding: 13px 14px;
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
 .adm-ov-card h3 { margin: 0; color: var(--txt-3); font-size: 11.5px; font-weight: 600; }
@@ -4428,6 +4433,22 @@ html[data-section="spin"] .bgfx { display: none; }
 .adm-ov-sub { margin: 0; color: var(--txt-3); font-size: 11px; }
 .adm-ov-warn { margin: 0; color: var(--warn); font-size: 11.5px; font-weight: 600; }
 .adm-ov-card .btn { justify-self: start; }
+/* Công tắc tạm dừng chốt tự động: trạng thái đọc được cả khi không có màu. */
+.adm-switch { display: inline-flex; align-items: center; gap: 9px; justify-self: start;
+  padding: 6px 8px; border: 1px solid var(--line-2); border-radius: var(--radius);
+  background: var(--panel); color: var(--txt); font: 600 12px/1.3 var(--font); cursor: pointer; }
+.adm-switch:disabled { opacity: .55; cursor: not-allowed; }
+.adm-switch-track { position: relative; width: 34px; height: 20px; flex: none;
+  border-radius: var(--r-pill); background: var(--surface-3); border: 1px solid var(--line-2); }
+.adm-switch-track i { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--txt-2); transition: transform var(--t-1) var(--e-out), background var(--t-1) var(--e-soft); }
+.adm-switch.on .adm-switch-track { background: color-mix(in oklab, var(--warn) 24%, var(--panel));
+  border-color: color-mix(in oklab, var(--warn) 55%, transparent); }
+.adm-switch.on .adm-switch-track i { transform: translateX(14px); background: var(--warn); }
+.adm-switch:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.pick-cd.paused b { color: var(--warn); }
+@media (prefers-reduced-motion: reduce) { .adm-switch-track i { transition: none; } }
+@media (max-width: 1200px) { .adm-ov { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .adm-ov { grid-template-columns: 1fr; } }
 
 /* CÓ BÀI MỚI: một dải mỏng ngay trên bảng, không phải toast ở góc màn hình —
@@ -5229,7 +5250,10 @@ body {
    - Table keeps data visible, no clipped columns
    ========================================================= */
 html { overflow-x: hidden; }
-body { overflow-x: hidden; }
+/* body KHÔNG được overflow-x:hidden/auto/scroll: với height:100% ở trên, nó
+   biến body thành scroller riêng, window.scrollY đứng yên và nút Back to top /
+   phân trang gọi window.scrollTo không chạy. Cắt tràn ngang ở html là đủ. */
+body { overflow: visible; }
 .main, .board, .list, .lb, .nowbar, .votepanel, .pick, .hall, .weekly, .adm-panel, .public-profile,
 .daily-spin, .mystery-page, .daily-rewards { min-width: 0; }
 

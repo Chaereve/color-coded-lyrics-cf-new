@@ -342,6 +342,7 @@ mkdirSync(outDir, { recursive: true })
 const browser = await chromium.launch()
 const viewports = [
   { name: 'desktop-1280', width: 1280, height: 800 },
+  { name: 'desktop-1440', width: 1440, height: 1000 },
   { name: 'mobile-390', width: 390, height: 844 },
 ]
 for (const vp of viewports) {
@@ -456,6 +457,41 @@ for (const vp of viewports) {
       check(`${vp.name} · ${r.name}: không tràn ngang`, ovf <= 2, `${ovf}px`)
       const fresh = errors.slice(errorsBefore)
       check(`${vp.name} · ${r.name}: không lỗi console mới`, fresh.length === 0, fresh.slice(0, 2).join(' | '))
+
+      if (r.slug === 'board') {
+        /* Regression 2026-11-12: hai nowbar từng cùng grid-area:now và đè nhau
+           từ 1300px. Đo hình chữ nhật thật, không chỉ nhìn ảnh chụp. */
+        const layout = await page.evaluate(() => {
+          const weekly = document.querySelector('.nowbar.weekly')
+          const upnext = document.querySelector('.nowbar.upnext')
+          if (!weekly || !upnext) return { present: false }
+          const a = weekly.getBoundingClientRect()
+          const b = upnext.getBoundingClientRect()
+          const overlap = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
+          return { present: true, overlap, weeklyArea: getComputedStyle(weekly).gridArea, upnextArea: getComputedStyle(upnext).gridArea }
+        })
+        if (layout.present) {
+          check(`${vp.name}: This week và Up next không đè nhau`, layout.overlap <= 1,
+            `overlap=${layout.overlap.toFixed(1)}px · weekly=${layout.weeklyArea} · upnext=${layout.upnextArea}`)
+        }
+
+        /* Regression cuộn: body không được thành scroller riêng; window.scrollTo
+           và nút Back to top phải chạy trên cả mobile lẫn desktop. */
+        await page.evaluate(() => window.scrollTo({ top: 900, behavior: 'auto' }))
+        await page.waitForTimeout(350)
+        const scrolled = await page.evaluate(() => ({ y: window.scrollY, body: document.body.scrollTop }))
+        check(`${vp.name}: cửa sổ cuộn được, body không giữ scrollTop riêng`,
+          scrolled.y > 100 && scrolled.body <= 1, `window=${scrolled.y} · body=${scrolled.body}`)
+        try {
+          await page.waitForSelector('.to-top.on', { timeout: 5_000 })
+          await page.locator('.to-top').click()
+          await page.waitForFunction('window.scrollY <= 1', null, { timeout: 5_000 })
+          check(`${vp.name}: nút Back to top đưa cửa sổ về đầu`, true)
+        } catch (e) {
+          check(`${vp.name}: nút Back to top đưa cửa sổ về đầu`, false, String(e).slice(0, 160))
+        }
+      }
+
       await page.screenshot({ path: join(outDir, `route-${r.slug}-${vp.name}.png`), fullPage: true })
     } catch (e) {
       check(`${vp.name} · ${r.name}: chạy hết được kịch bản`, false, String(e).slice(0, 200))
@@ -497,6 +533,62 @@ for (const vp of viewports) {
     writeSummary()
   }
 }
+
+/* ---------- 4. công tắc tạm dừng pick request (chỉ bản dist DEMO) ----------
+   Đi đúng đường người dùng: đăng nhập demo admin → Tổng quan → xác nhận tạm
+   dừng → bảng public hiện Paused → quay lại bật chạy. Không gọi Supabase, không
+   ghi production; phần distIsDemo ở đầu đã chặn bundle thật trước khi tới đây. */
+try {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const page = await context.newPage()
+  const { errors, noise } = attachErrorTracking(page)
+  await page.goto(`${base}/daily-login`, { waitUntil: 'load' })
+  await page.waitForSelector('.signin-panel-btn, .daily-login-page', { timeout: 20_000 })
+  if (await page.locator('.signin-panel-btn').count()) {
+    await page.locator('.signin-panel-btn').first().click()
+    await page.waitForSelector('.gate-panel', { timeout: 10_000 })
+    await page.locator('.btn-google').first().click()
+  }
+  await page.waitForSelector('.daily-login-page', { timeout: 20_000 })
+
+  await page.goto(`${base}/admin?tab=overview`, { waitUntil: 'load' })
+  await page.waitForSelector('.adm-page [role="switch"]', { timeout: 20_000 })
+  const sw = page.locator('.adm-page [role="switch"]')
+  check('demo admin: Tổng quan có công tắc Automatic pick', (await sw.count()) === 1)
+  await sw.click()
+  /* ConfirmDialog đặt nút xác nhận cuối hàng nút; tone danger dùng .btn-no,
+     tone thường dùng .btn-ok. Chọn theo vị trí để không phụ thuộc màu. */
+  await page.waitForSelector('.dlg-acts .btn:last-child', { timeout: 5_000 })
+  await page.locator('.dlg-acts .btn:last-child').click()
+  await page.waitForFunction(() => document.querySelector('.adm-page [role="switch"]')?.getAttribute('aria-checked') === 'true', null, { timeout: 5_000 })
+  const pausedStored = await page.evaluate(() => JSON.parse(localStorage.getItem('ccl3_pick') || 'null'))
+  check('demo admin: xác nhận tạm dừng ghi đúng trạng thái demo', pausedStored?.paused === true,
+    JSON.stringify(pausedStored))
+  await page.screenshot({ path: join(outDir, 'admin-pick-paused.png'), fullPage: true })
+
+  await page.goto(`${base}/`, { waitUntil: 'load' })
+  await page.waitForSelector('.pick-cd.paused', { timeout: 10_000 })
+  const pausedText = await page.locator('.pick-cd.paused').innerText()
+  check('demo admin: bảng public hiện Paused thay vì đếm ngược', /Paused/i.test(pausedText),
+    pausedText.replace(/\s+/g, ' '))
+  await page.screenshot({ path: join(outDir, 'public-pick-paused.png'), fullPage: true })
+
+  await page.goto(`${base}/admin?tab=overview`, { waitUntil: 'load' })
+  await page.waitForSelector('.adm-page [role="switch"][aria-checked="true"]', { timeout: 20_000 })
+  await page.locator('.adm-page [role="switch"]').click()
+  await page.waitForSelector('.dlg-acts .btn:last-child', { timeout: 5_000 })
+  await page.locator('.dlg-acts .btn:last-child').click()
+  await page.waitForFunction(() => document.querySelector('.adm-page [role="switch"]')?.getAttribute('aria-checked') === 'false', null, { timeout: 5_000 })
+  const resumedStored = await page.evaluate(() => JSON.parse(localStorage.getItem('ccl3_pick') || 'null'))
+  check('demo admin: chạy lại đưa công tắc về trạng thái đang chạy', resumedStored?.paused === false,
+    JSON.stringify(resumedStored))
+  check('demo admin: bật/tắt pick không lỗi console', errors.length === 0,
+    errors.slice(0, 3).join(' | ') || (noise.length ? `(bỏ qua ${noise.length} lỗi tài nguyên ngoài của runner)` : ''))
+  await context.close()
+} catch (e) {
+  check('demo admin: luồng tạm dừng/chạy lại pick request', false, String(e).slice(0, 200))
+}
+
 await browser.close()
 server.close()
 

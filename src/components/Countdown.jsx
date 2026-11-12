@@ -35,6 +35,16 @@ export default function Countdown({ pick }) {
   useEffect(() => { const id = setInterval(() => tick(x => x + 1), 60_000); return () => clearInterval(id) }, [])
 
   const days = pick?.interval_days || 4
+  /* Tạm dừng là trạng thái vận hành, không phải "sắp chốt". Không hiện đồng hồ
+     đếm về 0 rồi `any moment…` khi cron đã bị chặn ở server. */
+  if (pick?.paused === true) {
+    return (
+      <div className="pick-cd paused" role="status">
+        <span>{t('now.pickPausedLbl')}</span>
+        <b>{t('now.pickPaused')}</b>
+      </div>
+    )
+  }
   const to = nextPickAt(pick)
   if (!to) {
     return (
