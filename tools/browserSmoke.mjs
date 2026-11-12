@@ -298,7 +298,7 @@ if (live) {
         const voteRows = votePages.flatMap(({ rows }) => Array.isArray(rows) ? rows : [])
         const votesResponse = votePages.find(({ response }) => response.ok())?.response || votePages[0]?.response || null
         await page.waitForTimeout(200)
-        const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
+        let weeklyLabels = await page.locator('.weekly-card small').allTextContents()
         const weeklyData = await page.locator('.board').evaluate(el => ({
           votes: el.getAttribute('data-weekly-votes'),
           top: el.getAttribute('data-weekly-top'),
@@ -310,6 +310,18 @@ if (live) {
         })
         check('live desktop: votes_received RPC trả lời được', Boolean(votesResponse?.ok()),
           `requests=${voteRequests.length} · HTTP ${votesResponse?.status() ?? (voteFailures.length ? `failed: ${voteFailures[0]}` : 'no response after 25s')} · ${voteRows.length} phiếu/${votePages.length} trang`)
+        /* The RPC response can land before React has rendered the weekly
+           cards (rows and votes arrive on separate loads). When this window
+           provably has votes, give the card a bounded chance to appear
+           before sampling the labels, so a render lag is not misread as a
+           missing "Most voted" card. */
+        if (recentVoteRows.length > 0 && !weeklyLabels.some(label => label.trim() === 'Most voted')) {
+          await page.waitForFunction(
+            "Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'Most voted')",
+            null, { timeout: 15_000 },
+          ).catch(() => {})
+          weeklyLabels = await page.locator('.weekly-card small').allTextContents()
+        }
         check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',
           Boolean(votesResponse?.ok()) && (recentVoteRows.length === 0 || weeklyLabels.some(label => label.trim() === 'Most voted')),
           `recent=${recentVoteRows.length}/${voteRows.length} · cards=${weeklyLabels.map(x => x.trim()).join(', ') || 'none'} · appVotes=${weeklyData.votes ?? '?'} · computedTop=${weeklyData.top ?? '?'} · requestRows=${weeklyData.requests ?? '?'}`)
