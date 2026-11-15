@@ -29,6 +29,15 @@ export const REQUEST_PAYMENT_CLASS = {
   awaiting: 'pending', paid: 'gold', bonus: 'bonus', unverified: 'queued',
 }
 
+/** Hạng ưu tiên hàng chờ: money đã thu > bonus đã tiêu > free.
+    Tiền đang chờ / legacy chưa xác minh KHÔNG được kéo lên hạng money. */
+export function requestPriorityRank(request) {
+  const state = requestPaymentState(request)
+  if (state === 'paid') return 2
+  if (state === 'bonus' && request?.payment_status === 'paid') return 1
+  return 0
+}
+
 export const orderExpiresAt = order => order?.expires_at || null
 export const isOrderExpired = (order, now = Date.now()) => {
   if (order?.status === 'expired') return true

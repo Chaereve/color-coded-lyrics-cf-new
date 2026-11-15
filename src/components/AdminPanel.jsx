@@ -21,7 +21,7 @@ import { here, putUrl } from '../lib/history'
 import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
-import { normalizeReference, orderDisplayStatus, orderReference } from '../lib/requestPayment.js'
+import { normalizeReference, orderDisplayStatus, orderReference, requestPriorityRank } from '../lib/requestPayment.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
@@ -247,7 +247,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         )}
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
           onClick={async () => {
-            if (!(await ask({ title: t('adm.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
+            if (!(await ask({ title: t('adm.confirmDelete'), body: r.payment_source === 'bonus' ? t('dlg.bonusRefundDelete') : t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
             sfx.delete(); onDelete(r.id)
           }}><Icon name="close" size={15} /></button>
       </div>
@@ -632,10 +632,10 @@ export default function AdminPanel({
   }, [tab, q, sel, pickMode, paymentOrder])
 
   const pending = useMemo(() => rows.filter(r => r.status === 'pending'), [rows])
-  /* Tab Đang xử lý xếp theo TỔNG vote của cả bài: các request trùng tên bài +
-     nghệ sĩ được cộng dồn trước khi so hạng (cùng luật với bảng "Top voted"
-     ngoài trang chủ), nên admin nhìn đúng bài đang được đòi nhiều nhất thay vì
-     chỉ thấy từng mảnh vote lẻ. */
+  /* Tab Đang xử lý xếp theo nguồn tài trợ trước (money đã thu > bonus > free),
+     rồi tới TỔNG vote của cả bài: các request trùng tên bài + nghệ sĩ được cộng
+     dồn trước khi so hạng, nên admin nhìn đúng hàng ưu tiên thay vì chỉ thấy
+     từng mảnh vote lẻ. */
   const activeRows = useMemo(
     () => rows.filter(r => ['queued', 'in_progress'].includes(r.status)), [rows])
   const totals = useMemo(() => voteTotals(activeRows), [activeRows])
@@ -643,7 +643,8 @@ export default function AdminPanel({
     () => [...activeRows].sort((a, b) => {
       const ta = totals.get(groupKey(a))?.total ?? (a.votes || 0)
       const tb = totals.get(groupKey(b))?.total ?? (b.votes || 0)
-      return (tb - ta)
+      return (requestPriorityRank(b) - requestPriorityRank(a))
+        || (tb - ta)
         || ((b.votes || 0) - (a.votes || 0))
         || (+new Date(a.created_at) - +new Date(b.created_at))
     }),

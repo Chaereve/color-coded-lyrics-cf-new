@@ -370,7 +370,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
         <b key={r.votes} className="tick">{r.votes}</b><span>{t('row.vote')}</span>
         {myCount > 0 && <em className="mine">×{myCount}</em>}
       </button>
-      {showDelete && !r.is_paid && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
+      {showDelete && (!r.is_paid || r.payment_source === 'bonus') && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
           onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
       )}
@@ -1631,6 +1631,7 @@ function AppInner() {
      tới đúng trang tương ứng:
        · tin nhắc Admin duyệt bài quá hạn -> tab Expired trong Admin;
        · tin nhận phiếu thưởng -> Daily login / Leaderboard;
+       · tin hoàn lượt bonus -> About me (ví thưởng nằm ở đó);
        · bài bị từ chối / đã xoá hết hạn không còn trên bảng công khai -> About me;
        · bài đang mở trên bảng -> nhảy thẳng tới dòng bài đó và làm sáng hàng. */
   const isSignedIn = Boolean(user)
@@ -1657,6 +1658,11 @@ function AppInner() {
     if (isOrderNotice(n) && isSignedIn) {
       setProfileId(null)
       setOrderFocus({ id: orderIdOfNotice(n), at: Date.now() })
+      go('mine')
+      return
+    }
+    if (n.type === 'bonus_refunded' && isSignedIn) {
+      setProfileId(null)
       go('mine')
       return
     }
@@ -2073,7 +2079,8 @@ function AppInner() {
     return order
   }
   const doDelete = async (id) => {
-    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
+    const target = rows.find(x => x.id === id)
+    if (!(await ask({ title: t('row.confirmDelete'), body: target?.payment_source === 'bonus' ? t('dlg.bonusRefundDelete') : t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
     try {
       await deleteRequest(id)
       await loadBoard(user)

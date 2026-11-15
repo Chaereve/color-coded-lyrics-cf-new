@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, pendingOrdersOfKind, reconcileOrder, requestPaymentState } from './requestPayment.js'
+import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, pendingOrdersOfKind, reconcileOrder, requestPaymentState, requestPriorityRank } from './requestPayment.js'
 
 test('request funding distinguishes money, reward, awaiting and unverified legacy', () => {
   assert.equal(requestPaymentState({ is_paid: false }), 'free')
@@ -8,6 +8,15 @@ test('request funding distinguishes money, reward, awaiting and unverified legac
   assert.equal(requestPaymentState({ is_paid: true, payment_source: 'money', payment_status: 'paid' }), 'paid')
   assert.equal(requestPaymentState({ is_paid: true, payment_source: 'bonus', payment_status: 'paid' }), 'bonus')
   assert.equal(requestPaymentState({ is_paid: true, payment_status: 'paid' }), 'unverified')
+})
+test('queue priority ranks settled money above bonus above free, and fails closed for awaiting/legacy', () => {
+  assert.equal(requestPriorityRank({ is_paid: true, payment_source: 'money', payment_status: 'paid' }), 2)
+  assert.equal(requestPriorityRank({ is_paid: true, payment_source: 'bonus', payment_status: 'paid' }), 1)
+  assert.equal(requestPriorityRank({ is_paid: false }), 0)
+  assert.equal(requestPriorityRank({ is_paid: true, payment_source: 'money', payment_status: 'awaiting' }), 0)
+  assert.equal(requestPriorityRank({ is_paid: true, payment_source: 'bonus', payment_status: 'awaiting' }), 0)
+  assert.equal(requestPriorityRank({ is_paid: true, payment_source: 'legacy', payment_status: 'paid' }), 0)
+  assert.equal(requestPriorityRank(null), 0)
 })
 test('pending orders are scoped by kind, so a paid request never becomes a vote invoice', () => {
   const orders = [

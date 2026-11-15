@@ -16,7 +16,7 @@ export const ADMIN_ACTIONS_PER_PAGE = 20
 /* Thứ tự ưu tiên khi một lần ghi đổi nhiều thứ: việc nặng nhất đứng trước. */
 export const ACTION_PRIORITY = [
   'delete', 'deny', 'approve', 'complete', 'pick', 'unpick', 'requeue',
-  'order', 'pick_pause', 'rename', 'edit', 'progress', 'video',
+  'order', 'bonus_refund', 'pick_pause', 'rename', 'edit', 'progress', 'video',
 ]
 
 export const ACTION_LABEL = {
@@ -28,6 +28,7 @@ export const ACTION_LABEL = {
   unpick: 'adm.log.unpick',
   requeue: 'adm.log.requeue',
   order: 'adm.log.order',
+  bonus_refund: 'adm.log.bonusRefund',
   pick_pause: 'adm.log.pickPause',
   rename: 'adm.log.rename',
   edit: 'adm.log.edit',
@@ -58,6 +59,7 @@ export const FIELD_LABEL = {
   received_currency: 'adm.log.f.receivedCurrency',
   received_amount: 'adm.log.f.receivedAmount',
   payment_reference: 'adm.log.f.paymentReference',
+  amount: 'adm.log.f.amount',
   reason: 'adm.log.f.reason',
 }
 

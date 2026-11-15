@@ -23,6 +23,7 @@
 import { inChain } from './meta.js'
 import { votesByRequest } from './season.js'
 import { requestWorkKey } from './requestEligibility.js'
+import { requestPriorityRank } from './requestPayment.js'
 
 const ts = (v) => +new Date(v) || 0
 
@@ -332,7 +333,7 @@ export const byPickOrder = (a, b) =>
   || (ts(a.picked_at) - ts(b.picked_at))
 
 /* Thứ tự từng dòng theo tab đang mở. Tab "Đang chờ" (mặc định) đẩy
-   paid request lên đầu rồi mới xét tới vote, giống hệt thứ tự cũ. */
+   request theo nguồn tài trợ: money đã thu > bonus > free, rồi mới tới vote. */
 export function sortRows(rows, filter) {
   const out = real(rows)
   if (filter === 'picked') return out.sort(byPickOrder)
@@ -348,7 +349,7 @@ export function sortRows(rows, filter) {
      chuyện của cả cụm, không phải của từng dòng, nên trong cụm chỉ cần dòng
      mới nhất đứng đầu; sortGroups làm việc xếp cụm. */
   if (filter === 'requests') return out.sort(byNewest)
-  return out.sort((a, b) => ((b.is_paid ? 1 : 0) - (a.is_paid ? 1 : 0)) || byVotes(a, b))
+  return out.sort((a, b) => (requestPriorityRank(b) - requestPriorityRank(a)) || byVotes(a, b))
 }
 
 /* Gom thành cụm. `rows` đã được sắp xếp nên dòng đầu của cụm là dòng
@@ -361,13 +362,14 @@ export function groupRows(rows) {
     const k = groupKey(r)
     let g = byKey.get(k)
     if (!g) {
-      g = { key: k, title: r.title, artist: r.artist, rows: [], votes: 0, paid: 0, newest: 0 }
+      g = { key: k, title: r.title, artist: r.artist, rows: [], votes: 0, paid: 0, priority: 0, newest: 0 }
       byKey.set(k, g)
       order.push(g)
     }
     g.rows.push(r)
     g.votes += r.votes || 0                              // TỔNG vote của cả bài
     if (r.is_paid) g.paid = 1                            // một dòng paid là cả cụm paid
+    g.priority = Math.max(g.priority, requestPriorityRank(r)) // hạng cao nhất trong cụm
     g.newest = Math.max(g.newest, ts(r.created_at))
   }
   return order
@@ -395,7 +397,7 @@ export function sortGroups(groups, filter) {
     (b.rows.length - a.rows.length) || (b.votes - a.votes) || (b.newest - a.newest))
   if (filter === 'az') return out.sort((a, b) =>
     fold(a.title).localeCompare(fold(b.title)) || (b.votes - a.votes))
-  return out.sort((a, b) => (b.paid - a.paid) || (b.votes - a.votes) || (b.newest - a.newest))
+  return out.sort((a, b) => (b.priority - a.priority) || (b.votes - a.votes) || (b.newest - a.newest))
 }
 
 /* Bảng tổng vote theo từng bài, dùng cho chỗ nào vẫn phải liệt kê từng

@@ -300,7 +300,7 @@ export const otherNotices = (inbox) => (inbox || []).filter(n => !n.own)
    đâu: Needs you (vừa được duyệt, còn vote được) → Up next (kết quả chốt) →
    Denied (kèm lý do) → In progress → Out. Nhóm rỗng thì không dựng nhãn. */
 export const NOTICE_GROUPS = [
-  { id: 'payments', types: ['order_paid', 'order_rejected', 'order_expired'] },
+  { id: 'payments', types: ['order_paid', 'order_rejected', 'order_expired', 'bonus_refunded'] },
   { id: 'need', types: ['approved'] },
   { id: 'upnext', types: ['picked'] },
   { id: 'denied', types: ['denied'] },

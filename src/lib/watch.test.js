@@ -241,3 +241,13 @@ test('tin thanh toán có nhóm riêng và mở đúng id đơn, không nhảy r
   assert.equal(groups[0].id, 'payments')
   assert.equal(groups[0].items[0].id, 'db-1')
 })
+
+test('tin hoàn bonus nằm trong nhóm thanh toán, không rơi vào Other và không bị coi là đơn tiền', () => {
+  const n = { id: 'db-2', sig: 'bonus-refund|req-1', type: 'bonus_refunded', at: AT, own: true, read: false, title: 'Whiplash', artist: 'aespa' }
+  assert.equal(isOrderNotice(n), false)
+  assert.equal(orderIdOfNotice(n), null)
+  const groups = groupNotices([n, { id: 'x', type: 'approved', at: AT, own: true, read: false }])
+  assert.equal(groups[0].id, 'payments')
+  assert.deepEqual(groups[0].items.map(x => x.id), ['db-2'])
+  assert.ok(!groups.some(g => g.id === 'other'))
+})
