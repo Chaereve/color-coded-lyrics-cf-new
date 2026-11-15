@@ -112,6 +112,9 @@ jobs:
       - name: Payment operations on PGlite (evidence, expiry, inbox, rollback)
         run: npm run test:payment-operations:pglite
 
+      - name: Legacy bonus reclassification on PGlite (nine rows, no double spend)
+        run: npm run test:legacy-bonus:pglite
+
       # Dựng bản production + chạy jsdom smoke đầy đủ trên mỗi PR/push.
       - name: Production build & DOM smoke
         run: |

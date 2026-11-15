@@ -23,6 +23,7 @@
     "test:pick-pause:pglite": "node --test supabase/tests/pickPause.pglite.mjs",
     "test:payment-source:pglite": "node --test supabase/tests/paymentSource.pglite.mjs",
     "test:payment-operations:pglite": "node --test supabase/tests/paymentOperations.pglite.mjs",
+    "test:legacy-bonus:pglite": "node --test supabase/tests/legacyBonusReclass.pglite.mjs",
     "test:spinv2:pglite": "node --test supabase/tests/spinV2.pglite.mjs",
     "test:baseline:db": "node --test supabase/tests/baselineReadiness.test.js",
     "backup:db": "bash scripts/backup-db.sh",

@@ -1269,6 +1269,7 @@ const S = {
   'adm.log.f.progress': 'progress',
   'adm.log.f.reason': 'reason',
   'adm.log.f.paused': 'paused',
+  'adm.log.f.paymentSource': 'payment source',
   'adm.log.f.paymentMethod': 'payment method',
   'adm.log.f.receivedCurrency': 'received currency',
   'adm.log.f.receivedAmount': 'received amount',

@@ -49,6 +49,7 @@ export const POST_20261125 = [
   '20261224_payment_source',
   '20261225_payment_operations',
   '20261226_payment_source_read_grant',
+  '20261227_legacy_bonus_reclass',
 ]
 
 const SCAFFOLD = `
