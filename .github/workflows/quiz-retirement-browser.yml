@@ -116,7 +116,8 @@ jobs:
       # máy dev không cần tải Chromium chỉ để chạy `npm test`.
       - name: Cài Playwright + Chromium
         run: |
-          npm i --no-save playwright@1.49.1
+          # jsQR chỉ giải mã ảnh canvas trong bài kiểm, không vào bundle app.
+          npm i --no-save playwright@1.49.1 jsqr@1.4.0
           # Tách dependency hệ thống khỏi lượt tải browser: CDN Playwright đôi
           # khi reset kết nối. Cài deps một lần, rồi retry riêng lượt tải browser.
           npx playwright install-deps chromium

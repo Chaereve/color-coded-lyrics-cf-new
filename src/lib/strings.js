@@ -809,8 +809,14 @@ const S = {
   'order.confirmCancelPaid': 'Cancelling also deletes the linked paid request. If you already transferred, contact support with the reference first. Continue?',
   'order.cancelTransferWarning': 'If you already transferred, contact support with the order reference before cancelling. Continue?',
   'order.paidRequest': 'Paid request payment',
-  'order.paidRequestMoney': 'Paid request · bank/PayPal',
+  'order.paidRequestMoney': 'Paid request',
   'order.reference': 'Reference: {ref}',
+  'order.payNow': 'Pay now',
+  'order.hidePayment': 'Hide payment',
+  'order.transferCode': 'Transfer reference',
+  'order.copyReference': 'Copy transfer reference',
+  'order.referenceCopied': 'Transfer reference copied.',
+  'order.paymentLoading': 'Loading payment options…',
   'order.votes': '{n} votes',
 
   /* footer */
@@ -1012,19 +1018,25 @@ const S = {
   'pay.memo': 'Note',
   'pay.copy': 'Copy',
   'pay.copied': 'Copied',
+  'pay.copyField': 'Copy {field}',
+  'pay.copyFailed': 'Could not copy. Select the text and copy it manually.',
   'pay.scanBank': 'Scan with your banking app',
+  'pay.scanBankPrefilled': 'Scan with your banking app. Amount and reference are filled in.',
   'pay.scanPaypal': 'Scan or open the link',
   /* Hóa đơn: ba nhãn của tờ giấy chuyển tiền, một câu nhắc và một câu chốt.
      `pay.invoice` gọi tên VIỆC của tờ giấy, `pay.awaiting` là trạng thái thật
      của đơn đang chờ tiền — không phải nhãn trang trí. */
   'pay.invoice': 'Transfer invoice',
+  'pay.transferDetails': 'Transfer details',
   'pay.awaiting': 'Awaiting transfer',
   'pay.details': 'Payment details',
   'pay.exact': 'Send the exact amount — we match it by the content.',
-  'pay.afterPay': 'Pay, then come back — the order updates after admin confirmation.',
-  'pay.paypalReferenceHint': 'PayPal does not carry the note in the link. Copy the reference above into the PayPal note before sending.',
+  'pay.checkBeforeSending': 'Check the amount and reference in your banking app before sending.',
+  'pay.afterPay': 'The order updates after admin confirmation.',
+  'pay.openPaypal': 'Open PayPal',
+  'pay.paypalReferenceHint': 'Add the transfer reference above to your PayPal note before sending; the link does not include it.',
   'pay.qrFail1': 'The QR code could not be generated.',
-  'pay.qrFail2': 'Use the details on the left.',
+  'pay.qrFail2': 'Use the transfer details instead.',
 
   /* man hinh dang nhap */
   /* Thẻ đăng nhập. `gate.brand` là tên thương hiệu ở hàng nhỏ; `gate.title` là

@@ -34,14 +34,14 @@ import Steps from './components/Steps'
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
-const PaymentMethods = lazy(() => import('./components/PaymentMethods'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
 import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
-import { ORDER_PAYMENT_HOURS, orderActivityCategory, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, requestPaymentState } from './lib/requestPayment.js'
+import { orderActivityCategory, orderDisplayStatus, orderFocusLocation, orderReference, requestPaymentState } from './lib/requestPayment.js'
 import OrderStatusBadge from './components/OrderStatusBadge'
+import OrderPayment from './components/OrderPayment'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
@@ -535,7 +535,9 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
                     <span>{vnd(o.amount_vnd)}</span><span className="dot" aria-hidden="true" />
                     <span>{usd(o.amount_usd)}</span><span className="dot" aria-hidden="true" />
                     <span>{timeAgo(o.created_at, t)}</span>
-                    <span className="dot" aria-hidden="true" /><span>{t('order.reference', { ref: orderReference(o) })}</span>
+                    {!(o.kind === 'paid_request' && orderDisplayStatus(o) === 'awaiting') && <>
+                      <span className="dot" aria-hidden="true" /><span className="order-meta-reference">{t('order.reference', { ref: orderReference(o) })}</span>
+                    </>}
                   </div>
                 </div>
                 <OrderStatusBadge order={o} />
@@ -544,14 +546,7 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
                     onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
                 )}
                 {orderDisplayStatus(o) === 'awaiting' && o.kind === 'paid_request' && (
-                  <details className="order-payment-details">
-                    <summary>{t('buy.payment')} · {t('order.reference', { ref: orderReference(o) })}</summary>
-                    <Suspense fallback={<span className="fhint">{t('spin.loading')}</span>}>
-                      <PaymentMethods amountVnd={o.amount_vnd} amountUsd={Number(o.amount_usd)}
-                        content={orderTransferContent(o)} awaiting />
-                    </Suspense>
-                    <p className="fhint">{t('order.windowHelp', { h: ORDER_PAYMENT_HOURS })}</p>
-                  </details>
+                  <OrderPayment order={o} />
                 )}
               </div>
             ))}

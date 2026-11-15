@@ -1968,6 +1968,7 @@ img { max-width: 100%; }
 .iv-copy:hover { color: var(--txt); background: var(--hover-2); border-color: var(--line-2); }
 .iv-copy:focus-visible { outline: 2px solid var(--a-2); outline-offset: 1px; }
 .iv-copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 40%, transparent); }
+.iv-copy-failed { grid-column: 2 / -1; color: var(--denied); font-size: 11px; line-height: 1.5; }
 
 .iv-foot {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
@@ -6709,10 +6710,79 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
    chữ xếp dọc từng ký tự như ảnh production 2026-11-15. Chỉ hàng đơn được wrap;
    hàng request vẫn giữ cột phiếu bên phải. */
 .row.order-row { flex-wrap: wrap; }
-/* Paid-request payment lives with its order, never in the vote shop. */
-.order-payment-details { flex: 0 0 100%; min-width: 0; margin-top: 8px; }
-.order-payment-details summary { cursor: pointer; color: var(--paid); font-size: 12px; font-weight: 600; }
-.order-payment-details[open] summary { margin-bottom: 8px; }
+/* Paid-request payment lives with its order, never in the vote shop.
+   Một nút mở có tên việc, không lặp mã dài ngay dưới metadata. Khối mở là
+   phần nối của hàng, không phải một hóa đơn lồng trong một hóa đơn khác. */
+.order-payment-details { flex: 0 0 100%; min-width: 0; margin-top: 10px; }
+.order-pay-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 38px; padding: 8px 11px; cursor: pointer; list-style: none;
+  border: 1px solid color-mix(in oklab, var(--paid) 28%, var(--line)); border-radius: var(--r-md);
+  background: color-mix(in oklab, var(--paid) 5%, var(--surface)); color: var(--paid);
+  font-size: 12px; font-weight: 600;
+  transition: background var(--t-1) var(--e-soft), border-color var(--t-1) var(--e-soft);
+}
+.order-pay-toggle::-webkit-details-marker { display: none; }
+.order-pay-toggle::marker { content: ''; }
+.order-pay-toggle:hover { background: color-mix(in oklab, var(--paid) 9%, var(--surface)); border-color: color-mix(in oklab, var(--paid) 50%, var(--line)); }
+.order-pay-toggle:focus-visible { outline: 2px solid var(--a-2); outline-offset: 3px; }
+.order-pay-label { display: inline-flex; align-items: center; gap: 8px; }
+.order-pay-chevron { flex: none; transition: transform var(--t-1) var(--e-soft); }
+.order-payment-details[open] .order-pay-chevron { transform: rotate(180deg); }
+.order-payment-details[open] .order-pay-toggle { border-radius: var(--r-md) var(--r-md) 0 0; }
+.order-payment-panel {
+  min-width: 0; padding: 12px; border: 1px solid color-mix(in oklab, var(--paid) 28%, var(--line));
+  border-top: 0; border-radius: 0 0 var(--r-md) var(--r-md); background: var(--surface);
+}
+.order-reference { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.order-reference-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.order-reference-label { color: var(--txt-3); font-size: 11px; }
+.order-reference-text code { color: var(--txt-2); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; overflow-wrap: anywhere; user-select: all; }
+.order-reference-copy {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+  min-height: 32px; padding: 5px 9px; border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--txt-2); font-size: 11px; cursor: pointer;
+}
+.order-reference-copy:hover { color: var(--txt); border-color: var(--txt-3); }
+.order-reference-copy:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+.order-reference-copy.done { color: var(--done); border-color: color-mix(in oklab, var(--done) 40%, transparent); }
+.order-copy-fallback { margin: -4px 0 10px; }
+.order-payment-panel .paytile { flex-direction: row; justify-content: center; gap: 9px; min-height: 44px; padding: 8px 10px; }
+.order-payment-panel .paytile-box { height: 23px; padding: 0 7px; }
+.order-payment-panel .paytile-name { color: var(--txt-2); }
+.order-payment-panel .pay-hint { margin-top: 8px; padding: 8px 10px; }
+.order-payment-panel .iv { border-color: var(--line); border-radius: var(--r-sm); background: var(--surface); }
+.order-payment-panel .iv-head { padding: 9px 12px; }
+.order-payment-panel .iv-title { color: var(--txt-2); }
+.order-payment-panel .iv-body { grid-template-columns: 156px minmax(0, 1fr); padding: 12px; gap: 16px; }
+.order-payment-panel .iv-qr .qr-canvas { width: 156px !important; height: 156px !important; padding: 8px; }
+.order-payment-panel .iv-qr .qr-fail { background: var(--surface-2); }
+.order-payment-panel .iv-qr-cap { font-size: 11px; }
+.order-payment-panel .iv-row { grid-template-columns: 106px minmax(0, 1fr) 28px; padding: 5px 0; }
+.order-payment-panel .iv-copy { width: 28px; height: 28px; }
+.order-payment-panel .iv-foot { flex-direction: column; align-items: flex-start; gap: 5px; padding: 9px 12px; background: var(--surface-2); }
+.order-payment-panel .iv-go { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.order-payment-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.order-payment-foot .fhint { margin: 0; }
+.order-payment-close { flex: none; padding: 5px 0; border: 0; background: none; color: var(--txt-3); font-size: 11px; cursor: pointer; }
+.order-payment-close:hover { color: var(--txt); text-decoration: underline; }
+.order-payment-close:focus-visible { outline: 2px solid var(--a-2); outline-offset: 2px; }
+@media (max-width: 620px) {
+  .order-pay-toggle { min-height: 44px; }
+  .order-payment-panel { padding: 10px; }
+  .order-reference { align-items: flex-start; gap: 8px; }
+  .order-reference-copy { min-height: 40px; }
+  .order-payment-panel .paytile { flex-direction: column; gap: 5px; padding: 8px 5px; }
+  .order-payment-panel .iv-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .order-payment-panel .iv-qr { flex-direction: column; gap: 7px; }
+  .order-payment-panel .iv-qr .qr-canvas { width: 180px !important; height: 180px !important; }
+  .order-payment-panel .iv-qr-cap { max-width: 230px; text-align: center; }
+  .order-payment-panel .iv-row { grid-template-columns: 96px minmax(0, 1fr) 36px; }
+  .order-payment-panel .iv-copy { width: 36px; height: 36px; }
+  .order-payment-foot { align-items: flex-start; }
+  .order-payment-close { min-height: 40px; padding: 8px 0; }
+}
+@media (prefers-reduced-motion: reduce) { .order-pay-chevron, .order-pay-toggle { transition: none; } }
 
 /* Trạng thái + hạn thanh toán của đơn: một nguồn cho My activity / Buy / Admin. */
 .order-state { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }

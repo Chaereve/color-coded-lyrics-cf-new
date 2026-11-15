@@ -52,11 +52,15 @@ function crc16(str) {
   return crc.toString(16).toUpperCase().padStart(4, '0')
 }
 
-/** Bỏ dấu tiếng Việt, chỉ giữ ký tự hợp lệ cho nội dung chuyển khoản */
+/** Bỏ dấu tiếng Việt; giữ chữ, số, khoảng trắng, gạch nối và gạch dưới của mã
+   chuyển khoản. Mã ngắn dùng base64url nên có thể chứa `_`; xoá nó là QR lệch
+   với nút Copy. Hai đường Copy và QR dùng cùng hàm này. Giới hạn 50 ký tự ASCII
+   theo hợp đồng nội dung của VietQR Quick Link; mã đơn hiện tại ≤25 nên không bị
+   cắt. Không gọi API bên thứ ba để dựng QR. */
 export const cleanContent = (s) =>
   (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd').replace(/Đ/g, 'D')
-    .replace(/[^a-zA-Z0-9 ]/g, '').trim().slice(0, 40)
+    .replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 50)
 
 /**
  * @param {number} amount  số tiền VND (0 = QR không kèm số tiền)

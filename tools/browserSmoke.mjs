@@ -36,6 +36,7 @@ import { createServer } from 'node:http'
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { orderTransferContent } from '../src/lib/requestPayment.js'
 
 const arg = (name, fallback = '') => {
   const i = process.argv.indexOf(`--${name}`)
@@ -459,7 +460,7 @@ for (const vp of viewports) {
         await page.evaluate(() => {
           const now = Date.now()
           localStorage.setItem('ccl3_orders', JSON.stringify([{
-            id: 'order-layout-regression', user_id: 'demo-user', kind: 'paid_request', qty: 0,
+            id: 'dceafd94-8ce3-40e1-b6b2-e37dede3a064', user_id: 'demo-user', kind: 'paid_request', qty: 0,
             amount_usd: 0.75, amount_vnd: 20000, status: 'awaiting',
             created_at: new Date(now).toISOString(), expires_at: new Date(now + 72 * 3600e3).toISOString(),
           }]))
@@ -516,11 +517,71 @@ for (const vp of viewports) {
         check(`${vp.name} · My orders: khung thanh toán xuống dòng riêng đủ rộng`,
           layout.present && layout.detailsTop >= layout.bodyBottom - 1 && layout.detailsWidth >= layout.rowWidth * 0.9,
           `details=${layout.detailsWidth?.toFixed(0)}px · top=${layout.detailsTop?.toFixed(0)} · bodyBottom=${layout.bodyBottom?.toFixed(0)}`)
-        await page.locator('#mine-orders-panel .order-payment-details summary').first().click()
-        await page.waitForSelector('#mine-orders-panel .order-payment-details[open] .pay', { timeout: 12_000 })
-        /* .iv chỉ dựng sau khi chọn một cổng thanh toán; mở details mới hiện .pay. */
-        await page.locator('#mine-orders-panel .order-payment-details[open] .paytile.bank').click()
-        await page.waitForSelector('#mine-orders-panel .order-payment-details[open] .iv', { timeout: 12_000 })
+        const orderScope = '#mine-orders-panel .order-payment-details'
+        const orderId = await page.locator(`${orderScope} summary`).first().evaluate(summary =>
+          summary.closest('.order-row').id.replace('mine-order-', ''))
+        /* Dùng đúng hàm của app, không tự chế lại base64 trong bài kiểm: mã ngắn
+           phải khớp cả nút Copy lẫn trường 62/08 của QR thật. */
+        const reference = orderTransferContent({ id: orderId, kind: 'paid_request' })
+        const closedText = await page.locator('#mine-orders-panel .order-row').first().textContent()
+        check(`${vp.name} · My orders: hàng đóng không lặp mã và gọi đúng việc Pay now`,
+          !closedText.includes(reference) && closedText.includes('Pay now'))
+        await page.locator(`${orderScope} summary`).first().click()
+        await page.waitForSelector(`${orderScope}[open] .pay`, { timeout: 12_000 })
+        /* Hàng đơn mở thẳng QR ngân hàng; .paytile.bank vẫn cho phép đổi qua
+           PayPal rồi về. Không ép người mua chọn cổng lần thứ hai sau Pay now. */
+        await page.waitForSelector(`${orderScope}[open] .iv`, { timeout: 12_000 })
+        const compact = await page.locator('#mine-orders-panel .order-row').first().evaluate((row, ref) => ({
+          occurrences: row.textContent.split(ref).length - 1,
+          referenceVisible: !!row.querySelector('.order-reference-text code'),
+          duplicateSummary: row.querySelector('summary').textContent.includes(ref),
+          bankSelected: row.querySelector('.paytile.bank').getAttribute('aria-pressed') === 'true',
+          repeatedAmount: !!row.querySelector('.iv-sum'),
+        }), reference)
+        check(`${vp.name} · My orders: mã đầy đủ đúng một lần, QR bank mở sẵn`,
+          compact.occurrences === 1 && compact.referenceVisible && !compact.duplicateSummary && compact.bankSelected && !compact.repeatedAmount,
+          JSON.stringify(compact))
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+        await page.locator(`${orderScope} .order-reference-copy`).click()
+        await page.waitForSelector(`${orderScope} .order-reference-copy.done`)
+        const clipboard = await page.evaluate(() => navigator.clipboard.readText())
+        check(`${vp.name} · My orders: Copy giữ nguyên mã có gạch nối`, clipboard === reference, clipboard)
+        await page.locator(`${orderScope} .order-payment-close`).click()
+        await page.waitForSelector(`${orderScope}:not([open])`)
+        const focusReturned = await page.locator(`${orderScope} summary`).first().evaluate(el => el === document.activeElement)
+        check(`${vp.name} · My orders: đóng trả tiêu điểm về nút mở`, focusReturned)
+        await page.locator(`${orderScope} summary`).first().focus()
+        await page.keyboard.press('Enter')
+        await page.waitForSelector(`${orderScope}[open] .iv`)
+        /* Kiểm chính PIXEL của QR, không chỉ thấy phần tử canvas: giải mã ảnh
+           vẽ thật rồi đọc TLV 54 (tiền) và 62/08 (nội dung app bank sẽ điền). */
+        const qr = await page.locator(`${orderScope} .qr-canvas`).evaluate(canvas => {
+          const { width, height } = canvas
+          return { width, height, pixels: Array.from(canvas.getContext('2d').getImageData(0, 0, width, height).data) }
+        })
+        const { default: jsQR } = await import('jsqr')
+        const decoded = jsQR(new Uint8ClampedArray(qr.pixels), qr.width, qr.height)
+        const readTLV = text => {
+          const result = new Map()
+          for (let at = 0; at < text.length;) {
+            const length = Number(text.slice(at + 2, at + 4))
+            result.set(text.slice(at, at + 2), text.slice(at + 4, at + 4 + length))
+            at += 4 + length
+          }
+          return result
+        }
+        const qrFields = decoded ? readTLV(decoded.data) : new Map()
+        const qrNote = qrFields.has('62') ? readTLV(qrFields.get('62')).get('08') : ''
+        check(`${vp.name} · My orders: giải mã QR thật thấy đúng tiền + nguyên văn mã có gạch nối`,
+          qrFields.get('54') === '20000' && qrNote === reference && qr.width >= 150,
+          `amount=${qrFields.get('54')} · note=${qrNote} · canvas=${qr.width}px`)
+        await page.locator(`${orderScope} .paytile.paypal`).click()
+        await page.waitForSelector(`${orderScope} .iv-go`)
+        const paypalHref = await page.locator(`${orderScope} .iv-go`).getAttribute('href')
+        check(`${vp.name} · My orders: đổi PayPal giữ tiền nhưng không hứa mang mã`,
+          paypalHref.endsWith('/0.75USD') && !paypalHref.includes(reference))
+        await page.locator(`${orderScope} .paytile.bank`).click()
+        await page.waitForSelector(`${orderScope} .paytile.bank[aria-pressed="true"]`)
         const invoice = await page.evaluate(() => {
           const row = document.querySelector('#mine-orders-panel .row.order-row')
           const iv = row?.querySelector('.order-payment-details .iv')

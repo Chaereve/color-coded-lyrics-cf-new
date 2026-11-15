@@ -14,7 +14,7 @@ import { streakStats } from './streak.js'
 import { FEATURED_MEDIA_LIMIT, HOMEPAGE_VIDEO_LIMIT, featuredMediaCount, homepageVideoCount, isHomepageVideo } from './mediaLimits.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
-import { ORDER_PAYMENT_HOURS, isOrderAwaiting, normalizeReference, orderReference, reconcileOrder } from './requestPayment.js'
+import { ORDER_PAYMENT_HOURS, canonicalReference, isOrderAwaiting, orderReference, reconcileOrder } from './requestPayment.js'
 
 
 /* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
@@ -1863,7 +1863,7 @@ export async function adminOrder(orderId, approve, evidence = null) {
       Object.assign(o, {
         status: 'paid', paid_at: at, expired_at: null, resolution_reason: reason,
         payment_method: evidence.method, received_currency: check.currency,
-        received_amount: check.received, payment_reference: normalizeReference(evidence.reference),
+        received_amount: check.received, payment_reference: canonicalReference(o, evidence.reference),
       })
       if (o.kind === 'votes') {
         const p = demoProfile(); p.vote_credits += o.qty; wr(LS.prof, p)
@@ -1883,11 +1883,18 @@ export async function adminOrder(orderId, approve, evidence = null) {
     demoOrderNotice(o)
     return o
   }
+  /* QR mang dạng base64url ≤25 ký tự; SQL vẫn lưu mã UUID canonical đã kiểm
+     từ migration 20261225. Dịch ở biên gọi RPC, sau khi admin đã nhập biên lai:
+     không nới điều kiện đối soát của SQL và không cần migration cho bản UI này.
+     Mã dài cũ đi qua cùng hàm normalize nên vẫn giữ nguyên hành trình cũ.
+     Prefix PR/V của mã cho biết kind để nhận cả bản app ngân hàng tự viết hoa. */
+  const reference = evidence?.reference
+  const kind = /^PR-/i.test(String(reference || '').trim()) ? 'paid_request' : 'votes'
   const { error } = await supabase.rpc('admin_order', {
     p_order_id: orderId, p_approve: approve,
     p_method: evidence?.method ?? null,
     p_amount: evidence?.amount == null || evidence.amount === '' ? null : Number(evidence.amount),
-    p_reference: evidence?.reference ?? null,
+    p_reference: reference == null ? null : canonicalReference({ id: orderId, kind }, reference),
     p_reason: evidence?.reason ?? null,
   })
   if (error) throw rpcError(error)

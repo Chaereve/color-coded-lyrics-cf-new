@@ -2,6 +2,7 @@ import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createElement } from 'react'
+import { orderTransferContent } from '../lib/requestPayment.js'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -23,7 +24,7 @@ test('manual review starts empty and cannot confirm until evidence matches', asy
   const html = await render(order)
   assert.match(html, /Confirm payment/)
   assert.match(html, /Expected: 13,000₫/)
-  assert.match(html, /V-ABCDEF1234567890ABCDEF1234567890/)
+  assert.ok(html.includes(orderTransferContent(order)), 'admin phải thấy đúng mã ngắn mà QR đã điền vào app ngân hàng')
   assert.match(html, /<button type="button" class="btn btn-ok" disabled=""/)
 })
 test('late payment is called out before an admin records it', async () => {

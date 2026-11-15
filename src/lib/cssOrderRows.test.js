@@ -24,8 +24,13 @@ test('hàng đơn About me có lớp riêng và khung thanh toán nằm trong h�
   const start = app.indexOf('id={`mine-order-${o.id}`}')
   const end = app.indexOf('\n            ))}', start)
   const row = app.slice(start, end > start ? end : start + 3000)
-  assert.match(row, /<details className="order-payment-details">/,
+  assert.match(row, /<OrderPayment order=\{o\} \/>/,
     'khung thanh toán vẫn là con trực tiếp của hàng đơn, không dời sang modal khác')
+  const payment = at('../components/OrderPayment.jsx')
+  assert.match(payment, /<details className="order-payment-details"/,
+    'giữ nút mở gốc bằng details/summary để dùng được bàn phím')
+  assert.match(row, /!\(o\.kind === 'paid_request' && orderDisplayStatus\(o\) === 'awaiting'\)/,
+    'đơn đang chờ chỉ in mã trong OrderPayment, không lặp ở metadata phía trên')
 })
 
 test('hàng đơn wrap để khối chữ không bị khung thanh toán ép về gần 0', () => {
