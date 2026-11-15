@@ -36,6 +36,7 @@ import { createServer } from 'node:http'
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { orderTransferContent } from '../src/lib/requestPayment.js'
 
 const arg = (name, fallback = '') => {
   const i = process.argv.indexOf(`--${name}`)
@@ -459,7 +460,7 @@ for (const vp of viewports) {
         await page.evaluate(() => {
           const now = Date.now()
           localStorage.setItem('ccl3_orders', JSON.stringify([{
-            id: 'order-layout-regression', user_id: 'demo-user', kind: 'paid_request', qty: 0,
+            id: 'dceafd94-8ce3-40e1-b6b2-e37dede3a064', user_id: 'demo-user', kind: 'paid_request', qty: 0,
             amount_usd: 0.75, amount_vnd: 20000, status: 'awaiting',
             created_at: new Date(now).toISOString(), expires_at: new Date(now + 72 * 3600e3).toISOString(),
           }]))
@@ -517,11 +518,11 @@ for (const vp of viewports) {
           layout.present && layout.detailsTop >= layout.bodyBottom - 1 && layout.detailsWidth >= layout.rowWidth * 0.9,
           `details=${layout.detailsWidth?.toFixed(0)}px · top=${layout.detailsTop?.toFixed(0)} · bodyBottom=${layout.bodyBottom?.toFixed(0)}`)
         const orderScope = '#mine-orders-panel .order-payment-details'
-        const reference = await page.locator(`${orderScope} summary`).first().evaluate(summary => {
-          const id = summary.closest('.order-row').id.replace('mine-order-', '').replace(/[^a-f0-9]/gi, '')
-          const bytes = id.match(/../g).map(pair => String.fromCharCode(parseInt(pair, 16))).join('')
-          return `PR-${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
-        })
+        const orderId = await page.locator(`${orderScope} summary`).first().evaluate(summary =>
+          summary.closest('.order-row').id.replace('mine-order-', ''))
+        /* Dùng đúng hàm của app, không tự chế lại base64 trong bài kiểm: mã ngắn
+           phải khớp cả nút Copy lẫn trường 62/08 của QR thật. */
+        const reference = orderTransferContent({ id: orderId, kind: 'paid_request' })
         const closedText = await page.locator('#mine-orders-panel .order-row').first().textContent()
         check(`${vp.name} · My orders: hàng đóng không lặp mã và gọi đúng việc Pay now`,
           !closedText.includes(reference) && closedText.includes('Pay now'))
