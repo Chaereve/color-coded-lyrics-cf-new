@@ -857,7 +857,7 @@ select {
    kiểu "nhãn chồng/cụt" người dùng nhìn ra. Về `inline-block` thì chữ nằm ngay
    trong hộp và dấu ba chấm vẽ được; phần chữ bị cắt vẫn đọc được qua `title`. */
 .pill.dup { display: inline-block; vertical-align: bottom; }
-/* MỌI NHÃN DÙNG CHUNG MỘT NGÔN NGỮ: nền pha nhạt, KHÔNG viền.
+/* NHÃN MẶC ĐỊNH DÙNG CHUNG MỘT NGÔN NGỮ: nền pha nhạt, KHÔNG viền.
    Trước đây nhãn mặc định có viền xám 1px + nền trong khi tem PAID / thẻ thể
    loại / nhãn Up next lại không viền — trên một hàng có ba kiểu nhãn khác nhau.
    Nền lấy `currentColor` để nhãn nào cũng tự đúng màu của nó (`.pill.pending`
@@ -870,29 +870,32 @@ select {
 .pill.in_progress{ color: var(--progress); }
 .pill.completed  { color: var(--done); }
 .pill.denied     { color: var(--denied); }
-/* PAID — SAO + NỀN MỜ (phương án P4). Bản cũ là viền vàng 40% + chữ vàng: đứng
-   cạnh viền xám của thẻ thể loại thì hai cái na ná nhau, mà hàng PAID vốn đã có
-   nền vàng 4,5% nên chữ vàng trên nền vàng không nổi.
-   Nay: nền vàng 14% (ăn khớp với nền hàng), không viền, in hoa 10px nét 700,
-   và một ngôi sao 8px ở trước. Cỡ chữ NHỎ HƠN thang nhãn chung (10 so với 11)
-   để nhãn này không to hơn tên bài — nó là tem, không phải tiêu đề. */
+/* PAID / BONUS — TEM NGUỒN TÀI TRỢ CÓ CHIỀU SÂU (chủ dự án chốt phương án B).
+   Bản nền mờ một lớp đọc ra như nhãn trạng thái thường; tem nguồn tiền/thưởng
+   cần nhìn như một con tem riêng. Cả hai dùng chung một khuôn: gradient chéo
+   nhẹ, viền tóc cùng màu, highlight mép trên và glow rất khẽ. CHỈ giữ chữ
+   PAID / BONUS, bỏ sao/hộp quà; hai lề ngang bằng nhau vì không còn icon.
+   Nghĩa đầy đủ vẫn nằm ở title/hint. Cỡ chữ NHỎ HƠN thang nhãn chung
+   (10 so với 11) để tem không to hơn tên bài. PAID dùng vàng --paid; BONUS
+   dùng tím --a-2/--a, không mượn màu vàng của request trả tiền. */
 .pill.gold {
-  color: var(--paid); border: 0;
-  background: color-mix(in oklab, var(--paid) 14%, transparent);
-  padding: 3px 8px 3px 7px;
-  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--paid);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--paid) 26%, transparent), color-mix(in oklab, var(--paid) 12%, transparent));
+  border: 1px solid color-mix(in oklab, var(--paid) 42%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 12px -3px color-mix(in oklab, var(--paid) 45%, transparent);
+  padding: 2px 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
 }
-.pill.gold::before {
-  content: '★'; margin-right: 4px; font-size: 8px; line-height: 1; opacity: .9; }
-/* BONUS — request dùng thưởng, không phải tiền: tím nhạt + hộp quà, cùng khuôn
-   tem nhỏ với PAID nhưng khác chữ/hình/màu. Không dùng nền vàng của hàng paid. */
+/* BONUS — request dùng thưởng, không phải tiền: cùng hiệu ứng với PAID nhưng
+   khác chữ và hệ màu. Không sao, không hộp quà, không nền vàng của hàng paid. */
 .pill.bonus {
-  color: var(--a-2); border: 0;
-  background: color-mix(in oklab, var(--a-2) 14%, transparent);
-  padding: 3px 8px 3px 7px;
-  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: color-mix(in oklab, var(--a-2) 55%, #fff);
+  background: linear-gradient(135deg, color-mix(in oklab, var(--a-2) 24%, transparent), color-mix(in oklab, var(--a) 20%, transparent));
+  border: 1px solid color-mix(in oklab, var(--a-2) 40%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 12px -3px var(--a-glow);
+  padding: 2px 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
 }
-.pill.bonus .req-payment-ico { flex: none; width: 10px; height: 10px; margin-right: 4px; }
 .adm-payment-readonly { display: grid; gap: 4px; align-content: center; }
 .adm-payment-readonly small { color: var(--txt-3); font-size: 11px; }
 
@@ -3696,10 +3699,10 @@ html[data-section="spin"] .bgfx { display: none; }
    thẻ sẫm, chip 13% màu gốc đọc ra như một vết mờ. */
 .nowbar.upnext .kind { font-size: var(--fs-cap); padding: 3px 8px;
   background: color-mix(in oklab, currentColor 20%, transparent); }
-.nowbar.upnext .pill.gold { font-size: 10px; padding: 3px 8px 3px 7px;
-  background: color-mix(in oklab, var(--paid) 20%, transparent); }
-.nowbar.upnext .pill.bonus { font-size: 10px; padding: 3px 8px 3px 7px;
-  background: color-mix(in oklab, var(--a-2) 20%, transparent); }
+.nowbar.upnext .pill.gold { font-size: 10px; padding: 2px 8px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--paid) 30%, transparent), color-mix(in oklab, var(--paid) 16%, transparent)); }
+.nowbar.upnext .pill.bonus { font-size: 10px; padding: 2px 8px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--a-2) 30%, transparent), color-mix(in oklab, var(--a) 26%, transparent)); }
 
 
 /* thành viên của một bài gửi nhiều lần: gạch liền, không nét đứt — cả app dùng
@@ -3708,12 +3711,10 @@ html[data-section="spin"] .bgfx { display: none; }
   display: flex; flex-direction: column; gap: 5px; }
 .nowbar.upnext .now-members li { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   font-size: var(--fs-meta); color: var(--txt-2); }
-.now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
-.now-members .pill.bonus { font-size: 9px; padding: 1px 5px; }
-/* Danh sách thành viên trong Up next: tem PAID ở đây bé hơn, nên ngôi sao cũng
-   phải bé theo — để 8px là nó thành ký tự to nhất dòng. */
-.now-members .pill.gold::before { font-size: 7px; margin-right: 3px; }
-.now-members .pill.bonus .req-payment-ico { width: 7px; height: 7px; margin-right: 3px; }
+/* Danh sách thành viên trong Up next: tem chỉ chữ thu còn 9px, lề cân hai bên;
+   không còn sao/hộp quà nên không giữ luật icon hay đệm trái lệch ở đây. */
+.nowbar.upnext .now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
+.nowbar.upnext .now-members .pill.bonus { font-size: 9px; padding: 1px 5px; }
 .nowbar.upnext .now-empty { margin: 0; padding: 4px 18px 16px; color: var(--txt-2); font-weight: 400; }
 
 .nowbar.upnext .now-foot { display: flex; align-items: center; justify-content: space-between;
