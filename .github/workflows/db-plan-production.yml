@@ -29,11 +29,6 @@ on:
         description: 'Giới hạn tới prefix 8 chữ số (tuỳ chọn, ví dụ 20261220). Trống = toàn bộ migration đang chờ.'
         required: false
         type: string
-  # Tiền kiểm rollout payment 2026-11-15: chỉ đọc, chỉ nhánh phiên này.
-  # Token sandbox không dispatch được; gỡ trigger tạm sau khi đọc kế hoạch.
-  push:
-    branches:
-      - 'arena/c039d143-color-coded-lyrics-cf-new'
 
 permissions:
   contents: read
