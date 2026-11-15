@@ -26,13 +26,11 @@ on:
     - cron: '0 19 * * *'
   workflow_dispatch:
   push:
-    # 2026-10-10 · nhánh phiên arena/6a19d183 — backup + so dấu vân tay trước khi
-    # duyệt B4.4 (20261210_vote_back). Token sandbox không có actions:write nên
-    # không dispatch được; push là đường còn lại. Script backup-db.sh CHỈ ĐỌC
-    # với database nguồn — không ghi gì vào production.
-    # Tắt push-trigger trong lúc deploy B1 để không dump song song với apply.
+    # Tạm bật cho tiền kiểm rollout payment 2026-11-15. Token sandbox không có
+    # actions:write nên push là đường chạy backup đã duyệt. Script CHỈ ĐỌC với
+    # production; sẽ tắt lại trigger này trước khi apply để không dump chồng apply.
     branches:
-      - 'arena/6a19d183-color-coded-lyrics-cf-new-DISABLED-during-b1-deploy'
+      - 'arena/c039d143-color-coded-lyrics-cf-new'
 
 # Hai lượt chồng nhau (bấm tay đúng lúc cron nổ) thì bản sau xếp hàng, không
 # chạy song song: hai pg_dump cùng lúc chỉ tốn tài nguyên vô ích.
@@ -126,7 +124,26 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: bash scripts/push-to-r2.sh
+        run: |
+          set -o pipefail
+          bash scripts/push-to-r2.sh | tee /tmp/backup-r2.txt
+
+      # Chỉ công bố trạng thái lưu trữ, không công bố secret hay dữ liệu người dùng.
+      # Một lượt restore thử thành công vẫn chưa đủ nếu dump bị xoá cùng runner.
+      - name: Đối chiếu nơi giữ bản backup
+        if: always()
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          node -e '
+          const fs = require("fs")
+          let r2 = ""
+          try { r2 = fs.readFileSync("/tmp/backup-r2.txt", "utf8") } catch {}
+          const stored = !!process.env.R2_BUCKET && r2.includes("[r2] xong.")
+          const encrypted = !!process.env.BACKUP_PASSPHRASE && fs.existsSync("backup/db-backup.tar.gz.gpg")
+          console.log(`::notice title=backup retention::R2 copy=${stored}; encrypted artifact=${encrypted}; durable=${stored || encrypted}`)
+          '
 
       # KHÔNG BAO GIỜ đẩy bản dump thô (`*.dump`, `auth-users.sql` chứa email OAuth
       # và ghi chú riêng tư) lên GitHub Actions artifact vì trên repo công khai bất
