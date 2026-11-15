@@ -6703,8 +6703,14 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   .mine-activity-head .mine-filter-toggle > b { max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
+/* Hàng đơn của About me: chữ + trạng thái ở dòng đầu, khung thanh toán xuống
+   dòng riêng. `.row` gốc KHÔNG wrap; nếu details giữ flex-basis:100% trong cùng
+   một dòng flex, nó hút gần hết bề ngang và ép `.body` (min-width:0) về gần 0 —
+   chữ xếp dọc từng ký tự như ảnh production 2026-11-15. Chỉ hàng đơn được wrap;
+   hàng request vẫn giữ cột phiếu bên phải. */
+.row.order-row { flex-wrap: wrap; }
 /* Paid-request payment lives with its order, never in the vote shop. */
-.order-payment-details { flex-basis: 100%; margin-top: 8px; }
+.order-payment-details { flex: 0 0 100%; min-width: 0; margin-top: 8px; }
 .order-payment-details summary { cursor: pointer; color: var(--paid); font-size: 12px; font-weight: 600; }
 .order-payment-details[open] summary { margin-bottom: 8px; }
 

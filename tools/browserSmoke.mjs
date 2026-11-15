@@ -452,6 +452,19 @@ for (const vp of viewports) {
   for (const r of routes) {
     try {
       const errorsBefore = errors.length
+      /* Regression My orders: bản demo không có đơn paid_request chờ thanh toán,
+         nên gieo đúng MỘT đơn trong localStorage của demo rồi mới mở /profile.
+         Không gọi Supabase; distIsDemo ở đầu đã chặn bundle thật. */
+      if (r.slug === 'mine') {
+        await page.evaluate(() => {
+          const now = Date.now()
+          localStorage.setItem('ccl3_orders', JSON.stringify([{
+            id: 'order-layout-regression', user_id: 'demo-user', kind: 'paid_request', qty: 0,
+            amount_usd: 0.75, amount_vnd: 20000, status: 'awaiting',
+            created_at: new Date(now).toISOString(), expires_at: new Date(now + 72 * 3600e3).toISOString(),
+          }]))
+        })
+      }
       await page.goto(r.url, { waitUntil: 'load' })
       /* Demo chưa khôi phục phiên thì `/profile` mở cửa đăng nhập: bấm đúng
          đường demo rồi chờ tiếp, thay vì đánh hỏng vì một bước đăng nhập. */
@@ -474,6 +487,51 @@ for (const vp of viewports) {
       check(`${vp.name} · ${r.name}: không tràn ngang`, ovf <= 2, `${ovf}px`)
       const fresh = errors.slice(errorsBefore)
       check(`${vp.name} · ${r.name}: không lỗi console mới`, fresh.length === 0, fresh.slice(0, 2).join(' | '))
+
+      if (r.slug === 'mine') {
+        /* Regression 2026-11-15: hàng My orders từng bị khung thanh toán
+           (flex-basis:100% trong .row không wrap) ép khối chữ về gần 0, chữ xếp
+           dọc từng ký tự. Đo hình chữ nhật thật trên đơn awaiting đã gieo ở trên,
+           rồi mở khung thanh toán để chắc hóa đơn không tràn ngang. */
+        const orderErrorsBefore = errors.length
+        await page.locator('#mine-orders-tab').click()
+        await page.waitForSelector('#mine-orders-panel .row.order-row', { timeout: 12_000 })
+        await page.waitForTimeout(250)
+        const layout = await page.evaluate(() => {
+          const row = document.querySelector('#mine-orders-panel .row.order-row')
+          const body = row?.querySelector('.body')
+          const title = row?.querySelector('.title')
+          const details = row?.querySelector('.order-payment-details')
+          if (!row || !body || !title || !details) return { present: false }
+          const r = row.getBoundingClientRect(), b = body.getBoundingClientRect()
+          const t = title.getBoundingClientRect(), d = details.getBoundingClientRect()
+          return { present: true, rowWidth: r.width, bodyWidth: b.width, titleHeight: t.height,
+            detailsWidth: d.width, detailsTop: d.top, bodyBottom: b.bottom,
+            rowOverflow: row.scrollWidth - row.clientWidth }
+        })
+        check(`${vp.name} · My orders: hàng đơn có chữ + khung thanh toán`, layout.present)
+        check(`${vp.name} · My orders: khối chữ không bị ép thành cột dọc`,
+          layout.present && layout.bodyWidth >= Math.min(180, layout.rowWidth * 0.35) && layout.titleHeight <= 64 && layout.rowOverflow <= 2,
+          `body=${layout.bodyWidth?.toFixed(0)}px · title=${layout.titleHeight?.toFixed(0)}px · row=${layout.rowWidth?.toFixed(0)}px`)
+        check(`${vp.name} · My orders: khung thanh toán xuống dòng riêng đủ rộng`,
+          layout.present && layout.detailsTop >= layout.bodyBottom - 1 && layout.detailsWidth >= layout.rowWidth * 0.9,
+          `details=${layout.detailsWidth?.toFixed(0)}px · top=${layout.detailsTop?.toFixed(0)} · bodyBottom=${layout.bodyBottom?.toFixed(0)}`)
+        await page.locator('#mine-orders-panel .order-payment-details summary').first().click()
+        await page.waitForSelector('#mine-orders-panel .order-payment-details[open] .iv', { timeout: 12_000 })
+        const invoice = await page.evaluate(() => {
+          const row = document.querySelector('#mine-orders-panel .row.order-row')
+          const iv = row?.querySelector('.order-payment-details .iv')
+          if (!row || !iv) return { present: false }
+          return { present: true, rowWidth: row.getBoundingClientRect().width, ivWidth: iv.getBoundingClientRect().width,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }
+        })
+        check(`${vp.name} · My orders: mở hóa đơn không tràn ngang`,
+          invoice.present && invoice.ivWidth <= invoice.rowWidth + 1 && invoice.overflow <= 2,
+          `iv=${invoice.ivWidth?.toFixed(0)}px · row=${invoice.rowWidth?.toFixed(0)}px · overflow=${invoice.overflow}px`)
+        const orderFresh = errors.slice(orderErrorsBefore)
+        check(`${vp.name} · My orders: không lỗi console mới`, orderFresh.length === 0, orderFresh.slice(0, 2).join(' | '))
+        await page.screenshot({ path: join(outDir, `route-mine-orders-${vp.name}.png`), fullPage: true })
+      }
 
       if (r.slug === 'board') {
         /* Regression 2026-11-12: hai nowbar từng cùng grid-area:now và đè nhau
