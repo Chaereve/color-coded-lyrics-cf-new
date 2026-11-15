@@ -47,3 +47,7 @@ err.paymentEvidenceRequired
 # 2026-11-15 · PAID/BONUS chỉ chữ, hiệu ứng B: dấu vết trên chính badge dùng chung
 # trong src/components/RequestPaymentBadge.jsx; không phụ thuộc nhãn dịch hay CSS.
 b-text-20261115
+
+# 2026-11-15 · sửa hàng My orders bị ép chữ thành cột dọc: lớp hàng đơn mới trong
+# src/App.jsx (className="row order-row"); chỉ bundle mới có chuỗi này.
+row order-row

@@ -528,7 +528,7 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
               <b>{t('mine.ordersEmpty')}</b><small>{t('mine.ordersHint')}</small>
             </div>
             : pgOrders.items.map(o => (
-              <div className="row" key={o.id} id={`mine-order-${o.id}`} tabIndex={-1} style={{ '--sc': orderDisplayStatus(o) === 'paid' ? 'var(--done)' : orderDisplayStatus(o) === 'rejected' ? 'var(--denied)' : orderDisplayStatus(o) === 'expired' ? 'var(--txt-3)' : 'var(--pending)' }}>
+              <div className="row order-row" key={o.id} id={`mine-order-${o.id}`} tabIndex={-1} style={{ '--sc': orderDisplayStatus(o) === 'paid' ? 'var(--done)' : orderDisplayStatus(o) === 'rejected' ? 'var(--denied)' : orderDisplayStatus(o) === 'expired' ? 'var(--txt-3)' : 'var(--pending)' }}>
                 <div className="body">
                   <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</div>
                   <div className="meta">
