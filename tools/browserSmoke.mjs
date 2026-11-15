@@ -517,6 +517,9 @@ for (const vp of viewports) {
           layout.present && layout.detailsTop >= layout.bodyBottom - 1 && layout.detailsWidth >= layout.rowWidth * 0.9,
           `details=${layout.detailsWidth?.toFixed(0)}px · top=${layout.detailsTop?.toFixed(0)} · bodyBottom=${layout.bodyBottom?.toFixed(0)}`)
         await page.locator('#mine-orders-panel .order-payment-details summary').first().click()
+        await page.waitForSelector('#mine-orders-panel .order-payment-details[open] .pay', { timeout: 12_000 })
+        /* .iv chỉ dựng sau khi chọn một cổng thanh toán; mở details mới hiện .pay. */
+        await page.locator('#mine-orders-panel .order-payment-details[open] .paytile.bank').click()
         await page.waitForSelector('#mine-orders-panel .order-payment-details[open] .iv', { timeout: 12_000 })
         const invoice = await page.evaluate(() => {
           const row = document.querySelector('#mine-orders-panel .row.order-row')
