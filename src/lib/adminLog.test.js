@@ -6,6 +6,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ACTION_LABEL, FIELD_LABEL, actionKind, changedFields, describeAction, shortValue } from './adminLog.js'
+import { translate as translateText } from './strings.js'
 
 const translate = (key, vars) => (vars ? `${key} ${JSON.stringify(vars)}` : key)
 const t = (k) => translate(k)
@@ -24,6 +25,21 @@ test('detail dạng cặp [cũ, mới] và dạng {from,to} đọc như nhau', (
   assert.deepEqual(changedFields({ bí_mật: ['x', 'y'] }), [])
   assert.deepEqual(changedFields(null), [])
   assert.deepEqual(changedFields('rác'), [])
+})
+
+test('nhật ký migration legacy → bonus nêu rõ nguồn thanh toán, không chỉ lý do', () => {
+  const detail = {
+    payment_source: ['legacy', 'bonus'],
+    reason: 'Owner confirmed bonus-funded legacy request',
+    migration: '20261227_legacy_bonus_reclass',
+  }
+  const d = describeAction({ action: 'edit', label: 'idntt — Linda Mía', actor_name: 'System', detail })
+  assert.equal(d.kind, 'edit')
+  assert.deepEqual(d.fields.map(f => f.key), ['payment_source', 'reason'])
+  assert.deepEqual(d.fields[0], { key: 'payment_source', fieldKey: 'adm.log.f.paymentSource', from: 'legacy', to: 'bonus' })
+  assert.equal(translateText(FIELD_LABEL.payment_source), 'payment source')
+  const back = describeAction({ action: 'edit', detail: { ...detail, payment_source: ['bonus', 'legacy'], direction: 'rollback' } })
+  assert.deepEqual(back.fields[0], { key: 'payment_source', fieldKey: 'adm.log.f.paymentSource', from: 'bonus', to: 'legacy' })
 })
 
 test('việc chính: duyệt thắng "sửa", xoá thắng tất cả', () => {
