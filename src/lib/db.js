@@ -14,6 +14,7 @@ import { streakStats } from './streak.js'
 import { FEATURED_MEDIA_LIMIT, HOMEPAGE_VIDEO_LIMIT, featuredMediaCount, homepageVideoCount, isHomepageVideo } from './mediaLimits.js'
 import { withRetry } from './retry.js'
 import { trackFunnel, _useFunnelClient } from './funnel.js'
+import { ORDER_PAYMENT_HOURS, isOrderAwaiting, normalizeReference, orderReference, reconcileOrder } from './requestPayment.js'
 
 
 /* Một lần đọc bảng. Hai việc mà supabase-js mặc định KHÔNG làm, và cả hai
@@ -116,6 +117,44 @@ const cacheRead = (k, d = null) => rd(k, d)
 const cacheWrite = (k, value) => wr(k, value)
 const isMissingSchemaObject = (error) => ['PGRST202', 'PGRST205'].includes(error?.code)
 const today = () => new Date().toISOString().slice(0, 10)
+const demoExpiresAt = () => new Date(Date.now() + ORDER_PAYMENT_HOURS * 3600e3).toISOString()
+
+/* Demo inbox dùng đúng khóa của lib/watch.js để chuông đọc được ngay cả khi
+   không có Supabase. Chữ ký giống trigger SQL: một đơn + một trạng thái = một tin. */
+function demoOrderNotice(order) {
+  if (!order?.user_id || !['paid', 'rejected', 'expired'].includes(order.status)) return null
+  const sig = `order|${order.id}|${order.status}`
+  const notice = {
+    id: sig, sig, key: null, type: `order_${order.status}`, request_id: order.request_id || null,
+    title: orderReference(order), artist: null, url: null, pct: null, votes: order.qty ?? 0,
+    reason: order.resolution_reason || null, at: Date.now(), own: true, read: false,
+  }
+  const key = `ccl3_box:${order.user_id}`
+  const stored = readData(key, [])
+  const old = Array.isArray(stored) ? stored : []
+  if (!old.some(n => n?.sig === sig || n?.id === sig)) wr(key, [notice, ...old].slice(0, 60))
+  return notice
+}
+
+/* Demo không có pg_cron: hết hạn lười ngay trước khi đọc/đặt đơn, giữ hàng và
+   request như SQL (không xóa lịch sử), giải phóng quota và báo cho người mua. */
+function expireDemoOrders() {
+  const orders = readData(LS.orders, [])
+  const due = orders.filter(o => o?.status === 'awaiting' && o.expires_at && +new Date(o.expires_at) <= Date.now())
+  if (!due.length) return orders
+  const ids = new Set(due.map(o => o.id))
+  const reqIds = new Set(due.filter(o => o.kind === 'paid_request' && o.request_id).map(o => o.request_id))
+  const next = orders.map(o => ids.has(o.id)
+    ? { ...o, status: 'expired', expired_at: new Date().toISOString(), resolution_reason: 'payment_window_elapsed' }
+    : o)
+  wr(LS.orders, next)
+  if (reqIds.size) {
+    wr(LS.rows, demoRows().map(r => reqIds.has(r.id) && r.payment_status === 'awaiting'
+      ? { ...r, is_paid: false, payment_status: 'none', payment_source: null } : r))
+  }
+  next.filter(o => ids.has(o.id)).forEach(demoOrderNotice)
+  return next
+}
 
 const SEED = [
   { kind: 'Color Coded Lyrics', artist: 'Stray Kids', title: 'FARMING', requester: 'ttokyeoni', status: 'in_progress', progress: 47, votes: 3 },
@@ -389,7 +428,7 @@ export async function fetchPublicProfile(userId, viewerId = null) {
       /* Chủ hồ sơ: tải CẢ hàng chờ duyệt / bị từ chối (kèm lý do) để chính họ
          xem lại được; người ngoài: vẫn lọc ngay ở câu truy vấn. */
       const q = supabase.from('requests')
-        .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid')
+        .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid, payment_status, payment_source')
         .eq('user_id', userId)
       if (!ownerView) q.neq('status', 'pending').neq('status', 'denied')
       return readQuery(() => q
@@ -412,7 +451,11 @@ const noticeShape = (n) => ({
 })
 
 export async function fetchNotifications(uid) {
-  if (!uid || !hasSupabase) return []
+  if (!uid) return []
+  if (!hasSupabase) {
+    const box = readData(`ccl3_box:${uid}`, [])
+    return Array.isArray(box) ? box : []
+  }
   /* Cột `dismissed_at` có sau migration 20261108. Chưa chạy thì câu lọc đó
      lỗi — hỏi lại không lọc, phần nhớ trên máy vẫn chặn tin đã xóa. */
   const full = 'id, song_key, kind, request_id, title, artist, url, pct, votes, reason, created_at, read_at, sig'
@@ -559,14 +602,14 @@ export async function fetchRequests() {
     const [openRows, closedRes] = await Promise.all([
       fetchAllPages((from, size) => readQuery(() =>
         supabase.from('requests')
-          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
+          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,payment_source,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
           .in('status', ['pending', 'queued', 'in_progress'])
           .order('created_at', { ascending: false })
           .order('id', { ascending: false })
           .range(from, from + size - 1)), 500),
       readQuery(() =>
         supabase.from('requests')
-          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
+          .select('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,payment_source,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at')
           .in('status', ['completed', 'denied'])
           .order('created_at', { ascending: false })
           .limit(800)),
@@ -1061,7 +1104,7 @@ export async function fetchMedia() {
 export async function fetchOrders(user) {
   if (!user?.id) return []
   if (!hasSupabase) {
-    const all = readData(LS.orders, [])
+    const all = expireDemoOrders()
     const scoped = user.isAdmin ? all : all.filter(o => o.user_id === user.id)
     const rows = demoRows()
     return scoped.map(o => ({
@@ -1167,8 +1210,8 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
     } else {
       // Paid request trước đây không bị chặn gì: một script tạo được vô hạn
       // request pending + đơn hàng. Giới hạn giống hàm create_request.
-      const waiting = readData(LS.orders, []).filter(o =>
-        o.user_id === user.id && o.kind === 'paid_request' && o.status === 'awaiting')
+      const waiting = expireDemoOrders().filter(o =>
+        o.user_id === user.id && o.kind === 'paid_request' && isOrderAwaiting(o))
       if (waiting.length >= MAX_PAID_AWAITING)
         throw appError('err.paidPending', { n: MAX_PAID_AWAITING })
     }
@@ -1177,6 +1220,7 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
       artist: form.artist.trim(), title: form.title.trim(), link: form.link, note: form.note,
       requester: user.name, status: useBonus ? 'queued' : 'pending', progress: 0, votes: 0,
       is_paid: paid, payment_status: paid ? (useBonus ? 'paid' : 'awaiting') : 'none',
+      payment_source: useBonus ? 'bonus' : paid ? 'money' : null,
       video_url: null, deny_reason: null, created_at: new Date().toISOString(),
     }
     wr(LS.rows, [row, ...rows])
@@ -1185,7 +1229,7 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
         id: crypto.randomUUID(), user_id: user.id, kind: 'paid_request', qty: 0,
         amount_usd: PAID_REQUEST.usd, amount_vnd: PAID_REQUEST.vnd,
         request_id: row.id, status: 'awaiting', created_at: new Date().toISOString(),
-        requester_name: user.name,
+        expires_at: demoExpiresAt(), requester_name: user.name,
       }, ...readData(LS.orders, [])])
     }
     return row
@@ -1371,13 +1415,13 @@ export async function buyVotes(pack) {
     const u = rd(LS.user, null)
     const uid = u?.id || 'demo-user'
     const uname = u?.name || 'Demo User'
-    const orders = readData(LS.orders, [])
-    const waiting = orders.filter(o => o.user_id === uid && o.kind === 'votes' && o.status === 'awaiting')
+    const orders = expireDemoOrders()
+    const waiting = orders.filter(o => o.user_id === uid && o.kind === 'votes' && isOrderAwaiting(o))
     if (waiting.length >= 20) throw appError('err.orderQueueLimit', { n: 20 })
     const o = {
       id: crypto.randomUUID(), user_id: uid, kind: 'votes', pack: pack.id,
       qty: pack.qty, amount_usd: pack.usd, amount_vnd: pack.vnd,
-      status: 'awaiting', created_at: new Date().toISOString(),
+      status: 'awaiting', created_at: new Date().toISOString(), expires_at: demoExpiresAt(),
       requester_name: uname, buyer_name: uname,
     }
     wr(LS.orders, [o, ...orders])
@@ -1413,7 +1457,7 @@ export async function updateProfile({ name, avatar }) {
 
 export async function cancelOrder(id) {
   if (!hasSupabase) {
-    const orders = readData(LS.orders, [])
+    const orders = expireDemoOrders()
     const o = orders.find(x => x.id === id)
     if (!o) throw appError('err.orderMissing')
     if (o.status !== 'awaiting') throw appError('err.orderLocked')
@@ -1516,9 +1560,8 @@ export async function adminUpdateMany(ids = [], patch = {}) {
   return uniq.length
 }
 
-/* SỬA ĐẦY ĐỦ MỘT REQUEST — bốn trường mà `admin_update` không nhận: loại bài,
-   ghi chú, cờ đã trả phí, tên người gửi. Trước đây sửa sai loại bài là phải
-   xoá rồi tạo lại: mất vote và mất lịch sử.
+/* SỬA REQUEST — loại bài, ghi chú, tên người gửi. Không sửa cờ trả phí ở đây:
+   tiền và reward phải đi qua đơn hàng / RPC tạo request có sổ sách.
    `null` = giữ nguyên, đúng quy ước của admin_update. */
 export async function adminEditRequest(id, patch = {}) {
   if (!hasSupabase) {
@@ -1528,7 +1571,6 @@ export async function adminEditRequest(id, patch = {}) {
         ...r,
         kind: patch.kind ?? r.kind,
         note: patch.note === undefined ? r.note : String(patch.note || '').trim().slice(0, 300),
-        is_paid: patch.is_paid ?? r.is_paid,
         requester: patch.requester == null ? r.requester : (String(patch.requester).trim() || r.requester),
       }
     }))
@@ -1538,7 +1580,7 @@ export async function adminEditRequest(id, patch = {}) {
     p_id: id,
     p_kind: patch.kind ?? null,
     p_note: patch.note === undefined ? null : String(patch.note || '').trim(),
-    p_is_paid: patch.is_paid ?? null,
+    p_is_paid: null, /* payment source is order/reward-managed */
     p_requester: patch.requester == null ? null : String(patch.requester).trim(),
   })
   if (error) throw rpcError(error)
@@ -1722,24 +1764,50 @@ export async function adminSetPickPaused(paused) {
   return normalizePick(data)
 }
 
-export async function adminOrder(orderId, approve) {
+export async function adminOrder(orderId, approve, evidence = null) {
   if (!hasSupabase) {
-    const orders = readData(LS.orders, [])
+    const orders = expireDemoOrders()
     const o = orders.find(x => x.id === orderId)
-    if (!o) return
-    o.status = approve ? 'paid' : 'rejected'
+    if (!o) throw appError('err.orderMissing')
+    if (!['awaiting', 'expired'].includes(o.status)) throw appError('err.orderLocked')
+    const at = new Date().toISOString()
+    const reason = String(evidence?.reason || '').trim().slice(0, 300) || null
     if (approve) {
+      if (evidence == null) throw appError('err.paymentEvidenceRequired')
+      const check = reconcileOrder(o, evidence || {})
+      if (!check.ok) throw appError(check.code)
+      if (o.kind === 'paid_request' && o.request_id && !demoRows().some(r => r.id === o.request_id))
+        throw appError('err.requestMissing')
+      Object.assign(o, {
+        status: 'paid', paid_at: at, expired_at: null, resolution_reason: reason,
+        payment_method: evidence.method, received_currency: check.currency,
+        received_amount: check.received, payment_reference: normalizeReference(evidence.reference),
+      })
       if (o.kind === 'votes') {
         const p = demoProfile(); p.vote_credits += o.qty; wr(LS.prof, p)
       } else if (o.request_id) {
         wr(LS.rows, demoRows().map(r => r.id === o.request_id
-          ? { ...r, status: 'queued', payment_status: 'paid' } : r))
+          ? { ...r, status: r.status === 'pending' ? 'queued' : r.status,
+              is_paid: true, payment_status: 'paid', payment_source: 'money' } : r))
+      }
+    } else {
+      Object.assign(o, { status: 'rejected', rejected_at: at, expired_at: null, resolution_reason: reason })
+      if (o.kind === 'paid_request' && o.request_id) {
+        wr(LS.rows, demoRows().map(r => r.id === o.request_id && r.payment_status === 'awaiting'
+          ? { ...r, is_paid: false, payment_status: 'none', payment_source: null } : r))
       }
     }
     wr(LS.orders, orders)
-    return
+    demoOrderNotice(o)
+    return o
   }
-  const { error } = await supabase.rpc('admin_order', { p_order_id: orderId, p_approve: approve })
+  const { error } = await supabase.rpc('admin_order', {
+    p_order_id: orderId, p_approve: approve,
+    p_method: evidence?.method ?? null,
+    p_amount: evidence?.amount == null || evidence.amount === '' ? null : Number(evidence.amount),
+    p_reference: evidence?.reference ?? null,
+    p_reason: evidence?.reason ?? null,
+  })
   if (error) throw rpcError(error)
 }
 

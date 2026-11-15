@@ -5,6 +5,9 @@ import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../li
 import { KIND_META, isPicked, kindCls, kindShort, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
+import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, isOrderAwaiting, orderReference, orderTransferContent, pendingOrdersOfKind } from '../lib/requestPayment.js'
+import OrderStatusBadge from './OrderStatusBadge'
+import RequestPaymentBadge from './RequestPaymentBadge'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
 import { useI18n, errMsg } from '../lib/i18n.jsx'
@@ -347,7 +350,7 @@ function RequestTab({ onSubmit, live = true, rows = [], allRows, onVoteExisting,
       /* Dòng báo dùng `paid` của CHÍNH lần gửi này (giá trị trong closure), nên
          nó vẫn nói đúng vừa gửi request thường hay request trả phí — đọc lại
          từ state sau khi `setPaid(false)` là nói sai việc vừa xảy ra. */
-      setMsg({ t: 'ok', m: paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
+      setMsg({ t: 'ok', m: useBonus ? t('req.okBonus') : paid ? t('req.okPaid', { p: paidPrice }) : t('req.ok') })
     } catch (e2) { setMsg({ t: 'err', m: errMsg(t, e2) }) }
     finally { setBusy(false) }
   }
@@ -771,7 +774,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
           <div className="vp-k">{t('vote.bonus')}</div>
           <div className="vp-v">{voteStatus.bonus ?? 0}</div>
         </div>
-        <div className="vp-cell is-paid">
+        <div className="vp-cell is-bonus">
           <div className="vp-k">{t('vp.freePaid')}</div>
           <div className="vp-v">{voteStatus.bonus_requests ?? 0}</div>
         </div>
@@ -818,7 +821,7 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
               <div className="nm">
                 <b>
                   {r.title}{' '}
-                  {r.is_paid && <span className="pill gold">PAID</span>}
+                  <RequestPaymentBadge request={r} />
                 </b>
                 <small>{r.artist} · <span className={`kind ${kindCls(r.kind)}`} title={r.kind}>{kindShort(r.kind)}</span></small>
               </div>
@@ -846,22 +849,26 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const buy = async (p, label) => {
     setBusy(p.id); setMsg(null)
     try {
-      await onBuy(p)
-      setPicked({ usd: p.usd, vnd: p.vnd })
+      const created = await onBuy(p)
+      setPicked(created || { kind: 'votes', qty: p.qty, amount_usd: p.usd, amount_vnd: p.vnd })
       setMsg({ t: 'ok', m: t('buy.created', { label, amt: vnd(p.vnd) }) })
     } catch (e) { setMsg({ t: 'err', m: errMsg(t, e) }) }
     finally { setBusy(null) }
   }
 
-  const pendingOrder = myOrders.find(o => o.status === 'awaiting')
-  const lastOrder = picked
-    || (pendingOrder ? { usd: Number(pendingOrder.amount_usd), vnd: pendingOrder.amount_vnd } : null)
+  const voteOrders = myOrders.filter(o => o.kind === 'votes')
+  const pendingVotes = pendingOrdersOfKind(voteOrders, 'votes')
+  const atVoteLimit = pendingVotes.length >= MAX_VOTE_AWAITING
+  const pendingOrder = pendingVotes[0]
+  /* A created order that disappeared from myOrders was cancelled/removed; keeping
+     the old snapshot here would leave a ghost invoice telling the user to pay it. */
+  const pickedOrder = picked?.id ? (myOrders.find(o => o.id === picked.id) || null) : picked
+  const lastOrder = (isOrderAwaiting(pickedOrder) ? pickedOrder : null) || pendingOrder || null
   const customQty = Math.max(1, Math.min(100, Number(qty) || 1))
   const custom = singlePrice(customQty)
   const best = VOTE_PACKS[VOTE_PACKS.length - 1]
   const saving = (p) => Math.round((1 - (p.usd / p.qty) / SINGLE_VOTE.usd) * 100)
   const chosen = sel === 'custom' ? custom : (VOTE_PACKS.find(p => p.id === sel) || best)
-  const orderStatus = (s) => s === 'paid' ? t('order.paid') : s === 'rejected' ? t('order.rejected') : t('order.awaiting')
   const bumpCustom = (next) => { setSel('custom'); setQty(next) }
   const onCustomQtyChange = (e) => {
     const digits = String(e.target.value || '').replace(/\D+/g, '')
@@ -894,7 +901,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             return (
               <button type="button" role="option" aria-selected={on}
                 className={`pk-row${on ? ' on' : ''}`} key={p.id}
-                disabled={!!busy} onClick={() => setSel(p.id)}>
+                disabled={!!busy || atVoteLimit} onClick={() => setSel(p.id)}>
                 <span className="pk-chk" aria-hidden="true" />
                 <span className="pk-name">
                   <b>{p.qty} <span>{t('buy.unit')}</span></b>
@@ -916,20 +923,20 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
         {/* Số lẻ là lựa chọn thứ tư của cùng bảng: cùng lưới, cùng cột giá —
             trước đây nó là một cái hộp riêng trông như thẻ thứ tư. */}
         <div className={`buy-custom${sel === 'custom' ? ' on' : ''}`}
-          onClick={() => !busy && setSel('custom')}>
+          onClick={() => !busy && !atVoteLimit && setSel('custom')}>
           <span className="buy-custom-k">
             {t('buy.single')}
             <small>{usd(SINGLE_VOTE.usd)} {t('buy.eachVote')}</small>
           </span>
           <span className="qty" onClick={e => e.stopPropagation()}>
-            <button type="button" disabled={!!busy} aria-label={t('buy.less')}
+            <button type="button" disabled={!!busy || atVoteLimit} aria-label={t('buy.less')}
               onClick={() => bumpCustom(q => Math.max(1, (Number(q) || 1) - 1))}><Icon name="minus" size={14} /></button>
-            <input type="text" inputMode="numeric" pattern="[0-9]*" value={qty} disabled={!!busy}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={qty} disabled={!!busy || atVoteLimit}
               aria-label={t('buy.qty')}
               onFocus={() => setSel('custom')}
               onChange={onCustomQtyChange}
               onBlur={() => bumpCustom(q => Math.max(1, Math.min(100, Number(q) || 1)))} />
-            <button type="button" disabled={!!busy} aria-label={t('buy.more')}
+            <button type="button" disabled={!!busy || atVoteLimit} aria-label={t('buy.more')}
               onClick={() => bumpCustom(q => Math.min(100, (Number(q) || 1) + 1))}><Icon name="plus" size={14} /></button>
           </span>
           <span className="buy-custom-price">
@@ -947,12 +954,15 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
               <b>{t('order.votes', { n: chosen.qty })}</b> · {usd(chosen.usd)} <em>· {vnd(chosen.vnd)}</em>
             </span>
           </div>
-          <button type="button" className="btn btn-gold" disabled={!!busy}
+          <button type="button" className="btn btn-gold" disabled={!!busy || atVoteLimit}
             onClick={() => buy(chosen, t('order.votes', { n: chosen.qty }))}>
             {busy ? '…' : t('buy.order', { n: chosen.qty })}
           </button>
         </div>
         <p className="buy-foot">{t('buy.foot')}</p>
+        <p className={atVoteLimit ? 'msg err' : 'fhint'} role={atVoteLimit ? 'alert' : undefined}>
+          {t(atVoteLimit ? 'buy.pendingLimit' : 'buy.pendingCount', { n: pendingVotes.length, max: MAX_VOTE_AWAITING })}
+        </p>
       </section>
 
       {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
@@ -963,10 +973,12 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             số tiền của gói đang chọn — để chọn phương thức xong là có ngay tờ
             giấy điền sẵn, khỏi phải bấm Buy trước mới thấy số. */}
         <PaymentMethods
-          amountVnd={lastOrder?.vnd ?? chosen.vnd}
-          amountUsd={lastOrder?.usd ?? chosen.usd}
-          content={userName}
+          amountVnd={lastOrder?.amount_vnd ?? chosen.vnd}
+          amountUsd={Number(lastOrder?.amount_usd ?? chosen.usd)}
+          content={lastOrder ? orderTransferContent(lastOrder) : userName}
           awaiting={!!lastOrder} />
+        {lastOrder && <p className="fhint">{t('order.reference', { ref: orderReference(lastOrder) })} · {t('buy.referenceHint')}</p>}
+        {lastOrder && <p className="fhint">{t('order.windowHelp', { h: ORDER_PAYMENT_HOURS })}</p>}
       </section>
 
       <section className="buy-sec">
@@ -975,7 +987,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
           {t('support.line')}{' '}
           <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
         </div>
-        {myOrders.length === 0
+        {voteOrders.length === 0
           ? (
             <div className="empty">
               <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={15} /></span>
@@ -985,16 +997,14 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
               </div>
             </div>
           )
-          : myOrders.slice(0, 12).map(o => (
+          : voteOrders.slice(0, 12).map(o => (
             <div className="adm" key={o.id}>
               <div className="nm">
                 <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)}</small>
+                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)} · {t('order.reference', { ref: orderReference(o) })}</small>
               </div>
-              <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
-                {orderStatus(o.status)}
-              </span>
-              {o.status === 'awaiting' && onCancelOrder && (
+              <OrderStatusBadge order={o} />
+              {isOrderAwaiting(o) && onCancelOrder && (
                 <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
                   onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
               )}

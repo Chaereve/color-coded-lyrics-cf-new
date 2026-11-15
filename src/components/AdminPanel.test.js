@@ -115,7 +115,7 @@ test('funnel 7/30 ngày chỉ đọc ở mục Tổng quan, tải tường minh 
   assert.match(db, /supabase\.rpc\('funnel_summary',\s*\{\s*p_days:\s*pDays\s*\}\)/,
     'đọc qua RPC được bảo vệ is_admin, không select bảng trực tiếp')
   assert.doesNotMatch(db, /\.from\(['"]funnel_events['"]\)/, 'không mở đường đọc bảng trực tiếp')
-  assert.doesNotMatch(panel, /setInterval|window\.setInterval/, 'không polling')
+  assert.doesNotMatch(panel, /setInterval\([\s\S]{0,120}(loadFunnel|fetchFunnelSummary)/, 'không polling funnel bằng hẹn giờ')
 })
 
 test('trang không còn dấu vết của hộp thoại cũ', async () => {
@@ -283,13 +283,13 @@ test('mục Đơn hàng có bộ lọc trạng thái và con số tiền đã nh
   assert.match(html, /20,000/, 'số tiền của đơn phải còn hiện trên hàng')
 
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
-  assert.match(src, /matchOrderState\(o, ostF\)/, 'danh sách phải lọc theo trạng thái đang chọn')
+  assert.match(src, /matchOrderState\(o, ostF, orderNow\)/, 'danh sách phải lọc theo trạng thái đang chọn và cùng đồng hồ hết hạn với KPI')
   assert.match(src, /readAdminView\(window\.location\.search, KIND_KEYS, ADMIN_ORDER_STATES\)/,
     'trạng thái đơn phải đọc từ địa chỉ, cùng luật với các bộ lọc khác')
   assert.match(src, /ost: tab === 'orders' \? ostF : 'all'/, 'trạng thái đơn phải được ghi vào địa chỉ')
   const tabs = readFileSync(`${root}src/lib/adminTabs.js`, 'utf8')
-  assert.match(tabs, /ADMIN_ORDER_STATES = \['awaiting', 'paid', 'rejected'\]/,
-    'ba trạng thái có thật của bảng orders là nguồn duy nhất')
+  assert.match(tabs, /ADMIN_ORDER_STATES = \['awaiting', 'paid', 'rejected', 'expired'\]/,
+    'bốn trạng thái có thật của bảng orders là nguồn duy nhất')
 })
 
 test('mục Tổng quan trả lời bốn câu: còn gì phải làm · chờ bao lâu · chốt tự động · đã thu bao nhiêu', async () => {
@@ -463,4 +463,25 @@ test('tính năng bình luận đã bị gỡ khỏi web và khỏi database', a
   assert.ok(!db.includes("from('request_comments')"), 'không được còn truy vấn tới bảng đã xoá')
   const app = readFileSync(`${root}src/App.jsx`, 'utf8')
   assert.ok(!app.includes("components/Comments"), 'trang công khai không được import khối bình luận')
+})
+
+test('ô Đơn hàng không đếm đơn đã quá hạn là việc còn phải xử lý', async () => {
+  const html = await render({ ...base, tab: 'overview', orders: [
+    { id: 'due', kind: 'votes', qty: 3, amount_vnd: 13000, amount_usd: 0.49, status: 'awaiting', expires_at: '2000-01-01T00:00:00Z', created_at: '2026-09-01T00:00:00Z' },
+    { id: 'live', kind: 'votes', qty: 3, amount_vnd: 13000, amount_usd: 0.49, status: 'awaiting', expires_at: '2999-01-01T00:00:00Z', created_at: '2026-09-01T00:00:00Z' },
+  ] })
+  const sectionSelect = html.match(/<select id="adm-section-select"[\s\S]*?<\/select>/)?.[0] ?? ''
+  const orderOption = sectionSelect.match(/<option value="orders"[^>]*>([^<]*)<\/option>/)?.[1] ?? ''
+  assert.match(orderOption, /· 1$/, 'đơn awaiting đã hết hạn phải rơi khỏi hàng chờ, giống badge và bộ lọc')
+})
+
+test('khung sửa request không còn công tắc bật PAID tay', async () => {
+  const html = await render({ rows: [row({ id: 'paid-1', is_paid: true, payment_source: 'bonus', payment_status: 'paid' })], orders: [], media: [], tab: 'pending', user: { id: 'admin', isAdmin: true } })
+  assert.ok(!html.includes('adm-edit-paid'), 'không được sửa cờ trả phí trong khung sửa request')
+})
+
+test('phím tắt của trang im khi hộp đối soát thanh toán đang mở', () => {
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /if \(paymentOrder\) return/, 'phím `/` không được kéo focus ra sau lớp phủ đối soát')
+  assert.match(src, /\[tab, q, sel, pickMode, paymentOrder\]/, 'bộ bắt phím phải đọc trạng thái hộp đối soát mới nhất')
 })

@@ -142,6 +142,7 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                   paypal.me/{PAYMENT.paypal.username}
                 </a>
                 <span>{t('pay.afterPay')}</span>
+                {desc && <span className="fhint iv-v">{t('pay.paypalReferenceHint')}</span>}
               </>
             ) : (
               <span>{t('pay.exact')}</span>

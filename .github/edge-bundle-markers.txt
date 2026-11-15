@@ -33,3 +33,7 @@ compat-20261104
 # 2026-11-12 · công tắc tạm dừng pick request: câu chú thích mới trên bảng public
 # Khoá từ điển trong src/lib/strings.js, dùng ở src/App.jsx khi settings.pick.paused=true.
 now.pickRulePaused
+
+# 2026-11-15 · PR #62 payment operations: client cũ phải nhận thông điệp thiếu biên lai
+# Khoá lỗi trong src/lib/db.js + src/lib/strings.js; chỉ bundle mới có chuỗi này.
+err.paymentEvidenceRequired

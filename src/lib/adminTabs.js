@@ -73,10 +73,10 @@ export function adminTabPath(base, k) {
    ---------------------------------------------------------
    Mục Đơn hàng từng liệt kê LẪN đơn đang chờ với đơn đã nhận / đã từ chối:
    danh sách chỉ sắp theo giờ, không có cách nào tách "còn phải xử lý" khỏi
-   "đã xong". Ba trạng thái dưới đây là đúng ba trạng thái có thật trong bảng
+   "đã xong". Bốn trạng thái dưới đây là đúng bốn trạng thái có thật trong bảng
    `orders`; `all` là giá trị mặc định và không được ghi vào địa chỉ.
    ========================================================= */
-export const ADMIN_ORDER_STATES = ['awaiting', 'paid', 'rejected']
+export const ADMIN_ORDER_STATES = ['awaiting', 'paid', 'rejected', 'expired']
 
 export const ADMIN_SORTS = ['default', 'newest', 'votes', 'waiting']
 

@@ -15,10 +15,15 @@
    ========================================================= */
 
 const NEEDS_QUOTE = /[",\r\n]/
+/* Spreadsheet formula injection: a buyer name / note beginning with =, +, -, @
+   (even after spaces) must open as text, not as a formula in Excel/Sheets. */
+const FORMULA_START = /^(?:\s*[=+\-@]|[\t\r\n])/
 
 /** Một ô: luôn là chuỗi, nháy kép được nhân đôi, có dấu phẩy thì bọc lại. */
 export function csvCell(v) {
-  const s = v == null ? '' : String(v)
+  if (v == null) return ''
+  const raw = String(v)
+  const s = typeof v !== 'number' && FORMULA_START.test(raw) ? `'${raw}` : raw
   return NEEDS_QUOTE.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

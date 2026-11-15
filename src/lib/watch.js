@@ -233,6 +233,16 @@ export function noticeAliases(notice) {
   return [...out]
 }
 
+/* Tin thanh toán mang chữ ký `order|<uuid>|<status>`; không có song_key nên
+   đường mở tin phải đọc đúng id đơn để về tab My orders, không nhảy ra bảng. */
+export const isOrderNotice = (notice) =>
+  ['order_paid', 'order_rejected', 'order_expired'].includes(notice?.type)
+  || String(notice?.sig || '').startsWith('order|')
+export function orderIdOfNotice(notice) {
+  const m = /^order\|([0-9a-f-]{36})\|/i.exec(String(notice?.sig || ''))
+  return m ? m[1] : null
+}
+
 export function isDismissed(dismissed, notice) {
   if (!notice) return false
   const set = dismissed instanceof Set ? dismissed : new Set(dismissed || [])
@@ -290,6 +300,7 @@ export const otherNotices = (inbox) => (inbox || []).filter(n => !n.own)
    đâu: Needs you (vừa được duyệt, còn vote được) → Up next (kết quả chốt) →
    Denied (kèm lý do) → In progress → Out. Nhóm rỗng thì không dựng nhãn. */
 export const NOTICE_GROUPS = [
+  { id: 'payments', types: ['order_paid', 'order_rejected', 'order_expired'] },
   { id: 'need', types: ['approved'] },
   { id: 'upnext', types: ['picked'] },
   { id: 'denied', types: ['denied'] },

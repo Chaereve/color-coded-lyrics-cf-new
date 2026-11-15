@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Check from './Check'
 import Icon from './Icon'
+import RequestPaymentBadge from './RequestPaymentBadge'
+import OrderStatusBadge from './OrderStatusBadge'
+import OrderReviewDialog from './OrderReviewDialog'
 import DenyReason from './DenyReason'
 import Progress from './Progress'
 import { KIND_META, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from '../lib/meta'
@@ -18,6 +21,7 @@ import { here, putUrl } from '../lib/history'
 import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
+import { normalizeReference, orderDisplayStatus, orderReference } from '../lib/requestPayment.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
@@ -112,11 +116,10 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   const [video, setVideo] = useState(r.video_url || '')
   const [artist, setArtist] = useState(r.artist)
   const [title, setTitle] = useState(r.title)
-  /* Ba trường mà `admin_update` không nhận (loại bài, ghi chú, cờ đã trả phí):
-     sửa sai loại bài từng phải xoá rồi tạo lại — mất vote và mất lịch sử. */
+  /* Loại bài và ghi chú đi qua admin_request_edit. Nguồn thanh toán là dữ liệu
+     chỉ đọc ở đây: đổi nó phải qua đơn hàng/reward để không tạo PAID giả. */
   const [kind, setKind] = useState(r.kind)
   const [note, setNote] = useState(r.note || '')
-  const [paid, setPaid] = useState(!!r.is_paid)
   /* Bàn phím: Enter trên hàng đang trỏ KHÔNG mở một khung riêng — nó đặt
      `reveal.id` cho đúng hàng này, và hàng tự mở. `openManual` là lựa chọn của
      người dùng (bấm Sửa/Đóng), nên nó thắng tín hiệu từ bàn phím; nhờ vậy
@@ -126,13 +129,13 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
   /* mo form la nap lai ten hien tai (tranh giu ten cu sau khi da luu) */
   const toggleOpen = () => {
     setArtist(r.artist); setTitle(r.title)
-    setKind(r.kind); setNote(r.note || ''); setPaid(!!r.is_paid)
+    setKind(r.kind); setNote(r.note || '')
     setOpenManual(!open)
   }
   const songClean = { artist: artist.trim(), title: title.trim() }
   const songChanged = songClean.artist !== r.artist || songClean.title !== r.title
   const noteClean = note.trim().slice(0, 300)
-  const extrasChanged = kind !== r.kind || noteClean !== (r.note || '') || paid !== !!r.is_paid
+  const extrasChanged = kind !== r.kind || noteClean !== (r.note || '')
   const age = ageChip(r, pickInterval)
   const pct = progressOf(r)
   const picked = isPicked(r)
@@ -154,7 +157,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             một mạch tên bài, người gửi, giờ, số phiếu mà không có chỗ ngắt. */}
         <h3 className="adm-req-t">
           {r.title} <span style={{ color: 'var(--txt-2)', fontWeight: 400 }}>— {r.artist}</span>{' '}
-          {r.is_paid && <span className="pill gold">PAID</span>}
+          <RequestPaymentBadge request={r} />
           {picked && <span className="pill upnext">{t('adm.picked')}</span>}
         </h3>
         <small>
@@ -259,10 +262,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
               {t('adm.saveSong')}
             </button>
           </div>
-          {/* LOẠI BÀI · GHI CHÚ · CỜ ĐÃ TRẢ PHÍ — ba trường mà khung sửa cũ
-              không có. Một nút Lưu riêng vì đây là đường RPC riêng
-              (admin_request_edit): trộn nó vào nút "Lưu tên" là hai thứ khác
-              nhau nằm sau một cái nút. */}
+          {/* LOẠI BÀI · GHI CHÚ — sửa qua RPC riêng; nguồn tiền chỉ đọc. */}
           <div className="inline-form adm-edit-extra">
             <select className="sel" value={kind} aria-label={t('adm.kind')}
               onChange={e => setKind(e.target.value)}>
@@ -270,12 +270,12 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             </select>
             <input value={note} maxLength={300} placeholder={t('adm.notePh')}
               aria-label={t('adm.notePh')} onChange={e => setNote(e.target.value)} />
-            <label className="switch adm-edit-paid">
-              <Check checked={paid} onChange={e => setPaid(e.target.checked)} />
-              <span>{t('adm.paidFlag')}</span>
-            </label>
+            <div className="adm-payment-readonly">
+              <RequestPaymentBadge request={r} />
+              <small>{t('adm.paymentReadOnly')}</small>
+            </div>
             <button type="button" className="btn btn-sm" disabled={!extrasChanged}
-              onClick={() => onEdit?.(r.id, { kind, note: noteClean, is_paid: paid })}>
+              onClick={() => onEdit?.(r.id, { kind, note: noteClean })}>
               {t('adm.saveExtras')}
             </button>
           </div>
@@ -435,10 +435,11 @@ export default function AdminPanel({
      admin_order hai lần — nay hàm SQL cũng chỉ nhận đơn 'awaiting', đây là
      lớp chặn thứ hai để người dùng không thấy nút nhấp nháy vô nghĩa. */
   const [orderBusy, setOrderBusy] = useState(() => new Set())
-  const runOrder = async (id, approve) => {
-    if (orderBusy.has(id)) return
+  const [paymentOrder, setPaymentOrder] = useState(null)
+  const runOrder = async (id, approve, evidence = null) => {
+    if (orderBusy.has(id)) return false
     setOrderBusy(prev => new Set(prev).add(id))
-    try { await onOrder(id, approve) }
+    try { return await onOrder(id, approve, evidence) }
     finally {
       setOrderBusy(prev => { const next = new Set(prev); next.delete(id); return next })
     }
@@ -567,6 +568,9 @@ export default function AdminPanel({
   useEffect(() => {
     if (tab == null) return
     const h = (e) => {
+      /* Hộp đối soát thanh toán là modal thật: phím của trang (đặc biệt `/`)
+         không được kéo tiêu điểm ra ô tìm kiếm phía sau lớp phủ. */
+      if (paymentOrder) return
       const el = e.target
       const typing = el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable
       if (typing) {
@@ -619,7 +623,7 @@ export default function AdminPanel({
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [tab, q, sel, pickMode])
+  }, [tab, q, sel, pickMode, paymentOrder])
 
   const pending = useMemo(() => rows.filter(r => r.status === 'pending'), [rows])
   /* Tab Đang xử lý xếp theo TỔNG vote của cả bài: các request trùng tên bài +
@@ -649,7 +653,15 @@ export default function AdminPanel({
     modalRef.current = true
     try { return await askRaw(opts) } finally { modalRef.current = false }
   }, [askRaw])
-  const orderQueue = useMemo(() => orders.filter(o => o.status === 'awaiting'), [orders])
+  /* Đồng hồ nhẹ cho hàng chờ đơn: badge tự chạy mỗi phút, nên KPI/bộ lọc cũng
+     phải đổi nhịp khi một đơn awaiting chạm hạn mà chưa có lượt cron/realtime. */
+  const [orderNow, setOrderNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!orders.some(o => o?.status === 'awaiting' && o?.expires_at)) return undefined
+    const id = setInterval(() => setOrderNow(Date.now()), 60_000)
+    return () => clearInterval(id)
+  }, [orders])
+  const orderQueue = useMemo(() => orders.filter(o => orderDisplayStatus(o, orderNow) === 'awaiting'), [orders, orderNow])
   /* (Khối `pipeline` cũ đã bị gỡ: nó tính năm con số mà không chỗ nào đọc —
      dải số liệu lấy số từ `counts`, mỗi ô đúng con số của mục nó mở ra.) */
   const others = useMemo(() => rows.filter(r => ['completed', 'denied'].includes(r.status)), [rows])
@@ -667,7 +679,7 @@ export default function AdminPanel({
   /* Số đơn theo trạng thái + tiền ĐÃ NHẬN trong 30 ngày. Tính trên TOÀN BỘ đơn
      đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
      bấm sang trang 2 hay gõ một từ khoá. */
-  const oStats = useMemo(() => orderStats(orders), [orders])
+  const oStats = useMemo(() => orderStats(orders, orderNow), [orders, orderNow])
   /* Bài đang chờ lâu nhất — null khi không còn bài nào chờ, để màn hình nói
      được "không có gì tồn" thay vì "0 ngày". */
   const oldestPending = useMemo(() => {
@@ -702,8 +714,9 @@ export default function AdminPanel({
     const buyer = orderBuyerOf(o)
     const what = o.kind === 'votes'
       ? `${t('order.votes', { n: o.qty })} votes ${o.pack || ''}`
-      : t('order.paidRequest')
-    return allTermsIn(`${what} ${o.status} ${buyer} ${o.id || ''} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
+      : t('order.paidRequestMoney')
+    const ref = orderReference(o)
+    return allTermsIn(`${what} ${orderDisplayStatus(o, orderNow)} ${buyer} ${o.id || ''} ${ref} ${normalizeReference(ref)} ${o.payment_reference || ''} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
   }
 
   /* danh sách đang hiển thị theo tab — phân trang chung một chỗ cho cả
@@ -805,7 +818,7 @@ export default function AdminPanel({
     if (sortKey === 'waiting') return out.sort((a, b) => -order(a, b))
     return out.sort(order)
   }
-  const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF) && matchOrder(o)))
+  const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF, orderNow) && matchOrder(o)))
     : tab === 'media' ? base
     : tab === 'log' ? logRows
       : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
@@ -989,8 +1002,17 @@ export default function AdminPanel({
         { k: 'qty', label: 'Votes' },
         { k: 'amount_vnd', label: 'Amount (VND)' },
         { k: 'amount_usd', label: 'Amount (USD)' },
-        { k: 'status', label: 'Status' },
+        { k: 'status', label: 'Status', get: (o) => orderDisplayStatus(o) },
+        { k: 'reference', label: t('adm.csvReference'), get: (o) => orderReference(o) },
         { k: 'created_at', label: 'Created' },
+        { k: 'paid_at', label: t('adm.csvPaidAt') },
+        { k: 'rejected_at', label: t('adm.csvRejectedAt') },
+        { k: 'expired_at', label: t('adm.csvExpiredAt') },
+        { k: 'payment_method', label: t('adm.csvPaymentMethod') },
+        { k: 'received_currency', label: t('adm.csvReceivedCurrency') },
+        { k: 'received_amount', label: t('adm.csvReceivedAmount') },
+        { k: 'payment_reference', label: t('adm.csvPaymentReference') },
+        { k: 'resolution_reason', label: t('adm.csvResolutionReason') },
       ]))
       : downloadText(csvFileName(`request-${tab}`), toCsv(shown, [
         { k: 'id', label: 'ID' },
@@ -1000,7 +1022,9 @@ export default function AdminPanel({
         { k: 'requester', label: 'Requester' },
         { k: 'status', label: 'Status' },
         { k: 'votes', label: 'Votes' },
-        { k: 'is_paid', label: 'Paid' },
+        { k: 'is_paid', label: t('adm.csvPriority') },
+        { k: 'payment_source', label: t('adm.csvFunding') },
+        { k: 'payment_status', label: t('adm.csvPaymentStatus') },
         { k: 'progress', label: 'Progress %', get: (r) => progressOf(r) },
         { k: 'link', label: 'Source Link' },
         { k: 'video_url', label: 'Video URL' },
@@ -1207,7 +1231,7 @@ export default function AdminPanel({
         ) : (
           <div className="adm-bar">
             <SearchBox t={t} q={q} setQ={(v) => { setQ(v); setSel(new Set()) }}
-              inputRef={searchRef} placeholder={t('adm.search')} />
+              inputRef={searchRef} placeholder={t(tab === 'orders' ? 'adm.orderSearch' : 'adm.search')} />
             <div className="adm-actions">
               {/* TRẠNG THÁI ĐƠN đứng trước cách xếp: câu hỏi "còn gì phải làm"
                   quan trọng hơn "xếp theo gì", và chỉ có ở mục Đơn hàng. */}
@@ -1271,6 +1295,7 @@ export default function AdminPanel({
               n: oStats.awaiting, paid: oStats.recentPaid, days: oStats.windowDays,
             })}</span>
             <b>{t('adm.orderRevenue', { vnd: vnd(oStats.receivedVnd), usd: usd(oStats.receivedUsd) })}</b>
+            {oStats.legacyPaid > 0 && <small>{t('adm.orderRevenueUnknown', { n: oStats.legacyPaid })}</small>}
           </div>
         )}
 
@@ -1369,6 +1394,7 @@ export default function AdminPanel({
               <p className="adm-ov-sub">
                 {t('adm.orderRevenueWindow', { days: oStats.windowDays, usd: usd(oStats.receivedUsd) })}
               </p>
+              {oStats.legacyPaid > 0 && <p className="adm-ov-sub">{t('adm.orderRevenueUnknown', { n: oStats.legacyPaid })}</p>}
               <button type="button" className="btn btn-sm" onClick={() => goTab('orders')}>
                 {t('adm.ov.openOrders')}
               </button>
@@ -1436,7 +1462,7 @@ export default function AdminPanel({
               return (
                 <div className="adm" key={o.id}>
                   <div className="nm">
-                    <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
+                    <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</b>
                     <small>
                       {buyer && (
                         <>
@@ -1450,33 +1476,37 @@ export default function AdminPanel({
                       <span className="dot dot-inline" aria-hidden="true" />
                       {timeAgo(o.created_at, t)}
                     </small>
+                    <small className="order-review-ref">{t('order.reference', { ref: orderReference(o) })}</small>
                     {o.request_id && (
                       <small style={{ color: 'var(--txt-2)' }}>
                         {req ? `${req.artist} — ${req.title}` : t('adm.reqDeleted')}
                       </small>
                     )}
+                    {o.paid_at && <small>{t('order.confirmedAt', { date: new Date(o.paid_at).toLocaleString() })}</small>}
+                    {o.rejected_at && <small>{t('order.rejectedAt', { date: new Date(o.rejected_at).toLocaleString() })}</small>}
+                    {o.expired_at && <small>{t('order.expiredAt', { date: new Date(o.expired_at).toLocaleString() })}</small>}
                   </div>
                   <div className="adm-acts">
-                    {o.status === 'awaiting' ? (
+                    {['awaiting', 'expired'].includes(orderDisplayStatus(o, orderNow)) ? (
                       <>
                         <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
-                          onClick={() => runOrder(o.id, true)}>
+                          onClick={() => setPaymentOrder(o)}>
                           {orderBusy.has(o.id) ? '…' : t('adm.received')}
                         </button>
                         <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
                           onClick={async () => {
-                            const ok = await ask({
+                            const answer = await ask({
                               title: t('adm.confirmRejectOrder'),
                               body: t('dlg.cannotUndo'),
                               confirmLabel: t('adm.deny'),
+                              reasonLabel: t('adm.denyPrompt'),
                             })
-                            if (ok) runOrder(o.id, false)
+                            if (answer) runOrder(o.id, false, { reason: answer.reason })
                           }}>{t('adm.deny')}</button>
+                        <OrderStatusBadge order={o} />
                       </>
                     ) : (
-                      <span className={`pill ${o.status === 'paid' ? 'completed' : 'denied'}`}>
-                        {o.status === 'paid' ? t('order.paid') : t('order.rejected')}
-                      </span>
+                      <OrderStatusBadge order={o} showDeadline={false} />
                     )}
                   </div>
                 </div>
@@ -1552,6 +1582,14 @@ export default function AdminPanel({
         {/* tab media cuộn dọc nên không cắt trang bằng Pager này */}
         {!['media', 'log', 'overview'].includes(tab) && <Pager {...pg} onChange={pg.setPage} scrollTo={listRef} />}
       </div>
+      {paymentOrder && (
+        <OrderReviewDialog key={paymentOrder.id} order={paymentOrder} busy={orderBusy.has(paymentOrder.id)}
+          onClose={() => setPaymentOrder(null)}
+          onConfirm={async (evidence) => {
+            const ok = await runOrder(paymentOrder.id, true, evidence)
+            if (ok) setPaymentOrder(null)
+          }} />
+      )}
     </section>
   )
 }

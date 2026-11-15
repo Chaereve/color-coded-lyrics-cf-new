@@ -41,7 +41,7 @@ test('deny_reason is unreadable by table query and returned only through owner/a
 
 test('client does not select or cache denial reasons in the public request query', () => {
   assert.match(db, /get_visible_denial_reasons/)
-  assert.match(db, /select\('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at'\)/)
+  assert.match(db, /select\('id,user_id,kind,artist,title,link,note,requester,status,progress,votes,is_paid,payment_status,payment_source,done_layout,done_lyrics,done_edit,video_url,picked_at,expired_at,created_at,updated_at'\)/)
   assert.doesNotMatch(db, /from\('requests'\)\.select\('\*'\)/)
 })
 

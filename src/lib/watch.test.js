@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import {
   clearInbox, diffNotices, dropNotice, isDismissed, markAllRead, markRead, mergeInbox, noticeDbId,
   ownNotices, otherNotices, pushNotices, rowEvents, snapOf,
-  groupNotices, toastOf, unreadCount,
+  groupNotices, isOrderNotice, orderIdOfNotice, toastOf, unreadCount,
   INBOX_LIMIT,
 } from './watch.js'
 
@@ -229,4 +229,15 @@ test('watch.js không còn tàn dư của tầng theo dõi', () => {
     assert.ok(!new RegExp(`\\b${dead}\\b`).test(src), `watch.js còn "${dead}"`)
   }
   assert.ok(!/watched|prefs/.test(src), 'không còn chữ "watched"/"prefs" trong tầng thông báo')
+})
+
+test('tin thanh toán có nhóm riêng và mở đúng id đơn, không nhảy ra bảng bài', () => {
+  const id = 'abcdef12-3456-7890-abcd-ef1234567890'
+  const n = { id: `db-1`, sig: `order|${id}|paid`, type: 'order_paid', at: AT, own: true, read: false, title: 'V-TEST' }
+  assert.equal(isOrderNotice(n), true)
+  assert.equal(orderIdOfNotice(n), id)
+  assert.equal(orderIdOfNotice({ type: 'order_paid', sig: null }), null)
+  const groups = groupNotices([n, { id: 'x', type: 'approved', at: AT, own: true, read: false }])
+  assert.equal(groups[0].id, 'payments')
+  assert.equal(groups[0].items[0].id, 'db-1')
 })

@@ -67,8 +67,8 @@ test('bộ lọc của bảng quản trị sống ở địa chỉ: đọc lại
   assert.equal(readAdminView(`?q=${'x'.repeat(200)}`).q.length, 80, 'từ khoá dán vào địa chỉ phải bị cắt')
 })
 
-test('trạng thái đơn hàng đọc từ địa chỉ: chỉ nhận ba trạng thái có thật', () => {
-  assert.deepEqual(ADMIN_ORDER_STATES, ['awaiting', 'paid', 'rejected'])
+test('trạng thái đơn hàng đọc từ địa chỉ: chỉ nhận bốn trạng thái có thật', () => {
+  assert.deepEqual(ADMIN_ORDER_STATES, ['awaiting', 'paid', 'rejected', 'expired'])
   assert.equal(readAdminView('?tab=orders&ost=paid').ost, 'paid')
   assert.equal(readAdminView('?ost=awaiting').ost, 'awaiting')
   /* gõ tay một trạng thái không có thật: danh sách phải hiện hết, không được

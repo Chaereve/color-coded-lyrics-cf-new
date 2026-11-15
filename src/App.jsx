@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Icon from './components/Icon'
+import RequestPaymentBadge from './components/RequestPaymentBadge'
 import DenyReason from './components/DenyReason'
 import GoogleIcon from './components/GoogleIcon'
 import Splash from './components/Splash'
@@ -33,11 +34,14 @@ import Steps from './components/Steps'
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
 const ActionModal = lazy(() => import('./components/ActionModal'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
+const PaymentMethods = lazy(() => import('./components/PaymentMethods'))
 const DailySpin = lazy(() => import('./components/DailySpin'))
 const DailyLogin = lazy(() => import('./components/DailyLogin'))
 const MysteryBoxPage = lazy(() => import('./components/MysteryBoxPage'))
 import { KIND_META, inChain, isPicked, kindCls, kindShort, statusColorOf, statusLabel, timeAgo, vnd, usd } from './lib/meta'
 import { useI18n, errMsg } from './lib/i18n.jsx'
+import { ORDER_PAYMENT_HOURS, orderActivityCategory, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, requestPaymentState } from './lib/requestPayment.js'
+import OrderStatusBadge from './components/OrderStatusBadge'
 import { sfx } from './lib/sfx'
 import { useReveal } from './lib/useReveal'
 import { pushUrl, putUrl, here, profileUrl, boardSearchUrl, songQuery, searchWithoutProfile } from './lib/history'
@@ -47,7 +51,8 @@ import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
-  diffNotices, dropNotice, isAdminExpiryNotice, isDismissed, loadDismissed, loadInbox, markAllRead, markRead,
+  diffNotices, dropNotice, isAdminExpiryNotice, isDismissed, isOrderNotice, loadDismissed, loadInbox, markAllRead, markRead,
+  orderIdOfNotice,
   mergeInbox, noticeAliases, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
 } from './lib/watch'
 import { useNotify } from './lib/notify.jsx'
@@ -308,7 +313,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
               hàng-dọc, nên "PAID" với "Up next" không bao giờ dán vào nhau. */}
           {(r.is_paid || isPicked(r)) && (
             <span className="tags">
-              {r.is_paid && <span className="pill gold">PAID</span>}
+              <RequestPaymentBadge request={r} />
               {isPicked(r) && <span className="pill upnext">{t('now.next')}</span>}
             </span>
           )}
@@ -373,7 +378,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
   )
 }
 
-function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, onCancelOrder }) {
+function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, onCancelOrder, focusOrder = null }) {
   const { t } = useI18n()
   const [pane, setPane] = useState('requests')
   const [requestCategory, setRequestCategory] = useState('queued')
@@ -382,6 +387,11 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
   const ordersRef = useRef(null)
   const requestsTabRef = useRef(null)
   const ordersTabRef = useRef(null)
+  /* Điều chỉnh state theo prop ngay trong render (không effect): bấm tin thanh
+     toán mở đúng tab Orders, đúng nhóm, đúng TRANG và cuộn tới đơn. Làm thành
+     hai nhịp render để usePager kịp đổi khoá nhóm trước khi đặt số trang. */
+  const [handledOrderFocus, setHandledOrderFocus] = useState(null)
+  const [scrollOrderId, setScrollOrderId] = useState(null)
   const handleActivityTabKey = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
@@ -419,9 +429,10 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
   const orderCategories = useMemo(() => {
     const definitions = [
       { key: 'paid_request', label: t('order.paidRequest'), color: 'var(--paid)', matches: order => order.kind === 'paid_request' },
-      { key: 'rejected', label: t('order.rejected'), color: 'var(--denied)', matches: order => order.status === 'rejected' && order.kind !== 'paid_request' },
-      { key: 'successful', label: t('order.successful'), color: 'var(--done)', matches: order => order.status === 'paid' && order.kind !== 'paid_request' },
-      { key: 'awaiting', label: t('order.awaiting'), color: 'var(--pending)', matches: order => order.status === 'awaiting' && order.kind !== 'paid_request' },
+      { key: 'rejected', label: t('order.rejected'), color: 'var(--denied)', matches: order => orderActivityCategory(order) === 'rejected' },
+      { key: 'successful', label: t('order.successful'), color: 'var(--done)', matches: order => orderActivityCategory(order) === 'successful' },
+      { key: 'expired', label: t('order.expired'), color: 'var(--txt-3)', matches: order => orderActivityCategory(order) === 'expired' },
+      { key: 'awaiting', label: t('order.awaiting'), color: 'var(--pending)', matches: order => orderActivityCategory(order) === 'awaiting' },
     ]
     const categories = definitions.map(category => {
       const rows = orders.filter(category.matches)
@@ -435,6 +446,33 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
     || orderCategories.find(category => category.count)
   const orderRows = activeOrderCategory?.rows || []
   const pgOrders = usePager(orderRows, PER_PAGE_ORDERS, [activeOrderCategory?.key || 'empty'])
+  if (focusOrder?.id && handledOrderFocus !== focusOrder.at) {
+    const target = orders.find(o => o.id === focusOrder.id)
+    if (target) {
+      const category = orderActivityCategory(target)
+      if (pane !== 'orders' || activeOrderCategory?.key !== category) {
+        setPane('orders')
+        setOrderCategory(category)
+      } else {
+        const want = orderFocusLocation(orders, target.id, PER_PAGE_ORDERS)?.page || 1
+        if (pgOrders.page !== want) pgOrders.setPage(want)
+        else {
+          setHandledOrderFocus(focusOrder.at)
+          setScrollOrderId(target.id)
+        }
+      }
+    }
+  }
+  useEffect(() => {
+    if (!scrollOrderId || pane !== 'orders') return undefined
+    const id = setTimeout(() => {
+      const el = document.getElementById(`mine-order-${scrollOrderId}`)
+      el?.scrollIntoView({ block: 'center' })
+      el?.focus?.({ preventScroll: true })
+      setScrollOrderId(null)
+    }, 0)
+    return () => clearTimeout(id)
+  }, [scrollOrderId, pane, pgOrders.page])
 
   return (
     <section className="mine-activity" aria-label={t('mine.activity')}>
@@ -490,21 +528,30 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
               <b>{t('mine.ordersEmpty')}</b><small>{t('mine.ordersHint')}</small>
             </div>
             : pgOrders.items.map(o => (
-              <div className="row" key={o.id} style={{ '--sc': o.status === 'paid' ? 'var(--done)' : o.status === 'rejected' ? 'var(--denied)' : 'var(--pending)' }}>
+              <div className="row" key={o.id} id={`mine-order-${o.id}`} tabIndex={-1} style={{ '--sc': orderDisplayStatus(o) === 'paid' ? 'var(--done)' : orderDisplayStatus(o) === 'rejected' ? 'var(--denied)' : orderDisplayStatus(o) === 'expired' ? 'var(--txt-3)' : 'var(--pending)' }}>
                 <div className="body">
-                  <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</div>
+                  <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</div>
                   <div className="meta">
                     <span>{vnd(o.amount_vnd)}</span><span className="dot" aria-hidden="true" />
                     <span>{usd(o.amount_usd)}</span><span className="dot" aria-hidden="true" />
                     <span>{timeAgo(o.created_at, t)}</span>
+                    <span className="dot" aria-hidden="true" /><span>{t('order.reference', { ref: orderReference(o) })}</span>
                   </div>
                 </div>
-                <span className={`pill ${o.status === 'paid' ? 'completed' : o.status === 'rejected' ? 'denied' : 'pending'}`}>
-                  {o.status === 'paid' ? t('order.paid') : o.status === 'rejected' ? t('order.rejected') : t('order.awaiting')}
-                </span>
-                {o.status === 'awaiting' && (
+                <OrderStatusBadge order={o} />
+                {orderDisplayStatus(o) === 'awaiting' && (
                   <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
                     onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
+                )}
+                {orderDisplayStatus(o) === 'awaiting' && o.kind === 'paid_request' && (
+                  <details className="order-payment-details">
+                    <summary>{t('buy.payment')} · {t('order.reference', { ref: orderReference(o) })}</summary>
+                    <Suspense fallback={<span className="fhint">{t('spin.loading')}</span>}>
+                      <PaymentMethods amountVnd={o.amount_vnd} amountUsd={Number(o.amount_usd)}
+                        content={orderTransferContent(o)} awaiting />
+                    </Suspense>
+                    <p className="fhint">{t('order.windowHelp', { h: ORDER_PAYMENT_HOURS })}</p>
+                  </details>
                 )}
               </div>
             ))}
@@ -819,6 +866,7 @@ function AppInner() {
     parseRequestPrefill(new URLSearchParams(window.location.search)))
   const [modal, setModal] = useState(!!prefill)
   const [modalTab, setModalTab] = useState('request')
+  const [orderFocus, setOrderFocus] = useState(null)
   /* `admin` cũ là boolean của hộp thoại; nay là TAB đang mở trong trang
      /admin (null = chưa chọn thì lấy tab đầu). Giữ nguyên tên biến để mọi chỗ
      gọi openAdmin/đóng panel không phải đổi theo. */
@@ -1328,7 +1376,22 @@ function AppInner() {
 
   const loadOrdersOnly = useCallback(async (u = user) => {
     if (!u) return
-    try { setOrders(await fetchOrders(u)) } catch { /* ignore */ }
+    /* A vote order becoming paid changes the wallet but touches no request row,
+       so the requests realtime path never runs. Refresh the balance here too;
+       otherwise the buyer sees "paid" while the vote button still says 0 credits. */
+    const version = ++balanceVersion.current
+    const [od, vs] = await Promise.allSettled([fetchOrders(u), fetchVoteStatus()])
+    if (u.id !== currentUserId.current) return
+    if (od.status === 'fulfilled') setOrders(od.value)
+    if (vs.status === 'fulfilled' && version === balanceVersion.current) {
+      setVoteStatus(previous => ({
+        ...previous,
+        ...vs.value,
+        bonus_requests: Number.isInteger(vs.value.bonus_requests)
+          ? vs.value.bonus_requests
+          : (previous.bonus_requests ?? 0),
+      }))
+    }
   }, [user])
 
   useEffect(() => { if (user) load(user) }, [user, load])
@@ -1591,6 +1654,12 @@ function AppInner() {
       putUrl({ s: ADMIN_ONLY }, adminTabPath(ROUTES.admin, 'expired'))
       return
     }
+    if (isOrderNotice(n) && isSignedIn) {
+      setProfileId(null)
+      setOrderFocus({ id: orderIdOfNotice(n), at: Date.now() })
+      go('mine')
+      return
+    }
     if (n.type === 'votes' || n.key === 'login-reward' || n.key === 'season-reward') {
       setProfileId(null)
       go(n.key === 'season-reward' ? 'ranking' : 'login')
@@ -1698,12 +1767,12 @@ function AppInner() {
       const key = groupKey(r)
       let g = byKey.get(key)
       if (!g) {
-        g = { key, title: r.title, artist: r.artist, rows: [], votes: 0, paid: false, rep: r, picked_at: r.picked_at }
+        g = { key, title: r.title, artist: r.artist, rows: [], votes: 0, paymentStates: new Set(), rep: r, picked_at: r.picked_at }
         byKey.set(key, g); order.push(g)
       }
       g.rows.push(r)
       g.votes += r.votes || 0
-      if (r.is_paid) g.paid = true
+      if (r.is_paid) g.paymentStates.add(requestPaymentState(r))
       if (r.status === 'in_progress' && g.rep.status !== 'in_progress') g.rep = r
     }
     return order
@@ -1986,7 +2055,7 @@ function AppInner() {
           ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
           : t('notif.reqBody', { song }),
       ms: paid && !useBonus ? 6000 : 4000,
-      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => openModal('buy') } }),
+      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => { setModal(false); navTo('mine') } } }),
     })
     await load(user)
     return row
@@ -2041,7 +2110,7 @@ function AppInner() {
     }
     catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
   }
-  /* Sửa loại bài / ghi chú / cờ đã trả phí — đường RPC riêng
+  /* Sửa loại bài / ghi chú — đường RPC riêng. Nguồn tiền chỉ đổi qua đơn/reward.
      (admin_request_edit). Trước đây sửa sai loại bài là phải xoá rồi tạo lại. */
   const doAdminEdit = async (id, patch) => {
     try {
@@ -2112,14 +2181,14 @@ function AppInner() {
     const paid = o.kind === 'paid_request'
     const ok = await ask({
       title: t('order.confirmCancel'),
-      body: paid ? t('order.confirmCancelPaid') : t('dlg.cannotUndo'),
+      body: paid ? t('order.confirmCancelPaid') : t('order.cancelTransferWarning'),
       confirmLabel: t('order.cancel'),
     })
     if (!ok) return
     try { await cancelOrder(o.id); await load(user); flash('ok', t('toast.orderCancelled')) }
     catch (e) { flash('err', errMsg(t, e)) }
   }
-  const doOrder = async (id, ok) => {
+  const doOrder = async (id, ok, evidence = null) => {
     /* duyệt đơn paid_request đổi status request pending → queued: cũng là thay
        đổi chính tay admin gây ra nên khỏi tự thông báo */
     const o = orders.find(x => x.id === id)
@@ -2127,8 +2196,19 @@ function AppInner() {
       const r = rows.find(x => x.id === o.request_id)
       if (r) selfActRef.current = new Set([groupKey(r)])
     }
-    try { await adminOrder(id, ok); await load(user); flash('ok', ok ? t('toast.orderOk') : t('toast.orderNo')) }
-    catch (e) { selfActRef.current = null; flash('err', errMsg(t, e)) }
+    try {
+      await adminOrder(id, ok, evidence)
+      await load(user)
+      if (uid) fetchNotifications(uid).then(inbox => {
+        setNotices(current => mergeInbox(current, inbox, loadDismissed(uid)))
+      }).catch(() => {})
+      flash('ok', ok ? t('toast.orderOk') : t('toast.orderNo'))
+      return true
+    } catch (e) {
+      selfActRef.current = null
+      flash('err', errMsg(t, e))
+      return false
+    }
   }
   const doSetPickPaused = async (paused) => {
     try {
@@ -2558,9 +2638,9 @@ function AppInner() {
                               <h3 className="now-work-t">
                                 <span className="tx">{nowLead.title}</span>
                                 <span className="ar">— {nowLead.artist}</span>
-                                {(nowLead.paid || nowLead.rows.length > 1) && (
+                                {(nowLead.paymentStates.size > 0 || nowLead.rows.length > 1) && (
                                   <span className="tags">
-                                    {nowLead.paid && <span className="pill gold">PAID</span>}
+                                    {[...nowLead.paymentStates].map(state => <RequestPaymentBadge key={state} state={state} />)}
                                     {nowLead.rows.length > 1 && <span className="pill group">×{nowLead.rows.length}</span>}
                                   </span>
                                 )}
@@ -2583,7 +2663,7 @@ function AppInner() {
                                   {nowLead.rows.map(rr => (
                                     <li key={rr.id}>
                                       <span className={`status s-${rr.status}`} style={{ '--c': statusColorOf(rr) }}>{statusLabel(rr, t)}</span>
-                                      {rr.is_paid && <span className="pill gold">PAID</span>}
+                                      <RequestPaymentBadge request={rr} />
                                       <span>{rr.votes} {t('now.votes')}</span>
                                     </li>
                                   ))}
@@ -2618,9 +2698,9 @@ function AppInner() {
                                 </h3>
                                 <div className="now-qmeta">
                                   <span className={`kind ${kindCls(g.rep.kind)}`} title={g.rep.kind}>{kindShort(g.rep.kind)}</span>
-                                  {(g.paid || g.rows.length > 1) && (
+                                  {(g.paymentStates.size > 0 || g.rows.length > 1) && (
                                     <span className="tags">
-                                      {g.paid && <span className="pill gold">PAID</span>}
+                                      {[...g.paymentStates].map(state => <RequestPaymentBadge key={state} state={state} />)}
                                       {g.rows.length > 1 && <span className="pill group">×{g.rows.length}</span>}
                                     </span>
                                   )}
@@ -3065,7 +3145,7 @@ function AppInner() {
               <Stat c="var(--a-2)" v={myStats?.total_votes ?? 0} label={t('stat.votesReceived')} />
             </div>
             <MyActivityPanel requests={mineRows} orders={myOrders} user={viewer} myVotes={myVotes}
-              onVote={openVote} onDelete={doDelete} onCancelOrder={doCancelOrder} />
+              onVote={openVote} onDelete={doDelete} onCancelOrder={doCancelOrder} focusOrder={orderFocus} />
           </>
         )}
 
