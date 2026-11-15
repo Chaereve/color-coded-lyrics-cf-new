@@ -197,6 +197,17 @@ export function isAdminExpiryNotice(notice) {
   return notice?.type === 'expired' && String(notice?.sig || '').startsWith('expiry-admin|')
 }
 
+/* Tin yêu cầu admin duyệt request trả tiền / dùng thưởng. Chữ ký SQL và demo
+   đều là `request-review|<id>|<money|bonus>`; không suy nguồn từ is_paid. */
+export function isAdminRequestReviewNotice(notice) {
+  return ['paid_request_review', 'bonus_request_review'].includes(notice?.type)
+    && String(notice?.sig || '').startsWith('request-review|')
+}
+export function requestReviewFunding(notice) {
+  if (!isAdminRequestReviewNotice(notice)) return null
+  return notice.type === 'paid_request_review' ? 'money' : 'bonus'
+}
+
 /* Mọi khoá nhận diện của cùng một thông báo (id local, id có hậu tố `:0`/`:1`
    của phiên cũ, và chữ ký `sig` trên database) để chống nhân đôi và chống hồi
    sinh sau khi xoá. */
@@ -300,7 +311,10 @@ export const otherNotices = (inbox) => (inbox || []).filter(n => !n.own)
    đâu: Needs you (vừa được duyệt, còn vote được) → Up next (kết quả chốt) →
    Denied (kèm lý do) → In progress → Out. Nhóm rỗng thì không dựng nhãn. */
 export const NOTICE_GROUPS = [
-  { id: 'payments', types: ['order_paid', 'order_rejected', 'order_expired'] },
+  /* Việc admin phải duyệt đứng trước tin kết quả của chính mình. Hai loại tin
+     giữ nguyên nguồn tiền/thưởng để chuông không trộn PAID với BONUS. */
+  { id: 'review', types: ['paid_request_review', 'bonus_request_review'] },
+  { id: 'payments', types: ['order_paid', 'order_rejected', 'order_expired', 'bonus_refunded'] },
   { id: 'need', types: ['approved'] },
   { id: 'upnext', types: ['picked'] },
   { id: 'denied', types: ['denied'] },

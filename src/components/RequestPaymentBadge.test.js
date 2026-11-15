@@ -1,8 +1,8 @@
-/* Badge nguồn tài trợ của request: paid thường và bonus phải khác chữ + hình.
+/* Badge nguồn tài trợ của request: PAID và BONUS khác chữ + màu.
    ---------------------------------------------------------
-   Chỉ đổi màu là không đủ: hai tem nằm cạnh tên bài ở cỡ 10px, nên người đọc
-   phải phân biệt được bằng chữ (PAID vs BONUS) và bằng biểu tượng (sao vs quà).
-   Component này dùng chung cho bảng, hồ sơ, modal và admin, nên chốt ở đây.
+   Chủ dự án chốt chỉ giữ chữ, bỏ cả sao lẫn hộp quà; không phân biệt bằng màu
+   một mình. Component này dùng chung cho bảng, hồ sơ, modal và admin, nên chốt
+   ở đây, kể cả khi nhãn được truyền thẳng bằng prop state.
    Chạy: npm test */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -34,41 +34,43 @@ test('request miễn phí không dựng badge', async () => {
   assert.equal(await render({ request: null }), '')
 })
 
-test('paid thường là tem vàng PAID REQUEST, không mang chữ BONUS', async () => {
+test('paid thường chỉ hiện chữ PAID trong tem vàng, không icon hay chữ BONUS', async () => {
   const html = await render({ request: { is_paid: true, payment_source: 'money', payment_status: 'paid' } })
   assert.match(html, /class="pill gold"/)
   assert.match(html, /data-payment-state="paid"/)
-  assert.match(html, /PAID REQUEST/)
+  assert.match(html, /data-payment-badge="b-text-20261115"/, 'dấu vết bản tem chỉ chữ cho edge smoke')
+  assert.match(html, />PAID<\/span>/, 'chữ tem rút còn PAID, nghĩa đầy đủ nằm ở title')
   assert.match(html, /confirmed money payment/)
-  assert.doesNotMatch(html, /BONUS/)
-  assert.doesNotMatch(html, /req-payment-ico/, 'sao của tem vàng là CSS ::before, không phải icon quà')
+  assert.doesNotMatch(html, /PAID REQUEST|BONUS/)
+  assert.doesNotMatch(html, /<(?:svg|img)\b|req-payment-ico/, 'không còn hộp quà hay icon nào trong tem')
 })
 
-test('bonus là tem tím BONUS REQUEST có hộp quà, không dán PAID', async () => {
+test('bonus chỉ hiện chữ BONUS trong tem tím, không hộp quà và không dán PAID', async () => {
   const html = await render({ request: { is_paid: true, payment_source: 'bonus', payment_status: 'paid' } })
   assert.match(html, /class="pill bonus"/)
   assert.match(html, /data-payment-state="bonus"/)
-  assert.match(html, /BONUS REQUEST/)
-  assert.match(html, /req-payment-ico/, 'bonus phải có hình hộp quà để không chỉ khác màu')
+  assert.match(html, /data-payment-badge="b-text-20261115"/, 'cùng dấu vết bản tem chỉ chữ với PAID')
+  assert.match(html, />BONUS<\/span>/, 'chữ tem rút còn BONUS, nghĩa đầy đủ nằm ở title')
   assert.match(html, /No money was charged/)
-  assert.doesNotMatch(html, /PAID/)
-  assert.doesNotMatch(html, /pill gold/)
+  assert.doesNotMatch(html, /BONUS REQUEST|PAID|pill gold/)
+  assert.doesNotMatch(html, /<(?:svg|img)\b|req-payment-ico/, 'bỏ hộp quà theo đúng phương án đã chốt')
 })
 
 test('chờ thanh toán và legacy chưa xác minh không bị gọi là paid/bonus đã chốt', async () => {
   const awaiting = await render({ request: { is_paid: true, payment_source: 'money', payment_status: 'awaiting' } })
   assert.match(awaiting, /data-payment-state="awaiting"/)
   assert.match(awaiting, /AWAITING PAYMENT/)
-  assert.doesNotMatch(awaiting, /PAID REQUEST|BONUS REQUEST/)
+  assert.doesNotMatch(awaiting, /\bPAID\b|\bBONUS\b/)
 
   const legacy = await render({ request: { is_paid: true, payment_status: 'paid' } })
   assert.match(legacy, /data-payment-state="unverified"/)
   assert.match(legacy, /PAYMENT UNVERIFIED/)
-  assert.doesNotMatch(legacy, /PAID REQUEST|BONUS REQUEST/)
+  assert.doesNotMatch(legacy, /\bPAID\b|\bBONUS\b/)
 })
 
-test('state truyền thẳng vẫn đi qua đúng bảng nhãn/class', async () => {
+test('state truyền thẳng vẫn đi qua đúng bảng nhãn/class và chỉ giữ chữ', async () => {
   const html = await render({ state: 'bonus' })
   assert.match(html, /class="pill bonus"/)
-  assert.match(html, /BONUS REQUEST/)
+  assert.match(html, />BONUS<\/span>/)
+  assert.doesNotMatch(html, /BONUS REQUEST|<(?:svg|img)\b|req-payment-ico/)
 })

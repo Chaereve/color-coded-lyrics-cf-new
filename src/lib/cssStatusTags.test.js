@@ -7,7 +7,8 @@
 
      1. trạng thái đọc được bằng HÌNH, không chỉ bằng màu (`s-<status>`);
      2. thẻ thể loại bỏ viền và dùng TÊN NGẮN, tên đầy đủ về `title`;
-     3. tem PAID là nền vàng mờ + ngôi sao, chữ 10px — nhỏ hơn tên bài;
+     3. tem PAID/BONUS là tem nguồn tài trợ có chiều sâu: gradient nhẹ + viền tóc
+        + glow khẽ, CHỈ chữ PAID/BONUS cỡ 10px, không sao/hộp quà;
      4. hover nhuộm MÉP TRÁI bằng màu trạng thái, nền vẫn xám.
    ========================================================= */
 import { test } from 'node:test'
@@ -98,33 +99,47 @@ test('thẻ thể loại: không viền, nền mờ, chữ là TÊN NGẮN', () 
     'tên đầy đủ phải còn đường đọc lại ở title — cắt mà không có title là mất thông tin')
 })
 
-/* ---------- 3. TEM PAID ---------- */
-test('PAID là tem nền vàng mờ + ngôi sao, nhỏ hơn tên bài', () => {
+/* ---------- 3. TEM PAID / BONUS ---------- */
+test('PAID là tem vàng có chiều sâu, CHỈ chữ gọn, không sao và nhỏ hơn tên bài', () => {
   const gold = ruleOf('.pill.gold')
-  assert.match(gold, /border:\s*0/, 'bỏ viền vàng 40% — nó na ná viền xám của thẻ thể loại')
-  assert.match(gold, /background:\s*color-mix\(in oklab, var\(--paid\) 14%/,
-    'nền vàng 14% ăn khớp với nền vàng 4,5% của cả hàng PAID')
+  assert.match(gold, /background:\s*linear-gradient\(135deg, color-mix\(in oklab, var\(--paid\)/,
+    'tem tiền dùng gradient vàng nhẹ thay vì nền mờ một lớp')
+  assert.match(gold, /border:\s*1px solid color-mix\(in oklab, var\(--paid\)/,
+    'viền tóc cùng màu vàng để tem đọc ra là tem riêng')
+  assert.match(gold, /box-shadow:\s*inset 0 1px 0[^;]*, 0 0 12px -3px/,
+    'highlight mép trên + glow khẽ tạo chiều sâu')
+  assert.match(gold, /padding:\s*2px 8px;/, 'không còn icon thì hai lề ngang phải bằng nhau')
   assert.match(gold, /font-size:\s*10px/,
     'tem nhỏ hơn thang nhãn chung (11px) — nó là tem, không phải tiêu đề')
   assert.match(gold, /text-transform:\s*uppercase/, 'tem in hoa')
-  assert.match(bare, /\.pill\.gold::before \{[^}]*content:\s*'★'/,
-    'ngôi sao đứng trước chữ PAID — một ký hiệu nói "bài đặc biệt" mà không cần đọc chữ')
-  assert.match(bare, /\.now-members \.pill\.gold::before \{[^}]*font-size:\s*7px/,
-    'tem PAID trong danh sách thành viên bé hơn, nên sao cũng phải bé theo')
+  assert.doesNotMatch(bare, /\.pill\.gold::(?:before|after)\b/,
+    'bỏ sao vẽ bằng CSS theo đúng chốt chỉ giữ chữ PAID')
+  assert.match(ruleOf('.nowbar.upnext .pill.gold'), /padding:\s*2px 8px;/,
+    'tem trong Up next cũng cân hai lề, không giữ khoảng đệm cũ dành cho sao')
+  assert.match(ruleOf('.nowbar.upnext .now-members .pill.gold'), /font-size:\s*9px; padding:\s*1px 5px;/,
+    'tem thành viên thu nhỏ phải thắng biến thể Up next và cân hai lề')
 })
 
-test('BONUS không mượn tem vàng PAID: tím nhạt + hộp quà, cùng cỡ tem nhỏ', () => {
+test('BONUS không mượn tem vàng PAID: tím có chiều sâu, CHỈ chữ, cùng khuôn với PAID', () => {
   const bonus = ruleOf('.pill.bonus')
-  assert.match(bonus, /color:\s*var\(--a-2\)/, 'bonus dùng màu nhấn sáng, không phải màu tiền --paid')
+  assert.match(bonus, /var\(--a-2\)/, 'bonus dùng màu nhấn sáng, không phải màu tiền --paid')
   assert.doesNotMatch(bonus, /--paid/, 'tem bonus không được mang màu vàng của request trả tiền')
-  assert.match(bonus, /background:\s*color-mix\(in oklab, var\(--a-2\) 14%/,
-    'nền tím nhạt cùng khuôn tem nhỏ với PAID')
+  assert.match(bonus, /background:\s*linear-gradient\(135deg, color-mix\(in oklab, var\(--a-2\)/,
+    'gradient tím nhẹ cùng khuôn tem có chiều sâu với PAID')
+  assert.match(bonus, /border:\s*1px solid color-mix\(in oklab, var\(--a-2\)/,
+    'viền tóc tím, không phải viền xám của ô nhập liệu')
+  assert.match(bonus, /box-shadow:\s*inset 0 1px 0[^;]*, 0 0 12px -3px var\(--a-glow\)/,
+    'cùng hiệu ứng chiều sâu với tem PAID, glow dùng token tím có thật')
+  assert.match(css, /--a-glow:\s*[^;]+;/, 'token glow tím phải được khai báo')
+  assert.match(bonus, /padding:\s*2px 8px;/, 'không còn hộp quà thì hai lề ngang phải bằng nhau')
   assert.match(bonus, /font-size:\s*10px/, 'bonus cũng là tem nhỏ, không to hơn tên bài')
   assert.match(bonus, /text-transform:\s*uppercase/, 'tem in hoa như PAID')
-  assert.match(bare, /\.pill\.bonus \.req-payment-ico \{[^}]*width:\s*10px/,
-    'hộp quà đứng trước chữ BONUS — khác PAID bằng hình, không chỉ bằng màu')
-  assert.match(bare, /\.now-members \.pill\.bonus \.req-payment-ico \{[^}]*width:\s*7px/,
-    'tem bonus trong danh sách thành viên bé hơn, nên hộp quà cũng bé theo')
+  assert.doesNotMatch(bare, /\.req-payment-ico\b/,
+    'bỏ mọi luật hộp quà, kể cả bản thu nhỏ trong danh sách thành viên')
+  assert.match(ruleOf('.nowbar.upnext .pill.bonus'), /padding:\s*2px 8px;/,
+    'tem trong Up next cũng cân hai lề, không giữ khoảng đệm cũ dành cho hộp quà')
+  assert.match(ruleOf('.nowbar.upnext .now-members .pill.bonus'), /font-size:\s*9px; padding:\s*1px 5px;/,
+    'tem thành viên thu nhỏ phải thắng biến thể Up next và cân hai lề')
 })
 
 /* ---------- 4. HOVER NHUỘM MÉP ---------- */
@@ -272,10 +287,12 @@ test('không còn mã màu viết tay của bảng màu cũ trong CSS', () => {
   }
 })
 
-test('mỗi nhãn trạng thái chỉ được khai báo nền MỘT lần', () => {
+test('mỗi tem PAID/BONUS và nhãn Up next chỉ khai báo nền gốc MỘT lần', () => {
   /* `.pill.gold` từng bị khai báo lại ở cuối file bằng rgba vàng cũ: cùng độ ưu
-     tiên, bản sau thắng — nên đổi token ở tem PAID không có tác dụng gì. */
-  const decls = [...css.matchAll(/^\.pill\.(gold|upnext)\s*\{([^}]*)\}/gm)]
+     tiên, bản sau thắng — nên đổi token ở tem PAID không có tác dụng gì. Giữ
+     cả gradient mới của PAID/BONUS trong phép kiểm; override có phạm vi
+     `.nowbar.upnext` là biến thể nền đậm chủ đích, không phải khai báo gốc. */
+  const decls = [...css.matchAll(/^\.pill\.(gold|bonus|upnext)\s*\{([^}]*)\}/gm)]
   const byCls = {}
   for (const m of decls) {
     if (!/background/.test(m[2])) continue

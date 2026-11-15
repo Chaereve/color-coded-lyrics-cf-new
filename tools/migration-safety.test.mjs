@@ -199,7 +199,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
       '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
-      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass'])
+      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass',
+      '20261228_bonus_refund_and_priority', '20261229_request_funding_review'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -223,7 +224,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
       '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
-      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass'])
+      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass',
+      '20261228_bonus_refund_and_priority', '20261229_request_funding_review'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -249,7 +251,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
       '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
-      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass'])
+      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass',
+      '20261228_bonus_refund_and_priority', '20261229_request_funding_review'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -564,9 +567,11 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
      + tạm dừng chốt bài: 20261223 + nguồn thanh toán request: 20261224
      + vận hành thanh toán thủ công: 20261225
      + cấp quyền đọc cột nguồn thanh toán công khai: 20261226
-     + phân loại lại 9 request bonus cũ theo xác nhận chủ dự án: 20261227). */
+     + phân loại lại 9 request bonus cũ theo xác nhận chủ dự án: 20261227
+     + hoàn bonus request bị hủy trước sản xuất & ưu tiên money > bonus > free: 20261228
+     + tách paid/bonus ở khâu duyệt và báo admin: 20261229). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 70)
+  assert.equal(active.length, 72)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -593,9 +598,10 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
       '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
-      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass'])
+      '20261226_payment_source_read_grant', '20261227_legacy_bonus_reclass',
+      '20261228_bonus_refund_and_priority', '20261229_request_funding_review'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '34 migration(s) would be applied:')
+  assert.equal(lines[0], '36 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -631,6 +637,8 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261225  20261225_payment_operations.sql',
     'apply 20261226  20261226_payment_source_read_grant.sql',
     'apply 20261227  20261227_legacy_bonus_reclass.sql',
+    'apply 20261228  20261228_bonus_refund_and_priority.sql',
+    'apply 20261229  20261229_request_funding_review.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

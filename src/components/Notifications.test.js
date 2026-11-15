@@ -269,3 +269,18 @@ test('nhóm có hơn 12 tin hiện nút mở rộng Show N more thay vì nuốt 
   assert.match(html, /class="lnk nt-more"/)
 })
 
+
+
+test('tin admin duyệt PAID / BONUS hiện nhãn riêng và không gọi bonus là tiền', async () => {
+  const html = await renderPanel({ notices: [
+    notice('paid_request_review', { id: 'db-m', sig: 'request-review|req-m|money', type: 'paid_request_review', request_id: 'req-m' }),
+    notice('bonus_request_review', { id: 'db-b', sig: 'request-review|req-b|bonus', type: 'bonus_request_review', request_id: 'req-b' }),
+  ] })
+  const tx = plain(html)
+  assert.match(tx, /Needs admin review/)
+  assert.match(tx, /PAID request/)
+  assert.match(tx, /BONUS request/)
+  assert.match(tx, /money-paid request is waiting/)
+  assert.match(tx, /funded by a reward is waiting for approval/)
+  assert.doesNotMatch(tx, /BONUS request[\s\S]{0,120}money-paid request is waiting/)
+})

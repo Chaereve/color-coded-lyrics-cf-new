@@ -78,7 +78,7 @@ export const MEDIA_KINDS = ['featured', 'video', 'playlist']
 const LS = {
   user: 'ccl3_user', rows: 'ccl3_rows', votes: 'ccl3_votes', orders: 'ccl3_orders',
   prof: 'ccl3_prof', media: 'ccl3_media', spins: 'ccl3_spins',
-  pick: 'ccl3_pick',
+  pick: 'ccl3_pick', bonusRefunds: 'ccl3_bonus_refunds',
 }
 
 /*
@@ -156,12 +156,67 @@ function expireDemoOrders() {
   return next
 }
 
+/* Demo mirror of requests_refund_bonus: one credit per request id, only for an
+   unpicked bonus request that has not entered production. The ledger survives
+   row deletion so deny-then-delete cannot pay twice. */
+function refundDemoBonus(row, reason) {
+  if (!row?.id || !['denied', 'deleted', 'expired'].includes(reason)) return false
+  /* SQL chỉ hoàn ở UPDATE khi status THỰC SỰ chuyển sang denied; một hàng đã
+     denied từ trước migration không được hoàn chỉ vì bấm từ chối lại. Xoá một
+     hàng denied chưa từng hoàn thì vẫn hoàn đúng một lần (ledger chặn trùng). */
+  if (reason === 'denied' && row.status === 'denied') return false
+  if (row.payment_source !== 'bonus' || row.is_paid !== true
+    || row.payment_status !== 'paid' || row.picked_at || !row.user_id
+    || !['pending', 'queued', 'denied'].includes(row.status)) return false
+  const storedLedger = readData(LS.bonusRefunds, [])
+  const ledger = Array.isArray(storedLedger) ? storedLedger : []
+  if (ledger.some(x => x?.request_id === row.id)) return false
+  wr(LS.bonusRefunds, [{ request_id: row.id, user_id: row.user_id, amount: 1, reason,
+    actor_id: rd(LS.user, null)?.id || null, created_at: new Date().toISOString() }, ...ledger])
+  const uid = rd(LS.user, null)?.id || 'demo-user'
+  if (row.user_id === uid) {
+    const prof = demoProfile()
+    wr(LS.prof, { ...prof, bonus_requests: (prof.bonus_requests || 0) + 1 })
+  }
+  const sig = `bonus-refund|${row.id}`
+  const key = `ccl3_box:${row.user_id}`
+  const old = readData(key, [])
+  if (!old.some(n => n?.sig === sig)) {
+    wr(key, [{ id: sig, sig, key: groupKey(row), type: 'bonus_refunded', request_id: row.id,
+      title: row.title, artist: row.artist, at: Date.now(), own: true, read: false }, ...old].slice(0, 60))
+  }
+  return true
+}
+
+/* Demo mirror of requests_notify_admin_review: only the local admin inbox
+   receives funded submissions, once per request/source. Demo has one profile;
+   a non-admin demo profile must not receive an admin review notice. */
+function demoAdminReviewNotice(row) {
+  if (!row?.id || row.status !== 'pending' || row.is_paid !== true
+    || !['money', 'bonus'].includes(row.payment_source)) return false
+  const admin = rd(LS.user, null)
+  if (!admin?.id || !demoProfile().is_admin) return false
+  const sig = `request-review|${row.id}|${row.payment_source}`
+  const key = `ccl3_box:${admin.id}`
+  const old = readData(key, [])
+  if (old.some(n => n?.sig === sig)) return false
+  wr(key, [{ id: sig, sig, key: groupKey(row),
+    type: row.payment_source === 'money' ? 'paid_request_review' : 'bonus_request_review',
+    request_id: row.id, title: row.title, artist: row.artist,
+    at: Date.now(), own: true, read: false }, ...old].slice(0, 60))
+  return true
+}
+
 const SEED = [
   { kind: 'Color Coded Lyrics', artist: 'Stray Kids', title: 'FARMING', requester: 'ttokyeoni', status: 'in_progress', progress: 47, votes: 3 },
-  /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote */
+  /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote. Nguồn BONUS tường minh
+     để khối dây chuyền xem được tem tím; không phải hóa đơn tiền. */
   { kind: '1 Hour Loop', artist: 'TWICE', title: 'Moonlight Sunrise', requester: "O'Clock", status: 'queued', progress: 0, votes: 12,
+    is_paid: true, payment_status: 'paid', payment_source: 'bonus',
     picked_at: new Date(Date.now() - 172800000).toISOString() },
-  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
+  /* Hàng mẫu PAID đã xác nhận tiền: tem vàng ở bảng chờ, không rơi về unverified. */
+  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14,
+    is_paid: true, payment_status: 'paid', payment_source: 'money' },
   { kind: 'Full Album', artist: 'NewJeans', title: 'Get Up', requester: 'lyricscsc', status: 'completed', progress: 100, votes: 27, video_url: 'https://youtu.be/dQw4w9WgXcQ' },
   { kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', progress: 0, votes: 0 },
   { kind: 'Full Album', artist: 'IVE', title: 'IVE SWITCH', requester: 'ttokyeoni', status: 'queued', progress: 0, votes: 6 },
@@ -175,9 +230,25 @@ const SEED = [
 ]
 function demoRows() {
   const r = readData(LS.rows, null)
+  if (Array.isArray(r)) {
+    /* Trình duyệt đã lưu seed cũ trước khi có payment_source: chỉ nâng đúng hai
+       hàng mẫu nhận diện được, không đoán nguồn cho request người dùng tự tạo
+       và không ghi đè nguồn đã tường minh. Chỉ chạy trong demo mode. */
+    const rows = r.map(x => {
+      if (x?.id === 'seed-2' && x.artist === 'LE SSERAFIM' && x.title === 'Pop Off'
+        && x.is_paid === true && x.payment_status === 'paid' && x.payment_source == null)
+        return { ...x, payment_source: 'money' }
+      if (x?.id === 'seed-1' && x.artist === 'TWICE' && x.title === 'Moonlight Sunrise'
+        && x.is_paid === false && (x.payment_status == null || x.payment_status === 'none') && x.payment_source == null)
+        return { ...x, is_paid: true, payment_status: 'paid', payment_source: 'bonus' }
+      return x
+    })
+    if (rows.some((x, i) => x !== r[i])) wr(LS.rows, rows)
+    return rows
+  }
   if (r) return r
   const rows = SEED.map((x, i) => ({
-    is_paid: false, payment_status: 'none', video_url: null, link: '', note: '', deny_reason: null,
+    is_paid: false, payment_status: 'none', payment_source: null, video_url: null, link: '', note: '', deny_reason: null,
     ...x, id: 'seed-' + i, user_id: i % 3 === 0 ? 'demo-user' : 'other-' + i,
     created_at: new Date(Date.now() - i * 5.4e6).toISOString(),
   }))
@@ -553,6 +624,7 @@ export async function adminExpireRequest(id) {
         localStorage.setItem(key, JSON.stringify([created, ...old].slice(0, 60)))
       } catch { /* local demo storage may be blocked */ }
     }
+    refundDemoBonus(r, 'expired')
     wr(LS.rows, rows.filter(x => x.id !== id))
     return created ? { userId: r.user_id, notice: created } : null
   }
@@ -1218,12 +1290,13 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
     const row = {
       id: crypto.randomUUID(), user_id: user.id, kind: form.kind,
       artist: form.artist.trim(), title: form.title.trim(), link: form.link, note: form.note,
-      requester: user.name, status: useBonus ? 'queued' : 'pending', progress: 0, votes: 0,
+      requester: user.name, status: 'pending', progress: 0, votes: 0,
       is_paid: paid, payment_status: paid ? (useBonus ? 'paid' : 'awaiting') : 'none',
       payment_source: useBonus ? 'bonus' : paid ? 'money' : null,
       video_url: null, deny_reason: null, created_at: new Date().toISOString(),
     }
     wr(LS.rows, [row, ...rows])
+    if (paid) demoAdminReviewNotice(row)
     if (paid && !useBonus) {
       wr(LS.orders, [{
         id: crypto.randomUUID(), user_id: user.id, kind: 'paid_request', qty: 0,
@@ -1402,6 +1475,7 @@ export async function deleteRequest(id) {
         throw appError('err.deleteLocked')
       }
     }
+    refundDemoBonus(target, 'deleted')
     wr(LS.rows, rows.filter(r => r.id !== id))
     wr(LS.votes, readData(LS.votes, []).filter(v => v.id !== id))
     return
@@ -1479,7 +1553,9 @@ export async function adminReview(id, approve, reason = null, videoUrl = null) {
   const url = approve ? null : String(videoUrl || '').trim() || null
   if (url && (url.length > 500 || !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(url))) throw appError('err.denyVideo')
   if (!hasSupabase) {
-    wr(LS.rows, demoRows().map(r => r.id === id
+    const rows = demoRows()
+    if (!approve) refundDemoBonus(rows.find(r => r.id === id), 'denied')
+    wr(LS.rows, rows.map(r => r.id === id
       ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url } : r))
     return
   }
@@ -1503,6 +1579,7 @@ export async function adminUpdate(id, patch) {
       const next = { ...r, ...patch }
       next.progress = patch.status === 'completed' ? 100
         : (patch.progress ?? progressOf(next))
+      if (next.status === 'denied') refundDemoBonus(r, 'denied')
       if (next.status === 'completed' || next.status === 'denied') next.picked_at = null
       return next
     }))
@@ -1546,6 +1623,7 @@ export async function adminUpdateMany(ids = [], patch = {}) {
       const next = { ...r, ...patch }
       next.progress = patch.status === 'completed' ? 100
         : (patch.progress ?? progressOf(next))
+      if (next.status === 'denied') refundDemoBonus(r, 'denied')
       if (next.status === 'completed' || next.status === 'denied') next.picked_at = null
       return next
     }))
@@ -1663,7 +1741,9 @@ export async function adminReviewMany(ids = [], approve, reason = null, videoUrl
 
   if (!hasSupabase) {
     const set = new Set(uniq)
-    wr(LS.rows, demoRows().map(r => set.has(r.id)
+    const rows = demoRows()
+    if (!approve) rows.filter(r => set.has(r.id)).forEach(r => refundDemoBonus(r, 'denied'))
+    wr(LS.rows, rows.map(r => set.has(r.id)
       ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url }
       : r))
     return uniq.length
@@ -1684,7 +1764,9 @@ export async function adminDeleteMany(ids = []) {
   if (!uniq.length) return 0
   if (!hasSupabase) {
     const set = new Set(uniq)
-    wr(LS.rows, demoRows().filter(r => !set.has(r.id)))
+    const rows = demoRows()
+    rows.filter(r => set.has(r.id)).forEach(r => refundDemoBonus(r, 'deleted'))
+    wr(LS.rows, rows.filter(r => !set.has(r.id)))
     wr(LS.votes, readData(LS.votes, []).filter(v => !set.has(v.id) && !set.has(v.request_id)))
     return uniq.length
   }

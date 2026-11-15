@@ -99,9 +99,10 @@ export default function PublicProfile({ userId, viewerId = null, onBack, onDelet
       : [],
     [profile, isOwner])
   /* Người gửi phải tự xoá được request chưa vào sản xuất (pending/queued/denied),
-     nếu không sẽ bị kẹt hạn mức theo giờ. Không hiện nút cho đơn đã trả phí:
-     RPC xoá hiện giữ đơn thanh toán để quản trị xử lý, tránh xoá nhầm giao dịch. */
-  const canDeleteOwnRequest = (r) => isOwner && !!onDelete && !r.is_paid
+     nếu không sẽ bị kẹt hạn mức theo giờ. Không hiện nút cho đơn tiền: RPC xoá
+     giữ đơn thanh toán để quản trị xử lý. Bonus không có đơn tiền nên được hủy
+     và hoàn thưởng nếu chưa chốt/chưa vào sản xuất. */
+  const canDeleteOwnRequest = (r) => isOwner && !!onDelete && (!r.is_paid || r.payment_source === 'bonus')
     && !r.picked_at && ['pending', 'queued', 'denied'].includes(r.status)
   const removeOwnRequest = async (id) => {
     if (await onDelete?.(id)) setRetry(n => n + 1)

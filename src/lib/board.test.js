@@ -72,18 +72,31 @@ test('hạng của cụm không đổi khi vote dồn vào một dòng hay chia 
   assert.deepEqual(rank(split), rank(lumped))
 })
 
-test('Đang chờ: paid lên đầu, rồi mới tới tổng vote của cụm', () => {
+test('Đang chờ: money đã thu > bonus > free, rồi mới tới tổng vote của cụm', () => {
+  const money = { is_paid: true, payment_source: 'money', payment_status: 'paid' }
+  const bonus = { is_paid: true, payment_source: 'bonus', payment_status: 'paid' }
   const items = boardItems([
-    req('A', 'Song', 6), req('A', 'song', 6),
-    req('B', 'Paid one', 20, { is_paid: true }),
+    req('A', 'Free many votes', 100),
+    req('B', 'Bonus mid votes', 50, bonus),
+    req('C', 'Money low votes', 1, money),
   ], 'queued')
-  assert.deepEqual(labels(items), ['paid one (20)', 'song (2×=12)'])
-  /* một dòng paid cũng kéo cả cụm lên đầu */
+  assert.deepEqual(labels(items), ['money low votes (1)', 'bonus mid votes (50)', 'free many votes (100)'])
+  /* một dòng money cũng kéo cả cụm lên trên cụm chỉ có bonus/free */
   const mixed = boardItems([
-    req('A', 'Song', 1), req('A', 'song', 2, { is_paid: true }), req('B', 'Other', 9),
+    req('A', 'Bonus song', 9, bonus),
+    req('B', 'Mixed song', 1), req('B', 'mixed song', 2, money),
   ], 'queued')
-  assert.equal(mixed[0].title.toLowerCase(), 'song')
+  assert.equal(mixed[0].title.toLowerCase(), 'mixed song')
   assert.equal(mixed[0].votes, 3)
+})
+
+test('Đang chờ: tiền chưa thu / legacy không được hưởng hạng money', () => {
+  const items = boardItems([
+    req('A', 'Awaiting money', 100, { is_paid: true, payment_source: 'money', payment_status: 'awaiting' }),
+    req('B', 'Legacy', 90, { is_paid: true, payment_source: 'legacy', payment_status: 'paid' }),
+    req('C', 'Bonus', 1, { is_paid: true, payment_source: 'bonus', payment_status: 'paid' }),
+  ], 'queued')
+  assert.deepEqual(labels(items), ['bonus (1)', 'awaiting money (100)', 'legacy (90)'])
 })
 
 test('Mới nhất: cụm đứng theo request mới nhất trong cụm', () => {

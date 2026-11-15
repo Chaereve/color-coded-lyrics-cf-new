@@ -19,9 +19,9 @@ import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { useTransient } from '../lib/useTransient'
 import { here, putUrl } from '../lib/history'
 import { homepageVideoCount } from '../lib/mediaLimits.js'
-import { ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
+import { ADMIN_FUNDING_FILTERS, ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
-import { normalizeReference, orderDisplayStatus, orderReference } from '../lib/requestPayment.js'
+import { matchesRequestFunding, normalizeReference, orderDisplayStatus, orderReference, requestFundingKind, requestPriorityRank } from '../lib/requestPayment.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
@@ -40,8 +40,13 @@ const KIND_KEYS = Object.keys(KIND_META)
 /* Bộ lọc đang mở đọc từ địa chỉ MỘT lần lúc dựng. Test dựng component bằng SSR
    (không có `window`) nên đây phải là hàm thuần có đường lui. */
 const initialView = () => (typeof window === 'undefined'
-  ? { q: '', sort: 'default', kind: 'all', ost: 'all', focus: '' }
+  ? { q: '', sort: 'default', kind: 'all', ost: 'all', pay: 'all', focus: '' }
   : readAdminView(window.location.search, KIND_KEYS, ADMIN_ORDER_STATES))
+
+const FUNDING_LABEL = {
+  all: 'adm.fundingAll', money: 'adm.fundingMoney', bonus: 'adm.fundingBonus',
+  free: 'adm.fundingFree', unverified: 'adm.fundingUnverified',
+}
 
 
 /* TRẠNG THÁI RỖNG CỦA BẢNG QUẢN TRỊ.
@@ -157,8 +162,14 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             một mạch tên bài, người gửi, giờ, số phiếu mà không có chỗ ngắt. */}
         <h3 className="adm-req-t">
           {r.title} <span style={{ color: 'var(--txt-2)', fontWeight: 400 }}>— {r.artist}</span>{' '}
-          <RequestPaymentBadge request={r} />
-          {picked && <span className="pill upnext">{t('adm.picked')}</span>}
+          {/* Cùng luật với bảng công khai: hễ có thể hai nhãn cạnh nhau thì phải
+              nằm trong .tags để biết xuống dòng và giữ khe, không dán trần vào h3. */}
+          {(r.is_paid || picked) && (
+            <span className="tags">
+              <RequestPaymentBadge request={r} />
+              {picked && <span className="pill upnext">{t('adm.picked')}</span>}
+            </span>
+          )}
         </h3>
         <small>
           {/* Tên NGẮN + title, giống hệt hàng trên bảng công khai: cùng một
@@ -211,7 +222,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             <button className="btn btn-sm btn-no"
               onClick={async () => {
                 const r2 = await ask({
-                  title: t('dlg.denyTitle'), body: t('dlg.denyBody'), presets: denyPresets(t),
+                  title: t('dlg.denyTitle'), body: r.payment_source === 'bonus' ? t('dlg.bonusRefundDeny') : t('dlg.denyBody'), presets: denyPresets(t),
                   reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
                 })
                 if (r2) onReview(r.id, false, r2.reason, r2.videoUrl)
@@ -241,7 +252,7 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
         )}
         <button className="icon-btn" title={t('adm.delete')} aria-label={t('adm.delete')}
           onClick={async () => {
-            if (!(await ask({ title: t('adm.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
+            if (!(await ask({ title: t('adm.confirmDelete'), body: r.payment_source === 'bonus' ? t('dlg.bonusRefundDelete') : t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return
             sfx.delete(); onDelete(r.id)
           }}><Icon name="close" size={15} /></button>
       </div>
@@ -507,6 +518,8 @@ export default function AdminPanel({
      nhận / đã từ chối, nên muốn soát "còn gì phải làm" phải tự dò từng dòng.
      Cũng nằm trong địa chỉ như các bộ lọc khác. */
   const [ostF, setOstF] = useState(init.ost)
+  /* Nguồn tài trợ là một bộ lọc REQUEST độc lập với loại bài và trạng thái đơn. */
+  const [payF, setPayF] = useState(init.pay)
   const goTab = useCallback((k) => { onTab(k); setSel(new Set()) }, [onTab])
   /* Hai việc dưới đây (chọn cả trang, và phím Ctrl/Cmd+A) phụ thuộc những giá
      trị chỉ tính được ở cuối phần thân — cất chúng vào ref để bộ bắt phím khai
@@ -529,6 +542,7 @@ export default function AdminPanel({
         sort: ['media', 'overview', 'log'].includes(tab) ? 'default' : sortKey,
         kind: ['media', 'overview', 'log'].includes(tab) ? 'all' : kindF,
         ost: tab === 'orders' ? ostF : 'all',
+        pay: ['media', 'overview', 'log', 'orders'].includes(tab) ? 'all' : payF,
       })
       const next = window.location.pathname + qs
       /* Ghi địa chỉ đi qua `putUrl` (src/lib/history.js): trong iframe bị
@@ -538,14 +552,14 @@ export default function AdminPanel({
       if (next !== here()) putUrl({ s: 'admin' }, next)
     }, 260)
     return () => clearTimeout(id)
-  }, [tab, q, sortKey, kindF, ostF])
+  }, [tab, q, sortKey, kindF, ostF, payF])
 
   /* BACK/FORWARD: đọc lại bộ lọc từ địa chỉ, cùng lúc App đọc lại mục đang mở —
      không thì địa chỉ nói một đằng, bảng đang lọc một nẻo. */
   useEffect(() => {
     const onPop = () => {
       const v = readAdminView(window.location.search, KIND_KEYS, ADMIN_ORDER_STATES)
-      setQ(v.q); setSortKey(v.sort); setKindF(v.kind); setOstF(v.ost)
+      setQ(v.q); setSortKey(v.sort); setKindF(v.kind); setOstF(v.ost); setPayF(v.pay); setFocusId(v.focus)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -626,10 +640,12 @@ export default function AdminPanel({
   }, [tab, q, sel, pickMode, paymentOrder])
 
   const pending = useMemo(() => rows.filter(r => r.status === 'pending'), [rows])
-  /* Tab Đang xử lý xếp theo TỔNG vote của cả bài: các request trùng tên bài +
-     nghệ sĩ được cộng dồn trước khi so hạng (cùng luật với bảng "Top voted"
-     ngoài trang chủ), nên admin nhìn đúng bài đang được đòi nhiều nhất thay vì
-     chỉ thấy từng mảnh vote lẻ. */
+  const pendingMoney = useMemo(() => pending.filter(r => requestFundingKind(r) === 'money').length, [pending])
+  const pendingBonus = useMemo(() => pending.filter(r => requestFundingKind(r) === 'bonus').length, [pending])
+  /* Tab Đang xử lý xếp theo nguồn tài trợ trước (money đã thu > bonus > free),
+     rồi tới TỔNG vote của cả bài: các request trùng tên bài + nghệ sĩ được cộng
+     dồn trước khi so hạng, nên admin nhìn đúng hàng ưu tiên thay vì chỉ thấy
+     từng mảnh vote lẻ. */
   const activeRows = useMemo(
     () => rows.filter(r => ['queued', 'in_progress'].includes(r.status)), [rows])
   const totals = useMemo(() => voteTotals(activeRows), [activeRows])
@@ -637,7 +653,8 @@ export default function AdminPanel({
     () => [...activeRows].sort((a, b) => {
       const ta = totals.get(groupKey(a))?.total ?? (a.votes || 0)
       const tb = totals.get(groupKey(b))?.total ?? (b.votes || 0)
-      return (tb - ta)
+      return (requestPriorityRank(b) - requestPriorityRank(a))
+        || (tb - ta)
         || ((b.votes || 0) - (a.votes || 0))
         || (+new Date(a.created_at) - +new Date(b.created_at))
     }),
@@ -696,9 +713,9 @@ export default function AdminPanel({
   /* Bỏ MỌI bộ lọc bằng một cú bấm: trạng thái rỗng vì lọc mà không có lối thoát
      thì người dùng phải tự đoán xem mình đã bấm vào đâu. */
   const clearFilters = () => {
-    setQ(''); setKindF('all'); setSortKey('default'); setOstF('all'); setSel(new Set())
+    setQ(''); setKindF('all'); setSortKey('default'); setOstF('all'); setPayF('all'); setSel(new Set())
   }
-  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default' || ostF !== 'all'
+  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default' || ostF !== 'all' || payF !== 'all'
   /* So THEO TỪ bằng đúng hàm mà bảng công khai dùng (`allTermsIn` trong
      lib/board.js): bỏ dấu, hạ chữ thường, và mỗi từ trong từ khoá được dò độc
      lập nên "Whiplash aespa" với "aespa Whiplash" ra cùng một kết quả. Bản cũ
@@ -821,8 +838,8 @@ export default function AdminPanel({
   const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF, orderNow) && matchOrder(o)))
     : tab === 'media' ? base
     : tab === 'log' ? logRows
-      : sortList(base.filter(r => matchReq(r) && (kindF === 'all' || r.kind === kindF)))
-  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF])
+      : sortList(base.filter(r => matchReq(r) && matchesRequestFunding(r, payF) && (kindF === 'all' || r.kind === kindF)))
+  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF, payF])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
      phần đã chọn mà không còn hiện không được lặng lẽ nằm trong lệnh hàng loạt. */
   const selIds = pg.items.map(r => r.id).filter(id => sel.has(id))
@@ -836,7 +853,7 @@ export default function AdminPanel({
      Một hàng dưới con trỏ, khác hẳn "đang chọn" của chế độ chọn nhiều. Con trỏ
      sống theo danh sách đang nhìn: đổi mục / bộ lọc / trang thì khoá đổi và
      con trỏ tự về -1 (`cur.key !== listKey`), không cần một effect đồng bộ. */
-  const listKey = `${tab}|${q}|${sortKey}|${kindF}|${ostF}|${pg.page}`
+  const listKey = `${tab}|${q}|${sortKey}|${kindF}|${ostF}|${payF}|${pg.page}`
   const cursor = cur.key === listKey ? cur.i : -1
   const isRequestList = !['overview', 'media', 'log', 'orders'].includes(tab)
   const cursorRow = cursor >= 0 ? pg.items[cursor] : null
@@ -913,7 +930,7 @@ export default function AdminPanel({
     if (!canDeny) return
     const row = cursorRow
     const r2 = await ask({
-      title: t('dlg.denyTitle'), body: t('dlg.denyBody'), presets: denyPresets(t),
+      title: t('dlg.denyTitle'), body: row.payment_source === 'bonus' ? t('dlg.bonusRefundDeny') : t('dlg.denyBody'), presets: denyPresets(t),
       reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
     })
     if (r2) onReview(row.id, false, r2.reason, r2.videoUrl)
@@ -936,7 +953,7 @@ export default function AdminPanel({
     if (action === 'delete') {
       if (!(await ask({
         title: t('adm.bulkConfirmDelete', { n: selIds.length }),
-        body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete'),
+        body: pg.items.some(r => sel.has(r.id) && r.payment_source === 'bonus') ? t('dlg.bonusRefundDelete') : t('dlg.cannotUndo'), confirmLabel: t('adm.delete'),
       }))) return
       /* XOÁ là thao tác duy nhất trong bảng này không hoàn tác được, nên nó có
          tiếng riêng: trầm và đi xuống, khác hẳn mọi tiếng "xong việc" khác. Một
@@ -945,7 +962,7 @@ export default function AdminPanel({
     }
     if (action === 'deny') {
       const r2 = await ask({
-        title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: t('dlg.denyBody'), presets: denyPresets(t),
+        title: t('dlg.bulkDenyTitle', { n: selIds.length }), body: pg.items.some(r => sel.has(r.id) && r.payment_source === 'bonus') ? t('dlg.bonusRefundDeny') : t('dlg.denyBody'), presets: denyPresets(t),
         reasonLabel: t('adm.denyPrompt'), videoLabel: t('adm.denyVideo'), confirmLabel: t('adm.deny'),
       })
       if (!r2) return
@@ -1233,6 +1250,12 @@ export default function AdminPanel({
             <SearchBox t={t} q={q} setQ={(v) => { setQ(v); setSel(new Set()) }}
               inputRef={searchRef} placeholder={t(tab === 'orders' ? 'adm.orderSearch' : 'adm.search')} />
             <div className="adm-actions">
+              {tab !== 'orders' && (
+                <select className="sel adm-funding" value={payF} aria-label={t('adm.fundingAria')}
+                  onChange={e => { setPayF(e.target.value); setSel(new Set()) }}>
+                  {ADMIN_FUNDING_FILTERS.map(f => <option key={f} value={f}>{t(FUNDING_LABEL[f])}</option>)}
+                </select>
+              )}
               {/* TRẠNG THÁI ĐƠN đứng trước cách xếp: câu hỏi "còn gì phải làm"
                   quan trọng hơn "xếp theo gì", và chỉ có ở mục Đơn hàng. */}
               {tab === 'orders' && (
@@ -1344,6 +1367,16 @@ export default function AdminPanel({
                 style={{ '--sc': 'var(--pending)' }}>
                 <b>{counts.pending}</b>
                 <span>{t('adm.pending')}</span>
+              </button>
+              <button type="button" className="adm-ov-num" onClick={() => { setPayF('money'); goTab('pending') }}
+                style={{ '--sc': 'var(--paid)' }}>
+                <b>{pendingMoney}</b>
+                <span>{t('adm.pendingMoney')}</span>
+              </button>
+              <button type="button" className="adm-ov-num" onClick={() => { setPayF('bonus'); goTab('pending') }}
+                style={{ '--sc': 'var(--a)' }}>
+                <b>{pendingBonus}</b>
+                <span>{t('adm.pendingBonus')}</span>
               </button>
               <button type="button" className="adm-ov-num" onClick={() => goTab('expired')}
                 style={{ '--sc': 'var(--denied)' }}>

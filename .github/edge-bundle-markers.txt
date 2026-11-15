@@ -10,8 +10,10 @@
 # nên lệnh `grep` chỉ tải tệp entry `index-*.js` sẽ trả 0 dù bản deploy đã đúng.)
 #
 # Cách dùng: mỗi lần merge một thay đổi có mặt trong bundle (khoá từ điển mới,
-# câu chữ mới, tên miền mới…), THÊM một dòng vào cuối tệp. ĐỪNG xoá dòng cũ —
-# dấu vết cũ vẫn phải còn trong bundle.
+# câu chữ mới, tên miền mới…), THÊM một dòng vào cuối tệp. Giữ dòng cũ khi tính
+# năng còn tồn tại. Nếu chính câu chữ đó bị thay có chủ đích, comment dòng cũ
+# kèm lý do retired rồi thêm dấu vết của bản mới; không giữ một chuỗi đã bị gỡ
+# làm điều kiện deploy (sẽ đỏ vĩnh viễn), cũng không nhét lại chữ chỉ để qua CI.
 #
 # Quy tắc một dòng:
 #   · dòng bắt đầu bằng '#' hoặc dòng rỗng → bỏ qua;
@@ -38,6 +40,10 @@ now.pickRulePaused
 # Khoá lỗi trong src/lib/db.js + src/lib/strings.js; chỉ bundle mới có chuỗi này.
 err.paymentEvidenceRequired
 
-# 2026-11-15 · badge nguồn tài trợ request: paid thường và bonus phải khác chữ
-# Nhãn trong src/lib/strings.js; bonus không còn dán chữ PAID, có hộp quà riêng.
-BONUS REQUEST
+# 2026-11-15 · badge nguồn tài trợ request (PR #65) — RETIRED cùng lượt chốt B:
+# nhãn rút còn BONUS, bỏ hộp quà; không còn giữ chữ cũ chỉ để làm dấu vết build.
+# BONUS REQUEST
+
+# 2026-11-15 · PAID/BONUS chỉ chữ, hiệu ứng B: dấu vết trên chính badge dùng chung
+# trong src/components/RequestPaymentBadge.jsx; không phụ thuộc nhãn dịch hay CSS.
+b-text-20261115

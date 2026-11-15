@@ -38,6 +38,8 @@ const TONE = {
   approved: 'var(--queued)',
   votes: 'var(--paid)',
   order_paid: 'var(--paid)', order_rejected: 'var(--denied)', order_expired: 'var(--txt-3)',
+  bonus_refunded: 'var(--a)',
+  paid_request_review: 'var(--paid)', bonus_request_review: 'var(--a)',
 }
 
 export default function Notifications({

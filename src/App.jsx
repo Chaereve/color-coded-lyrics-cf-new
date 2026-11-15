@@ -28,7 +28,7 @@ import PublicProfile from './components/PublicProfile'
 import LoadErr from './components/LoadErr'
 import { nextTicket, stillLatest } from './lib/latestOnly'
 import { ConfirmProvider, useConfirm } from './lib/confirm.jsx'
-import { ADMIN_TABS, adminTabPath, readAdminTab } from './lib/adminTabs'
+import { ADMIN_TABS, adminQuery, adminTabPath, readAdminTab } from './lib/adminTabs'
 import Steps from './components/Steps'
 /* Hai modal nặng (chứa QR thanh toán / toàn bộ form admin) tách khỏi bundle
    chính: người chỉ xem bảng không phải tải code chỉ dùng khi bấm nút. */
@@ -51,7 +51,7 @@ import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
 import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
-  diffNotices, dropNotice, isAdminExpiryNotice, isDismissed, isOrderNotice, loadDismissed, loadInbox, markAllRead, markRead,
+  diffNotices, dropNotice, isAdminExpiryNotice, isAdminRequestReviewNotice, isDismissed, isOrderNotice, loadDismissed, loadInbox, markAllRead, markRead, requestReviewFunding,
   orderIdOfNotice,
   mergeInbox, noticeAliases, pushNotices, rememberDismissed, saveInbox, snapOf, songAttr, toastOf, withoutDismissed,
 } from './lib/watch'
@@ -370,7 +370,7 @@ function RequestRow({ r, n = 0, showDelete, myCount = 0, canVote, onVote, onDele
         <b key={r.votes} className="tick">{r.votes}</b><span>{t('row.vote')}</span>
         {myCount > 0 && <em className="mine">×{myCount}</em>}
       </button>
-      {showDelete && !r.is_paid && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
+      {showDelete && (!r.is_paid || r.payment_source === 'bonus') && !locked && ['pending', 'queued', 'denied'].includes(r.status) && (
         <button className="icon-btn" title={t('row.deleteReq')} aria-label={t('row.deleteReq')}
           onClick={() => onDelete(r.id)}><Icon name="close" size={15} /></button>
       )}
@@ -877,6 +877,9 @@ function AppInner() {
     (window.location.pathname.replace(/\/+$/, '') === ROUTES.admin
       ? readAdminTab(window.location.search)
       : null))
+  /* Bấm tin duyệt request có thể xảy ra khi panel đã mở sẵn cùng tab. Key này
+     buộc panel đọc lại URL một lần (bộ lọc nguồn + focus), không phát popstate giả. */
+  const [adminViewNonce, setAdminViewNonce] = useState(0)
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState(readSide)
   useEffect(() => { try { localStorage.setItem(SIDE_KEY, collapsed ? 'min' : 'full') } catch { /* ignore */ } }, [collapsed])
@@ -1629,8 +1632,10 @@ function AppInner() {
 
   /* Bấm một tin = đánh dấu đã đọc (cả local lẫn Supabase) rồi đưa người dùng
      tới đúng trang tương ứng:
+       · tin request trả tiền / bonus -> tab Pending lọc đúng nguồn trong Admin;
        · tin nhắc Admin duyệt bài quá hạn -> tab Expired trong Admin;
        · tin nhận phiếu thưởng -> Daily login / Leaderboard;
+       · tin hoàn lượt bonus -> About me (ví thưởng nằm ở đó);
        · bài bị từ chối / đã xoá hết hạn không còn trên bảng công khai -> About me;
        · bài đang mở trên bảng -> nhảy thẳng tới dòng bài đó và làm sáng hàng. */
   const isSignedIn = Boolean(user)
@@ -1647,6 +1652,17 @@ function AppInner() {
         }).catch(() => {})
       }
     }
+    if (isAdminRequestReviewNotice(n) && isAdminUser) {
+      setProfileId(null)
+      setAdmin('pending')
+      if (section !== ADMIN_ONLY) go(ADMIN_ONLY)
+      const pay = requestReviewFunding(n)
+      const qs = adminQuery({ tab: 'pending', pay })
+      const focus = n.request_id ? `&focus=${encodeURIComponent(n.request_id)}` : ''
+      putUrl({ s: ADMIN_ONLY }, `${ROUTES.admin}${qs}${focus}`)
+      setAdminViewNonce(n => n + 1)
+      return
+    }
     if (isAdminExpiryNotice(n) && isAdminUser) {
       setProfileId(null)
       setAdmin('expired')
@@ -1657,6 +1673,11 @@ function AppInner() {
     if (isOrderNotice(n) && isSignedIn) {
       setProfileId(null)
       setOrderFocus({ id: orderIdOfNotice(n), at: Date.now() })
+      go('mine')
+      return
+    }
+    if (n.type === 'bonus_refunded' && isSignedIn) {
+      setProfileId(null)
       go('mine')
       return
     }
@@ -2073,7 +2094,8 @@ function AppInner() {
     return order
   }
   const doDelete = async (id) => {
-    if (!(await ask({ title: t('row.confirmDelete'), body: t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
+    const target = rows.find(x => x.id === id)
+    if (!(await ask({ title: t('row.confirmDelete'), body: target?.payment_source === 'bonus' ? t('dlg.bonusRefundDelete') : t('dlg.cannotUndo'), confirmLabel: t('adm.delete') }))) return false
     try {
       await deleteRequest(id)
       await loadBoard(user)
@@ -3170,6 +3192,7 @@ function AppInner() {
             retry={t('err.blockRetry')}>
             <Suspense fallback={<div className="empty" role="status">{t('spin.loading')}</div>}>
               <AdminPanel
+                key={adminViewNonce}
                 tab={admin || ADMIN_TABS[0]} onTab={openAdmin}
                 rows={rows} orders={orders} media={featuredRows}
                 onReview={doReview} onUpdate={doAdminUpdate} onDelete={doAdminDelete} onExpire={doAdminExpire} onOrder={doOrder}

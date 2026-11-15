@@ -50,6 +50,8 @@ export const POST_20261125 = [
   '20261225_payment_operations',
   '20261226_payment_source_read_grant',
   '20261227_legacy_bonus_reclass',
+  '20261228_bonus_refund_and_priority',
+  '20261229_request_funding_review',
 ]
 
 const SCAFFOLD = `

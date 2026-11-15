@@ -354,8 +354,8 @@ test('bốn phím j/k/a/d và Enter có trong bảng quản trị, in ra chỗ d
 
 test('con trỏ bàn phím tự về -1 khi danh sách đổi (không cần effect đồng bộ)', async () => {
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
-  assert.match(src, /const listKey = `\$\{tab\}\|\$\{q\}\|\$\{sortKey\}\|\$\{kindF\}\|\$\{ostF\}\|\$\{pg\.page\}`/,
-    'khoá danh sách phải gồm mục + từ khoá + cách xếp + loại + trạng thái đơn + trang')
+  assert.match(src, /const listKey = `\$\{tab\}\|\$\{q\}\|\$\{sortKey\}\|\$\{kindF\}\|\$\{ostF\}\|\$\{payF\}\|\$\{pg\.page\}`/,
+    'khoá danh sách phải gồm mục + từ khoá + cách xếp + loại + trạng thái đơn + nguồn tài trợ + trang')
   assert.match(src, /const cursor = cur\.key === listKey \? cur\.i : -1/,
     'đổi danh sách là con trỏ phải rời đi, không trỏ vào hàng khác nghĩa')
 })
@@ -480,8 +480,41 @@ test('khung sửa request không còn công tắc bật PAID tay', async () => {
   assert.ok(!html.includes('adm-edit-paid'), 'không được sửa cờ trả phí trong khung sửa request')
 })
 
+test('hàng admin có tem nguồn + picked thì gom nhãn trong .tags, không dán trần vào h3', async () => {
+  const html = await render({
+    rows: [row({ id: 'bonus-picked', status: 'queued', is_paid: true, payment_source: 'bonus', payment_status: 'paid',
+      picked_at: '2026-09-02T00:00:00.000Z' })],
+    orders: [], media: [], tab: 'picked', user: { id: 'admin', isAdmin: true },
+  })
+  assert.match(html, /<h3 class="adm-req-t">[\s\S]*?<span class="tags"><span class="pill bonus"[\s\S]*?BONUS<\/span><span class="pill upnext">/,
+    'BONUS và picked phải là anh em trong một hộp .tags để biết xuống dòng và giữ khe')
+})
+
 test('phím tắt của trang im khi hộp đối soát thanh toán đang mở', () => {
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
   assert.match(src, /if \(paymentOrder\) return/, 'phím `/` không được kéo focus ra sau lớp phủ đối soát')
   assert.match(src, /\[tab, q, sel, pickMode, paymentOrder\]/, 'bộ bắt phím phải đọc trạng thái hộp đối soát mới nhất')
+})
+
+
+test('admin tách PAID và BONUS bằng bộ lọc nguồn, badge và hai ô đếm chờ duyệt', async () => {
+  const funded = [
+    row({ id: 'pay-pending', title: 'Money pending', is_paid: true, payment_source: 'money', payment_status: 'awaiting' }),
+    row({ id: 'bonus-pending', title: 'Bonus pending', is_paid: true, payment_source: 'bonus', payment_status: 'paid' }),
+    row({ id: 'free-pending', title: 'Free pending' }),
+  ]
+  const pending = await render({ ...base, rows: funded, tab: 'pending' })
+  assert.match(pending, /class="sel adm-funding"/)
+  assert.match(pending, /value="money">Paid · money</)
+  assert.match(pending, /value="bonus">Bonus · reward</)
+  assert.match(pending, /data-payment-state="awaiting"/)
+  assert.match(pending, /data-payment-state="bonus"/)
+  assert.match(pending, /id="adm-row-pay-pending"[\s\S]*?btn-ok/)
+  assert.match(pending, /id="adm-row-bonus-pending"[\s\S]*?btn-ok/)
+  const overview = await render({ ...base, rows: funded, tab: 'overview' })
+  assert.match(overview, /<b>1<\/b><span>Paid requests awaiting review<\/span>/)
+  assert.match(overview, /<b>1<\/b><span>Bonus requests awaiting review<\/span>/)
+  assert.ok(!overview.includes('adm-funding'), 'bộ lọc nguồn chỉ nằm trong danh sách request')
+  const orders = await render({ ...base, rows: funded, tab: 'orders' })
+  assert.ok(!orders.includes('adm-funding'), 'đơn hàng dùng trạng thái đơn, không dùng bộ lọc nguồn request')
 })

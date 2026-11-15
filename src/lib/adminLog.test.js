@@ -42,6 +42,18 @@ test('nhật ký migration legacy → bonus nêu rõ nguồn thanh toán, không
   assert.deepEqual(back.fields[0], { key: 'payment_source', fieldKey: 'adm.log.f.paymentSource', from: 'bonus', to: 'legacy' })
 })
 
+test('nhật ký hoàn bonus đọc được việc chính, nguồn, số lượt và lý do', () => {
+  const d = describeAction({
+    action: 'bonus_refund', label: 'aespa — Whiplash', actor_name: 'Admin',
+    detail: { payment_source: 'bonus', amount: 1, reason: 'denied' },
+  })
+  assert.equal(d.kind, 'bonus_refund')
+  assert.equal(d.labelKey, 'adm.log.bonusRefund')
+  assert.deepEqual(d.fields.map(f => f.key), ['payment_source', 'amount', 'reason'])
+  assert.equal(translateText('adm.log.bonusRefund'), 'Request reward refunded')
+  assert.equal(translateText('adm.log.f.amount'), 'amount')
+})
+
 test('việc chính: duyệt thắng "sửa", xoá thắng tất cả', () => {
   assert.equal(actionKind({ action: 'approve' }), 'approve')
   assert.equal(actionKind({ action: 'delete' }), 'delete')
