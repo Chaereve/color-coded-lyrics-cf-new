@@ -301,13 +301,20 @@ if (live) {
           const at = Date.parse(row?.created_at)
           return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
         })
-        /* The votes RPC can finish before the public request board finishes
-           loading/rendering. Wait for the actual Most voted card instead of a
-           fixed 200ms; if it never appears the final check below still fails. */
+        /* The votes RPC can finish before the public board publishes rows/votes
+           (loadPublic awaits requests + ranking + votes together). Wait for the
+           app's own data attributes, then for the rendered card. A fixed 200ms
+           read the DOM mid-load and turned a slow cold start into a false red. */
+        const boardReady = `(() => {
+          const b = document.querySelector('.board')
+          return !!b && Number(b.getAttribute('data-weekly-votes') || 0) > 0
+            && Number(b.getAttribute('data-request-rows') || 0) > 0
+        })()`
+        await page.waitForFunction(boardReady, null, { timeout: 45_000 }).catch(() => {})
         if (votesResponse?.ok() && recentVoteRows.length > 0) {
           await page.waitForFunction(
             "Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'Most voted')",
-            null, { timeout: 20_000 },
+            null, { timeout: 15_000 },
           ).catch(() => {})
         } else {
           await page.waitForTimeout(200)
