@@ -1,0 +1,50 @@
+name: Live weekly diagnostic (temporary)
+on:
+  push:
+    branches:
+      - 'arena/c039d143-color-coded-lyrics-cf-new'
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm i --no-save playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+      - name: Dump live weekly DOM
+        run: |
+          node - <<'JS'
+          const { chromium } = require('playwright')
+          ;(async () => {
+            const browser = await chromium.launch()
+            const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+            const errors = []
+            page.on('pageerror', e => errors.push(String(e)))
+            page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+            await page.goto('https://chaereve.pages.dev/?weekly-diagnose=1', { waitUntil: 'load', timeout: 60000 })
+            await page.waitForFunction(() => {
+              const b = document.querySelector('.board')
+              return b && Number(b.getAttribute('data-weekly-votes') || 0) > 0 && Number(b.getAttribute('data-request-rows') || 0) > 0
+            }, null, { timeout: 60000 }).catch(() => {})
+            const data = await page.evaluate(() => {
+              const b = document.querySelector('.board')
+              const weekly = document.querySelector('.nowbar.weekly')
+              return {
+                votes: b?.getAttribute('data-weekly-votes'),
+                top: b?.getAttribute('data-weekly-top'),
+                rows: b?.getAttribute('data-request-rows'),
+                labels: Array.from(document.querySelectorAll('.weekly-card small')).map(x => x.textContent.trim()),
+                weeklyHTML: weekly ? weekly.outerHTML.slice(0, 3500) : null,
+                cardCount: document.querySelectorAll('.weekly-card').length,
+              }
+            })
+            const msg = JSON.stringify({ data, errors: errors.slice(0, 5) })
+            console.log('::notice title=live weekly diagnostic::' + msg.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A'))
+            await browser.close()
+          })().catch(e => { console.error(e); process.exit(1) })
+          JS
