@@ -157,8 +157,14 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
             một mạch tên bài, người gửi, giờ, số phiếu mà không có chỗ ngắt. */}
         <h3 className="adm-req-t">
           {r.title} <span style={{ color: 'var(--txt-2)', fontWeight: 400 }}>— {r.artist}</span>{' '}
-          <RequestPaymentBadge request={r} />
-          {picked && <span className="pill upnext">{t('adm.picked')}</span>}
+          {/* Cùng luật với bảng công khai: hễ có thể hai nhãn cạnh nhau thì phải
+              nằm trong .tags để biết xuống dòng và giữ khe, không dán trần vào h3. */}
+          {(r.is_paid || picked) && (
+            <span className="tags">
+              <RequestPaymentBadge request={r} />
+              {picked && <span className="pill upnext">{t('adm.picked')}</span>}
+            </span>
+          )}
         </h3>
         <small>
           {/* Tên NGẮN + title, giống hệt hàng trên bảng công khai: cùng một

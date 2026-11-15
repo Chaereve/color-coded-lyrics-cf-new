@@ -480,6 +480,16 @@ test('khung sửa request không còn công tắc bật PAID tay', async () => {
   assert.ok(!html.includes('adm-edit-paid'), 'không được sửa cờ trả phí trong khung sửa request')
 })
 
+test('hàng admin có tem nguồn + picked thì gom nhãn trong .tags, không dán trần vào h3', async () => {
+  const html = await render({
+    rows: [row({ id: 'bonus-picked', status: 'queued', is_paid: true, payment_source: 'bonus', payment_status: 'paid',
+      picked_at: '2026-09-02T00:00:00.000Z' })],
+    orders: [], media: [], tab: 'picked', user: { id: 'admin', isAdmin: true },
+  })
+  assert.match(html, /<h3 class="adm-req-t">[\s\S]*?<span class="tags"><span class="pill bonus"[\s\S]*?BONUS<\/span><span class="pill upnext">/,
+    'BONUS và picked phải là anh em trong một hộp .tags để biết xuống dòng và giữ khe')
+})
+
 test('phím tắt của trang im khi hộp đối soát thanh toán đang mở', () => {
   const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
   assert.match(src, /if \(paymentOrder\) return/, 'phím `/` không được kéo focus ra sau lớp phủ đối soát')

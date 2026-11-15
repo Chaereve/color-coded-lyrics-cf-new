@@ -158,10 +158,14 @@ function expireDemoOrders() {
 
 const SEED = [
   { kind: 'Color Coded Lyrics', artist: 'Stray Kids', title: 'FARMING', requester: 'ttokyeoni', status: 'in_progress', progress: 47, votes: 3 },
-  /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote */
+  /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote. Nguồn BONUS tường minh
+     để khối dây chuyền xem được tem tím; không phải hóa đơn tiền. */
   { kind: '1 Hour Loop', artist: 'TWICE', title: 'Moonlight Sunrise', requester: "O'Clock", status: 'queued', progress: 0, votes: 12,
+    is_paid: true, payment_status: 'paid', payment_source: 'bonus',
     picked_at: new Date(Date.now() - 172800000).toISOString() },
-  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14, is_paid: true, payment_status: 'paid' },
+  /* Hàng mẫu PAID đã xác nhận tiền: tem vàng ở bảng chờ, không rơi về unverified. */
+  { kind: 'Color Coded Lyrics', artist: 'LE SSERAFIM', title: 'Pop Off', requester: 'swanlychae', status: 'queued', progress: 0, votes: 14,
+    is_paid: true, payment_status: 'paid', payment_source: 'money' },
   { kind: 'Full Album', artist: 'NewJeans', title: 'Get Up', requester: 'lyricscsc', status: 'completed', progress: 100, votes: 27, video_url: 'https://youtu.be/dQw4w9WgXcQ' },
   { kind: 'Color Coded Lyrics', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', progress: 0, votes: 0 },
   { kind: 'Full Album', artist: 'IVE', title: 'IVE SWITCH', requester: 'ttokyeoni', status: 'queued', progress: 0, votes: 6 },
@@ -175,9 +179,25 @@ const SEED = [
 ]
 function demoRows() {
   const r = readData(LS.rows, null)
+  if (Array.isArray(r)) {
+    /* Trình duyệt đã lưu seed cũ trước khi có payment_source: chỉ nâng đúng hai
+       hàng mẫu nhận diện được, không đoán nguồn cho request người dùng tự tạo
+       và không ghi đè nguồn đã tường minh. Chỉ chạy trong demo mode. */
+    const rows = r.map(x => {
+      if (x?.id === 'seed-2' && x.artist === 'LE SSERAFIM' && x.title === 'Pop Off'
+        && x.is_paid === true && x.payment_status === 'paid' && x.payment_source == null)
+        return { ...x, payment_source: 'money' }
+      if (x?.id === 'seed-1' && x.artist === 'TWICE' && x.title === 'Moonlight Sunrise'
+        && x.is_paid === false && (x.payment_status == null || x.payment_status === 'none') && x.payment_source == null)
+        return { ...x, is_paid: true, payment_status: 'paid', payment_source: 'bonus' }
+      return x
+    })
+    if (rows.some((x, i) => x !== r[i])) wr(LS.rows, rows)
+    return rows
+  }
   if (r) return r
   const rows = SEED.map((x, i) => ({
-    is_paid: false, payment_status: 'none', video_url: null, link: '', note: '', deny_reason: null,
+    is_paid: false, payment_status: 'none', payment_source: null, video_url: null, link: '', note: '', deny_reason: null,
     ...x, id: 'seed-' + i, user_id: i % 3 === 0 ? 'demo-user' : 'other-' + i,
     created_at: new Date(Date.now() - i * 5.4e6).toISOString(),
   }))

@@ -4199,7 +4199,7 @@ html[data-section="spin"] .bgfx { display: none; }
 .tags .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { row-gap: 6px; }
 .row .title .tags { margin-left: 2px; }
-.nowbar .now-item h3 .tags, .adm .nm b .tags { margin-left: 2px; }
+.nowbar .now-item h3 .tags, .adm .nm b .tags, .adm-req-t .tags { margin-left: 2px; }
 
 /* Ô đang được gõ: cả HỘP sáng lên, không chỉ con trỏ — cùng một tín hiệu với
    kính lúp đổi màu, và là thứ duy nhất nhìn thấy được khi ô đã có chữ. */
