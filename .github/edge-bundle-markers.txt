@@ -37,3 +37,7 @@ now.pickRulePaused
 # 2026-11-15 · PR #62 payment operations: client cũ phải nhận thông điệp thiếu biên lai
 # Khoá lỗi trong src/lib/db.js + src/lib/strings.js; chỉ bundle mới có chuỗi này.
 err.paymentEvidenceRequired
+
+# 2026-11-15 · badge nguồn tài trợ request: paid thường và bonus phải khác chữ
+# Nhãn trong src/lib/strings.js; bonus không còn dán chữ PAID, có hộp quà riêng.
+BONUS REQUEST

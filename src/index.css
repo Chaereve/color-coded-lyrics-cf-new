@@ -884,7 +884,15 @@ select {
 }
 .pill.gold::before {
   content: '★'; margin-right: 4px; font-size: 8px; line-height: 1; opacity: .9; }
-.pill.bonus { color: var(--a); background: color-mix(in oklab, var(--a) 13%, transparent); font-size: 10px; font-weight: 700; }
+/* BONUS — request dùng thưởng, không phải tiền: tím nhạt + hộp quà, cùng khuôn
+   tem nhỏ với PAID nhưng khác chữ/hình/màu. Không dùng nền vàng của hàng paid. */
+.pill.bonus {
+  color: var(--a-2); border: 0;
+  background: color-mix(in oklab, var(--a-2) 14%, transparent);
+  padding: 3px 8px 3px 7px;
+  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+}
+.pill.bonus .req-payment-ico { flex: none; width: 10px; height: 10px; margin-right: 4px; }
 .adm-payment-readonly { display: grid; gap: 4px; align-content: center; }
 .adm-payment-readonly small { color: var(--txt-3); font-size: 11px; }
 
@@ -3690,6 +3698,8 @@ html[data-section="spin"] .bgfx { display: none; }
   background: color-mix(in oklab, currentColor 20%, transparent); }
 .nowbar.upnext .pill.gold { font-size: 10px; padding: 3px 8px 3px 7px;
   background: color-mix(in oklab, var(--paid) 20%, transparent); }
+.nowbar.upnext .pill.bonus { font-size: 10px; padding: 3px 8px 3px 7px;
+  background: color-mix(in oklab, var(--a-2) 20%, transparent); }
 
 
 /* thành viên của một bài gửi nhiều lần: gạch liền, không nét đứt — cả app dùng
@@ -3699,9 +3709,11 @@ html[data-section="spin"] .bgfx { display: none; }
 .nowbar.upnext .now-members li { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
   font-size: var(--fs-meta); color: var(--txt-2); }
 .now-members .pill.gold { font-size: 9px; padding: 1px 5px; }
+.now-members .pill.bonus { font-size: 9px; padding: 1px 5px; }
 /* Danh sách thành viên trong Up next: tem PAID ở đây bé hơn, nên ngôi sao cũng
    phải bé theo — để 8px là nó thành ký tự to nhất dòng. */
 .now-members .pill.gold::before { font-size: 7px; margin-right: 3px; }
+.now-members .pill.bonus .req-payment-ico { width: 7px; height: 7px; margin-right: 3px; }
 .nowbar.upnext .now-empty { margin: 0; padding: 4px 18px 16px; color: var(--txt-2); font-weight: 400; }
 
 .nowbar.upnext .now-foot { display: flex; align-items: center; justify-content: space-between;

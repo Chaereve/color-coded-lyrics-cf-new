@@ -113,6 +113,20 @@ test('PAID là tem nền vàng mờ + ngôi sao, nhỏ hơn tên bài', () => {
     'tem PAID trong danh sách thành viên bé hơn, nên sao cũng phải bé theo')
 })
 
+test('BONUS không mượn tem vàng PAID: tím nhạt + hộp quà, cùng cỡ tem nhỏ', () => {
+  const bonus = ruleOf('.pill.bonus')
+  assert.match(bonus, /color:\s*var\(--a-2\)/, 'bonus dùng màu nhấn sáng, không phải màu tiền --paid')
+  assert.doesNotMatch(bonus, /--paid/, 'tem bonus không được mang màu vàng của request trả tiền')
+  assert.match(bonus, /background:\s*color-mix\(in oklab, var\(--a-2\) 14%/,
+    'nền tím nhạt cùng khuôn tem nhỏ với PAID')
+  assert.match(bonus, /font-size:\s*10px/, 'bonus cũng là tem nhỏ, không to hơn tên bài')
+  assert.match(bonus, /text-transform:\s*uppercase/, 'tem in hoa như PAID')
+  assert.match(bare, /\.pill\.bonus \.req-payment-ico \{[^}]*width:\s*10px/,
+    'hộp quà đứng trước chữ BONUS — khác PAID bằng hình, không chỉ bằng màu')
+  assert.match(bare, /\.now-members \.pill\.bonus \.req-payment-ico \{[^}]*width:\s*7px/,
+    'tem bonus trong danh sách thành viên bé hơn, nên hộp quà cũng bé theo')
+})
+
 /* ---------- 4. HOVER NHUỘM MÉP ---------- */
 test('hover nhuộm MÉP TRÁI bằng màu trạng thái, nền vẫn xám', () => {
   const hov = ruleOf('.row:hover')
