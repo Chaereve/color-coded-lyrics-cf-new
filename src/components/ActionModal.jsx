@@ -5,7 +5,7 @@ import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../li
 import { KIND_META, isPicked, kindCls, kindShort, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
-import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, isOrderAwaiting, orderReference, orderTransferContent, pendingOrdersOfKind } from '../lib/requestPayment.js'
+import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, isOrderAwaiting, orderTransferContent, pendingOrdersOfKind } from '../lib/requestPayment.js'
 import OrderStatusBadge from './OrderStatusBadge'
 import RequestPaymentBadge from './RequestPaymentBadge'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
@@ -977,7 +977,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
           amountUsd={Number(lastOrder?.amount_usd ?? chosen.usd)}
           content={lastOrder ? orderTransferContent(lastOrder) : userName}
           awaiting={!!lastOrder} />
-        {lastOrder && <p className="fhint">{t('order.reference', { ref: orderReference(lastOrder) })} · {t('buy.referenceHint')}</p>}
+        {lastOrder && <p className="fhint">{t('order.reference', { ref: orderTransferContent(lastOrder) })} · {t('buy.referenceHint')}</p>}
         {lastOrder && <p className="fhint">{t('order.windowHelp', { h: ORDER_PAYMENT_HOURS })}</p>}
       </section>
 
@@ -1001,7 +1001,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             <div className="adm" key={o.id}>
               <div className="nm">
                 <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)} · {t('order.reference', { ref: orderReference(o) })}</small>
+                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)} · {t('order.reference', { ref: orderTransferContent(o) })}</small>
               </div>
               <OrderStatusBadge order={o} />
               {isOrderAwaiting(o) && onCancelOrder && (

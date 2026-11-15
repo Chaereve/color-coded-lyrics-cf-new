@@ -100,16 +100,52 @@ export function orderReference(order) {
   return `${order.kind === 'paid_request' ? 'PR' : 'V'}-${id.slice(0, 32)}`
 }
 
+/* Mã chuyển khoản vừa trường 62/08 (ANS, tối đa 25 ký tự của NAPAS/EMVCo).
+   KHÔNG cắt UUID: đổi 16 byte hex sang base64url thành 22 ký tự, thêm PR-/V-
+   thành 25/24. Đây là ánh xạ 1-1, giữ đủ 128 bit nên không tăng nguy cơ đụng mã.
+   Mã canonical trong đơn/đối soát vẫn là PR-…32hex; normalizeReference bên dưới
+   dịch cả mã mới lẫn mã dài người mua đã thấy trước khi nâng cấp. Nhờ vậy không
+   phải đổi database, không đổi mã đơn cũ và vẫn nhận biên lai của cả hai dạng.
+   Base64url giữ phân biệt hoa/thường; chỉ nới lỏng dấu gạch như hợp đồng cũ. */
 export function orderTransferContent(order) {
-  return orderReference(order)
+  const full = orderReference(order)
+  const hex = full.slice(full.indexOf('-') + 1)
+  if (!full || !/^[A-F0-9]{32}$/.test(hex)) return full
+  const bytes = hex.match(/../g).map(pair => String.fromCharCode(parseInt(pair, 16))).join('')
+  return `${full.slice(0, full.indexOf('-'))}-${btoa(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
 }
 
-/** So khớp mã trong nội dung ngân hàng: không phân biệt hoa/thường/dấu gạch. */
-export const normalizeReference = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+/** Mã mới giải mã về đúng UUID; mã cũ chỉ bỏ dấu/khoảng trắng và đổi chữ hoa. */
+export function normalizeReference(value) {
+  const text = String(value || '').trim()
+  const compact = /^(PR|V)-([A-Za-z0-9_-]{22})$/.exec(text)
+  if (compact) {
+    try {
+      const base64 = compact[2].replace(/-/g, '+').replace(/_/g, '/') + '=='
+      const hex = Array.from(atob(base64), char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase()
+      /* Hai bit cuối của ký tự thứ 22 là padding, phải bằng 0 mới là mã hợp lệ. */
+      if (/^[A-F0-9]{32}$/.test(hex) && orderTransferContent({ id: hex, kind: compact[1] === 'PR' ? 'paid_request' : 'votes' }) === text) {
+        return `${compact[1]}${hex}`
+      }
+    } catch { /* mã nhập tay hỏng: không đoán, để phép đối soát từ chối */ }
+  }
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
 export const referenceMatches = (order, value) => {
   const expected = normalizeReference(orderReference(order))
-  return !!expected && normalizeReference(value) === expected
+  if (!expected) return false
+  if (normalizeReference(value) === expected) return true
+  /* Vài app ngân hàng tự viết hoa nội dung. Base64url phân biệt hoa/thường nên
+     không giải mã được bản đã đổi dấu; nhưng khi ĐÃ biết đơn nào, so nguyên văn
+     không phân biệt hoa/thường với đúng mã của đơn đó vẫn nhận diện chính xác.
+     Không đoán mã từ chuỗi viết hoa chung chung. */
+  const compact = orderTransferContent(order)
+  return compact !== orderReference(order) && String(value || '').trim().toUpperCase() === compact.toUpperCase()
 }
+
+/** Mã lưu vào biên lai: luôn canonical nếu khớp đơn, kể cả khi app đổi dấu. */
+export const canonicalReference = (order, value) =>
+  referenceMatches(order, value) ? normalizeReference(orderReference(order)) : normalizeReference(value)
 
 /** Đối chiếu thủ công, KHÔNG phải bằng chứng cổng thanh toán đã xác minh. */
 export function reconcileOrder(order, { method = 'bank', amount, reference = '' } = {}) {

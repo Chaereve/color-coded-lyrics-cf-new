@@ -4,6 +4,8 @@ import QRCode from 'qrcode'
 import { PAYMENT, vietQRPayload, paypalPayload, cleanContent } from '../lib/payment'
 import { vnd, usd } from '../lib/meta'
 import { useI18n } from '../lib/i18n.jsx'
+import { copyText } from '../lib/clipboard'
+import { useTransient } from '../lib/useTransient'
 import logoVietQR from '../assets/pay/vietqr.svg'
 import logoPaypal from '../assets/pay/paypal.svg'
 
@@ -41,26 +43,30 @@ function QR({ text, color = '#0a0d14' }) {
 /* ---------- dòng thông tin có nút sao chép ---------- */
 function CopyRow({ k, v, mono }) {
   const { t } = useI18n()
-  const [done, setDone] = useState(false)
+  const [done, flashDone] = useTransient()
+  const [failed, setFailed] = useState(false)
   const copy = async () => {
-    try { await navigator.clipboard.writeText(v) } catch { /* ignore */ }
-    setDone(true); setTimeout(() => setDone(false), 1600)
+    const ok = await copyText(v)
+    setFailed(!ok)
+    if (ok) flashDone()
   }
   return (
     <div className="iv-row">
       <span className="iv-k">{k}</span>
       <span className={`iv-v${mono ? ' mono' : ''}`}>{v}</span>
       <button type="button" className={`iv-copy${done ? ' done' : ''}`}
-        onClick={copy} aria-label={t('pay.copy')} title={done ? t('pay.copied') : t('pay.copy')}>
+        onClick={copy} aria-label={t('pay.copyField', { field: k })} title={done ? t('pay.copied') : t('pay.copy')}>
         <Icon name={done ? 'check' : 'copy'} size={13} />
       </button>
+      <span className="sr-only" role="status">{done ? t('pay.copied') : failed ? t('pay.copyFailed') : ''}</span>
+      {failed && <small className="iv-copy-failed" role="status">{t('pay.copyFailed')}</small>}
     </div>
   )
 }
 
-export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content = '', awaiting = false }) {
+export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content = '', awaiting = false, showAmount = true, showReference = true, defaultMethod = null }) {
   const { t } = useI18n()
-  const [open, setOpen] = useState(null)
+  const [open, setOpen] = useState(defaultMethod)
   const desc = cleanContent(content)
   const active = METHODS.find(m => m.k === open)
   /* Chọn phương thức là có NGAY tờ hóa đơn, không phải một bảng chi tiết rời
@@ -94,20 +100,20 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
         <div className="iv" key={active.k}>
           <div className="iv-head">
             <div className="iv-htop">
-              <span className="iv-title">{t('pay.invoice')}</span>
-              <span className={`iv-status${awaiting ? '' : ' draft'}`}>
+              <span className="iv-title">{t(showAmount ? 'pay.invoice' : 'pay.transferDetails')}</span>
+              {showAmount && <span className={`iv-status${awaiting ? '' : ' draft'}`}>
                 {awaiting && <i aria-hidden="true" />}
                 {awaiting ? t('pay.awaiting') : t('pay.details')}
-              </span>
+              </span>}
             </div>
-            <div className="iv-sum">
+            {showAmount && <div className="iv-sum">
               <span className="iv-amt">
                 {hasAmount ? (isPaypal ? usd(amountUsd) : vnd(amountVnd)) : '—'}
               </span>
               {hasAmount && (
                 <span className="iv-amt-sub">≈ {isPaypal ? vnd(amountVnd) : usd(amountUsd)}</span>
               )}
-            </div>
+            </div>}
           </div>
 
           <div className="iv-body">
@@ -116,7 +122,7 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 ? <QR text={paypalPayload(amountUsd)} color="#003087" />
                 : <QR text={vietQRPayload(amountVnd, desc)} />}
               <span className="iv-qr-cap">
-                {isPaypal ? t('pay.scanPaypal') : t('pay.scanBank')}
+                {isPaypal ? t('pay.scanPaypal') : t(awaiting ? 'pay.scanBankPrefilled' : 'pay.scanBank')}
               </span>
             </div>
 
@@ -130,8 +136,8 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 <CopyRow k="PayPal.me" v={`paypal.me/${PAYMENT.paypal.username}`} />
                 <CopyRow k={t('pay.email')} v={PAYMENT.paypal.email} />
               </>}
-              {hasAmount && <CopyRow k={t('pay.amount')} v={isPaypal ? usd(amountUsd) : vnd(amountVnd)} mono />}
-              {desc && <CopyRow k={isPaypal ? t('pay.memo') : t('pay.content')} v={desc} />}
+              {showAmount && hasAmount && <CopyRow k={t('pay.amount')} v={isPaypal ? usd(amountUsd) : vnd(amountVnd)} mono />}
+              {showReference && desc && <CopyRow k={isPaypal ? t('pay.memo') : t('pay.content')} v={desc} />}
             </div>
           </div>
 
@@ -139,14 +145,14 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
             {isPaypal ? (
               <>
                 <a className="iv-go" href={paypalPayload(amountUsd)} target="_blank" rel="noreferrer">
-                  paypal.me/{PAYMENT.paypal.username}
+                  {t('pay.openPaypal')}<Icon name="ext" size={12} />
                 </a>
-                <span>{t('pay.afterPay')}</span>
-                {desc && <span className="fhint iv-v">{t('pay.paypalReferenceHint')}</span>}
+                {showReference && desc && <span>{t('pay.paypalReferenceHint')}</span>}
               </>
             ) : (
-              <span>{t('pay.exact')}</span>
+              <span>{t(awaiting ? 'pay.checkBeforeSending' : 'pay.exact')}</span>
             )}
+            <span>{t('pay.afterPay')}</span>
           </div>
         </div>
       ) : (

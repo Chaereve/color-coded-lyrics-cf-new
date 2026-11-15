@@ -21,7 +21,7 @@ import { here, putUrl } from '../lib/history'
 import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { ADMIN_FUNDING_FILTERS, ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
-import { matchesRequestFunding, normalizeReference, orderDisplayStatus, orderReference, requestFundingKind, requestPriorityRank } from '../lib/requestPayment.js'
+import { matchesRequestFunding, normalizeReference, orderDisplayStatus, orderReference, orderTransferContent, requestFundingKind, requestPriorityRank } from '../lib/requestPayment.js'
 import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
@@ -733,7 +733,7 @@ export default function AdminPanel({
       ? `${t('order.votes', { n: o.qty })} votes ${o.pack || ''}`
       : t('order.paidRequestMoney')
     const ref = orderReference(o)
-    return allTermsIn(`${what} ${orderDisplayStatus(o, orderNow)} ${buyer} ${o.id || ''} ${ref} ${normalizeReference(ref)} ${o.payment_reference || ''} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
+    return allTermsIn(`${what} ${orderDisplayStatus(o, orderNow)} ${buyer} ${o.id || ''} ${ref} ${orderTransferContent(o)} ${normalizeReference(ref)} ${o.payment_reference || ''} ${req ? `${req.artist} ${req.title} ${req.requester || ''}` : ''}`, q)
   }
 
   /* danh sách đang hiển thị theo tab — phân trang chung một chỗ cho cả
@@ -1509,7 +1509,7 @@ export default function AdminPanel({
                       <span className="dot dot-inline" aria-hidden="true" />
                       {timeAgo(o.created_at, t)}
                     </small>
-                    <small className="order-review-ref">{t('order.reference', { ref: orderReference(o) })}</small>
+                    <small className="order-review-ref">{t('order.reference', { ref: ['awaiting', 'expired'].includes(orderDisplayStatus(o, orderNow)) ? orderTransferContent(o) : orderReference(o) })}</small>
                     {o.request_id && (
                       <small style={{ color: 'var(--txt-2)' }}>
                         {req ? `${req.artist} — ${req.title}` : t('adm.reqDeleted')}

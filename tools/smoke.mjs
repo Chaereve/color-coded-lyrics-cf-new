@@ -116,6 +116,7 @@ const { I18nProvider, errMsg, translate } = await server.ssrLoadModule('/src/lib
    Mặc định 0 để lượt chạy với mã CŨ (chưa có FRAME_FADE) đỏ gọn ở phép kiểm
    của nó, chứ không ném lỗi giữa lượt. */
 const { FRAME_FADE = { top: 0, bottom: 0 } } = await server.ssrLoadModule('/src/lib/previewCap.js')
+const { orderTransferContent } = await server.ssrLoadModule('/src/lib/requestPayment.js')
 const { NotifyProvider } = await server.ssrLoadModule('/src/lib/notify.jsx')
 /* Toaster nằm trong main.jsx chứ không trong App, nên bản smoke trước đây không
    có nó — nghĩa là kênh phản hồi chính của app (lưu xong, vote xong, lỗi mạng)
@@ -2154,7 +2155,7 @@ where = 'click-path'
           await click(checkout)
           const createdSeen = await waitFor(() => JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').filter(o => o.kind === 'votes' && o.status === 'awaiting').length > votesBefore, 3000)
           const created = JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').find(o => o.kind === 'votes' && o.status === 'awaiting')
-          const ref = created ? `V-${String(created.id).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}` : ''
+          const ref = created ? orderTransferContent(created) : ''
           check('click-path 9c: mua xong hóa đơn mang đúng mã đối soát của đơn vừa tạo',
             createdSeen && !!ref && text().includes(ref), `mã=${ref || '(không có)'}`)
           const orderRow = qa('.buy-sec .adm').find(row => (row.textContent || '').includes(ref))

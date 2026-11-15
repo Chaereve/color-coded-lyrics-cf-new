@@ -51,3 +51,7 @@ b-text-20261115
 # 2026-11-15 · sửa hàng My orders bị ép chữ thành cột dọc: lớp hàng đơn mới trong
 # src/App.jsx (className="row order-row"); chỉ bundle mới có chuỗi này.
 row order-row
+
+# 2026-11-15 · thanh toán tại hàng đơn: bỏ mã lặp, một nút Pay now và Copy mã.
+# Thuộc tính của OrderPayment.jsx; không phụ thuộc việc đổi câu chữ sau này.
+compact-20261115

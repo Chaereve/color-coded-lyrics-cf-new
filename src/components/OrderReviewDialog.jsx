@@ -3,7 +3,7 @@ import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { useFocusTrap } from '../lib/useFocusTrap'
 import { vnd, usd } from '../lib/meta'
-import { orderDisplayStatus, orderReference, reconcileOrder } from '../lib/requestPayment.js'
+import { orderDisplayStatus, orderTransferContent, reconcileOrder } from '../lib/requestPayment.js'
 
 /** Đối soát thủ công trước khi gọi admin_order: không prefill số tiền/mã để
     admin không vô tình xác nhận một biên lai chưa đọc. */
@@ -39,7 +39,7 @@ export default function OrderReviewDialog({ order, busy = false, onClose, onConf
           <h2 className="dlg-title" id="order-review-title">{t('adm.paymentTitle')}</h2>
         </div>
         <p className="dlg-body" id="order-review-body">{t('adm.paymentBody')}</p>
-        <p className="fhint order-review-ref">{t('order.reference', { ref: orderReference(order) })}</p>
+        <p className="fhint order-review-ref">{t('order.reference', { ref: orderTransferContent(order) })}</p>
         {late && <p className="msg err" role="alert">{t('adm.paymentLate')}</p>}
         <label className="dlg-field">
           <span>{t('adm.paymentMethod')}</span>
@@ -58,7 +58,7 @@ export default function OrderReviewDialog({ order, busy = false, onClose, onConf
         <label className="dlg-field">
           <span>{t('adm.paymentReference')}</span>
           <input type="text" value={reference} maxLength={80} autoComplete="off"
-            placeholder={orderReference(order)} onChange={e => setReference(e.target.value)} />
+            placeholder={orderTransferContent(order)} onChange={e => setReference(e.target.value)} />
         </label>
         <label className="dlg-field">
           <span>{t('adm.paymentNote')}</span>

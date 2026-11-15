@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, pendingOrdersOfKind, matchesRequestFunding, reconcileOrder, requestFundingKind, requestPaymentState, requestPriorityRank } from './requestPayment.js'
+import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, normalizeReference, pendingOrdersOfKind, matchesRequestFunding, reconcileOrder, requestFundingKind, requestPaymentState, requestPriorityRank } from './requestPayment.js'
 
 test('request funding distinguishes money, reward, awaiting and unverified legacy', () => {
   assert.equal(requestPaymentState({ is_paid: false }), 'free')
@@ -32,9 +32,11 @@ test('transfer reference keeps the full UUID so two orders cannot share a short 
   assert.equal(orderReference(order), 'V-ABCDEF1234567890ABCDEF1234567890')
   assert.equal(orderReference({ ...order, kind: 'paid_request' }), 'PR-ABCDEF1234567890ABCDEF1234567890')
   const content = orderTransferContent(order)
-  assert.equal(content, orderReference(order))
-  assert.ok(content.length <= 40)
+  assert.equal(content, 'V-q83vEjRWeJCrze8SNFZ4kA')
+  assert.equal(content.length, 24)
+  assert.equal(orderTransferContent({ ...order, kind: 'paid_request' }).length, 25)
   assert.ok(!/[^\x20-\x7E]/.test(content))
+  assert.equal(normalizeReference(content), normalizeReference(orderReference(order)))
 })
 
 const NOW = +new Date('2026-11-15T12:00:00Z')
