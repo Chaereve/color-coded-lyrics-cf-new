@@ -297,17 +297,27 @@ if (live) {
         })))
         const voteRows = votePages.flatMap(({ rows }) => Array.isArray(rows) ? rows : [])
         const votesResponse = votePages.find(({ response }) => response.ok())?.response || votePages[0]?.response || null
-        await page.waitForTimeout(200)
+        const recentVoteRows = voteRows.filter(row => {
+          const at = Date.parse(row?.created_at)
+          return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
+        })
+        /* The votes RPC can finish before the public request board finishes
+           loading/rendering. Wait for the actual Most voted card instead of a
+           fixed 200ms; if it never appears the final check below still fails. */
+        if (votesResponse?.ok() && recentVoteRows.length > 0) {
+          await page.waitForFunction(
+            "Array.from(document.querySelectorAll('.weekly-card small')).some(el => el.textContent.trim() === 'Most voted')",
+            null, { timeout: 20_000 },
+          ).catch(() => {})
+        } else {
+          await page.waitForTimeout(200)
+        }
         const weeklyLabels = await page.locator('.weekly-card small').allTextContents()
         const weeklyData = await page.locator('.board').evaluate(el => ({
           votes: el.getAttribute('data-weekly-votes'),
           top: el.getAttribute('data-weekly-top'),
           requests: el.getAttribute('data-request-rows'),
         })).catch(() => ({ votes: null, top: null, requests: null }))
-        const recentVoteRows = voteRows.filter(row => {
-          const at = Date.parse(row?.created_at)
-          return Number.isFinite(at) && at >= Date.now() - 7 * 86400000 && at <= Date.now()
-        })
         check('live desktop: votes_received RPC trả lời được', Boolean(votesResponse?.ok()),
           `requests=${voteRequests.length} · HTTP ${votesResponse?.status() ?? (voteFailures.length ? `failed: ${voteFailures[0]}` : 'no response after 25s')} · ${voteRows.length} phiếu/${votePages.length} trang`)
         check('live desktop: có phiếu trong 7 ngày thì hiện Most voted',

@@ -198,7 +198,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
-      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations'])
+      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
+      '20261226_payment_source_read_grant'])
   assert.ok(fresh.pending.every(({ version }) => version > '20261118'))
   assert.equal(fresh.quarantinedNeverRuns.length, 1)
 
@@ -221,7 +222,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
-      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations'])
+      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
+      '20261226_payment_source_read_grant'])
   assert.equal(after.recordedQuarantined.length, 1)
   assert.equal(after.quarantinedNeverRuns.length, 0)
 
@@ -246,7 +248,8 @@ test('the default plan never schedules a quarantined migration', () => {
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
-      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations'])
+      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
+      '20261226_payment_source_read_grant'])
 
   // Already up to date.
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id) })
@@ -559,9 +562,10 @@ test('phân loại đường dẫn không phụ thuộc dấu phân cách (Windo
      + khóa rò rỉ thông báo duyệt/từ chối: 20261220 + sửa hộp thư thông báo & xoá bài hết hạn: 20261221
      + bảo toàn thành tựu firstPick sau khi hoàn thành bài: 20261222
      + tạm dừng chốt bài: 20261223 + nguồn thanh toán request: 20261224
-     + vận hành thanh toán thủ công: 20261225). */
+     + vận hành thanh toán thủ công: 20261225
+     + cấp quyền đọc cột nguồn thanh toán công khai: 20261226). */
   const { active, quarantined } = collectMigrations()
-  assert.equal(active.length, 68)
+  assert.equal(active.length, 69)
   assert.equal(quarantined.length, 1)
   assert.ok(active.every(({ id }) => !id.includes('\\') && !id.includes('/')), 'id không được chứa dấu phân cách')
 })
@@ -587,9 +591,10 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
       '20261217_rpc_least_privilege', '20261218_votes_received_recent_first',
       '20261219_homepage_video_limit', '20261220_review_notify_privacy_fix',
       '20261221_notification_inbox_fix', '20261222_achievement_pick_fix',
-      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations'])
+      '20261223_pick_pause', '20261224_payment_source', '20261225_payment_operations',
+      '20261226_payment_source_read_grant'])
   const lines = planLines(planned)
-  assert.equal(lines[0], '32 migration(s) would be applied:')
+  assert.equal(lines[0], '33 migration(s) would be applied:')
   assert.deepEqual(lines.slice(1), [
     'apply 20261121  20261121_vote_calendar_decoupling.sql',
     'apply 20261122  20261122_disable_daily_quiz_runtime.sql',
@@ -623,6 +628,7 @@ test('db:plan phải LIỆT KÊ các migration sẽ chạy, không được ch�
     'apply 20261223  20261223_pick_pause.sql',
     'apply 20261224  20261224_payment_source.sql',
     'apply 20261225  20261225_payment_operations.sql',
+    'apply 20261226  20261226_payment_source_read_grant.sql',
   ])
   /* Và khi không còn gì để chạy thì hàm không được bịa ra dòng nào. */
   const done = planPending({ active, quarantined, applied: active.map(({ id }) => id), baseline: '20261120' })

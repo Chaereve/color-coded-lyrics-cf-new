@@ -888,3 +888,10 @@ quản trị đang giữ.
 ### Ghi chú rollout production 15/11/2026
 
 Hai migration này đã được áp dụng lên production sau backup/restore thử và plan chỉ đọc. Vì sandbox không có `SUPABASE_DB_URL`, lượt này dùng Supabase connector `create_migration` với `name` đúng file stem rồi chuẩn hoá `supabase_migrations.schema_migrations.version` về đúng file stem; guarded runner nhận cả version lẫn name chuẩn nên không replay. Đường chuẩn cho máy có `SUPABASE_DB_URL` vẫn là `npm run db:plan` → `npm run db:deploy`. Không bỏ qua bước đối chiếu history khi áp bằng connector: tên/version lệch có thể làm plan báo pending giả hoặc replay migration cũ.
+
+## 20261226_payment_source_read_grant — quyền đọc cột nguồn thanh toán công khai
+
+- **Vì sao:** production cấp SELECT theo cột trên `public.requests` cho `anon`/`authenticated`; cột mới `payment_source` không tự được thừa hưởng. Client chọn cột này trước hotfix bị lỗi quyền và bảng public không tải.
+- **Phạm vi:** chỉ `GRANT SELECT (payment_source) ON public.requests TO anon, authenticated`; không mở cột riêng tư, không đổi dữ liệu. Đã áp lên production ngày 15/11/2026 và chuẩn hoá history về đúng version repo.
+- **Rollback:** `supabase/rollback/20261226_payment_source_read_grant.sql` chỉ chạy cùng frontend không còn chọn `payment_source`; nếu không bảng public sẽ hỏng lại.
+- **Kiểm chứng:** `npm run test:payment-source:pglite` có ca column-level grant; `npm run test:migrate`, `npm run db:check`.

@@ -48,6 +48,7 @@ export const POST_20261125 = [
   '20261223_pick_pause',
   '20261224_payment_source',
   '20261225_payment_operations',
+  '20261226_payment_source_read_grant',
 ]
 
 const SCAFFOLD = `

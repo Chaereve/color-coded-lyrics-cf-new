@@ -20,7 +20,7 @@ const SCAFFOLD = `
   grant usage on schema public, auth to anon, authenticated;
   create publication supabase_realtime;`
 
-async function build() {
+async function build({ hotfix = true } = {}) {
   const db = await PGlite.create({ extensions: { pgcrypto } })
   await db.exec('create schema extensions;')
   await db.exec(SCAFFOLD)
@@ -28,6 +28,7 @@ async function build() {
   await db.exec(read('supabase/migrations/20261125_reward_eligibility_and_quota_races.sql'))
   await db.exec(read('supabase/migrations/20261213_admin_actions_and_request_edit.sql'))
   await db.exec(read('supabase/migrations/20261224_payment_source.sql'))
+  if (hotfix) await db.exec(read('supabase/migrations/20261226_payment_source_read_grant.sql'))
   return db
 }
 async function seedUser(db, email, admin = false) {
@@ -86,5 +87,44 @@ test('payment source separates money, reward and vote orders; reject clears prio
 
     await assert.rejects(asUser(db, admin, () => db.query('select public.admin_request_edit($1,null,null,true,null)', [money.id])), /err\.paymentSourceLocked/)
     await assert.rejects(db.query("update public.requests set payment_source='bonus', payment_status='awaiting' where id=$1", [money.id]), /requests_payment_source_check/)
+  } finally { await db.close() }
+})
+
+test('column-level SELECT grants must include payment_source without exposing private columns', { timeout: 120_000 }, async () => {
+  const db = await build({ hotfix: false })
+  try {
+    // Mirror production: requests is readable by anon/authenticated through
+    // explicit column grants, not a blanket table grant. A new column is invisible
+    // until the hotfix grants it; selecting it before then is a permission error.
+    await db.exec('revoke select on public.requests from anon, authenticated;')
+    const cols = (await db.query(`
+      select column_name from information_schema.columns
+       where table_schema='public' and table_name='requests'
+         and column_name not in ('payment_source','deny_reason')
+       order by ordinal_position`)).rows.map(r => `"${r.column_name}"`).join(',')
+    await db.exec(`grant select (${cols}) on public.requests to anon, authenticated;`)
+    const before = (await db.query(`
+      select has_column_privilege('anon','public.requests','payment_source','SELECT') as anon,
+             has_column_privilege('authenticated','public.requests','payment_source','SELECT') as authenticated`)).rows[0]
+    assert.equal(before.anon, false)
+    assert.equal(before.authenticated, false)
+
+    await db.exec(read('supabase/migrations/20261226_payment_source_read_grant.sql'))
+    const after = (await db.query(`
+      select has_column_privilege('anon','public.requests','payment_source','SELECT') as anon,
+             has_column_privilege('authenticated','public.requests','payment_source','SELECT') as authenticated`)).rows[0]
+    assert.equal(after.anon, true)
+    assert.equal(after.authenticated, true)
+
+    const privateCol = (await db.query(`
+      select count(*)::int as n from information_schema.columns
+       where table_schema='public' and table_name='requests' and column_name='deny_reason'`)).rows[0].n
+    if (privateCol > 0) {
+      const hidden = (await db.query(`
+        select has_column_privilege('anon','public.requests','deny_reason','SELECT') as anon,
+               has_column_privilege('authenticated','public.requests','deny_reason','SELECT') as authenticated`)).rows[0]
+      assert.equal(hidden.anon, false)
+      assert.equal(hidden.authenticated, false)
+    }
   } finally { await db.close() }
 })
