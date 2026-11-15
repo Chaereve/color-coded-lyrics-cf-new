@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import {
   clearInbox, diffNotices, dropNotice, isDismissed, markAllRead, markRead, mergeInbox, noticeDbId,
   ownNotices, otherNotices, pushNotices, rowEvents, snapOf,
-  groupNotices, isOrderNotice, orderIdOfNotice, toastOf, unreadCount,
+  groupNotices, isAdminRequestReviewNotice, isOrderNotice, orderIdOfNotice, requestReviewFunding, toastOf, unreadCount,
   INBOX_LIMIT,
 } from './watch.js'
 
@@ -249,5 +249,20 @@ test('tin hoàn bonus nằm trong nhóm thanh toán, không rơi vào Other và 
   const groups = groupNotices([n, { id: 'x', type: 'approved', at: AT, own: true, read: false }])
   assert.equal(groups[0].id, 'payments')
   assert.deepEqual(groups[0].items.map(x => x.id), ['db-2'])
+  assert.ok(!groups.some(g => g.id === 'other'))
+})
+
+
+test('tin duyệt request trả tiền và bonus tách nguồn, đứng trước tin kết quả', () => {
+  const money = { id: 'db-m', sig: 'request-review|req-m|money', type: 'paid_request_review', request_id: 'req-m', at: AT, own: true }
+  const bonus = { id: 'db-b', sig: 'request-review|req-b|bonus', type: 'bonus_request_review', request_id: 'req-b', at: AT, own: true }
+  assert.equal(isAdminRequestReviewNotice(money), true)
+  assert.equal(requestReviewFunding(money), 'money')
+  assert.equal(requestReviewFunding(bonus), 'bonus')
+  assert.equal(isAdminRequestReviewNotice({ type: 'paid_request_review', sig: 'other' }), false)
+  assert.equal(requestReviewFunding({ type: 'approved', sig: 'review|x|queued' }), null)
+  const groups = groupNotices([money, bonus, { id: 'a', type: 'approved', at: AT }])
+  assert.equal(groups[0].id, 'review')
+  assert.deepEqual(groups[0].items.map(n => n.id).sort(), ['db-b', 'db-m'])
   assert.ok(!groups.some(g => g.id === 'other'))
 })

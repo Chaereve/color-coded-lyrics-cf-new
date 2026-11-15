@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, pendingOrdersOfKind, reconcileOrder, requestPaymentState, requestPriorityRank } from './requestPayment.js'
+import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, orderActivityCategory, orderDeadline, orderDisplayStatus, orderFocusLocation, orderReference, orderTransferContent, pendingOrdersOfKind, matchesRequestFunding, reconcileOrder, requestFundingKind, requestPaymentState, requestPriorityRank } from './requestPayment.js'
 
 test('request funding distinguishes money, reward, awaiting and unverified legacy', () => {
   assert.equal(requestPaymentState({ is_paid: false }), 'free')
@@ -70,4 +70,26 @@ test('order notification focus finds the page inside the right activity category
   assert.deepEqual(orderFocusLocation(orders, 'pr-target', 10, NOW), { order: requests[1], category: 'paid_request', index: 1, page: 1 })
   assert.equal(orderFocusLocation(orders, 'missing', 10, NOW), null)
   assert.equal(orderFocusLocation(null, 'v0', 10, NOW), null)
+})
+
+
+test('admin funding filter separates money, bonus, free and unverified without guessing legacy', () => {
+  const money = { is_paid: true, payment_source: 'money', payment_status: 'awaiting' }
+  const bonus = { is_paid: true, payment_source: 'bonus', payment_status: 'paid' }
+  const free = { is_paid: false, payment_source: null, payment_status: 'none' }
+  const legacy = { is_paid: true, payment_source: 'legacy', payment_status: 'paid' }
+  assert.equal(requestFundingKind(money), 'money')
+  assert.equal(requestFundingKind({ ...money, payment_status: 'paid' }), 'money')
+  assert.equal(requestFundingKind(bonus), 'bonus')
+  assert.equal(requestFundingKind(free), 'free')
+  assert.equal(requestFundingKind(legacy), 'unverified')
+  assert.equal(requestFundingKind({ is_paid: true, payment_status: 'paid' }), 'unverified')
+  assert.equal(matchesRequestFunding(money, 'money'), true)
+  assert.equal(matchesRequestFunding(money, 'bonus'), false)
+  assert.equal(matchesRequestFunding(bonus, 'bonus'), true)
+  assert.equal(matchesRequestFunding(bonus, 'money'), false)
+  assert.equal(matchesRequestFunding(free, 'free'), true)
+  assert.equal(matchesRequestFunding(legacy, 'unverified'), true)
+  assert.equal(matchesRequestFunding(legacy, 'all'), true)
+  assert.equal(matchesRequestFunding(null, 'all'), true)
 })

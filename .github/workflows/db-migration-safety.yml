@@ -118,6 +118,9 @@ jobs:
       - name: Bonus refunds and funding priority on PGlite
         run: npm run test:bonus-refund:pglite
 
+      - name: Paid and bonus requests share the review gate on PGlite
+        run: npm run test:funding-review:pglite
+
       # Dựng bản production + chạy jsdom smoke đầy đủ trên mỗi PR/push.
       - name: Production build & DOM smoke
         run: |

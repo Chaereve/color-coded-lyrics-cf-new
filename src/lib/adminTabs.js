@@ -80,16 +80,24 @@ export const ADMIN_ORDER_STATES = ['awaiting', 'paid', 'rejected', 'expired']
 
 export const ADMIN_SORTS = ['default', 'newest', 'votes', 'waiting']
 
+/* Nguồn tài trợ của REQUEST, không phải trạng thái đơn hàng. `money` gồm cả
+   đơn đang chờ thu lẫn đã thu (badge trên hàng vẫn phân biệt AWAITING/PAID);
+   `bonus` là lượt thưởng đã giữ chỗ chờ duyệt. Hàng cũ thiếu nguồn không bị
+   đoán thành tiền — nó có lát `unverified` riêng. */
+export const ADMIN_FUNDING_FILTERS = ['all', 'money', 'bonus', 'free', 'unverified']
+
 export function readAdminView(search, kinds = [], orderStates = ADMIN_ORDER_STATES) {
   const p = new URLSearchParams(search || '')
   const sort = p.get('sort')
   const kind = p.get('kind')
   const ost = p.get('ost')
+  const pay = p.get('pay')
   return {
     q: (p.get('q') || '').trim().slice(0, 80),
     sort: ADMIN_SORTS.includes(sort) ? sort : 'default',
     kind: kinds.length === 0 || kinds.includes(kind) ? (kind || 'all') : 'all',
     ost: orderStates.length === 0 || orderStates.includes(ost) ? (ost || 'all') : 'all',
+    pay: ADMIN_FUNDING_FILTERS.includes(pay) ? pay : 'all',
     /* `?focus=<id>` — mở thẳng MỘT bài, dùng khi báo cho chính mình hoặc cho
        người khác "vào sửa bài này". Không kiểm được id có thật hay không ở đây
        (không có database), nên chỉ cắt độ dài và bỏ ký tự lạ; id không tồn tại
@@ -100,13 +108,14 @@ export function readAdminView(search, kinds = [], orderStates = ADMIN_ORDER_STAT
 
 /* Dựng lại query cho địa chỉ: giữ `tab` (mục đang mở) và chỉ ghi những tham số
    KHÁC mặc định — địa chỉ của một danh sách chưa lọc vẫn là `/admin?tab=…`. */
-export function adminQuery({ tab, q = '', sort = 'default', kind = 'all', ost = 'all', focus = '' }) {
+export function adminQuery({ tab, q = '', sort = 'default', kind = 'all', ost = 'all', pay = 'all', focus = '' }) {
   const p = new URLSearchParams()
   if (tab && tab !== ADMIN_TABS[0]) p.set('tab', tab)
   if (q.trim()) p.set('q', q.trim())
   if (sort && sort !== 'default') p.set('sort', sort)
   if (kind && kind !== 'all') p.set('kind', kind)
   if (ost && ost !== 'all') p.set('ost', ost)
+  if (ADMIN_FUNDING_FILTERS.includes(pay) && pay !== 'all') p.set('pay', pay)
   /* `focus` KHÔNG được ghi lại: nó là đích của một lần mở, không phải bộ lọc.
      Ghi lại là F5 lần nữa vẫn mở khung sửa dù admin đã đóng nó từ lâu. */
   void focus

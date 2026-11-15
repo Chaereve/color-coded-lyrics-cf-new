@@ -188,6 +188,25 @@ function refundDemoBonus(row, reason) {
   return true
 }
 
+/* Demo mirror of requests_notify_admin_review: only the local admin inbox
+   receives funded submissions, once per request/source. Demo has one profile;
+   a non-admin demo profile must not receive an admin review notice. */
+function demoAdminReviewNotice(row) {
+  if (!row?.id || row.status !== 'pending' || row.is_paid !== true
+    || !['money', 'bonus'].includes(row.payment_source)) return false
+  const admin = rd(LS.user, null)
+  if (!admin?.id || !demoProfile().is_admin) return false
+  const sig = `request-review|${row.id}|${row.payment_source}`
+  const key = `ccl3_box:${admin.id}`
+  const old = readData(key, [])
+  if (old.some(n => n?.sig === sig)) return false
+  wr(key, [{ id: sig, sig, key: groupKey(row),
+    type: row.payment_source === 'money' ? 'paid_request_review' : 'bonus_request_review',
+    request_id: row.id, title: row.title, artist: row.artist,
+    at: Date.now(), own: true, read: false }, ...old].slice(0, 60))
+  return true
+}
+
 const SEED = [
   { kind: 'Color Coded Lyrics', artist: 'Stray Kids', title: 'FARMING', requester: 'ttokyeoni', status: 'in_progress', progress: 47, votes: 3 },
   /* Hàng mẫu đã vào Up next để demo trạng thái khóa vote. Nguồn BONUS tường minh
@@ -1271,12 +1290,13 @@ export async function addRequest(form, user, paid = false, useBonus = false) {
     const row = {
       id: crypto.randomUUID(), user_id: user.id, kind: form.kind,
       artist: form.artist.trim(), title: form.title.trim(), link: form.link, note: form.note,
-      requester: user.name, status: useBonus ? 'queued' : 'pending', progress: 0, votes: 0,
+      requester: user.name, status: 'pending', progress: 0, votes: 0,
       is_paid: paid, payment_status: paid ? (useBonus ? 'paid' : 'awaiting') : 'none',
       payment_source: useBonus ? 'bonus' : paid ? 'money' : null,
       video_url: null, deny_reason: null, created_at: new Date().toISOString(),
     }
     wr(LS.rows, [row, ...rows])
+    if (paid) demoAdminReviewNotice(row)
     if (paid && !useBonus) {
       wr(LS.orders, [{
         id: crypto.randomUUID(), user_id: user.id, kind: 'paid_request', qty: 0,

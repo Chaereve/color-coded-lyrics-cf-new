@@ -29,6 +29,18 @@ export const REQUEST_PAYMENT_CLASS = {
   awaiting: 'pending', paid: 'gold', bonus: 'bonus', unverified: 'queued',
 }
 
+/* Lát cắt cho admin: tách REQUEST trả tiền khỏi REQUEST dùng thưởng. Khác
+   `requestPaymentState` (badge), money awaiting vẫn thuộc luồng tiền để admin
+   đối soát một chỗ; bonus không bao giờ bị gọi là money. */
+export function requestFundingKind(request) {
+  if (!request?.is_paid) return 'free'
+  if (request.payment_source === 'money') return 'money'
+  if (request.payment_source === 'bonus') return 'bonus'
+  return 'unverified'
+}
+export const matchesRequestFunding = (request, filter) =>
+  !filter || filter === 'all' || requestFundingKind(request) === filter
+
 /** Hạng ưu tiên hàng chờ: money đã thu > bonus đã tiêu > free.
     Tiền đang chờ / legacy chưa xác minh KHÔNG được kéo lên hạng money. */
 export function requestPriorityRank(request) {

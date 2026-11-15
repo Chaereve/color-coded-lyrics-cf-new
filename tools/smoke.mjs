@@ -1071,6 +1071,21 @@ check('mở địa chỉ đã lọc sẵn: ô tìm kiếm có sẵn từ khoá',
 check('mở địa chỉ đã lọc sẵn: cách xếp đúng lựa chọn', q('.adm-sort')?.value === 'votes',
   `sort="${q('.adm-sort')?.value}"`)
 
+/* Nguồn tài trợ cũng sống ở địa chỉ: PAID và BONUS phải tách được trước khi
+   duyệt, không chỉ khác một chiếc tem nhỏ trên hàng. */
+window.history.pushState({}, '', '/admin?tab=pending&pay=bonus')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(400)
+check('mở hàng chờ bonus: bộ lọc nguồn đọc đúng từ URL', q('.adm-funding')?.value === 'bonus',
+  `pay="${q('.adm-funding')?.value}"`)
+check('hàng chờ bonus không lẫn request tiền/free', qa('.adm-req').every(el =>
+  !!el.querySelector('[data-payment-state="bonus"]')), `${qa('.adm-req').length} dòng`)
+window.history.pushState({}, '', '/admin?tab=pending&pay=money')
+window.dispatchEvent(new window.Event('popstate'))
+await tick(400)
+check('mở hàng chờ trả tiền: chỉ các request nguồn money', qa('.adm-req').every(el =>
+  !!el.querySelector('[data-payment-state="awaiting"], [data-payment-state="paid"]')), `${qa('.adm-req').length} dòng`)
+
 /* TRẠNG THÁI RỖNG CỦA BẢNG QUẢN TRỊ phải NÓI RA LÝ DO, không phải một khung
    trống kèm dòng "Nothing here." — đó chính là thứ người dùng đọc thành "trang
    bị lỗi". Ba phần: icon · dòng đậm nói thiếu gì · dòng nhỏ nói vì sao. */

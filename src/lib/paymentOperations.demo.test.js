@@ -66,3 +66,47 @@ test('demo expiry keeps the order/request, clears awaiting funding and frees quo
     assert.equal((await db.buyVotes({ id: 'v3', qty: 3, usd: 0.49, vnd: 13000 })).status, 'awaiting')
   } finally { restore() }
 })
+
+
+test('demo bonus submission waits for admin review, reserves one reward, and notifies the local admin once', async () => {
+  const { store, restore } = mockStorage()
+  try {
+    const db = await import('./db.js')
+    const user = { id: 'demo-user', name: 'Fan', isAdmin: true }
+    store.set('ccl3_user', JSON.stringify(user))
+    store.set('ccl3_prof', JSON.stringify({ vote_credits: 0, bonus_credits: 0, bonus_requests: 2, is_admin: true }))
+    store.set('ccl3_orders', '[]')
+    store.set('ccl3_rows', '[]')
+    const form = { kind: 'Color Coded Lyrics', artist: 'A', title: 'Bonus review', link: '', note: '' }
+    const bonus = await db.addRequest(form, user, true, true)
+    assert.equal(bonus.status, 'pending')
+    assert.equal(bonus.payment_source, 'bonus')
+    assert.equal(bonus.payment_status, 'paid')
+    assert.equal(JSON.parse(store.get('ccl3_prof')).bonus_requests, 1)
+    assert.deepEqual(JSON.parse(store.get('ccl3_orders')), [])
+    const inbox = await db.fetchNotifications(user.id)
+    assert.equal(inbox.filter(n => n.type === 'bonus_request_review').length, 1)
+    assert.equal(inbox.find(n => n.type === 'bonus_request_review').sig, `request-review|${bonus.id}|bonus`)
+    await db.adminReview(bonus.id, true)
+    assert.equal(JSON.parse(store.get('ccl3_rows'))[0].status, 'queued')
+    assert.equal(JSON.parse(store.get('ccl3_prof')).bonus_requests, 1)
+    const money = await db.addRequest({ ...form, title: 'Money review' }, user, true, false)
+    assert.equal(money.status, 'pending')
+    assert.equal(money.payment_source, 'money')
+    assert.equal(JSON.parse(store.get('ccl3_orders')).filter(o => o.request_id === money.id).length, 1)
+    assert.equal((await db.fetchNotifications(user.id)).filter(n => n.type === 'paid_request_review').length, 1)
+  } finally { restore() }
+})
+
+test('demo non-admin does not receive an admin review notice', async () => {
+  const { store, restore } = mockStorage()
+  try {
+    const db = await import('./db.js')
+    const user = { id: 'fan', name: 'Fan', isAdmin: false }
+    store.set('ccl3_user', JSON.stringify(user))
+    store.set('ccl3_prof', JSON.stringify({ bonus_requests: 1, is_admin: false }))
+    store.set('ccl3_orders', '[]'); store.set('ccl3_rows', '[]')
+    await db.addRequest({ kind: 'Color Coded Lyrics', artist: 'A', title: 'B', link: '', note: '' }, user, true, true)
+    assert.deepEqual(await db.fetchNotifications(user.id), [])
+  } finally { restore() }
+})
