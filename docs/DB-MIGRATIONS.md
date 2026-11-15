@@ -864,3 +864,23 @@ done · media · log`. Mục Đã pick lọc `picked_at is not null` **và** sta
 mục Closed: mục này cố ý không liệt kê "bài từng được chốt", vì câu hỏi của nó
 là *hiện tại*. Không đọc thêm RPC nào — dữ liệu đã có trong `requests` mà bảng
 quản trị đang giữ.
+
+
+## 20261224_payment_source — nguồn tài trợ request
+
+- **Mục đích:** tách `paid request trả tiền` (`payment_source=money`, có order `paid_request`) khỏi `paid request dùng thưởng` (`payment_source=bonus`, tiêu `bonus_requests`, không order) và khỏi `mua vote` (`orders.kind=votes`).
+- **An toàn:** thêm cột nullable + CHECK, backfill theo order hiện có; request ưu tiên cũ không có order giữ nhãn `legacy`/chưa xác minh, KHÔNG đoán là bonus. Không xóa dòng, không cộng credit. Nếu order sống mâu thuẫn request thì migration báo `err.paymentMigrationConflict` và rollback cả transaction.
+- **Áp dụng:** chỉ qua guarded runner sau khi duyệt riêng: `npm run db:plan` rồi `npm run db:deploy`. Không dùng Supabase CLI. File rollback: `supabase/rollback/20261224_payment_source.sql`.
+- **Thứ tự deploy:** áp migration DB trước, rồi deploy frontend. Front mới đọc `payment_source`; nếu deploy frontend trước khi DB có cột, truy vấn request sẽ lỗi.
+- **Kiểm chứng:** `npm run test:payment-source:pglite`, `npm run test:migrate`, `npm run db:check`, `npm run schema:split:check`.
+
+## 20261225_payment_operations — vận hành thanh toán thủ công (Giai đoạn 1)
+
+- **Phụ thuộc:** chạy sau `20261224_payment_source`. Không thuộc fresh-install bundle baseline 20261120.
+- **Cột mới trên `orders`:** `expires_at`, `paid_at`, `rejected_at`, `expired_at`, `resolution_reason`, `payment_method`, `received_currency`, `received_amount`, `payment_reference`. Thêm trạng thái `expired`; CHECK bắt buộc trạng thái/mốc thời gian/bằng chứng nhất quán. Đơn `paid`/`rejected` lịch sử giữ `paid_at/rejected_at = NULL` vì `created_at` không phải ngày thu tiền; UI đếm riêng là legacy và không ghép vào doanh thu 30 ngày.
+- **Hạn thanh toán:** đơn mới mặc định `now() + 72 hours`; đơn `awaiting` đang có lúc deploy được gia hạn mới 72h, không hết hạn hồi tố. `expire_payment_orders()` chỉ chạy bởi `service_role`/cron, đổi `awaiting → expired`, hạ funding của paid request đang chờ, giữ nguyên hàng và ghi `admin_actions` với `actor NULL` (system). Lịch `ccl-expire-payment-orders` chạy `*/15 * * * *` nếu `pg_cron` tồn tại; PGlite gọi hàm trực tiếp.
+- **Xác nhận thủ công có đối soát:** `admin_order(uuid,boolean,text,numeric,text,text)` bắt buộc phương thức `bank|paypal`, số tiền nhận đúng loại tiền và mã `V-/PR-` khớp toàn bộ UUID khi duyệt; client cũ chỉ gửi `(id, approve)` vẫn resolve nhờ DEFAULT nhưng nhận `err.paymentEvidenceRequired` và không được cộng credit. Đơn hết hạn vẫn có thể đối soát muộn nếu tiền thật sự về; không tự động khẳng định đã nhận tiền.
+- **Thông báo:** trigger `orders_notify_resolution` ghi `notifications.kind = order_paid | order_rejected | order_expired`, chữ ký `order|<id>|<status>` chống trùng, RLS chỉ người mua đọc. Nhật ký admin ghi thêm phương thức/số tiền/mã/lý do; `admin_actions_page` trả `actor_name = 'System'` cho actor NULL để lượt cron không bị đọc nhầm thành một admin người thật.
+- **Áp dụng:** chỉ qua guarded runner sau khi duyệt riêng: `npm run db:plan` rồi `npm run db:deploy`. Thứ tự production: `20261224_payment_source` → `20261225_payment_operations` → frontend. Không deploy frontend trước DB vì RPC duyệt đơn mới và cột `expires_at/paid_at` chưa có.
+- **Rollback:** `supabase/rollback/20261225_payment_operations.sql` chỉ an toàn khi CHƯA có xác nhận/từ chối/hết hạn mới ghi dưới migration này. Nếu đã có `paid_at/rejected_at/expired_at`, bằng chứng, trạng thái `expired` hoặc tin order, rollback báo `err.paymentRollbackBlocked`; khôi phục backup trước migration thay vì xóa lịch sử tiền.
+- **Kiểm chứng:** `npm run test:payment-operations:pglite`, `npm run test:payment-source:pglite`, `npm run test:migrate`, `npm run db:check`, `npm run schema:split:check`. CI `db-migration-safety.yml` chạy cả hai suite payment PGlite và đọc TAP summary để không xanh giả khi `node --test` exit 0 nhưng vẫn còn `# fail N`.

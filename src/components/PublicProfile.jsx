@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Icon from './Icon'
+import RequestPaymentBadge from './RequestPaymentBadge'
 import DenyReason from './DenyReason'
 import { fetchPublicProfile, fetchPublicStreak, PUBLIC_RECENT } from '../lib/db'
 import StreakStrip from './StreakStrip'
@@ -195,7 +196,7 @@ export default function PublicProfile({ userId, viewerId = null, onBack, onDelet
               <div className="body">
                 <div className="title">
                   <span className="tx2">{r.title || r.artist}{r.title && r.artist && <span className="artist"> — {r.artist}</span>}</span>
-                  {r.is_paid && <span className="pill gold">PAID</span>}
+                  <RequestPaymentBadge request={r} />
                 </div>
                 <div className="sub">
                   <div className="meta">

@@ -37,6 +37,7 @@ const TONE = {
   started: 'var(--progress)', progress: 'var(--progress)',
   approved: 'var(--queued)',
   votes: 'var(--paid)',
+  order_paid: 'var(--paid)', order_rejected: 'var(--denied)', order_expired: 'var(--txt-3)',
 }
 
 export default function Notifications({
@@ -220,6 +221,7 @@ function Item({ n, row, grp, t, onOpenNotice, onDrop, onVote }) {
   const artistText = typeof n.artist === 'string' ? n.artist.trim() : ''
   const vars = {
     song: artistText ? `${titleText} — ${artistText}` : titleText,
+    ref: titleText,
     pct: n.pct ?? 0, votes: n.votes ?? row?.votes ?? 0, n: n.gap ?? 0,
     author: n.author || 'Someone',
   }
@@ -237,7 +239,7 @@ function Item({ n, row, grp, t, onOpenNotice, onDrop, onVote }) {
             {artistText ? <> <span className="artist">— {artistText}</span></> : null}
           </span>
           <span className="nt-msg">{msg}</span>
-          {n.type === 'denied' && n.reason && <span className="nt-reason">{n.reason}</span>}
+          {(n.type === 'denied' || n.type === 'order_rejected') && n.reason && <span className="nt-reason">{n.reason}</span>}
           <span className="nt-meta">
             {/* nhan to trong ten nhom thi khong lap lai nua ("Out now" da
                 nam o nhan nhom ngay tren dau) */}

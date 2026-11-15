@@ -66,13 +66,15 @@ jobs:
           code=${PIPESTATUS[0]}
           TEST_CODE=$code node -e '
             const fs = require("fs")
-            const code = Number(process.env.TEST_CODE || 0)
-            if (!code) process.exit(0)
             const t = fs.readFileSync("/tmp/npm-test.txt", "utf8")
             const fails = t.split(/\n/).filter(l => /^not ok /.test(l) || /^# fail [1-9]/.test(l)).slice(0, 40)
             const msg = s => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")
             if (fails.length) console.log(`::error title=npm test::${msg(fails.join("\n"))}`)
           '
+          # node --test occasionally exits 0 while the TAP summary still says
+          # "# fail N". Trust the report too, otherwise CI can go green on a
+          # real regression (seen locally with the migration-safety suite).
+          if grep -Eq '^not ok |^# fail [1-9]' /tmp/npm-test.txt; then exit 1; fi
           exit $code
 
       # Cùng file migration, nhưng trên engine thứ hai (PostgreSQL WASM trong
@@ -101,6 +103,14 @@ jobs:
           npm run test:voteback:pglite
           npm run test:migration:pglite
           npm run test:pick-pause:pglite
+
+      # Payment source + manual-payment lifecycle must be exercised on the
+      # second engine too; npm test does not pick up *.pglite.mjs by itself.
+      - name: Payment source on PGlite (money / reward / legacy)
+        run: npm run test:payment-source:pglite
+
+      - name: Payment operations on PGlite (evidence, expiry, inbox, rollback)
+        run: npm run test:payment-operations:pglite
 
       # Dựng bản production + chạy jsdom smoke đầy đủ trên mỗi PR/push.
       - name: Production build & DOM smoke

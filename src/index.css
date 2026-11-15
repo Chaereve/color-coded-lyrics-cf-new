@@ -884,6 +884,9 @@ select {
 }
 .pill.gold::before {
   content: '★'; margin-right: 4px; font-size: 8px; line-height: 1; opacity: .9; }
+.pill.bonus { color: var(--a); background: color-mix(in oklab, var(--a) 13%, transparent); font-size: 10px; font-weight: 700; }
+.adm-payment-readonly { display: grid; gap: 4px; align-content: center; }
+.adm-payment-readonly small { color: var(--txt-3); font-size: 11px; }
 
 /* loại video: một THẺ màu nhẹ (nền + viền cùng màu chữ) — chữ trần cùng cỡ
    với phần còn lại của dòng meta thì mắt phải đọc mới biết, thẻ thì thấy */
@@ -6686,3 +6689,15 @@ body:has(.side-scrim.on) .shell { filter: blur(6px) saturate(.92); }
   .mine-activity-head .mine-filter-toggle { gap: 5px; padding: 5px 7px; }
   .mine-activity-head .mine-filter-toggle > b { max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Paid-request payment lives with its order, never in the vote shop. */
+.order-payment-details { flex-basis: 100%; margin-top: 8px; }
+.order-payment-details summary { cursor: pointer; color: var(--paid); font-size: 12px; font-weight: 600; }
+.order-payment-details[open] summary { margin-bottom: 8px; }
+
+/* Trạng thái + hạn thanh toán của đơn: một nguồn cho My activity / Buy / Admin. */
+.order-state { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+.order-deadline { font-size: 11px; color: var(--txt-3); white-space: nowrap; }
+.order-deadline.over { color: var(--denied); }
+.order-review-ref { overflow-wrap: anywhere; }
+.iv-v { white-space: normal; overflow-wrap: anywhere; }

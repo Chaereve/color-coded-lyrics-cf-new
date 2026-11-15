@@ -53,6 +53,11 @@ export const FIELD_LABEL = {
   progress: 'adm.log.f.progress',
   deny_reason: 'adm.log.f.reason',
   paused: 'adm.log.f.paused',
+  payment_method: 'adm.log.f.paymentMethod',
+  received_currency: 'adm.log.f.receivedCurrency',
+  received_amount: 'adm.log.f.receivedAmount',
+  payment_reference: 'adm.log.f.paymentReference',
+  reason: 'adm.log.f.reason',
 }
 
 /* `detail` từ SQL là jsonb: { status: ['pending','queued'], … } (cặp cũ → mới)

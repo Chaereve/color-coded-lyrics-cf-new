@@ -218,3 +218,22 @@ test('dán NGUYÊN tiêu đề video: form đọc ra hai vế và mời tách b�
     prefill: { artist: 'aespa', title: 'Whiplash' } })
   assert.doesNotMatch(plainHtml, /split-note/, 'tiêu đề không có dấu hiệu tách thì không hiện gợi ý')
 })
+
+test('BuyTab chỉ dựng đơn mua vote, không lấy hóa đơn paid request làm đơn vote', async () => {
+  const html = await render({ ...base, tab: 'buy', live: false, myOrders: [
+    { id: 'pr-1', kind: 'paid_request', status: 'awaiting', amount_usd: 0.75, amount_vnd: 20000, qty: 0 },
+    { id: 'v-1', kind: 'votes', status: 'awaiting', amount_usd: 1.29, amount_vnd: 34000, qty: 10 },
+  ] })
+  const tx = plain(html)
+  assert.match(tx, /10 votes/)
+  assert.ok(!/Paid request payment/.test(tx), 'đơn paid request không nằm trong cửa hàng vote')
+  assert.match(tx, /V-V1/)
+  assert.match(tx, /1\/20 vote orders awaiting payment/)
+})
+
+test('BuyTab báo đủ 20 đơn vote chờ và khóa nút mua', async () => {
+  const myOrders = Array.from({ length: 20 }, (_, i) => ({ id: `v-${i}`, kind: 'votes', status: 'awaiting', amount_usd: 0.49, amount_vnd: 13000, qty: 3 }))
+  const html = await render({ ...base, tab: 'buy', live: false, myOrders })
+  assert.match(plain(html), /Vote order limit reached/)
+  assert.match(html, /class="btn btn-gold" disabled=""/)
+})

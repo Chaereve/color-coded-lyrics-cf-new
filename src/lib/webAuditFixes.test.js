@@ -204,3 +204,10 @@ test('AdminPanel, Leaderboard, MediaShowcase, MysteryBox, DailySpin, VideoPrevie
     await vite.close()
   }
 })
+
+test('order realtime refreshes the vote wallet, not only the order list', () => {
+  const app = read('../App.jsx')
+  const slice = app.slice(app.indexOf('const loadOrdersOnly'), app.indexOf('useEffect(() => { if (user) load(user)'))
+  assert.match(slice, /fetchVoteStatus\(\)/, 'a paid vote order changes credits without touching requests, so the orders channel must refresh the wallet')
+  assert.match(app, /table: 'orders' \}, \(\) => loadOrdersOnly\(user\)\)/, 'orders realtime must use the wallet-aware loader')
+})

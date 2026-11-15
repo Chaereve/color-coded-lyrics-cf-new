@@ -23,6 +23,16 @@ test('ô có dấu phẩy bị bọc nháy kép, nháy kép trong dữ liệu đ
   assert.equal(csvCell(0), '0', 'số 0 phải giữ được, không bị coi là rỗng')
 })
 
+test('ô bắt đầu bằng công thức spreadsheet được giữ thành văn bản, không chạy mã', () => {
+  for (const raw of ['=HYPERLINK("https://evil.example","x")', '+cmd', '-1+2', '@SUM(A1)', '  =1+1', '\t=1+1']) {
+    assert.ok(csvCell(raw).replace(/^"/, '').startsWith("'"), `${raw} phải được prefix apostrophe`)
+  }
+  assert.equal(csvCell(-1), '-1', 'số âm thật vẫn là số, không phải văn bản người dùng nhập')
+  assert.equal(csvCell('V-ABC'), 'V-ABC', 'mã đối soát bình thường không bị đổi')
+  const csv = toCsv([{ note: '=1+1' }], [{ k: 'note', label: 'Note' }])
+  assert.match(csv, /'=1\+1/, 'đường xuất thật phải dùng ô đã chặn công thức')
+})
+
 test('bảng có dòng tiêu đề, mỗi dòng đúng số cột, và có BOM cho Excel', () => {
   const csv = toCsv(
     [{ kind: 'CCL', artist: 'aespa', note: 'có, dấu phẩy' }],

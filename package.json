@@ -21,6 +21,8 @@
     "test:mystery:pglite": "node --test supabase/tests/mysteryBox.pglite.mjs",
     "test:voteback:pglite": "node --test supabase/tests/voteBack.pglite.mjs",
     "test:pick-pause:pglite": "node --test supabase/tests/pickPause.pglite.mjs",
+    "test:payment-source:pglite": "node --test supabase/tests/paymentSource.pglite.mjs",
+    "test:payment-operations:pglite": "node --test supabase/tests/paymentOperations.pglite.mjs",
     "test:spinv2:pglite": "node --test supabase/tests/spinV2.pglite.mjs",
     "test:baseline:db": "node --test supabase/tests/baselineReadiness.test.js",
     "backup:db": "bash scripts/backup-db.sh",

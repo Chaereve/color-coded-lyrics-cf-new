@@ -2130,6 +2130,31 @@ where = 'click-path'
         check('click-path 9c: mỗi dòng của hóa đơn có nút chép riêng',
           qa('.iv-row').length >= 4 && qa('.iv-copy').length === qa('.iv-row').length,
           `${qa('.iv-row').length} dòng · ${qa('.iv-copy').length} nút chép`)
+
+        /* Tạo rồi HỦY một đơn vote ngay trong cửa hàng: hóa đơn không được giữ
+           snapshot của đơn đã biến mất và tiếp tục mời chuyển tiền vào mã đó. */
+        const checkout = q('.buy-checkout .btn-gold')
+        const votesBefore = JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').filter(o => o.kind === 'votes' && o.status === 'awaiting').length
+        if (checkout && !checkout.disabled) {
+          await click(checkout)
+          const createdSeen = await waitFor(() => JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').filter(o => o.kind === 'votes' && o.status === 'awaiting').length > votesBefore, 3000)
+          const created = JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').find(o => o.kind === 'votes' && o.status === 'awaiting')
+          const ref = created ? `V-${String(created.id).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}` : ''
+          check('click-path 9c: mua xong hóa đơn mang đúng mã đối soát của đơn vừa tạo',
+            createdSeen && !!ref && text().includes(ref), `mã=${ref || '(không có)'}`)
+          const orderRow = qa('.buy-sec .adm').find(row => (row.textContent || '').includes(ref))
+          const cancel = orderRow?.querySelector('button[title="Cancel order"]')
+          if (cancel) {
+            await click(cancel)
+            const confirmSeen = await waitFor(() => !!q('.dlg-overlay .dlg-acts .btn-no'), 2000)
+            check('click-path 9c: hủy đơn đã chuyển tiền nhầm thì được nhắc liên hệ support trước',
+              confirmSeen && /contact support/i.test(q('.dlg-overlay .dlg-body')?.textContent || ''))
+            await click(q('.dlg-overlay .dlg-acts .btn-no'))
+            const removed = await waitFor(() => !JSON.parse(window.localStorage.getItem('ccl3_orders') || '[]').some(o => o.id === created?.id), 3000)
+            check('click-path 9c: hủy đơn xong không còn hóa đơn ma mời trả tiền cho mã cũ',
+              removed && !!ref && !text().includes(ref), `mã cũ=${ref}`)
+          }
+        }
         const close = q('.modal .x')
         if (close) { await click(close); await tick(220) }
       }
