@@ -26,11 +26,11 @@ on:
     - cron: '0 19 * * *'
   workflow_dispatch:
   push:
-    # Tạm bật cho tiền kiểm rollout payment 2026-11-15. Token sandbox không có
-    # actions:write nên push là đường chạy backup đã duyệt. Script CHỈ ĐỌC với
-    # production; sẽ tắt lại trigger này trước khi apply để không dump chồng apply.
+    # 2026-11-15 · backup + restore thử trước rollout payment đã hoàn tất và bản
+    # mã hoá đã giữ trong Drive riêng tư. Tắt push-trigger trong lúc apply để
+    # không dump song song với migration; giữ schedule/dispatch như cũ.
     branches:
-      - 'arena/c039d143-color-coded-lyrics-cf-new'
+      - 'arena/c039d143-color-coded-lyrics-cf-new-DISABLED-after-preflight'
 
 # Hai lượt chồng nhau (bấm tay đúng lúc cron nổ) thì bản sau xếp hàng, không
 # chạy song song: hai pg_dump cùng lúc chỉ tốn tài nguyên vô ích.
@@ -45,11 +45,6 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Tạm thời: chuyển bản backup ĐÃ MÃ HOÁ bằng public key sang nhánh phiên để
-    # sandbox tải qua git (artifact storage nằm ngoài allowlist), rồi upload Drive.
-    # Không có private key trong repo/workflow; file transport sẽ gỡ trước merge.
-    permissions:
-      contents: write
 
     # Postgres sạch để THỬ PHỤC HỒI. Miễn phí: container chạy trong máy ảo
     # của runner, không phải một dịch vụ ngoài nào.
@@ -98,29 +93,6 @@ jobs:
             -w /work \
             postgres:17 \
             bash scripts/verify-backup.sh
-
-      # Transport tạm cho rollout payment: chỉ chạy SAU khi restore thử khớp.
-      # CMS dùng RSA-4096 recipient + AES-256; private key chỉ ở sandbox ignored.
-      # Commit chỉ chứa ciphertext, không bao giờ dump/auth-users dạng rõ.
-      - name: Chuyển bản backup mã hoá tới phiên đang duyệt
-        if: success() && github.ref_name == 'arena/c039d143-color-coded-lyrics-cf-new'
-        run: |
-          set -euo pipefail
-          test -s backup/manifest.txt
-          test -s backup/fingerprint-restored.txt
-          cmp backup/fingerprint.txt backup/fingerprint-restored.txt
-          tar -czf /tmp/chaereve-verified-backup.tar.gz -C backup .
-          openssl cms -encrypt -binary -aes-256-cbc -outform DER \
-            -in /tmp/chaereve-verified-backup.tar.gz \
-            -out .github/rollout-backup.cms \
-            .github/rollout-backup-transport.crt
-          sha256sum .github/rollout-backup.cms > .github/rollout-backup.sha256
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/rollout-backup.cms .github/rollout-backup.sha256
-          git commit -m 'Transfer encrypted verified backup for approved rollout [skip ci]'
-          git push origin HEAD:arena/c039d143-color-coded-lyrics-cf-new
-          echo '::notice title=backup transport::Đã push ciphertext đã mã hoá; chưa có bản rõ trong Git'
 
       # Kênh đọc kết quả từ sandbox: log/artifact của runner không tải được (host
       # lưu trữ ngoài allowlist) nên đưa manifest + kết quả so dấu vân tay ra
