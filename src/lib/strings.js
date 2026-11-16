@@ -1417,6 +1417,7 @@ const S = {
   'err.noBonusRequest': 'You have no free paid-request rewards left.',
   'err.orderOwner': 'You can only cancel your own orders.',
   'err.orderPaidLocked': 'The request is already approved, so the order cannot be cancelled.',
+  'err.paymentAwaitingOrder': 'Confirm payment on the linked order before approving this request.',
   'err.kindBad': 'Unknown video type.',
   'err.mediaThumb': 'The cover link must start with http.',
   'err.qty': 'Pick a number between 1 and 100.',

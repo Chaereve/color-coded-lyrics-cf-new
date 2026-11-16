@@ -30,6 +30,15 @@ const ts = (v) => +new Date(v) || 0
 /* Khoá gom cụm: cùng nghệ sĩ + cùng tên bài là một cụm. */
 export const groupKey = requestWorkKey
 
+/* Một bài chỉ được lộ ra bề mặt công khai (bảng, tìm kiếm, thẻ tuần, hồ sơ
+   công khai, kiểm trùng cho người lạ, bộ đệm offline) khi đã qua duyệt và
+   không còn chờ xác nhận thanh toán. */
+export const isPublicRequest = (r) =>
+  Boolean(r && typeof r === 'object'
+    && r.status !== 'pending'
+    && r.status !== 'denied'
+    && r.payment_status !== 'awaiting')
+
 /* Chỉ giữ lại những dòng THẬT SỰ là object.
    Một phần tử null/rác trong mảng rows (payload realtime méo, một lần ghi
    localStorage hỏng, câu trả lời của PostgREST bị cắt) trước đây làm cả bảng
@@ -457,8 +466,11 @@ export const songCount = (rows) => new Set(real(rows).map(groupKey)).size
    HOẶC XONG trong cửa sổ, HOẶC NHẬN ÍT NHẤT MỘT VOTE trong cửa sổ — cùng luật
    "vote nhận trong mùa" của Leaderboard (src/lib/season.js, chủ dự án chốt
    26/09): bài cũ mà được vote nhiều 7 ngày qua vẫn thuộc "This week".
-   Không tính bài bị từ chối (denied). Bài chờ duyệt (pending) vẫn được hiện
-   ở thẻ bài mới nhất để người gửi thấy yêu cầu của mình ngay.
+   Không tính bài bị từ chối (denied) — và từ 2026-12 cũng không tính hàng
+   CHƯA CÔNG KHAI: chờ duyệt (pending), hoặc đã trả nhưng chờ admin xác nhận
+   tiền trên đơn (payment_status = "awaiting"). Thẻ tuần là trang công khai;
+   người gửi vẫn thấy yêu cầu của mình trong khối "chỉ bạn thấy" ở trang cá
+   nhân, nên không cần lùi hàng riêng vào đây.
    "Most voted" = bài NHIỀU VOTE NHẬN TRONG CỬA SỔ NHẤT, phải có ÍT NHẤT một
    phiếu nhận trong cửa sổ. Bài mới chưa ai vote không được đội nhãn đó chỉ
    vì nó là hàng duy nhất trong cửa sổ. Con số in trên thẻ là phiếu NHẬN
@@ -473,7 +485,7 @@ export function weeklyHighlights(rows, now = Date.now(), votesLog = []) {
   const votes = votesByRequest(votesLog, since, now)
   const doneAt = (r) => ts(r.completed_at) || ts(r.updated_at) || ts(r.created_at)
   const recent = real(rows).filter((r) => {
-    if (r.status === 'denied') return false
+    if (!isPublicRequest(r)) return false
     if (ts(r.created_at) >= since) return true
     if (r.status === 'completed' && doneAt(r) >= since) return true
     return (votes.get(r.id) || 0) > 0
@@ -535,29 +547,25 @@ export const chainRows = (rows) => real(rows).filter(inChain).sort((a, b) =>
    ========================================================= */
 export function filterBoard(opts = {}) {
   const {
-    pub = [], rows = [], filter = 'queued', sort = null,
+    pub = [], filter = 'queued', sort = null,
     statusFilters = [], kindFilters = [], q = '',
   } = opts
-  const picked = opts.picked || chainRows(pub)
+  const publicRows = real(pub).filter(isPublicRequest)
+  const picked = opts.picked ? real(opts.picked).filter(isPublicRequest) : chainRows(publicRows)
   const t = (q ?? '').trim()
-  let base = real(pub)
+  let base = publicRows
   /* HAI TRỤC ĐỘC LẬP. `filter` là CHẶNG (queued/picked/in_progress/completed)
      hoặc 'all'; `sort` là cách xếp. Trước đây cả hai dùng chung một tham số
      nên chọn cái này là mất cái kia. Giá trị sort còn nằm trong `filter` là
      đường tương thích cho link cũ (`?f=top`) và cho các chỗ gọi chưa đổi.
-     `hasStage` = có giới hạn theo chặng hay không: hai luật bên dưới (tìm
-     quét cả `rows`, và "Most voted" bỏ bài đã xong) chỉ đúng khi KHÔNG giới
-     hạn chặng — áp chúng lên một chặng đã lọc thì danh sách rỗng. */
+     `hasStage` = có giới hạn theo chặng hay không: luật "Most voted bỏ bài đã
+     xong" chỉ đúng khi KHÔNG giới hạn chặng — áp nó lên một chặng đã lọc thì
+     danh sách rỗng. Bảng công khai không bao giờ lùi sang `rows` thô để tìm
+     kiếm, tránh lộ bài đang chờ duyệt / chờ thanh toán / bị từ chối. */
   const sortMode = SORTS.includes(sort) ? sort : (SORTS.includes(filter) ? filter : null)
   const stage = SORTS.includes(filter) ? 'all' : filter
   const hasStage = statusFilters.length > 0 || STAGES.includes(stage)
-  /* Đang ở một CÁCH XẾP (không phải một chặng) thì tìm kiếm phải quét cả
-     `rows`, nên bài đang chờ duyệt / bị từ chối vẫn tìm ra — bản trước chỉ
-     làm vậy cho `newest`, còn `top` thì không, nên cùng một từ khoá cho hai
-     kết quả khác nhau tuỳ cái đang bật. */
-  if (!hasStage && t && rows?.length) {
-    base = real(rows).filter(r => r.status !== 'denied')
-  } else if (statusFilters.length) {
+  if (statusFilters.length) {
     /* Chip "Up next" và "In progress" lọc bằng `inChain` — ĐÚNG tập của khối
        Up next, của hai tab và của số badge (pickedGroups.length): bài đã chốt
        (picked_at) HAY đang làm. Vì vậy request vẫn ở lại filter Up next sau

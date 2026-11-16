@@ -112,7 +112,7 @@ function SearchBox({ t, q, setQ, inputRef, placeholder }) {
 }
 
 function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, onPick,
-  onEdit, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire,
+  onEdit, onConfirmPayment = null, select = false, selected = false, onSelect, pickInterval = 4, expired = false, onExpire,
   reveal = null, focused = false, ask: askProp = null }) {
   const { t } = useI18n()
   const askFallback = useConfirm()
@@ -218,7 +218,12 @@ function RequestAdminRow({ r, dup, songRows = [], onReview, onUpdate, onDelete, 
       <div className="adm-acts">
         {r.status === 'pending' ? (
           <>
-            <button className="btn btn-sm btn-ok" onClick={() => onReview(r.id, true)}>{t('adm.approve')}</button>
+            <button className="btn btn-sm btn-ok"
+              onClick={() => (r.is_paid && r.payment_status === 'awaiting' && onConfirmPayment
+                ? onConfirmPayment(r)
+                : onReview(r.id, true))}>
+              {t(r.is_paid && r.payment_status === 'awaiting' ? 'adm.paymentConfirm' : 'adm.approve')}
+            </button>
             <button className="btn btn-sm btn-no"
               onClick={async () => {
                 const r2 = await ask({
@@ -951,8 +956,23 @@ export default function AdminPanel({
     if (!row) return
     setReveal({ id: row.id, n: reveal.n + 1 })
   }
+  const openOrderForRequest = (row) => {
+    if (!row) return
+    const isActionableOrder = (o) => ['awaiting', 'expired'].includes(orderDisplayStatus(o, orderNow))
+    const linked = orders.find(o => o.request_id === row.id && isActionableOrder(o))
+    if (linked) {
+      setPaymentOrder(linked)
+      return
+    }
+    goTab('orders')
+  }
   const navApprove = () => {
-    if (canApprove) onReview(cursorRow.id, true)
+    if (!canApprove) return
+    if (cursorRow.is_paid && cursorRow.payment_status === 'awaiting') {
+      openOrderForRequest(cursorRow)
+      return
+    }
+    onReview(cursorRow.id, true)
   }
   const navDeny = async () => {
     if (!canDeny) return
@@ -973,6 +993,19 @@ export default function AdminPanel({
   })
   const runBulk = async (action) => {
     if (!selIds.length || bulkBusy) return
+    let targetIds = selIds
+    if (action === 'approve') {
+      const selectedRows = rows.filter(r => sel.has(r.id))
+      const readyIds = selectedRows
+        .filter(r => !(r.is_paid && r.payment_status === 'awaiting'))
+        .map(r => r.id)
+      if (!readyIds.length) {
+        const firstAwaiting = selectedRows.find(r => r.is_paid && r.payment_status === 'awaiting')
+        if (firstAwaiting) openOrderForRequest(firstAwaiting)
+        return
+      }
+      targetIds = readyIds
+    }
     /* HAI lệnh hàng loạt hỏi lại trước khi làm, và hỏi bằng hộp của app: xoá
        (không hoàn tác được) và từ chối (người gửi đọc được lý do). Duyệt thì
        không hỏi — đó là việc admin bấm để ĐI TIẾP, hỏi lại chỉ làm chậm tay. */
@@ -998,7 +1031,7 @@ export default function AdminPanel({
       videoUrl = r2.videoUrl
     }
     setBulkBusy(true)
-    try { await onBulk(action, selIds, reason, videoUrl); setSel(new Set()) }
+    try { await onBulk(action, targetIds, reason, videoUrl); setSel(new Set()) }
     finally { setBulkBusy(false) }
   }
 
@@ -1649,7 +1682,7 @@ export default function AdminPanel({
                 /* mọi dòng CÙNG BÀI (kể cả đã bị từ chối) để ghim công đủ tên
                    người đã gửi — lọc bằng đúng groupKey mà bảng dùng */
                 songRows={rows.filter(x => groupKey(x) === groupKey(r))}
-                onReview={onReview} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick}
+                onReview={onReview} onConfirmPayment={openOrderForRequest} onUpdate={onUpdate} onDelete={onDelete} onPick={onPick}
                 onEdit={onEdit} reveal={reveal} focused={cursor >= 0 && pg.items[cursor]?.id === r.id}
                 ask={ask} />
             ))

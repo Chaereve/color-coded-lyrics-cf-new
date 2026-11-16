@@ -49,7 +49,7 @@ import { createSectionTransition } from './lib/viewTransition'
 import { NavProvider, useNav, spaLink } from './lib/nav.js'
 import Boundary from './components/Boundary'
 import { usePager } from './lib/usePager'
-import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
+import { SORTS, STAGES, boardItems as buildBoardItems, chainRows, filterBoard, groupIds, groupKey, isPublicRequest, parseRequestPrefill, pickBoardParam, songCount, stageCounts, weeklyHighlights as buildWeeklyHighlights } from './lib/board'
 import {
   diffNotices, dropNotice, isAdminExpiryNotice, isAdminRequestReviewNotice, isDismissed, isOrderNotice, loadDismissed, loadInbox, markAllRead, markRead, requestReviewFunding,
   orderIdOfNotice,
@@ -1763,7 +1763,10 @@ function AppInner() {
   }
 
   /* ---------------- derived ---------------- */
-  const pub = useMemo(() => rows.filter(r => r.status !== 'pending' && r.status !== 'denied'), [rows])
+  const pub = useMemo(() => rows.filter(isPublicRequest), [rows])
+  const dupRows = useMemo(
+    () => rows.filter(r => isPublicRequest(r) || (Boolean(user?.id) && r.user_id === user.id)),
+    [rows, user])
   const mineRows = useMemo(
     () => rows.filter(r => r.user_id === user?.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     [rows, user])
@@ -1850,8 +1853,8 @@ function AppInner() {
      không có trong deps vì nó chỉ là bản sao MỘT lựa chọn dùng cho địa chỉ
      `?k=`; thứ thật sự lọc là `kindFilters`. */
   const visible = useMemo(
-    () => filterBoard({ pub, picked, rows, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q }),
-    [pub, picked, rows, boardStage, sortMode, statusFilters, kindFilters, q])
+    () => filterBoard({ pub, picked, filter: boardStage, sort: sortMode, statusFilters, kindFilters, q }),
+    [pub, picked, boardStage, sortMode, statusFilters, kindFilters, q])
 
   const latest = useMemo(
     () => media
@@ -1865,19 +1868,20 @@ function AppInner() {
   const featuredRows = media
   /* Hall of Fame giữ đúng năm video completed mới nhất; phép gom trùng và
      giới hạn nằm trong hàm thuần để có test riêng (lib/hallOfFame.js). */
-  const hallOfFame = useMemo(() => buildHallOfFame(rows, 5), [rows])
+  const hallOfFame = useMemo(() => buildHallOfFame(pub, 5), [pub])
   /* `votesLog` (phiếu nhận gần đây) cho "Most voted" tính vote NHẬN TRONG
      7 NGÀY QUA thay vì cộng dồn — bài cũ được vote nhiều tuần này vẫn thuộc
      "This week" (luật trong buildWeeklyHighlights / season.js).
      Hai khối "This week" + "Tuần qua nhìn lại" (T7) dùng chung MỘT `now`
-     tính trong memo — không hai khái niệm "tuần" trôi nổi (lib/weekRecap.js). */
+     tính trong memo — không hai khái niệm "tuần" trôi nổi (lib/weekRecap.js).
+     Chỉ truyền `pub` để không bao giờ lộ bài đang chờ duyệt / chờ thanh toán. */
   const weekly = useMemo(() => {
     const now = Date.now()
     return {
-      highlights: buildWeeklyHighlights(rows, now, votesLog),
-      recap: buildWeekRecap(rows, now, votesLog),
+      highlights: buildWeeklyHighlights(pub, now, votesLog),
+      recap: buildWeekRecap(pub, now, votesLog),
     }
-  }, [rows, votesLog])
+  }, [pub, votesLog])
   const weeklyHighlights = weekly.highlights
   const weekRecap = weekly.recap
   const hasWeeklyRecap = weekRecap.windowVotes > 0 || weekRecap.completed.length > 0
@@ -3253,7 +3257,7 @@ function AppInner() {
             hai prop thành tên prop và báo "dây đứt" oan.) */}
         <ActionModal
           open={modal} tab={modalTab} setTab={setModalTab} onClose={() => setModal(false)}
-          rows={pub} allRows={rows} myVotes={myVotes} myOrders={myOrders}
+          rows={pub} allRows={dupRows} myVotes={myVotes} myOrders={myOrders}
           prefill={prefill}
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}

@@ -7,6 +7,11 @@
    báo, còn hàng biến mất kèm cả lý do từ chối. Chủ dự án gặp đúng chỗ đó:
    "trang t hàng denied ko có xuất hiện".
 
+   Cập nhật 2026-12: hàng ĐÃ TRẢ nhưng chờ admin bấm "đã nhận tiền" trên đơn
+   (`is_paid && payment_status === 'awaiting'`) cũng nằm ngoài bảng công khai —
+   lộ sớm là lộ một đơn đang chờ xác nhận, và admin có thể lỡ duyệt trước khi
+   chốt tiền. Ba loại hàng riêng: chờ duyệt, bị từ chối, chờ xác nhận tiền.
+
    Bài này chốt ranh giới, vì đây là chỗ dễ rò rỉ dữ liệu nhất:
      1. dữ liệu riêng nằm ở mảng RIÊNG (`privateRecent`), không trộn vào
         `recent` — `recent` là thứ dựng link `?q=` và đếm số liệu công khai;
@@ -31,10 +36,10 @@ const strings = readFileSync(`${root}src/lib/strings.js`, 'utf8')
 
 test('dữ liệu riêng của chủ hồ sơ nằm ở mảng riêng, không trộn vào recent', () => {
   /* Luật cũ vẫn còn nguyên: `recent` chỉ chứa hàng công khai. */
-  assert.match(db, /const publicRequestsOf = \(rows\) => \(rows \|\| \[\]\)\s*\n\s*\.filter\(r => r && r\.status !== 'pending' && r\.status !== 'denied'\)/,
-    'recent vẫn phải lọc pending/denied — đây là dữ liệu công khai')
-  assert.match(db, /const privateRequestsOf = \(rows\) => \(rows \|\| \[\]\)\s*\n\s*\.filter\(r => r && \(r\.status === 'pending' \|\| r\.status === 'denied'\)\)/,
-    'hàng riêng là đúng hai trạng thái chờ duyệt / bị từ chối, không phải "mọi thứ còn lại"')
+  assert.match(db, /const publicRequestsOf = \(rows\) => \(rows \|\| \[\]\)\s*\n\s*\.filter\(r => r && r\.status !== 'pending' && r\.status !== 'denied' && r\.payment_status !== 'awaiting'\)/,
+    'recent vẫn phải lọc pending/denied/awaiting — đây là dữ liệu công khai')
+  assert.match(db, /const privateRequestsOf = \(rows\) => \(rows \|\| \[\]\)\s*\n\s*\.filter\(r => r && \(r\.status === 'pending' \|\| r\.status === 'denied' \|\| r\.payment_status === 'awaiting'\)\)/,
+    'hàng riêng là ba loại: chờ duyệt / bị từ chối / chờ xác nhận tiền, không phải "mọi thứ còn lại"')
   assert.match(db, /privateRecent: ownerView \? privateRequestsOf\(rows\)\.slice\(0, PUBLIC_RECENT\) : \[\]/,
     'mảng riêng chỉ được trả về khi người xem là chủ; người ngoài nhận mảng rỗng')
 })
@@ -45,8 +50,8 @@ test('chỉ chủ hồ sơ mới tải và thấy hàng chờ duyệt / bị t�
   assert.match(db, /const ownerView = !!viewerId && viewerId === userId/,
     'quyết định "chủ hay không" nằm ở so sánh id, không phải ở chỗ render')
   /* Câu truy vấn: người ngoài vẫn lọc ngay ở DB, chủ thì tải cả hai loại. */
-  assert.match(db, /if \(!ownerView\) q\.neq\('status', 'pending'\)\.neq\('status', 'denied'\)/,
-    'người ngoài không được tải những hàng đó về client')
+  assert.match(db, /if \(!ownerView\) q\.neq\('status', 'pending'\)\.neq\('status', 'denied'\)\.neq\('payment_status', 'awaiting'\)/,
+    'người ngoài không được tải những hàng đó về client — kể cả hàng chờ xác nhận tiền')
   assert.match(db, /attachVisibleDenialReasons\(rs \|\| \[\]\)/, 'lý do phải qua RPC quyền riêng tư, không lấy trực tiếp từ requests')
   assert.match(db, /get_visible_denial_reasons/)
   /* Đường demo và đường Supabase phải trả lời giống nhau. */

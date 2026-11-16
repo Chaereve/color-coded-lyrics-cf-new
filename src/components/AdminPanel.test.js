@@ -519,6 +519,58 @@ test('admin tách PAID và BONUS bằng bộ lọc nguồn, badge và hai ô đ�
   assert.ok(!orders.includes('adm-funding'), 'đơn hàng dùng trạng thái đơn, không dùng bộ lọc nguồn request')
 })
 
+test('hàng chờ xác nhận tiền: nút duyệt thành "Confirm payment" và mở đối soát đơn, không duyệt thẳng', async () => {
+  const funded = [
+    row({ id: 'pay-pending', title: 'Money pending', is_paid: true, payment_source: 'money', payment_status: 'awaiting' }),
+    row({ id: 'bonus-pending', title: 'Bonus pending', is_paid: true, payment_source: 'bonus', payment_status: 'paid' }),
+    row({ id: 'free-pending', title: 'Free pending' }),
+  ]
+  const pending = await render({ ...base, rows: funded, tab: 'pending' })
+  /* Cắt riêng khối của từng hàng theo id, không phụ thuộc thứ tự render. */
+  const rowBlock = (id) => {
+    const s = pending.indexOf(`id="adm-row-${id}"`)
+    assert.ok(s >= 0, `thiếu hàng adm-row-${id}`)
+    const rest = pending.slice(s)
+    const next = rest.indexOf('id="adm-row-', 10)
+    return next === -1 ? rest : rest.slice(0, next)
+  }
+  /* TRÊN HÀNG: tiền đã trả nhưng chưa xác nhận thì nút xanh không còn là
+     "Approve" — bấm nó phải mở hộp đối soát đơn để admin xác nhận tiền TRƯỚC,
+     rồi mới duyệt. Duyệt trước = chốt mất đơn hàng. */
+  assert.match(rowBlock('pay-pending'), /btn-ok[^>]*>Confirm payment</,
+    'hàng awaiting phải mang nhãn Confirm payment')
+  assert.match(rowBlock('bonus-pending'), /btn-ok[^>]*>Approve</,
+    'hàng thường (bonus/free) vẫn duyệt thẳng như trước')
+  assert.match(rowBlock('free-pending'), /btn-ok[^>]*>Approve</,
+    'hàng free vẫn duyệt thẳng như trước')
+
+  const src = readFileSync(`${root}src/components/AdminPanel.jsx`, 'utf8')
+  assert.match(src, /onClick=\{\(\) => \(r\.is_paid && r\.payment_status === 'awaiting' && onConfirmPayment\s*\? onConfirmPayment\(r\)\s*: onReview\(r\.id, true\)\)\}/,
+    'bấm nút trên hàng awaiting phải gọi onConfirmPayment, không bao giờ onReview(id, true)')
+  assert.match(src, /onConfirmPayment=\{openOrderForRequest\}/,
+    'RequestAdminRow phải nhận đường mở đối soát đơn từ trang')
+  /* ĐƯỜNG MỞ ĐƠN: đơn còn hành động được (awaiting/expired) thì mở đúng hộp
+     đối soát của đơn đó; không còn đơn nào thì về mục Đơn hàng để admin xem. */
+  const open = src.slice(src.indexOf('const openOrderForRequest'), src.indexOf('const navApprove'))
+  assert.match(open, /setPaymentOrder\(linked\)/, 'phải mở hộp đối soát của đúng đơn gắn với request')
+  assert.match(open, /goTab\('orders'\)/, 'thiếu đơn hành động được thì về mục Đơn hàng')
+  /* PHÍM TẮT a: cùng một luật với nút — awaiting thì mở đơn, không thì duyệt. */
+  const nav = src.slice(src.indexOf('const navApprove'), src.indexOf('const navDeny'))
+  assert.match(nav, /cursorRow\.is_paid && cursorRow\.payment_status === 'awaiting'/)
+  assert.match(nav, /openOrderForRequest\(cursorRow\)/, 'phím a trên hàng awaiting phải mở đối soát đơn')
+  assert.match(nav, /onReview\(cursorRow\.id, true\)/, 'hàng thường vẫn duyệt bằng phím a')
+  /* HÀNG LOẠT: "Duyệt tất cả" phải BỎ QUA hàng awaiting trong danh sách đích —
+     lẫn một hàng chờ tiền vào lệnh duyệt là mất đơn không cần xác nhận. */
+  const bulk = src.slice(src.indexOf('const runBulk'), src.indexOf('const bulkAction'))
+  assert.match(bulk, /action === 'approve'/)
+  assert.match(bulk, /\.filter\(r => !\(r\.is_paid && r\.payment_status === 'awaiting'\)\)/,
+    'danh sách duyệt hàng loạt phải loại hàng awaiting')
+  assert.match(bulk, /if \(firstAwaiting\) openOrderForRequest\(firstAwaiting\)/,
+    'chọn toàn hàng awaiting thì mở đối soát đơn thay vì im lặng')
+  assert.match(bulk, /await onBulk\(action, targetIds, reason, videoUrl\)/,
+    'lệnh hàng loạt phải gửi danh sách ĐÃ lọc, không gửi selIds thô')
+})
+
 test('mục Đơn hàng và Tổng quan hiện trạng thái báo chuyển khoản, bằng chứng đã thu và lọc nhật ký', async () => {
   const sampleOrders = [
     {

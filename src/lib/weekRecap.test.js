@@ -65,3 +65,15 @@ test('tuần lặng: không completed, không phiếu — số liệu về 0 th�
   assert.deepEqual(recapStats(r).map(s => s.value), [0, 0, 0])
   assert.deepEqual(recapStats(r).map(s => s.key), ['statVotes', 'statDone', 'statTop'])
 })
+
+test('hàng chưa công khai không lọt vào danh sách completed của recap', () => {
+  /* Kể cả khi caller trót đưa hàng pending / chờ xác nhận tiền vào, bản
+     liệt kê "mới xong" cũng phải giữ đúng ranh giới công khai. */
+  const r = weekRecap([
+    { id: 10, title: 'Shady', artist: 'X', status: 'completed', created_at: at(5), completed_at: at(1) },
+    { id: 11, title: 'Pending', artist: 'X', status: 'pending', created_at: at(5), completed_at: at(1) },
+    { id: 12, title: 'Unconfirmed', artist: 'X', status: 'completed', is_paid: true, payment_status: 'awaiting', created_at: at(5), completed_at: at(1) },
+  ], NOW, [])
+  assert.deepEqual(r.completed.map(c => c.title), ['Shady'],
+    'pending và awaiting không được mang ra trang công khai, kể cả khi đã ghi completed_at')
+})
