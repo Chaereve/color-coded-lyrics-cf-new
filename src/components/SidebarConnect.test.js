@@ -11,6 +11,6 @@ test('Connect sidebar includes the Ko-fi page with its branded SVG icon', () => 
   assert.match(payment, /kofiUrl: 'https:\/\/ko-fi\.com\/chaereve'/)
   assert.match(sidebar, /href=\{SUPPORT\.kofiUrl\} target="_blank" rel="noreferrer"/)
   assert.match(sidebar, /<BrandIco d=\{BRAND\.kofi\} \/>/)
-  assert.match(sidebar, /kofi: <path d="M11\.351[\s\S]*?fill="currentColor" \/>/)
+  assert.match(sidebar, /kofi: <path fillRule="evenodd" d="M3\.4[\s\S]*?fill="currentColor" \/>/)
   assert.match(sidebar, /<span className="side-tx">Ko-fi<\/span>/)
 })
