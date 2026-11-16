@@ -518,3 +518,36 @@ test('admin tách PAID và BONUS bằng bộ lọc nguồn, badge và hai ô đ�
   const orders = await render({ ...base, rows: funded, tab: 'orders' })
   assert.ok(!orders.includes('adm-funding'), 'đơn hàng dùng trạng thái đơn, không dùng bộ lọc nguồn request')
 })
+
+test('mục Đơn hàng và Tổng quan hiện trạng thái báo chuyển khoản, bằng chứng đã thu và lọc nhật ký', async () => {
+  const sampleOrders = [
+    {
+      id: 'ord-reported', kind: 'votes', qty: 30, amount_vnd: 78000, amount_usd: 2.99,
+      status: 'awaiting', created_at: new Date().toISOString(),
+      transfer_reported_at: new Date().toISOString(),
+      user_name: 'Buyer One',
+    },
+    {
+      id: 'ord-paid', kind: 'votes', qty: 30, amount_vnd: 78000, amount_usd: 2.99,
+      status: 'paid', created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      payment_method: 'bank', received_currency: 'VND', received_amount: 78000,
+      resolution_reason: 'Checked VCB',
+      user_name: 'Buyer Two',
+    },
+  ]
+  const ordersHtml = await render({ ...base, orders: sampleOrders, tab: 'orders' })
+  assert.match(ordersHtml, /adm-reported-btn[^>]*>Transfer reported \(1\)/)
+  assert.match(ordersHtml, /class="pill adm-reported">Transfer reported/)
+  assert.match(ordersHtml, /1 awaiting \(1 reported\)/)
+  assert.match(ordersHtml, /Received 78,000₫ via Bank transfer/)
+  assert.match(ordersHtml, /Note: Checked VCB/)
+
+  const ovHtml = await render({ ...base, orders: sampleOrders, tab: 'overview' })
+  assert.match(ovHtml, /1 transfer reported/)
+  assert.match(ovHtml, /Review active queue/)
+
+  const logHtml = await render({ ...base, tab: 'log' })
+  assert.match(logHtml, /adm-log-bar/)
+  assert.match(logHtml, /All actions/)
+})

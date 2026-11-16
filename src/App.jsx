@@ -446,8 +446,8 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
     || orderCategories.find(category => category.count)
   const orderRows = activeOrderCategory?.rows || []
   const pgOrders = usePager(orderRows, PER_PAGE_ORDERS, [activeOrderCategory?.key || 'empty'])
-  if (focusOrder?.id && handledOrderFocus !== focusOrder.at) {
-    const target = orders.find(o => o.id === focusOrder.id)
+  if ((focusOrder?.id || focusOrder?.requestId) && handledOrderFocus !== focusOrder.at) {
+    const target = orders.find(o => (focusOrder.id && o.id === focusOrder.id) || (focusOrder.requestId && o.request_id === focusOrder.requestId))
     if (target) {
       const category = orderActivityCategory(target)
       if (pane !== 'orders' || activeOrderCategory?.key !== category) {
@@ -527,7 +527,12 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
               <span className="empty-ico" aria-hidden="true"><Icon name="star" size={18} /></span>
               <b>{t('mine.ordersEmpty')}</b><small>{t('mine.ordersHint')}</small>
             </div>
-            : pgOrders.items.map(o => (
+            : pgOrders.items.map(o => {
+              /* Đơn chờ thanh toán — votes lẫn paid_request — cùng một nút Pay now
+                 mở popup QR; mã tham chiếu chỉ nằm trong popup đó. */
+              const showPayment = orderDisplayStatus(o) === 'awaiting'
+                && (o.kind === 'paid_request' || o.kind === 'votes')
+              return (
               <div className="row order-row" key={o.id} id={`mine-order-${o.id}`} tabIndex={-1} style={{ '--sc': orderDisplayStatus(o) === 'paid' ? 'var(--done)' : orderDisplayStatus(o) === 'rejected' ? 'var(--denied)' : orderDisplayStatus(o) === 'expired' ? 'var(--txt-3)' : 'var(--pending)' }}>
                 <div className="body">
                   <div className="title">{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</div>
@@ -535,7 +540,7 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
                     <span>{vnd(o.amount_vnd)}</span><span className="dot" aria-hidden="true" />
                     <span>{usd(o.amount_usd)}</span><span className="dot" aria-hidden="true" />
                     <span>{timeAgo(o.created_at, t)}</span>
-                    {!(o.kind === 'paid_request' && orderDisplayStatus(o) === 'awaiting') && <>
+                    {!showPayment && <>
                       <span className="dot" aria-hidden="true" /><span className="order-meta-reference">{t('order.reference', { ref: orderReference(o) })}</span>
                     </>}
                   </div>
@@ -545,11 +550,12 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
                   <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
                     onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
                 )}
-                {orderDisplayStatus(o) === 'awaiting' && o.kind === 'paid_request' && (
+                {showPayment && (
                   <OrderPayment order={o} />
                 )}
               </div>
-            ))}
+              )
+            })}
         </div>
         {orders.length > 0 && <Pager {...pgOrders} onChange={pgOrders.setPage} scrollTo={ordersRef} />}
       </div>
@@ -2071,7 +2077,7 @@ function AppInner() {
           ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
           : t('notif.reqBody', { song }),
       ms: paid && !useBonus ? 6000 : 4000,
-      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => { setModal(false); navTo('mine') } } }),
+      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => { setModal(false); if (row?.id) setOrderFocus({ requestId: row.id, at: Date.now() }); navTo('mine') } } }),
     })
     await load(user)
     return row
@@ -2083,7 +2089,12 @@ function AppInner() {
       tone: 'gold',
       title: t('notif.buyTitle', { n: pack.qty }),
       body: t('notif.buyBody', { n: pack.qty, amt: vnd(pack.vnd) }),
-      ms: 5600,
+      ms: 6000,
+      /* Về thẳng đơn vừa tạo: mở pane Orders, chọn nhóm Awaiting, cuộn tới đúng
+         hàng đơn — cùng cơ chế với bấm tin thông báo thanh toán. Không có nó thì
+         pane mặc định là "My requests" và chữ "pay in About me → My orders" nói
+         khác với nơi người dùng hạ cánh. */
+      action: { label: t('notif.payNow'), onClick: () => { setModal(false); if (order?.id) setOrderFocus({ id: order.id, at: Date.now() }); navTo('mine') } },
     })
     await load(user)
     return order
@@ -3246,7 +3257,7 @@ function AppInner() {
           prefill={prefill}
           onVoteExisting={(r) => { setModal(false); openVote(r) }}
           voteStatus={voteStatus} onVote={openVote} onSubmit={doSubmit} onBuy={doBuy}
-          onCancelOrder={doCancelOrder} userName={viewer.name} live={hasSupabase}
+          userName={viewer.name} live={hasSupabase}
           bonusRequests={voteStatus.bonus_requests ?? 0}
         />
       </Suspense>

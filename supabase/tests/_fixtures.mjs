@@ -52,6 +52,7 @@ export const POST_20261125 = [
   '20261227_legacy_bonus_reclass',
   '20261228_bonus_refund_and_priority',
   '20261229_request_funding_review',
+  '20261230_payment_claim_sepay_log',
 ]
 
 const SCAFFOLD = `

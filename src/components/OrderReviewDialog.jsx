@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icon'
 import { useI18n } from '../lib/i18n.jsx'
 import { useFocusTrap } from '../lib/useFocusTrap'
@@ -30,7 +31,13 @@ export default function OrderReviewDialog({ order, busy = false, onClose, onConf
     if (busy || !check.ok) return
     onConfirm?.({ method, amount: Number(amount), reference: reference.trim(), reason: reason.trim() || null })
   }
-  return (
+  /* Hộp thoại phải nằm NGOÀI `.shell`: luật "phông sau modal bị làm mờ"
+     (body:has(.overlay) .shell { filter: blur }) mờ theo cả những gì nằm
+     trong .shell — AdminPanel nằm trong đó, nên hộp mà nó mở ra cũng mờ nốt
+     (admin thấy một hộp thoại nâu nhòe không đọc nổi). createPortal ra
+     document.body thì lớp phông vẫn mờ, hộp thì nét. SSR không có document
+     nên trả cây inline cho test renderToStaticMarkup. */
+  const tree = (
     <div className="overlay dlg-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div ref={panelRef} className="modal narrow dlg" role="dialog" aria-modal="true"
         aria-labelledby="order-review-title" aria-describedby="order-review-body">
@@ -76,4 +83,5 @@ export default function OrderReviewDialog({ order, busy = false, onClose, onConf
       </div>
     </div>
   )
+  return typeof document === 'undefined' ? tree : createPortal(tree, document.body)
 }

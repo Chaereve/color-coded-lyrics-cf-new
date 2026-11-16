@@ -19,9 +19,10 @@ import { onRequest as mystery } from '../functions/api/mystery/open.js'
 import { onRequest as driveFind } from '../functions/api/drive-video/find.js'
 import { onRequest as driveStream } from '../functions/api/drive-video/stream.js'
 import { onRequest as archive } from '../functions/archive.js'
+import { onRequest as sepay } from '../functions/api/payment/sepay.js'
 
 const SITE = 'https://chaereve.pages.dev'
-const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast', '/api/mystery/open', '/api/drive-video/find', '/api/drive-video/stream']
+const API_ROUTES = ['/api/daily-spin/health', '/api/daily-spin/spin', '/api/vote/cast', '/api/mystery/open', '/api/drive-video/find', '/api/drive-video/stream', '/api/payment/sepay']
 const FUNCTION_ROUTES = [...API_ROUTES, '/archive']
 const hex64 = c => c.repeat(64)
 const post = (path, body) => new Request(SITE + path, {
@@ -48,17 +49,17 @@ test('không ship _worker.js bảo trì — nó nuốt /api/vote/cast', () => {
   }
 })
 
-test('functions/ chỉ chứa đúng 6 API route và archive SSR — file lạ sẽ thành endpoint công khai', () => {
+test('functions/ chỉ chứa đúng 7 API route và archive SSR — file lạ sẽ thành endpoint công khai', () => {
   const dir = new URL('../functions/', import.meta.url)
   const js = readdirSync(dir, { recursive: true })
     .filter(f => String(f).endsWith('.js'))
     .map(f => String(f).replace(/\\/g, '/'))
     .sort()
-  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/drive-video/find.js', 'api/drive-video/stream.js', 'api/mystery/open.js', 'api/vote/cast.js', 'archive.js'])
+  assert.deepEqual(js, ['api/daily-spin/health.js', 'api/daily-spin/spin.js', 'api/drive-video/find.js', 'api/drive-video/stream.js', 'api/mystery/open.js', 'api/payment/sepay.js', 'api/vote/cast.js', 'archive.js'])
 })
 
 test('mọi route Pages đều export đúng onRequest (sai tên là Pages bỏ qua file)', () => {
-  for (const fn of [health, spin, vote, mystery, driveFind, driveStream, archive]) assert.equal(typeof fn, 'function')
+  for (const fn of [health, spin, vote, mystery, driveFind, driveStream, sepay, archive]) assert.equal(typeof fn, 'function')
 })
 
 test('health thiếu binding vẫn 200 JSON { ok, shield:false, gate:false } — không phải HTML', async () => {
@@ -133,6 +134,8 @@ test('Workers và Pages trả đồng nhất status + body cho cùng một reque
     ['/api/drive-video/stream', () => new Request(SITE + '/api/drive-video/stream?artist=IVE&title=Looks%20Can%20Kill'), driveStream],
     ['/api/daily-spin/spin', () => post('/api/daily-spin/spin', 'rac'), spin],
     ['/api/vote/cast', () => post('/api/vote/cast', { delta: 0 }), vote],
+    ['/api/payment/sepay', () => new Request(SITE + '/api/payment/sepay'), sepay],
+    ['/api/payment/sepay', () => post('/api/payment/sepay', 'rac'), sepay],
   ]
   for (const [path, make, pagesHandler] of cases) {
     // Body request chỉ đọc được một lần nên mỗi bên dùng một Request riêng.
@@ -362,6 +365,9 @@ test('mọi response của các route API đều no-store — cả Pages lẫn W
     ['vote 503', () => post('/api/vote/cast', goodVoteBody()), vote],
     ['Drive finder 503', () => new Request(SITE + '/api/drive-video/find?artist=IVE&title=Looks%20Can%20Kill'), driveFind],
     ['Drive stream 503', () => new Request(SITE + '/api/drive-video/stream?artist=IVE&title=Looks%20Can%20Kill'), driveStream],
+    ['sepay 405', () => new Request(SITE + '/api/payment/sepay'), sepay],
+    ['sepay 503', () => post('/api/payment/sepay', goodSpinBody()), sepay],
+    ['sepay setup-503', () => new Request(SITE + '/api/payment/sepay', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Apikey sai' }, body: '{}' }), sepay],
   ]
   for (const [name, make, pagesHandler] of cases) {
     const pages = await pagesHandler({ request: make(), env })

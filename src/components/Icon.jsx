@@ -15,7 +15,7 @@
    Các nhãn hiệu (YouTube, Telegram, Ko-fi) cố ý KHÔNG nằm ở đây: Lucide không vẽ
    logo thương hiệu, mà logo thì phải đúng logo — chúng nằm ngay tại chỗ dùng
    trong Sidebar.jsx. Google cũng vậy (GoogleIcon.jsx). */
-import { ArrowDown, ArrowUp, ArrowUpAZ, ArrowUpDown, ArrowUpRight, Bell, BellRing, Check, ThumbsUp, ChevronDown, ChevronLeft, ChevronRight, CalendarCheck, CircleAlert, Copy, Disc3, Download, Flame, Gift, Info, ListFilter, ListMusic, LogOut, Minus, Music4, Play, Eye, Plus, Receipt, Search, ShieldCheck, SquarePen, Star, Crown, Trophy, User, Volume2, VolumeX, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpAZ, ArrowUpDown, ArrowUpRight, Bell, BellRing, Check, ThumbsUp, ChevronDown, ChevronLeft, ChevronRight, CalendarCheck, CircleAlert, Clock, Copy, Disc3, Download, Flame, Gift, Info, ListFilter, ListMusic, LogOut, Minus, Music4, Play, Eye, EyeOff, Plus, Receipt, Search, ShieldCheck, SquarePen, Star, Crown, Trophy, User, Volume2, VolumeX, X } from 'lucide-react'
 
 /* tên theo VIỆC -> icon Lucide */
 const SET = {
@@ -36,6 +36,8 @@ const SET = {
                                      chồng nhau, không dùng icon chia sẻ */
   info: Info,
   warn: CircleAlert,
+  clock: Clock,                   /* hạn giữ đơn / thời gian trôi — hình đồng hồ,
+                                     đừng mượn chuông (không đọc ra "hạn") */
   star: Star,
   play: Play,
   board: ListMusic,               /* bảng yêu cầu */
@@ -59,6 +61,7 @@ const SET = {
   mute: VolumeX,
   note: Music4,                   /* âm thanh trong sidebar */
   preview: Eye,                   /* xem trước bài mình sắp gửi */
+  eyeOff: EyeOff,               /* ẩn số tài khoản trong hóa đơn chuyển khoản */
   chevron: ChevronDown,           /* mũi mở xuống của nút mở bảng chọn */
   sort: ArrowUpDown,              /* thứ tự đang xếp */
   az: ArrowUpAZ,                  /* tên bài A→Z */

@@ -22,7 +22,7 @@ import { homepageVideoCount } from '../lib/mediaLimits.js'
 import { ADMIN_FUNDING_FILTERS, ADMIN_ORDER_STATES, ADMIN_TAB_META, ADMIN_TABS, adminQuery, readAdminView } from '../lib/adminTabs.js'
 import { ORDER_STATE_LABEL, matchOrderState, orderStats } from '../lib/adminOrders.js'
 import { matchesRequestFunding, normalizeReference, orderDisplayStatus, orderReference, orderTransferContent, requestFundingKind, requestPriorityRank } from '../lib/requestPayment.js'
-import { ADMIN_ACTIONS_PER_PAGE, describeAction, shortValue } from '../lib/adminLog.js'
+import { ADMIN_ACTIONS_PER_PAGE, ACTION_LABEL, ACTION_PRIORITY, describeAction, shortValue } from '../lib/adminLog.js'
 import { ageChip, ageInDays } from '../lib/adminAge.js'
 import MediaAdmin from './MediaAdmin'
 import { sfx } from '../lib/sfx'
@@ -518,6 +518,12 @@ export default function AdminPanel({
      nhận / đã từ chối, nên muốn soát "còn gì phải làm" phải tự dò từng dòng.
      Cũng nằm trong địa chỉ như các bộ lọc khác. */
   const [ostF, setOstF] = useState(init.ost)
+  /* Lọc riêng các đơn đang chờ mà người mua đã bấm "Tôi đã chuyển khoản":
+     tách nhanh đơn cần đối chiếu ngay khỏi đơn mới tạo chưa chuyển tiền. */
+  const [reportedOnly, setReportedOnly] = useState(false)
+  /* Bộ lọc cục bộ cho trang Nhật ký đang mở (theo loại hành động / từ khoá). */
+  const [logQ, setLogQ] = useState('')
+  const [logKind, setLogKind] = useState('all')
   /* Nguồn tài trợ là một bộ lọc REQUEST độc lập với loại bài và trạng thái đơn. */
   const [payF, setPayF] = useState(init.pay)
   const goTab = useCallback((k) => { onTab(k); setSel(new Set()) }, [onTab])
@@ -696,7 +702,12 @@ export default function AdminPanel({
   /* Số đơn theo trạng thái + tiền ĐÃ NHẬN trong 30 ngày. Tính trên TOÀN BỘ đơn
      đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
      bấm sang trang 2 hay gõ một từ khoá. */
-  const oStats = useMemo(() => orderStats(orders, orderNow), [orders, orderNow])
+  /* Doanh thu/đơn paid tính bằng ĐỒNG HỒ TƯƠI lúc `orders` đổi, không dùng
+     `orderNow`: đồng hồ đó đóng băng khi hết đơn awaiting (nó chỉ sống để đếm
+     nhịp quá hạn của hàng chờ), và đơn "paid_at sau lúc đóng băng" bị loại khỏi
+     cửa sổ — duyệt xong đơn cuối thì bảng số liệu thành 0₫. Bộ lọc `t > now`
+     trong orderStats giữ nguyên (chốt chặn đồng hồ lệch), chỉ horizon là tươi. */
+  const oStats = useMemo(() => orderStats(orders, Date.now()), [orders])
   /* Bài đang chờ lâu nhất — null khi không còn bài nào chờ, để màn hình nói
      được "không có gì tồn" thay vì "0 ngày". */
   const oldestPending = useMemo(() => {
@@ -713,9 +724,10 @@ export default function AdminPanel({
   /* Bỏ MỌI bộ lọc bằng một cú bấm: trạng thái rỗng vì lọc mà không có lối thoát
      thì người dùng phải tự đoán xem mình đã bấm vào đâu. */
   const clearFilters = () => {
-    setQ(''); setKindF('all'); setSortKey('default'); setOstF('all'); setPayF('all'); setSel(new Set())
+    setQ(''); setKindF('all'); setSortKey('default'); setOstF('all'); setPayF('all'); setReportedOnly(false); setSel(new Set())
   }
-  const filtered = !!q.trim() || kindF !== 'all' || sortKey !== 'default' || ostF !== 'all' || payF !== 'all'
+  const filtered = !!q.trim() || sortKey !== 'default'
+    || (tab === 'orders' ? (ostF !== 'all' || reportedOnly) : (kindF !== 'all' || payF !== 'all'))
   /* So THEO TỪ bằng đúng hàm mà bảng công khai dùng (`allTermsIn` trong
      lib/board.js): bỏ dấu, hạ chữ thường, và mỗi từ trong từ khoá được dò độc
      lập nên "Whiplash aespa" với "aespa Whiplash" ra cùng một kết quả. Bản cũ
@@ -835,11 +847,27 @@ export default function AdminPanel({
     if (sortKey === 'waiting') return out.sort((a, b) => -order(a, b))
     return out.sort(order)
   }
-  const shown = tab === 'orders' ? sortList(base.filter(o => matchOrderState(o, ostF, orderNow) && matchOrder(o)))
+  const shownLogRows = useMemo(() => {
+    const hasFilter = logKind !== 'all' || !!logQ.trim()
+    if (!hasFilter) return logRows
+    return logRows.filter(row => {
+      const a = describeAction(row)
+      if (logKind !== 'all' && a.kind !== logKind) return false
+      if (!logQ.trim()) return true
+      const hay = `${t(a.labelKey)} ${a.subject} ${a.actor} ${a.fields.map(f => `${f.from ?? ''} ${f.to ?? ''}`).join(' ')}`
+      return allTermsIn(hay, logQ)
+    })
+  }, [logRows, logKind, logQ, t])
+  const logFiltered = logKind !== 'all' || !!logQ.trim()
+  const shown = tab === 'orders'
+    ? sortList(base.filter(o =>
+      matchOrderState(o, ostF, orderNow)
+      && (!reportedOnly || (orderDisplayStatus(o, orderNow) === 'awaiting' && !!o.transfer_reported_at))
+      && matchOrder(o)))
     : tab === 'media' ? base
-    : tab === 'log' ? logRows
+    : tab === 'log' ? shownLogRows
       : sortList(base.filter(r => matchReq(r) && matchesRequestFunding(r, payF) && (kindF === 'all' || r.kind === kindF)))
-  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF, payF])
+  const pg = usePager(shown, PER_PAGE, [tab, q, sortKey, kindF, ostF, payF, reportedOnly])
   /* Lựa chọn chỉ tính trên những dòng ĐANG nhìn thấy: đổi trang hay đổi tab thì
      phần đã chọn mà không còn hiện không được lặng lẽ nằm trong lệnh hàng loạt. */
   const selIds = pg.items.map(r => r.id).filter(id => sel.has(id))
@@ -1022,6 +1050,7 @@ export default function AdminPanel({
         { k: 'status', label: 'Status', get: (o) => orderDisplayStatus(o) },
         { k: 'reference', label: t('adm.csvReference'), get: (o) => orderReference(o) },
         { k: 'created_at', label: 'Created' },
+        { k: 'transfer_reported_at', label: t('adm.csvTransferReported') },
         { k: 'paid_at', label: t('adm.csvPaidAt') },
         { k: 'rejected_at', label: t('adm.csvRejectedAt') },
         { k: 'expired_at', label: t('adm.csvExpiredAt') },
@@ -1199,7 +1228,7 @@ export default function AdminPanel({
             /* Bình luận: `n` là số thẻ ĐANG HIỆN, `total` là tổng khớp bộ lọc ở
                database — nên dòng này nói thật "đang xem 20 trong 1.240". */
             n: tab === 'media' ? counts.media
-              : tab === 'log' ? logRows.length
+              : tab === 'log' ? shownLogRows.length
                 : tab === 'overview' ? counts.pending + counts.expired + counts.orders
                   : pg.items.length,
             total: tab === 'media' ? counts.media
@@ -1227,13 +1256,21 @@ export default function AdminPanel({
             )}
           </div>
         ) : tab === 'log' ? (
-          /* Nhật ký chỉ để ĐỌC: không tìm, không xoá, không sửa. Một nút làm
-             mới là đủ — và nó nói rõ việc cần làm khi database chưa có bảng. */
-          <div className="adm-bar adm-bar-end">
-            <button type="button" className="btn btn-sm" onClick={() => loadLog(logPage)}
-              disabled={logLoading}>
-              {logLoading ? t('adm.loading') : t('adm.refresh')}
-            </button>
+          <div className="adm-bar adm-log-bar">
+            <SearchBox t={t} q={logQ} setQ={setLogQ} placeholder={t('adm.logSearch')} />
+            <div className="adm-actions">
+              <select className="sel" value={logKind} aria-label={t('adm.logActionAria')}
+                onChange={e => setLogKind(e.target.value)}>
+                <option value="all">{t('adm.logAllActions')}</option>
+                {ACTION_PRIORITY.map(k => (
+                  <option key={k} value={k}>{t(ACTION_LABEL[k])}</option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-sm" onClick={() => loadLog(logPage)}
+                disabled={logLoading}>
+                {logLoading ? t('adm.loading') : t('adm.refresh')}
+              </button>
+            </div>
           </div>
         ) : tab === 'media' ? (
           /* Mục Videos không có gì để tìm hay xếp thứ tự, nhưng vẫn cần ĐÚNG MỘT
@@ -1259,14 +1296,30 @@ export default function AdminPanel({
               {/* TRẠNG THÁI ĐƠN đứng trước cách xếp: câu hỏi "còn gì phải làm"
                   quan trọng hơn "xếp theo gì", và chỉ có ở mục Đơn hàng. */}
               {tab === 'orders' && (
-                <select className="sel adm-orderstate" value={ostF}
-                  aria-label={t('adm.orderFilterAria')}
-                  onChange={e => setOstF(e.target.value)}>
-                  <option value="all">{t('adm.orderAll')}</option>
-                  {ADMIN_ORDER_STATES.map(st => (
-                    <option key={st} value={st}>{t(ORDER_STATE_LABEL[st])}</option>
-                  ))}
-                </select>
+                <>
+                  <select className="sel adm-orderstate" value={ostF}
+                    aria-label={t('adm.orderFilterAria')}
+                    onChange={e => {
+                      const next = e.target.value
+                      setOstF(next)
+                      if (next !== 'all' && next !== 'awaiting') setReportedOnly(false)
+                    }}>
+                    <option value="all">{t('adm.orderAll')}</option>
+                    {ADMIN_ORDER_STATES.map(st => (
+                      <option key={st} value={st}>{t(ORDER_STATE_LABEL[st])}</option>
+                    ))}
+                  </select>
+                  <button type="button"
+                    className={`btn btn-sm adm-reported-btn${reportedOnly ? ' on' : ''}`}
+                    aria-pressed={reportedOnly}
+                    onClick={() => {
+                      const next = !reportedOnly
+                      setReportedOnly(next)
+                      if (next && ostF !== 'all' && ostF !== 'awaiting') setOstF('all')
+                    }}>
+                    {t('adm.orderReportedFilter', { n: oStats.reported })}
+                  </button>
+                </>
               )}
               <select className="sel adm-sort" value={sortKey} aria-label={t('adm.sortAria')}
                 onChange={e => { setSortKey(e.target.value); setSel(new Set()) }}>
@@ -1314,8 +1367,8 @@ export default function AdminPanel({
             bấm sang trang khác hay gõ một từ khoá. */}
         {tab === 'orders' && (
           <div className="adm-note adm-order-sum">
-            <span>{t('adm.orderSummary', {
-              n: oStats.awaiting, paid: oStats.recentPaid, days: oStats.windowDays,
+            <span>{t(oStats.reported > 0 ? 'adm.orderSummaryReported' : 'adm.orderSummary', {
+              n: oStats.awaiting, reported: oStats.reported, paid: oStats.recentPaid, days: oStats.windowDays,
             })}</span>
             <b>{t('adm.orderRevenue', { vnd: vnd(oStats.receivedVnd), usd: usd(oStats.receivedUsd) })}</b>
             {oStats.legacyPaid > 0 && <small>{t('adm.orderRevenueUnknown', { n: oStats.legacyPaid })}</small>}
@@ -1323,8 +1376,9 @@ export default function AdminPanel({
         )}
 
         {/* DÒNG ĐẾM + CHỌN CẢ TRANG: hai thứ cùng trả lời "tôi đang nhìn gì và
-            đang chọn gì", nên nằm chung một hàng. */}
-        {!['media', 'log', 'overview'].includes(tab) && (
+            đang chọn gì", nên nằm chung một hàng. Chỉ hiện ở danh sách request
+            (mục Đơn hàng không có chọn nhiều / phím tắt hàng loạt). */}
+        {isRequestList && (
           <div className="adm-note">
             {pickMode && pageIds.length > 0 && (
               <label className="adm-all">
@@ -1386,7 +1440,10 @@ export default function AdminPanel({
               <button type="button" className="adm-ov-num" onClick={() => goTab('orders')}
                 style={{ '--sc': 'var(--paid)' }}>
                 <b>{counts.orders}</b>
-                <span>{t('adm.orderAwaiting')}</span>
+                <span>
+                  {t('adm.orderAwaiting')}
+                  {oStats.reported > 0 && <em className="adm-ov-subpill">{t('adm.orderReportedHint', { n: oStats.reported })}</em>}
+                </span>
               </button>
             </div>
 
@@ -1419,6 +1476,9 @@ export default function AdminPanel({
                 <span>{t(pickPaused ? 'adm.pickResume' : 'adm.pickPause')}</span>
               </button>
               {pickPauseError && <p className="adm-ov-warn" role="alert">{pickPauseError}</p>}
+              <button type="button" className="btn btn-sm" onClick={() => { setSortKey('votes'); goTab('active') }}>
+                {t('adm.ov.openActiveQueue')}
+              </button>
             </div>
 
             <div className="adm-ov-card">
@@ -1436,6 +1496,11 @@ export default function AdminPanel({
         ) : tab === 'log' ? (
           <div className="adm-log" aria-busy={logLoading || undefined}>
             {logError && <p role="alert" className="adm-err">{logError}</p>}
+            {logFiltered && logRows.length > 0 && (
+              <p className="adm-note adm-log-filter-hint">
+                {t('adm.logPageFilterHint', { n: shownLogRows.length, shown: logRows.length })}
+              </p>
+            )}
             {logMissing ? (
               <div className="empty">
                 <b>{t('adm.logMissing')}</b>
@@ -1446,8 +1511,11 @@ export default function AdminPanel({
                 <b>{logLoading ? t('adm.loading') : t('adm.logEmpty')}</b>
                 <p>{t('adm.logEmptyBody')}</p>
               </div>
+            ) : shownLogRows.length === 0 ? (
+              <EmptyState title={t('adm.logNoMatches')} body={t('adm.logEmptyBody')}
+                filtered q={logQ} t={t} onClear={() => { setLogQ(''); setLogKind('all') }} />
             ) : (
-              logRows.map(row => {
+              shownLogRows.map(row => {
                 const a = describeAction(row)
                 return (
                   <div className="adm-log-row" key={a.id}>
@@ -1492,51 +1560,75 @@ export default function AdminPanel({
             : pg.items.map(o => {
               const buyer = orderBuyerOf(o)
               const req = o.request_id ? rows.find(r => r.id === o.request_id) : null
+              const orderState = orderDisplayStatus(o, orderNow)
+              const isActionable = ['awaiting', 'expired'].includes(orderState)
               return (
-                <div className="adm" key={o.id}>
+                <div className="adm adm-ord" key={o.id}>
                   <div className="nm">
-                    <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</b>
-                    <small>
+                    <b>
+                      <span>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequestMoney')}</span>
+                      {o.request_id && (
+                        <span className="adm-ord-song">
+                          {req ? `${req.artist} — ${req.title}` : t('adm.reqDeleted')}
+                        </span>
+                      )}
+                    </b>
+                    <small className="adm-ord-meta">
                       {buyer && (
                         <>
                           <span>{buyer}</span>
-                          <span className="dot dot-inline" aria-hidden="true" />
+                          <span className="dot" aria-hidden="true" />
                         </>
                       )}
-                      {vnd(o.amount_vnd)}
-                      <span className="dot dot-inline" aria-hidden="true" />
-                      {usd(o.amount_usd)}
-                      <span className="dot dot-inline" aria-hidden="true" />
-                      {timeAgo(o.created_at, t)}
+                      <span>{vnd(o.amount_vnd)}</span>
+                      <span className="dot" aria-hidden="true" />
+                      <span>{usd(o.amount_usd)}</span>
+                      <span className="dot" aria-hidden="true" />
+                      <span>{timeAgo(o.created_at, t)}</span>
                     </small>
-                    <small className="order-review-ref">{t('order.reference', { ref: ['awaiting', 'expired'].includes(orderDisplayStatus(o, orderNow)) ? orderTransferContent(o) : orderReference(o) })}</small>
-                    {o.request_id && (
-                      <small style={{ color: 'var(--txt-2)' }}>
-                        {req ? `${req.artist} — ${req.title}` : t('adm.reqDeleted')}
+                    <small className="adm-ord-refrow">
+                      <span className="order-review-ref">{t('order.reference', { ref: isActionable ? orderTransferContent(o) : orderReference(o) })}</span>
+                      {isActionable && o.transfer_reported_at && (
+                        <span className="pill adm-reported">
+                          {t('adm.orderReportedBadge', { when: timeAgo(o.transfer_reported_at, t) })}
+                        </span>
+                      )}
+                    </small>
+                    {o.status === 'paid' && o.payment_method && o.received_amount != null && (
+                      <small className="adm-order-receipt">
+                        {t('adm.orderReceivedLine', {
+                          amount: o.received_currency === 'USD' ? usd(o.received_amount) : vnd(o.received_amount),
+                          method: o.payment_method === 'paypal' ? t('adm.orderMethodPaypal') : t('adm.orderMethodBank'),
+                        })}
                       </small>
+                    )}
+                    {o.resolution_reason && (
+                      <small>{t('adm.orderResolutionNote', { note: o.resolution_reason })}</small>
                     )}
                     {o.paid_at && <small>{t('order.confirmedAt', { date: new Date(o.paid_at).toLocaleString() })}</small>}
                     {o.rejected_at && <small>{t('order.rejectedAt', { date: new Date(o.rejected_at).toLocaleString() })}</small>}
                     {o.expired_at && <small>{t('order.expiredAt', { date: new Date(o.expired_at).toLocaleString() })}</small>}
                   </div>
                   <div className="adm-acts">
-                    {['awaiting', 'expired'].includes(orderDisplayStatus(o, orderNow)) ? (
+                    {isActionable ? (
                       <>
-                        <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
-                          onClick={() => setPaymentOrder(o)}>
-                          {orderBusy.has(o.id) ? '…' : t('adm.received')}
-                        </button>
-                        <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
-                          onClick={async () => {
-                            const answer = await ask({
-                              title: t('adm.confirmRejectOrder'),
-                              body: t('dlg.cannotUndo'),
-                              confirmLabel: t('adm.deny'),
-                              reasonLabel: t('adm.denyPrompt'),
-                            })
-                            if (answer) runOrder(o.id, false, { reason: answer.reason })
-                          }}>{t('adm.deny')}</button>
                         <OrderStatusBadge order={o} />
+                        <div className="adm-ord-btns">
+                          <button className="btn btn-sm btn-ok" disabled={orderBusy.has(o.id)}
+                            onClick={() => setPaymentOrder(o)}>
+                            {orderBusy.has(o.id) ? '…' : t('adm.received')}
+                          </button>
+                          <button className="btn btn-sm btn-no" disabled={orderBusy.has(o.id)}
+                            onClick={async () => {
+                              const answer = await ask({
+                                title: t('adm.confirmRejectOrder'),
+                                body: t('dlg.cannotUndo'),
+                                confirmLabel: t('adm.deny'),
+                                reasonLabel: t('adm.denyPrompt'),
+                              })
+                              if (answer) runOrder(o.id, false, { reason: answer.reason })
+                            }}>{t('adm.deny')}</button>
+                        </div>
                       </>
                     ) : (
                       <OrderStatusBadge order={o} showDeadline={false} />

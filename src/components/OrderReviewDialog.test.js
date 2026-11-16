@@ -29,5 +29,5 @@ test('manual review starts empty and cannot confirm until evidence matches', asy
 })
 test('late payment is called out before an admin records it', async () => {
   const html = await render({ ...order, status: 'expired', expired_at: '2026-11-15T00:00:00Z' })
-  assert.match(html, /payment window ended/)
+  assert.match(html, /payment window ended/i)
 })

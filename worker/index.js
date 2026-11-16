@@ -38,6 +38,7 @@
    ========================================================= */
 import { shieldCheck, shieldCommit, voteShieldCheck, voteShieldCommit } from './shield.js'
 import { driveVideoFindRoute, driveVideoStreamRoute } from './driveVideo.js'
+import { sepayRoute } from './sepay.js'
 import { onRequest as archiveOnRequest } from '../functions/archive.js'
 
 /* D1 is preferred; retain KV only as a rollout fallback while Pages bindings
@@ -299,6 +300,8 @@ export function mysteryRoute(request, env) {
   return request.method === 'POST' ? handleMystery(request, env) : deny('err.mysteryRequest', 405)
 }
 
+export { sepayRoute }
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url)
@@ -308,6 +311,7 @@ export default {
     if (pathname === '/api/mystery/open') return mysteryRoute(request, env)
     if (pathname === '/api/drive-video/find') return driveVideoFindRoute(request, env)
     if (pathname === '/api/drive-video/stream') return driveVideoStreamRoute(request, env)
+    if (pathname === '/api/payment/sepay') return sepayRoute(request, env)
     if (pathname === '/archive') return archiveOnRequest({ request, env })
     // Mọi đường dẫn còn lại: file tĩnh của app (SPA fallback do cấu hình assets lo).
     if (pathname.startsWith('/api/')) return deny('err.spinRequest', 404)

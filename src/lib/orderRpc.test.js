@@ -38,3 +38,20 @@ test('adminOrder gửi mã canonical cho SQL dù biên lai dùng QR ngắn hay m
   assert.equal(calls.at(-1).args.p_reference, null)
   assert.equal(calls.length, 5)
 })
+
+test('reportTransfer gọi đúng RPC, đúng tham số, và trả về đơn đã đánh dấu', async (t) => {
+  assert.equal(db.hasSupabase, true, 'phải đi qua nhánh RPC, không phải localStorage demo')
+  const calls = []
+  const stamped = { id: order.id, kind: 'paid_request', status: 'awaiting', transfer_reported_at: '2026-11-15T12:00:00.000Z' }
+  t.mock.method(db.supabase, 'rpc', async (name, args) => { calls.push({ name, args }); return { data: stamped, error: null } })
+  const out = await db.reportTransfer(order.id)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].name, 'report_transfer')
+  assert.deepEqual(calls[0].args, { p_order_id: order.id })
+  assert.equal(out.transfer_reported_at, stamped.transfer_reported_at)
+})
+
+test('reportTransfer surface mã lỗi của SQL để i18n dịch, không in raw', async (t) => {
+  t.mock.method(db.supabase, 'rpc', async () => ({ data: null, error: { message: 'err.orderLocked' } }))
+  await assert.rejects(db.reportTransfer(order.id), e => e.message === 'err.orderLocked' || e.code === 'err.orderLocked')
+})

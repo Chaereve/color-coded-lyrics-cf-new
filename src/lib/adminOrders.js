@@ -22,14 +22,17 @@ export const ORDER_STATE_LABEL = {
 export function orderStats(orders = [], now = Date.now(), windowDays = ORDER_WINDOW_DAYS) {
   const since = now - windowDays * DAY_MS
   const out = {
-    total: 0, awaiting: 0, paid: 0, rejected: 0, expired: 0, legacyPaid: 0,
+    total: 0, awaiting: 0, reported: 0, paid: 0, rejected: 0, expired: 0, legacyPaid: 0,
     receivedVnd: 0, receivedUsd: 0, recentPaid: 0, windowDays,
   }
   for (const o of orders || []) {
     if (!o) continue
     out.total += 1
     const status = orderDisplayStatus(o, now)
-    if (status === 'awaiting') out.awaiting += 1
+    if (status === 'awaiting') {
+      out.awaiting += 1
+      if (o.transfer_reported_at) out.reported += 1
+    }
     else if (status === 'paid') out.paid += 1
     else if (status === 'rejected') out.rejected += 1
     else if (status === 'expired') out.expired += 1
