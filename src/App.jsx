@@ -446,8 +446,8 @@ function MyActivityPanel({ requests, orders, user, myVotes, onVote, onDelete, on
     || orderCategories.find(category => category.count)
   const orderRows = activeOrderCategory?.rows || []
   const pgOrders = usePager(orderRows, PER_PAGE_ORDERS, [activeOrderCategory?.key || 'empty'])
-  if (focusOrder?.id && handledOrderFocus !== focusOrder.at) {
-    const target = orders.find(o => o.id === focusOrder.id)
+  if ((focusOrder?.id || focusOrder?.requestId) && handledOrderFocus !== focusOrder.at) {
+    const target = orders.find(o => (focusOrder.id && o.id === focusOrder.id) || (focusOrder.requestId && o.request_id === focusOrder.requestId))
     if (target) {
       const category = orderActivityCategory(target)
       if (pane !== 'orders' || activeOrderCategory?.key !== category) {
@@ -2077,7 +2077,7 @@ function AppInner() {
           ? t('notif.paidBody', { song, amt: vnd(PAID_REQUEST.vnd) })
           : t('notif.reqBody', { song }),
       ms: paid && !useBonus ? 6000 : 4000,
-      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => { setModal(false); navTo('mine') } } }),
+      ...(!paid || useBonus ? {} : { action: { label: t('notif.payNow'), onClick: () => { setModal(false); if (row?.id) setOrderFocus({ requestId: row.id, at: Date.now() }); navTo('mine') } } }),
     })
     await load(user)
     return row

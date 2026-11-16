@@ -41,8 +41,8 @@ test('khung thanh toán không lặp số tiền/trạng thái của hàng và g
   assert.doesNotMatch(html, /iv-sum|iv-amt|20,000|\$0\.75/)
   assert.doesNotMatch(html, /class="iv-status"/, 'hàng bên trên đã nói đang chờ, không lặp trong hóa đơn')
   assert.match(html, /Scan to pay/)
-  assert.match(html, /Check amount and note/)
-  assert.match(html, /activates after admin confirmation/i)
+  assert.match(html, /Enter the exact amount/)
+  assert.match(html, /activates after confirmation/i)
   assert.match(html, /paytile bank/)
   assert.match(html, /paytile paypal/)
 })
@@ -51,9 +51,18 @@ test('PayPal nói rõ phải thêm mã vào note; không hứa link đã điền
   const html = await render('/src/components/PaymentMethods.jsx', {
     amountVnd: 20000, amountUsd: 0.75, content: reference, awaiting: true, defaultMethod: 'paypal',
   })
-  assert.match(html, /Add the reference to your PayPal note/)
+  assert.match(html, /Add this reference to your PayPal note/)
   assert.match(html, /Open PayPal/)
   assert.match(html, /\$0\.75/, 'hoá đơn mở mặc định phải hiện số tiền — admin đối soát theo đúng số này')
+  /* Popup đơn hàng truyền showReference={false} (mã đã có khối riêng ở đầu
+     hộp thoại) — nhưng HƯỚNG DẪN ghi chú PayPal vẫn phải hiện: link
+     paypal.me không mang được mã. */
+  const htmlHidden = await render('/src/components/PaymentMethods.jsx', {
+    amountVnd: 20000, amountUsd: 0.75, content: reference, awaiting: true,
+    showReference: false, defaultMethod: 'paypal',
+  })
+  assert.match(htmlHidden, /Add this reference to your PayPal note/)
+  assert.doesNotMatch(htmlHidden, /Copy Note/)
   assert.doesNotMatch(html, /paypal\.me\/[^"<]+PR-/)
   assert.doesNotMatch(html, /prefilled/)
 })

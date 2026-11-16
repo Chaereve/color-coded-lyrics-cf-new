@@ -17,13 +17,15 @@ const paid = (o) => order({
 test('đếm đủ bốn trạng thái, kể cả đơn awaiting đã quá hạn trước lượt cron', () => {
   const stats = orderStats([
     order({ id: 'a' }),
-    paid({ id: 'b' }), paid({ id: 'c' }),
+    order({ id: 'a2', transfer_reported_at: daysAgo(0) }),
+    paid({ id: 'b', transfer_reported_at: daysAgo(1) }), paid({ id: 'c' }),
     order({ id: 'd', status: 'rejected' }),
-    order({ id: 'e', status: 'expired', expires_at: daysAgo(1) }),
+    order({ id: 'e', status: 'expired', expires_at: daysAgo(1), transfer_reported_at: daysAgo(2) }),
     order({ id: 'f', expires_at: daysAgo(1) }),
   ], NOW)
-  assert.equal(stats.total, 6)
-  assert.equal(stats.awaiting, 1)
+  assert.equal(stats.total, 7)
+  assert.equal(stats.awaiting, 2)
+  assert.equal(stats.reported, 1)
   assert.equal(stats.paid, 2)
   assert.equal(stats.rejected, 1)
   assert.equal(stats.expired, 2)

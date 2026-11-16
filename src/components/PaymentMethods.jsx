@@ -188,7 +188,12 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 <a className="iv-go" href={paypalPayload(amountUsd)} target="_blank" rel="noreferrer">
                   {t('pay.openPaypal')}<Icon name="ext" size={12} />
                 </a>
-                {showReference && desc && <p className="iv-note"><Icon name="info" size={13} /><span>{t('pay.paypalReferenceHint')}</span></p>}
+                {/* Gợi ý ghi chú PayPal KHÔNG nằm chung nấc với dòng Note (bị
+                    showReference=false ẩn): link paypal.me không mang được mã —
+                    thiếu hướng dẫn này thì tiền về mà không có gì để đối chiếu
+                    với đơn. Gồm cả cú chốt "activates after confirmation" để
+                    chân hóa đơn chỉ còn ĐÚNG một dòng nhắc việc. */}
+                {desc && <p className="iv-note"><Icon name="info" size={13} /><span>{t('pay.paypalReferenceHint')}</span></p>}
               </>
             ) : (
               /* Một dòng nhắc việc, không hộp: icon "info" mờ, đúng tần số
@@ -198,7 +203,6 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 <span>{t(awaiting ? 'pay.checkBeforeSending' : 'pay.exactAfter')}</span>
               </p>
             )}
-            {isPaypal && <p className="row-note inline"><Icon name="shield" size={12} /><span>{t('pay.afterPay')}</span></p>}
           </div>
         </div>
       ) : (
