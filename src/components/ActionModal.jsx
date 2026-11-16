@@ -5,8 +5,7 @@ import { KINDS, VOTE_PACKS, SINGLE_VOTE, singlePrice, PAID_REQUEST } from '../li
 import { KIND_META, isPicked, kindCls, kindShort, vnd, usd } from '../lib/meta'
 import { findDuplicate, splitSong } from '../lib/board'
 import { SUPPORT } from '../lib/payment'
-import { MAX_VOTE_AWAITING, ORDER_PAYMENT_HOURS, isOrderAwaiting, orderTransferContent, pendingOrdersOfKind } from '../lib/requestPayment.js'
-import OrderStatusBadge from './OrderStatusBadge'
+import { MAX_VOTE_AWAITING, pendingOrdersOfKind } from '../lib/requestPayment.js'
 import RequestPaymentBadge from './RequestPaymentBadge'
 import { parseYoutube, thumbUrl } from '../lib/youtube'
 import { safeHttpUrl } from '../lib/safeUrl'
@@ -14,7 +13,6 @@ import { useI18n, errMsg } from '../lib/i18n.jsx'
 import { sfx } from '../lib/sfx'
 import { useModalExit } from '../lib/useModalExit'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import PaymentMethods from './PaymentMethods'
 import Pager from './Pager'
 import { usePager } from '../lib/usePager'
 
@@ -838,19 +836,21 @@ function VoteTab({ rows, myVotes, onVote, voteStatus, goBuy, goRequest = null })
 }
 
 /* ------------------------ TAB: MUA VOTE / TT ------------------------ */
-function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
+/* Mua vote giờ gọn đúng ba bước: chọn gói → bấm Buy → đơn nằm trong About me
+   (trang cá nhân) chờ thanh toán — y như paid request. Tab này KHÔNG còn giữ
+   hóa đơn QR hay danh sách đơn: một đơn, một chỗ trả tiền, một mã tham chiếu
+   (popup Pay now ở profile). */
+function BuyTab({ onBuy, myOrders }) {
   const { t } = useI18n()
   const [busy, setBusy] = useState(null)
   const [msg, setMsg] = useState(null)
   const [qty, setQty] = useState(1)
   const [sel, setSel] = useState(() => VOTE_PACKS[VOTE_PACKS.length - 1].id)
-  const [picked, setPicked] = useState(null)
 
   const buy = async (p, label) => {
     setBusy(p.id); setMsg(null)
     try {
-      const created = await onBuy(p)
-      setPicked(created || { kind: 'votes', qty: p.qty, amount_usd: p.usd, amount_vnd: p.vnd })
+      await onBuy(p)
       setMsg({ t: 'ok', m: t('buy.created', { label, amt: vnd(p.vnd) }) })
     } catch (e) { setMsg({ t: 'err', m: errMsg(t, e) }) }
     finally { setBusy(null) }
@@ -859,11 +859,6 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
   const voteOrders = myOrders.filter(o => o.kind === 'votes')
   const pendingVotes = pendingOrdersOfKind(voteOrders, 'votes')
   const atVoteLimit = pendingVotes.length >= MAX_VOTE_AWAITING
-  const pendingOrder = pendingVotes[0]
-  /* A created order that disappeared from myOrders was cancelled/removed; keeping
-     the old snapshot here would leave a ghost invoice telling the user to pay it. */
-  const pickedOrder = picked?.id ? (myOrders.find(o => o.id === picked.id) || null) : picked
-  const lastOrder = (isOrderAwaiting(pickedOrder) ? pickedOrder : null) || pendingOrder || null
   const customQty = Math.max(1, Math.min(100, Number(qty) || 1))
   const custom = singlePrice(customQty)
   const best = VOTE_PACKS[VOTE_PACKS.length - 1]
@@ -888,6 +883,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             nhiêu · tổng bao nhiêu. Nhờ vậy tiền của cả bảng rơi vào một cột
             dọc, so được bằng mắt; thẻ cũ có sáu dòng chữ xếp dọc nên muốn so
             phải đọc lần lượt từng thẻ. */}
+        <div className="pk-shell">
         <div className="pk" role="listbox" aria-label={t('buy.packs')}>
           <div className="pk-head" aria-hidden="true">
             <span className="pk-h-name">{t('buy.colPack')}</span>
@@ -920,10 +916,12 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
           })}
         </div>
 
-        {/* Số lẻ là lựa chọn thứ tư của cùng bảng: cùng lưới, cùng cột giá —
-            trước đây nó là một cái hộp riêng trông như thẻ thứ tư. */}
+        {/* Số lẻ là hàng thứ tư của CÙNG bảng — chung một khung .pk-shell, chung
+            lưới cột, chung chấm chọn với các gói; trước đây nó là một cái hộp
+            riêng trông như thẻ thứ tư. */}
         <div className={`buy-custom${sel === 'custom' ? ' on' : ''}`}
           onClick={() => !busy && !atVoteLimit && setSel('custom')}>
+          <span className="pk-chk" aria-hidden="true" />
           <span className="buy-custom-k">
             {t('buy.single')}
             <small>{usd(SINGLE_VOTE.usd)} {t('buy.eachVote')}</small>
@@ -944,6 +942,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
             <small>{vnd(custom.vnd)}</small>
           </span>
         </div>
+        </div>{/* .pk-shell */}
 
         {/* Tổng tiền và nút mua ở CÙNG một khối: thanh toán là một hành động,
             không phải hai dòng chữ rời nhau. Tổng chỉ nói một lần ở đây. */}
@@ -963,54 +962,12 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
         <p className={atVoteLimit ? 'msg err' : 'fhint'} role={atVoteLimit ? 'alert' : undefined}>
           {t(atVoteLimit ? 'buy.pendingLimit' : 'buy.pendingCount', { n: pendingVotes.length, max: MAX_VOTE_AWAITING })}
         </p>
+        <p className="buy-foot">{t('support.line')}{' '}
+          <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
+        </p>
       </section>
 
       {msg && <div className={`msg ${msg.t}`}>{msg.m}</div>}
-
-      <section className="buy-sec">
-        <h3 className="section-title">{t('buy.payment')}</h3>
-        {/* Có đơn đang chờ thì hóa đơn mang số tiền của ĐƠN; chưa có đơn thì mang
-            số tiền của gói đang chọn — để chọn phương thức xong là có ngay tờ
-            giấy điền sẵn, khỏi phải bấm Buy trước mới thấy số. */}
-        <PaymentMethods
-          amountVnd={lastOrder?.amount_vnd ?? chosen.vnd}
-          amountUsd={Number(lastOrder?.amount_usd ?? chosen.usd)}
-          content={lastOrder ? orderTransferContent(lastOrder) : userName}
-          awaiting={!!lastOrder} />
-        {lastOrder && <p className="fhint">{t('order.reference', { ref: orderTransferContent(lastOrder) })} · {t('buy.referenceHint')}</p>}
-        {lastOrder && <p className="fhint">{t('order.windowHelp', { h: ORDER_PAYMENT_HOURS })}</p>}
-      </section>
-
-      <section className="buy-sec">
-        <h3 className="section-title">{t('buy.yourOrders')}</h3>
-        <div className="support">
-          {t('support.line')}{' '}
-          <a href={SUPPORT.telegramUrl} target="_blank" rel="noreferrer">t.me/{SUPPORT.telegram}</a>
-        </div>
-        {voteOrders.length === 0
-          ? (
-            <div className="empty">
-              <span className="empty-ico" aria-hidden="true"><Icon name="receipt" size={15} /></span>
-              <div className="empty-tx">
-                <b>{t('buy.noOrders')}</b>
-                <small>{t('buy.noOrdersBody')}</small>
-              </div>
-            </div>
-          )
-          : voteOrders.slice(0, 12).map(o => (
-            <div className="adm" key={o.id}>
-              <div className="nm">
-                <b>{o.kind === 'votes' ? t('order.votes', { n: o.qty }) : t('order.paidRequest')}</b>
-                <small>{usd(o.amount_usd)} · {vnd(o.amount_vnd)} · {t('order.reference', { ref: orderTransferContent(o) })}</small>
-              </div>
-              <OrderStatusBadge order={o} />
-              {isOrderAwaiting(o) && onCancelOrder && (
-                <button className="icon-btn" title={t('order.cancel')} aria-label={t('order.cancel')}
-                  onClick={() => onCancelOrder(o)}><Icon name="close" size={15} /></button>
-              )}
-            </div>
-          ))}
-      </section>
     </>
   )
 }
@@ -1019,7 +976,7 @@ function BuyTab({ onBuy, myOrders, userName, onCancelOrder }) {
 export default function ActionModal({
   open, tab, setTab, onClose,
   rows, myVotes, myOrders, voteStatus, allRows, prefill,
-  onVote, onSubmit, onBuy, onCancelOrder, userName, onVoteExisting, bonusRequests = 0,
+  onVote, onSubmit, onBuy, userName, onVoteExisting, bonusRequests = 0,
   /* live = co noi DB that hay chay demo: RequestTab dung no de chon dong chu bao
      tin. Bo no khoi danh sach prop la `live={live}` ben duoi thanh ReferenceError,
      React go ca cay -> mo "New request" chi con man den. */
@@ -1038,7 +995,11 @@ export default function ActionModal({
   /* Nhốt tiêu điểm trong hộp: tiêu điểm đầu tiên là tab đang mở (phần tử bấm
      được đầu tiên trong hộp), đóng thì về nút vừa gọi hộp ra. Hook phải gọi
      TRƯỚC `return null` — hook sau return có điều kiện là phạm rules-of-hooks. */
-  useFocusTrap(panelRef, open)
+  /* Tiêu điểm đầu tiên là TAB ĐANG MỞ — không phải hàng nút đầu trong hộp;
+     nếu không thì người dùng bàn phím luôn đáp xuống "New request" dù vừa
+     mở ở tab khác, và vòng focus bị kẹt trong `.modal-head` overflow:hidden
+     nên hai nét viền dọc tím lộ ra hai bên nút đó. */
+  useFocusTrap(panelRef, open, { initial: () => panelRef.current?.querySelector('.mtab.on') })
   if (!mounted) return null
   const out = closing ? ' out' : ''
   const votable = rows.filter(r => (r.status === 'queued' || r.status === 'in_progress') && !isPicked(r)).length
@@ -1074,7 +1035,7 @@ export default function ActionModal({
               voteStatus={voteStatus} goBuy={() => setTab('buy')}
               goRequest={() => setTab('request')} />
           )}
-          {tab === 'buy' && <BuyTab onBuy={onBuy} myOrders={myOrders} userName={userName} onCancelOrder={onCancelOrder} />}
+          {tab === 'buy' && <BuyTab onBuy={onBuy} myOrders={myOrders} />}
         </div>
       </div>
     </div>

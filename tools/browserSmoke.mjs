@@ -518,28 +518,28 @@ for (const vp of viewports) {
           layout.present && layout.detailsTop >= layout.bodyBottom - 1 && layout.detailsWidth >= layout.rowWidth * 0.9,
           `details=${layout.detailsWidth?.toFixed(0)}px · top=${layout.detailsTop?.toFixed(0)} · bodyBottom=${layout.bodyBottom?.toFixed(0)}`)
         const orderScope = '#mine-orders-panel .order-payment-details'
-        const orderId = await page.locator(`${orderScope} summary`).first().evaluate(summary =>
-          summary.closest('.order-row').id.replace('mine-order-', ''))
+        const orderId = await page.locator(`${orderScope} .order-pay-toggle`).first().evaluate(btn =>
+          btn.closest('.order-row').id.replace('mine-order-', ''))
         /* Dùng đúng hàm của app, không tự chế lại base64 trong bài kiểm: mã ngắn
            phải khớp cả nút Copy lẫn trường 62/08 của QR thật. */
         const reference = orderTransferContent({ id: orderId, kind: 'paid_request' })
         const closedText = await page.locator('#mine-orders-panel .order-row').first().textContent()
         check(`${vp.name} · My orders: hàng đóng không lặp mã và gọi đúng việc Pay now`,
           !closedText.includes(reference) && closedText.includes('Pay now'))
-        await page.locator(`${orderScope} summary`).first().click()
-        await page.waitForSelector(`${orderScope}[open] .pay`, { timeout: 12_000 })
+        await page.locator(`${orderScope} .order-pay-toggle`).first().click()
+        await page.waitForSelector(`${orderScope} .pay-overlay .pay`, { timeout: 12_000 })
         /* Hàng đơn mở thẳng QR ngân hàng; .paytile.bank vẫn cho phép đổi qua
            PayPal rồi về. Không ép người mua chọn cổng lần thứ hai sau Pay now. */
-        await page.waitForSelector(`${orderScope}[open] .iv`, { timeout: 12_000 })
+        await page.waitForSelector(`${orderScope} .pay-overlay .iv`, { timeout: 12_000 })
         const compact = await page.locator('#mine-orders-panel .order-row').first().evaluate((row, ref) => ({
           occurrences: row.textContent.split(ref).length - 1,
           referenceVisible: !!row.querySelector('.order-reference-text code'),
-          duplicateSummary: row.querySelector('summary').textContent.includes(ref),
+          duplicateTrigger: row.querySelector('.order-pay-toggle').textContent.includes(ref),
           bankSelected: row.querySelector('.paytile.bank').getAttribute('aria-pressed') === 'true',
           repeatedAmount: !!row.querySelector('.iv-sum'),
         }), reference)
         check(`${vp.name} · My orders: mã đầy đủ đúng một lần, QR bank mở sẵn`,
-          compact.occurrences === 1 && compact.referenceVisible && !compact.duplicateSummary && compact.bankSelected && !compact.repeatedAmount,
+          compact.occurrences === 1 && compact.referenceVisible && !compact.duplicateTrigger && compact.bankSelected && !compact.repeatedAmount,
           JSON.stringify(compact))
         await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
         await page.locator(`${orderScope} .order-reference-copy`).click()
@@ -547,12 +547,12 @@ for (const vp of viewports) {
         const clipboard = await page.evaluate(() => navigator.clipboard.readText())
         check(`${vp.name} · My orders: Copy giữ nguyên mã có gạch nối`, clipboard === reference, clipboard)
         await page.locator(`${orderScope} .order-payment-close`).click()
-        await page.waitForSelector(`${orderScope}:not([open])`)
-        const focusReturned = await page.locator(`${orderScope} summary`).first().evaluate(el => el === document.activeElement)
+        await page.waitForSelector(`${orderScope} .pay-overlay`, { state: 'detached' })
+        const focusReturned = await page.locator(`${orderScope} .order-pay-toggle`).first().evaluate(el => el === document.activeElement)
         check(`${vp.name} · My orders: đóng trả tiêu điểm về nút mở`, focusReturned)
-        await page.locator(`${orderScope} summary`).first().focus()
+        await page.locator(`${orderScope} .order-pay-toggle`).first().focus()
         await page.keyboard.press('Enter')
-        await page.waitForSelector(`${orderScope}[open] .iv`)
+        await page.waitForSelector(`${orderScope} .pay-overlay .iv`)
         /* Kiểm chính PIXEL của QR, không chỉ thấy phần tử canvas: giải mã ảnh
            vẽ thật rồi đọc TLV 54 (tiền) và 62/08 (nội dung app bank sẽ điền). */
         const qr = await page.locator(`${orderScope} .qr-canvas`).evaluate(canvas => {
@@ -583,15 +583,15 @@ for (const vp of viewports) {
         await page.locator(`${orderScope} .paytile.bank`).click()
         await page.waitForSelector(`${orderScope} .paytile.bank[aria-pressed="true"]`)
         const invoice = await page.evaluate(() => {
-          const row = document.querySelector('#mine-orders-panel .row.order-row')
-          const iv = row?.querySelector('.order-payment-details .iv')
-          if (!row || !iv) return { present: false }
-          return { present: true, rowWidth: row.getBoundingClientRect().width, ivWidth: iv.getBoundingClientRect().width,
+          const iv = document.querySelector('#mine-orders-panel .order-payment-details .iv')
+          const modal = document.querySelector('#mine-orders-panel .order-payment-details .order-pay-modal')
+          if (!iv || !modal) return { present: false }
+          return { present: true, modalWidth: modal.getBoundingClientRect().width, ivWidth: iv.getBoundingClientRect().width,
             overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }
         })
-        check(`${vp.name} · My orders: mở hóa đơn không tràn ngang`,
-          invoice.present && invoice.ivWidth <= invoice.rowWidth + 1 && invoice.overflow <= 2,
-          `iv=${invoice.ivWidth?.toFixed(0)}px · row=${invoice.rowWidth?.toFixed(0)}px · overflow=${invoice.overflow}px`)
+        check(`${vp.name} · My orders: popup không tràn ngang`,
+          invoice.present && invoice.modalWidth <= 540 && invoice.ivWidth <= invoice.modalWidth + 1 && invoice.overflow <= 2,
+          `modal=${invoice.modalWidth?.toFixed(0)}px · iv=${invoice.ivWidth?.toFixed(0)}px · overflow=${invoice.overflow}px`)
         const orderFresh = errors.slice(orderErrorsBefore)
         check(`${vp.name} · My orders: không lỗi console mới`, orderFresh.length === 0, orderFresh.slice(0, 2).join(' | '))
         await page.screenshot({ path: join(outDir, `route-mine-orders-${vp.name}.png`), fullPage: true })

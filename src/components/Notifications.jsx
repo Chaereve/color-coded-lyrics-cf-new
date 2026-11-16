@@ -24,6 +24,17 @@ import { groupNotices, isAdminExpiryNotice, ownNotices, otherNotices, unreadCoun
    mình là tin bắt buộc, không có gì để tắt — nên cái răng cưa cũng đi theo.
    ========================================================= */
 
+/* Mỗi loại tin một glyph: hộp thư kiểu IG/FB/X — nhìn chip màu là biết loại
+   tin, không phải đọc dòng tag. Chip ăn đúng `--c` của dòng tin, nên một bài
+   vẫn một màu từ bảng vào hộp thư. Loại lạ rơi về nốt nhạc. */
+const TYPE_ICON = {
+  done: 'check', expired: 'clock', denied: 'close',
+  picked: 'star', started: 'spin', progress: 'spin',
+  approved: 'board', votes: 'thumb',
+  order_paid: 'receipt', order_rejected: 'receipt', order_expired: 'receipt',
+  bonus_refunded: 'gift', paid_request_review: 'receipt', bonus_request_review: 'gift',
+}
+
 const MAX_PER_GROUP = 12
 
 /* Màu của dòng tin lấy đúng màu trạng thái ngoài bảng: cùng một bài thì
@@ -232,9 +243,11 @@ function Item({ n, row, grp, t, onOpenNotice, onDrop, onVote }) {
   const msg = n.type === 'votes'
     ? (n.reason || (translatedMsg === msgKey ? t('nt.title') : translatedMsg))
     : (translatedMsg === msgKey ? (n.reason || t('nt.title')) : translatedMsg)
+  const glyph = TYPE_ICON[n.type] || 'note'
   return (
     <div className={`nt-i${n.read ? '' : ' new'}`} style={{ '--c': c }}>
       <button type="button" className="nt-hit" onClick={() => onOpenNotice?.(n)}>
+        <span className="nt-glyph" aria-hidden="true"><Icon name={glyph} size={12} /></span>
         <span className="nt-tx">
           <span className="nt-title">
             {titleText}

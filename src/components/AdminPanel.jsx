@@ -696,7 +696,12 @@ export default function AdminPanel({
   /* Số đơn theo trạng thái + tiền ĐÃ NHẬN trong 30 ngày. Tính trên TOÀN BỘ đơn
      đã tải, không phải trang đang nhìn: doanh thu không được đổi khi admin
      bấm sang trang 2 hay gõ một từ khoá. */
-  const oStats = useMemo(() => orderStats(orders, orderNow), [orders, orderNow])
+  /* Doanh thu/đơn paid tính bằng ĐỒNG HỒ TƯƠI lúc `orders` đổi, không dùng
+     `orderNow`: đồng hồ đó đóng băng khi hết đơn awaiting (nó chỉ sống để đếm
+     nhịp quá hạn của hàng chờ), và đơn "paid_at sau lúc đóng băng" bị loại khỏi
+     cửa sổ — duyệt xong đơn cuối thì bảng số liệu thành 0₫. Bộ lọc `t > now`
+     trong orderStats giữ nguyên (chốt chặn đồng hồ lệch), chỉ horizon là tươi. */
+  const oStats = useMemo(() => orderStats(orders, Date.now()), [orders])
   /* Bài đang chờ lâu nhất — null khi không còn bài nào chờ, để màn hình nói
      được "không có gì tồn" thay vì "0 ngày". */
   const oldestPending = useMemo(() => {

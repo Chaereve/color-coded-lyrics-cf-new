@@ -1548,6 +1548,27 @@ export async function cancelOrder(id) {
   if (error) throw rpcError(error)
 }
 
+/* Người mua báo "I've made the transfer" — chỉ ĐÁNH DẤU thời điểm, KHÔNG đổi
+   trạng thái đơn và KHÔNG cộng quyền gì. Đơn vẫn 'awaiting' chờ admin xác nhận.
+   Idempotent: lần bấm thứ hai trả về chính đơn (đã có dấu), không ghi lại,
+   không thêm vết gì — đúng hợp đồng của RPC report_transfer. */
+export async function reportTransfer(id) {
+  if (!hasSupabase) {
+    const orders = expireDemoOrders()
+    const o = orders.find(x => x.id === id)
+    if (!o) throw appError('err.orderMissing')
+    if (o.status !== 'awaiting') throw appError('err.orderLocked')
+    if (o.expires_at && +new Date(o.expires_at) <= Date.now()) throw appError('err.orderLocked')
+    if (o.transfer_reported_at) return o
+    const next = orders.map(x => x.id === id ? { ...x, transfer_reported_at: new Date().toISOString() } : x)
+    wr(LS.orders, next)
+    return { ...o, transfer_reported_at: next.find(x => x.id === id).transfer_reported_at }
+  }
+  const { data, error } = await supabase.rpc('report_transfer', { p_order_id: id })
+  if (error) throw rpcError(error)
+  return Array.isArray(data) ? (data[0] ?? null) : data
+}
+
 /* ======================== ADMIN ======================== */
 export async function adminReview(id, approve, reason = null, videoUrl = null) {
   const url = approve ? null : String(videoUrl || '').trim() || null

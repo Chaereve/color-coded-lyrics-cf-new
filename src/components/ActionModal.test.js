@@ -50,7 +50,7 @@ function alreadyAgreed(agreed = true) {
 const base = {
   open: true, tab: 'request', setTab: () => {}, onClose: () => {},
   rows: [], myVotes: new Map(), myOrders: [], voteStatus: { total: 3, purchased: 0, bonus: 0 },
-  onVote: () => {}, onSubmit: () => {}, onBuy: () => {}, onCancelOrder: () => {},
+  onVote: () => {}, onSubmit: () => {}, onBuy: () => {},
   userName: 'Demo User',
 }
 
@@ -225,15 +225,18 @@ test('BuyTab chỉ dựng đơn mua vote, không lấy hóa đơn paid request l
     { id: 'v-1', kind: 'votes', status: 'awaiting', amount_usd: 1.29, amount_vnd: 34000, qty: 10 },
   ] })
   const tx = plain(html)
-  assert.match(tx, /10 votes/)
-  assert.ok(!/Paid request payment/.test(tx), 'đơn paid request không nằm trong cửa hàng vote')
-  assert.match(tx, /V-V1/)
-  assert.match(tx, /1\/20 vote orders awaiting payment/)
+  assert.ok(!/Paid request/.test(tx), 'đơn paid request không nằm trong cửa hàng vote')
+  assert.match(tx, /1\/20 awaiting payment/)
+  /* Hóa đơn / mã tham chiếu KHÔNG còn nằm trong tab mua — thanh toán tại
+     About me (profile) như paid request; popup Pay now ở đó lo phần QR. */
+  assert.ok(!/V-V1/.test(tx), 'tham chiếu đơn không in trong tab mua nữa')
+  assert.ok(!/Pay now/.test(tx), 'nút Pay now chỉ còn ở profile, không trong cửa hàng')
+  assert.ok(!/TRANSFER NOTE/i.test(tx), 'hóa đơn chỉ nằm trong popup ở profile')
 })
 
 test('BuyTab báo đủ 20 đơn vote chờ và khóa nút mua', async () => {
   const myOrders = Array.from({ length: 20 }, (_, i) => ({ id: `v-${i}`, kind: 'votes', status: 'awaiting', amount_usd: 0.49, amount_vnd: 13000, qty: 3 }))
   const html = await render({ ...base, tab: 'buy', live: false, myOrders })
-  assert.match(plain(html), /Vote order limit reached/)
+  assert.match(plain(html), /Limit reached/)
   assert.match(html, /class="btn btn-gold" disabled=""/)
 })

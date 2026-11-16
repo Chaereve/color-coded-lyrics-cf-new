@@ -64,6 +64,48 @@ function CopyRow({ k, v, mono }) {
   )
 }
 
+/* ---------- dòng số tài khoản: che mặc định, copy luôn đủ số ---------- */
+/* Yêu cầu chủ tài khoản (2026-11-15): STK không hiện thẳng trên màn hình —
+   người qua đường/ảnh chụp không thấy đủ số. Hiện tối đa 4 số đầu + 3 số cuối;
+   nút con mắt hiện/ẩn; nút copy LUÔN chép đủ số (người dùng thật chỉ cần 1 chạm).
+   VietQR hiển thị đầy đủ trong bản mã QR nên không lộ thêm qua ảnh chụp. */
+const maskAccount = (v) => {
+  const digits = String(v || '').replace(/\D/g, '')
+  if (digits.length <= 7) return v
+  return `${digits.slice(0, 4)} •••• ${digits.slice(-3)}`
+}
+function MaskedAccountRow({ k, v }) {
+  const { t } = useI18n()
+  const [revealed, setRevealed] = useState(false)
+  const [done, flashDone] = useTransient()
+  const [failed, setFailed] = useState(false)
+  const copy = async () => {
+    const ok = await copyText(v)
+    setFailed(!ok)
+    if (ok) flashDone()
+  }
+  return (
+    <div className="iv-row masked">
+      <span className="iv-k">{k}</span>
+      <span className="iv-v mono">{revealed ? v : maskAccount(v)}</span>
+      <span className="iv-row-actions">
+        <button type="button" className={`iv-copy${revealed ? ' on' : ''}`} aria-pressed={revealed}
+          onClick={() => setRevealed(r => !r)}
+          aria-label={revealed ? t('pay.accHide') : t('pay.accShow')}
+          title={revealed ? t('pay.accHide') : t('pay.accShow')}>
+          <Icon name={revealed ? 'eyeOff' : 'preview'} size={13} />
+        </button>
+        <button type="button" className={`iv-copy${done ? ' done' : ''}`}
+          onClick={copy} aria-label={t('pay.copyField', { field: k })} title={done ? t('pay.copied') : t('pay.copy')}>
+          <Icon name={done ? 'check' : 'copy'} size={13} />
+        </button>
+      </span>
+      <span className="sr-only" role="status">{done ? t('pay.copied') : failed ? t('pay.copyFailed') : ''}</span>
+      {failed && <small className="iv-copy-failed" role="status">{t('pay.copyFailed')}</small>}
+    </div>
+  )
+}
+
 export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content = '', awaiting = false, showAmount = true, showReference = true, defaultMethod = null }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(defaultMethod)
@@ -129,14 +171,13 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
             <div className="iv-rows">
               {active.k === 'bank' && <>
                 <CopyRow k={t('pay.bankName')} v={PAYMENT.bank.bankName} />
-                <CopyRow k={t('pay.accNo')} v={PAYMENT.bank.accountNumber} mono />
+                <MaskedAccountRow k={t('pay.accNo')} v={PAYMENT.bank.accountNumber} />
                 <CopyRow k={t('pay.accName')} v={PAYMENT.bank.accountName} />
               </>}
               {active.k === 'paypal' && <>
                 <CopyRow k="PayPal.me" v={`paypal.me/${PAYMENT.paypal.username}`} />
                 <CopyRow k={t('pay.email')} v={PAYMENT.paypal.email} />
               </>}
-              {showAmount && hasAmount && <CopyRow k={t('pay.amount')} v={isPaypal ? usd(amountUsd) : vnd(amountVnd)} mono />}
               {showReference && desc && <CopyRow k={isPaypal ? t('pay.memo') : t('pay.content')} v={desc} />}
             </div>
           </div>
@@ -147,12 +188,17 @@ export default function PaymentMethods({ amountVnd = 0, amountUsd = 0, content =
                 <a className="iv-go" href={paypalPayload(amountUsd)} target="_blank" rel="noreferrer">
                   {t('pay.openPaypal')}<Icon name="ext" size={12} />
                 </a>
-                {showReference && desc && <span>{t('pay.paypalReferenceHint')}</span>}
+                {showReference && desc && <p className="iv-note"><Icon name="info" size={13} /><span>{t('pay.paypalReferenceHint')}</span></p>}
               </>
             ) : (
-              <span>{t(awaiting ? 'pay.checkBeforeSending' : 'pay.exact')}</span>
+              /* Một dòng nhắc việc, không hộp: icon "info" mờ, đúng tần số
+                 của một ghi chú — amber chỉ dành cho hạn 72h ở footer. */
+              <p className="row-note caution">
+                <Icon name="info" size={12} />
+                <span>{t(awaiting ? 'pay.checkBeforeSending' : 'pay.exactAfter')}</span>
+              </p>
             )}
-            <span>{t('pay.afterPay')}</span>
+            {isPaypal && <p className="row-note inline"><Icon name="shield" size={12} /><span>{t('pay.afterPay')}</span></p>}
           </div>
         </div>
       ) : (

@@ -22,15 +22,21 @@ test('hàng đơn About me có lớp riêng và khung thanh toán nằm trong h�
   assert.match(app, /className="row order-row" key=\{o\.id\}/,
     'hàng đơn phải mang .order-row để không sửa nhầm hàng request của bảng')
   const start = app.indexOf('id={`mine-order-${o.id}`}')
-  const end = app.indexOf('\n            ))}', start)
+  const end = app.indexOf('\n            })}', start)
   const row = app.slice(start, end > start ? end : start + 3000)
+  assert.match(app.slice(Math.max(0, start - 400), start + 100), /const showPayment = orderDisplayStatus\(o\) === 'awaiting'/,
+    'đơn chờ được nhận diện một lần cho cả votes lẫn paid_request')
   assert.match(row, /<OrderPayment order=\{o\} \/>/,
     'khung thanh toán vẫn là con trực tiếp của hàng đơn, không dời sang modal khác')
   const payment = at('../components/OrderPayment.jsx')
-  assert.match(payment, /<details className="order-payment-details"/,
-    'giữ nút mở gốc bằng details/summary để dùng được bàn phím')
-  assert.match(row, /!\(o\.kind === 'paid_request' && orderDisplayStatus\(o\) === 'awaiting'\)/,
+  assert.match(payment, /className="order-pay-toggle"/,
+    'giữ nút mở ở gốc hàng đơn (mốc tiêu điểm bàn phím) trước khi mở popup')
+  assert.match(payment, /role="dialog" aria-modal="true"/,
+    'khung thanh toán mở dạng popup thật, không bung inline trong hàng đơn')
+  assert.match(row, /!showPayment &&/,
     'đơn đang chờ chỉ in mã trong OrderPayment, không lặp ở metadata phía trên')
+  assert.ok(!/o\.kind === 'paid_request' && \(/.test(row),
+    'không còn khóa nút Pay now chỉ cho paid_request — đơn votes cũng được trả tại profile')
 })
 
 test('hàng đơn wrap để khối chữ không bị khung thanh toán ép về gần 0', () => {

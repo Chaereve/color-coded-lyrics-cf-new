@@ -53,5 +53,10 @@ b-text-20261115
 row order-row
 
 # 2026-11-15 · thanh toán tại hàng đơn: bỏ mã lặp, một nút Pay now và Copy mã.
-# Thuộc tính của OrderPayment.jsx; không phụ thuộc việc đổi câu chữ sau này.
-compact-20261115
+# RETIRED 2026-11-16: phần thanh toán mở dạng POPUP thật (role=dialog) thay vì
+# bung inline — dấu vết cũ không còn tồn tại trong source, giữ lại là đỏ vĩnh viễn.
+# compact-20261115
+
+# 2026-11-16 · thanh toán tại hàng đơn mở dạng popup: thuộc tính data-payment-ui mới
+# của OrderPayment.jsx (role=dialog, Esc/nền/X để đóng). Chỉ bundle mới có chuỗi này.
+popup-20261116
