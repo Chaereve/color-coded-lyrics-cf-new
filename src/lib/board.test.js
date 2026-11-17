@@ -592,11 +592,14 @@ test('This week: "Most voted" tính vote NHẬN TRONG 7 NGÀY QUA, bài cũ đư
     { id: 'b2', artist: 'IVE', title: 'Accendio', requester: 'fan', status: 'queued', votes: 2, created_at: at(2 * day) },
     { id: 'b3', artist: 'aespa', title: 'Whiplash', requester: 'minji', status: 'pending', votes: 0, created_at: at(1000) },
     { id: 'b4', artist: 'TWICE', title: 'Old', requester: 'fan', status: 'queued', votes: 40, created_at: at(8 * day) },
-  ], now, [vote('b2', day), vote('b2', 2 * day), vote('b4', 2 * day), vote('b4', 3 * day), vote('b4', 4 * day)])
+    { id: 'b5', artist: 'LE SSERAFIM', title: 'Paid Unconfirmed', requester: 'kk', status: 'queued', is_paid: true, payment_status: 'awaiting', votes: 2, created_at: at(1500) },
+  ], now, [vote('b2', day), vote('b2', 2 * day), vote('b4', 2 * day), vote('b4', 3 * day), vote('b4', 4 * day),
+    vote('b5', day), vote('b5', 2 * day), vote('b5', 3 * day), vote('b5', 4 * day)])
   assert.equal(split.top?.title, 'Old', 'bài cũ nhiều vote NHẬN trong cửa sổ nhất phải lên thẻ Most voted')
   assert.equal(split.top?.votes, 3, 'in phiếu nhận trong cửa sổ, không phải cộng dồn 40')
-  assert.equal(split.newcomer?.title, 'Whiplash', 'bài pending mới GỬI nhất phải hiện ở thẻ New')
-  assert.equal(split.newcomer?.requester, 'minji')
+  assert.equal(split.newcomer?.title, 'Sour Grapes',
+    'pending (Whiplash) và hàng chờ xác nhận tiền (Paid Unconfirmed) KHÔNG được lên thẻ New — dù mới GỬI nhất, dù có vote trong cửa sổ')
+  assert.equal(split.newcomer?.requester, 'Isabelle')
 
   /* Bài gửi từ lâu mà XONG trong cửa sổ vẫn thuộc "This week" (cùng luật
      Leaderboard); nhưng không có phiếu nào nhận trong cửa sổ thì không đội
@@ -618,6 +621,14 @@ test('This week: "Most voted" tính vote NHẬN TRONG 7 NGÀY QUA, bài cũ đư
   ], now, [vote('d1', day)])
   assert.equal(denied.top, null)
   assert.equal(denied.newcomer, null)
+
+  /* Hàng đã trả nhưng chờ admin xác nhận tiền trên đơn: cũng ở ngoài mọi
+     thẻ — lộ sớm là lộ một đơn đang chờ, và kéo theo suy đoán "chắc được duyệt". */
+  const awaiting = weeklyHighlights([
+    { id: 'e1', artist: 'X', title: 'Paid?', requester: 'z', status: 'queued', is_paid: true, payment_status: 'awaiting', votes: 5, created_at: at(3 * day) },
+  ], now, [vote('e1', day)])
+  assert.equal(awaiting.top, null)
+  assert.equal(awaiting.newcomer, null)
 })
 
 test('tách tiêu đề video: không có dấu hiệu nào thì KHÔNG đoán', () => {
@@ -666,15 +677,21 @@ test('az: tên bài A→Z, bỏ dấu nên Đ nằm cùng chỗ với D', () => 
   assert.deepEqual(titles(boardItems(rows, 'az')), ['Anh', 'Bình', 'Cúc', 'Đào'])
 })
 
-test('cả năm cách xếp đều tìm được bài đang chờ duyệt, không chỉ newest', () => {
+test('cả năm cách xếp đều ẩn hàng chưa công khai khi tìm kiếm, không chỉ newest', () => {
   assert.deepEqual(SORTS, ['newest', 'oldest', 'top', 'requests', 'az'])
   for (const f of SORTS) {
     const pub = [req('aespa', 'Whiplash', 3)]
-    /* `rows` có thêm một bài pending: các cách xếp đều phải quét cả rows khi
-       có từ khoá, nếu không cùng một từ khoá cho hai kết quả tuỳ mục đang bật. */
-    const rows = [...pub, req('aespa', 'Whiplash', 0, { status: 'pending' })]
-    assert.equal(filterBoard({ pub, rows, filter: f, q: 'whiplash' }).length, 2,
-      `cách xếp ${f} làm mất bài chờ duyệt`)
+    /* Kể cả khi caller để lẫn hàng pending / bị từ chối / chờ xác nhận tiền
+       vào `rows`, ô tìm kiếm cũng không được lùi sang danh sách thô: bản cũ
+       cho `newest` quét cả `rows` nên cùng một từ khoá cho hai kết quả tuỳ
+       mục đang bật — và người lạ dò được bài chưa duyệt của người khác. */
+    const rows = [...pub,
+      req('aespa', 'Whiplash', 0, { status: 'pending' }),
+      req('aespa', 'Whiplash', 0, { status: 'denied' }),
+      req('aespa', 'Whiplash', 0, { is_paid: true, payment_status: 'awaiting' }),
+    ]
+    assert.equal(filterBoard({ pub, rows, filter: f, q: 'whiplash' }).length, 1,
+      `cách xếp ${f} để lọt hàng chưa công khai qua ô tìm kiếm`)
   }
 })
 

@@ -16,7 +16,7 @@
    theo RLS chỉ cho xem phiếu của chính mình, tên người thì privacy.html
    không cho phép xuất ra ảnh chia sẻ. Đây là số liệu sản phẩm.
    ========================================================= */
-import { groupKey, weeklyHighlights } from './board.js'
+import { groupKey, isPublicRequest, weeklyHighlights } from './board.js'
 import { votesByRequest } from './season.js'
 
 const WEEK_MS = 7 * 86400000
@@ -34,7 +34,7 @@ export function weekRecap(rows, now = Date.now(), votesLog = []) {
   const seen = new Set()
   const completed = []
   const doneRows = (rows || [])
-    .filter((r) => r && r.status === 'completed' && doneAt(r) >= since && doneAt(r) <= now)
+    .filter((r) => isPublicRequest(r) && r.status === 'completed' && doneAt(r) >= since && doneAt(r) <= now)
     .sort((a, b) => doneAt(b) - doneAt(a))
   for (const r of doneRows) {
     const k = groupKey(r)

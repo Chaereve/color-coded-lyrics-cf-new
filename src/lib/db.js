@@ -6,7 +6,7 @@ import { getSpinDevice, withSpinLock } from './spinDevice.js'
 import { SPIN_GATE_URL, VOTE_GATE_URL, fingerprintHashFast, acquireCaptchaToken } from './spinShield.js'
 import { TURNSTILE_SITE_KEY } from './turnstile.js'
 import { gateShouldFallback, voteGateShouldFallback } from './gateFallback.js'
-import { groupKey } from './board.js'
+import { groupKey, isPublicRequest } from './board.js'
 import { rankDemo } from './ranking.js'
 import { fetchAllPages, fetchAvailablePages } from './pagedQuery.js'
 import { vnDayKey } from './season.js'
@@ -410,7 +410,7 @@ export async function signOut() {
 export const PUBLIC_RECENT = 8
 
 const publicRequestsOf = (rows) => (rows || [])
-  .filter(r => r && r.status !== 'pending' && r.status !== 'denied')
+  .filter(r => r && r.status !== 'pending' && r.status !== 'denied' && r.payment_status !== 'awaiting')
   .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
 /* ===== PHẦN CHỈ CHỦ HỒ SƠ THẤY =====
@@ -429,7 +429,7 @@ const publicRequestsOf = (rows) => (rows || [])
    Người ngoài xem hồ sơ thì mảng này luôn rỗng, và câu truy vấn cũng không
    tải những hàng đó về. */
 const privateRequestsOf = (rows) => (rows || [])
-  .filter(r => r && (r.status === 'pending' || r.status === 'denied'))
+  .filter(r => r && (r.status === 'pending' || r.status === 'denied' || r.payment_status === 'awaiting'))
   .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
 /* `deny_reason` is not granted as a readable table column. This SECURITY
@@ -501,7 +501,7 @@ export async function fetchPublicProfile(userId, viewerId = null) {
       const q = supabase.from('requests')
         .select('id, title, artist, kind, status, votes, created_at, picked_at, video_url, is_paid, payment_status, payment_source')
         .eq('user_id', userId)
-      if (!ownerView) q.neq('status', 'pending').neq('status', 'denied')
+      if (!ownerView) q.neq('status', 'pending').neq('status', 'denied').neq('payment_status', 'awaiting')
       return readQuery(() => q
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -691,8 +691,15 @@ export async function fetchRequests() {
   } catch (e) {
     error = e
   }
+  const publicCacheRows = (list) => (Array.isArray(list) ? list : [])
+    .filter(isPublicRequest)
+    .map(({ deny_reason: _privateReason, note: _privateNote, ...row }) => ({
+      ...row,
+      deny_reason: null,
+      note: '',
+    }))
   if (!error && Array.isArray(data)) {
-    cacheWrite(CACHE.rows, data)
+    cacheWrite(CACHE.rows, publicCacheRows(data))
     return attachVisibleDenialReasons(data)
   }
   /* A transient outage must not make previously loaded user data disappear.
@@ -700,9 +707,10 @@ export async function fetchRequests() {
      a missing schema object; never replace it with a fake empty board. */
   const cached = cacheRead(CACHE.rows)
   if (Array.isArray(cached)) {
-    /* Purge snapshots from versions that cached every column, including private
-       notes. Offline board data remains available without retaining the reason. */
-    const safeCached = cached.map(({ deny_reason: _privateReason, ...row }) => ({ ...row, deny_reason: null }))
+    /* Purge snapshots from versions that cached every column or private
+       pending/denied/awaiting rows. Offline board data remains available
+       without retaining private submissions or notes. */
+    const safeCached = publicCacheRows(cached)
     cacheWrite(CACHE.rows, safeCached)
     return safeCached
   }
@@ -1575,7 +1583,11 @@ export async function adminReview(id, approve, reason = null, videoUrl = null) {
   if (url && (url.length > 500 || !/^https?:\/\/[^\s/]+(?:[/?#][^\s]*)?$/i.test(url))) throw appError('err.denyVideo')
   if (!hasSupabase) {
     const rows = demoRows()
-    if (!approve) refundDemoBonus(rows.find(r => r.id === id), 'denied')
+    const target = rows.find(r => r.id === id)
+    if (approve && target?.is_paid && target?.payment_status === 'awaiting') {
+      throw appError('err.paymentAwaitingOrder')
+    }
+    if (!approve) refundDemoBonus(target, 'denied')
     wr(LS.rows, rows.map(r => r.id === id
       ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url } : r))
     return
@@ -1763,16 +1775,18 @@ export async function adminReviewMany(ids = [], approve, reason = null, videoUrl
   if (!hasSupabase) {
     const set = new Set(uniq)
     const rows = demoRows()
-    if (!approve) rows.filter(r => set.has(r.id)).forEach(r => refundDemoBonus(r, 'denied'))
-    wr(LS.rows, rows.map(r => set.has(r.id)
+    const eligible = rows.filter(r => set.has(r.id) && !(approve && r.is_paid && r.payment_status === 'awaiting'))
+    const eligibleSet = new Set(eligible.map(r => r.id))
+    if (!approve) eligible.forEach(r => refundDemoBonus(r, 'denied'))
+    wr(LS.rows, rows.map(r => eligibleSet.has(r.id)
       ? { ...r, status: approve ? 'queued' : 'denied', deny_reason: approve ? null : reason, video_url: url }
       : r))
-    return uniq.length
+    return eligibleSet.size
   }
   const { data, error } = await supabase.rpc('admin_review_many', {
     p_ids: uniq, p_approve: !!approve, p_reason: reason ?? null, p_video_url: url,
   })
-  if (!error) return Number(data) || uniq.length
+  if (!error) return Number.isFinite(Number(data)) ? Number(data) : uniq.length
   if (!isMissingRpc(error)) throw rpcError(error)
   for (const id of uniq) await adminReview(id, approve, reason, url)
   return uniq.length
